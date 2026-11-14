@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 
-export default new class NoInstanceofUri implements eslint.Rule.RuleModule {
-	readonly meta: eslint.Rule.RuleMetaData = {
+export default new class NoInstanceofUri implements CreateRule {
+	readonly meta: RuleMeta = {
 		type: "problem",
 		fixable: "code",
 		docs: {
@@ -17,9 +17,9 @@ export default new class NoInstanceofUri implements eslint.Rule.RuleModule {
 		}
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 		return {
-			BinaryExpression(node: any) {
+			BinaryExpression(node: ESTree.BinaryExpression) {
 				if (node.operator === 'instanceof' &&
 					node.right.type === 'Identifier' &&
 					node.right.name.toUpperCase() === 'URI') {

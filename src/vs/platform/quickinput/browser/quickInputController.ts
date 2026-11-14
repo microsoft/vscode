@@ -100,6 +100,7 @@ export class QuickInputController extends Disposable {
 	private viewState: QuickInputViewState | undefined;
 	private dndController: QuickInputDragAndDropController | undefined;
 	private readonly closeAnimation = this._register(new MutableDisposable<IDisposable>());
+	private readonly anchorResizeObserver = this._register(new MutableDisposable<IDisposable>());
 
 	private readonly _alignment = observableValue<QuickInputAlignment>(this, 'top');
 	readonly alignment: IObservable<QuickInputAlignment> = this._alignment;
@@ -803,6 +804,7 @@ export class QuickInputController extends Disposable {
 		ui.container.classList.toggle(QUICK_INPUT_OVERLAY_CLASS, controller.anchorPosition === 'overlay');
 		ui.container.style.display = '';
 		this.updateLayout();
+		this.observeAnchorResize(controller);
 		this.dndController?.setEnabled(!controller.anchor);
 		this.dndController?.layoutContainer();
 		if (controller.anchor) {
@@ -816,6 +818,33 @@ export class QuickInputController extends Disposable {
 		this.onShowEmitter.fire();
 		ui.inputBox.setFocus();
 		this.quickInputTypeContext.set(controller.type);
+	}
+
+	/** Keeps an element-anchored input aligned when the anchor, or a quick widget's content, is resized after the input is shown. */
+	private observeAnchorResize(controller: IQuickInput): void {
+		this.anchorResizeObserver.clear();
+		if (!dom.isHTMLElement(controller.anchor)) {
+			return;
+		}
+		const anchorWindow = dom.getWindow(controller.anchor);
+		const store = new DisposableStore();
+		const observer = store.add(new dom.DisposableResizeObserver('QuickInputController.anchor', () => {
+			this.overlayLayoutCorrection = undefined;
+			this.updateLayout();
+		}, anchorWindow));
+		store.add(observer.observe(controller.anchor));
+		if (controller instanceof QuickWidget && controller.widget) {
+			// Relayout on the next frame: constraining the widget can add a scrollbar that resizes the content again.
+			const scheduledLayout = store.add(new MutableDisposable());
+			const contentObserver = store.add(new dom.DisposableResizeObserver('QuickInputController.widget', () => {
+				scheduledLayout.value ??= dom.scheduleAtNextAnimationFrame(anchorWindow, () => {
+					scheduledLayout.clear();
+					this.updateLayout();
+				});
+			}, anchorWindow));
+			store.add(contentObserver.observe(controller.widget));
+		}
+		this.anchorResizeObserver.value = store;
 	}
 
 	isVisible(): boolean {
@@ -878,6 +907,7 @@ export class QuickInputController extends Disposable {
 			return;
 		}
 		controller.willHide(reason);
+		this.anchorResizeObserver.clear();
 
 		const container = this.ui?.container;
 		// The active element of the container's own root: not the deep active element,
@@ -1016,6 +1046,8 @@ export class QuickInputController extends Disposable {
 			const style = this.ui.container.style;
 			let width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
 			style.width = width + 'px';
+			this.ui.widget.style.maxHeight = '';
+			this.ui.widget.style.overflowY = '';
 
 			let listHeight = this.dimension && this.dimension.height * 0.4;
 			let overlayAnchor: IRect | undefined;
@@ -1032,6 +1064,8 @@ export class QuickInputController extends Disposable {
 				let preferredAnchorPosition = AnchorPosition.ABOVE;
 				let listHeightRatio = 0.2;
 				let maxListHeight = 200;
+				// Custom widget content has no list, so it is placed by its rendered height rather than a list estimate.
+				let widgetChromeHeight: number | undefined;
 
 				if (this.controller.anchorPosition === 'overlay') {
 					overlayAnchor = anchor;
@@ -1044,6 +1078,10 @@ export class QuickInputController extends Disposable {
 				} else {
 					width = 380;
 					preferredAnchorPosition = this.controller.anchorPosition === 'below' ? AnchorPosition.BELOW : AnchorPosition.ABOVE;
+					if (this.controller.type === QuickInputType.QuickWidget) {
+						style.width = `${width}px`;
+						widgetChromeHeight = this.ui.container.offsetHeight - this.ui.widget.offsetHeight;
+					}
 				}
 
 				listHeight = this.dimension ? Math.min(this.dimension.height * listHeightRatio, maxListHeight) : maxListHeight;
@@ -1051,7 +1089,24 @@ export class QuickInputController extends Disposable {
 				// Beware:
 				// We need to add some extra pixels to the height to account for the input and padding.
 				const anchorGap = this.controller.anchorPosition === 'overlay' ? 0 : 4;
-				const containerHeight = Math.floor(listHeight) + verticalPadding + anchorGap;
+				let containerHeight = Math.floor(listHeight) + verticalPadding + anchorGap;
+				if (widgetChromeHeight !== undefined) {
+					// Choose the side that fits the rendered content, else the roomier side, and scroll what cannot fit.
+					const spaceAbove = Math.floor(anchor.top - container.top - anchorGap);
+					const spaceBelow = Math.floor(container.bottom - anchor.top - anchor.height - anchorGap);
+					const preferredSpace = preferredAnchorPosition === AnchorPosition.ABOVE ? spaceAbove : spaceBelow;
+					const otherSpace = preferredAnchorPosition === AnchorPosition.ABOVE ? spaceBelow : spaceAbove;
+					const naturalHeight = widgetChromeHeight + this.ui.widget.scrollHeight;
+					if (naturalHeight > preferredSpace && (naturalHeight <= otherSpace || otherSpace > preferredSpace)) {
+						preferredAnchorPosition = preferredAnchorPosition === AnchorPosition.ABOVE ? AnchorPosition.BELOW : AnchorPosition.ABOVE;
+					}
+					const space = Math.max(0, preferredAnchorPosition === AnchorPosition.ABOVE ? spaceAbove : spaceBelow);
+					if (naturalHeight > space) {
+						this.ui.widget.style.maxHeight = `${Math.max(0, space - widgetChromeHeight)}px`;
+						this.ui.widget.style.overflowY = 'auto';
+					}
+					containerHeight = Math.min(naturalHeight, space) + anchorGap;
+				}
 				const { top, left, right, bottom, anchorAlignment, anchorPosition } = layout2d(container, { width, height: containerHeight }, anchor, { anchorPosition: preferredAnchorPosition });
 
 				if (anchorAlignment === AnchorAlignment.RIGHT) {

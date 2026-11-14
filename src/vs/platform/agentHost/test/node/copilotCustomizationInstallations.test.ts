@@ -56,6 +56,28 @@ const cancellationToken: Parameters<CopilotCustomizationInstallations['confirmat
 	onCancellationRequested: () => Disposable.None,
 };
 
+interface ICardRequest {
+	readonly url: string | undefined;
+	readonly followRedirects: number | undefined;
+	readonly timeout: number | undefined;
+}
+
+/** The MCP Gallery configured in VS Code, which the Gallery card URLs in these tests belong to. */
+const getMcpGalleryUrl = () => 'https://api.mcp.github.com';
+
+/** Serves an MCP server card, or fails the transfer with `error`, recording each request. */
+function createCardRequestService(response: { statusCode: number; text: string; error?: Error }, requests: ICardRequest[] = []): IRequestService {
+	return new class extends mock<IRequestService>() {
+		override readonly request: IRequestService['request'] = async options => {
+			requests.push({ url: options.url, followRedirects: options.followRedirects, timeout: options.timeout });
+			if (response.error) {
+				throw response.error;
+			}
+			return { res: { statusCode: response.statusCode, headers: {} }, stream: bufferToStream(VSBuffer.fromString(response.text)) };
+		};
+	}();
+}
+
 /**
  * Records the hidden policy sessions a {@link CopilotCustomizationInstallations}
  * creates and disposes.
@@ -1431,8 +1453,11 @@ suite('CopilotCustomizationInstallations', () => {
 		});
 	});
 
-	test('plans a caller-supplied MCP card without catalog search', async () => {
+	test('plans an MCP Gallery card from the exact bytes the host downloaded, without catalog search', async () => {
 		const cardUrl = 'https://api.mcp.github.com/v0.1/servers/io.example%2Fdemo/versions/latest';
+		// Formatting is kept, so the runtime digests exactly what the gallery served.
+		const cardText = '{ "server": { "name": "io.example/demo" } }\n';
+		const cardRequests: ICardRequest[] = [];
 		let catalogSearches = 0;
 		let planRequest: Parameters<CopilotClient['rpc']['mcp']['planInstall']>[0] | undefined;
 		const client = {
@@ -1453,7 +1478,7 @@ suite('CopilotCustomizationInstallations', () => {
 			},
 		};
 		const policySessions = new TestPolicySessions();
-		const service = store.add(new CopilotCustomizationInstallations(async () => client, policySessions.create));
+		const service = store.add(new CopilotCustomizationInstallations(async () => client, policySessions.create, createCardRequestService({ statusCode: 200, text: cardText }, cardRequests), getMcpGalleryUrl));
 
 		await assert.rejects(prepareReview(service, {
 			mediaType: 'application/mcp-server+json',
@@ -1468,8 +1493,9 @@ suite('CopilotCustomizationInstallations', () => {
 			},
 		}), /Stop after planning request/);
 
-		assert.deepStrictEqual({ catalogSearches, planRequest }, {
+		assert.deepStrictEqual({ catalogSearches, cardRequests, planRequest }, {
 			catalogSearches: 0,
+			cardRequests: [{ url: cardUrl, followRedirects: 0, timeout: 30_000 }],
 			planRequest: {
 				contract: {
 					protocolVersion: 3,
@@ -1483,13 +1509,76 @@ suite('CopilotCustomizationInstallations', () => {
 				scope: 'user',
 				source: {
 					kind: 'card',
-					card: { kind: 'url', mediaType: 'application/mcp-server+json', url: cardUrl },
+					card: { kind: 'embedded', mediaType: 'application/mcp-server+json', data: cardText },
 				},
 			},
 		});
 	});
 
-	test('provisionally adds a ready remote MCP card through SDK configuration', async () => {
+	test('leaves card URLs outside the configured MCP Gallery servers to the runtime', async () => {
+		const mediaType = 'application/mcp-server+json' as const;
+		const gallery = 'https://registry.corp.test';
+		const cardPath = '/v0.1/servers/demo/versions/latest';
+		const cardRequests: ICardRequest[] = [];
+		const plannedCards: string[] = [];
+		let galleryUrl: string | undefined;
+		const client = {
+			rpc: {
+				catalog: new class extends mock<CopilotClient['rpc']['catalog']>() { }(),
+				skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() {
+					override readonly planInstall: CopilotClient['rpc']['mcp']['planInstall'] = async request => {
+						plannedCards.push(request.source.kind === 'card' ? request.source.card.kind === 'url' ? `runtime: ${request.source.card.url}` : 'host' : request.source.kind);
+						throw new Error('Stop after planning request');
+					};
+				}(),
+			},
+		};
+		const service = store.add(new CopilotCustomizationInstallations(async () => client, new TestPolicySessions().create, createCardRequestService({ statusCode: 200, text: '{}' }, cardRequests), () => galleryUrl));
+		const cases: [scenario: string, galleryUrl: string | undefined, cardUrl: string][] = [
+			['no gallery', undefined, `${gallery}${cardPath}`],
+			['empty gallery', '', `${gallery}${cardPath}`],
+			['other host', gallery, `https://other.corp.test${cardPath}`],
+			['other scheme', gallery, `http://registry.corp.test${cardPath}`],
+			['other port', gallery, `https://registry.corp.test:8443${cardPath}`],
+			['credentials', gallery, `https://user@registry.corp.test${cardPath}`],
+			['server named ..', gallery, `${gallery}/v0.1/servers/../versions/latest`],
+			['encoded ..', gallery, `${gallery}/v0.1/servers/%2e%2e/versions/latest`],
+			['outside the gallery path', `${gallery}/mcp`, `${gallery}${cardPath}`],
+			['leaves the gallery path', `${gallery}/mcp`, `${gallery}/mcp/..${cardPath}`],
+			['not a server', gallery, `${gallery}/v0.1/servers`],
+			['gallery card', gallery, `${gallery}${cardPath}`],
+			['gallery card, not normalized', `${gallery}/mcp/`, `https://REGISTRY.corp.test:443/mcp/v0.1/servers/./demo/versions/latest`],
+		];
+		const results: Record<string, readonly string[]> = {};
+		for (const [scenario, configured, cardUrl] of cases) {
+			galleryUrl = configured;
+			await assert.rejects(service.prepare({
+				mediaType, identifier: 'custom:demo', displayName: 'Demo MCP', description: 'Demo', itemUrl: cardUrl,
+				installation: { kind: 'mcp', source: { kind: 'url', mediaType, url: cardUrl } },
+			}), /Stop after planning request/, scenario);
+			// What the runtime planned from, then every URL the host requested.
+			results[scenario] = [...plannedCards.splice(0), ...cardRequests.splice(0).map(request => request.url ?? '')];
+		}
+		assert.deepStrictEqual(results, {
+			'no gallery': [`runtime: ${gallery}${cardPath}`],
+			'empty gallery': [`runtime: ${gallery}${cardPath}`],
+			'other host': [`runtime: https://other.corp.test${cardPath}`],
+			'other scheme': [`runtime: http://registry.corp.test${cardPath}`],
+			'other port': [`runtime: https://registry.corp.test:8443${cardPath}`],
+			'credentials': [`runtime: https://user@registry.corp.test${cardPath}`],
+			'server named ..': [`runtime: ${gallery}/v0.1/servers/../versions/latest`],
+			'encoded ..': [`runtime: ${gallery}/v0.1/servers/%2e%2e/versions/latest`],
+			'outside the gallery path': [`runtime: ${gallery}${cardPath}`],
+			'leaves the gallery path': [`runtime: ${gallery}/mcp/..${cardPath}`],
+			'not a server': [`runtime: ${gallery}/v0.1/servers`],
+			'gallery card': ['host', `${gallery}${cardPath}`],
+			// The host requests the normalized URL it validated.
+			'gallery card, not normalized': ['host', `${gallery}/mcp${cardPath}`],
+		});
+	});
+
+	test('provisionally adds and removes a ready remote MCP Gallery card through SDK configuration', async () => {
 		const cardUrl = 'https://api.mcp.github.com/v0.1/servers/io.example%2Fdemo/versions/latest';
 		const expiresAt = new Date(Date.now() + 60_000).toISOString();
 		const added: Parameters<CopilotClient['rpc']['mcp']['config']['add']>[0][] = [];
@@ -1535,7 +1624,8 @@ suite('CopilotCustomizationInstallations', () => {
 							planHandleExpiresAt: expiresAt,
 							identity: { canonicalName: 'io.example/demo', serverName: 'demo' },
 							provenance: {
-								authority: 'api.mcp.github.com',
+								// Plans from an embedded card record no registry host.
+								authority: 'caller-supplied',
 								validatedAt: new Date().toISOString(),
 								cardDigest: { algorithm: 'sha256-rfc8785', value: 'a'.repeat(64) },
 								mediaType: 'application/mcp-server+json',
@@ -1571,7 +1661,8 @@ suite('CopilotCustomizationInstallations', () => {
 			},
 		};
 		const policySessions = new TestPolicySessions();
-		const service = store.add(new CopilotCustomizationInstallations(async () => client, policySessions.create));
+		const cardRequests: ICardRequest[] = [];
+		const service = store.add(new CopilotCustomizationInstallations(async () => client, policySessions.create, createCardRequestService({ statusCode: 200, text: '{"server":{"name":"io.example/demo"}}' }, cardRequests), getMcpGalleryUrl));
 
 		const review = await prepareReview(service, {
 			mediaType: 'application/mcp-server+json',
@@ -1590,8 +1681,9 @@ suite('CopilotCustomizationInstallations', () => {
 		await applyReview(service, uninstallReview);
 		const finalInventory = await service.list();
 
-		assert.deepStrictEqual({ prepared, review, added, inventory, uninstallReview, removed, finalInventory }, {
+		assert.deepStrictEqual({ prepared, cardRequests: cardRequests.length, review, added, inventory, uninstallReview, removed, finalInventory }, {
 			prepared: 0,
+			cardRequests: 1,
 			review: {
 				operationId: review.operationId,
 				action: 'install',
@@ -1682,35 +1774,29 @@ suite('CopilotCustomizationInstallations', () => {
 			requiresInteractiveConfiguration: false,
 		};
 		const added: Parameters<CopilotClient['rpc']['mcp']['config']['add']>[0][] = [];
-		const requests: { url: string | undefined; followRedirects: number | undefined }[] = [];
-		const response = { statusCode: 200, text: JSON.stringify(document) };
+		const requests: ICardRequest[] = [];
+		const planSources: Parameters<CopilotClient['rpc']['mcp']['planInstall']>[0]['source'][] = [];
+		const response: { statusCode: number; text: string; error?: Error } = { statusCode: 200, text: JSON.stringify(document) };
 		const client = {
 			rpc: {
 				catalog: new class extends mock<CopilotClient['rpc']['catalog']>() { }(),
 				skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
 				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() {
-					override readonly planInstall: CopilotClient['rpc']['mcp']['planInstall'] = async () => ({
-						kind: 'planned', plan, negotiated: { runtimeProtocolVersion: 3, grantedCapabilities: [] },
-					});
+					override readonly planInstall: CopilotClient['rpc']['mcp']['planInstall'] = async request => {
+						planSources.push(request.source);
+						return { kind: 'planned', plan, negotiated: { runtimeProtocolVersion: 3, grantedCapabilities: [] } };
+					};
 					override readonly config = new class extends mock<CopilotClient['rpc']['mcp']['config']>() {
 						override readonly add: CopilotClient['rpc']['mcp']['config']['add'] = async request => { added.push(request); };
 					}();
 				}(),
 			},
 		};
-		const requestService = new class extends mock<IRequestService>() {
-			override readonly request: IRequestService['request'] = async options => {
-				requests.push({ url: options.url, followRedirects: options.followRedirects });
-				return {
-					res: { statusCode: response.statusCode, headers: {} },
-					stream: bufferToStream(VSBuffer.fromString(response.text)),
-				};
-			};
-		}();
+		const requestService = createCardRequestService(response, requests);
 		const policySessions = new TestPolicySessions();
 		// Tests hold client admission to interleave expiry and duplicate applies before effects start.
 		const clientGate: { value?: Promise<void> } = {};
-		const service = store.add(new CopilotCustomizationInstallations(async () => { await clientGate.value; return client; }, policySessions.create, requestService));
+		const service = store.add(new CopilotCustomizationInstallations(async () => { await clientGate.value; return client; }, policySessions.create, requestService, getMcpGalleryUrl));
 		const request = {
 			mediaType: 'application/mcp-server+json',
 			identifier: 'default:microsoft/markitdown',
@@ -1725,16 +1811,16 @@ suite('CopilotCustomizationInstallations', () => {
 				},
 			},
 		};
-		return { service, request, document, plan, added, requests, response, clientGate };
+		return { service, request, document, plan, added, requests, planSources, response, clientGate };
 	}
 
 	test('parses the SDK-validated local MCP card in the host and writes only after review', async () => {
-		const { service, request, added, requests } = createLocalMcpCardFixture();
+		const { service, request, added, requests, planSources, response } = createLocalMcpCardFixture();
 		const review = await prepareReview(service, request);
 		assert.deepStrictEqual(added, []);
 		await applyReview(service, review);
 		await assert.rejects(applyReview(service, review), /review expired/);
-		assert.deepStrictEqual({ review, added, requests }, {
+		assert.deepStrictEqual({ review, added, requests, planSources }, {
 			review: {
 				operationId: review.operationId, action: 'install', kind: 'mcp', displayName: 'Markitdown',
 				serverName: 'microsoft/markitdown', target: 'microsoft/markitdown',
@@ -1745,7 +1831,9 @@ suite('CopilotCustomizationInstallations', () => {
 				name: 'microsoft/markitdown',
 				config: { type: 'stdio', command: 'uvx', args: ['markitdown-mcp@0.0.1a4', '--verbose'], env: { MODE: 'stdio' }, tools: ['*'] },
 			}],
-			requests: [{ url: request.installation.source.url, followRedirects: 0 }],
+			// The package configuration reuses the planned bytes rather than downloading the card again.
+			requests: [{ url: request.installation.source.url, followRedirects: 0, timeout: 30_000 }],
+			planSources: [{ kind: 'card', card: { kind: 'embedded', mediaType: 'application/mcp-server+json', data: response.text } }],
 		});
 	});
 
@@ -1785,20 +1873,41 @@ suite('CopilotCustomizationInstallations', () => {
 		});
 	});
 
-	test('refuses changed local cards, redirects, invalid JSON, and mismatched planned fields without writing', async () => {
-		for (const scenario of ['digest', 'redirect', 'json', 'fields', 'identity', 'update'] as const) {
+	test('refuses changed local cards and mismatched planned fields without writing', async () => {
+		for (const scenario of ['digest', 'fields', 'identity', 'update'] as const) {
 			const { service, request, plan, added, response } = createLocalMcpCardFixture();
 			switch (scenario) {
 				case 'digest': response.text = response.text.replace('Convert documents', 'Changed documents'); break;
-				case 'redirect': response.statusCode = 302; break;
-				case 'json': response.text = '{'; break;
 				case 'fields': plan.configurationChanges[0].changedFields = ['args', 'command', 'tools', 'type']; break;
 				case 'identity': plan.identity.canonicalName = 'another/server'; break;
 				case 'update': plan.configurationChanges[0].operation = 'update'; break;
 			}
-			await assert.rejects(prepareReview(service, request), /changed|HTTP 302|invalid JSON|does not match|cannot preserve/, scenario);
+			await assert.rejects(prepareReview(service, request), /changed|does not match|cannot preserve/, scenario);
 			assert.deepStrictEqual(added, [], scenario);
 		}
+	});
+
+	test('refuses Gallery cards the host cannot download before planning, with distinct errors', async () => {
+		const results: Record<string, string> = {};
+		for (const scenario of ['unreachable', 'status', 'redirect', 'json', 'oversize'] as const) {
+			const { service, request, added, planSources, response } = createLocalMcpCardFixture();
+			switch (scenario) {
+				case 'unreachable': response.error = new Error('connect ECONNREFUSED 10.0.0.137:18443'); break;
+				case 'status': response.statusCode = 404; break;
+				case 'redirect': response.statusCode = 302; break;
+				case 'json': response.text = '{'; break;
+				case 'oversize': response.text = response.text.padEnd(1024 * 1024 + 1, ' '); break;
+			}
+			results[scenario] = await prepareReview(service, request).then(() => 'prepared', error => error instanceof Error ? error.message : String(error));
+			assert.deepStrictEqual({ added, planSources }, { added: [], planSources: [] }, scenario);
+		}
+		assert.deepStrictEqual(results, {
+			unreachable: 'Could not download the MCP server card. Check your network connection and try again.',
+			status: 'Could not read the MCP server card (HTTP 404).',
+			redirect: 'Could not read the MCP server card (HTTP 302).',
+			json: 'The MCP server card contains invalid JSON.',
+			oversize: 'The MCP server card is too large to install.',
+		});
 	});
 
 	test('uses an input-free local package when the recommended remote card requires values', async () => {
@@ -1820,7 +1929,7 @@ suite('CopilotCustomizationInstallations', () => {
 		}]);
 	});
 
-	test('refuses blocked local plans and package secrets before fetching a card', async () => {
+	test('refuses blocked local plans and package secrets without reading the card again', async () => {
 		for (const scenario of ['policy', 'secret'] as const) {
 			const { service, request, plan, added, requests } = createLocalMcpCardFixture();
 			if (scenario === 'policy') {
@@ -1829,21 +1938,15 @@ suite('CopilotCustomizationInstallations', () => {
 				plan.transportChoices[0].secretPlaceholders.push({ key: 'token', placeholder: '${secret:token}', title: 'Token' });
 			}
 			await assert.rejects(prepareReview(service, request), /Blocked by test policy|additional values/);
-			assert.deepStrictEqual({ added, requests }, { added: [], requests: [] });
+			assert.deepStrictEqual({ added, requests: requests.length }, { added: [], requests: 1 });
 		}
 	});
 
-	test('bounds local MCP card reads at five mebibytes', async () => {
-		for (const excess of [0, 1]) {
-			const { service, request, added, response } = createLocalMcpCardFixture();
-			response.text = response.text.padEnd(5 * 1024 * 1024 + excess, ' ');
-			if (excess) {
-				await assert.rejects(prepareReview(service, request), /too large/);
-			} else {
-				await prepareReview(service, request);
-			}
-			assert.deepStrictEqual(added, []);
-		}
+	test('accepts a Gallery card at exactly the one mebibyte embedded card limit', async () => {
+		const { service, request, planSources, response } = createLocalMcpCardFixture();
+		response.text = response.text.padEnd(1024 * 1024, ' ');
+		await prepareReview(service, request);
+		assert.deepStrictEqual(planSources.map(source => source.kind === 'card' && source.card.kind === 'embedded' ? source.card.data.length : undefined), [1024 * 1024]);
 	});
 
 	test('refuses local parser inputs even when the SDK advertises an input-free choice', async () => {
@@ -2264,12 +2367,11 @@ suite('CopilotCustomizationInstallations', () => {
 					}(),
 				},
 			};
-			const requestService = new class extends mock<IRequestService>() {
-				override readonly request: IRequestService['request'] = async () => ({ res: { statusCode: 200, headers: {} }, stream: bufferToStream(VSBuffer.fromString(JSON.stringify(document))) });
-			}();
-			const service = store.add(new CopilotCustomizationInstallations(async () => client, new TestPolicySessions().create, requestService));
+			const requests: ICardRequest[] = [];
+			const response = { statusCode: 200, text: JSON.stringify(document) };
+			const service = store.add(new CopilotCustomizationInstallations(async () => client, new TestPolicySessions().create, createCardRequestService(response, requests), getMcpGalleryUrl));
 			const request = { mediaType: candidate.mediaType, identifier: cardUrl, displayName: 'Local MCP', description: 'Local MCP', itemUrl: cardUrl, installation: { kind: 'mcp' as const } };
-			return { service, request, added };
+			return { service, request, added, requests, response };
 		}
 
 		const declaredValues: McpInstallPlan['transportChoices'][number]['requiredValues'] = [
@@ -2295,6 +2397,25 @@ suite('CopilotCustomizationInstallations', () => {
 			assert.deepStrictEqual({ review: review.kind === 'mcp' ? [review.command, review.args, review.env] : undefined, added }, {
 				review: ['npx', ['@example/local@1.2.3', '--headless'], { MODE: 'stdio' }],
 				added: [{ name: 'io.github.example/local', config: { type: 'stdio', command: 'npx', args: ['@example/local@1.2.3', '--headless'], env: { MODE: 'stdio' }, tools: ['*'] } }],
+			});
+		});
+
+		test('downloads a catalog package card within five mebibytes and refuses one that changed', async () => {
+			const results: Record<string, string> = {};
+			for (const scenario of ['limit', 'oversize', 'digest'] as const) {
+				const { service, request, added, response } = createPackageFixture();
+				switch (scenario) {
+					case 'limit': response.text = response.text.padEnd(5 * 1024 * 1024, ' '); break;
+					case 'oversize': response.text = response.text.padEnd(5 * 1024 * 1024 + 1, ' '); break;
+					case 'digest': response.text = response.text.replace('Local MCP', 'Changed MCP'); break;
+				}
+				results[scenario] = await service.prepare(request).then(prepared => prepared.kind, errorMessage);
+				assert.deepStrictEqual(added, [], scenario);
+			}
+			assert.deepStrictEqual(results, {
+				limit: 'review',
+				oversize: 'The MCP server card is too large to install.',
+				digest: 'The MCP server card changed after installation review. Refresh Browse and try again.',
 			});
 		});
 
@@ -2336,10 +2457,15 @@ suite('CopilotCustomizationInstallations', () => {
 			await install(sse);
 			const withSecret = createPackageFixture({ remote: true, secret: true });
 			const refused = await withSecret.service.prepare({ ...withSecret.request, installation: galleryCard }).then(prepared => prepared.kind, errorMessage);
+			const changed = createPackageFixture({ remote: true });
+			changed.response.text = changed.response.text.replace('Local MCP', 'Changed MCP');
+			const digestRefused = await changed.service.prepare({ ...changed.request, installation: galleryCard }).then(prepared => prepared.kind, errorMessage);
 			const headers = { 'X-Tenant': 'contoso', 'X-Debug': 'false', 'X-Region': 'r-us' };
 			assert.deepStrictEqual({
 				choice: configuration.choices.map(choice => [choice.choiceId, choice.endpointSummary, choice.command, choice.values.map(value => `${value.key}:${value.required}`)]),
-				added: [...streamable.added, ...sse.added], refused, secretAdded: withSecret.added,
+				added: [...streamable.added, ...sse.added], refused, secretAdded: withSecret.added, digestRefused, digestAdded: changed.added,
+				// The remote configuration reuses the planned bytes rather than downloading the card again.
+				requests: [streamable.requests.length, sse.requests.length],
 			}, {
 				// The optional URL variable has no default and sits inside the URL template, so it must be answered.
 				choice: [['remote:0', 'https://example.test/{region}/{path}/mcp', undefined, ['region:true', 'X-Tenant:true', 'X-Debug:false', 'path:true']]],
@@ -2349,6 +2475,9 @@ suite('CopilotCustomizationInstallations', () => {
 				],
 				refused: 'This MCP server requires an installation choice or additional values that Browse cannot collect yet.',
 				secretAdded: [],
+				digestRefused: 'The MCP server card changed after installation review. Refresh Browse and try again.',
+				digestAdded: [],
+				requests: [1, 1],
 			});
 		});
 
@@ -2361,11 +2490,14 @@ suite('CopilotCustomizationInstallations', () => {
 		});
 
 		test('collects package values for an MCP Gallery card the same way', async () => {
-			const { service, request, added } = createPackageFixture({ requiredValues: declaredValues });
+			const { service, request, added, requests } = createPackageFixture({ requiredValues: declaredValues });
 			const configuration = await service.prepare({ ...request, installation: { kind: 'mcp', source: { kind: 'url', mediaType: 'application/mcp-server+json', url: cardUrl } } });
 			assert.strictEqual(configuration.kind, 'configuration');
 			await service.apply({ hostGeneration: configuration.hostGeneration, ownershipToken: configuration.ownershipToken, operationId: configuration.operationId, answers: { choiceId: 'package:0', inputs: submitted, secrets: [] } });
-			assert.deepStrictEqual(added.map(entry => entry.config), [{ type: 'stdio', command: 'npx', args: ['@example/local@1.2.3', 'C:\\work', '--port', '3000', '--headless'], env: { LOG_LEVEL: 'debug' }, tools: ['*'] }]);
+			assert.deepStrictEqual({ configs: added.map(entry => entry.config), requests: requests.length }, {
+				configs: [{ type: 'stdio', command: 'npx', args: ['@example/local@1.2.3', 'C:\\work', '--port', '3000', '--headless'], env: { LOG_LEVEL: 'debug' }, tools: ['*'] }],
+				requests: 1,
+			});
 		});
 
 		test('writes a repeated package argument once per submitted value', async () => {

@@ -366,6 +366,106 @@ suite('Mission Control inventory', () => {
 		});
 	});
 
+	for (const status of ['online', 'offline']) {
+		test(`cached online availability is not discovered until a fresh ${status} response`, async () => {
+			const first = fixture();
+			await first.service.refresh(CancellationToken.None);
+			first.service.dispose();
+			const reopened = fixture(first.storage);
+			await reopened.service.initialize();
+			const snapshot = () => ({
+				status: reopened.service.hosts.get()[0]?.status,
+				online: [...reopened.service.discoveredOnlineHostIds.get()],
+			});
+			const cached = snapshot();
+			const response = new DeferredPromise<readonly IMissionControlEnvironment[]>();
+			const listed = reopened.setList(response.p);
+			const refresh = reopened.service.refresh(CancellationToken.None);
+			await listed;
+			const pending = snapshot();
+			await response.complete([host('remote', 'Machine', status)]);
+			await refresh;
+			assert.deepStrictEqual({ cached, pending, refreshed: snapshot() }, {
+				cached: { status: 'online', online: [] },
+				pending: { status: 'online', online: [] },
+				refreshed: { status, online: status === 'online' ? ['remote'] : [] },
+			});
+		});
+	}
+
+	test('failed startup discovery retains cached UI and manual admission without confirming cached availability', async () => {
+		const first = fixture();
+		await first.service.refresh(CancellationToken.None);
+		first.service.dispose();
+		const reopened = fixture(first.storage);
+		await reopened.service.initialize();
+		reopened.setList(Promise.reject(new Error('Inventory unavailable')));
+		await assert.rejects(reopened.service.refresh(CancellationToken.None), /Inventory unavailable/);
+		await reopened.service.connect('remote', CancellationToken.None);
+		assert.deepStrictEqual({
+			hosts: reopened.service.hosts.get(),
+			online: [...reopened.service.discoveredOnlineHostIds.get()],
+			lookups: reopened.calls.lookups,
+			connects: reopened.calls.connects.length,
+		}, { hosts: [{ ...host('remote'), displayName: undefined }], online: [], lookups: ['remote'], connects: 1 });
+	});
+
+	test('storage updates cannot turn a freshly offline host into a discovered online host', async () => {
+		const context = fixture();
+		context.setList(Promise.resolve([host('remote', 'Machine', 'offline')]));
+		await context.service.refresh(CancellationToken.None);
+		context.storage.store(`missionControl.userLocalHosts.v1.${encodeURIComponent(firstAccount)}.remote.metadata`,
+			JSON.stringify(host('remote')), StorageScope.PROFILE, StorageTarget.MACHINE);
+		assert.deepStrictEqual({
+			status: context.service.hosts.get()[0].status,
+			online: [...context.service.discoveredOnlineHostIds.get()],
+		}, { status: 'online', online: [] });
+	});
+
+	for (const change of ['account', 'disable'] as const) {
+		test(`${change} invalidates discovered availability and rejects an old in-flight response`, async () => {
+			const first = fixture();
+			await first.service.refresh(CancellationToken.None);
+			first.service.dispose();
+			const context = fixture(first.storage);
+			await context.service.refresh(CancellationToken.None);
+			const before = [...context.service.discoveredOnlineHostIds.get()];
+			const oldResponse = new DeferredPromise<readonly IMissionControlEnvironment[]>();
+			const oldListed = context.setList(oldResponse.p);
+			const oldRefresh = context.service.refresh(CancellationToken.None);
+			const rejected = assert.rejects(oldRefresh, CancellationError);
+			await oldListed;
+			const newResponse = new DeferredPromise<readonly IMissionControlEnvironment[]>();
+			const newListed = context.setList(newResponse.p);
+			if (change === 'account') {
+				context.changeAccount(secondAccount);
+			} else {
+				context.availability.set(false, undefined);
+				context.availability.set(true, undefined);
+			}
+			await newListed;
+			const pending = {
+				hosts: context.service.hosts.get().map(host => host.id),
+				online: [...context.service.discoveredOnlineHostIds.get()],
+			};
+			await oldResponse.complete([host('remote')]);
+			await rejected;
+			const afterOldResponse = [...context.service.discoveredOnlineHostIds.get()];
+			const refresh = context.service.refresh(CancellationToken.None);
+			await newResponse.complete([host('remote', 'Current', 'offline')]);
+			await refresh;
+			assert.deepStrictEqual({
+				before, pending, afterOldResponse,
+				online: [...context.service.discoveredOnlineHostIds.get()],
+				status: context.service.hosts.get()[0].status,
+			}, {
+				before: ['remote'],
+				pending: { hosts: change === 'account' ? [] : ['remote'], online: [] },
+				afterOldResponse: [], online: [], status: 'offline',
+			});
+		});
+	}
+
 	test('previously hidden hosts are restored and connectable without losing local names', async () => {
 		const { service, storage, calls } = fixture();
 		const prefix = `missionControl.userLocalHosts.v1.${encodeURIComponent(firstAccount)}.remote`;

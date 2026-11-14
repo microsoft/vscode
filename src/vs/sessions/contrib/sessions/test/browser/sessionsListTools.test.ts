@@ -20,6 +20,7 @@ import { ISessionsListModelService, SessionsListModelService } from '../../../..
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
 import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { OrganizeSessionsListTool, ReadSessionsListTool } from '../../browser/sessionsListTools.js';
 import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
@@ -33,6 +34,7 @@ interface ITreeNodeOutput {
 	readonly title?: string;
 	readonly collapsed?: boolean;
 	readonly current?: boolean;
+	readonly hidden?: boolean;
 	readonly children?: readonly ITreeNodeOutput[];
 }
 
@@ -52,8 +54,8 @@ function parse(result: IToolResult): { readonly view: Record<string, unknown>; r
 suite('Sessions - Sessions list tools', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(sessions: ISession[], options: { readonly groups?: readonly ISessionGroup[]; readonly memberships?: Record<string, string>; readonly pinnedSessionIds?: ReadonlySet<string>; readonly realListModel?: boolean } = {}) {
-		const harness = createListHarness(disposables, sessions, { liveListModel: true, pinnedSessionIds: options.pinnedSessionIds });
+	function setup(sessions: ISession[], options: { readonly groups?: readonly ISessionGroup[]; readonly memberships?: Record<string, string>; readonly pinnedSessionIds?: ReadonlySet<string>; readonly realListModel?: boolean; readonly comparisons?: readonly ISessionComparison[] } = {}) {
+		const harness = createListHarness(disposables, sessions, { liveListModel: true, pinnedSessionIds: options.pinnedSessionIds, comparisons: options.comparisons });
 		if (options.realListModel) {
 			harness.instantiationService.stub(ISessionsListModelService, harness.store.add(harness.instantiationService.createInstance(SessionsListModelService)));
 		}
@@ -169,6 +171,97 @@ suite('Sessions - Sessions list tools', () => {
 		});
 	});
 
+	test('reads and addresses comparison headers nested beneath their initiating session', async () => {
+		const source = session('Source', 1);
+		const attempt = session('Attempt', 2);
+		const { read, organize } = setup([source, attempt], {
+			groups: [{ id: 'comparison', name: 'Comparison', createdAt: 1 }],
+			memberships: { Attempt: 'comparison' },
+			comparisons: [{
+				id: 'comparison', groupId: 'comparison', title: 'Comparison', prompt: 'Review', createdAt: 1,
+				originatingChatResource: source.mainChat.get().resource,
+				participants: [{
+					id: 'attempt', role: SessionComparisonParticipantRole.Attempt, sessionResource: attempt.resource,
+					harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+				}],
+			}],
+		});
+		const tree = (await read()).tree;
+		const sourceNode = tree.flatMap(node => node.children ?? []).find(node => node.id === source.sessionId);
+		const { results } = await organize({ action: 'setCollapsed', id: 'group:comparison', collapsed: true });
+		const comparisonTree = (await read({ headerId: 'group:comparison' })).tree;
+		assert.deepStrictEqual({
+			nested: sourceNode?.children?.map(node => node.id),
+			results,
+			comparison: outline(comparisonTree),
+		}, {
+			nested: ['group:comparison'],
+			results: [{ action: 'setCollapsed', ok: true }],
+			comparison: [{ 'Comparison+': ['Attempt'] }],
+		});
+	});
+
+	test('reports capped relocated comparison attempts only beneath their comparison', async () => {
+		const source = session('Source', 1, 'Source project');
+		const attempts = Array.from({ length: 8 }, (_, index) => session(`Attempt ${index}`, index + 2, 'Attempts'));
+		const ordinary = Array.from({ length: 8 }, (_, index) => session(`Ordinary ${index}`, index + 2, 'Attempts'));
+		const { read, list, harness } = setup([source, ...attempts, ...ordinary], {
+			groups: [{ id: 'source-group', name: 'Source group', createdAt: 1 }, { id: 'comparison', name: 'Comparison', createdAt: 2 }],
+			memberships: Object.fromEntries([[source.sessionId, 'source-group'], ...attempts.map(attempt => [attempt.sessionId, 'comparison'])]),
+			comparisons: [{
+				id: 'comparison', groupId: 'comparison', title: 'Comparison', prompt: 'Review', createdAt: 2,
+				workspace: URI.file('/workspace'),
+				originatingChatResource: source.mainChat.get().resource,
+				participants: attempts.map((attempt, index) => ({
+					id: `attempt-${index}`, role: SessionComparisonParticipantRole.Attempt, sessionResource: attempt.resource,
+					harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+				})),
+			}],
+		});
+		harness.instantiationService.get(IStorageService).store('sessionsListControl.sessionGroupExpansionState', JSON.stringify({ 'group:comparison': false }), StorageScope.PROFILE, StorageTarget.USER);
+		list.update();
+		const cappedAttempt = attempts.at(-1)!;
+		const findPaths = (nodes: readonly ITreeNodeOutput[], parent: readonly string[] = []): { path: readonly string[]; hidden?: boolean }[] =>
+			nodes.flatMap(node => [
+				...(node.id === cappedAttempt.sessionId ? [{ path: [...parent, node.id], hidden: node.hidden }] : []),
+				...findPaths(node.children ?? [], [...parent, node.id]),
+			]);
+		assert.deepStrictEqual(findPaths((await read()).tree), [{
+			path: ['group:source-group', source.sessionId, 'group:comparison', cappedAttempt.sessionId], hidden: true,
+		}]);
+	});
+
+	test('reorders attached comparisons through the list tool without adopting the source custom group', async () => {
+		const source = session('Source', 1);
+		const attempts = [session('First', 2), session('Second', 3)];
+		const comparisons: ISessionComparison[] = attempts.map((attempt, index) => ({
+			id: `comparison-${index}`, groupId: `comparison-${index}`, title: attempt.title.get(), prompt: 'Review',
+			createdAt: attempt.createdAt.getTime(), originatingChatResource: source.mainChat.get().resource,
+			participants: [{
+				id: `attempt-${index}`, role: SessionComparisonParticipantRole.Attempt, sessionResource: attempt.resource,
+				harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+			}],
+		}));
+		const { read, organize, harness } = setup([source, ...attempts], {
+			groups: [{ id: 'source-group', name: 'Source group', createdAt: 1 }, ...comparisons.map(comparison => ({
+				id: comparison.groupId, name: comparison.title, createdAt: comparison.createdAt,
+			}))],
+			memberships: { Source: 'source-group', First: 'comparison-0', Second: 'comparison-1' },
+			comparisons,
+		});
+		const { results } = await organize({ action: 'moveHeader', id: 'group:comparison-1', before: 'group:comparison-0' });
+		const sourceNode = (await read()).tree.flatMap(node => node.children ?? []).find(node => node.id === source.sessionId);
+		assert.deepStrictEqual({
+			results,
+			order: sourceNode?.children?.map(node => node.id),
+			parents: comparisons.map(comparison => harness.instantiationService.get(ISessionGroupsService).getGroup(comparison.groupId)?.parentId),
+		}, {
+			results: [{ action: 'moveHeader', ok: true }],
+			order: ['group:comparison-1', 'group:comparison-0'],
+			parents: [undefined, undefined],
+		});
+	});
+
 	test('reorders sessions within their group relative to another session or to an edge', async () => {
 		const sessions = [session('Newest', 1), session('Middle', 2), session('Oldest', 3)];
 		const { read, organize } = setup(sessions, {
@@ -220,20 +313,19 @@ suite('Sessions - Sessions list tools', () => {
 		});
 	});
 
-	test('rejects disabled inbox grouping before changing filters and allows it after opt-in', async () => {
-		const { organize, read, list, configurationService } = setup([session('Alpha', 1)], { realListModel: true });
-		list.filters.setExcluded({ kind: 'harness', id: 'claude' }, true);
-		const rejected = await organize({ action: 'setView', grouping: 'inbox', resetFilters: true });
-		const unchanged = { grouping: (await read()).view.grouping, excluded: list.filters.isExcluded({ kind: 'harness', id: 'claude' }) };
-		await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, true);
-		const accepted = await organize({ action: 'setView', grouping: 'inbox' });
-		assert.deepStrictEqual({ rejected: rejected.results, unchanged, accepted: accepted.results, grouping: (await read()).view.grouping }, {
-			rejected: [{ action: 'setView', ok: false, error: 'Inbox Mode requires "sessions.list.inboxEnabled" to be enabled.' }],
-			unchanged: { grouping: 'workspace', excluded: true },
-			accepted: [{ action: 'setView', ok: true }],
-			grouping: 'inbox',
+	for (const enabled of [false, true]) {
+		test(`allows inbox grouping regardless of the default setting (${enabled})`, async () => {
+			const { organize, read, list, configurationService } = setup([session('Alpha', 1)], { realListModel: true });
+			await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, enabled);
+			list.filters.setExcluded({ kind: 'harness', id: 'claude' }, true);
+			const result = await organize({ action: 'setView', grouping: 'inbox', resetFilters: true });
+			assert.deepStrictEqual({ results: result.results, grouping: (await read()).view.grouping, excluded: list.filters.isExcluded({ kind: 'harness', id: 'claude' }) }, {
+				results: [{ action: 'setView', ok: true }],
+				grouping: 'inbox',
+				excluded: false,
+			});
 		});
-	});
+	}
 
 	test('refuses to read or change the list while the setting is off', async () => {
 		const { invokeRaw, configurationService, harness } = setup([session('Alpha', 1)]);

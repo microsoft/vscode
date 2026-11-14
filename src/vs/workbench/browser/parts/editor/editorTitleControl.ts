@@ -148,6 +148,10 @@ export class EditorTitleControl extends Themable {
 		this.editorTabsControl.updateEditorSelections();
 	}
 
+	updateEditorActions(): void {
+		this.editorTabsControl.updateEditorActions();
+	}
+
 	updateEditorLabel(editor: EditorInput): void {
 		this.editorTabsControl.updateEditorLabel(editor);
 		if (this.groupView.activeEditor === editor) {
@@ -187,12 +191,12 @@ export class EditorTitleControl extends Themable {
 		}
 	}
 
-	layout(dimensions: IEditorTitleControlDimensions, headerWidth = dimensions.container.width): Dimension {
+	layout(dimensions: IEditorTitleControlDimensions, headerWidth = dimensions.container.width, headerLeft = 0): Dimension {
 
 		// Layout tabs control
 		this.editorTabsControl.layout(dimensions);
 
-		this.headerControl.layout(headerWidth);
+		this.headerControl.layout(headerWidth, headerLeft);
 
 		return new Dimension(dimensions.container.width, this.getHeight().total);
 	}

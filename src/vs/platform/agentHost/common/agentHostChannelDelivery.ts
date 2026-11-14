@@ -5,14 +5,14 @@
 
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { vBoolean, vEnum, vNumber, vObj, vOptionalProp, vString, vUndefined } from '../../../base/common/validation.js';
+import { vBoolean, vEnum, vNumber, vObj, vOptionalProp, vString, vUndefined, vUnknown } from '../../../base/common/validation.js';
 import { AgentHostChannelError, AgentHostChannelErrorCode } from './agentHostChannelTelemetry.js';
+import { readChannelReceiveLimits } from './agentHostProtocolTransition.js';
 import type { ChannelFlowControl, ChannelReceiveLimits } from './state/protocol/common/state.js';
 import { countsAgainstWindow, WINDOW_EXEMPT_METHODS } from './state/protocol/window-exempt.generated.js';
 import type { JsonRpcNotification } from './state/sessionProtocol.js';
 import { getProtocolMessageSize, type IProtocolTransport } from './state/sessionTransport.js';
 
-const receiveLimitsValidator = vObj({ windowBytes: vNumber(), maximumFrameBytes: vNumber() });
 const notificationValidator = vObj({
 	jsonrpc: vEnum('2.0'), method: vString(), id: vOptionalProp(vUndefined()),
 	params: vObj({ channel: vString() }),
@@ -66,17 +66,15 @@ interface IOutgoingControl {
 }
 
 export function validateChannelLimits(limits: ChannelReceiveLimits): void {
-	if (![limits.windowBytes, limits.maximumFrameBytes].every(value => Number.isSafeInteger(value) && value > 0)
-		|| limits.maximumFrameBytes < 1024) {
+	if (![limits.windowBytes, limits.maxFrameBytes].every(value => Number.isSafeInteger(value) && value > 0)
+		|| limits.maxFrameBytes < 1024) {
 		throw new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, 'Invalid channel receive limits');
 	}
 }
 
 export function readChannelFlowControl(value: unknown): ChannelFlowControl {
-	const result = vObj({ clientReceive: receiveLimitsValidator, hostReceive: receiveLimitsValidator }).validateOrThrow(value);
-	validateChannelLimits(result.clientReceive);
-	validateChannelLimits(result.hostReceive);
-	return result;
+	const result = vObj({ clientReceive: vUnknown(), hostReceive: vUnknown() }).validateOrThrow(value);
+	return { clientReceive: readChannelReceiveLimits(result.clientReceive), hostReceive: readChannelReceiveLimits(result.hostReceive) };
 }
 
 /** Routes windowed subscriptions and fairly schedules bounded transport bursts. */
@@ -318,7 +316,9 @@ export class AgentHostChannelDelivery extends Disposable {
 	private _receivedBytes = 0;
 	private _consumedBytes = 0;
 	private _creditedBytes = 0;
-	private _fragments = '';
+	/** Fragments of the message being reassembled; joined once, since appending to and indexing one growing string flattens it on every frame. */
+	private _fragments: string[] = [];
+	private _fragmentsLength = 0;
 	private _error: Error | undefined;
 	private _creditTimer: ReturnType<typeof setTimeout> | undefined;
 	private _creditPrompt = false;
@@ -347,7 +347,7 @@ export class AgentHostChannelDelivery extends Disposable {
 		}
 	}
 
-	get maximumFrameBytes(): number { return Math.min(this._sendLimits.maximumFrameBytes, channelSendBurstBytes); }
+	get maxFrameBytes(): number { return Math.min(this._sendLimits.maxFrameBytes, channelSendBurstBytes); }
 
 	setSendLimits(limits: ChannelReceiveLimits): void {
 		validateChannelLimits(limits);
@@ -366,7 +366,7 @@ export class AgentHostChannelDelivery extends Disposable {
 		}
 		const tail = this._outgoing.at(-1);
 		// Bounding the tail keeps each merge's reserialization cheap while the window is full.
-		const merged = tail && !tail.offset && tail.text.length * 2 < this.maximumFrameBytes ? merge?.(tail.message) : undefined;
+		const merged = tail && !tail.offset && tail.text.length * 2 < this.maxFrameBytes ? merge?.(tail.message) : undefined;
 		if (merged) {
 			message = merged;
 		}
@@ -413,7 +413,7 @@ export class AgentHostChannelDelivery extends Disposable {
 			const envelopeLength = JSON.stringify(envelope).length;
 			const remainingCredit = this._sendLimits.windowBytes - (this._sentBytes - this._peerConsumed);
 			// Even a one-byte window must fit the envelope and one escaped code point.
-			const frameBytes = Math.min(this.maximumFrameBytes, Math.max((envelopeLength + 6) * 2, remainingCredit));
+			const frameBytes = Math.min(this.maxFrameBytes, Math.max((envelopeLength + 6) * 2, remainingCredit));
 			if (next.offset || next.text.length * 2 > frameBytes) {
 				let budget = frameBytes / 2 - envelopeLength;
 				end = next.offset;
@@ -481,7 +481,7 @@ export class AgentHostChannelDelivery extends Disposable {
 				}
 				return;
 			}
-			if (bytes > this._receiveLimits.maximumFrameBytes
+			if (bytes > this._receiveLimits.maxFrameBytes
 				|| this._receivedBytes - this._creditedBytes >= this._receiveLimits.windowBytes
 				|| !Number.isSafeInteger(this._receivedBytes + bytes)) {
 				throw new AgentHostChannelError(AgentHostChannelErrorCode.ReceiveLimitExceeded, 'Channel receive limit exceeded');
@@ -496,31 +496,35 @@ export class AgentHostChannelDelivery extends Disposable {
 				if (!fragment.data.length) {
 					throw new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, 'Channel reassembly capacity exceeded');
 				}
-				if ((this._fragments.length + fragment.data.length) * 2 > this._maximumMessageBytes) {
+				if ((this._fragmentsLength + fragment.data.length) * 2 > this._maximumMessageBytes) {
 					throw new AgentHostChannelError(AgentHostChannelErrorCode.MessageLimitExceeded, 'Channel reassembly capacity exceeded');
 				}
 				if (this._retainedBytes > this._maximumBufferedBytes) {
 					throw new AgentHostChannelError(AgentHostChannelErrorCode.BacklogLimitExceeded, 'Channel reassembly capacity exceeded');
 				}
-				const previous = this._fragments.charCodeAt(this._fragments.length - 1);
+				const last = this._fragments.at(-1);
+				const previous = last?.charCodeAt(last.length - 1) ?? 0;
 				const first = fragment.data.charCodeAt(0);
 				if (previous >= 0xd800 && previous <= 0xdbff && first >= 0xdc00 && first <= 0xdfff) {
 					throw new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, 'Channel fragment split a surrogate pair');
 				}
-				this._fragments += fragment.data;
+				this._fragments.push(fragment.data);
+				this._fragmentsLength += fragment.data.length;
 				if (!fragment.final) {
 					this._release(boundary);
 					return;
 				}
-				retainedBytes = this._fragments.length * 2;
-				const parsed: JsonRpcNotification = JSON.parse(this._fragments);
+				retainedBytes = this._fragmentsLength * 2;
+				const text = this._fragments.join('');
+				this._fragments = [];
+				this._fragmentsLength = 0;
+				const parsed: JsonRpcNotification = JSON.parse(text);
 				notification = notificationValidator.validateOrThrow(parsed);
 				message = parsed;
-				this._fragments = '';
 				if (notification.params.channel !== this.channel || message.method === 'channel/frame' || !countsAgainstWindow(message.method)) {
 					throw new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, 'Invalid fragmented channel notification');
 				}
-			} else if (this._fragments) {
+			} else if (this._fragments.length) {
 				throw new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, 'Data interleaved with an incomplete channel message');
 			}
 			if (retainedBytes > this._maximumMessageBytes) {
@@ -637,7 +641,8 @@ export class AgentHostChannelDelivery extends Disposable {
 		}
 		this._drains.clear();
 		this._received.length = 0;
-		this._fragments = '';
+		this._fragments = [];
+		this._fragmentsLength = 0;
 		try {
 			this._onError(error);
 		} finally {

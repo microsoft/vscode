@@ -235,10 +235,10 @@ export interface IReaderWithDispose extends IReaderWithStore, IDisposable { }
  * @deprecated Use autorunSelfDisposable2
  */
 export function autorunSelfDisposable(fn: (reader: IReaderWithDispose) => void, debugLocation = DebugLocation.ofCaller()): IDisposable {
+	/* eslint-disable prefer-const -- `fn` can dispose the autorun while it first runs, before `ar` is assigned. ESLint reports the assignment, oxlint the declaration. */
 	let ar: IDisposable | undefined;
 	let disposed = false;
 
-	// eslint-disable-next-line prefer-const
 	ar = autorun(reader => {
 		fn({
 			delayedStore: reader.delayedStore,
@@ -250,6 +250,7 @@ export function autorunSelfDisposable(fn: (reader: IReaderWithDispose) => void, 
 			}
 		});
 	}, debugLocation);
+	/* eslint-enable prefer-const */
 
 	if (disposed) {
 		ar.dispose();
@@ -265,10 +266,10 @@ export function autorunSelfDisposable(fn: (reader: IReaderWithDispose) => void, 
  * TODO@hediet/copilot: rename to delete autorunSelfDisposable, and rename autorunSelfDisposable2 to autorunSelfDisposable.
  */
 export function registerAutorunSelfDisposable(store: DisposableStore, fn: (reader: IReaderWithDispose) => void, debugLocation = DebugLocation.ofCaller()): void {
+	/* eslint-disable prefer-const -- `fn` can dispose the autorun while it first runs, before `ar` is assigned. ESLint reports the assignment, oxlint the declaration. */
 	let ar: IDisposable | undefined;
 	let disposeSync = false;
 
-	// eslint-disable-next-line prefer-const
 	ar = autorun(reader => {
 		fn({
 			delayedStore: reader.delayedStore,
@@ -285,6 +286,7 @@ export function registerAutorunSelfDisposable(store: DisposableStore, fn: (reade
 			}
 		});
 	}, debugLocation);
+	/* eslint-enable prefer-const */
 
 	if (disposeSync) {
 		ar.dispose();

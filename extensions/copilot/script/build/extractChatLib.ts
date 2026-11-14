@@ -10,10 +10,12 @@ import * as jsonc from 'jsonc-parser';
 import * as path from 'path';
 import { promisify } from 'util';
 import * as yaml from 'yaml';
-import { DependencyKind, lockChatLibDependencies, PnpmLockfile } from './chatLibLockfile';
+import { DependencyKind, lockChatLibDependencies, PnpmLockfile, splitLockfileDocuments } from './chatLibLockfile';
 
 const REPO_ROOT = path.join(__dirname, '..', '..');
 const CHAT_LIB_DIR = path.join(REPO_ROOT, 'chat-lib');
+// The root of the vscode repository, whose pnpm workspace Copilot and chat-lib are members of
+const WORKSPACE_ROOT = path.join(REPO_ROOT, '..', '..');
 const TARGET_DIR = path.join(CHAT_LIB_DIR, 'src');
 const execAsync = promisify(exec);
 
@@ -691,8 +693,7 @@ class ChatLibExtractor {
 		await fs.promises.writeFile(vscodeApiDestPath, updatedContent);
 
 		// Also copy thenable.d.ts which is referenced by vscode.d.ts
-		const vscodeRepoRoot = path.join(REPO_ROOT, '..', '..');
-		const thenableSrcPath = path.join(vscodeRepoRoot, 'src', 'typings', 'thenable.d.ts');
+		const thenableSrcPath = path.join(WORKSPACE_ROOT, 'src', 'typings', 'thenable.d.ts');
 		if (fs.existsSync(thenableSrcPath)) {
 			await fs.promises.copyFile(thenableSrcPath, path.join(vscodeDtsDestDir, 'thenable.d.ts'));
 			console.log('Copied thenable.d.ts');
@@ -789,6 +790,11 @@ class ChatLibExtractor {
 			}
 		}
 
+		// The postinstall copies static files next to the extracted sources. chat-lib is a member of the
+		// pnpm workspace, whose installs run the install scripts of every member, so its checked-in
+		// package.json leaves the script out until there are sources. The published package declares it.
+		chatLibPackageJson.scripts = { ...chatLibPackageJson.scripts, postinstall: 'tsx script/postinstall.js' };
+
 		// Write the updated chat-lib package.json
 		await fs.promises.writeFile(
 			chatLibPackageJsonPath,
@@ -801,41 +807,44 @@ class ChatLibExtractor {
 			changes.forEach(change => console.log(change));
 		}
 
-		// Keep chat-lib's project in Copilot's pnpm-lock.yaml in sync with the package.json written above
+		// Keep chat-lib's project in the root pnpm-lock.yaml in sync with the package.json written above
 		if (updatedPackages.size > 0 || removedPackages.size > 0) {
 			this.updateChatLibLockfile(updatedPackages, removedPackages);
 		}
 	}
 
 	/**
-	 * Updates chat-lib's project in Copilot's `pnpm-lock.yaml` (chat-lib is a member of Copilot's
-	 * pnpm workspace) after its `package.json` dependencies changed, using the versions that
-	 * Copilot's own project locks (see `lockChatLibDependencies`). Nothing is resolved, also not in
+	 * Updates chat-lib's project in the root `pnpm-lock.yaml` (chat-lib and Copilot are members of
+	 * the root pnpm workspace) after its `package.json` dependencies changed, using the versions
+	 * that Copilot's project locks (see `lockChatLibDependencies`). Nothing is resolved, also not in
 	 * the pipelines that publish chat-lib: `pnpm install --frozen-lockfile --lockfile-only` only
 	 * checks the result against the workspace's `package.json` files (and pnpm's supply-chain
 	 * policies), and writes it in pnpm's format. Then `pnpm install --frozen-lockfile
-	 * --ignore-scripts` updates `node_modules` to those versions: chat-lib is installed with the
-	 * workspace, and its own `node_modules` can still hold the versions of its previous
-	 * `package.json`, which the TypeScript check below would otherwise use.
+	 * --ignore-scripts` updates chat-lib's `node_modules` to those versions: it can still hold the
+	 * versions of its previous `package.json`, which the TypeScript check below would otherwise
+	 * use. It installs only chat-lib: the workspace's other projects keep what they have.
 	 */
 	private updateChatLibLockfile(updatedPackages: ReadonlyMap<string, DependencyKind>, removedPackages: ReadonlySet<string>): void {
-		const lockfilePath = path.join(REPO_ROOT, 'pnpm-lock.yaml');
+		const lockfilePath = path.join(WORKSPACE_ROOT, 'pnpm-lock.yaml');
 		if (!fs.existsSync(lockfilePath)) {
 			throw new Error(`Cannot update ${lockfilePath}: it doesn't exist.`);
 		}
 
 		console.log('Updating chat-lib in pnpm-lock.yaml for changed dependencies...');
-		const lockfile = yaml.parse(fs.readFileSync(lockfilePath, 'utf-8')) as PnpmLockfile;
-		const chatLibImporterId = path.relative(REPO_ROOT, CHAT_LIB_DIR).split(path.sep).join('/');
-		const locked = lockChatLibDependencies(lockfile, chatLibImporterId, updatedPackages, removedPackages);
-		fs.writeFileSync(lockfilePath, yaml.stringify(lockfile));
+		// Only the lockfile of the projects changes: the documents before it are written back as they are
+		const { leadingDocuments, lockfile: projectsLockfile } = splitLockfileDocuments(fs.readFileSync(lockfilePath, 'utf-8'));
+		const lockfile = yaml.parse(projectsLockfile) as PnpmLockfile;
+		const toImporterId = (folder: string) => path.relative(WORKSPACE_ROOT, folder).split(path.sep).join('/');
+		const locked = lockChatLibDependencies(lockfile, toImporterId(REPO_ROOT), toImporterId(CHAT_LIB_DIR), updatedPackages, removedPackages);
+		fs.writeFileSync(lockfilePath, leadingDocuments + yaml.stringify(lockfile));
 		console.log(`Locked ${locked} chat-lib dependencies to Copilot's versions`);
 
 		const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
-		for (const args of [['install', '--lockfile-only', '--ignore-scripts', '--frozen-lockfile'], ['install', '--ignore-scripts', '--frozen-lockfile']]) {
-			const result = spawnSync(pnpm, args, { cwd: REPO_ROOT, stdio: 'inherit', shell: process.platform === 'win32' });
+		const chatLibName = JSON.parse(fs.readFileSync(path.join(CHAT_LIB_DIR, 'package.json'), 'utf-8')).name as string;
+		for (const args of [['install', '--lockfile-only', '--ignore-scripts', '--frozen-lockfile'], ['install', '--ignore-scripts', '--frozen-lockfile', '--filter', chatLibName]]) {
+			const result = spawnSync(pnpm, args, { cwd: WORKSPACE_ROOT, stdio: 'inherit', shell: process.platform === 'win32' });
 			if (result.error || result.status !== 0) {
-				throw new Error(`pnpm ${args.join(' ')} failed in ${REPO_ROOT} (${result.error?.message ?? `exit code ${result.status}`}; see its output above). If pnpm reports that the lockfile is not up to date, the pnpm-lock.yaml of ${REPO_ROOT} doesn't match its package.json files: run \`pnpm install\` there, then extract again.`);
+				throw new Error(`pnpm ${args.join(' ')} failed in ${WORKSPACE_ROOT} (${result.error?.message ?? `exit code ${result.status}`}; see its output above). If pnpm reports that the lockfile is not up to date, the pnpm-lock.yaml of ${WORKSPACE_ROOT} doesn't match the package.json files of its workspace: run \`pnpm install\` there, then extract again.`);
 			}
 		}
 		console.log('pnpm-lock.yaml and node_modules updated');

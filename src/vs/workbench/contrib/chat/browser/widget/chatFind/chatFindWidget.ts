@@ -9,6 +9,7 @@ import { DeferredPromise, Delayer } from '../../../../../../base/common/async.js
 import { createRegExp } from '../../../../../../base/common/strings.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { Event } from '../../../../../../base/common/event.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Range as EditorRange } from '../../../../../../editor/common/core/range.js';
 import { EditorOption } from '../../../../../../editor/common/config/editorOptions.js';
@@ -21,7 +22,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { SimpleFindWidget } from '../../../../codeEditor/browser/find/simpleFindWidget.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { ChatTreeItem, IChatFindController } from '../../chat.js';
+import { ChatTreeItem, IChatCodeBlockInfo, IChatFindController } from '../../chat.js';
 import { IChatListItemTemplate } from '../chatListRenderer.js';
 import { CodeBlockPart } from '../chatContentParts/codeBlockPart.js';
 import { ChatFindCommandId } from './chatFindCommandIds.js';
@@ -36,6 +37,7 @@ export interface IChatFindHost {
 	getTemplateDataForRequestId(requestId: string | undefined): IChatListItemTemplate | undefined;
 	readonly onDidRerenderRow: Event<IChatListItemTemplate>;
 	editorsInUse(): Iterable<CodeBlockPart>;
+	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined;
 	/** Scroll offset of the transcript, in list content space. */
 	getScrollTop(): number;
 	setScrollTop(scrollTop: number): void;
@@ -81,6 +83,10 @@ function nearestBlock(node: Node, root: HTMLElement): Element {
 }
 
 export function findMatchRangesInDom(root: HTMLElement, regex: RegExp, limit: number, excludedRoots: readonly HTMLElement[] = []): Range[] {
+	if (root.hasAttribute('data-chat-find-ignore')) {
+		return [];
+	}
+	const ignoredRoots: Element[] = [...excludedRoots];
 	const ownerDocument = root.ownerDocument;
 	const nodes: { node: Text; start: number; end: number }[] = [];
 	let buffer = '';
@@ -89,12 +95,18 @@ export function findMatchRangesInDom(root: HTMLElement, regex: RegExp, limit: nu
 	const walker = ownerDocument.createTreeWalker(root, 5 /* NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT */);
 	let current: Node | null;
 	while ((current = walker.nextNode())) {
-		if (excludedRoots.some(candidate => candidate.contains(current))) {
+		if (ignoredRoots.some(candidate => candidate.contains(current))) {
 			separatorPending = true;
 			continue;
 		}
 		if (current.nodeType !== 3 /* Node.TEXT_NODE */) {
-			separatorPending ||= (current as Element).tagName === 'BR';
+			const element = current as Element;
+			if (element.hasAttribute('data-chat-find-ignore')) {
+				ignoredRoots.push(element);
+				separatorPending = true;
+			} else {
+				separatorPending ||= element.tagName === 'BR';
+			}
 			continue;
 		}
 		const text = current.textContent;
@@ -574,13 +586,16 @@ export class ChatFindWidget extends SimpleFindWidget implements IChatFindControl
 			return;
 		}
 		if (isCodeMatch(locatedMatch)) {
+			const uri = locatedMatch.codeBlock.uri;
+			const sourceRevealed = uri ? this.host.getCodeBlockInfoForEditor(uri)?.reveal?.() : false;
 			const revealCodeMatch = () => {
 				locatedMatch.codeBlock.editor.revealRangeInCenter(locatedMatch.range);
 				this._repaintVisibleHighlights();
 				this._revealRect(this._codeMatchRect(locatedMatch));
 				this._completeSettle();
 			};
-			if (openAncestorDisclosures(this.host.transcriptDomNode, locatedMatch.codeBlock.element)) {
+			const disclosureOpened = openAncestorDisclosures(this.host.transcriptDomNode, locatedMatch.codeBlock.element);
+			if (sourceRevealed || disclosureOpened) {
 				this._revealScheduler.value = dom.scheduleAtNextAnimationFrame(this._targetWindow, revealCodeMatch);
 			} else {
 				revealCodeMatch();

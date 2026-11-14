@@ -33,6 +33,7 @@ suite('MicrosoftGalleryAccountProvider - protected resource metadata', () => {
 	const resourceScopes = ['marketplace.read'];
 	const cacheLifetime = 5 * 60 * 1000;
 	const absenceLifetime = 30 * 1000;
+	const scopeWarning = '[Marketplace] No usable marketplace resource scopes are advertised. Requests will be rejected if the marketplace requires authentication. Contact the marketplace administrator to configure scopes_supported.';
 	const session: AuthenticationSession = {
 		id: 'session',
 		accessToken: 'signin-token',
@@ -48,6 +49,7 @@ suite('MicrosoftGalleryAccountProvider - protected resource metadata', () => {
 	let requestHandler: (options: IRequestOptions) => IRequestContext | Promise<IRequestContext>;
 	let requests: IRequestOptions[];
 	let createdSessions: { scopes: readonly string[]; authorizationServer: string | undefined }[];
+	let warnings: string[];
 
 	function response(body: object, statusCode = 200): IRequestContext {
 		return { res: { headers: {}, statusCode }, stream: bufferToStream(VSBuffer.fromString(JSON.stringify(body))) };
@@ -68,6 +70,7 @@ suite('MicrosoftGalleryAccountProvider - protected resource metadata', () => {
 		requestHandler = () => metadataResponse();
 		requests = [];
 		createdSessions = [];
+		warnings = [];
 		instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
 			override readonly onDidChangeSessions = Event.None;
@@ -101,7 +104,11 @@ suite('MicrosoftGalleryAccountProvider - protected resource metadata', () => {
 		});
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
 		instantiationService.stub(ITelemetryService, new NullTelemetryServiceShape());
-		instantiationService.stub(ILogService, store.add(new NullLogService()));
+		instantiationService.stub(ILogService, store.add(new class extends NullLogService {
+			override warn(message: string): void {
+				warnings.push(message);
+			}
+		}()));
 	});
 
 	test('reuses successful metadata without caching credentials', async () => {
@@ -110,12 +117,46 @@ suite('MicrosoftGalleryAccountProvider - protected resource metadata', () => {
 		resourceToken = 'updated-resource-token';
 		const second = await provider.getAccount(marketplaceUrl);
 
-		assert.deepStrictEqual({ first: first?.accessToken, second: second?.accessToken, requests: requests.map(request => ({ url: request.url, authorization: request.headers?.Authorization })) }, {
+		assert.deepStrictEqual({ first: first?.accessToken, second: second?.accessToken, requests: requests.map(request => ({ url: request.url, authorization: request.headers?.Authorization })), warnings }, {
 			first: 'resource-token',
 			second: 'updated-resource-token',
 			requests: [{ url: metadataUrl, authorization: undefined }],
+			warnings: [],
 		});
 	});
+
+	for (const { name, scopes } of [
+		{ name: 'omitted', scopes: undefined },
+		{ name: 'empty', scopes: [] },
+		{ name: 'OIDC-only', scopes: ['openid', 'profile', 'email', 'offline_access'] },
+		{ name: 'internal', scopes: ['VSCODE_TENANT:tenant'] },
+		{ name: 'mixed internal', scopes: [...resourceScopes, 'VSCODE_CLIENT_ID:client'] },
+	]) {
+		test(`warns once per discovery for ${name} scopes without credentials or resource consent`, () => runWithFakedTimers({}, async () => {
+			requestHandler = () => response({ resource: marketplaceUrl, authorization_servers: [authorizationServer], scopes_supported: scopes });
+			let resourceLookups = 0;
+			resourceSessions = async () => {
+				resourceLookups++;
+				return [{ ...session, accessToken: resourceToken }];
+			};
+			const provider = createProvider();
+			const accounts = await Promise.all([provider.getAccount(marketplaceUrl), provider.getAccount(marketplaceUrl)]);
+			accounts.push(await provider.getAccount(marketplaceUrl));
+			await provider.signIn();
+			const beforeExpiration = { requests: requests.length, warnings: [...warnings] };
+			await timeout(cacheLifetime);
+			accounts.push(await provider.getAccount(marketplaceUrl));
+
+			assert.deepStrictEqual({ accounts, beforeExpiration, requests: requests.length, warnings, resourceLookups, createdSessions }, {
+				accounts: [{}, {}, {}, {}],
+				beforeExpiration: { requests: 1, warnings: [scopeWarning] },
+				requests: 2,
+				warnings: [scopeWarning, scopeWarning],
+				resourceLookups: 0,
+				createdSessions: [{ scopes: signInScopes, authorizationServer: undefined }],
+			});
+		}));
+	}
 
 	test('coalesces concurrent metadata lookups', async () => {
 		const pending = new DeferredPromise<IRequestContext>();

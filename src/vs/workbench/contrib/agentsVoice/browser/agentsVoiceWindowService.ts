@@ -326,7 +326,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 	}
 
 	private _doResizeWindow(auxiliaryWindow: IAuxiliaryWindow): void {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const pill = auxiliaryWindow.container.querySelector('div') as HTMLElement | null;
 		if (!pill) { return; }
 		void pill.offsetWidth;

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { toAction } from '../../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { createStringDataTransferItem, VSDataTransfer } from '../../../../../../base/common/dataTransfer.js';
 import { HierarchicalKind } from '../../../../../../base/common/hierarchicalKind.js';
@@ -66,7 +67,7 @@ import { IChatMode } from '../../../common/chatModes.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { ChatResponseModelChangeReason, IChatChangeEvent, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
-import { ChatViewModel, IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
+import { ChatViewModel, IChatRequestViewModel, IChatScheduledRequestEditing } from '../../../common/model/chatViewModel.js';
 import { IIntendedModelSelection, ModelSelectionReason } from '../../../common/modelSelection.js';
 import { ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 import { IChatAgentData, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -932,6 +933,69 @@ suite('ChatWidget', () => {
 		return widget;
 	}
 
+	test('scheduled inline editing captures text deletion and attachment removal', async () => {
+		await withAsyncTestCodeEditor('Message', {}, async editor => {
+			const attachmentChange = store.add(new Emitter<void>());
+			const attachments = [{ id: 'context', kind: 'generic' as const, name: 'Context', value: 'Captured context' }];
+			const state: IChatScheduledRequestEditing = {
+				text: 'Message', runAt: '2099-01-15T10:00:00Z', description: 'Tomorrow',
+				selectTime: toAction({ id: 'time', label: 'Time', run: async () => { } }),
+				save: async () => { }, cancel: () => { },
+			};
+			const input = {
+				inputEditor: editor,
+				onDidChangeDraft: Event.None,
+				attachmentModel: { attachments, onDidChange: attachmentChange.event, addContext: () => { } },
+				setValue: (text: string) => editor.setValue(text),
+				focus: () => editor.focus(),
+			};
+			const widget = Object.setPrototypeOf({
+				input,
+				inputContainer: dom.$('div'),
+				viewModel: undefined,
+				_editingDisposables: store.add(new MutableDisposable<DisposableStore>()),
+				_editingAutoScrollHold: store.add(new MutableDisposable<IDisposable>()),
+				createInlineInput: () => { },
+				inputPart: {
+					toggleChatInputOverlay: () => { },
+					dnd: { setDisabledOverlay: () => { } },
+					onDidClickOverlay: Event.None,
+				},
+				listWidget: { acquireAutoScrollHold: () => toDisposable(() => { }) },
+			}, ChatWidget.prototype);
+			widget.renderScheduledRequestInput({}, { id: 'later', editing: state });
+			editor.executeEdits('test', [{ range: new Range(1, 4, 1, 8), text: '' }]);
+			const afterDeletion = { text: state.text, attachmentIds: state.input?.attachments.map(attachment => attachment.id) };
+			attachments.length = 0;
+			attachmentChange.fire();
+			assert.deepStrictEqual({ afterDeletion, input: state.input }, {
+				afterDeletion: { text: 'Mes', attachmentIds: ['context'] },
+				input: { inputText: 'Mes', attachments: [], references: [] },
+			});
+		});
+	});
+
+	test('scheduled inline submission saves instead of sending and retains the editor on failure', async () => {
+		const calls: string[] = [];
+		const state: IChatScheduledRequestEditing = {
+			text: 'Scheduled edit', runAt: '2099-01-15T10:00:00Z', description: 'Tomorrow',
+			selectTime: toAction({ id: 'time', label: 'Time', run: async () => { } }),
+			save: async () => { calls.push('save'); throw new Error('conflict'); },
+			cancel: () => { calls.push('cancel'); },
+		};
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			_scheduledRequestEdit: { id: 'scheduled:later', state },
+			isInputSubmissionBlocked: () => { throw new Error('Must not enter ordinary submission'); },
+		});
+		Object.defineProperty(widget, 'input', { value: { inputEditor: { getContribution: () => undefined } } });
+
+		await assert.rejects(() => widget.acceptInput(), /conflict/);
+		state.save = async () => { calls.push('save'); };
+		const response = await widget.acceptInput();
+		await widget.cancelEditing();
+		assert.deepStrictEqual({ calls, response }, { calls: ['save', 'save', 'cancel'], response: undefined });
+	});
+
 	test('editing a steering request passes its model and configuration to the input', async () => {
 		const modelId = 'agent-host-copilot:claude-opus-4.8';
 		const modelConfiguration = { reasoningEffort: 'xhigh' };
@@ -1593,10 +1657,11 @@ suite('ChatWidget', () => {
 		let rerenders = 0;
 		const layoutHeights: number[] = [];
 		const discardingSlot = { set value(disposable: IDisposable | undefined) { disposable?.dispose(); } };
+		const visible = observableValue('visible', true);
 		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
 			_readOnly: false,
 			_draftOnly: observableValue('draftOnly', false),
-			_visible: observableValue('visible', true),
+			_visible: visible,
 			visibleChangeCount: 0,
 			viewOptions: { renderStyle: 'minimal' },
 			_readOnlyContextKey: { set: () => { } },
@@ -1625,7 +1690,7 @@ suite('ChatWidget', () => {
 				rerender: () => rerenders++,
 			},
 		});
-		return { widget, domNode, layoutHeights, rerenders: () => rerenders };
+		return { widget, domNode, layoutHeights, visible, rerenders: () => rerenders };
 	}
 
 	test('passes read-only transitions to the renderer independently of request editing', () => {
@@ -1654,9 +1719,45 @@ suite('ChatWidget', () => {
 
 		assert.deepStrictEqual({ rendererOptions, rerenders, inputVisibility }, {
 			rendererOptions: [{ editable: false, readOnly: true }, { editable: false, readOnly: true }, { editable: true, readOnly: false }],
-			rerenders: 3,
+			rerenders: 2,
 			inputVisibility: [false, true, true],
 		});
+	});
+
+	test('only rerenders the list when the read-only state changes what rows render', () => {
+		const { widget, domNode, rerenders } = createRerenderWidget();
+		mainWindow.document.body.appendChild(domNode);
+		domNode.style.height = '100px';
+		store.add(toDisposable(() => domNode.remove()));
+		const counts: number[] = [];
+
+		for (const readOnly of [false, false, false, true, true, false]) {
+			widget.setReadOnly(readOnly);
+			counts.push(rerenders());
+		}
+
+		assert.deepStrictEqual(counts, [1, 1, 1, 2, 2, 3]);
+	});
+
+	test('rerenders rows left stale by a read-only change while hidden', () => {
+		const { widget, domNode, visible, rerenders } = createRerenderWidget();
+		mainWindow.document.body.appendChild(domNode);
+		domNode.style.height = '100px';
+		store.add(toDisposable(() => domNode.remove()));
+		const counts: number[] = [];
+
+		widget.setReadOnly(false);
+		counts.push(rerenders());
+		visible.set(false, undefined);
+		widget.setReadOnly(true);
+		counts.push(rerenders());
+		visible.set(true, undefined);
+		widget.setReadOnly(true);
+		counts.push(rerenders());
+		widget.setReadOnly(true);
+		counts.push(rerenders());
+
+		assert.deepStrictEqual(counts, [1, 1, 2, 2]);
 	});
 
 	test('keeps the sandbox composer visible while live content is unavailable', () => {
@@ -2680,6 +2781,42 @@ suite('ChatWidget - acceptInput submission', () => {
 			await paste.complete(true);
 		}
 	});
+
+	for (const phase of ['save', 'attachments'] as const) {
+		test(`validates the captured user input immediately before dispatch after ${phase}`, async () => {
+			const fixture = createSubmissionWidget(undefined, 'Original input');
+			const entered = new DeferredPromise<void>();
+			const released = new DeferredPromise<void>();
+			const wait = async () => { entered.complete(); await released.p; };
+			if (phase === 'save') {
+				fixture.editorService.saveAll.callsFake(async () => {
+					await wait();
+					return { success: true, editors: [] };
+				});
+			} else {
+				Object.defineProperty(fixture.widget, '_resolveDirectoryImageAttachments', { value: async () => { await wait(); return []; } });
+			}
+			const validated: string[] = [];
+			let scheduling = false;
+			fixture.viewOptions.validateInput = query => {
+				validated.push(query);
+				if (scheduling) {
+					throw new Error('Scheduling handoff is pending');
+				}
+			};
+			const sending = fixture.widget.acceptInput();
+			const rejected = assert.rejects(sending, /Scheduling handoff is pending/);
+			await entered.p;
+			scheduling = true;
+			fixture.parsedInput.text = 'Scheduled input';
+			released.complete();
+			await rejected;
+			assert.deepStrictEqual({
+				validated, sent: fixture.chatService.sendRequest.callCount,
+				accepted: fixture.input.acceptInput.callCount, input: fixture.parsedInput.text,
+			}, { validated: ['Original input'], sent: 0, accepted: 0, input: 'Scheduled input' });
+		});
+	}
 
 	test('does not send an incomplete draft when paste fails', async () => {
 		const fixture = createSubmissionWidget();

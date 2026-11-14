@@ -84,3 +84,40 @@
 .action-widget .monaco-list-row.action.worktree-suggestion-more-files .title {
 	font-style: italic;
 }
+
+/* The number of uncommitted files after Branch, which the isolation picker lists. */
+.sessions-chat-agent-host-config .sessions-chat-uncommitted-count {
+	display: none;
+	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size40);
+	margin-left: var(--vscode-spacing-size20);
+	color: var(--vscode-gitDecoration-modifiedResourceForeground);
+}
+
+.sessions-chat-agent-host-config .sessions-chat-uncommitted-count.visible {
+	display: inline-flex;
+}
+
+/* Like the label it follows, an icon-only picker leaves the count out. */
+.new-chat-widget-container .compact-picker .sessions-chat-uncommitted-count.visible {
+	display: none;
+}
+
+.sessions-chat-agent-host-config .sessions-chat-uncommitted-count::before {
+	content: '';
+	flex-shrink: 0;
+	width: 6px;
+	height: 6px;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: currentColor;
+}
+
+.action-widget .actionList.sessions-chat-isolation-listed-changes .monaco-list-row.separator,
+.action-widget .actionList.sessions-chat-isolation-listed-changes .monaco-list-row.separator > span:not(:empty) {
+	padding-left: 0;
+}
+
+.action-widget .actionList.sessions-chat-isolation-listed-changes .monaco-list-row.separator > span:not(:empty) {
+	color: var(--vscode-gitDecoration-modifiedResourceForeground);
+}

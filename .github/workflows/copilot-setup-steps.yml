@@ -57,6 +57,9 @@ jobs:
           sudo service xvfb start
 
       - name: Restore pnpm store cache
+        # Copilot runs these steps from main against the pull request head. A head from before
+        # this action existed, or a release branch without it, installs without the cached store.
+        if: hashFiles('.github/actions/restore-pnpm-store/action.yml') != ''
         uses: ./.github/actions/restore-pnpm-store
         with:
           key-prefix: pnpm-store-linux

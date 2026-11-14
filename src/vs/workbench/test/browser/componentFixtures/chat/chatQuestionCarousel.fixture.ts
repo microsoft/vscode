@@ -218,6 +218,15 @@ const deleteBranchesQuestion: IChatQuestion = {
 	required: true,
 };
 
+const publishDashboardQuestion: IChatQuestion = {
+	id: 'publish-dashboard',
+	type: 'singleSelect',
+	title: 'Publish the dashboard changes?',
+	message: 'Both queries passed validation. May I publish them to the shared dashboard?',
+	options: booleanOptions,
+	allowFreeformInput: true,
+};
+
 const experimentGateQuestion: IChatQuestion = {
 	id: 'experiment-gate',
 	type: 'singleSelect',
@@ -347,6 +356,8 @@ function createDeploymentCarousel(optionCount: number, description: string | und
 // Fixtures
 // ============================================================================
 
+const defaultThemes = ['darkModern', 'light2026', 'darkPlus', 'lightPlus', 'visualStudioDark', 'visualStudioLight', 'darkHighContrast', 'lightHighContrast'] as const;
+
 export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	SingleTextQuestion: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -360,10 +371,18 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 
 	AgentSessionsSingleSelectQuestion: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		additionalThemes: ['darkModern', 'light2026', 'darkPlus', 'lightPlus', 'visualStudioDark', 'visualStudioLight', 'darkHighContrast', 'lightHighContrast'],
+		additionalThemes: defaultThemes,
 		expectedVisualDescriptions: ['The custom answer editor is a single, uniform input surface without an inset panel-colored editor area or gutters.'],
 		virtualTime: { enabled: false },
 		render: context => renderAgentSessionsCarousel(context, createCarousel([singleSelectQuestion])),
+	}),
+
+	AgentSessionsBooleanCustomAnswer: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: defaultThemes,
+		expectedVisualDescriptions: ['Yes and No appear as vertical options above the custom answer editor, which uses the same input frame as other single-select questions.'],
+		virtualTime: { enabled: false },
+		render: context => renderAgentSessionsCarousel(context, createCarousel([publishDashboardQuestion])),
 	}),
 
 	MultiSelectQuestion: defineComponentFixture({

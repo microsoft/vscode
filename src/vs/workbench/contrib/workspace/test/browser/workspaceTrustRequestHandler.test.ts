@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { stub } from 'sinon';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -13,11 +14,19 @@ import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agen
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IDialogService, IPrompt } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { IBannerService } from '../../../../services/banner/browser/bannerService.js';
+import { IStatusbarService } from '../../../../services/statusbar/browser/statusbar.js';
+import { isSingleFolderWorkspaceIdentifier, Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { TestContextService, TestWorkspaceTrustManagementService } from '../../../../test/common/workbenchTestServices.js';
-import { WorkspaceTrustRequestHandler } from '../../browser/workspace.contribution.js';
+import { WorkspaceTrustRequestHandler, WorkspaceTrustUXHandler } from '../../browser/workspace.contribution.js';
 
 suite('WorkspaceTrustRequestHandler', () => {
 
@@ -104,5 +113,77 @@ suite('WorkspaceTrustRequestHandler', () => {
 			'`/work/project`',
 			'Trusting this folder will also mark it as trusted in Code - OSS.',
 		]);
+	});
+	test('the startup trust prompt names the folder it will trust while at an alternate location', async () => {
+		const primary = URI.file('/safe/project');
+		const alternate = URI.file('/external/checkouts/feature');
+		const workspace = new Workspace('id', [new WorkspaceFolder({ uri: alternate, name: 'feature', index: 0 })], false, null, () => false, undefined, primary);
+		const checkboxes: (string | undefined)[] = [];
+		const labelled: string[] = [];
+		const prompted = new DeferredPromise<void>();
+		const startup = disposables.add(new Emitter<void>());
+		const trust = new class extends mock<IWorkspaceTrustManagementService>() {
+			override readonly workspaceTrustInitialized = Promise.resolve();
+			override readonly workspaceResolved = Promise.resolve();
+			override readonly onDidChangeTrust = Event.None;
+			override isWorkspaceTrusted() { return false; }
+			override canSetParentFolderTrust() { return true; }
+		};
+		const request = new class extends mock<IWorkspaceTrustRequestService>() {
+			override readonly onDidInitiateWorkspaceTrustRequestOnStartup = startup.event;
+			override readonly onDidInitiateOpenFilesTrustRequest = Event.None;
+			override readonly onDidInitiateResourcesTrustRequest = Event.None;
+			override readonly onDidInitiateWorkspaceTrustRequest = Event.None;
+		};
+		const dialogService = new class extends mock<IDialogService>() {
+			override async prompt<T>(prompt: IPrompt<T>) {
+				checkboxes.push(prompt.checkbox?.label);
+				prompted.complete();
+				return { result: undefined };
+			}
+		};
+		const labelService = new class extends mock<ILabelService>() {
+			override getWorkspaceLabel(workspace: Parameters<ILabelService['getWorkspaceLabel']>[0]) {
+				const uri = URI.isUri(workspace) ? workspace : isSingleFolderWorkspaceIdentifier(workspace) ? workspace.uri : undefined;
+				labelled.push(uri?.path ?? '');
+				return uri?.path ?? '';
+			}
+			override getUriLabel(uri: URI) { return uri.path; }
+		};
+
+		disposables.add(new WorkspaceTrustUXHandler(
+			dialogService,
+			new TestContextService(workspace),
+			new class extends mock<IWorkspaceTrustEnablementService>() { override isWorkspaceTrustEnabled() { return true; } },
+			trust,
+			new class extends mock<IConfigurationService>() { },
+			new class extends mock<IStatusbarService>() { override addEntry() { return { dispose() { }, update() { } }; } },
+			new class extends mock<IStorageService>() { override store() { } },
+			request,
+			new class extends mock<IBannerService>() { override show() { } override hide() { } },
+			labelService,
+			new class extends mock<IHostService>() { override readonly hasFocus = false; override readonly onDidChangeFocus = Event.None; },
+			new class extends mock<IProductService>() { override readonly nameShort = 'Code'; },
+			new class extends mock<IRemoteAgentService>() { },
+			new class extends mock<IWorkbenchEnvironmentService>() { override readonly workspaceStorageHome = URI.file('/storage'); },
+			new class extends mock<IFileService>() { override async exists() { return false; } }
+		));
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+		// The startup prompt warns when the product has no AI-generated workspace trust contents
+		const consoleWarn = stub(console, 'warn');
+		let warnings: unknown[][] = [];
+		try {
+			startup.fire();
+			await prompted.p;
+		} finally {
+			warnings = consoleWarn.args;
+			consoleWarn.restore();
+		}
+
+		assert.deepStrictEqual({ checkboxes, labelled, warnings }, {
+			checkboxes: ['Trust the authors of all files in the parent folder \'checkouts\''],
+			labelled: ['/external/checkouts/feature'],
+			warnings: [['AI generated workspace trust dialog contents not available.']]
+		});
 	});
 });

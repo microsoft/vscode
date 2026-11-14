@@ -78,6 +78,35 @@ suite('pnpmLock', () => {
 		]);
 		assert.throws(() => readLockfileImporter(content.replace('\'9.0\'', '\'6.0\''), '.'), /Unsupported pnpm lockfile version: 6.0/);
 		assert.throws(() => readLockfileImporter(content.replace('      ws:\r\n        specifier', '      ws: {specifier: x, version: y}\r\n        specifier'), '.'), /Unsupported line/);
+
+		// The pnpm version that `packageManager` pins comes first, in a document of its own
+		const withPackageManager = [
+			'---',
+			'lockfileVersion: \'9.0\'',
+			'',
+			'importers:',
+			'',
+			'  .:',
+			'    packageManagerDependencies:',
+			'      pnpm:',
+			'        specifier: 12.16.0',
+			'        version: 12.16.0',
+			'',
+			'---',
+			content,
+		].join('\r\n');
+		const parsed = parsePnpmLockfile(withPackageManager);
+		assert.deepStrictEqual([
+			readLockfileImporter(withPackageManager, '.'),
+			readLockfileImporter(withPackageManager, 'extensions/empty'),
+			Object.keys(parsed.importers),
+			parsed.importers['.'].devDependencies,
+		], [
+			readLockfileImporter(content, '.'),
+			{},
+			['.', 'extensions/empty'],
+			{ ts: { specifier: '*', version: '@scope/ts6@6.0.2' } },
+		]);
 	});
 
 	test('importers read without a YAML parser match the parsed lockfiles', () => {
@@ -109,6 +138,6 @@ suite('pnpmLock', () => {
 	});
 
 	test('lockfile folders of projects', () => {
-		assert.deepStrictEqual(['', '.', 'extensions/git', './extensions/git/', 'extensions', '.vscode/extensions/vscode-pr-pinger', './.vscode/extensions/vscode-pr-pinger', 'remote', 'remote/web', 'build', 'build/rspack', 'build/vite/', 'extensions/copilot', 'extensions/copilot/chat-lib', 'test/sanity', 'build/agent-sdk/agents/claude', 'src', '.vscode'].map(getLockfileFolder), ['', '', 'extensions', 'extensions', 'extensions', '', '', 'remote', 'remote', 'build', 'build', 'build', 'extensions/copilot', 'extensions/copilot', 'test/sanity', undefined, undefined, undefined]);
+		assert.deepStrictEqual(['', '.', 'extensions/git', './extensions/git/', 'extensions', '.vscode/extensions/vscode-pr-pinger', './.vscode/extensions/vscode-pr-pinger', 'remote', 'remote/web', 'build', 'build/rspack', 'build/vite/', 'extensions/copilot', 'extensions/copilot/chat-lib', 'test/sanity', 'build/agent-sdk/agents/claude', 'src', '.vscode'].map(getLockfileFolder), ['', '', '', '', '', '', '', 'remote', 'remote', 'build', 'build', 'build', '', '', '', undefined, undefined, undefined]);
 	});
 });

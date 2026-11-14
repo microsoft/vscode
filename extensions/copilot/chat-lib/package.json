@@ -67,7 +67,6 @@
 		"compile": "tsc6",
 		"copy": "copyfiles src/package.json \"src/**/*.tiktoken\" dist",
 		"package": "pnpm pack",
-		"postinstall": "tsx script/postinstall.js",
 		"test": "vitest run",
 		"test:watch": "vitest"
 	}

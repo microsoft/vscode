@@ -9,6 +9,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { URI } from '../../../../base/common/uri.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
@@ -22,38 +23,38 @@ const gistDto: IGitHubGistDto = {
 
 type Call = readonly [string, ...unknown[]];
 
-class TestMainThreadGitHub implements MainThreadGitHubShape {
+class TestMainThreadGitHub extends mock<MainThreadGitHubShape>() {
 	readonly calls: Call[] = [];
 	acquireResult: GitHubResultDto<void> = { kind: 'ok', value: undefined };
 	/** When set, acquisition rejects with this value instead of returning a result. */
 	acquireThrows: unknown;
 	operation: (token: CancellationToken) => Promise<GitHubResultDto<IGitHubGistDto>> = async () => ({ kind: 'ok', value: gistDto });
 
-	async $getClient(handle: number, extensionId: string, sessionId: string): Promise<GitHubResultDto<void>> {
+	override async $getClient(handle: number, extensionId: string, sessionId: string): Promise<GitHubResultDto<void>> {
 		this.calls.push(['getClient', handle, extensionId, sessionId]);
 		return this._acquire();
 	}
 
-	async $getAnonymousClient(handle: number, extensionId: string): Promise<GitHubResultDto<void>> {
+	override async $getAnonymousClient(handle: number, extensionId: string): Promise<GitHubResultDto<void>> {
 		this.calls.push(['getAnonymousClient', handle, extensionId]);
 		return this._acquire();
 	}
 
-	$releaseClient(handle: number): void {
+	override $releaseClient(handle: number): void {
 		this.calls.push(['releaseClient', handle]);
 	}
 
-	$getGist(handle: number, gistId: string, token: CancellationToken): Promise<GitHubResultDto<IGitHubGistDto>> {
+	override $getGist(handle: number, gistId: string, token: CancellationToken): Promise<GitHubResultDto<IGitHubGistDto>> {
 		this.calls.push(['getGist', handle, gistId]);
 		return this.operation(token);
 	}
 
-	$createGist(handle: number, gist: IGitHubCreateGistDto, token: CancellationToken): Promise<GitHubResultDto<IGitHubGistDto>> {
+	override $createGist(handle: number, gist: IGitHubCreateGistDto, token: CancellationToken): Promise<GitHubResultDto<IGitHubGistDto>> {
 		this.calls.push(['createGist', handle, JSON.parse(JSON.stringify(gist))]);
 		return this.operation(token);
 	}
 
-	dispose(): void { }
+	override dispose(): void { }
 
 	private async _acquire(): Promise<GitHubResultDto<void>> {
 		if (this.acquireThrows !== undefined) {
@@ -89,8 +90,9 @@ suite('ExtHostGitHub', () => {
 	test('provides the module only to eligible built-in importers, bound per extension', async () => {
 		const mainThread = new TestMainThreadGitHub();
 		const eligible = extension();
+		const github = extension('vscode.github');
 		const others = [extension('vscode.git'), extension('vscode.configuration-editing', false)];
-		const byPath = new Map([['/eligible/a.js', eligible], ['/other/a.js', others[0]], ['/thirdparty/a.js', others[1]]]);
+		const byPath = new Map([['/eligible/a.js', eligible], ['/github/a.js', github], ['/other/a.js', others[0]], ['/thirdparty/a.js', others[1]]]);
 		const factory = new InternalGitHubModuleFactory({ findSubstr: uri => byPath.get(uri.path) }, new ExtHostGitHub(mainThread));
 
 		const module = factory.load('@vscode/internal-github', URI.file('/eligible/a.js'));
@@ -104,13 +106,14 @@ suite('ExtHostGitHub', () => {
 			}
 		});
 		(await module.getAnonymousClient()).dispose();
+		(await factory.load('@vscode/internal-github', URI.file('/github/a.js')).getClient('github-session')).dispose();
 
 		assert.deepStrictEqual({
 			name: factory.nodeModuleName, same, frozen: Object.isFrozen(module), error: module.GitHubError === GitHubError, rejected, calls: mainThread.calls,
 		}, {
 			name: '@vscode/internal-github', same: true, frozen: true, error: true,
 			rejected: Array(3).fill(`Cannot find module '@vscode/internal-github'`),
-			calls: [['getAnonymousClient', 0, 'vscode.configuration-editing'], ['releaseClient', 0]],
+			calls: [['getAnonymousClient', 0, 'vscode.configuration-editing'], ['releaseClient', 0], ['getClient', 1, 'vscode.github', 'github-session'], ['releaseClient', 1]],
 		});
 	});
 	test('binds the requested session, maps gists and releases once on dispose', async () => {

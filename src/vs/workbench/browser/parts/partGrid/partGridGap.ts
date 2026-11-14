@@ -69,7 +69,7 @@ function getDirectChild(element: Element, className: string): HTMLElement | unde
 }
 
 /** Marks only the gap sashes owned by this grid, excluding grids nested inside its leaves. */
-export function updateGridGapSashes<T extends IView>(grid: Grid<T>, enabled: boolean): void {
+export function updateGridGapSashes<T extends IView>(grid: Grid<T>, enabled: boolean, gap: number): void {
 	const visit = (element: HTMLElement, node: GridNode<T>): void => {
 		if (!isGridBranchNode(node)) {
 			return;
@@ -98,6 +98,11 @@ export function updateGridGapSashes<T extends IView>(grid: Grid<T>, enabled: boo
 
 		for (const sash of sashes) {
 			sash.classList.toggle(GRID_GAP_SASH_CLASS, enabled);
+			if (enabled) {
+				sash.style.setProperty('--agents-grid-gap-offset', `${Math.floor(gap / 2) - gap / 2}px`);
+			} else {
+				sash.style.removeProperty('--agents-grid-gap-offset');
+			}
 		}
 		for (let index = 0; index < node.children.length; index++) {
 			const childElement = views[index]?.firstElementChild;

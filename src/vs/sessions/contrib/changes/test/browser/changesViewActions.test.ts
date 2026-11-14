@@ -55,14 +55,18 @@ import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISess
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService, NoChangesEditorScope } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionArtifactIntegrationsEnabledContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { activeSessionCIFixRequested, hasActiveSessionFailedCIChecks } from '../../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
 import { CustomViewVisibleContext } from '../../../../common/agentsWindowContextKeys.js';
 import { SessionChangesEditor } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID, ChangesPickerActionItem, ChangesPickerSummary, isChangesActionsWorkspaceReady, unlockChatPetCreatePullRequestAchievement } from '../../../../../workbench/contrib/sessionChanges/browser/changesView.js';
 import { SessionsChangesAccessibilityHelp } from '../../../../../workbench/contrib/sessionChanges/browser/sessionsChangesAccessibilityHelp.js';
 import '../../browser/changesViewActions.js';
+import '../../../../browser/layoutActions.js';
+import { FIX_CI_CHECKS_COMMAND_ID } from '../../browser/checksActions.js';
 import '../../../codeReview/browser/codeReview.contributions.js';
+import '../../../../browser/layoutActions.js';
 
 // Awaited while this file loads so that the contribution's permanent registrations are in place before
 // any suite runs instead of being registered by this suite.
@@ -126,6 +130,23 @@ suite('Changes View Actions', () => {
 			commandId: 'workbench.agentSessions.action.openPullRequest',
 			args: [activeSession],
 		}]);
+	});
+
+	test('the title bar leaves Fix Checks and Open Pull Request to the pull request artifact while artifact integrations apply to the session', () => {
+		const fixChecks = MenuRegistry.getMenuItems(MenuId.AgentsChangesPrimaryActionSubMenu).filter(isIMenuItem).find(item => item.command.id === FIX_CI_CHECKS_COMMAND_ID)!;
+		const openPullRequest = MenuRegistry.getMenuItems(MenuId.AgentsChangesToolbar).filter(isIMenuItem).find(item => item.command.id === 'workbench.action.agentSessions.openPullRequest')!;
+		const visible = (artifactIntegrationsEnabled: boolean) => {
+			const context = contextWith({
+				[IsSessionsWindowContext.key]: true,
+				[ActiveSessionContextKeys.HasPullRequest.key]: true,
+				[hasActiveSessionFailedCIChecks.key]: true,
+				[activeSessionCIFixRequested.key]: false,
+				[SessionArtifactIntegrationsEnabledContext.key]: artifactIntegrationsEnabled,
+			});
+			return [fixChecks, openPullRequest].map(item => item.when?.evaluate(context) ?? true);
+		};
+
+		assert.deepStrictEqual({ disabled: visible(false), enabled: visible(true) }, { disabled: [true, true], enabled: [false, false] });
 	});
 
 	suite('Open Changes', () => {
@@ -766,9 +787,9 @@ suite('Changes View Actions', () => {
 		const withFileList = render(true);
 		const filesViewAndPosition = getLabels(Menus.ChangesFilesViewAndPosition, withFileListContext!);
 		assert.deepStrictEqual({ withFileList, filesViewAndPosition, withoutFileList: render(false) }, {
-			withFileList: { headerRow: ['Run Code Review', 'More Actions', '|', 'Toggle Files'], moreActions: [diffActions, ['secondary/2_viewMode', ['Files View & Position']]], tabRow: [] },
+			withFileList: { headerRow: ['Run Code Review', 'More Actions', '|', 'Toggle Files'], moreActions: [diffActions, ['secondary/2_viewMode', ['Files View & Position']]], tabRow: [['3_workbench_layout_move', ['Details Position']]] },
 			filesViewAndPosition: [['1_view', ['View as List', 'View as Tree']], ['2_position', ['On the Left', 'On the Right']]],
-			withoutFileList: { headerRow: ['Run Code Review', 'More Actions'], moreActions: [diffActions, ['secondary/z_filesView', ['Files View']]], tabRow: [] },
+			withoutFileList: { headerRow: ['Run Code Review', 'More Actions'], moreActions: [diffActions, ['secondary/z_filesView', ['Files View']]], tabRow: [['3_workbench_layout_move', ['Details Position']]] },
 		});
 	});
 
@@ -1116,6 +1137,10 @@ suite('Changes View Actions', () => {
 
 	test('Changes accessibility help describes Word Wrap', () => {
 		assert.strictEqual(getChangesAccessibilityHelp().includes('Use Word Wrap in the editor title area\'s More Actions menu'), true);
+	});
+
+	test('Changes accessibility help includes the floating Markdown guidance', () => {
+		assert.strictEqual(getChangesAccessibilityHelp().includes('The floating Files widget remains available alongside Markdown Editor and Markdown previews.'), true);
 	});
 
 	test('Changes accessibility help describes Files View and its selection state', () => {

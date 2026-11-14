@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
+import { addDisposableListener, getWindow } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { ContextView, ContextViewDOMPosition } from '../../../../base/browser/ui/contextview/contextview.js';
 import { Radio } from '../../../../base/browser/ui/radio/radio.js';
@@ -712,6 +713,119 @@ suite('TabbedActionListWidget', () => {
 		});
 		const rows = contextView.getContextViewElement().querySelectorAll('.monaco-list-row .title');
 		assert.deepStrictEqual(Array.from(rows, row => row.textContent), ['first', 'second']);
+	});
+
+	test('Enter activates the focused tab-bar action before document keybindings', () => {
+		const { widget, contextView } = createWidget(disposables);
+		let activations = 0;
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			tabBarActions: [{ id: 'comparison', icon: Codicon.compare, tooltip: 'Compare Models', run: () => { activations++; } }],
+			createActionList: () => ({ items: [action('model')] }),
+			delegate: { onSelect: () => assert.fail('The button must not select a model'), onHide: () => { } },
+		});
+		const button = contextView.getContextViewElement().querySelector<HTMLButtonElement>('.tabbed-action-list-tabbar-action')!;
+		button.focus();
+		const enter = new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true });
+		const documentListener = sinon.spy();
+		disposables.add(addDisposableListener(getWindow(button).document, 'keydown', documentListener));
+		button.dispatchEvent(enter);
+		assert.deepStrictEqual({ activations, prevented: enter.defaultPrevented, bubbled: documentListener.called, visible: widget.isVisible }, {
+			activations: 1, prevented: true, bubbled: false, visible: true,
+		});
+	});
+
+	test('Space accepts the focused row without handling spaces in the search input', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const selected: string[] = [];
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			createActionList: () => ({ items: [action('first'), action('second')], listOptions: { showFilter: true } }),
+			delegate: { onSelect: item => { selected.push(item.id); }, onHide: () => { } },
+		});
+		const popup = contextView.getContextViewElement();
+		const list = popup.querySelector<HTMLElement>('.monaco-list')!;
+		list.focus();
+		const space = new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true, cancelable: true });
+		list.dispatchEvent(space);
+		const input = popup.querySelector<HTMLInputElement>('input')!;
+		input.focus();
+		const inputSpace = new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true, cancelable: true });
+		input.dispatchEvent(inputSpace);
+		assert.deepStrictEqual({ selected, prevented: space.defaultPrevented, inputPrevented: inputSpace.defaultPrevented, visible: widget.isVisible }, {
+			selected: ['first'], prevented: true, inputPrevented: false, visible: true,
+		});
+	});
+
+	test('rebuilding preserves toggle focus without preventing Search from focusing its input', () => {
+		const { widget, contextView } = createWidget(disposables);
+		let comparison = false;
+		let search = false;
+		const show = () => widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			tabBarActions: [
+				{ id: 'comparison', icon: Codicon.compare, tooltip: 'Compare Models', checked: comparison, preserveFocus: true, run: () => { comparison = !comparison; show(); } },
+				{ id: 'search', icon: Codicon.search, tooltip: 'Search Models', run: () => { search = true; show(); } },
+			],
+			createActionList: () => ({ items: [action('model')], listOptions: { showFilter: search, focusFilterOnOpen: search } }),
+			delegate: { onSelect: () => assert.fail('The toolbar must not select a model'), onHide: () => { } },
+		});
+		show();
+		const button = (id: string) => contextView.getContextViewElement().querySelector<HTMLButtonElement>(`[data-id="${id}"]`)!;
+		const enter = () => new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true });
+		button('comparison').focus();
+		const states = [];
+		for (let i = 0; i < 2; i++) {
+			button('comparison').dispatchEvent(enter());
+			states.push({ comparison, focused: getWindow(button('comparison')).document.activeElement === button('comparison') });
+		}
+		button('search').focus();
+		button('search').dispatchEvent(enter());
+		const popup = contextView.getContextViewElement();
+		assert.deepStrictEqual({ states, searchFocused: getWindow(popup).document.activeElement === popup.querySelector('input') }, {
+			states: [{ comparison: true, focused: true }, { comparison: false, focused: true }],
+			searchFocused: true,
+		});
+	});
+
+	test('Space dismisses the header hint without accepting the focused row', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const selected: string[] = [];
+		let dismissals = 0;
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			createActionList: () => ({
+				items: [action('model')],
+				listOptions: {
+					headerText: 'Changing models resets the prompt cache.',
+					headerDismiss: () => { dismissals++; },
+				},
+			}),
+			delegate: { onSelect: item => { selected.push(item.id); }, onHide: () => { } },
+		});
+		const popup = contextView.getContextViewElement();
+		const dismiss = popup.querySelector<HTMLElement>('.action-list-header-dismiss')!;
+		dismiss.focus();
+		dismiss.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true, cancelable: true }));
+		assert.deepStrictEqual({
+			dismissals, selected, visible: widget.isVisible,
+			headerVisible: !!popup.querySelector('.action-list-header'),
+			listFocused: getWindow(popup).document.activeElement === popup.querySelector('.monaco-list'),
+		}, {
+			dismissals: 1, selected: [], visible: true, headerVisible: false, listFocused: true,
+		});
 	});
 
 	test('Enter on a row switch is left to the switch instead of selecting the row', () => {

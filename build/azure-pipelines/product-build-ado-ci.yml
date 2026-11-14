@@ -326,17 +326,6 @@ extends:
         jobs:
           - template: build/azure-pipelines/product-quality-checks.yml@self
 
-      - stage: Copilot
-        dependsOn: []
-        pool:
-          name: 1es-ubuntu-22.04-x64
-          os: linux
-        jobs:
-          - template: build/azure-pipelines/product-copilot.yml@self
-            parameters:
-              VSCODE_PUBLISH: false
-              VSCODE_RELEASE: false
-
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
           dependsOn: []
@@ -369,14 +358,6 @@ extends:
                 VSCODE_TEST_IDS:
                   - unit-node
                   - unit-browser-chromium
-            - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
-              parameters:
-                VSCODE_CIBUILD: true
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_JOB_NAME: Copilot
-                VSCODE_JOB_DISPLAY_NAME: Copilot Tests
-                VSCODE_TEST_IDS:
-                  - copilot
             - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true
@@ -414,6 +395,15 @@ extends:
                   - smoke-electron
                   - smoke-wsl-kerberos-proxy
                   - smoke-wsl-basic-proxy
+                  - smoke-wsl-basic-pac-proxy
+            - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_JOB_NAME: Copilot
+                VSCODE_JOB_DISPLAY_NAME: Copilot Tests
+                VSCODE_TEST_IDS:
+                  - copilot
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
         - stage: Linux
@@ -451,14 +441,6 @@ extends:
               parameters:
                 VSCODE_CIBUILD: true
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                VSCODE_JOB_NAME: Copilot
-                VSCODE_JOB_DISPLAY_NAME: Copilot Tests
-                VSCODE_TEST_IDS:
-                  - copilot
-            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
-              parameters:
-                VSCODE_CIBUILD: true
-                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_JOB_NAME: BrowserRemote
                 VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
                 VSCODE_TEST_IDS:
@@ -490,6 +472,14 @@ extends:
                 VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
                 VSCODE_TEST_IDS:
                   - smoke-electron
+            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_JOB_NAME: Copilot
+                VSCODE_JOB_DISPLAY_NAME: Copilot Tests
+                VSCODE_TEST_IDS:
+                  - copilot
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
         - stage: macOS

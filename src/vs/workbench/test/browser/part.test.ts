@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Part } from '../../browser/part.js';
+import { Part, relayoutWorkbenchParts, updateSashEndpoints } from '../../browser/part.js';
 import { isEmptyObject } from '../../../base/common/types.js';
 import { TestThemeService } from '../../../platform/theme/test/common/testThemeService.js';
 import { append, $, Dimension, hide } from '../../../base/browser/dom.js';
@@ -14,10 +14,106 @@ import { TestStorageService } from '../common/workbenchTestServices.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { mainWindow } from '../../../base/browser/window.js';
+import { Grid, ISerializableView } from '../../../base/browser/ui/grid/grid.js';
+import { Event } from '../../../base/common/event.js';
+import '../../../base/browser/ui/sash/sash.css';
 
 suite('Workbench parts', () => {
 
 	const disposables = new DisposableStore();
+
+	for (const gap of [0, 1, 4, 7, 16]) {
+		for (const junction of ['start', 'end', 'horizontal'] as const) {
+			test(`thin ${junction} sashes reach the center of adjoining ${gap}px gaps`, () => {
+				const root = append(mainWindow.document.body, $('.monaco-workbench.floating-panels.panel-position-bottom'));
+				root.style.cssText = `position: relative; width: 800px; height: 600px; --vscode-panels-spacing: ${gap}px; --vscode-sash-size: 4px; --vscode-sash-hover-size: 4px; --vscode-spacing-size40: 4px; --vscode-spacing-sizeNone: 0px;`;
+				const grid = append(root, $('.monaco-grid-view'));
+				const outerBranch = append(grid, $('.monaco-grid-branch-node'));
+				const outerSplit = append(outerBranch, $('.monaco-split-view2.vertical'));
+				const scrollable = append(outerSplit, $('.monaco-scrollable-element'));
+				const views = append(scrollable, $('.split-view-container'));
+				const nestedView = append(views, $('.split-view-view.visible'));
+				nestedView.style.cssText = 'width: 800px; height: 600px; top: 0; left: 0;';
+				const innerBranch = append(nestedView, $('.monaco-grid-branch-node'));
+				const innerSplit = append(innerBranch, $('.monaco-split-view2.horizontal'));
+				const verticalContainer = append(innerSplit, $('.sash-container'));
+				verticalContainer.style.cssText = `position: absolute; left: 0; top: ${junction === 'start' ? 300 : 0}px; width: 800px; height: ${junction === 'horizontal' ? 600 : 300}px;`;
+				const vertical = append(verticalContainer, $('.monaco-sash.vertical'));
+				vertical.style.left = `${junction === 'horizontal' ? 198 : 398}px`;
+				const horizontalContainer = append(outerSplit, $('.sash-container'));
+				horizontalContainer.style.cssText = `position: absolute; left: ${junction === 'horizontal' ? 200 : 0}px; top: 0; width: ${junction === 'horizontal' ? 400 : 800}px; height: 600px;`;
+				const horizontal = append(horizontalContainer, $('.monaco-sash.horizontal'));
+				horizontal.style.top = '298px';
+				const trailing = junction === 'horizontal' ? append(verticalContainer, $('.monaco-sash.vertical')) : undefined;
+				if (trailing) {
+					trailing.style.left = '598px';
+				}
+				try {
+					const beforeThickness = [vertical.getBoundingClientRect().width, horizontal.getBoundingClientRect().height];
+					updateSashEndpoints(grid, true);
+					const verticalBounds = vertical.getBoundingClientRect();
+					const horizontalBounds = horizontal.getBoundingClientRect();
+					const horizontalCenter = horizontalBounds.top + horizontalBounds.height / 2;
+					const hover = mainWindow.getComputedStyle(junction === 'horizontal' ? horizontal : vertical, '::before');
+					const endpoint = junction === 'horizontal' ? horizontalBounds.left : junction === 'start' ? verticalBounds.top : verticalBounds.bottom;
+					const crossing = junction === 'horizontal' ? verticalBounds.left + verticalBounds.width / 2 : horizontalCenter;
+					const hoverEndpoint = junction === 'horizontal' ? horizontalBounds.left + parseFloat(hover.left)
+						: junction === 'start' ? verticalBounds.top + parseFloat(hover.top) : verticalBounds.bottom - parseFloat(hover.bottom);
+					const actual = {
+						beforeThickness,
+						thickness: [verticalBounds.width, horizontalBounds.height],
+						hoverThickness: Number.parseFloat(junction === 'horizontal' ? hover.height : hover.width),
+						endpointOffset: endpoint - crossing,
+						hoverEndpointOffset: hoverEndpoint - crossing,
+						trailingOffset: trailing ? horizontalBounds.right - (trailing.getBoundingClientRect().left + trailing.getBoundingClientRect().width / 2) : 0,
+					};
+					updateSashEndpoints(grid, false);
+					assert.deepStrictEqual({
+						...actual,
+						cleared: Array.from(grid.querySelectorAll<HTMLElement>('.monaco-sash')).every(sash => !sash.classList.contains('workbench-sash-start-at-gap')
+							&& !sash.classList.contains('workbench-sash-end-at-gap')
+							&& sash.style.getPropertyValue('--workbench-sash-start') === '' && sash.style.getPropertyValue('--workbench-sash-end') === ''),
+					}, {
+						beforeThickness: [4, 4],
+						thickness: [4, 4],
+						hoverThickness: 4,
+						endpointOffset: 0,
+						hoverEndpointOffset: 0,
+						trailingOffset: 0,
+						cleared: true,
+					});
+				} finally {
+					root.remove();
+				}
+			});
+		}
+	}
+
+	test('reapplies content spacing without changing grid allocations', () => {
+		let spacing = 4;
+		const layouts: { width: number; height: number; top: number; left: number; contentWidth: number }[] = [];
+		const view: ISerializableView = {
+			element: $('div'),
+			minimumWidth: 0,
+			maximumWidth: Number.POSITIVE_INFINITY,
+			minimumHeight: 0,
+			maximumHeight: Number.POSITIVE_INFINITY,
+			onDidChange: Event.None,
+			layout: (width, height, top, left) => layouts.push({ width, height, top, left, contentWidth: width - spacing }),
+			toJSON: () => ({}),
+		};
+		const grid = disposables.add(new Grid(view));
+		grid.layout(800, 600);
+		layouts.length = 0;
+		spacing = 16;
+		grid.layout(800, 600);
+		const cachedLayouts = layouts.length;
+		relayoutWorkbenchParts(grid);
+		assert.deepStrictEqual({ cachedLayouts, layouts }, {
+			cachedLayouts: 0,
+			layouts: [{ width: 800, height: 600, top: 0, left: 0, contentWidth: 784 }],
+		});
+	});
 
 	class SimplePart extends Part {
 
@@ -90,6 +186,10 @@ suite('Workbench parts', () => {
 
 		testSetFooterArea(footerContainer: HTMLElement): void {
 			this.setFooterArea(footerContainer);
+		}
+
+		testRemoveFooterArea(): void {
+			this.removeFooterArea();
 		}
 
 		testLayoutContents(width: number, height: number) {
@@ -220,6 +320,30 @@ suite('Workbench parts', () => {
 				contentSize: new Dimension(100, 104),
 				footerSize: new Dimension(100, 32),
 			},
+		});
+	});
+
+	test('Part reflects footer presence on its container', () => {
+		const part = disposables.add(new MyPart2());
+		part.create(fixture);
+		const footer = document.createElement('div');
+
+		part.testSetFooterArea(footer);
+		const withFooter = {
+			hasClass: fixture.classList.contains('has-footer'),
+			footerClass: footer.classList.contains('footer'),
+		};
+		part.testRemoveFooterArea();
+
+		assert.deepStrictEqual({
+			withFooter,
+			afterRemoval: {
+				hasClass: fixture.classList.contains('has-footer'),
+				footerConnected: footer.isConnected,
+			},
+		}, {
+			withFooter: { hasClass: true, footerClass: true },
+			afterRemoval: { hasClass: false, footerConnected: false },
 		});
 	});
 

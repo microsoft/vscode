@@ -13,7 +13,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { getArtifactThemeIcon } from '../../../../../platform/artifactIntegrations/browser/artifactDetailsList.js';
-import { ArtifactRun, ArtifactRunState, ArtifactSnapshot, IArtifactModel, isArtifactRunSettled } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactRun, ArtifactRunState, ArtifactSnapshot, getArtifactRunInitiator, IArtifactModel, isArtifactRunSettled } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../../chat/common/model/chatViewModel.js';
 import { ISessionsService } from '../sessionsService.js';
@@ -85,7 +85,7 @@ export class ArtifactActivitiesModel extends Disposable {
 				this.changed.trigger(undefined);
 			} else if (!this.pages.length && !this.loading && !this.error
 				&& (state.activitiesExpanded || !snapshot.runs.some(isVisibleActivity))) {
-				// Recent runs that were all skipped would hide the card, so discover older visible history first.
+				// Recent runs that were all hidden would hide the card, so discover older visible history first.
 				void this.loadPage(0);
 			}
 		}));
@@ -135,7 +135,7 @@ export class ArtifactActivitiesModel extends Disposable {
 		this.error = '';
 		this.changed.trigger(undefined);
 		try {
-			// Skipped runs are not shown, so keep paging until a page adds a visible run or history ends.
+			// Hidden runs are not shown, so keep paging until a page adds a visible run or history ends.
 			for (let page: IActivityPage | undefined; !page || (page.next && !page.runs.some(isVisibleActivity)); index++) {
 				const before = index === 0 ? undefined : this.pages[index - 1]?.next;
 				this.retryPage = index;
@@ -252,9 +252,12 @@ export class ArtifactActivitiesModel extends Disposable {
 	}
 }
 
-/** A skipped run did nothing, so it is not shown as activity. */
+/**
+ * A skipped run did nothing, so it is not shown as activity. Neither is a user's click on a general (header) action,
+ * unless its outcome is unknown and must be reconciled from the activity row.
+ */
 function isVisibleActivity(run: ArtifactRun): boolean {
-	return run.state !== 'skipped';
+	return run.state !== 'skipped' && (!run.generalAction || run.indeterminate === true || getArtifactRunInitiator(run) !== 'user');
 }
 
 export function artifactRunStateLabel(state: ArtifactRunState): string {

@@ -25,6 +25,12 @@ export interface IStringEditFromDiff {
 	readonly isCoarse: boolean;
 }
 
+export interface IStringDiffOptions {
+	readonly maxComputationTimeMs: number;
+	/** Preserve matching characters instead of coalescing display changes. Only supported by the built-in advanced algorithm. */
+	readonly computeRawChanges?: boolean;
+}
+
 export interface IEditorWorkerService {
 	readonly _serviceBrand: undefined;
 
@@ -44,8 +50,8 @@ export interface IEditorWorkerService {
 	computeMoreMinimalEdits(resource: URI, edits: TextEdit[] | null | undefined, pretty?: boolean): Promise<TextEdit[] | undefined>;
 	computeHumanReadableDiff(resource: URI, edits: TextEdit[] | null | undefined): Promise<TextEdit[] | undefined>;
 
-	computeStringEditFromDiff(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<StringEdit>;
-	computeStringEditFromDiffWithMetadata(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<IStringEditFromDiff>;
+	computeStringEditFromDiff(original: string, modified: string, options: IStringDiffOptions, algorithm: DiffAlgorithmName): Promise<StringEdit>;
+	computeStringEditFromDiffWithMetadata(original: string, modified: string, options: IStringDiffOptions, algorithm: DiffAlgorithmName): Promise<IStringEditFromDiff>;
 
 	canComputeWordRanges(resource: URI): boolean;
 	computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null>;

@@ -3,20 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TSESTree } from '@typescript-eslint/utils';
-import * as eslint from 'eslint';
-import type * as ESTree from 'estree';
+import type { Context, CreateRule, ESTree, Visitor } from '@oxlint/plugins';
 
-export default new class NoAsyncSuite implements eslint.Rule.RuleModule {
+export default new class NoAsyncSuite implements CreateRule {
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		function doesCallSuperDispose(node: TSESTree.MethodDefinition) {
+	create(context: Context): Visitor {
+		function doesCallSuperDispose(node: ESTree.MethodDefinition) {
 
 			if (!node.override) {
 				return;
 			}
 
-			const body = context.sourceCode.getText(node as ESTree.Node);
+			const body = context.sourceCode.getText(node);
 
 			if (body.includes('super.dispose')) {
 				return;

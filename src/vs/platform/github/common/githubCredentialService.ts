@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isThenable } from '../../../base/common/async.js';
 import { Event, Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -22,7 +23,23 @@ export interface GitHubCredential {
 
 export interface GitHubCredentialInvalidation {
 	readonly credential?: GitHubCredential;
-	readonly reason: 'replacement' | 'account' | 'authentication' | 'endpoint' | 'shutdown';
+	/**
+	 * `reauthorization` reports that the current credential's unchanged token was
+	 * authorized again, for example for an organization's single sign-on. The
+	 * credential stays valid, but observations made before may now be outdated.
+	 */
+	readonly reason: 'replacement' | 'reauthorization' | 'account' | 'authentication' | 'endpoint' | 'shutdown';
+}
+
+/**
+ * Aborts the work of a credential generation that was replaced rather than
+ * refused, so it can be retried with the current credential instead of being
+ * mistaken for an authentication failure.
+ */
+class GitHubCredentialSupersededError extends GitHubRequestError {
+	constructor() {
+		super('GitHub credential generation was superseded', 'unknown');
+	}
 }
 
 export interface IGitHubCredentials {
@@ -100,6 +117,7 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 	private _current: ICredentialGeneration | undefined;
 	private _lastCredential: GitHubCredential | undefined;
 	private _generation = 0;
+	private _tokenProviderAnswersSynchronously = false;
 	private readonly _lifetime = new AbortController();
 	private readonly _identity = generateUuid();
 
@@ -116,20 +134,32 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 		super();
 		this._backoff = backoff ?? this._register(new BackoffGate('GitHub identity resolution', policy, this._scheduler, _logService));
 		if (this._tokenProvider.onDidChangeToken) {
-			this._register(this._tokenProvider.onDidChangeToken(() => this._invalidateCurrent('replacement', true)));
+			this._register(this._tokenProvider.onDidChangeToken(() => this._handleTokenChange()));
 		}
 		this._register(this._endpointProvider.onDidChange(() => this._invalidateCurrent('endpoint', true)));
 	}
 
 	getCredential(signal: AbortSignal): Promise<GitHubCredential> {
 		return this._withDeadline(signal, async (signal, deadline) => {
-			const token = await this._tokenProvider.getToken(signal);
-			this._throwIfExpired(signal, deadline);
-			if (!token) {
-				this._logService?.debug('[GitHubCredentialService] Token provider returned no credential');
-				throw new GitHubRequestError('GitHub authentication is required', 'authentication');
+			while (true) {
+				const pendingToken = this._tokenProvider.getToken(signal);
+				this._tokenProviderAnswersSynchronously = !isThenable(pendingToken);
+				const token = await pendingToken;
+				this._throwIfExpired(signal, deadline);
+				if (!token) {
+					this._logService?.debug('[GitHubCredentialService] Token provider returned no credential');
+					throw new GitHubRequestError('GitHub authentication is required', 'authentication');
+				}
+				try {
+					return await this._resolve(token, signal, deadline);
+				} catch (error) {
+					// The generation this caller waited for was replaced while it
+					// resolved, not refused, so its replacement answers the request.
+					if (!(error instanceof GitHubCredentialSupersededError) || signal.aborted) {
+						throw error;
+					}
+				}
 			}
-			return this._resolve(token, signal, deadline);
 		});
 	}
 
@@ -185,7 +215,7 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 			this._throwIfExpired(signal, deadline);
 			if (currentToken !== token) {
 				this._logService?.debug('[GitHubCredentialService] Abandoning a credential that was replaced while backing off');
-				throw new GitHubRequestError('GitHub authentication is required', 'authentication');
+				throw new GitHubCredentialSupersededError();
 			}
 		}
 		this._throwIfExpired(signal, deadline);
@@ -297,6 +327,40 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 		};
 	}
 
+	/**
+	 * A token notification can reauthorize the token the current generation
+	 * already holds, for example once an organization authorized it for single
+	 * sign-on. Replacing the generation then would abort all of its work and
+	 * resolve the same identity again, so the credential is kept and consumers
+	 * are only asked to refresh what they observed.
+	 */
+	private _handleTokenChange(): void {
+		const current = this._current;
+		if (current?.credential && !current.controller.signal.aborted && current.host === this._currentHost() && this._peekToken() === current.token) {
+			this._logService?.debug(`[GitHubCredentialService] Retaining reauthorized generation ${current.generation} on ${current.host}`);
+			this._onDidInvalidate.fire({ credential: current.credential, reason: 'reauthorization' });
+			return;
+		}
+		this._invalidateCurrent('replacement', true);
+	}
+
+	/** The provider's token if it answers without waiting; asking a provider that waits would only cost a lookup. */
+	private _peekToken(): string | undefined {
+		if (!this._tokenProviderAnswersSynchronously) {
+			return undefined;
+		}
+		try {
+			const token = this._tokenProvider.getToken(this._lifetime.signal);
+			if (typeof token === 'string') {
+				return token;
+			}
+			token?.catch(() => undefined);
+		} catch {
+			// A provider that cannot answer now leaves the generation to be replaced.
+		}
+		return undefined;
+	}
+
 	private _invalidateCurrent(reason: GitHubCredentialInvalidation['reason'], notifyWhenEmpty = false): void {
 		// The gate keys its record by host, so a credential held back on the
 		// previous endpoint must not keep the new one waiting.
@@ -323,11 +387,15 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 		if (reason === 'authentication') {
 			this._backoff.fail(this._backoffKey(current.token, current.host));
 		}
-		current.controller.abort(new GitHubRequestError('GitHub credential generation was invalidated', 'authentication'));
+		// Only a refusal makes the generation's work an authentication failure.
+		const abortReason = reason === 'authentication'
+			? new GitHubRequestError('GitHub credential generation was invalidated', 'authentication')
+			: new GitHubCredentialSupersededError();
+		current.controller.abort(abortReason);
 		if (current.credential) {
-			this._transport.invalidateAccount(current.credential.account);
+			this._transport.invalidateAccount(current.credential.account, abortReason);
 		}
-		this._transport.invalidateAccount({ host: current.host, accountId: `bootstrap:${this._identity}:${current.generation}` });
+		this._transport.invalidateAccount({ host: current.host, accountId: `bootstrap:${this._identity}:${current.generation}` }, abortReason);
 		this._onDidInvalidate.fire({ credential: current.credential, reason });
 		if (reason === 'endpoint' || reason === 'shutdown') {
 			this._lastCredential = undefined;

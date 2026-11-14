@@ -36,6 +36,7 @@ import { IChat, ISession, SessionStatus } from '../../../../../workbench/service
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { findSessionForOpenSessionLink, ISessionLinkChatState, ISessionLinkState, OpenSessionLinkOpenerContribution, readSessionState } from '../../browser/openSessionLinkOpener.contribution.js';
+import { MobileNullChatWindowService } from '../../../mobile/browser/mobileNullChatWindowService.js';
 
 suite('OpenSessionLinkOpenerContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -179,8 +180,8 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			sessionsProvidersService,
 			sessionSummaryHoverService,
 			new class extends mock<ILabelService>() { },
-			new class extends mock<IChatWindowService>() { },
-			new TestConfigurationService(),
+			new MobileNullChatWindowService(),
+			new TestConfigurationService({ [CHAT_WINDOWS_ENABLED_SETTING]: true }),
 		));
 
 		if (!registeredOpener) {
@@ -193,15 +194,17 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				await registeredOpener.open(buildOpenSessionLinkUri(sessionResource, 'chat-2', 'turn-1')),
 				await registeredOpener.open(buildOpenSessionLinkUri(sessionResource), { openToSide: true }),
 				await registeredOpener.open(buildOpenSessionLinkUri(sessionResource, 'chat-2', 'turn-1'), { openToSide: true }),
+				await registeredOpener.open(buildOpenSessionLinkUri(sessionResource), { fromUserGesture: true, sourceWindowId: 1 }),
 			],
 			opened,
 		}, {
-			results: [true, true, true, true],
+			results: [true, true, true, true, true],
 			opened: [
 				'chat:copilotcli:/session-1',
 				'chat:copilotcli:/session-1#chat-2',
 				'sessionSide:true:undefined',
 				'chatSide:copilotcli:/session-1#chat-2',
+				'chat:copilotcli:/session-1',
 			],
 		});
 	});

@@ -30,6 +30,7 @@ suite('ChatFindWidget', () => {
 			getTemplateDataForRequestId: () => undefined,
 			onDidRerenderRow: BaseEvent.None,
 			editorsInUse: () => [],
+			getCodeBlockInfoForEditor: () => undefined,
 			getScrollTop: () => 0,
 			setScrollTop: () => { },
 			getRenderHeight: () => 0,
@@ -177,6 +178,14 @@ suite('ChatFindWidget DOM highlighting', () => {
 		root.append('dle');
 
 		assert.deepStrictEqual(findMatchRangesInDom(root, regex('needle'), 100, [editor]), []);
+	});
+
+	test('excludes marked preview chrome without shifting response matches', () => {
+		const root = document.createElement('div');
+		root.innerHTML = '<div data-chat-find-ignore><button>Show Source</button><div hidden>Show Source</div></div><p>Show Source in the response.</p>';
+		assert.deepStrictEqual(findMatchRangesInDom(root, regex('Show Source'), 100).map(range => ({
+			text: range.toString(), parent: range.startContainer.parentElement?.tagName,
+		})), [{ text: 'Show Source', parent: 'P' }]);
 	});
 
 	test('returns no ranges when there is no text content', () => {

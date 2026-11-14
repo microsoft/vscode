@@ -4,21 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getZoomFactor } from '../../../../../base/browser/browser.js';
+import { scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ISizeService } from '../../../../../platform/theme/common/sizeService.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
 import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget, IContainerLayout, IContainerLayoutOverride } from '../browserEditor.js';
 import { WebContentsViewHost } from '../webContentsViewHost.js';
 
-class WebContentsViewRendererFeature extends BrowserEditorContribution {
+export class WebContentsViewRendererFeature extends BrowserEditorContribution {
 
 	private readonly host: WebContentsViewHost;
 
 	constructor(
 		editor: BrowserEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ISizeService sizeService: ISizeService,
+		@IThemeService themeService: IThemeService,
 	) {
 		super(editor);
 		this.host = this._register(instantiationService.createInstance(WebContentsViewHost, editor.window, () => editor.ensureBrowserFocus()));
+		const pendingLayout = this._register(new MutableDisposable());
+		const update = () => {
+			if (editor.model) {
+				pendingLayout.value = scheduleAtNextAnimationFrame(editor.window, () => editor.layout());
+			}
+		};
+		this._register(sizeService.onDidChangeSizes(update));
+		this._register(themeService.onDidColorThemeChange(update));
 	}
 
 	override get widgets(): readonly IBrowserEditorWidget[] {

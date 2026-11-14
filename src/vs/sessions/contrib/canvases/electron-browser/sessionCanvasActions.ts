@@ -21,9 +21,9 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { INewSessionInAgentsWindowOptions } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus, SessionCanvasMenuGroup } from '../../../browser/agentsWindowMenus.js';
-import { getCanvasInstanceLabels, ICanvasContextService, ICanvasReopenTarget, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { getCanvasInstanceLabels, ICanvasContextService, ICanvasReopenTarget, ICanvasService, isCanvasOwner } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { NEW_SESSION_ACTION_ID } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
-import { getSessionCanvasDefinitionInstanceId, getSessionCanvasDefinitionLabels, ISessionCanvasRegistryService, SessionCanvasActivityBarToggledContext, WindowCanvasesAvailableContext } from '../common/sessionCanvas.js';
+import { getSessionCanvasDefinitionLabels, ISessionCanvasRegistryService, SessionCanvasActivityBarToggledContext, WindowCanvasesAvailableContext } from '../common/sessionCanvas.js';
 import { getCanvasReferenceKey } from '../../../../workbench/common/canvasReference.js';
 
 export const OPEN_SESSION_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.openCanvas';
@@ -169,11 +169,16 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 	store.add(autorun(reader => {
 		const definitions = registryService.availableCanvases.read(reader);
 		const definitionLabels = getSessionCanvasDefinitionLabels(definitions);
-		const targets = canvasService.reopenableCanvases.read(reader);
+		const canvases = activeCanvases.read(reader);
+		// Running lists the canvases the focused chat's canvas pill does, whether or not their tab is open, and not those
+		// of chats other windows show.
+		const owner = registryService.owner.read(reader);
+		const targets = owner
+			? canvases.filter(({ reference, canvas }) => isCanvasOwner(reference, owner) && canvas.source !== undefined && canvasService.isOwnerPresentable(reference, reader))
+			: [];
 		const targetLabels = getCanvasInstanceLabels(targets.map(target => target.canvas));
-		const definitionInstanceIds = new Set(definitions.map(getSessionCanvasDefinitionInstanceId));
 		// Without canvases of its own, the Session Activity Bar offers the same entries as Add Tab.
-		const inActivityBar = activeCanvases.read(reader).length === 0;
+		const inActivityBar = canvases.length === 0;
 		const activeKeys = new Set<string>();
 		for (let index = 0; index < definitions.length; index++) {
 			const canvas = definitions[index];
@@ -191,16 +196,13 @@ export function registerSessionCanvasActions(canvasService: ICanvasService, regi
 		}
 		for (let index = 0; index < targets.length; index++) {
 			const target = targets[index];
-			if (target.canvas.instanceId && definitionInstanceIds.has(target.canvas.instanceId)) {
-				continue;
-			}
 			const key = `reopen:${getCanvasReferenceKey(target.reference)}`;
 			activeKeys.add(key);
 			let registration = registrations.get(key);
 			if (!registration) {
 				registration = new CanvasMenuActionRegistration(
 					`${REOPEN_SESSION_CANVAS_COMMAND_ID}.${++commandSequence}`,
-					() => canvasService.reopenCanvas(target.reference),
+					() => canvasService.revealCanvas(target.reference),
 				);
 				registrations.set(key, registration);
 			}

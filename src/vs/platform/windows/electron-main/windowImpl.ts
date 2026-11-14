@@ -34,12 +34,13 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle, MenuSettings, getMacOSWindowControlsPosition } from '../../window/common/window.js';
-import { defaultBrowserWindowOptions, getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext, WindowStateValidator } from './windows.js';
+import { defaultBrowserWindowOptions, getAllWindowsExcludingOffscreen, isHiddenWindowMode, IWindowsMainService, OpenContext, WindowStateValidator } from './windows.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from '../../window/electron-main/window.js';
 import { IPolicyService } from '../../policy/common/policy.js';
 import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
+import { IFolderLocationsMainService } from './folderLocationsMainService.js';
 import { IStateService } from '../../state/node/state.js';
 import { IUserDataProfilesMainService } from '../../userDataProfile/electron-main/userDataProfile.js';
 import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
@@ -273,7 +274,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		}
 
 		// Open devtools if instructed from command line args
-		if (this.environmentMainService.args['open-devtools'] === true) {
+		// (not in hidden mode: undocked DevTools would be shown)
+		if (this.environmentMainService.args['open-devtools'] === true && !isHiddenWindowMode(this.environmentMainService)) {
 			win.webContents.openDevTools();
 		}
 
@@ -351,6 +353,13 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 		if (state.mode === WindowMode.Maximized || state.mode === WindowMode.Fullscreen) {
 
+			// maximize() and setFullScreen() would reveal a window that was never shown,
+			// so only give it the size it would have
+			if (isHiddenWindowMode(this.environmentMainService)) {
+				this._win?.setBounds(this.getDisplayArea(state.mode));
+				return;
+			}
+
 			// this call may or may not show the window, depends
 			// on the platform: currently on Windows and Linux will
 			// show the window as active. To be on the safe side,
@@ -374,6 +383,12 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			}
 			this._win?.minimize();
 		}
+	}
+
+	protected getDisplayArea(mode: WindowMode.Maximized | WindowMode.Fullscreen): electron.Rectangle {
+		const display = this._win ? electron.screen.getDisplayMatching(this._win.getBounds()) : electron.screen.getPrimaryDisplay();
+
+		return mode === WindowMode.Fullscreen ? display.bounds : display.workArea;
 	}
 
 	private representedFilename: string | undefined;
@@ -435,6 +450,10 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	}
 
 	focus(options?: { mode: FocusMode }): void {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // focusing would show the window and activate the application
+		}
+
 		switch (options?.mode ?? FocusMode.Transfer) {
 			case FocusMode.Transfer:
 				this.doFocusWindow();
@@ -578,6 +597,10 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	private joinNativeFullScreenTransition: DeferredPromise<boolean> | undefined = undefined;
 
 	toggleFullScreen(): void {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // entering fullscreen would reveal the window (and switch Spaces on macOS)
+		}
+
 		this.setFullScreen(!this.isFullScreen, false);
 	}
 
@@ -816,6 +839,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		@IProductService private readonly productService: IProductService,
 		@IProtocolMainService protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@IFolderLocationsMainService private readonly folderLocationsMainService: IFolderLocationsMainService,
 		@IStateService stateService: IStateService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
@@ -1050,9 +1074,10 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// Telemetry
 		type WindowErrorClassification = {
-			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of window error to understand the nature of the error better.' };
+			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of window error to understand the nature of the error better.' };
 			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reason of the window error to understand the nature of the error better.' };
-			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The exit code of the window process to understand the nature of the error better' };
+			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the window process to understand the nature of the error better' };
+			isAgentsWindow: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the window was an Agents window, to attribute window errors to it.' };
 			owner: 'bpasero';
 			comment: 'Provides insight into reasons the vscode window had an error.';
 		};
@@ -1060,11 +1085,13 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			type: WindowError;
 			reason: string | undefined;
 			code: number | undefined;
+			isAgentsWindow: boolean;
 		};
 		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', {
 			type,
 			reason: details?.reason,
-			code: details?.exitCode
+			code: details?.exitCode,
+			isAgentsWindow: !!this._config?.isSessionsWindow
 		});
 
 		// Inform User if non-recoverable
@@ -1452,6 +1479,15 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		// Validate workspace
 		configuration.workspace = await this.validateWorkspaceBeforeReload(configuration);
 
+		// An alternate location that is gone is not reloaded, and a notice is only shown once
+		delete configuration.folderLocationMissing;
+		delete configuration.folderLocation;
+		if (isSingleFolderWorkspaceIdentifier(configuration.workspace) && !configuration.remoteAuthority && configuration.workspace.uri.scheme === Schemas.file) {
+			const validated = await this.folderLocationsMainService.validateFolderLocation(configuration.workspace.uri, this.folderLocationsMainService.getFolderLocation(configuration.workspace.uri));
+			configuration.folderLocation = validated.folderLocation;
+			configuration.folderLocationMissing = validated.folderLocationMissing;
+		}
+
 		// Delete some properties we do not want during reload
 		delete configuration.filesToOpenOrCreate;
 		delete configuration.filesToDiff;
@@ -1547,6 +1583,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				x: this.windowState.x || 0,
 				y: this.windowState.y || 0,
 				zoomLevel: this.customZoomLevel,
+				alwaysOnTop: this._win.isAlwaysOnTop(),
 				minimized: minimized || undefined
 			};
 		}
@@ -1589,6 +1626,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 
 		state.zoomLevel = this.customZoomLevel;
+		state.alwaysOnTop = this._win.isAlwaysOnTop();
 
 		return state;
 	}
@@ -1596,6 +1634,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private restoreWindowState(state?: IWindowState): [IWindowState, boolean? /* has multiple displays */] {
 		mark('code/willRestoreCodeWindowState');
 
+		const alwaysOnTop = state?.alwaysOnTop;
 		let hasMultipleDisplays = false;
 		if (state) {
 
@@ -1615,7 +1654,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		mark('code/didRestoreCodeWindowState');
 
-		return [state || defaultWindowState(), hasMultipleDisplays];
+		return [{ ...(state || defaultWindowState()), alwaysOnTop }, hasMultipleDisplays];
 	}
 
 	getBounds(): electron.Rectangle {

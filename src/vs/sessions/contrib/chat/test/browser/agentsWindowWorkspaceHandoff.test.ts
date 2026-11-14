@@ -41,7 +41,7 @@ suite('Agents Window workspace handoff', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const folderUri = URI.file('/private/from-editor');
 
-	function createHarness() {
+	function createHarness(whenStartupProvidersRegistered: Promise<unknown> = Promise.resolve()) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const composerService = disposables.add(new NewSessionComposerService());
 		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
@@ -61,6 +61,7 @@ suite('Agents Window workspace handoff', () => {
 		const states: WorkspaceHandoffState[] = [];
 		const openingOptions: boolean[] = [];
 		let providerReady = true;
+		let providerId = 'local';
 		let acceptsWorkspace = (_folder: URI) => true;
 		let viewReady = true;
 		let applies = true;
@@ -94,7 +95,7 @@ suite('Agents Window workspace handoff', () => {
 				if (resolutionError) {
 					throw resolutionError;
 				}
-				return providerReady && acceptsWorkspace(folder) ? { providerId: 'local', workspace: upcastPartial({}) } : undefined;
+				return providerReady && acceptsWorkspace(folder) ? { providerId, workspace: upcastPartial({}) } : undefined;
 			},
 		}));
 		const sessionsPartService = upcastPartial<ISessionsPartService>({
@@ -158,11 +159,12 @@ suite('Agents Window workspace handoff', () => {
 		}));
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({ executeCommand: async () => undefined }));
 		instantiationService.stub(ILogService, upcastPartial<ILogService>({ warn: () => { }, error: () => { } }));
-		const handoff = disposables.add(instantiationService.createInstance(AgentsWindowWorkspaceHandoff));
+		const handoff = disposables.add(instantiationService.createInstance(AgentsWindowWorkspaceHandoff, whenStartupProvidersRegistered));
 		return {
 			handoff, composerService, sessionsService, sessionsPartService, activeSession, initialRestoreComplete, onWillSend, states, selections, notifications, openingOptions, storage, drafts,
 			draftOptions, noWorkspaceSelections, notificationMessages, remoteRequests,
 			set providerReady(value: boolean) { providerReady = value; },
+			set providerId(value: string) { providerId = value; },
 			set acceptsWorkspace(value: (folder: URI) => boolean) { acceptsWorkspace = value; },
 			set viewReady(value: boolean) { viewReady = value; },
 			set applies(value: boolean) { applies = value; },
@@ -209,6 +211,30 @@ suite('Agents Window workspace handoff', () => {
 			});
 		});
 
+	});
+
+	test('resolves the folder only after startup providers register, so an earlier provider is not pinned', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const startupProviders = new DeferredPromise<void>();
+			const harness = createHarness(startupProviders.p);
+			// Cloud registers first and accepts local folders; the preferred local provider registers later.
+			harness.providerId = 'cloud';
+			const opening = harness.open(true);
+			await timeout(500);
+			const selectionsBeforeRegistration = harness.selections.length;
+			harness.providerId = 'local';
+			await startupProviders.complete();
+			await opening;
+			assert.deepStrictEqual({
+				selectionsBeforeRegistration,
+				stages: [...new Set(harness.states)],
+				providers: harness.selections.map(entry => entry.options?.providerId),
+			}, {
+				selectionsBeforeRegistration: 0,
+				stages: ['waitingForSetup', 'waitingForSessionView', 'waitingForProvider', 'applied'],
+				providers: ['local'],
+			});
+		});
 	});
 
 	for (const content of [

@@ -6,7 +6,7 @@
 import cp from 'child_process';
 import minimatch from 'minimatch';
 import path from 'path';
-import { eslintFilter } from '../filters.ts';
+import { lintFilter } from '../filters.ts';
 
 const root = path.dirname(path.dirname(import.meta.dirname));
 
@@ -26,10 +26,10 @@ export type CheckScope =
 	| { readonly kind: 'files'; readonly files: readonly string[]; readonly reason: string };
 
 /**
- * Files that configure or implement ESLint for every file, so changing one lints the full repository.
- * Entries ending in `/` match a folder; other entries match a file.
+ * Files that configure or implement the lint rules for every file, so changing one lints the full repository. Entries
+ * ending in `/` match a folder; other entries match a file.
  */
-const eslintFullCheckPaths = [
+const lintFullCheckPaths = [
 	// Read by eslint.config.js.
 	'.eslint-ignore',
 	'.eslint-allowed-javascript-files',
@@ -39,14 +39,16 @@ const eslintFullCheckPaths = [
 	// The plugin and parser versions. local/code-amd-node-module also reads package.json.
 	'package.json',
 	'pnpm-lock.yaml',
-	// The versions of the packages that the Copilot rules in extensions/copilot/.eslintplugin/ import.
+	// The packages that the Copilot rules in extensions/copilot/.eslintplugin/ import.
 	'extensions/copilot/package.json',
-	'extensions/copilot/pnpm-lock.yaml',
 	// Read by local/code-translation-remind.
 	'build/lib/i18n.resources.json',
 	'build/filters.ts',
-	'build/eslint.ts',
 	'build/lib/changedFiles.ts',
+	// Convert eslint.config.js for oxlint, and run it.
+	'oxlint.config.ts',
+	'build/lib/oxlintConfig.ts',
+	'build/oxlint.ts',
 ];
 
 /** ESLint uses the closest configuration file to each linted file. */
@@ -69,9 +71,8 @@ const typeAwareLintInputs = [
 	'src/vscode-dts/',
 	'extensions/tsconfig.base.json',
 	'extensions/package.json',
-	// The extensions' own install root.
-	'extensions/pnpm-lock.yaml',
-	// The root workspace's TypeScript and typescript-eslint run the type-aware lint.
+	// The versions of the extensions' dependencies, and of the TypeScript and typescript-eslint that
+	// run the type-aware lint.
 	'pnpm-lock.yaml',
 ];
 
@@ -118,7 +119,7 @@ function createGlobFilter(globs: readonly string[]): (file: string) => boolean {
 	};
 }
 
-const isEslintTarget = createGlobFilter(eslintFilter);
+const isLintTarget = createGlobFilter(lintFilter);
 
 function git(args: readonly string[]): string {
 	const result = cp.spawnSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
@@ -156,11 +157,11 @@ function listTrackedFiles(folders: readonly string[]): string[] {
 }
 
 /**
- * Returns the files ESLint needs to check for the given changes, or the full scope when a change can affect the
+ * Returns the files oxlint needs to check for the given changes, or the full scope when a change can affect the
  * results of unchanged files.
  */
-export function getEslintScope(changes: readonly IChangedFile[], listFiles: (folders: readonly string[]) => readonly string[] = listTrackedFiles): CheckScope {
-	const fullCheckChange = changes.find(change => eslintConfigFile.test(change.path) || matchesAny(change.path, eslintFullCheckPaths));
+export function getLintScope(changes: readonly IChangedFile[], listFiles: (folders: readonly string[]) => readonly string[] = listTrackedFiles): CheckScope {
+	const fullCheckChange = changes.find(change => eslintConfigFile.test(change.path) || matchesAny(change.path, lintFullCheckPaths));
 	if (fullCheckChange) {
 		return { kind: 'full', reason: `${fullCheckChange.path} changed` };
 	}
@@ -173,7 +174,7 @@ export function getEslintScope(changes: readonly IChangedFile[], listFiles: (fol
 		reason = `changed files, plus the extensions linted with type information because ${typeAwareChange.path} changed`;
 	}
 
-	return { kind: 'files', files: Array.from(files).filter(isEslintTarget).sort(), reason };
+	return { kind: 'files', files: Array.from(files).filter(isLintTarget).sort(), reason };
 }
 
 /**

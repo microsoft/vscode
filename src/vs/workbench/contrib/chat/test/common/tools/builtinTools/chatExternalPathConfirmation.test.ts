@@ -19,18 +19,21 @@ suite('ChatExternalPathConfirmationContribution', () => {
 	const source = { type: 'internal' as const, label: 'test' };
 	const mockLabelService = { getUriLabel: (uri: URI) => uri.fsPath } as ILabelService;
 
-	function createRef(filePath: string, isDirectory = false): ILanguageModelToolConfirmationRef {
+	function createRef(filePath: string | string[], isDirectory = false): ILanguageModelToolConfirmationRef {
 		return {
 			toolId: 'copilot_readFile',
 			source,
-			parameters: isDirectory ? { path: filePath } : { filePath },
+			parameters: Array.isArray(filePath) ? { filePaths: filePath } : isDirectory ? { path: filePath } : { filePath },
 			chatSessionResource: sessionResource,
 		};
 	}
 
 	function createContribution(findGitRoot?: (pathUri: URI) => Promise<URI | undefined>, storageService?: IStorageService, pickFolder?: () => Promise<URI | undefined>): ChatExternalPathConfirmationContribution {
-		const getPathInfo = (ref: ILanguageModelToolConfirmationRef): IExternalPathInfo | undefined => {
-			const params = ref.parameters as { filePath?: string; path?: string };
+		const getPathInfo = (ref: ILanguageModelToolConfirmationRef): IExternalPathInfo | IExternalPathInfo[] | undefined => {
+			const params = ref.parameters as { filePath?: string; path?: string; filePaths?: string[] };
+			if (params?.filePaths) {
+				return params.filePaths.map(path => ({ path, isDirectory: false }));
+			}
 			if (params?.filePath) {
 				return { path: params.filePath, isDirectory: false };
 			}
@@ -220,6 +223,42 @@ suite('ChatExternalPathConfirmationContribution', () => {
 		], [{ type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' }, undefined, undefined]);
 	});
 
+	test('combines working directory and session grants without approving additional files or sessions', async () => {
+		const contribution = createContribution();
+		await contribution.getPreConfirmActions(createRef('/external/file.ts'))[0].select();
+		const ref = { ...createRef(['/my-project/file.ts', '/external/file.ts']), workingDirectory: URI.file('/my-project') };
+
+		assert.deepStrictEqual([
+			contribution.getPreConfirmAction(ref),
+			contribution.getPreConfirmAction({ ...ref, parameters: { filePaths: ['/external/file.ts', '/my-project/file.ts'] } }),
+			contribution.getPreConfirmAction({ ...ref, parameters: { filePaths: ['/my-project/file.ts', '/external/file.ts', '/unapproved/file.ts'] } }),
+			contribution.getPreConfirmAction({ ...ref, chatSessionResource: URI.parse('vscode-chat-session:/session/2') }),
+			contribution.getPreConfirmAction({ ...ref, parameters: { filePaths: [] } }),
+		], [
+			{ type: ToolConfirmKind.LmServicePerTool, scope: 'session' },
+			{ type: ToolConfirmKind.LmServicePerTool, scope: 'session' },
+			undefined,
+			undefined,
+			undefined,
+		]);
+	});
+
+	test('combines stored workspace and session grants while preserving working directory precedence', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const contribution = createContribution(undefined, storage, async () => URI.file('/workspace-allowed'));
+		const addPath = contribution.getManageActions().find(action => action.onDidOpen);
+		assert.ok(addPath?.onDidOpen);
+		await addPath.onDidOpen();
+		await contribution.getPreConfirmActions(createRef('/session-allowed/file.ts'))[0].select();
+		const ref = createRef(['/workspace-allowed/file.ts', '/session-allowed/file.ts']);
+
+		assert.deepStrictEqual([
+			contribution.getPreConfirmAction(ref),
+			contribution.getPreConfirmAction(createRef(['/workspace-allowed/file.ts', '/unapproved/file.ts'])),
+			contribution.getPreConfirmAction({ ...ref, workingDirectory: URI.file('/different') }),
+		], [{ type: ToolConfirmKind.LmServicePerTool, scope: 'session' }, undefined, undefined]);
+	});
+
 	suite('workingDirectory', () => {
 
 		function createRefWithWorkingDir(filePath: string, workingDirectory: URI): ILanguageModelToolConfirmationRef {
@@ -242,6 +281,55 @@ suite('ChatExternalPathConfirmationContribution', () => {
 			const contribution = createContribution();
 			const ref = createRefWithWorkingDir('/other-project/file.ts', URI.file('/my-project'));
 			assert.strictEqual(contribution.getPreConfirmAction(ref), undefined);
+		});
+
+		test('multiple files are auto-approved only when all are within workingDirectory', () => {
+			const contribution = new ChatExternalPathConfirmationContribution(
+				() => [
+					{ path: '/my-project/src/one.ts', isDirectory: false },
+					{ path: '/my-project/src/two.ts', isDirectory: false },
+				],
+				mockLabelService,
+			);
+			disposables.add(contribution);
+			const ref = createRefWithWorkingDir('/unused', URI.file('/my-project'));
+
+			assert.deepStrictEqual(contribution.getPreConfirmAction(ref), { type: ToolConfirmKind.ConfirmationNotNeeded });
+		});
+
+		test('multiple files require confirmation when any file is outside workingDirectory', () => {
+			const contribution = new ChatExternalPathConfirmationContribution(
+				() => [
+					{ path: '/my-project/src/one.ts', isDirectory: false },
+					{ path: '/other-project/two.ts', isDirectory: false },
+				],
+				mockLabelService,
+			);
+			disposables.add(contribution);
+			const ref = createRefWithWorkingDir('/unused', URI.file('/my-project'));
+
+			assert.strictEqual(contribution.getPreConfirmAction(ref), undefined);
+		});
+
+		test('allow folders in session approves every selected folder', async () => {
+			const paths = [
+				{ path: '/external/one/file.ts', isDirectory: false },
+				{ path: '/external/two/file.ts', isDirectory: false },
+			];
+			const contribution = new ChatExternalPathConfirmationContribution(() => paths, mockLabelService);
+			disposables.add(contribution);
+			const ref = createRef('/unused');
+
+			const actions = contribution.getPreConfirmActions(ref);
+			await actions[0].select();
+
+			assert.deepStrictEqual({
+				label: actions[0].label,
+				selectedFiles: contribution.getPreConfirmAction(ref),
+			}, {
+				label: 'Allow these folders in this session',
+				selectedFiles: { type: ToolConfirmKind.LmServicePerTool, scope: 'session' },
+			});
 		});
 
 		test('workingDirectory takes precedence over workspace allowlist', () => {

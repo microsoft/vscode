@@ -26,6 +26,14 @@ suite('Agent authentication account metadata', () => {
 		});
 	});
 
+	test('ignores a display label sent by an older client', () => {
+		const account = { providerId: 'microsoft', accountId: 'opaque-account' };
+		const labels = ['Selected account', '', null, 42];
+		assert.deepStrictEqual(labels.map(label => readAuthenticationAccount({
+			_meta: { 'vscode.authentication.account': { ...account, label } },
+		})), labels.map(() => account));
+	});
+
 	test('rejects malformed optional metadata', () => {
 		const values = [undefined, null, [], 'account', {}, { providerId: '', accountId: 'a' }, { providerId: 'github', accountId: 101 }, { providerId: 'github', accountId: 'a', authorizationServer: 42 }];
 		assert.deepStrictEqual(values.map(value => readAuthenticationAccount({ _meta: { 'vscode.authentication.account': value } })), values.map(() => undefined));

@@ -10,6 +10,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { AccountClient } from '../../../../platform/github/common/account/accountClient.js';
 import { AnonymousClient } from '../../../../platform/github/common/anonymous/anonymousClient.js';
 import { ApiRequest, ApiResponse, IApiRequestProvider } from '../../../../platform/github/common/client/request.js';
@@ -20,6 +21,8 @@ import { MainThreadGitHub } from '../../browser/mainThreadGitHub.js';
 import { IAuthenticationAccessService } from '../../../services/authentication/browser/authenticationAccessService.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IWorkbenchGitHubService } from '../../../services/github/common/githubService.js';
+import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
+import { createInternalGitHubModule, ExtHostGitHub } from '../../common/extHostGitHub.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 
 const extensionId = 'vscode.configuration-editing';
@@ -40,6 +43,28 @@ function gistResponse(id: string, files: Record<string, { content: string; trunc
 			size: file.content.length, truncated: file.truncated ?? false, content: file.content, encoding: 'utf-8',
 		}])),
 		truncated: false, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', comments: 0,
+	};
+}
+
+function repositoryResponse() {
+	return {
+		id: 1, node_id: 'R_1', name: 'r', full_name: 'o/r', private: true,
+		owner: { id: 2, node_id: 'U_2', login: 'o', avatar_url: '', html_url: 'https://github.com/o', type: 'User' },
+		html_url: 'https://github.com/o/r', url: 'https://api.github.com/repos/o/r', description: null, fork: false,
+		default_branch: 'main', clone_url: 'https://github.com/o/r.git', ssh_url: 'git@github.com:o/r.git',
+		archived: false, disabled: false, language: null, stargazers_count: 7,
+	};
+}
+
+function pullRequestResponse() {
+	const branch = { label: 'o:main', ref: 'main', sha: 'a'.repeat(40), repo: repositoryResponse() };
+	return {
+		id: 3, node_id: 'PR_3', number: 42, html_url: 'https://github.com/o/r/pull/42', url: 'https://api.github.com/repos/o/r/pulls/42',
+		title: 'Change', body: 'Description', state: 'open', draft: false, user: null, head: branch, base: branch,
+		labels: [], milestone: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+		closed_at: null, merged_at: null, merge_commit_sha: null, merged: false, mergeable: null, mergeable_state: 'unknown',
+		maintainer_can_modify: true, merged_by: null, commits: 1, changed_files: 1, additions: 1, deletions: 0,
+		comments: 0, review_comments: 0, auto_merge: null,
 	};
 }
 
@@ -68,7 +93,7 @@ suite('MainThreadGitHub', () => {
 			request: async <T>(request: ApiRequest, signal: AbortSignal, parser?: parse.Parser<T>): Promise<ApiResponse<T | void>> => {
 				requests.push(request);
 				const data = await (options.respond ?? (async () => gistResponse('gist-id', { 'profile.json': { content: '{}' } })))(request, signal);
-				return { data: parser?.(data), status: request.method === 'POST' ? 201 : 200 };
+				return { data: parser?.(data), status: typeof request.expectedStatus === 'number' ? request.expectedStatus : 200 };
 			},
 		};
 		const gitHubService = upcastPartial<IWorkbenchGitHubService>({
@@ -97,6 +122,215 @@ suite('MainThreadGitHub', () => {
 		const allow = (accountName: string, allowed: boolean | undefined = true, extension = extensionId, providerId = 'github') => access.set(`${providerId}/${accountName}/${extension}`, allowed);
 		return { mainThread, requests, acquisitions, released, queriedProviders, allow, onDidInvalidate, onDidChangeAccess, onDidUnregisterProvider };
 	}
+
+	test('routes the GitHub extension operations through typed clients with its bound account and caller', async () => {
+		const graphql: { operation: string; variables: object }[] = [];
+		const user = { id: 'U_1', login: 'o', name: null, email: '', avatarUrl: 'https://avatars.githubusercontent.com/u/1' };
+		const ruleset = { name: 'Protected', target: 'BRANCH', enforcement: 'ACTIVE', rules: { totalCount: 1 }, conditions: { refName: { include: ['~DEFAULT_BRANCH'], exclude: [] } } };
+		const { mainThread, requests, acquisitions, allow } = setup({
+			sessions: [{ ...session('selected', 'alice'), scopes: ['repo', 'workflow', 'read:user', 'user:email'] }],
+			respond: async request => {
+				const url = new URL(request.path, 'https://api.github.com');
+				if (url.pathname === '/') {
+					const body = parse.object({ query: parse.string, variables: parse.jsonObject })(JSON.parse(JSON.stringify(request.body)));
+					const operation = /^query (?<name>\w+)/.exec(body.query)?.groups?.name;
+					if (!operation) {
+						return assert.fail('Expected a named GraphQL query');
+					}
+					graphql.push({ operation, variables: body.variables });
+					switch (operation) {
+						case 'RepositoryViewerInfo':
+							return { data: { repository: { viewerPermission: 'WRITE', defaultBranchRef: { name: 'main' } } } };
+						case 'RepositoryRulesets':
+							return {
+								data: {
+									repository: {
+										rulesets: {
+											nodes: body.variables.after ? [ruleset] : [null],
+											pageInfo: { hasNextPage: !body.variables.after, endCursor: body.variables.after ? null : 'next' },
+										}
+									}
+								}
+							};
+						case 'RepositoryAssignableUsers':
+							return { data: { repository: { assignableUsers: { nodes: [null, user], pageInfo: { hasNextPage: false, endCursor: null } } } } };
+						case 'RepositoryCommitAuthor':
+							return { data: { repository: { object: { author: { name: 'Author', email: 'author@example.test', avatarUrl: user.avatarUrl, user: { id: user.id, login: user.login } } } } } };
+						default:
+							return assert.fail(`Unexpected query ${operation}`);
+					}
+				}
+				if (url.pathname === '/user') {
+					return { ...repositoryResponse().owner, name: null, email: null, bio: null, location: null };
+				}
+				if (url.pathname === '/search/repositories') {
+					return { total_count: 1, incomplete_results: false, items: [{ ...repositoryResponse(), score: 1 }] };
+				}
+				if (url.pathname.endsWith('/branches')) {
+					return [{ name: 'main', commit: { sha: 'a'.repeat(40), url: 'https://api.github.com/commits/main' }, protected: false }];
+				}
+				if (url.pathname.endsWith('/pulls')) {
+					return request.method === 'GET' ? [pullRequestResponse()] : pullRequestResponse();
+				}
+				return request.method === 'GET' && url.pathname === '/user/repos' ? [repositoryResponse()] : repositoryResponse();
+			},
+		});
+		allow('alice', true, 'vscode.github');
+		const api = createInternalGitHubModule({ ...nullExtensionDescription, identifier: new ExtensionIdentifier('vscode.github'), isBuiltin: true }, new ExtHostGitHub(mainThread));
+		const client = store.add(await api.getClient('selected'));
+		const repository = { owner: 'o', repo: 'r' };
+		const currentUser = await client.users.getAuthenticated();
+		const fetched = await client.repositories.get(repository);
+		const listed = await client.repositories.listForAuthenticatedUser({ sort: 'updated', per_page: 100 });
+		const searched = await client.search.repositories('o/r fork:true');
+		const branchQuery = { page: 2, per_page: 100, unexpected: 'ignored' };
+		const branches = await client.repositories.listBranches(repository, branchQuery);
+		const request = { name: 'r', private: true, caller: 'forged', accessToken: 'do-not-forward' };
+		await client.repositories.create(request);
+		await client.repositories.fork(repository);
+		const pulls = await client.pullRequests.list(repository, { head: 'o:feature', state: 'all' });
+		const created = await client.pullRequests.create(repository, { title: 'Change', body: 'Description', head: 'o:feature', base: 'main' });
+		const viewer = await client.repositories.getViewerInfo(repository);
+		const rulesets = await client.repositories.listRulesetConnection(repository, { maxPages: 1000 });
+		const assignable = await client.repositories.listAssignableUsers(repository);
+		const author = await client.repositories.getCommitAuthor(repository, 'HEAD');
+
+		assert.deepStrictEqual({
+			login: currentUser.login, name: fetched.full_name, listed: listed.length, clone: searched[0].clone_url,
+			branches: branches.map(branch => branch.name), pulls: pulls.map(pull => pull.number), created: created.number,
+			viewer, rulesets: rulesets?.nodes, users: assignable?.nodes, author: author?.user,
+			caller: [...new Set(requests.map(request => request.options?.caller))],
+			identity: acquisitions.map(authorization => [authorization.sessionId, authorization.accountId]),
+			rest: requests.filter(request => request.path !== '/').map(request => [request.method, request.path, request.expectedStatus]),
+			createdBody: requests.find(request => request.method === 'POST' && request.path === '/user/repos')?.body,
+			graphql,
+		}, {
+			login: 'o', name: 'o/r', listed: 1, clone: 'https://github.com/o/r.git', branches: ['main'], pulls: [42], created: 42,
+			viewer: { viewerPermission: 'WRITE', defaultBranchRef: { name: 'main' } }, rulesets: [null, ruleset], users: [null, user],
+			author: { id: user.id, login: user.login }, caller: ['extension.vscode.github'], identity: [['selected', 'account-alice']],
+			rest: [
+				['GET', '/user', 200], ['GET', '/repos/o/r', 200], ['GET', '/user/repos?per_page=100&sort=updated', 200],
+				['GET', '/search/repositories?sort=stars&q=o%2Fr+fork%3Atrue', 200], ['GET', '/repos/o/r/branches?page=2&per_page=100', 200],
+				['POST', '/user/repos', 201], ['POST', '/repos/o/r/forks', 202],
+				['GET', '/repos/o/r/pulls?head=o%3Afeature&state=all', 200], ['POST', '/repos/o/r/pulls', 201],
+			],
+			createdBody: { name: 'r', private: true },
+			graphql: [
+				{ operation: 'RepositoryViewerInfo', variables: { owner: 'o', name: 'r' } },
+				{ operation: 'RepositoryRulesets', variables: { owner: 'o', name: 'r', first: 100 } },
+				{ operation: 'RepositoryRulesets', variables: { owner: 'o', name: 'r', first: 100, after: 'next' } },
+				{ operation: 'RepositoryAssignableUsers', variables: { owner: 'o', name: 'r', first: 100 } },
+				{ operation: 'RepositoryCommitAuthor', variables: { owner: 'o', name: 'r', expression: 'HEAD' } },
+			],
+		});
+	});
+
+	test('preserves nullable ruleset fields alongside valid rules and an unavailable connection', async () => {
+		const ruleset = { name: 'Protected', target: 'BRANCH', enforcement: 'ACTIVE', rules: { totalCount: 1 }, conditions: null };
+		const connection = {
+			nodes: [ruleset, { ...ruleset, target: null }, { ...ruleset, rules: null }],
+			pageInfo: { hasNextPage: false, endCursor: null },
+		};
+		let unavailable = false;
+		const { mainThread, allow } = setup({
+			sessions: [session('selected', 'alice')],
+			respond: async () => ({ data: { repository: { rulesets: unavailable ? null : connection } } }),
+		});
+		allow('alice', true, 'vscode.github');
+		await mainThread.$getClient(0, 'vscode.github', 'selected', CancellationToken.None);
+		const availableResult = await mainThread.$listGitHubRulesetConnection(0, { owner: 'o', repo: 'r' }, undefined, 1000, CancellationToken.None);
+		unavailable = true;
+		const unavailableResult = await mainThread.$listGitHubRulesetConnection(0, { owner: 'o', repo: 'r' }, undefined, 1000, CancellationToken.None);
+		mainThread.$releaseClient(0);
+		assert.deepStrictEqual([availableResult, unavailableResult], [
+			{ kind: 'ok', value: connection },
+			{ kind: 'ok', value: null },
+		]);
+	});
+
+	test('collects up to 1000 ruleset pages and rejects further continuation without returning partial results', async () => {
+		const outcomes: object[] = [];
+		for (const exceedsLimit of [false, true]) {
+			let pages = 0;
+			const { mainThread, allow } = setup({
+				sessions: [session('selected', 'alice')],
+				respond: async () => {
+					pages++;
+					const hasNextPage = exceedsLimit || pages < 1000;
+					return {
+						data: {
+							repository: {
+								rulesets: {
+									nodes: [{ name: `Ruleset ${pages}`, target: 'BRANCH', enforcement: 'ACTIVE', rules: { totalCount: 1 }, conditions: null }],
+									pageInfo: { hasNextPage, endCursor: hasNextPage ? `cursor-${pages}` : null },
+								}
+							}
+						}
+					};
+				},
+			});
+			allow('alice', true, 'vscode.github');
+			await mainThread.$getClient(0, 'vscode.github', 'selected', CancellationToken.None);
+			const result = await mainThread.$listGitHubRulesetConnection(0, { owner: 'o', repo: 'r' }, undefined, 1000, CancellationToken.None);
+			mainThread.$releaseClient(0);
+			outcomes.push({ pages, result: result.kind === 'ok' ? result.value?.nodes?.length : result });
+		}
+		assert.deepStrictEqual(outcomes, [
+			{ pages: 1000, result: 1000 },
+			{ pages: 1000, result: { kind: 'error', error: { code: 'invalidResponse', message: 'GitHub pagination exceeded the limit of 1000 pages.' } } },
+		]);
+	});
+
+	test('rejects anonymous and invalid repository operations and invalidates revoked client leases', async () => {
+		const { mainThread, requests, allow, onDidChangeAccess } = setup({
+			sessions: [session('selected', 'alice')],
+			respond: async () => repositoryResponse(),
+		});
+		allow('alice', true, 'vscode.github');
+		const api = createInternalGitHubModule({ ...nullExtensionDescription, identifier: new ExtensionIdentifier('vscode.github'), isBuiltin: true }, new ExtHostGitHub(mainThread));
+		const client = store.add(await api.getClient('selected'));
+		store.add(await api.getAnonymousClient());
+		const repository = { owner: 'o', repo: 'r' };
+		const anonymous = await mainThread.$createGitHubRepository(1, { name: 'r' }, CancellationToken.None);
+		const failures = [
+			await mainThread.$getGitHubRepository(0, { owner: '', repo: 'r' }, CancellationToken.None),
+			await mainThread.$listGitHubBranches(0, repository, { per_page: 101 }, CancellationToken.None),
+			await mainThread.$listGitHubBranches(0, repository, { per_page: 1.5 }, CancellationToken.None),
+			await mainThread.$listGitHubRepositories(0, { page: 0 }, CancellationToken.None),
+			await mainThread.$getGitHubRepositoryViewerInfo(0, { owner: '', repo: 'r' }, CancellationToken.None),
+			await mainThread.$createGitHubRepository(0, { name: '' }, CancellationToken.None),
+		];
+		let invalidated = 0;
+		store.add(client.onDidInvalidate(() => { invalidated++; client.dispose(); }));
+		allow('alice', false, 'vscode.github');
+		onDidChangeAccess.fire({ providerId: 'github', accountName: 'alice' });
+		await assert.rejects(async () => client.repositories.get(repository), { name: 'GitHubError', code: 'authentication' });
+		assert.deepStrictEqual({
+			anonymous: anonymous.kind === 'error' && anonymous.error.code,
+			failures: failures.map(result => result.kind === 'error' && result.error.code), invalidated, requests,
+		}, { anonymous: 'authentication', failures: Array(6).fill('validation'), invalidated: 1, requests: [] });
+	});
+
+	test('preserves unavailable GraphQL data and reports malformed repository responses', async () => {
+		let malformed = false;
+		const { mainThread, allow } = setup({
+			sessions: [session('selected', 'alice')],
+			respond: async () => ({ data: { repository: malformed ? { viewerPermission: 42, defaultBranchRef: null } : null } }),
+		});
+		allow('alice', true, 'vscode.github');
+		const api = createInternalGitHubModule({ ...nullExtensionDescription, identifier: new ExtensionIdentifier('vscode.github'), isBuiltin: true }, new ExtHostGitHub(mainThread));
+		const client = store.add(await api.getClient('selected'));
+		const repository = { owner: 'o', repo: 'r' };
+		const unavailable = await Promise.all([
+			client.repositories.getViewerInfo(repository),
+			client.repositories.listRulesetConnection(repository),
+			client.repositories.listAssignableUsers(repository),
+			client.repositories.getCommitAuthor(repository, 'HEAD'),
+		]);
+		malformed = true;
+		await assert.rejects(async () => client.repositories.getViewerInfo(repository), { name: 'GitHubError', code: 'invalidResponse' });
+		assert.deepStrictEqual(unavailable, [null, null, null, null]);
+	});
 
 	test('binds exactly the selected session and creates a secret gist without exposing credentials', async () => {
 		const { mainThread, requests, acquisitions, released, allow } = setup({
@@ -180,7 +414,7 @@ suite('MainThreadGitHub', () => {
 					],
 				},
 			},
-			create: { kind: 'error', error: { code: 'authentication', message: 'Creating a gist requires a client bound to a GitHub session.' } },
+			create: { kind: 'error', error: { code: 'authentication', message: 'This operation requires a client bound to a GitHub session.' } },
 			acquisitions: [],
 			requests: [{ domain: 'gists', method: 'GET', path: '/gists/shared', expectedStatus: 200, options: { caller: `extension.${extensionId}` } }],
 			released: ['anonymous'],

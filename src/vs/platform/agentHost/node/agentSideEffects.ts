@@ -25,6 +25,7 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { IAgentHostChatContributions, type ISendTurnMessageOptions } from '../common/agentHostChatContributionsService.js';
 import { captureCredentialSource, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
+import { resolveAgentMessageProvenance } from '../common/agentMessageProvenance.js';
 import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
 import { isRenameChatTool } from '../common/serverToolNames.js';
 import { type AgentHostPrewarmSkipReason, type CodexModelProvider, AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
@@ -33,7 +34,9 @@ import { readCodexSessionModel, withCodexSessionModel } from '../common/meta/cod
 import { isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta, toAgentSystemNotificationMeta } from '../common/meta/agentSystemNotificationMeta.js';
-import { isModelRouterModelId } from '../common/modelRouter.js';
+import { isModelRouterModelId, modelRouterNameFromModelId } from '../common/modelRouter.js';
+import { modelRouterWorkspaceSituation, summarizeModelRouterAttachments, type IModelRouterSituation } from '../common/modelRouterSituation.js';
+import { readAgentChatInputResponseMeta } from '../common/meta/agentChatInputResponseMeta.js';
 import { readAgentPermissionResponseMeta } from '../common/meta/agentPermissionResponseMeta.js';
 import { readMcpServerSource, type McpServerSource } from '../common/meta/mcpCustomizationMeta.js';
 
@@ -313,6 +316,8 @@ export class AgentSideEffects extends Disposable {
 	readonly onDidStartTurn: Event<string>;
 	/** What a model router chose for recent turns, merged into every usage report so the choice persists with the turn. */
 	private readonly _routedTurns = new LRUCache<string, IModelRoutedInfo>(200);
+	/** The router of recent turns that asked for one and got no pick, kept with the turn's usage the same way. */
+	private readonly _unroutedTurns = new LRUCache<string, string>(200);
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
 		private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
@@ -590,7 +595,7 @@ export class AgentSideEffects extends Disposable {
 	private _publishAgentInfos(agents: readonly IAgent[], reader?: IReader): void {
 		const infos: AgentInfo[] = agents.map(a => {
 			const d = a.getDescriptor();
-			const protectedResources = a.getProtectedResources();
+			const protectedResources = a.getProtectedResources(reader);
 			const models = reader ? a.models.read(reader) : a.models.get();
 			const customizations = a.getCustomizations?.();
 			return {
@@ -1703,6 +1708,8 @@ export class AgentSideEffects extends Disposable {
 			permissionPath: e.permissionPath,
 			permissionResource: e.permissionResource,
 			permissionUrl: e.permissionUrl,
+			mcpServerName: e.mcpServerName,
+			mcpToolName: e.mcpToolName,
 			toolInput: e.shellCommand ?? getInlineToolInput(e.state.toolInput),
 			requestSandboxBypass: e.requestSandboxBypass,
 			shellLanguage: e.shellLanguage,
@@ -1944,7 +1951,7 @@ export class AgentSideEffects extends Disposable {
 					throw new Error(`ChatInputCompleted must be handled on an AHP chat channel: ${channel}`);
 				}
 				const agent = this._options.getAgent(sessionChannel, chatChannel);
-				agent?.respondToUserInputRequest(action.requestId, action.response, action.answers);
+				agent?.respondToUserInputRequest(action.requestId, action.response, action.answers, readAgentChatInputResponseMeta(action));
 				break;
 			}
 			case ActionType.ChatTurnCancelled: {
@@ -2262,7 +2269,7 @@ export class AgentSideEffects extends Disposable {
 			let model: ModelSelection | undefined;
 			let routed: IRoutedTurnModel | undefined;
 			if (message.model && isModelRouterModelId(message.model.id)) {
-				routed = await this._resolveRoutedTurnModel(agent, chatUri, turnChannel, turnId, message.model, message.text, message.agent, clientOperationContext);
+				routed = await this._resolveRoutedTurnModel(agent, chatUri, turnChannel, turnId, message.model, message.text, message.agent, this._modelRouterSituation(sessionChannel, turnChannel, message.attachments, resolvedWorkingDirectories), clientOperationContext);
 				if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
 					await this._discardPendingTurnStartCheckpoint(checkpointCapture, sessionChannel, chatUri, turnId);
 					return;
@@ -2328,6 +2335,7 @@ export class AgentSideEffects extends Disposable {
 			const sendContext = {
 				...clientOperationContext,
 				originalMessageText: message.text,
+				messageProvenance: resolveAgentMessageProvenance(message, this._stateManager.getSessionState(sessionChannel)?.origin),
 				turnTelemetryCorrelation: { agentSessionId: AgentSession.id(sessionChannel), chatSessionId: getTelemetryChatSessionId(turnChannel), turnId },
 				reportCodexModelProvider: (provider: CodexModelProvider) => this._turnTracker.setCodexModelProvider(turnChannel, turnId, provider),
 				...prewarmReporters,
@@ -2406,17 +2414,22 @@ export class AgentSideEffects extends Disposable {
 	 * A chosen model's routing is published only once the model change succeeds, so a failed
 	 * change leaves no pick for the next turn to keep.
 	 */
-	private async _resolveRoutedTurnModel(agent: IAgent, chatUri: URI, turnChannel: ProtocolURI, turnId: string, selection: ModelSelection, text: string, customAgent: AgentSelection | undefined, context: IAgentChatContext): Promise<IRoutedTurnModel | undefined> {
+	private async _resolveRoutedTurnModel(agent: IAgent, chatUri: URI, turnChannel: ProtocolURI, turnId: string, selection: ModelSelection, text: string, customAgent: AgentSelection | undefined, situation: IModelRouterSituation, context: IAgentChatContext): Promise<IRoutedTurnModel | undefined> {
 		if (!agent.resolveTurnModel || resolveSubagentChatParent(context) !== undefined) {
 			this._logService.info(`[AgentSideEffects] Chat ${turnChannel} keeps its model: ${agent.id} does not route ${selection.id} here`);
 			return undefined;
 		}
+		// A turn that was cancelled or replaced while it was being prepared has nothing to route.
+		if (this._cancelledTurnIds.get(turnChannel)?.has(turnId) || this._stateManager.getChatState(turnChannel)?.activeTurn?.id !== turnId) {
+			return undefined;
+		}
 		let resolution;
 		try {
-			resolution = await agent.resolveTurnModel(chatUri, { turnId, selection, text, previousTurns: this._stateManager.getChatState(turnChannel)?.turns ?? [], ...(customAgent ? { agent: customAgent } : {}) }, context, CancellationToken.None);
+			resolution = await agent.resolveTurnModel(chatUri, { turnId, selection, text, previousTurns: this._stateManager.getChatState(turnChannel)?.turns ?? [], situation, ...(customAgent ? { agent: customAgent } : {}) }, context, CancellationToken.None);
 		} catch (err) {
 			this._logService.error(`[AgentSideEffects] Routing ${selection.id} failed for ${turnChannel}; keeping the chat's model`, err);
 			this._turnTracker.updateFusionTelemetry(turnChannel, turnId, { modelRouterOutcome: 'failed' satisfies ModelRouterOutcome });
+			this._markUnrouted(turnChannel, turnId, selection);
 			return undefined;
 		}
 		if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
@@ -2429,6 +2442,8 @@ export class AgentSideEffects extends Disposable {
 				this._routedTurns.set(this._routedTurnKey(turnChannel, turnId), resolution.routed);
 				// Name the pick now; the model's own usage report can arrive much later.
 				this._stateManager.dispatchServerAction(turnChannel, { type: ActionType.ChatUsage, turnId, usage: { _meta: { modelRouted: resolution.routed } } });
+			} else {
+				this._markUnrouted(turnChannel, turnId, selection);
 			}
 			for (const notice of resolution.notices) {
 				this._stateManager.dispatchServerAction(turnChannel, {
@@ -2452,16 +2467,47 @@ export class AgentSideEffects extends Disposable {
 		return `${channel}\0${turnId}`;
 	}
 
-	/** Adds the router's choice to a turn's usage, since each usage report replaces the last. */
+	/** Read from state the host already has. None of it is content. */
+	private _modelRouterSituation(sessionChannel: ProtocolURI, turnChannel: ProtocolURI, attachments: readonly MessageAttachment[] | undefined, resolvedWorkingDirectories: readonly URI[] | undefined): IModelRouterSituation {
+		const summary = summarizeModelRouterAttachments(attachments);
+		const mode = getConfiguredSessionMode(this._agentConfigService.getChatConfigState({ session: sessionChannel, chat: turnChannel }));
+		// The chat's own folders: a peer chat can work somewhere else than its session.
+		const workingDirectories = resolvedWorkingDirectories?.map(directory => directory.toString()) ?? this._agentConfigService.getEffectiveWorkingDirectories(turnChannel);
+		return {
+			...modelRouterWorkspaceSituation(this._stateManager.getSessionState(sessionChannel), workingDirectories, this._stateManager.isDefaultChat(sessionChannel, turnChannel)),
+			...(summary.length ? { attachments: summary } : {}),
+			...(mode && mode !== 'interactive' ? { mode } : {}),
+		};
+	}
+
+	/**
+	 * Records that a turn asked for a model router and ran on the chat's model instead. A restored
+	 * turn's own selection is the model it ran on, which would otherwise read as picked by hand.
+	 */
+	private _markUnrouted(turnChannel: ProtocolURI, turnId: string, selection: ModelSelection): void {
+		const router = modelRouterNameFromModelId(selection.id);
+		if (!router) {
+			return;
+		}
+		this._unroutedTurns.set(this._routedTurnKey(turnChannel, turnId), router);
+		this._stateManager.dispatchServerAction(turnChannel, { type: ActionType.ChatUsage, turnId, usage: { _meta: { modelRouterUnrouted: router } } });
+	}
+
+	/** Adds the router's choice, or that it made none, to a turn's usage, since each usage report replaces the last. */
 	private _withModelRouted<T extends StateAction>(channel: ProtocolURI, action: T): T {
 		if (action.type !== ActionType.ChatUsage) {
 			return action;
 		}
 		const activeTurn = this._stateManager.getChatState(channel)?.activeTurn;
-		// The cache is bounded, so a long-paused turn falls back to what its usage already carries.
-		const modelRouted = this._routedTurns.get(this._routedTurnKey(channel, action.turnId))
-			?? (activeTurn?.id === action.turnId ? readUsageInfoMeta(activeTurn.usage).modelRouted : undefined);
-		return modelRouted ? { ...action, usage: { ...action.usage, _meta: { ...action.usage._meta, modelRouted } } } : action;
+		const key = this._routedTurnKey(channel, action.turnId);
+		// The caches are bounded, so a long-paused turn falls back to what its usage already carries.
+		const carried = activeTurn?.id === action.turnId ? readUsageInfoMeta(activeTurn.usage) : undefined;
+		const modelRouted = this._routedTurns.get(key) ?? carried?.modelRouted;
+		if (modelRouted) {
+			return { ...action, usage: { ...action.usage, _meta: { ...action.usage._meta, modelRouted } } };
+		}
+		const modelRouterUnrouted = this._unroutedTurns.get(key) ?? carried?.modelRouterUnrouted;
+		return modelRouterUnrouted ? { ...action, usage: { ...action.usage, _meta: { ...action.usage._meta, modelRouterUnrouted } } } : action;
 	}
 
 	/**

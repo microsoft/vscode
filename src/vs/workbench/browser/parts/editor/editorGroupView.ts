@@ -121,6 +121,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private readonly model: EditorGroupModel;
 
 	private active: boolean | undefined;
+	private editorOpenOperation: object | undefined;
+	get isOpeningEditor(): boolean { return this.editorOpenOperation !== undefined; }
+
 	private lastLayout: IDomNodePagePosition | undefined;
 
 	private readonly scopedInstantiationService: IInstantiationService;
@@ -142,6 +145,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	 * `0` (default) is a no-op for all other layouts.
 	 */
 	private _contentRightInset = 0;
+	private _contentLeftInset = 0;
+	private _contentTopInset = 0;
+	private _contentBottomInset = 0;
 
 	private readonly _onDidRelayout = this._register(new Emitter<void>());
 	readonly onDidRelayout = this._onDidRelayout.event;
@@ -425,6 +431,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 				this.editorService.openEditor({
 					resource: undefined,
+					untitledOrigin: 'emptyGroupDoubleClick',
 					options: {
 						pinned: true,
 						override: DEFAULT_EDITOR_ASSOCIATION.id
@@ -602,7 +609,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Show active editor (intentionally not using async to keep
 		// `restoreEditors` from executing in same stack)
-		const result = this.doShowEditor(activeEditor, { active: true, isNew: false /* restored */ }, options, internalOptions).then(() => {
+		const result = this.withEditorActionsPending(() => this.doShowEditor(activeEditor, { active: true, isNew: false /* restored */ }, options, internalOptions)).then(() => {
 
 			// Set focused now if this is the active group and focus has
 			// not changed meanwhile. This prevents focus from being
@@ -1310,34 +1317,58 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 		}
 
-		// Update model and make sure to continue to use the editor we get from
-		// the model. It is possible that the editor was already opened and we
-		// want to ensure that we use the existing instance in that case.
-		const { editor: openedEditor, isNew } = this.model.openEditor(editor, openEditorOptions);
+		const showEditor = () => {
+			// Update model and make sure to continue to use the editor we get from
+			// the model. It is possible that the editor was already opened and we
+			// want to ensure that we use the existing instance in that case.
+			const { editor: openedEditor, isNew } = this.model.openEditor(editor, openEditorOptions);
 
-		// Conditionally lock the group
-		if (
-			isNew &&								// only if this editor was new for the group
-			this.count === 1 &&						// only when this editor was the first editor in the group
-			this.editorPartsView.groups.length > 1 	// only allow auto locking if more than 1 group is opened
-		) {
-			// only when the editor identifier is configured as such
-			if (openedEditor.editorId && this.groupsView.partOptions.autoLockGroups?.has(openedEditor.editorId)) {
-				this.lock(true);
+			// Conditionally lock the group
+			if (
+				isNew &&								// only if this editor was new for the group
+				this.count === 1 &&						// only when this editor was the first editor in the group
+				this.editorPartsView.groups.length > 1 	// only allow auto locking if more than 1 group is opened
+			) {
+				// only when the editor identifier is configured as such
+				if (openedEditor.editorId && this.groupsView.partOptions.autoLockGroups?.has(openedEditor.editorId)) {
+					this.lock(true);
+				}
+			}
+
+			// Show editor
+			const showEditorResult = this.doShowEditor(openedEditor, { active: !!openEditorOptions.active, isNew }, options, internalOptions);
+
+			// Finally make sure the group is active or restored as instructed
+			if (activateGroup) {
+				this.groupsView.activateGroup(this);
+			} else if (restoreGroup) {
+				this.groupsView.restoreGroup(this);
+			}
+
+			return showEditorResult;
+		};
+
+		const editorToOpen = this.model.findEditor(editor, openEditorOptions)?.[0] ?? editor;
+		if (openEditorOptions.active && (!this.activeEditorPane?.input?.matches(editorToOpen) || options?.forceReload)) {
+			return this.withEditorActionsPending(showEditor);
+		}
+
+		return showEditor();
+	}
+
+	private async withEditorActionsPending(openEditor: () => Promise<IEditorPane | undefined>): Promise<IEditorPane | undefined> {
+		const operation = this.editorOpenOperation = {};
+		this.titleControl.updateEditorActions();
+		try {
+			return await openEditor();
+		} finally {
+			if (this.editorOpenOperation === operation) {
+				this.editorOpenOperation = undefined;
+				if (!this.disposed) {
+					this.titleControl.updateEditorActions();
+				}
 			}
 		}
-
-		// Show editor
-		const showEditorResult = this.doShowEditor(openedEditor, { active: !!openEditorOptions.active, isNew }, options, internalOptions);
-
-		// Finally make sure the group is active or restored as instructed
-		if (activateGroup) {
-			this.groupsView.activateGroup(this);
-		} else if (restoreGroup) {
-			this.groupsView.restoreGroup(this);
-		}
-
-		return showEditorResult;
 	}
 
 	private doShowEditor(editor: EditorInput, context: { active: boolean; isNew: boolean }, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined> {
@@ -2299,24 +2330,25 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.lastLayout = { width, height, top, left };
 		this.element.classList.toggle('max-height-478px', height <= 478);
 
-		const contentWidth = Math.max(0, width - this._contentRightInset);
+		const contentWidth = Math.max(0, width - this._contentLeftInset - this._contentRightInset);
 		this.titleContainer.style.setProperty('--title-border-bottom-width', `${contentWidth}px`);
+		this.titleContainer.style.setProperty('--title-border-bottom-left', `${this._contentLeftInset}px`);
 
 		// Keep tabs full-width while the header and editor pane follow the content inset.
 		const titleControlSize = this.titleProvidedByEditor ? new Dimension(width, 0) : this.titleControl.layout({
 			container: new Dimension(width, height),
 			available: new Dimension(width, height - this.editorPane.minimumHeight)
-		}, contentWidth);
+		}, contentWidth, this._contentLeftInset);
 
 		// Update progress bar location
 		this.progressBar.getContainer().style.top = `${Math.max(this.titleHeight.offset - 2, 0)}px`;
 
-		// The editor pane is inset on the right by `_contentRightInset` so a docked
-		// panel can sit beside it under the full-width title (0 = fill the group).
-		const editorHeight = Math.max(0, height - titleControlSize.height);
+		const editorHeight = Math.max(0, height - titleControlSize.height - this._contentTopInset - this._contentBottomInset);
 		this.editorContainer.style.width = `${contentWidth}px`;
 		this.editorContainer.style.height = `${editorHeight}px`;
-		this.editorPane.layout({ width: contentWidth, height: editorHeight, top: top + titleControlSize.height, left });
+		this.editorContainer.style.marginTop = this._contentTopInset > 0 ? `${this._contentTopInset}px` : '';
+		this.editorContainer.style.marginLeft = this._contentLeftInset > 0 ? `${this._contentLeftInset}px` : '';
+		this.editorPane.layout({ width: contentWidth, height: editorHeight, top: top + titleControlSize.height + this._contentTopInset, left: left + this._contentLeftInset });
 	}
 
 	/**
@@ -2324,11 +2356,30 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	 * `0` restores the default full-width content.
 	 */
 	setContentRightInset(inset: number): void {
-		const next = Math.max(0, Math.round(inset));
-		if (next === this._contentRightInset) {
+		this.setContentHorizontalInsets(this._contentLeftInset, inset);
+	}
+
+	/** Reserves space beside the editor header and pane while tabs remain full-width. */
+	setContentHorizontalInsets(left: number, right: number): void {
+		const nextLeft = Math.max(0, Math.round(left));
+		const nextRight = Math.max(0, Math.round(right));
+		if (nextLeft === this._contentLeftInset && nextRight === this._contentRightInset) {
 			return;
 		}
-		this._contentRightInset = next;
+		this._contentLeftInset = nextLeft;
+		this._contentRightInset = nextRight;
+		this.relayout();
+	}
+
+	/** Reserves space above and below editor content without moving its tabs or header. */
+	setContentVerticalInsets(top: number, bottom: number): void {
+		const nextTop = Math.max(0, Math.round(top));
+		const nextBottom = Math.max(0, Math.round(bottom));
+		if (nextTop === this._contentTopInset && nextBottom === this._contentBottomInset) {
+			return;
+		}
+		this._contentTopInset = nextTop;
+		this._contentBottomInset = nextBottom;
 		this.relayout();
 	}
 

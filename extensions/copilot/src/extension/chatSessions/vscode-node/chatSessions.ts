@@ -14,6 +14,7 @@ import { IGitService } from '../../../platform/git/common/gitService';
 import { IOctoKitService } from '../../../platform/github/common/githubService';
 import { OctoKitService } from '../../../platform/github/common/octoKitServiceImpl';
 import { ILogService } from '../../../platform/log/common/logService';
+import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { Disposable, DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
@@ -95,6 +96,8 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 		@ILogService private readonly logService: ILogService,
 		@IOctoKitService private readonly octoKitService: IOctoKitService,
 		@IEnvService private readonly envService: IEnvService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IExperimentationService experimentationService: IExperimentationService,
 	) {
 		super();
 		// Independent of the extension-host Copilot CLI session provider. Created before that
@@ -116,9 +119,7 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 		const configKey = vscode.workspace.isAgentSessionsWorkspace
 			? ConfigKey.Advanced.CLISessionControllerForSessionsApp
 			: ConfigKey.Advanced.CLISessionController;
-		const useController = instantiationService.invokeFunction(accessor =>
-			accessor.get(IConfigurationService).getConfig(configKey)
-		);
+		const useController = configurationService.getConfig(configKey);
 		// The standalone Copilot CLI in the integrated terminal and its in-proc MCP bridge do not
 		// depend on the extension-host Copilot CLI session provider. Its services are created as a
 		// child of this container so both share one session tracker and terminal integration.
@@ -126,10 +127,19 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 		// The cloud agent does not depend on the extension-host Copilot CLI session provider, which
 		// only uses it to delegate a session to the cloud.
 		const cloudSessionProvider = this.registerCopilotCloudAgent();
+		const legacyProviderEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.CLILegacyProviderEnabled, experimentationService);
+		// The `when` clauses check the setting, which VS Code resolves at startup including its
+		// experiment. This context key carries the value the extension acts on, so the two cannot
+		// disagree. It is set on every activation: an extension host restart without a window reload keeps context keys.
+		void vscode.commands.executeCommand('setContext', 'github.copilot.chat.cli.legacyProviderDisabled', !legacyProviderEnabled);
+		if (!legacyProviderEnabled) {
+			// The `copilotcli` session type is hidden; its sessions are migrated to the agent host when opened.
+			logService.info('[ChatSessions] Extension-host Copilot CLI session provider is disabled');
+			return;
+		}
 		useController
 			? this.registerCopilotCLIServices(copilotCLITerminalInstaService, delegationSummary, cloudSessionProvider, logService)
 			: this.registerCopilotCLIServicesV1(copilotCLITerminalInstaService, delegationSummary, cloudSessionProvider, logService);
-
 	}
 
 	private registerCopilotCLITerminal(instantiationService: IInstantiationService): IInstantiationService {

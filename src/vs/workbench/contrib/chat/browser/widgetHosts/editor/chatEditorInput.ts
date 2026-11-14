@@ -36,7 +36,7 @@ import { IChatEditingSession, ModifiedFileEntryState } from '../../../common/edi
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri, getChatSessionType, getNewChatSessionResource, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { adoptLegacyCopilotCliResource, isLegacyMigrationEnabledAtStartup, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, reportLegacyMigrationOpen } from '../../agentSessions/agentHost/agentHostLegacyMigration.js';
+import { adoptLegacyCopilotCliResource, canOpenLegacyCopilotCliResource, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, reportLegacyMigrationOpen } from '../../agentSessions/agentHost/agentHostLegacyMigration.js';
 import { migratedCopilotCliResource } from '../../copilotCliEventsUri.js';
 import { IClearEditingSessionConfirmationOptions } from '../../actions/chatActions.js';
 import type { IChatEditorOptions } from './chatEditor.js';
@@ -324,7 +324,6 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 						this.agentHostConnectionsService.ambientConnection,
 						this._sessionResource!,
 						this.logService,
-						this.configurationService,
 						this.telemetryService,
 						'restore',
 						LEGACY_MIGRATION_RESTORE_TIMEOUT_MS,
@@ -333,9 +332,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 				if (migrated) {
 					this._sessionResource = migrated;
 					migratedResource = migrated;
-				} else if (isLegacyMigrationEnabledAtStartup(this.configurationService)
-					&& this.chatSessionsService.getChatSessionContribution
-					&& !this.chatSessionsService.getChatSessionContribution(this._sessionResource.scheme)) {
+				} else if (!await canOpenLegacyCopilotCliResource(this.chatSessionsService, this._sessionResource)) {
 					this._sessionResource = twin;
 				}
 			}

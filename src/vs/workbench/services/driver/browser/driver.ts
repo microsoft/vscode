@@ -42,7 +42,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 	}
 
 	async setValue(selector: string, text: string): Promise<void> {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const element = mainWindow.document.querySelector(selector);
 
 		if (!element) {
@@ -57,7 +57,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 	}
 
 	async isActiveElement(selector: string): Promise<boolean> {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const element = mainWindow.document.querySelector(selector);
 
 		if (element !== mainWindow.document.activeElement) {
@@ -80,7 +80,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 	}
 
 	async getElements(selector: string, recursive: boolean): Promise<IElement[]> {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const query = mainWindow.document.querySelectorAll(selector);
 		const result: IElement[] = [];
 		for (let i = 0; i < query.length; i++) {
@@ -131,7 +131,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 	}
 
 	async typeInEditor(selector: string, text: string): Promise<void> {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const element = mainWindow.document.querySelector(selector);
 
 		if (!element) {
@@ -170,7 +170,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 	}
 
 	async getEditorSelection(selector: string): Promise<{ selectionStart: number; selectionEnd: number }> {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const element = mainWindow.document.querySelector(selector);
 		if (!element) {
 			throw new Error(`Editor not found: ${selector}`);
@@ -189,7 +189,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 	}
 
 	async getTerminalBuffer(selector: string): Promise<string[]> {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const element = mainWindow.document.querySelector(selector);
 
 		if (!element) {
@@ -212,7 +212,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 	}
 
 	async writeInTerminal(selector: string, text: string): Promise<void> {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const element = mainWindow.document.querySelector(selector);
 
 		if (!element) {
@@ -245,7 +245,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 	}
 
 	protected async _getElementXY(selector: string, offset?: { x: number; y: number }): Promise<{ x: number; y: number }> {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const element = mainWindow.document.querySelector(selector);
 
 		if (!element) {

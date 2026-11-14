@@ -1147,7 +1147,7 @@ suite('Mission Control client', () => {
 			return Response.json(emptyPage, { headers: { etag: `"${token}"` } });
 		}, clientOptions(), { onDidChange: Event.None, getToken: () => token });
 		await client.automations.list(repository, signal());
-		const rejected = assert.rejects(client.automations.list(repository, signal()), { kind: 'authentication' });
+		const rejected = assert.rejects(client.automations.list(repository, signal()), { kind: 'unknown', message: 'GitHub credential generation was superseded' });
 		await started.p;
 		token = 'replacement';
 		await client.tasks.list(signal());

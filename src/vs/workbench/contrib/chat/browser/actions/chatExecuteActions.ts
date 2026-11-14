@@ -6,6 +6,7 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
@@ -26,6 +27,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
+import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { buildCustomAgentHandoffsInfo, getHandoffId, IChatMode, IChatModeService, IChatModes } from '../../common/chatModes.js';
 import { reportChatModeChange } from '../../common/chatModeTelemetry.js';
@@ -52,6 +54,21 @@ export interface IChatExecuteActionContext {
 	inputValue?: string;
 	acceptInputOptions?: IChatAcceptInputOptions;
 	voice?: IVoiceChatExecuteActionContext;
+}
+
+/**
+ * Creates the context for actions in the chat input toolbars. Built-in actions receive the live widget. Extension
+ * commands receive the context over RPC, so it serializes as the chat view context of the widget's session and input.
+ */
+export function createChatInputToolbarContext(widget: IChatWidget): IChatExecuteActionContext {
+	const context: IChatExecuteActionContext & { toJSON(): IChatViewTitleActionContext | null } = {
+		widget,
+		toJSON: () => {
+			const sessionResource = widget.viewModel?.sessionResource;
+			return sessionResource ? { $mid: MarshalledId.ChatViewContext, sessionResource, inputUri: widget.input?.inputUri } : null;
+		},
+	};
+	return context;
 }
 
 abstract class SubmitAction extends Action2 {
@@ -220,6 +237,7 @@ export class ChatSubmitAction extends SubmitAction {
 			keybinding: {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
+					EditorContextKeys.hoverFocused.negate(),
 					ChatContextKeys.withinEditSessionDiff.negate(),
 				),
 				primary: KeyCode.Enter,

@@ -8,6 +8,7 @@ import { convertHtmlToMarkdown } from '../../../../../../base/browser/htmlToMark
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { cloneVisibleSelection, sanitizeChatClipboardFragment, toPortableMarkdown } from '../../../browser/widget/chatClipboard.js';
+import { registerTestIframe } from '../../../../../../base/test/browser/testWindow.js';
 
 function toFragment(html: string): DocumentFragment {
 	const template = document.createElement('template');
@@ -77,6 +78,7 @@ suite('ChatClipboard', () => {
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
 		disposables.add(toDisposable(() => iframe.remove()));
+		disposables.add(registerTestIframe(iframe));
 
 		const auxiliaryDocument = iframe.contentDocument!;
 		const fragment = auxiliaryDocument.createDocumentFragment();

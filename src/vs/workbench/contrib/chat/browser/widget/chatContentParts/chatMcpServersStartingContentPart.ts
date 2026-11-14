@@ -140,7 +140,7 @@ export class ChatMcpServersStartingContentPart extends Disposable implements ICh
 		messageContainer.appendChild(rendered.element);
 		container.appendChild(messageContainer);
 		this.domNode.appendChild(container);
-		// eslint-disable-next-line no-restricted-syntax -- The markdown renderer owns the Skip anchor.
+		// eslint-disable-next-line eslint-js/no-restricted-syntax -- The markdown renderer owns the Skip anchor.
 		return rendered.element.querySelector<HTMLAnchorElement>('a[data-href="#skip"]') ?? undefined;
 	}
 

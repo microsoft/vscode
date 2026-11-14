@@ -16,6 +16,17 @@ When a valid E2E scenario exposes a gap:
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
+### Copilot native Entra accounts are unavailable on Linux
+
+The native runtime currently enables Microsoft Entra account login only on Windows and macOS. A host-supplied token source does not bypass that platform gate. Linux cannot complete the positive setup-session or current-account conversation scenarios; this is not evidence that the account has no usable services.
+
+- Test: `authenticates and configures a new conversation and resumes its live SDK binding without global login` in `../providerIntegration/copilotAccountContext.integrationTest.ts`.
+- Scope: Linux with the bundled SDK `1.0.29-preview.10` / runtime `1.0.106-11`.
+- Expected on supported platforms: discover through resource authentication, resolve conversation policy with the runtime's normal managed-settings call, create a fully configured conversation and sign it in on that same session through the current Entra authority, read its session-owned catalog, and resume the live SDK binding once without login or switching. A conversation closed before its first message has no history, so its resume is rejected and a replacement is created and signed in under the same ID. Microsoft catalog policy is temporarily omitted independently of conversation policy. This fixture does not send a turn or establish cold-history persistence. Global queries must not accept a session-owned selection handle.
+- Observed: Linux CI rejected discovery before readiness in all three attempts. The runtime's Entra `SUPPORTED` predicate enables only Windows/macOS, and its host-owned Entra SDK suite also excludes Linux.
+- Gate: skip only this native positive-path case on Linux, matching the existing Entra transport test's platform scope. Keep protocol, credential and client tests enabled. Remove this gate when native Entra support includes Linux; do not weaken the account-confirmation assertions.
+- Reproduce on a supported platform: `./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/providerIntegration/copilotAccountContext.integrationTest.ts`. Re-enable the test before checking future Linux support. Cross-platform CI must distinguish this unsupported capability from a successful Entra journey.
+
 ### Copilot empty-mode native plugin agent selection
 
 A user selects an agent supplied by a plugin for a chat backed by the SDK's `empty` client mode. This mode is used by storage-scoped Copilot clients. The native plugin agent is absent from the session catalog even when its directory is supplied and configuration discovery is enabled, so the requested agent cannot be selected. Retrying as the default agent would silently change the user's request.

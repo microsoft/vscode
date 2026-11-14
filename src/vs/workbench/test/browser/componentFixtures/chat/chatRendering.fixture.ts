@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { getWindow } from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -11,7 +12,7 @@ import { ChatModeKind, ChatPermissionLevel, ChatProgressAnimation, ChatProgressV
 import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatQuestionCarousel, ToolConfirmKind } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ILanguageModelToolsService, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
-import { getToolInvocationSummaryFromInput } from '../../../../contrib/chat/common/tools/toolInvocationSummary.js';
+import { getToolInvocationSummaryFromInput, type ChatToolInvocationSummary } from '../../../../contrib/chat/common/tools/toolInvocationSummary.js';
 import { ILanguageModelToolsConfirmationService } from '../../../../contrib/chat/common/tools/languageModelToolsConfirmationService.js';
 import { MockLanguageModelToolsConfirmationService } from '../../../../contrib/chat/test/common/tools/mockLanguageModelToolsConfirmationService.js';
 import { MockLanguageModelToolsService } from '../../../../contrib/chat/test/common/tools/mockLanguageModelToolsService.js';
@@ -333,6 +334,92 @@ async function renderDeterministicToolSummaries(context: ComponentFixtureContext
 	}, 'Deterministic tool summaries did not settle');
 }
 
+/**
+ * Finished Conversation sections: tool summaries with their time, including one whose reasoning
+ * has a heading, reasoning alone, and a tool summary whose time was not recorded. With `completedSteps`
+ * they are folded into the completed response's closed disclosure.
+ */
+async function renderConversationSections(context: ComponentFixtureContext, completedSteps = false): Promise<void> {
+	const titles = ['Ran 1 command - 9s', 'Ran 2 commands, read summary.ts - 31s', 'Thought for 26s', 'Edited 2 files, 1 other step'];
+	const height = completedSteps ? 220 : 420;
+	await renderChatWidget(context, {
+		width: 500, height, listHeight: height, inputVisible: false,
+		persistentProgress: ChatProgressAnimation.Draw,
+		persistentProgressVerbosity: ChatProgressVerbosity.Conversation,
+		collapseCompletedResponses: completedSteps,
+		thinkingPhrases: ['Working'],
+		messages: [{ user: 'Collapse the terminal output once its command finishes', responseComplete: false, assistant: [] }],
+		onRendered: ({ model }) => {
+			const request = model.getRequests()[0];
+			const reason = (id: string, value: string, reasoningDurationMs: number) => model.acceptResponseProgress(request, { kind: 'thinking', id, value, reasoningTimingSource: 'provider', reasoningDurationMs });
+			const say = (text: string) => model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(text) });
+			const tool = (toolCallId: string, message: string, summary: ChatToolInvocationSummary, startedAt?: number, completedAt?: number) => model.acceptResponseProgress(request, {
+				kind: 'toolInvocationSerialized', toolId: toolCallId, toolCallId, invocationMessage: new MarkdownString(message), pastTenseMessage: new MarkdownString(message),
+				isComplete: true, isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded }, source: ToolDataSource.Internal,
+				presentation: undefined, originMessage: undefined, summary, startedAt, completedAt,
+			});
+
+			reason('review', '**Reviewing the completion handler**\n\nThe output stays open after the command exits, so the handler is the place to start.', 5000);
+			tool('status', 'Ran `git status --short`', { kind: 'command' }, 10_000, 14_000);
+			say('The handler only collapses commands it saw start.');
+
+			reason('plan', 'The card is rebuilt when the tool call completes, so the state it remembers has to be keyed by the invocation.', 23_000);
+			tool('build', 'Ran `pnpm run build-fast`', { kind: 'command' }, 30_000, 32_000);
+			tool('test', 'Ran `scripts/test.sh`', { kind: 'command' }, 31_000, 33_000);
+			tool('read', 'Read summary.ts', { kind: 'read', resources: [{ uri: URI.file('/workspace/summary.ts') }] }, 40_000, 41_000);
+			reason('compare', 'Both layouts collapse now, so the tests can cover them together.', 4000);
+			say('The card collapses in every layout.');
+
+			reason('verify', 'A rebuilt card must not expand again when late output arrives.', 26_000);
+			say('Late output no longer reopens the card.');
+
+			for (const file of ['/workspace/progressPart.ts', '/workspace/progressPart.test.ts']) {
+				model.acceptResponseProgress(request, { kind: 'externalEdit', uri: URI.file(file), editKind: 'edit', diff: { added: 12, removed: 4 }, undoStopId: 'edits' });
+			}
+			tool('memory', 'Stored a memory', { kind: 'unknown' });
+			say('The fix and its tests are in place.');
+			request.response?.setElapsedMs(123_000);
+			request.response?.complete();
+		},
+	});
+	const sections = () => [...context.container.querySelectorAll<HTMLElement>('.chat-thinking-conversation')];
+	const isSettled = () => !context.container.getAnimations({ subtree: true }).some(animation =>
+		(animation.playState === 'running' || animation.pending) && animation.effect?.getComputedTiming().endTime !== Infinity);
+	await waitForFixtureCondition(() => {
+		const rendered = sections().map(section => section.querySelector(':scope > .chat-used-context-label .monaco-button-mdlabel')?.textContent);
+		return rendered.length === titles.length && rendered.every((title, index) => title === titles[index]) && isSettled();
+	}, 'Conversation section titles did not settle');
+	if (completedSteps) {
+		await waitForFixtureCondition(() => context.container.querySelector<HTMLDetailsElement>('.completed-response-disclosure')?.open === false, 'Completed steps did not collapse');
+	}
+	await waitForFixtureCondition(() => conversationChevronsStartOnTextEdge(context.container), 'Conversation chevrons do not start on the left edge of the text they lead');
+}
+
+/**
+ * Whether the chevron of each laid out, closed Conversation header starts on the header's left edge,
+ * where the response's text starts. A chevron's glyph is narrower than its box, so this measures its ink.
+ */
+function conversationChevronsStartOnTextEdge(container: HTMLElement): boolean {
+	const targetWindow = getWindow(container);
+	const canvas = targetWindow.document.createElement('canvas').getContext('2d');
+	if (!canvas) {
+		return false;
+	}
+	const headers = container.querySelectorAll<HTMLElement>('.chat-thinking-conversation > .chat-used-context-label, .completed-response-conversation > .completed-response-summary');
+	return Array.from(headers).every(header => {
+		const chevron = header.querySelector<HTMLElement>('.codicon-chevron-right-compact');
+		const box = chevron?.getBoundingClientRect();
+		if (!chevron || !box?.width) {
+			// The headers inside closed completed steps are not laid out
+			return true;
+		}
+		const glyph = targetWindow.getComputedStyle(chevron, '::before');
+		canvas.font = `${glyph.fontSize} ${glyph.fontFamily}`;
+		const ink = canvas.measureText(glyph.content.replace(/["']/g, ''));
+		return Math.abs(box.left - ink.actualBoundingBoxLeft - header.getBoundingClientRect().left) < 0.5;
+	});
+}
+
 function renderReadPills(context: ComponentFixtureContext, complete: boolean): Promise<void> {
 	const resource = URI.file('/workspace/chatListRenderer.ts');
 	const diff = {
@@ -442,6 +529,17 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 		virtualTime: { enabled: false },
 		deferPaint: true,
 		render: context => renderDeterministicToolSummaries(context, 280),
+	}),
+	ConversationSections: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		virtualTime: { enabled: false },
+		deferPaint: true,
+		render: context => renderConversationSections(context),
+	}),
+	ConversationCompletedSteps: defineComponentFixture({
+		virtualTime: { enabled: false },
+		deferPaint: true,
+		render: context => renderConversationSections(context, true),
 	}),
 	SuccessfulCommands: defineComponentFixture({
 		virtualTime: { enabled: false },

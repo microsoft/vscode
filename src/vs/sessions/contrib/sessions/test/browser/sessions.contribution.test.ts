@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { Extensions as ViewContainerExtensions, IViewContainersRegistry } from '../../../../../workbench/common/views.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_CHAT_TABS_SETTING, SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 
 import '../../browser/sessions.contribution.js';
 
@@ -26,9 +28,20 @@ const externalApplicationBadgeShowFromProperty = configurationRegistry.getConfig
 const showArchivedByDefaultProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING];
 const indentItemsProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_INDENT_ITEMS_SETTING];
 const sessionsSettingKeys = Object.keys(configurationRegistry.getConfigurationProperties()).filter(key => key.startsWith('sessions.'));
+const pendingSessionProperties = [SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING].map(key => configurationRegistry.getConfigurationProperties()[key]);
 
 suite('Sessions Contribution', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('drafts and Send Later have independent default-off application experiment settings', () => {
+		assert.deepStrictEqual(pendingSessionProperties.map(property => ({
+			type: property.type, default: property.default, scope: property.scope,
+			tags: property.tags, experiment: property.experiment,
+		})), [0, 1].map(() => ({
+			type: 'boolean', default: false, scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'onExP'], experiment: { mode: 'auto' },
+		})));
+	});
 
 	test('disables the External section by default with automatic experiments', () => {
 		assert.deepStrictEqual({
@@ -149,8 +162,28 @@ suite('Sessions Contribution', () => {
 		});
 	});
 
-	test('opens the Sessions view with Ctrl/Cmd+0, leaving Ctrl/Cmd+Shift+X to managing extensions like it opens the Extensions view in editor windows', () => {
-		const sessionsContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get('agentic.workbench.view.sessionsContainer');
-		assert.deepStrictEqual({ registered: !!sessionsContainer, keybindings: sessionsContainer?.openCommandActionDescriptor?.keybindings }, { registered: true, keybindings: { primary: KeyMod.CtrlCmd | KeyCode.Digit0 } });
+	test('opens the Sessions view with the keybindings of Toggle Chat in editor windows, including the user\'s, outranking Open Chat', () => {
+		const getKeybindings = (os: OperatingSystem) => KeybindingsRegistry.getDefaultKeybindingsForOS(os)
+			.filter(item => item.command === 'agentic.workbench.view.sessionsContainer')
+			.map(item => ({ keybinding: item.keybinding?.getHashCode(), weight: item.weight1, when: item.when?.serialize() }));
+		const expected = (keybinding: number, os: OperatingSystem) => [{
+			keybinding: decodeKeybinding(keybinding, os)!.getHashCode(),
+			weight: KeybindingWeight.SessionsContrib,
+			when: 'viewContainer.agentic.workbench.view.sessionsContainer.enabled',
+		}];
+
+		assert.deepStrictEqual({
+			windows: getKeybindings(OperatingSystem.Windows),
+			mac: getKeybindings(OperatingSystem.Macintosh),
+			linux: getKeybindings(OperatingSystem.Linux),
+			aliases: KeybindingsRegistry.getKeybindingAliases()
+				.filter(alias => alias.command === 'agentic.workbench.view.sessionsContainer')
+				.map(alias => ({ source: alias.source, when: alias.when.serialize() })),
+		}, {
+			windows: expected(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI, OperatingSystem.Windows),
+			mac: expected(KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI, OperatingSystem.Macintosh),
+			linux: expected(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI, OperatingSystem.Linux),
+			aliases: [{ source: 'workbench.panel.chat', when: 'viewContainer.agentic.workbench.view.sessionsContainer.enabled' }],
+		});
 	});
 });

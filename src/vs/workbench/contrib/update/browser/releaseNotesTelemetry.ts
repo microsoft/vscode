@@ -12,7 +12,8 @@ export type ReleaseNotesSource = 'automaticUpdate' | 'command' | 'updateMenu' | 
 type ContentKind = 'section' | 'note' | 'highlights' | 'highlight';
 type Reason = 'periodic' | 'hidden' | 'blur' | 'idle' | 'contentExit' | 'qualified' | 'closed' | 'replaced' | 'shutdown';
 type Action = 'link' | 'sectionNavigation' | 'setting' | 'tryoutRun' | 'tryoutSetup' | 'showOnUpdateChanged';
-type TargetKind = 'documentation' | 'external' | 'command' | 'anchor' | 'other';
+type TargetKind = 'documentation' | 'external' | 'command' | 'anchor' | 'highlightsVideo' | 'other';
+type VideoAction = 'shown' | 'played' | 'ended' | 'error';
 
 export interface IReleaseNotesRegion {
 	readonly index: number;
@@ -26,6 +27,7 @@ export interface IReleaseNotesManifest {
 	readonly regions: readonly IReleaseNotesRegion[];
 	readonly links: readonly { readonly index: number; readonly contentIndex: number; readonly targetKind: TargetKind; readonly settingUri?: string }[];
 	readonly tryouts: readonly { readonly index: number; readonly linkIndex: number; readonly contentIndex: number }[];
+	readonly highlightsVideo?: boolean;
 }
 
 interface ISample {
@@ -33,6 +35,7 @@ interface ISample {
 	readonly tryouts: readonly number[];
 	readonly depth: number;
 	readonly isScrollable: boolean;
+	readonly highlightsVideoVisible?: boolean;
 }
 
 interface ICallbacks {
@@ -46,6 +49,7 @@ type CommonEvent = {
 	notesVersion: string;
 	notesRevision: string;
 	contentVariant: 'stable' | 'insider' | 'other';
+	highlightsVideoVariant: 'unavailable' | 'text' | 'video';
 };
 
 type CommonClassification = {
@@ -56,6 +60,12 @@ type CommonClassification = {
 	notesVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The normalized public release major and minor version.' };
 	notesRevision: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-256 of the public, unpersonalized release document; empty if fetching failed.' };
 	contentVariant: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The bounded conditional-rendering variant: stable, insider, or other.' };
+	highlightsVideoVariant: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the source has no usable highlights video, the candidate was omitted, or the player was rendered. Combined with the source revision and content variant to identify positional occurrences.' };
+};
+type VideoEvent = CommonEvent & { action: VideoAction; errorCode: 'none' | 'aborted' | 'network' | 'decode' | 'unsupported' };
+type VideoClassification = CommonClassification & {
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'First visible player exposure, actual playback, reaching ended (which may follow seeking), or a media error, once per action per opening.' };
+	errorCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded native media error category, or none; no error text or media URL.' };
 };
 type OpenEvent = CommonEvent & { source: ReleaseNotesSource; outcome: 'rendered' | 'failed' | 'superseded'; durationMs: number; failureStage?: 'fetch' | 'render' };
 type OpenClassification = CommonClassification & {
@@ -150,6 +160,7 @@ export class ReleaseNotesTelemetry extends Disposable {
 	private readonly dwell = new Map<number, IDwell>();
 	private readonly tryoutDwell = new Map<number, { key: string; continuousMs: number }>();
 	private readonly shownTryouts = new Set<string>();
+	private readonly videoActions = new Set<VideoAction>();
 	private visibleMs = 0;
 	private activeReadingMs = 0;
 	private checkpointActiveMs = 0;
@@ -168,9 +179,10 @@ export class ReleaseNotesTelemetry extends Disposable {
 	) {
 		super();
 		this.metadata = {
-			schemaVersion: 1, viewInstanceId: ++nextInstanceId,
+			schemaVersion: 2, viewInstanceId: ++nextInstanceId,
 			notesVersion: /^\d{1,4}\.\d{1,4}\.\d{1,4}(?:-[a-zA-Z0-9.-]+)?$/.test(version) ? version.split('.').slice(0, 2).join('.') : 'unknown',
 			notesRevision: '', contentVariant: quality === 'stable' || quality === 'insider' ? quality : 'other',
+			highlightsVideoVariant: 'unavailable',
 		};
 		this.started = this.lastTime = this.lastActivity = callbacks.now();
 		this.enabled = telemetryService.telemetryLevel === TelemetryLevel.USAGE;
@@ -215,6 +227,7 @@ export class ReleaseNotesTelemetry extends Disposable {
 		this.active = active && visible;
 		this.updateRegions();
 		this.show();
+		this.showVideo();
 	}
 
 	activity(): void {
@@ -229,21 +242,34 @@ export class ReleaseNotesTelemetry extends Disposable {
 			return false;
 		}
 		if (message.type === 'releaseNotesTelemetrySample') {
-			if (Object.keys(message).some(key => !['type', 'documentId', 'contents', 'tryouts', 'depth', 'isScrollable'].includes(key))
+			if (Object.keys(message).some(key => !['type', 'documentId', 'contents', 'tryouts', 'depth', 'isScrollable', 'highlightsVideoVisible'].includes(key))
 				|| !this.validIndexes(message.contents, this.manifest.regions)
 				|| !this.validIndexes(message.tryouts, this.manifest.tryouts)
 				|| typeof message.depth !== 'number' || !Number.isFinite(message.depth) || message.depth < 0 || message.depth > 100
-				|| typeof message.isScrollable !== 'boolean') {
+				|| typeof message.isScrollable !== 'boolean'
+				|| message.highlightsVideoVisible !== undefined && (typeof message.highlightsVideoVisible !== 'boolean' || message.highlightsVideoVisible && !this.manifest.highlightsVideo)) {
 				return false;
 			}
 			this.tick();
-			this.sample = { contents: message.contents, tryouts: message.tryouts, depth: message.depth, isScrollable: message.isScrollable };
+			this.sample = { contents: message.contents, tryouts: message.tryouts, depth: message.depth, isScrollable: message.isScrollable, highlightsVideoVisible: message.highlightsVideoVisible === true };
 			if (!this.ready) {
 				this.lastActivity = this.callbacks.now();
 				this.ready = true;
 			}
 			this.updateRegions();
 			this.show();
+			this.showVideo();
+		} else if (message.type === 'releaseNotesTelemetryVideo') {
+			if (!this.manifest.highlightsVideo || this.metadata.highlightsVideoVariant !== 'video'
+				|| Object.keys(message).some(key => !['type', 'documentId', 'action', 'errorCode'].includes(key))
+				|| message.action !== 'played' && message.action !== 'ended' && message.action !== 'error'
+				|| (message.action === 'error'
+					? typeof message.errorCode !== 'number' || !Number.isInteger(message.errorCode) || message.errorCode < 1 || message.errorCode > 4
+					: message.errorCode !== undefined)) {
+				return false;
+			}
+			const errorCode = message.errorCode === 1 ? 'aborted' : message.errorCode === 2 ? 'network' : message.errorCode === 3 ? 'decode' : message.errorCode === 4 ? 'unsupported' : 'none';
+			this.video(message.action, errorCode);
 		} else if (message.type === 'releaseNotesTelemetryActivity') {
 			if (Object.keys(message).some(key => !['type', 'documentId'].includes(key))) {
 				return false;
@@ -262,6 +288,20 @@ export class ReleaseNotesTelemetry extends Disposable {
 			return false;
 		}
 		return true;
+	}
+
+	private showVideo(): void {
+		if (this.sample.highlightsVideoVisible && this.manifest.highlightsVideo && this.metadata.highlightsVideoVariant === 'video') {
+			this.video('shown', 'none');
+		}
+	}
+
+	private video(action: VideoAction, errorCode: VideoEvent['errorCode']): void {
+		if (!this.canLog() || !this.ready || !this.visible || this.videoActions.has(action)) {
+			return;
+		}
+		this.videoActions.add(action);
+		this.telemetryService.publicLog2<VideoEvent, VideoClassification>('releaseNotes.highlightsVideo', { ...this.metadata, action, errorCode });
 	}
 
 	private validIndexes(value: unknown, entries: readonly { readonly index: number }[]): value is number[] {
@@ -304,7 +344,9 @@ export class ReleaseNotesTelemetry extends Disposable {
 		while (sectionIndex >= 0 && !this.manifest.regions[sectionIndex].headingLevel) {
 			sectionIndex = this.manifest.regions[sectionIndex].parentIndex;
 		}
-		this.interactions++;
+		if (link?.targetKind !== 'highlightsVideo') {
+			this.interactions++;
+		}
 		this.telemetryService.publicLog2<InteractionEvent, InteractionClassification>('releaseNotes.interaction', {
 			...this.metadata, action, contentIndex, sectionIndex, linkIndex: index,
 			...(link ? { targetKind: link.targetKind } : {}), ...extra,
@@ -477,7 +519,7 @@ export class ReleaseNotesTelemetry extends Disposable {
 	}
 }
 
-/* eslint-disable no-restricted-syntax -- These helpers inspect only the isolated release-notes document. */
+/* eslint-disable eslint-js/no-restricted-syntax -- These helpers inspect only the isolated release-notes document. */
 /** Assigns bounded identities after sanitization; labels are available only in the offline manifest. */
 export function indexReleaseNotesContent(container: HTMLElement): IReleaseNotesManifest {
 	for (const element of container.querySelectorAll('[data-release-notes-content-index], [data-release-notes-link-index]')) {
@@ -548,7 +590,7 @@ export function indexReleaseNotesContent(container: HTMLElement): IReleaseNotesM
 		const index = links.length;
 		const occurrence = anchor?.closest<HTMLElement>('[data-release-notes-tryout-index]');
 		const fallback = element.matches('.release-notes-tryout-fallback') || element.querySelector('.release-notes-tryout-fallback');
-		const targetKind: TargetKind = occurrence || fallback ? 'command'
+		const targetKind: TargetKind = element.closest('.release-highlights-video') ? 'highlightsVideo' : occurrence || fallback ? 'command'
 			: href.startsWith('#') ? 'anchor' : uri.scheme === Schemas.command ? 'command'
 				: uri.scheme === Schemas.http || uri.scheme === Schemas.https ? uri.authority === 'code.visualstudio.com' ? 'documentation' : 'external' : 'other';
 		links.push({ index, contentIndex, targetKind, ...(uri.scheme === Schemas.codeSetting ? { settingUri: (anchor as HTMLAnchorElement).href } : {}) });
@@ -557,7 +599,7 @@ export function indexReleaseNotesContent(container: HTMLElement): IReleaseNotesM
 			tryouts.push({ index: Number(occurrence.dataset.releaseNotesTryoutIndex), linkIndex: index, contentIndex });
 		}
 	}
-	return { regions: ranged, links, tryouts };
+	return { regions: ranged, links, tryouts, ...(container.querySelector('.release-highlights-video video') ? { highlightsVideo: true } : {}) };
 }
 
 /** Serialized into the existing nonce-protected webview; it never sends text or destinations. */
@@ -568,6 +610,7 @@ export function initializeReleaseNotesTelemetry(
 	regions: readonly IReleaseNotesRegion[],
 	vscode: { postMessage(message: object): void },
 	tryoutIndexes: readonly number[] = [],
+	hasHighlightsVideo = false,
 ): () => void {
 	const controller = new targetWindow.AbortController();
 	const options = { signal: controller.signal };
@@ -578,6 +621,8 @@ export function initializeReleaseNotesTelemetry(
 	let frame: number | undefined;
 	let presented = false;
 	let lastActivity = -Infinity;
+	const video = hasHighlightsVideo ? targetDocument.querySelector<HTMLVideoElement>('.release-highlights-video video') : null;
+	const videoDisclosure = video?.closest('details');
 	const intersecting = (top: number, bottom: number) => {
 		const height = Math.max(0, bottom - top);
 		return height > 0 && Math.min(bottom, targetWindow.innerHeight) - Math.max(top, 0) >= Math.min(height, targetWindow.innerHeight) / 2;
@@ -615,6 +660,7 @@ export function initializeReleaseNotesTelemetry(
 			type: 'releaseNotesTelemetrySample', documentId, contents, tryouts,
 			depth: distance > 0 ? Math.max(0, Math.min(100, 100 * scrolling!.scrollTop / distance)) : 100,
 			isScrollable: distance > 0,
+			...(video ? { highlightsVideoVisible: !!videoDisclosure?.open && !video.hidden && video.getClientRects().length > 0 && intersecting(video.getBoundingClientRect().top, video.getBoundingClientRect().bottom) } : {}),
 		});
 	};
 	const schedule = () => {
@@ -640,6 +686,25 @@ export function initializeReleaseNotesTelemetry(
 	targetWindow.addEventListener('resize', schedule, options);
 	targetWindow.addEventListener('pageshow', schedule, options);
 	targetDocument.addEventListener('visibilitychange', schedule, options);
+	if (video) {
+		const report = (action: 'played' | 'ended' | 'error', event: Event) => {
+			if (event.isTrusted && presented && targetDocument.visibilityState === 'visible') {
+				vscode.postMessage({ type: 'releaseNotesTelemetryVideo', documentId, action, ...(action === 'error' ? { errorCode: video.error?.code } : {}) });
+			}
+		};
+		video.addEventListener('playing', event => {
+			if (!video.paused && !video.ended && video.readyState >= 2) {
+				report('played', event);
+			}
+		}, options);
+		video.addEventListener('ended', event => {
+			if (video.ended) {
+				report('ended', event);
+			}
+		}, options);
+		video.addEventListener('error', event => report('error', event), options);
+		videoDisclosure?.addEventListener('toggle', schedule, options);
+	}
 	targetWindow.addEventListener('message', event => {
 		if (event.data?.type === 'releaseNotesTelemetryMeasure' && event.data.documentId === documentId) {
 			// The webview shell delivers host messages only after presenting and restoring the content.
@@ -659,4 +724,4 @@ export function initializeReleaseNotesTelemetry(
 	targetWindow.addEventListener('pagehide', dispose, { ...options, once: true });
 	return dispose;
 }
-/* eslint-enable no-restricted-syntax */
+/* eslint-enable eslint-js/no-restricted-syntax */

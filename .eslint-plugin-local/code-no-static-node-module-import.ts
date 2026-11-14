@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TSESTree } from '@typescript-eslint/utils';
-import * as eslint from 'eslint';
+import type { Context, CreateRule, RuleMeta, Visitor } from '@oxlint/plugins';
 import { builtinModules } from 'module';
 import { join, normalize, relative } from 'path';
 import minimatch from 'minimatch';
@@ -17,9 +16,9 @@ const nodeBuiltins = new Set([
 
 const REPO_ROOT = normalize(join(import.meta.dirname, '../'));
 
-export default new class implements eslint.Rule.RuleModule {
+export default new class implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		messages: {
 			staticImport: 'Static imports of \'{{module}}\' are not allowed here because they are loaded synchronously on startup. Use a dynamic `await import(...)` or `import type` instead.'
 		},
@@ -34,8 +33,8 @@ export default new class implements eslint.Rule.RuleModule {
 		}
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		const allowedPaths = context.options as string[];
+	create(context: Context): Visitor {
+		const allowedPaths = context.options as readonly string[];
 		const filePath = normalize(relative(REPO_ROOT, normalize(context.filename))).replace(/\\/g, '/');
 
 		// Skip whitelisted files
@@ -45,7 +44,7 @@ export default new class implements eslint.Rule.RuleModule {
 
 		return createImportRuleListener((node, value) => {
 			// Allow `import type` and `export type` declarations
-			if (node.parent?.type === TSESTree.AST_NODE_TYPES.ImportDeclaration && node.parent.importKind === 'type') {
+			if (node.parent?.type === 'ImportDeclaration' && node.parent.importKind === 'type') {
 				return;
 			}
 			if (node.parent && 'exportKind' in node.parent && node.parent.exportKind === 'type') {

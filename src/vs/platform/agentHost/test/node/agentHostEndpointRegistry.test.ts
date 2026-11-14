@@ -14,6 +14,7 @@ import {
 	getAgentHostEndpointIdentityKey,
 	parseAgentHostEndpointMetadataEntry,
 	parseAgentHostEndpointRegistry,
+	selectAgentHostEndpoint,
 } from '../../common/agentHostEndpointRegistry.js';
 
 function createEntry(overrides: Partial<IAgentHostEndpointMetadata> = {}): IAgentHostEndpointMetadata {
@@ -31,6 +32,33 @@ function createEntry(overrides: Partial<IAgentHostEndpointMetadata> = {}): IAgen
 
 suite('Agent Host Endpoint Registry (schema v2)', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const preference of ['editor', 'dedicated', undefined] as const) {
+		test(`selects the first matching endpoint in registry order for the ${preference ?? 'default'} location`, () => {
+			const entries = [
+				createEntry({ instanceId: 'editor-b' }),
+				createEntry({ instanceId: 'editor-a', quality: 'stable' }),
+				createEntry({ type: 'standalone', instanceId: 'standalone-b', quality: 'insider' }),
+				createEntry({ type: 'standalone', instanceId: 'standalone-a', quality: 'insider' }),
+				createEntry({ type: 'standalone', instanceId: 'incompatible', quality: 'stable' }),
+			];
+			assert.strictEqual(selectAgentHostEndpoint(entries, 'insider', preference)?.instanceId, preference === 'editor' ? 'editor-b' : 'standalone-b');
+		});
+	}
+
+	test('falls back from editor to compatible standalone and never defaults to an editor', () => {
+		const editor = createEntry();
+		const standalone = createEntry({ type: 'standalone', quality: 'insider' });
+		assert.deepStrictEqual([
+			selectAgentHostEndpoint([standalone], 'insider', 'editor'),
+			selectAgentHostEndpoint([standalone], 'stable', 'editor'),
+			selectAgentHostEndpoint([standalone], undefined, 'dedicated'),
+			selectAgentHostEndpoint([{ ...standalone, quality: undefined }], 'stable', undefined)?.type,
+			selectAgentHostEndpoint([editor], 'insider', undefined),
+			selectAgentHostEndpoint([editor], 'insider', 'dedicated'),
+			selectAgentHostEndpoint([], 'insider', 'editor'),
+		], [standalone, undefined, standalone, 'standalone', undefined, undefined, undefined]);
+	});
 
 	test('structurally validates every entry, discriminating the endpoint union', () => {
 		const valid = createEntry();

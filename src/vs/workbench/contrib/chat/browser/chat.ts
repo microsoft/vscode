@@ -5,6 +5,7 @@
 
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { Event } from '../../../../base/common/event.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { isMobile, isWeb } from '../../../../base/common/platform.js';
@@ -18,6 +19,7 @@ import { EditDeltaInfo } from '../../../../editor/common/textModelEditSource.js'
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindings } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import type { IChatPillSection } from '../../../browser/chatPills.js';
 import { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
@@ -29,7 +31,7 @@ import { IParsedChatRequest } from '../common/requestParser/chatParserTypes.js';
 import { IHandOff } from '../common/promptSyntax/promptFileParser.js';
 import { CHAT_PROVIDER_ID } from '../common/participants/chatParticipantContribTypes.js';
 import { ChatRequestQueueKind, IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } from '../common/chatService/chatService.js';
-import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatPendingDividerViewModel } from '../common/model/chatViewModel.js';
+import { IChatResponseViewModel, IChatViewModel, ChatViewModelItem } from '../common/model/chatViewModel.js';
 import { ChatAgentLocation, ChatModeKind, IResolvedNewChatSessionType } from '../common/constants.js';
 import { ChatAttachmentModel } from './attachments/chatAttachmentModel.js';
 import { IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
@@ -125,6 +127,12 @@ export interface IChatWidgetService {
 	 */
 	revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined>;
 
+	/**
+	 * Shows the host of the Chat view's chats ({@link IChatViewHostService}): the Chat view, or what replaces it. Resolves to the
+	 * widget of the chat it shows.
+	 */
+	revealChatView(preserveFocus?: boolean): Promise<IChatWidget | undefined>;
+
 	getAllWidgets(): ReadonlyArray<IChatWidget>;
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
 	/** Opens or reveals a session, retaining its model while moving it between widgets. */
@@ -191,6 +199,9 @@ export interface IChatCodeBlockInfo {
 	codemapperUri: URI | undefined;
 	readonly chatSessionResource: URI | undefined;
 	focus(): void;
+	readonly isFocused?: boolean;
+	/** Reveals hidden code without taking focus; returns whether its layout changed. */
+	reveal?(): boolean;
 	readonly languageId?: string | undefined;
 	readonly editDeltaInfo?: EditDeltaInfo | undefined;
 }
@@ -201,7 +212,7 @@ export interface IChatFileTreeInfo {
 	focus(): void;
 }
 
-export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel;
+export type ChatTreeItem = ChatViewModelItem;
 
 export interface IChatContextMenuActionContext {
 	readonly $chatContextMenu: true;
@@ -255,6 +266,8 @@ export interface IChatListItemRendererOptions {
 	readonly progressMessageAction?: IObservable<{ readonly label: string; readonly run: () => void } | undefined>;
 	readonly backgroundActivityPillSections?: IChatBackgroundActivityPillSections;
 	readonly contentHorizontalPadding?: number;
+	/** Whether the list shows a session chat, which behaves as in the Agents window, in whatever window. */
+	readonly isSessionsChat?: boolean;
 	/** Collapses the first request under this label without changing its message or attachments. */
 	readonly firstRequestSummary?: string;
 	/**
@@ -262,6 +275,10 @@ export interface IChatListItemRendererOptions {
 	 * so command/tool output pasted by the model wraps instead of overflowing).
 	 */
 	readonly codeBlockRenderOptions?: ICodeBlockRenderOptions;
+	/** Enables isolated previews for explicit html-preview fences in responses. */
+	readonly renderHtmlPreviews?: boolean;
+	/** Enables native components for explicit vscode-ui fences in responses. */
+	readonly renderNativeComponents?: boolean;
 	/** Presents responses as coming from this identity instead of the responding agent's own. */
 	readonly responseIdentity?: IChatResponseIdentity;
 }
@@ -355,6 +372,8 @@ export interface IChatWidgetViewOptions {
 	 * instead of silently dropping them.
 	 */
 	submitHandler?: (query: string, mode: ChatModeKind, attachedContext?: IChatRequestVariableEntry[], isVoiceModeInput?: boolean) => Promise<boolean>;
+	/** Revalidates a composer submission synchronously after preparation, immediately before dispatch. */
+	validateInput?: (query: string) => void;
 	/**
 	 * Horizontal space the input part reserves around itself. Hosts that render the
 	 * input flush with their own content set this to `0`.
@@ -504,6 +523,8 @@ export interface IChatWidget {
 	readonly supportsFileReferences: boolean;
 	/** Whether this widget can host question and confirmation controls. Defaults to true. */
 	readonly supportsInputRequests?: boolean;
+	/** Whether this widget shows native components in responses while they are enabled. Defaults to false. */
+	readonly rendersNativeComponents?: boolean;
 	/** Whether the input part is rendered above the transcript instead of below it (quick chat, composer-style widgets). */
 	readonly rendersInputOnTop: boolean;
 	readonly attachmentCapabilities: IChatAgentAttachmentCapabilities;
@@ -667,6 +688,14 @@ export interface IChatCodeBlockContextProviderService {
 
 export const ChatViewId = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}`;
 export const ChatViewContainerId = 'workbench.panel.chat';
+
+/** The default keybindings of {@link ChatViewContainerId}, which toggles the Chat view. */
+export const ChatViewOpenKeybindings: IKeybindings = {
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
+	mac: {
+		primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
+	}
+};
 
 export const HasInstalledAgentPluginsContext = new RawContextKey<boolean>('hasInstalledAgentPlugins', false);
 export const InstalledAgentPluginsViewId = 'workbench.views.agentPlugins.installed';

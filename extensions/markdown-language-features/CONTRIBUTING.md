@@ -59,7 +59,7 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
    "@vscode/markdown-editor": "link:../../../vscode-packages/vscode-team-tools/packages/markdown-editor"
    ```
 
-   Then run `pnpm install`. This updates `package.json` and `extensions/pnpm-lock.yaml`, creates a symlink to the local package, and survives later `pnpm install` runs. Use `link:` rather than `file:`: pnpm installs a `file:` directory as a copy, so later package builds would not reach VS Code. This is development-only; restore the dependency to a published version before submitting changes that should consume a release.
+   Then run `pnpm install`. This updates `package.json` and `pnpm-lock.yaml`, creates a symlink to the local package, and survives later `pnpm install` runs. Use `link:` rather than `file:`: pnpm installs a `file:` directory as a copy, so later package builds would not reach VS Code. This is development-only; restore the dependency to a published version before submitting changes that should consume a release.
 
    **C. Use `pnpm link` for a temporary setup**
 
@@ -69,7 +69,7 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
    pnpm link ../../../vscode-packages/vscode-team-tools/packages/markdown-editor
    ```
 
-   This leaves `package.json` unchanged, but adds a `link:` override to `extensions/pnpm-workspace.yaml` and updates `extensions/pnpm-lock.yaml`. Don't commit those changes; run `pnpm unlink @vscode/markdown-editor` to remove the link again.
+   This leaves `package.json` unchanged, but adds a `link:` override to the root `pnpm-workspace.yaml` and updates `pnpm-lock.yaml`. Don't commit those changes; run `pnpm unlink @vscode/markdown-editor` to remove the link again.
 
    Verify the resolved package from `extensions/markdown-language-features`:
 
@@ -197,7 +197,7 @@ npm run compile
 
 
 # And finally in vscode, link in the server (this adds a `link:` override to
-# extensions/pnpm-workspace.yaml; undo it with `pnpm unlink vscode-markdown-languageserver`)
+# the root pnpm-workspace.yaml; undo it with `pnpm unlink vscode-markdown-languageserver`)
 cd extensions/markdown-language-features
 pnpm link <path to your vscode-markdown-languageserver checkout>
 ```

@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ICodeEditor, MouseTargetType } from '../../../../../editor/browser/editorBrowser.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { IEditorDecorationsCollection } from '../../../../../editor/common/editorCommon.js';
 import { localize } from '../../../../../nls.js';
 import { IContextKey, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 
 export const REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID = 'sessions.chat.replacePromptTemplatePlaceholder';
 export const PromptTemplatePlaceholderFocused = new RawContextKey<boolean>('sessionsPromptTemplatePlaceholderFocused', false, localize('sessionsPromptTemplatePlaceholderFocused', "Whether the caret is inside an editable prompt template placeholder."));
@@ -18,6 +20,20 @@ let activePromptTemplatePlaceholderController: PromptTemplatePlaceholderControll
 /** Replaces the placeholder under the caret of the focused prompt template editor, if any. */
 export function replaceActivePromptTemplatePlaceholder(): void {
 	activePromptTemplatePlaceholderController?.replaceAtCursor();
+}
+
+/**
+ * Registers the command that replaces the placeholder under the caret, bound to Enter while the
+ * caret is inside one, until the returned disposable is disposed.
+ */
+export function registerReplacePromptTemplatePlaceholderCommand(): IDisposable {
+	return KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID,
+		weight: KeybindingWeight.WorkbenchContrib + 2,
+		when: PromptTemplatePlaceholderFocused,
+		primary: KeyCode.Enter,
+		handler: () => replaceActivePromptTemplatePlaceholder(),
+	});
 }
 
 /** Highlights and replaces the editable task placeholder in an onboarding prompt. */

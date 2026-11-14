@@ -38,6 +38,18 @@ function isAssistantMarkdownEndpoint(node: Node, widgetDomNode: HTMLElement): bo
 	return !excludedAncestorSelectors.some(selector => element.closest(selector));
 }
 
+function isSelectableText(text: Text): boolean {
+	const targetWindow = dom.getWindow(text);
+	for (let element = text.parentElement; element; element = element.parentElement) {
+		const style = targetWindow.getComputedStyle(element);
+		const userSelect = style.userSelect || style.webkitUserSelect;
+		if (userSelect !== 'auto') {
+			return userSelect !== 'none';
+		}
+	}
+	return true;
+}
+
 interface IContributingTextEndpoint {
 	readonly node: Text;
 	readonly startOffset: number;
@@ -120,6 +132,10 @@ function contributingTextEndpoints(range: Range, widgetDomNode?: HTMLElement): {
 			firstOffset = nextOffset;
 		}
 		if (firstOffset === end) {
+			continue;
+		}
+		// Native selections omit unselectable text even when their DOM range spans it.
+		if (!isSelectableText(text)) {
 			continue;
 		}
 		const firstEndOffset = nextCodePointOffset(text.data, firstOffset);

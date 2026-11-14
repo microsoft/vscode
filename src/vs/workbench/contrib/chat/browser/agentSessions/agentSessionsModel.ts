@@ -59,6 +59,7 @@ export interface IAgentSessionsModel {
 	readonly resolved: boolean;
 
 	readonly sessions: IAgentSession[];
+	readonly sessionsIncludingAutomationRuns?: IAgentSession[];
 	getSession(resource: URI): IAgentSession | undefined;
 
 	/**
@@ -327,6 +328,7 @@ export interface IMarshalledAgentSessionContext {
 
 	readonly session: IAgentSession;
 	readonly sessions: IAgentSession[]; // support for multi-selection
+	readonly showAutomationRuns?: boolean;
 }
 
 export function isMarshalledAgentSessionContext(thing: unknown): thing is IMarshalledAgentSessionContext {
@@ -542,8 +544,11 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 	private _sessions: ResourceMap<IInternalAgentSession>;
 	get sessions(): IAgentSession[] {
-		return this._dedupeMigratedCopilotCliSessions(Array.from(this._sessions.values()))
-			.filter(session => session.metadata?.isAutomation !== true);
+		return this.sessionsIncludingAutomationRuns.filter(session => session.metadata?.isAutomation !== true);
+	}
+
+	get sessionsIncludingAutomationRuns(): IAgentSession[] {
+		return this._dedupeMigratedCopilotCliSessions(Array.from(this._sessions.values()));
 	}
 
 	private readonly resolvers = this._register(new DisposableMap<string, ThrottledDelayer<void>>());

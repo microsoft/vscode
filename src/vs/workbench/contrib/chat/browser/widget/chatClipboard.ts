@@ -37,7 +37,7 @@ export function cloneVisibleSelection(range: Range, root: Node): DocumentFragmen
 
 	try {
 		const fragment = cloneWithAncestors(range, root);
-		// eslint-disable-next-line no-restricted-syntax -- operating on a detached fragment
+		// eslint-disable-next-line eslint-js/no-restricted-syntax -- operating on a detached fragment
 		for (const element of Array.from(fragment.querySelectorAll(`[${hiddenElementAttribute}], ${controlSelector}`))) {
 			element.remove();
 		}
@@ -132,7 +132,7 @@ function replaceWithLabel(element: Element, label: string): void {
 export function sanitizeChatClipboardFragment(fragment: DocumentFragment): boolean {
 	let changed = false;
 
-	// eslint-disable-next-line no-restricted-syntax -- operating on a detached fragment
+	// eslint-disable-next-line eslint-js/no-restricted-syntax -- operating on a detached fragment
 	for (const anchor of Array.from(fragment.querySelectorAll('a'))) {
 		const target = getLinkTarget(anchor);
 		if (isPortableLinkTarget(target)) {
@@ -145,7 +145,7 @@ export function sanitizeChatClipboardFragment(fragment: DocumentFragment): boole
 		changed = true;
 	}
 
-	// eslint-disable-next-line no-restricted-syntax -- operating on a detached fragment
+	// eslint-disable-next-line eslint-js/no-restricted-syntax -- operating on a detached fragment
 	for (const image of Array.from(fragment.querySelectorAll('img'))) {
 		if (!isPortableLinkTarget(image.getAttribute('src') ?? '')) {
 			replaceWithLabel(image, image.getAttribute('alt') ?? '');
@@ -153,7 +153,7 @@ export function sanitizeChatClipboardFragment(fragment: DocumentFragment): boole
 		}
 	}
 
-	// eslint-disable-next-line no-restricted-syntax -- operating on a detached fragment
+	// eslint-disable-next-line eslint-js/no-restricted-syntax -- operating on a detached fragment
 	for (const element of Array.from(fragment.querySelectorAll('[data-href]'))) {
 		element.removeAttribute('data-href');
 	}

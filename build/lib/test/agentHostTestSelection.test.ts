@@ -26,7 +26,10 @@ async function detect(files: readonly { filename: string; previous_filename?: st
 			}
 			return files;
 		},
-		rest: { pulls: { listFiles: {} } },
+		rest: {
+			pulls: { listFiles: {} },
+			repos: { compareCommitsWithBasehead: async () => assert.fail('a pull request lists its own files') },
+		},
 	}, {
 		repo: { owner: 'microsoft', repo: 'vscode' },
 		issue: { number: 1 },
@@ -101,7 +104,6 @@ suite('Agent Host PR test selection', () => {
 			'remote/pnpm-workspace.yaml',
 			'remote/.pnpmfile.mjs',
 			'extensions/copilot/package.json',
-			'extensions/copilot/pnpm-lock.yaml',
 			'.nvmrc',
 			'product.json',
 		];
@@ -272,7 +274,8 @@ suite('Agent Host PR test selection', () => {
 				});
 				return {
 					needs: 'changes',
-					if: '${{ !cancelled() }}',
+					// Pull requests to main skip the Windows jobs, which the merge queue runs.
+					if: platform === 'linux' ? '${{ !cancelled() }}' : '${{ !cancelled() && (github.event_name == \'merge_group\' || github.base_ref != \'main\') }}',
 					profile,
 					reason,
 					// Linux runs it in its own job, Windows in three shards, when the plan also selects one of its suites.
@@ -367,8 +370,9 @@ suite('Agent Host PR test selection', () => {
 			readonly environment: Record<string, unknown>;
 		}
 		// Finds steps in any GitHub Actions or Azure DevOps shape, including template parameters and expression branches.
-		// Steps that jobs share through a YAML alias are the same object, and count once.
-		const commandSteps = (value: unknown, found: ICommandStep[] = [], visited = new Set<object>()): ICommandStep[] => {
+		// Steps that jobs share through a YAML alias are the same object, and count once. An expression branch that only
+		// chooses the command of a step runs with the environment of that step.
+		const commandSteps = (value: unknown, found: ICommandStep[] = [], visited = new Set<object>(), inheritedEnvironment?: unknown): ICommandStep[] => {
 			if (value && typeof value === 'object') {
 				if (visited.has(value)) {
 					return found;
@@ -381,9 +385,9 @@ suite('Agent Host PR test selection', () => {
 				const record = value as Record<string, unknown>;
 				const command = ['run', 'script', 'powershell', 'pwsh', 'bash'].map(key => record[key]).find(entry => typeof entry === 'string');
 				if (typeof command === 'string') {
-					found.push({ command, environment: (record.env ?? {}) as Record<string, unknown> });
+					found.push({ command, environment: (record.env ?? inheritedEnvironment ?? {}) as Record<string, unknown> });
 				}
-				Object.values(record).forEach(child => commandSteps(child, found, visited));
+				Object.entries(record).forEach(([key, child]) => commandSteps(child, found, visited, key.startsWith('${{') ? record.env : undefined));
 			}
 			return found;
 		};
@@ -401,16 +405,21 @@ suite('Agent Host PR test selection', () => {
 			}
 			// The change-detection skip only applies to the Agent Host E2E step, and only Agent Host E2E runs in
 			// shards. Where the integration tests run in parts, the node.js part is the one that excludes the
-			// Agent Host E2E entrypoints.
-			const signature = (step: ICommandStep) => JSON.stringify({
-				command: step.command.replace('test-agent-host-e2e.', 'test-integration.').replace(' --only-node-tests', '').replace(/\$\{\{ env\.AGENT_HOST_E2E_SHARD_.*? \}\}/g, ''),
-				environment: Object.fromEntries(Object.entries(step.environment).filter(([name]) => name !== 'VSCODE_SKIP_AGENT_HOST_E2E').sort()),
-			});
-			const agentHostSignatures = agentHost.map(signature).sort();
+			// Agent Host E2E entrypoints. Only the test runs are compared, not the lookup of the packaged client
+			// before them: the Agent Host E2E runner runs out-build with .build/electron, so the CI jobs that don't
+			// build the client run it without the lookup.
+			const signature = (step: ICommandStep) => {
+				const command = step.command.replace('test-agent-host-e2e.', 'test-integration.').replace(' --only-node-tests', '').replace(/\$\{\{ env\.AGENT_HOST_E2E_SHARD_.*? \}\}/g, '');
+				return JSON.stringify({
+					command: /[.][\\/]scripts[\\/]test-integration\.[^\n]*/.exec(command)?.[0] ?? command,
+					environment: Object.fromEntries(Object.entries(step.environment).filter(([name]) => name !== 'VSCODE_SKIP_AGENT_HOST_E2E').sort()),
+				});
+			};
+			const signatures = (steps: ICommandStep[]) => JSON.stringify([...new Set(steps.map(signature))].sort());
 			return [{
 				file,
 				integrationSteps: integration.length,
-				pairedWithAgentHostE2E: JSON.stringify(integration.map(signature).sort()) === JSON.stringify(agentHostSignatures),
+				pairedWithAgentHostE2E: signatures(integration) === signatures(agentHost),
 			}];
 		});
 		assert.deepStrictEqual(pairs, [

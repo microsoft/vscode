@@ -70,22 +70,22 @@ suite('ClaudePromptQueue', () => {
 
 	teardown(() => sinon.restore());
 
-	test('push then iterable yields then settleHead resolves the deferred', async () => {
+	test('push then iterable yields then settleResult resolves the deferred', async () => {
 		const { queue } = createQueue(disposables);
 		const iter = queue.iterable[Symbol.asyncIterator]();
 		const e = makeEntry('a');
 		const sendPromise = queue.push(e);
 		const yielded = await drainOne(iter);
 		assert.strictEqual(yielded?.uuid, makeUuid('a'));
-		assert.strictEqual(e.deferred.isSettled, false, 'deferred unsettled until settleHead');
-		const completed = queue.settleHead();
+		assert.strictEqual(e.deferred.isSettled, false, 'deferred unsettled until settleResult');
+		const completed = queue.settleResult();
 		assert.strictEqual(completed?.sdkUuid, 'a');
 		await sendPromise;
 		assert.strictEqual(e.deferred.isSettled, true);
 		assert.strictEqual(queue.isEmpty, true);
 	});
 
-	test('intermediate settleHead while another entry is queued does NOT settle the popped entry — batches until full drain (M10 invariant)', async () => {
+	test('intermediate settleResult while another entry is queued does NOT settle the popped entry — batches until full drain (M10 invariant)', async () => {
 		const { queue } = createQueue(disposables);
 		const iter = queue.iterable[Symbol.asyncIterator]();
 
@@ -97,15 +97,78 @@ suite('ClaudePromptQueue', () => {
 		await drainOne(iter); // b yielded
 
 		// First result drains 'a' but 'b' is still in flight → 'a' deferred MUST stay open
-		queue.settleHead();
+		queue.settleResult();
 		assert.strictEqual(a.deferred.isSettled, false, 'a stays open while b in flight');
 		assert.strictEqual(b.deferred.isSettled, false);
 
 		// Second result drains 'b' → queue fully drains → BOTH deferreds settle in batch
-		queue.settleHead();
+		queue.settleResult();
 		assert.strictEqual(a.deferred.isSettled, true, 'a batch-completes on full drain');
 		assert.strictEqual(b.deferred.isSettled, true);
 		assert.strictEqual(queue.isEmpty, true);
+	});
+
+	test('a result settles every message consumed in one batch', async () => {
+		const { queue } = createQueue(disposables);
+		const iter = queue.iterable[Symbol.asyncIterator]();
+		const entries = [
+			makeEntry('original'),
+			makeEntry('steer-1', { steeringPendingId: 'pending-1' }),
+			makeEntry('steer-2', { steeringPendingId: 'pending-2' }),
+		];
+		for (const entry of entries) {
+			void queue.push(entry);
+			await drainOne(iter);
+		}
+
+		queue.settleResult(entries.map(entry => entry.sdkUuid));
+
+		assert.deepStrictEqual({
+			settled: entries.map(entry => entry.deferred.isSettled),
+			empty: queue.isEmpty,
+		}, { settled: [true, true, true], empty: true });
+	});
+
+	test('consumed UUIDs leave later messages pending and batch-complete earlier results only on full drain', async () => {
+		const { queue } = createQueue(disposables);
+		const iter = queue.iterable[Symbol.asyncIterator]();
+		const entries = [
+			makeEntry('original'),
+			makeEntry('steer-1', { steeringPendingId: 'pending-1' }),
+			makeEntry('steer-2', { steeringPendingId: 'pending-2' }),
+			makeEntry('later', { steeringPendingId: 'pending-later' }),
+		];
+		for (const entry of entries) {
+			void queue.push(entry);
+			await drainOne(iter);
+		}
+		const queued = makeEntry('queued', { steeringPendingId: 'pending-queued' });
+		void queue.push(queued);
+
+		queue.settleResult(['unknown', 'queued']);
+		const unacknowledgedHead = queue.peekParent()?.sdkUuid;
+		queue.settleResult(['original']);
+		queue.settleResult(['original', 'steer-1', 'steer-2', 'queued']);
+		const intermediate = {
+			settled: entries.map(entry => entry.deferred.isSettled),
+			parent: queue.peekParent()?.sdkUuid,
+			empty: queue.isEmpty,
+		};
+		queue.settleResult(['later']);
+		await drainOne(iter);
+		queue.settleResult(['queued']);
+
+		assert.deepStrictEqual({
+			unacknowledgedHead,
+			intermediate,
+			settled: [...entries, queued].map(entry => entry.deferred.isSettled),
+			empty: queue.isEmpty,
+		}, {
+			unacknowledgedHead: 'original',
+			intermediate: { settled: [false, false, false, false], parent: 'later', empty: false },
+			settled: [true, true, true, true, true],
+			empty: true,
+		});
 	});
 
 	test('failAll rejects every pending, yielded, and popped entry and clears all lists', async () => {
@@ -120,7 +183,7 @@ suite('ClaudePromptQueue', () => {
 		const poppedPromise = queue.push(popped);
 		await drainOne(iter); // yielded → _yielded
 		await drainOne(iter); // popped → _yielded
-		queue.settleHead(); // pops 'yielded' into _popped (queue not empty: 'popped' still in _yielded)
+		queue.settleResult(); // pops 'yielded' into _popped (queue not empty: 'popped' still in _yielded)
 
 		const queuedPromise = queue.push(queued);
 
@@ -166,7 +229,7 @@ suite('ClaudePromptQueue', () => {
 		controller.abort();
 		const sent = queue.push(makeEntry('replacement'));
 		const yielded = await parked;
-		queue.settleHead();
+		queue.settleResult();
 		await sent;
 		const next = iterator.next();
 		replacement.abort();
@@ -195,7 +258,7 @@ suite('ClaudePromptQueue', () => {
 			disposables.add(queue.onDidYieldSteering(() => yielded.complete()));
 			const sent = queue.push(makeEntry('replacement', { steeringPendingId: 'pending-rebind' }));
 			await yielded.p;
-			queue.settleHead();
+			queue.settleResult();
 			await sent;
 			replacement.abort();
 			const [oldResult, newResult] = await Promise.all([oldRead, newRead]);
@@ -255,7 +318,7 @@ suite('ClaudePromptQueue', () => {
 		assert.strictEqual(parent?.turnId, 'turn-A', 'in-flight wins over queued');
 
 		// Drain inflight; now only queued remains and peekParent falls back to it.
-		queue.settleHead();
+		queue.settleResult();
 		assert.strictEqual(queue.peekParent()?.turnId, 'turn-B');
 	});
 
@@ -287,7 +350,7 @@ suite('ClaudePromptQueue', () => {
 		const notifications: { id: string; parent: string | undefined; empty: boolean }[] = [];
 		disposables.add(queue.onDidYieldSteering(id => {
 			notifications.push({ id, parent: queue.peekParent()?.sdkUuid, empty: queue.isEmpty });
-			queue.settleHead();
+			queue.settleResult();
 		}));
 		const sent = queue.push(makeEntry('steering', { steeringPendingId: 'pending-1' }));
 		const yielded = await drainOne(queue.iterable[Symbol.asyncIterator]());
@@ -311,7 +374,7 @@ suite('ClaudePromptQueue', () => {
 		for (const id of ['first', 'second']) {
 			const sent = queue.push(makeEntry(id, { steeringPendingId: id }));
 			await drainOne(iterator);
-			queue.settleHead();
+			queue.settleResult();
 			await sent;
 		}
 		assert.deepStrictEqual({ notifications, steeringYielded }, {
@@ -320,9 +383,9 @@ suite('ClaudePromptQueue', () => {
 		});
 	});
 
-	test('settleHead on an empty yielded list returns undefined and is a no-op', () => {
+	test('settleResult on an empty yielded list returns undefined and is a no-op', () => {
 		const { queue } = createQueue(disposables);
-		assert.strictEqual(queue.settleHead(), undefined);
+		assert.strictEqual(queue.settleResult(), undefined);
 		assert.strictEqual(queue.isEmpty, true);
 	});
 
@@ -345,9 +408,9 @@ suite('ClaudePromptQueue', () => {
 		void queue.push(b);
 		await drainOne(iter);
 		await drainOne(iter);
-		queue.settleHead();
+		queue.settleResult();
 		assert.strictEqual(queue.isEmpty, false, 'yielded list still has b');
-		queue.settleHead();
+		queue.settleResult();
 		assert.strictEqual(queue.isEmpty, true);
 	});
 });

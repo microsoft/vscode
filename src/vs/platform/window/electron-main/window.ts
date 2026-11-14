@@ -147,6 +147,8 @@ export interface IWindowState {
 	y?: number;
 	mode?: WindowMode;
 	zoomLevel?: number;
+	/** Restores this window's always-on-top state independently of other windows. */
+	alwaysOnTop?: boolean;
 	readonly display?: number;
 
 	/**

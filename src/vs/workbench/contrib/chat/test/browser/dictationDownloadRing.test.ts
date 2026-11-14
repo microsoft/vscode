@@ -10,6 +10,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatSpeechToTextService } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { DictationDownloadRing } from '../../browser/speechToText/dictationDownloadRing.js';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 suite('DictationDownloadRing', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -18,6 +19,7 @@ suite('DictationDownloadRing', () => {
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
 		store.add(toDisposable(() => iframe.remove()));
+		store.add(registerTestIframe(iframe));
 
 		const auxiliaryDocument = iframe.contentDocument!;
 		const container = document.createElement('div');

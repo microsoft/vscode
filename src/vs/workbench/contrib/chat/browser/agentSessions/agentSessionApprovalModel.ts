@@ -9,7 +9,7 @@ import { autorun, autorunIterableDelta, IObservable, ISettableObservable, observ
 import { URI } from '../../../../../base/common/uri.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
 import { IChatModel, IChatResponseModel } from '../../common/model/chatModel.js';
-import { IChatService, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
+import { IChatService, IChatTerminalToolInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 
 /**
@@ -30,6 +30,8 @@ export interface IAgentSessionApprovalInfo {
 	readonly kind: AgentSessionApprovalKind;
 	readonly label: string;
 	readonly languageId: string | undefined;
+	/** Where a terminal command runs, when its producer reports it. */
+	readonly executionTarget?: IChatTerminalToolInvocationData['executionTarget'];
 	readonly since: Date;
 	confirm(): void;
 }
@@ -97,7 +99,8 @@ export class AgentSessionApprovalModel extends Disposable {
 			if (current === value) {
 				return;
 			}
-			if (current !== undefined && value !== undefined && current.approvalId === value.approvalId && current.kind === value.kind && current.label === value.label && current.languageId === value.languageId) {
+			if (current !== undefined && value !== undefined && current.approvalId === value.approvalId && current.kind === value.kind && current.label === value.label && current.languageId === value.languageId
+				&& current.executionTarget?.workingDirectory === value.executionTarget?.workingDirectory && current.executionTarget?.environment === value.executionTarget?.environment) {
 				return;
 			}
 			settable.set(value, undefined);
@@ -132,11 +135,13 @@ export class AgentSessionApprovalModel extends Disposable {
 						const detail = title ? typeof title === 'string' ? title : renderAsPlaintext(title) : needsInput.detail;
 						let label: string;
 						let languageId: string | undefined;
+						let executionTarget: IChatTerminalToolInvocationData['executionTarget'];
 						let kind: AgentSessionApprovalKind;
 						if (part.toolSpecificData?.kind === 'terminal') {
 							const terminalData = migrateLegacyTerminalToolSpecificData(part.toolSpecificData);
 							label = terminalData.presentationOverrides?.commandLine ?? terminalData.commandLine.forDisplay ?? terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 							languageId = this._languageService.getLanguageIdByLanguageName(terminalData.presentationOverrides?.language ?? terminalData.language) ?? undefined;
+							executionTarget = terminalData.executionTarget;
 							kind = AgentSessionApprovalKind.Terminal;
 						} else if (detail) {
 							label = detail;
@@ -153,6 +158,7 @@ export class AgentSessionApprovalModel extends Disposable {
 							kind,
 							label,
 							languageId,
+							executionTarget,
 							since: new Date(),
 							confirm: () => IChatToolInvocation.confirmWith(part, { type: ToolConfirmKind.UserAction, ...(selectedButton ? { selectedButton } : {}) }),
 						});

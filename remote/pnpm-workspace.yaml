@@ -1,7 +1,7 @@
 packages:
   - web
 pnpmfile: .pnpmfile.mjs
-nodeLinker: hoisted
+nodeLinker: isolated
 strictPeerDependencies: false
 autoInstallPeers: false
 dedupePeerDependents: false
@@ -16,7 +16,8 @@ minimumReleaseAgeExclude:
 strictDepBuilds: true
 sideEffectsCache: false
 verifyDepsBeforeRun: false
-pmOnFail: ignore
+# See pmOnFail in the root pnpm-workspace.yaml
+pmOnFail: download
 skills:
   dirs: []
 ignoredOptionalDependencies:
