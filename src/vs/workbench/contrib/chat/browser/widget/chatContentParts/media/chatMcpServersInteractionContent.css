@@ -16,3 +16,13 @@
 .chat-mcp-servers-icon {
 	font-size: var(--vscode-codiconFontSize-compact);
 }
+
+/* The shared codicon spin rule does not cover the compact loading icon. */
+.chat-mcp-servers-icon.codicon-modifier-spin {
+	animation: codicon-spin 1.5s steps(30) infinite;
+	transform-origin: center center;
+}
+
+.monaco-reduce-motion .chat-mcp-servers-interaction .chat-mcp-servers-icon.codicon-modifier-spin {
+	animation: none;
+}
