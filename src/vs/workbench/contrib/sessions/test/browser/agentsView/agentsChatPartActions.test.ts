@@ -143,13 +143,13 @@ suite('Agents chat part actions', () => {
 		const before = CommandsRegistry.getCommand(SESSIONS_LIST_MARK_READ_COMMAND_ID);
 		const registration = registerAgentsChatPartActions();
 		// A chat tab of a side chat and of a session's main chat run the agent sessions' commands
-		for (const [action, context] of [[read, { session, chat: side }], [unread, { session, chat: main }]] as const) {
+		for (const [action, context] of [[read, { session, chat: side }], [unread, { session, chat: main }], [unread, [{ session, chat: side }, { session, chat: main }]]] as const) {
 			await instantiationService.invokeFunction(accessor => action.run(accessor, context as never));
 		}
 		registration.dispose();
 
 		assert.deepStrictEqual({ marked, restoredAfterDispose: CommandsRegistry.getCommand(SESSIONS_LIST_MARK_READ_COMMAND_ID) === before }, {
-			marked: ['read chat side', 'unread s1'],
+			marked: ['read chat side', 'unread s1', 'unread chat side', 'unread s1'],
 			restoredAfterDispose: true,
 		});
 	});
