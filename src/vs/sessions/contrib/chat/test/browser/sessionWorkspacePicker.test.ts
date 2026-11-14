@@ -8934,12 +8934,15 @@ suite('WorkspacePicker - Allowed folders', () => {
 			: `${item.label}${item.description ? ` (${item.description})` : ''}${item.item?.checked ? ' *' : ''}`);
 
 		const atWorktree = items();
+		const ariaLabels = picker.getItems().filter(item => item.item?.folderUri).map(item => item.item?.ariaLabel ?? null);
 		current = '/local/vscode';
 		await picker.dispatchFolder(URI.file('/local/vscode'), 'local-1');
 		const atFolder = items();
 
-		assert.deepStrictEqual({ atWorktree, atFolder }, {
+		assert.deepStrictEqual({ atWorktree, ariaLabels, atFolder }, {
 			atWorktree: ['Chat', '---', 'New Worktree', '--- Folder', 'local/vscode', '--- Worktrees', 'b (Current) *', 'a (feature-a)'],
+			// Screen readers hear where the window's folder is now, apart from the checked choice
+			ariaLabels: [null, 'b, Current', null],
 			atFolder: ['Chat', '---', 'New Worktree', '--- Folder', 'local/vscode (Current) *', '--- Worktrees', 'b (feature-b)', 'a (feature-a)'],
 		});
 	});
