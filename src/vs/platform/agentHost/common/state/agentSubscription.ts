@@ -849,8 +849,7 @@ interface IPendingAnnotationsAction {
 }
 
 /**
- * Subscription to a session's annotations channel (e.g.
- * `<sessionUri>/annotations`).
+ * Subscription to a session's advertised annotations channel.
  *
  * Annotations actions are client-dispatchable, so this subscription supports
  * write-ahead reconciliation: optimistic state is layered on top of confirmed

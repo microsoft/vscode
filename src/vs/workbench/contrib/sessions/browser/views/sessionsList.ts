@@ -55,7 +55,7 @@ import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list
 import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { chartsOrange } from '../../../../../platform/theme/common/colors/chartsColors.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
-import { listHoverBackground } from '../../../../../platform/theme/common/colors/listColors.js';
+import { listActiveSelectionBackground, listFocusBackground, listHoverBackground, listInactiveFocusBackground, listInactiveSelectionBackground } from '../../../../../platform/theme/common/colors/listColors.js';
 import { isHighContrast } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService, Themable } from '../../../../../platform/theme/common/themeService.js';
 import { agentsBackground } from '../../common/theme.js';
@@ -2679,6 +2679,15 @@ interface ISessionHeaderTemplate {
 	readonly elementDisposables: DisposableStore;
 }
 
+const sessionHeaderLabelBackgrounds = [
+	['--session-group-foreground', agentsBackground],
+	['--session-group-hover-foreground', listHoverBackground],
+	['--session-group-focus-foreground', listFocusBackground],
+	['--session-group-selection-foreground', listActiveSelectionBackground],
+	['--session-group-inactive-focus-foreground', listInactiveFocusBackground],
+	['--session-group-inactive-selection-foreground', listInactiveSelectionBackground],
+] as const;
+
 class SessionHeaderLabelColor extends Themable {
 	constructor(
 		private readonly template: ISessionHeaderTemplate,
@@ -2692,22 +2701,20 @@ class SessionHeaderLabelColor extends Themable {
 	override updateStyles(): void {
 		const color = this.theme.getColor(this.colorId);
 		const background = this.theme.getColor(agentsBackground);
-		const hover = this.theme.getColor(listHoverBackground);
-		const hoverBackground = background && hover ? hover.flatten(background) : background;
 		// A translucent shell has no single opaque surface against which to correct contrast.
 		const preserveForeground = isHighContrast(this.theme.type) || background?.isOpaque() === false;
-		const foreground = preserveForeground ? '' : color && background ? background.ensureConstrast(color.flatten(background), 4.5).toString() : asCssVariable(this.colorId);
-		const hoverForeground = preserveForeground ? '' : color && hoverBackground ? hoverBackground.ensureConstrast(color.flatten(hoverBackground), 4.5).toString() : foreground;
-		this.template.container.classList.toggle('session-group-colored', !preserveForeground);
-		this.template.label.style.setProperty('--session-group-foreground', foreground);
-		this.template.label.style.setProperty('--session-group-hover-foreground', hoverForeground);
+		for (const [property, backgroundId] of sessionHeaderLabelBackgrounds) {
+			const surface = background && (this.theme.getColor(backgroundId)?.flatten(background) ?? background);
+			const foreground = preserveForeground ? '' : color && surface ? surface.ensureConstrast(color.flatten(surface), 4.5).toString() : asCssVariable(this.colorId);
+			this.template.label.style.setProperty(property, foreground);
+		}
 	}
 
 	override dispose(): void {
 		super.dispose();
-		this.template.container.classList.remove('session-group-colored');
-		this.template.label.style.removeProperty('--session-group-foreground');
-		this.template.label.style.removeProperty('--session-group-hover-foreground');
+		for (const [property] of sessionHeaderLabelBackgrounds) {
+			this.template.label.style.removeProperty(property);
+		}
 	}
 }
 
@@ -4765,6 +4772,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly inboxDemand = this._register(new MutableDisposable());
 	private readonly sessionChatsUpdate = this._register(new MutableDisposable());
 	private readonly activeSessionUpdate = this._register(new MutableDisposable());
+	private readonly pendingInboxAdvance = this._register(new MutableDisposable());
 	private readonly nestedSessionOrderUpdate = this._register(new MutableDisposable());
 	/** Reveals what a move started from the list moved, once the list shows it; see {@link watchMoveForReveal}. */
 	private readonly pendingMoveReveal = this._register(new MutableDisposable<DisposableStore>());
@@ -4976,7 +4984,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 				this.acknowledgeInboxSessions([target.session]);
 			}
 		};
-		this._register(chatService.onDidAcceptRequest(event => acknowledgeChat(event.chatSessionResource)));
+		this._register(chatService.onDidAcceptRequest(event => {
+			if (!event.isNewSession && !event.agentHostMessageOrigin) {
+				this.advanceInboxAfterSend(event.chatSessionResource);
+			}
+			acknowledgeChat(event.chatSessionResource);
+		}));
 		this._register(chatService.onDidPerformUserAction(event => acknowledgeChat(event.sessionResource)));
 		for (const key of [SessionsList.EXCLUDED_TYPES_KEY, SessionsList.EXCLUDED_STATUSES_KEY, SessionsList.EXCLUDE_READ_KEY, SessionsList.SHOW_EMPTY_GROUPS_KEY]) {
 			this.storageService.remove(key, StorageScope.PROFILE);
@@ -9315,6 +9328,47 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private canAcknowledgeInboxSession(session: ISession, reader?: IReader): boolean {
 		return this.isInboxLayout() && !session.isArchived.read(reader) && this.getInboxSection(session, reader) === SessionInboxSection.ReadyForYou;
+	}
+
+	private advanceInboxAfterSend(resource: URI): void {
+		if (!this.visible || !this.isInboxLayout() || !isEqual(this._mainWindowShown.get()?.chat.resource, resource)) {
+			return;
+		}
+		// Use the rendered placement: acceptance may already have changed the session's status to Working.
+		const inboxSessions = this.getVisibleSessions().filter(session => {
+			for (let parent = this.tree.getParentElement(session); parent; parent = this.tree.getParentElement(parent)) {
+				if (isSessionSection(parent)) {
+					return parent.id === SessionInboxSection.ReadyForYou;
+				}
+			}
+			return false;
+		});
+		const index = inboxSessions.findIndex(session => isEqual(session.resource, this._mainWindowShown.get()?.session.resource));
+		if (index < 0) {
+			return;
+		}
+		const candidates = [...inboxSessions.slice(index + 1), ...inboxSessions.slice(0, index).reverse()];
+		// Let the submitting widget finish accepting its input before moving focus to another conversation.
+		this.pendingInboxAdvance.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
+			this.pendingInboxAdvance.clear();
+			if (!this.visible || !this.isInboxLayout() || this.pendingOpenRequest || !isEqual(this._mainWindowShown.get()?.chat.resource, resource)) {
+				return;
+			}
+			this.update();
+			const visible = new Set(this.getVisibleSessions());
+			const next = candidates.find(session => visible.has(session) && this.canAcknowledgeInboxSession(session));
+			if (next) {
+				this.openSession(next);
+			} else {
+				const inbox = this.findTreeElement((element): element is ISessionSection => isSessionSection(element) && element.id === SessionInboxSection.ReadyForYou);
+				if (inbox) {
+					this.tree.setSelection([]);
+					this.tree.setFocus([inbox]);
+					this.tree.reveal(inbox);
+					this.tree.domFocus();
+				}
+			}
+		});
 	}
 
 	private getInboxStateContext(session: ISession, reader?: IReader): string {

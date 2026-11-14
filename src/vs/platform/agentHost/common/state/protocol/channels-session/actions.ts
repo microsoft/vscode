@@ -89,8 +89,11 @@ export interface SessionChatUpdatedAction {
 	/**
 	 * Mutable summary fields that changed; omitted fields are unchanged.
 	 *
-	 * Identity fields (`resource`, `provider`) never change and MUST be omitted by
-	 * senders; receivers SHOULD ignore them if present.
+	 * `resource` is an identity field and never changes. `provider` is reported
+	 * relative to the owning session and changes only when the chat moves to
+	 * another session, which republishes the whole summary through
+	 * `session/chatAdded`. Senders MUST omit both fields here; receivers SHOULD
+	 * ignore them if present.
 	 */
 	changes: Partial<ChatSummary>;
 }

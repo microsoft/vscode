@@ -753,6 +753,60 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		});
 	});
 
+	test('anchored quick widgets are placed by their rendered height and scroll when neither side fits', async () => {
+		// Make the fixture the widget's containing block, so top/bottom offsets match its bounds.
+		fixture.style.position = 'fixed';
+		fixture.style.top = '0';
+		fixture.style.left = '0';
+		fixture.style.width = '600px';
+		fixture.style.height = '600px';
+		controller.layout({ width: 600, height: 600 }, 0);
+
+		const anchor = document.createElement('div');
+		anchor.style.position = 'absolute';
+		anchor.style.left = '80px';
+		anchor.style.top = '220px';
+		anchor.style.width = '300px';
+		anchor.style.height = '26px';
+		fixture.appendChild(anchor);
+
+		const content = document.createElement('div');
+		content.style.height = '260px';
+		const picker = store.add(controller.createQuickWidget());
+		picker.widget = content;
+		picker.anchor = anchor;
+		picker.anchorPosition = 'above';
+		picker.show();
+
+		const container = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
+		const html = fixture.querySelector<HTMLElement>('.quick-input-html-widget')!;
+		// Content resizes are laid out on a later animation frame.
+		const nextFrames = async () => {
+			for (let i = 0; i < 4; i++) {
+				await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			}
+		};
+		const state = () => {
+			const bounds = fixture.getBoundingClientRect();
+			const rect = container.getBoundingClientRect();
+			return {
+				below: rect.top >= anchor.getBoundingClientRect().bottom,
+				inside: rect.top >= bounds.top && rect.bottom <= bounds.bottom,
+				scrolls: html.scrollHeight > html.clientHeight,
+			};
+		};
+		await nextFrames();
+		const fitsBelow = state();
+		content.style.height = '900px';
+		await nextFrames();
+		const fitsNowhere = state();
+
+		assert.deepStrictEqual({ fitsBelow, fitsNowhere: { inside: fitsNowhere.inside, scrolls: fitsNowhere.scrolls } }, {
+			fitsBelow: { below: true, inside: true, scrolls: false },
+			fitsNowhere: { inside: true, scrolls: true },
+		});
+	});
+
 	test('scoped anchors apply only to the next unanchored quick pick', async () => {
 		const anchor = document.createElement('div');
 		const explicitAnchor = document.createElement('div');
