@@ -35,7 +35,7 @@ suite('Sessions list read state', () => {
 	const side: IChat = { ...main, resource: session.resource.with({ fragment: 'side' }) };
 
 	test('in an editor window, the agent sessions\' commands mark what the Sessions view and the chat tabs target, through the list\'s commands', async () => {
-		const readMenus = () => MenuRegistry.getMenuItems(SessionItemContextMenuId).filter(isIMenuItem).filter(item => item.command.id.startsWith('agentSession.mark')).length;
+		const readMenus = () => MenuRegistry.getMenuItems(SessionItemContextMenuId).filter(isIMenuItem).filter(item => item.command.id === SESSIONS_LIST_MARK_READ_COMMAND_ID || item.command.id === SESSIONS_LIST_MARK_UNREAD_COMMAND_ID).length;
 		const listKeybindings = () => KeybindingsRegistry.getDefaultKeybindings().filter(rule => (rule.command === SESSIONS_LIST_MARK_READ_COMMAND_ID || rule.command === SESSIONS_LIST_MARK_UNREAD_COMMAND_ID) && rule.when?.serialize().includes('!isSessionsWindow')).length;
 		const menusBefore = readMenus();
 		const keybindingsBefore = listKeybindings();

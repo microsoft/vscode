@@ -44,7 +44,8 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '.
 import { Menus } from '../../../browser/menus.js';
 import { SessionGroupToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId } from '../../../browser/views/sessionsList.js';
 import { ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
-import { IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
+import { EditorWindowSessionsPresenterService, IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
+import { EditorWindowSessionsService } from '../../../browser/agentsView/editorWindowSessionsService.js';
 import { IEditorWindowSessionsRuntime } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
 
 /** How many items the context menu of a session has: the actions of the sessions list add theirs. */
@@ -275,4 +276,40 @@ suite('ChatViewSessionsGate', () => {
 		const commands = menus.flatMap(menu => MenuRegistry.getMenuItems(menu)).filter(isIMenuItem).map(item => item.command.id);
 		assert.deepStrictEqual(commands.filter(id => id === OPEN_AGENTS_WINDOW_COMMAND_ID || id === OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID), []);
 	});
+
+	test('a session of the list opens where the window presents sessions: its main and peer chats, also to the side, in the Chat view, or in the chat part while a feature presents them there', async () => {
+		const calls: string[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ openSession: async resource => { calls.push(`chat view ${resource.path}`); return undefined; } }));
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({}));
+		const presenterService = disposables.add(instantiationService.createInstance(EditorWindowSessionsPresenterService));
+		instantiationService.stub(IEditorWindowSessionsPresenterService, presenterService);
+		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({}));
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
+		// The list's sessions service of an editor window, which its rows open sessions and chats with
+		const sessionsService = disposables.add(instantiationService.createInstance(EditorWindowSessionsService));
+		const main = upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/main') });
+		const session = upcastPartial<ISession>({ sessionId: 'session', mainChat: constObservable(main) });
+		const peer = URI.parse('agent-host-copilot:/peer');
+		const openRows = async () => {
+			await sessionsService.openChat(session, main.resource);
+			await sessionsService.openChat(session, peer);
+			await sessionsService.openChatToSide(session, peer);
+			await sessionsService.openSessionToSide(session);
+			return calls.splice(0);
+		};
+
+		const inChatView = await openRows();
+		const registration = presenterService.registerPresenter(upcastPartial<IEditorWindowSessionsPresenter>({
+			openChat: async (_session, chatResource, options) => { calls.push(`chat part ${chatResource?.path ?? 'main'}${options?.sideBySide ? ' to the side' : ''}`); },
+		}));
+		const inChatPart = await openRows();
+		registration.dispose();
+
+		assert.deepStrictEqual({ inChatView, inChatPart }, {
+			inChatView: ['chat view /main', 'chat view /peer', 'chat view /peer', 'chat view /main'],
+			inChatPart: ['chat part /main', 'chat part /peer', 'chat part /peer to the side', 'chat part main to the side'],
+		});
+	});
 });
+
