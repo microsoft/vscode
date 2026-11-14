@@ -53,6 +53,7 @@ export class ChatViewPaneHost implements IChatViewHost {
 		if (view && !options?.preserveFocus) {
 			view.focus();
 		}
+		view?.reportOpened(sessionResource);
 		return view?.widget;
 	}
 
@@ -60,6 +61,8 @@ export class ChatViewPaneHost implements IChatViewHost {
 		const chatView = await this.viewsService.openView<ChatViewPane>(ChatViewId, !options?.preserveFocus);
 		if (chatView) {
 			await chatView.loadSession(sessionResource, options?.sessionTypeSelectionReason);
+			// Also a chat it showed already, which loading does not set again
+			chatView.reportOpened(sessionResource);
 			if (!options?.preserveFocus) {
 				chatView.focusInput();
 			}
