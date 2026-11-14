@@ -4,12 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { SessionTypeSelectionReason } from '../common/constants.js';
 import { IChatWidget } from './chat.js';
 
 export const IChatViewHostService = createDecorator<IChatViewHostService>('chatViewHostService');
+
+/** The chat that a host shows ({@link IChatViewHost.shownSession}), and why it shows it. */
+export interface IChatViewHostShownSession {
+	readonly resource: URI;
+	/**
+	 * `open` when the user brought the chat up, such as by picking it in the sessions list, starting a new chat or sending
+	 * the first request of one; `restore` when the host shows the chat it last showed, such as as the window starts.
+	 */
+	readonly reason: 'open' | 'restore';
+}
 
 /** How {@link IChatViewHost.reveal} shows the host. */
 export interface IChatViewHostRevealOptions {
@@ -75,6 +86,9 @@ export interface IChatViewHost {
 	 * implement it leaves New Chat to the chat widget it acts on.
 	 */
 	newChat?(): boolean;
+
+	/** The chat the host shows; a host that does not implement it reports none. */
+	readonly shownSession?: IObservable<IChatViewHostShownSession | undefined>;
 }
 
 /**
@@ -87,6 +101,9 @@ export interface IChatViewHostService extends IChatViewHost {
 	revealIfShowing(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined>;
 
 	newChat(): boolean;
+
+	/** The chat that the host in use shows. */
+	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 
 	/**
 	 * Replaces the Chat view with `host` until the returned disposable is disposed. The host registered last is the one in
