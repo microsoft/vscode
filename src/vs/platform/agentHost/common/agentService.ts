@@ -1024,7 +1024,7 @@ export interface IAgentService {
 	 * the agent's protectedResources in root state. Analogous to RFC 6750
 	 * bearer token delivery.
 	 */
-	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope): Promise<AuthenticateResult>;
+	authenticate(params: AuthenticateParams, scope?: IAgentHostAuthenticationScope, clientId?: string): Promise<AuthenticateResult>;
 
 	/** Resolves a provider's connection-scoped model catalog without authenticating the shared provider. */
 	getModelsForCredentials(provider: string, credentials: IAgentHostCredentialSource, token?: CancellationToken): Promise<readonly IAgentModelInfo[]>;

@@ -406,7 +406,7 @@ class FakeAgentHostAuthenticationService extends mock<IAgentHostAuthenticationSe
 		return this._tokens.get(request.resource);
 	}
 
-	override getAuthAccount(): undefined { return undefined; }
+	override getAuthAccountId(): undefined { return undefined; }
 	override getSessionCredentialSource(): undefined { return undefined; }
 	override getSessionCredentialPrincipal(): undefined { return undefined; }
 

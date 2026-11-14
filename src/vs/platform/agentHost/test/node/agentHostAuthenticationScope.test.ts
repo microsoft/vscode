@@ -552,7 +552,7 @@ suite('AgentHostAuthenticationScope', () => {
 			exact: service.getAuthToken({ resource, scopes: ['read', 'write'] }),
 			subset: service.getAuthToken({ resource, scopes: ['read'] }),
 			unscoped: service.getAuthToken({ resource }),
-			account: service.getAuthAccount({ resource, scopes: ['read'] }),
+			account: service.getAuthAccountId({ resource, scopes: ['read'] }),
 		};
 		await assert.rejects(service.createLocalCredentialSource(principal, [{ resource }]), { code: AhpErrorCodes.AuthRequired });
 		await service.authenticate({ ...first, token: '' }, [provider]);

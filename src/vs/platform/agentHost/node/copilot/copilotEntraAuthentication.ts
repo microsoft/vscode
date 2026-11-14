@@ -12,7 +12,6 @@ import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { derived, observableValue, transaction, type IReader } from '../../../../base/common/observable.js';
 import type { AuthenticateParams } from '../../common/agent.js';
 import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraResources } from '../../common/copilotEntraAuthentication.js';
-import { readAuthenticationAccount, type IAgentAuthenticationAccount } from '../../common/meta/agentAuthenticationAccount.js';
 import { AuthRequiredReason, type AuthRequiredParams } from '../../common/state/sessionActions.js';
 import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import type { ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
@@ -60,9 +59,9 @@ export class CopilotEntraAuthentication extends Disposable {
 		if (this._authenticationService.onDidAuthenticate) {
 			this._register(this._authenticationService.onDidAuthenticate(request => {
 				if (request.resource === copilotEntraDiscoveryResource && !this._authority.get()) {
-					const account = this._authenticationService.getAuthCredential({ resource: copilotEntraDiscoveryResource, scopes: copilotEntraDiscoveryMetadata.scopes_supported })?.account;
-					if (account?.providerId === 'microsoft') {
-						this._authority.set({ accountId: account.accountId }, undefined);
+					const accountId = this._authenticationService.getAuthCredential({ resource: copilotEntraDiscoveryResource, scopes: copilotEntraDiscoveryMetadata.scopes_supported })?.accountId;
+					if (accountId) {
+						this._authority.set({ accountId }, undefined);
 					}
 				}
 				if (this.getCredential(request.resource, request.scopes ?? [])) {
@@ -110,12 +109,12 @@ export class CopilotEntraAuthentication extends Disposable {
 		if (!params.token || params.target || this._store.isDisposed) {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential authority is unavailable.');
 		}
-		const account = validateEntraCredential(params, copilotEntraDiscoveryMetadata);
-		validateEntraAccount(account.accountId, this._authority.get()?.accountId);
+		const accountId = validateEntraCredential(params, copilotEntraDiscoveryMetadata);
+		validateEntraAccount(accountId, this._authority.get()?.accountId);
 		if (this.getCredential(params.resource, params.scopes ?? [])?.token !== params.token) {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential authority is unavailable.');
 		}
-		return account.accountId;
+		return accountId;
 	}
 
 	validateSelection(params: AuthenticateParams, resource: ProtectedResourceMetadata): void {
@@ -124,15 +123,15 @@ export class CopilotEntraAuthentication extends Disposable {
 		if (!params.token || params.target || !authority || credential?.token !== params.token) {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential authority is unavailable.');
 		}
-		validateEntraAccount(validateEntraCredential(params, { ...resource, scopes_supported: [...credential.scopes] }).accountId, authority.accountId);
+		validateEntraAccount(validateEntraCredential(params, { ...resource, scopes_supported: [...credential.scopes] }), authority.accountId);
 	}
 
 	private validateCredential(params: AuthenticateParams, advertisedResource?: ProtectedResourceMetadata): void {
 		const authority = this._authority.get();
 		const isDiscovery = params.resource === copilotEntraDiscoveryResource;
 		const resource = advertisedResource ?? this.getProtectedResources().find(resource => resource.resource === params.resource);
-		const account = validateEntraCredential(params, resource);
-		validateEntraAccount(account.accountId, authority?.accountId);
+		const accountId = validateEntraCredential(params, resource);
+		validateEntraAccount(accountId, authority?.accountId);
 		if (this._tokenChallenges.get(params.resource)?.rejectedToken === params.token) {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft authentication requires a replacement credential.');
 		}
@@ -219,8 +218,7 @@ export class CopilotEntraAuthentication extends Disposable {
 	private getCredential(resource: string, scopes: readonly string[]): IAgentHostAuthCredential | undefined {
 		const authority = this._authority.get();
 		const credential = this._authenticationService.getAuthCredential({ resource, scopes });
-		return authority && credential?.account?.providerId === 'microsoft'
-			&& credential.account.accountId === authority.accountId
+		return authority && credential?.accountId === authority.accountId
 			&& credential.token !== this._tokenChallenges.get(resource)?.rejectedToken ? credential : undefined;
 	}
 
@@ -241,19 +239,18 @@ function isEntraCredentialResource(resource: string): boolean {
 	return resource === copilotEntraDiscoveryResource || [...copilotEntraResources.values()].includes(resource);
 }
 
-function validateEntraCredential(params: AuthenticateParams, resource: ProtectedResourceMetadata | undefined): IAgentAuthenticationAccount {
+function validateEntraCredential(params: AuthenticateParams, resource: ProtectedResourceMetadata | undefined): string {
 	if (!resource || resource.resource !== params.resource) {
 		throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential does not satisfy the advertised requirement.');
 	}
-	const account = readAuthenticationAccount(params);
-	if (account?.providerId !== 'microsoft') {
-		throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential requires account provenance.');
+	if (typeof params.accountId !== 'string' || params.accountId.length === 0) {
+		throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential requires an account identifier.');
 	}
 	if (!resource.scopes_supported?.every(scope => params.scopes?.includes(scope))) {
 		throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential does not satisfy the advertised requirement.');
 	}
 	validateEntraCredentialExpiry(params.expiresIn);
-	return account;
+	return params.accountId;
 }
 
 function validateEntraCredentialExpiry(expiresIn: number | undefined): void {

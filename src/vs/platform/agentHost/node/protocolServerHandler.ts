@@ -2671,7 +2671,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (_client.transport.relayPassive && params.resource !== _client.transport.relayAuthentication?.resource) {
 					throw new ProtocolError(AhpErrorCodes.PermissionDenied, readOnlyConnectionMessage);
 				}
-				const result = await this._agentService.authenticate(params, this._getScopedAuthentication(_client));
+				const result = await this._agentService.authenticate(params, this._getScopedAuthentication(_client), _client.clientId);
 				const identity = _client.transport.relayAuthentication;
 				if (!result.authenticated && !(identity?.authenticated === true && params.resource === identity.resource)) {
 					throw new ProtocolError(AHP_AUTH_REQUIRED, `Authentication failed for resource: ${params.resource}`);
@@ -2696,7 +2696,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				checkAuthorization();
 				return {};
 			}
-			const result = await this._agentService.authenticate(authentication);
+			const result = await this._agentService.authenticate(authentication, undefined, _client.clientId);
 			checkAuthorization();
 			const relayAuthentication = _client.transport.relayAuthentication;
 			const relayIdentityAuthenticated = relayAuthentication?.authenticated === true && params.resource === relayAuthentication.resource;

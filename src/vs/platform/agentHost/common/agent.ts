@@ -806,6 +806,8 @@ export interface AuthenticateParams {
 	readonly expiresIn?: number;
 	/** The single consumer this token is for; when absent, tokens match by resource and scopes. */
 	readonly target?: AuthenticateTarget;
+	/** Unverified client-local account selection, stable across token renewals. */
+	readonly accountId?: string;
 	/** Optional client metadata. Hosts must remain usable when it is absent. */
 	readonly _meta?: Record<string, unknown>;
 }

@@ -12364,6 +12364,58 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(resp.result, {});
 	});
 
+	test('authenticate passes the connection identity separately from unverified account hints', async () => {
+		const first = connectClient('first-client');
+		const second = connectClient('second-client');
+		const resource = 'https://other-host.example/protected-resource';
+		const accountId = 'opaque-selection';
+		const _meta = { 'example.other': true };
+		const forwarded: { clientId: string | undefined; resource: string; accountId: string | undefined; target: AuthenticateParams['target']; _meta: Record<string, unknown> | undefined }[] = [];
+		agentService.authenticate = async (params, _scope?: IAgentHostAuthenticationScope, clientId?: string) => {
+			forwarded.push({ clientId, resource: params.resource, accountId: params.accountId, target: params.target, _meta: params._meta });
+			return { authenticated: true };
+		};
+		const target = { kind: 'mcpServer', session: 'other-session:/opaque', customizationId: 'mcp-1' };
+		for (const [transport, params] of [
+			[first, { resource, _meta }],
+			[first, { resource, accountId, _meta }],
+			[second, { resource, accountId }],
+			[first, { resource: `${resource}/other`, accountId }],
+			[first, { resource, accountId, target }],
+			[first, { resource, accountId, target: { customizationId: target.customizationId, session: target.session, kind: target.kind } }],
+			[first, { resource, accountId, target: { ...target, customizationId: 'mcp-2' } }],
+		] as const) {
+			const response = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'authenticate', { ...params, token: 'test-token', clientId: 'untrusted-wire-client' }));
+			await response;
+		}
+		assert.deepStrictEqual(forwarded, [
+			{ clientId: 'first-client', resource, accountId: undefined, target: undefined, _meta },
+			{ clientId: 'first-client', resource, accountId, target: undefined, _meta },
+			{ clientId: 'second-client', resource, accountId, target: undefined, _meta: undefined },
+			{ clientId: 'first-client', resource: `${resource}/other`, accountId, target: undefined, _meta: undefined },
+			{ clientId: 'first-client', resource, accountId, target, _meta: undefined },
+			{ clientId: 'first-client', resource, accountId, target, _meta: undefined },
+			{ clientId: 'first-client', resource, accountId, target: { ...target, customizationId: 'mcp-2' }, _meta: undefined },
+		]);
+	});
+
+	test('authenticate rejects invalid standard hints before they can become namespaced strings', async () => {
+		const authentication = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
+		agentService.authenticate = params => authentication.authenticate(params, []);
+		const transport = connectClient('invalid-account-client');
+		const responses: ProtocolMessage[] = [];
+		const accountIds = ['', null, 42, [], {}];
+		for (const accountId of accountIds) {
+			const response = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'authenticate', { resource: 'https://api.example.com', token: 'token', accountId }));
+			responses.push(await response);
+		}
+		assert.deepStrictEqual(responses, accountIds.map(() => ({
+			jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.InvalidParams, message: 'accountId must be a nonempty string' },
+		})));
+	});
+
 	test('authenticate still in flight when its transport disconnects is delivered without transport state', async () => {
 		const delivered = new DeferredPromise<void>();
 		const release = new DeferredPromise<void>();
@@ -12381,7 +12433,7 @@ suite('ProtocolServerHandler', () => {
 		transport.simulateClose();
 		release.complete();
 		await delivered.p;
-		assert.deepStrictEqual(authenticate.firstCall.args, [{ resource: 'https://api.github.com', token: 'synthetic-credential' }]);
+		assert.deepStrictEqual(authenticate.firstCall.args, [{ resource: 'https://api.github.com', token: 'synthetic-credential' }, undefined, 'credential-sender']);
 	});
 
 	test('getManagedSettingsDiagnostics returns provider SDK snapshots', async () => {
