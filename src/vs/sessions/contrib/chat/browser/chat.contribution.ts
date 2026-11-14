@@ -22,6 +22,7 @@ import { AgentHostSandboxNotifications } from '../../../../workbench/contrib/cha
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { resolveGridCommandView } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
+import { NextUserMessageSuggestionActions } from './nextUserMessageSuggestionActionViewItem.js';
 import './nullInlineChatSessionService.js';
 import './modelPicker.js';
 import './newSessionOnboardingTargets.js';
@@ -403,6 +404,7 @@ registerAction2(BranchChatSessionAction);
 // register workbench contributions
 // Desktop-only contributions (run scripts, task runners, chat pet) live in
 // chat.desktop.contribution.ts so the phone bundle can omit them.
+registerWorkbenchContribution2(NextUserMessageSuggestionActions.ID, NextUserMessageSuggestionActions, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(SessionsOpenerParticipantContribution.ID, SessionsOpenerParticipantContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(OpenSessionLinkOpenerContribution.ID, OpenSessionLinkOpenerContribution, WorkbenchPhase.BlockStartup);
 // Before chat inputs restore their drafts, whose session links become pills once a widget can show them.
