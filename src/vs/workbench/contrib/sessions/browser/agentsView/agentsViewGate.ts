@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { constObservable, IObservable } from '../../../../../base/common/observable.js';
-import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { localize2 } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -27,8 +28,9 @@ import { createEditorWindowSessionsScope, registerEditorWindowChatViewReplacemen
 const AGENTS_VIEW_TITLE = localize2('agentsView.title', "Sessions");
 
 /**
- * Shows the Sessions view of the Agents window in an editor window while {@link ChatConfiguration.SessionsViewEnabled} is on.
- * The setting is read once, as the window starts: with it off, this registers nothing and creates no service.
+ * Shows the Sessions view of the Agents window in an editor window while {@link ChatConfiguration.SessionsViewEnabled} is on,
+ * as the setting changes: turned off, all it registered goes, and the Chat view shows again. With it off, this registers
+ * nothing and creates no service.
  */
 export class AgentsViewGate extends Disposable implements IWorkbenchContribution {
 
@@ -40,27 +42,33 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 	) {
 		super();
 
-		if (configurationService.getValue<boolean>(ChatConfiguration.SessionsViewEnabled) !== true) {
-			return;
-		}
+		const enabled = observableConfigValue<boolean>(ChatConfiguration.SessionsViewEnabled, false, configurationService);
+		this._register(autorun(reader => {
+			if (enabled.read(reader) === true) {
+				this.enable(reader.store, instantiationService);
+			}
+		}));
+	}
 
-		const scoped = instantiationService.invokeFunction(accessor => createEditorWindowSessionsScope(this, accessor.get(IWorkspaceContextService)));
-		this.registerView(scoped);
-		this._register(registerEditorWindowSessionsList(instantiationService, registerAgentsViewNewSessionActions));
+	/** Shows the Sessions view and the chat part, until `store` is disposed, as the setting turns off. */
+	private enable(store: DisposableStore, instantiationService: IInstantiationService): void {
+		const scoped = instantiationService.invokeFunction(accessor => createEditorWindowSessionsScope(store, accessor.get(IWorkspaceContextService)));
+		this.registerView(store, scoped);
+		store.add(registerEditorWindowSessionsList(instantiationService, registerAgentsViewNewSessionActions));
 
 		instantiationService.invokeFunction(accessor => {
 			// The sessions it lists are known while it or the chat part shows
-			this._register(accessor.get(IEditorWindowSessionsRuntime).enable({ viewIds: [SessionsViewId] }));
+			store.add(accessor.get(IEditorWindowSessionsRuntime).enable({ viewIds: [SessionsViewId] }));
 			// The chat part, where sessions open: not in remote windows, where the Sessions view does not show
 			if (!accessor.get(IWorkbenchEnvironmentService).remoteAuthority) {
 				// The chat part docks beside the Sessions view, wherever the user puts it, over a dock of other features
-				this._register(accessor.get(IEditorWindowChatPartService).enable({ anchorViewId: SessionsViewId, anchorPriority: 2, enabled: constObservable(true) }));
-				this._register(registerEditorWindowChatViewReplacement(instantiationService));
+				store.add(accessor.get(IEditorWindowChatPartService).enable({ anchorViewId: SessionsViewId, anchorPriority: 2, enabled: constObservable(true) }));
+				store.add(registerEditorWindowChatViewReplacement(instantiationService));
 			}
 		});
 	}
 
-	private registerView(scoped: IObservable<boolean>): void {
+	private registerView(store: DisposableStore, scoped: IObservable<boolean>): void {
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 		const container = viewContainersRegistry.registerViewContainer({
 			id: AGENTS_VIEW_CONTAINER_ID,
@@ -74,7 +82,7 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 			hideIfEmpty: true,
 			windowEnablement: WindowEnablement.Editor,
 		}, ViewContainerLocation.Sidebar);
-		this._register(toDisposable(() => viewContainersRegistry.deregisterViewContainer(container)));
-		this._register(registerEditorWindowSessionsViews(container, scoped));
+		store.add(toDisposable(() => viewContainersRegistry.deregisterViewContainer(container)));
+		store.add(registerEditorWindowSessionsViews(container, scoped));
 	}
 }

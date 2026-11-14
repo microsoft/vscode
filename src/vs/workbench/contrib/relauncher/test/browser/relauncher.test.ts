@@ -76,7 +76,7 @@ suite('SettingsChangeRelauncher', () => {
 		assert.strictEqual(restartCount, 1, 'should restart when confirmed');
 	});
 
-	test('prompts to restart when chat.sessionsView.enabled is turned on or off', async () => {
+	test('does not prompt to restart when chat.sessionsView.enabled is turned on or off, which applies at once', async () => {
 		confirmResult = true;
 		await changeSetting(
 			'chat.sessionsView.enabled',
@@ -89,8 +89,8 @@ suite('SettingsChangeRelauncher', () => {
 			c => c.chat.sessionsView.enabled = false);
 
 		assert.deepStrictEqual({ turnedOn, turnedOff: { confirmCount: confirmCount - turnedOn.confirmCount, restartCount: restartCount - turnedOn.restartCount } }, {
-			turnedOn: { confirmCount: 1, restartCount: 1 },
-			turnedOff: { confirmCount: 1, restartCount: 1 },
+			turnedOn: { confirmCount: 0, restartCount: 0 },
+			turnedOff: { confirmCount: 0, restartCount: 0 },
 		});
 	});
 
