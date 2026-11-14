@@ -8,7 +8,7 @@ import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.j
 import { autorun, derived, observableFromEvent } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { Extensions as ConfigurationExtensions, IConfigurationDefaults, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -31,18 +31,24 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
-			markdownDescription: localize('chat.viewSessions.openInChatPart', "Controls whether the chats of agent sessions open in the chat part beside the Chat view instead of in the Chat view. Other chats, such as local chats, stay in the Chat view."),
+			markdownDescription: localize('chat.viewSessions.openInChatPart', "Controls whether chats open in the chat part beside the Chat view, which then shows only its sessions, instead of in the Chat view."),
 		},
 	},
 });
+
+/** No local chats, which the chat part does not show: as with the sessions list of the Chat view, whose chats are those of sessions. */
+const noLocalChatDefaults: IConfigurationDefaults = {
+	overrides: { [ChatConfiguration.EditorLocalAgentEnabled]: false },
+};
 
 /** The chat part docks beside the Chat view: the Agents viewlet docks it beside its own view, over this. */
 const CHAT_VIEW_ANCHOR_PRIORITY = 1;
 
 /**
  * Opens the chats of agent sessions in the chat part beside the Chat view while {@link ChatConfiguration.ChatViewSessionsOpenInChatPart}
- * is on, in local editor windows: what would show such a chat in the Chat view shows it in the chat part, as the Agents viewlet
- * does. Other chats, such as local chats, stay in the Chat view. While it is off, the chat part does not show.
+ * is on, in local editor windows: what would show a chat in the Chat view, such as opening a session or New Chat, shows it in
+ * the chat part, as the Agents viewlet does, and the Chat view shows only its sessions. While it is off, the chat part does not
+ * show and the Chat view is unchanged.
  */
 export class ChatViewOpenInChatPartContribution extends Disposable implements IWorkbenchContribution {
 
@@ -68,11 +74,16 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		const availableKeys = new Set(available.keys());
 		const chatAvailable = observableFromEvent(this, Event.filter(_contextKeyService.onDidChangeContext, e => e.affectsSome(availableKeys)), () => _contextKeyService.contextMatchesRules(available));
 		const enabled = derived(this, reader => setting.read(reader) && chatAvailable.read(reader));
-		this._register(chatPartService.enable({ anchorViewId: ChatViewId, anchorPriority: CHAT_VIEW_ANCHOR_PRIORITY, enabled, ownsNewChat: false }));
+		this._register(chatPartService.enable({ anchorViewId: ChatViewId, anchorPriority: CHAT_VIEW_ANCHOR_PRIORITY, enabled }));
 		// The sessions that the chat part shows are known while the Chat view lists them
 		this._register(autorun(reader => {
 			if (enabled.read(reader)) {
 				reader.store.add(sessionsRuntime.enable({ viewIds: [ChatViewId] }));
+				// Every chat shows in the chat part, so the Chat view shows only its sessions
+				reader.store.add(this._sessionsListService.claimSessionsOnly());
+				const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+				configurationRegistry.registerDefaultConfigurations([noLocalChatDefaults]);
+				reader.store.add(toDisposable(() => configurationRegistry.deregisterDefaultConfigurations([noLocalChatDefaults])));
 			}
 		}));
 		this._hideMaximizeWhileSessionsOnly();

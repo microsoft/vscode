@@ -55,6 +55,7 @@ suite('ChatViewPane sessions refresh', () => {
 			sessionsContainer: document.createElement('div'),
 			viewPaneContainer: document.createElement('div'),
 			sessionsControl: { setVisible: (visible: boolean) => visibility.push(visible) },
+			sessionsListService: { sessionsOnly: constObservable(false) },
 			configurationService: configuration,
 			sessionsViewerOrientation: AgentSessionsViewerOrientation.SideBySide,
 			lastDimensions: { width: 1000, height: 600 },
@@ -87,7 +88,7 @@ suite('ChatViewPane sessions refresh', () => {
 			sessionsContainer: document.createElement('div'),
 			viewPaneContainer: document.createElement('div'),
 			sessionsControl: { setVisible: (visible: boolean) => visibility.push(visible) },
-			providedSessionsList: { sessionsOnly },
+			sessionsListService: { sessionsOnly },
 			configurationService: new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsEnabled]: false }),
 			sessionsViewerOrientation: AgentSessionsViewerOrientation.Stacked,
 			lastDimensions: { width: 1000, height: 600 },
@@ -108,9 +109,9 @@ suite('ChatViewPane sessions refresh', () => {
 		let empty = true;
 		let title = '';
 		const sessionsOnly = observableValue('sessionsOnly', false);
-		const host: { providedComposer: object | undefined; providedSessionsList: { sessionsOnly: typeof sessionsOnly }; composerShown: boolean; viewPaneContainer: HTMLElement; element: HTMLElement; _widget: object; relayout(): void } = {
+		const host: { providedComposer: object | undefined; sessionsListService: { sessionsOnly: typeof sessionsOnly }; composerShown: boolean; viewPaneContainer: HTMLElement; element: HTMLElement; _widget: object; relayout(): void } = {
 			providedComposer: { focus: () => { } },
-			providedSessionsList: { sessionsOnly },
+			sessionsListService: { sessionsOnly },
 			composerShown: false,
 			viewPaneContainer: document.createElement('div'),
 			element: document.createElement('div'),
@@ -157,7 +158,7 @@ suite('ChatViewPane sessions refresh', () => {
 		const focused: string[] = [];
 		const focusInput = Reflect.get(ChatViewPane.prototype, 'focusInput') as (this: object) => void;
 		const host = (sessionsOnly: boolean, composerShown: boolean) => ({
-			providedSessionsList: { sessionsOnly: constObservable(sessionsOnly) },
+			sessionsListService: { sessionsOnly: constObservable(sessionsOnly) },
 			sessionsControl: { focus: () => focused.push('sessions') },
 			providedComposer: { focus: () => focused.push('composer') },
 			composerShown,
@@ -179,7 +180,7 @@ suite('ChatViewPane sessions refresh', () => {
 		let empty = false;
 		const host = {
 			providedComposer: { focus: () => focused.push('composer') },
-			providedSessionsList: { sessionsOnly: constObservable(false) },
+			sessionsListService: { sessionsOnly: constObservable(false) },
 			composerShown: false,
 			viewPaneContainer: document.createElement('div'),
 			element,
@@ -218,6 +219,19 @@ suite('ChatViewPane sessions refresh', () => {
 		providers.push(service.provider === a);
 		first.dispose();
 		assert.deepStrictEqual({ providers, none: service.provider }, { providers: [true, true], none: undefined });
+	});
+
+	test('the Chat view shows only its sessions while a claim is held, also without a provided list', () => {
+		const service = new ChatViewSessionsListService();
+		const steps = [service.sessionsOnly.get()];
+		const first = service.claimSessionsOnly();
+		const second = service.claimSessionsOnly();
+		steps.push(service.sessionsOnly.get());
+		first.dispose();
+		steps.push(service.sessionsOnly.get());
+		second.dispose();
+		steps.push(service.sessionsOnly.get());
+		assert.deepStrictEqual(steps, [false, true, true, false]);
 	});
 
 	test('sessions layout telemetry reports the settled layout once shown and restored, then only changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -287,11 +301,13 @@ suite('ChatViewPane sessions refresh', () => {
 				},
 			},
 			hostService: { onDidChangeFocus: focusChanged.event },
-			sessionsListService: { provider: undefined },
+			sessionsListService: { provider: undefined, sessionsOnly: constObservable(false) },
 			configurationService: new TestConfigurationService(),
 			onDidChangeBodyVisibility: Event.None,
 			getLocationBasedColors: () => ({ listOverrideStyles: {} }),
 			doUpdateConfiguredSessionsViewerOrientation: () => { },
+			updateComposerVisibility: () => { },
+			relayout: () => { },
 		};
 		const createControl = Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => AgentSessionsControl;
 		createControl.call(host, document.createElement('div'));
