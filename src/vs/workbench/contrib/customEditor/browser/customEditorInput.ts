@@ -14,7 +14,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { basename } from '../../../../base/common/path.js';
+import { basename, isAbsolute } from '../../../../base/common/path.js';
 import { dirname, isEqual } from '../../../../base/common/resources.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -336,7 +336,9 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			return undefined;
 		}
 
-		const dialogPath = this._editorResource;
+		const dialogPath = this._editorResource.scheme === Schemas.untitled && !isAbsolute(this._editorResource.path)
+			? URI.joinPath(await this.fileDialogService.defaultFilePath(), this._editorResource.path)
+			: this._editorResource;
 		const target = await this.fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
 		if (!target) {
 			return undefined; // save cancelled
