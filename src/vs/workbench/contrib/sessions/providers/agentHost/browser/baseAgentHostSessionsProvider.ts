@@ -1502,14 +1502,17 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * The chats that recorded each pull request, by link key. A tool chat is
 	 * not listed, so its pull requests belong to the chat that started it. An
 	 * owner that is not a listed chat is kept, so no listed chat claims its
-	 * pull request; a record without an owner belongs to the main chat.
+	 * pull request; a record without an owner belongs to the main chat. When a
+	 * pull request is an artifact of some chat, only those chats own it; the
+	 * others merely reference it.
 	 */
 	private readonly _pullRequestOwners = derivedOpts<ReadonlyMap<string, readonly string[]>>({
 		owner: this,
 		equalsFn: (a, b) => a.size === b.size && [...a].every(([key, owners]) => arrayEquals(owners, b.get(key) ?? [])),
 	}, reader => {
 		const chats = this._chatsObs.read(reader);
-		const result = new Map<string, string[]>();
+		const referenceOwners = new Map<string, string[]>();
+		const artifactOwners = new Map<string, string[]>();
 		for (const artifact of this.artifacts.read(reader)) {
 			if (artifact.kind !== SessionArtifactKind.PullRequest || !artifact.link) {
 				continue;
@@ -1523,13 +1526,18 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				owner = chat.origin.parentChat;
 			}
 			const key = linkKey(artifact.link.toString());
-			const owners = result.get(key) ?? [];
-			if (!owners.includes(owner.toString())) {
-				owners.push(owner.toString());
+			for (const target of artifact.isArtifact ? [referenceOwners, artifactOwners] : [referenceOwners]) {
+				const owners = target.get(key) ?? [];
+				if (!owners.includes(owner.toString())) {
+					owners.push(owner.toString());
+				}
+				target.set(key, owners);
 			}
-			result.set(key, owners);
 		}
-		return result;
+		for (const [key, owners] of artifactOwners) {
+			referenceOwners.set(key, owners);
+		}
+		return referenceOwners;
 	});
 	/** Whether this session was created with worktree isolation. */
 	private readonly _worktreeIsolation = observableValue<boolean>('worktreeIsolation', false);

@@ -61,7 +61,7 @@ suite('FolderLocationStatusBarContribution', () => {
 		const contribution = ds.add(new FolderLocationStatusBarContribution(
 			{ ...identityFake(() => workspace), getLocation: () => identityFake(() => workspace).isAtAlternateLocation() ? currentLocation : undefined, onDidChangeLocation: onDidChangeCurrentLocation.event } as unknown as IWorkspaceFolderLocationService,
 			{ getWorkspace: () => workspace, onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event } as unknown as IWorkspaceContextService,
-			{ getFolderLocationLabel: () => currentLocation ? `${currentLocation.label} · ${currentLocation.description}` : undefined } as unknown as ILabelService,
+			{ getFolderLocationLabel: () => currentLocation?.label } as unknown as ILabelService,
 			{
 				onDidChangeEntryVisibility: onDidChangeEntryVisibility.event,
 				addEntry(entry: IStatusbarEntry, _id: string, alignment: unknown, priority: unknown) {
@@ -107,7 +107,7 @@ suite('FolderLocationStatusBarContribution', () => {
 		fixture.switchTo();
 		assert.deepStrictEqual(
 			{ visible: fixture.isVisible(), text: fixture.entries[0].text, ariaLabel: fixture.entries[0].ariaLabel, command: fixture.entries[0].command, kind: fixture.entries[0].kind, tooltip: fixture.entries[0].tooltip },
-			{ visible: true, text: '$(git-branch) Alternate', ariaLabel: 'Folder Location, Alternate · feature/x', command: { id: SWITCH_FOLDER_LOCATION_COMMAND_ID, title: 'Folder Location', arguments: ['status.workspace.folderLocation'] }, kind: 'prominent', tooltip: `Alternate · feature/x (alternate location of 'project')` });
+			{ visible: true, text: '$(git-branch) Alternate', ariaLabel: 'Folder Location, Alternate', command: { id: SWITCH_FOLDER_LOCATION_COMMAND_ID, title: 'Folder Location', arguments: ['status.workspace.folderLocation'] }, kind: 'prominent', tooltip: `Alternate (alternate location of 'project')` });
 
 		fixture.returnToPrimary();
 		assert.strictEqual(fixture.isVisible(), false);
