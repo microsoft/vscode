@@ -11,8 +11,11 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../work
 import { registerChatBackgroundConfiguration } from '../../../../workbench/contrib/sessions/browser/chatBackgroundActions.js';
 import { ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
 import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { SessionsChatBackgroundTint } from '../../../../workbench/contrib/sessions/browser/chatBackgroundTint.js';
 import { GetThemeColorsToolContribution } from './getThemeColorsTool.js';
 
+// The Agents window tints its theme to the chat background image, always, while the setting is on
+registerWorkbenchContribution2(SessionsChatBackgroundTint.ID, SessionsChatBackgroundTint, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(GetThemeColorsToolContribution.ID, GetThemeColorsToolContribution, WorkbenchPhase.Eventually);
 registerSingleton(ISessionsChatBackgroundService, SessionsChatBackgroundService, InstantiationType.Delayed);
 // The Agents window shows its chats over the chat background, always

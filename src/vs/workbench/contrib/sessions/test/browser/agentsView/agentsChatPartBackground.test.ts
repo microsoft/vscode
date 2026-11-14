@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { $, append } from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
-import { Emitter } from '../../../../../../base/common/event.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
@@ -23,6 +22,16 @@ import { registerChatBackgroundConfiguration } from '../../../browser/chatBackgr
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { IEditorWindowChatPartService } from '../../../browser/agentsView/agentsChatPartContribution.js';
 import { EditorWindowChatBackgroundConfiguration } from '../../../browser/editorWindow/editorWindowChatBackground.js';
+import { AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING, SessionsChatBackgroundTint } from '../../../browser/chatBackgroundTint.js';
+import { Color } from '../../../../../../base/common/color.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IWorkbenchThemeService } from '../../../../../services/themes/common/workbenchThemeService.js';
 import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../browser/chatBackgroundService.js';
 
 suite('Agents Chat Part - chat background', () => {
@@ -119,20 +128,48 @@ suite('Agents Chat Part - chat background', () => {
 		});
 	});
 
-	test('an editor window has the chat background\'s settings while its chat area is enabled, also beside the hold of an Agents window', () => {
+	test('an editor window has the chat background\'s settings and tint while its chat area is enabled, also beside the hold of an Agents window, and none of a tint saved while it is not', async () => {
 		const registered = () => !!Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()['chat.agentSessions.preferredDarkBackgroundImage'];
 		const enabled = observableValue('enabled', false);
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IEditorWindowChatPartService, upcastPartial<IEditorWindowChatPartService>({ enabled }));
-		// Unless another suite has loaded the Agents window, which holds them for good
+		// Saved in the settings: an image, and the tint on
+		const image = URI.file('/backgrounds/koi.png');
+		instantiationService.stub(ISessionsChatBackgroundService, upcastPartial<ISessionsChatBackgroundService>({
+			onDidChangeBackground: Event.None,
+			getBackground: () => ({ kind: 'image', backgroundImage: `url(${image.toString()})`, backgroundRepeat: 'repeat', backgroundSize: 'auto', backgroundPosition: 'center' }),
+			getConfiguredBackgroundImage: () => image,
+		}));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING]: true }));
+		let overlays = 0;
+		instantiationService.stub(IWorkbenchThemeService, upcastPartial<IWorkbenchThemeService>({ registerColorThemeOverlay: () => { overlays++; return toDisposable(() => overlays--); } }));
+		instantiationService.stub(ILogService, new NullLogService());
+		let samples = 0;
+		class TestTint extends SessionsChatBackgroundTint {
+			protected override async readImageColor(): Promise<Color | undefined> {
+				samples++;
+				return Color.fromHex('#3366cc');
+			}
+		}
+		class TestConfiguration extends EditorWindowChatBackgroundConfiguration {
+			protected override createTint(instantiationService: IInstantiationService): SessionsChatBackgroundTint {
+				return instantiationService.createInstance(TestTint);
+			}
+		}
+		const settle = () => new Promise<void>(resolve => setTimeout(resolve, 0));
+		const state = () => ({ settings: registered(), samples, overlays });
+		// Unless another suite has loaded the Agents window, which holds the settings for good
 		const before = registered();
-		const contribution = instantiationService.createInstance(EditorWindowChatBackgroundConfiguration);
-		const disabled = registered();
+		const contribution = instantiationService.createInstance(TestConfiguration);
+		await settle();
+		const disabled = state();
 		enabled.set(true, undefined);
-		const enabledState = registered();
+		await settle();
+		const enabledState = state();
 		enabled.set(false, undefined);
-		const disabledAgain = registered();
-		// Beside another hold, such as the Agents window's, disabling the chat area keeps them
+		await settle();
+		const disabledAgain = state();
+		// Beside another hold, such as the Agents window's, disabling the chat area keeps the settings
 		const other = registerChatBackgroundConfiguration();
 		enabled.set(true, undefined);
 		enabled.set(false, undefined);
@@ -140,8 +177,12 @@ suite('Agents Chat Part - chat background', () => {
 		other.dispose();
 		contribution.dispose();
 
-		assert.deepStrictEqual({ disabled: disabled === before, enabled: enabledState, disabledAgain: disabledAgain === before, besideOther, after: registered() === before }, {
-			disabled: true, enabled: true, disabledAgain: true, besideOther: true, after: true,
+		assert.deepStrictEqual({ disabled, enabled: enabledState, disabledAgain, besideOther, after: registered() === before }, {
+			disabled: { settings: before, samples: 0, overlays: 0 },
+			enabled: { settings: true, samples: 1, overlays: 1 },
+			disabledAgain: { settings: before, samples: 1, overlays: 0 },
+			besideOther: true,
+			after: true,
 		});
 	});
 });
