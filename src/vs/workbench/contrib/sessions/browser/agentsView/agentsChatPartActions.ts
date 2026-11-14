@@ -29,6 +29,7 @@ import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHos
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { RENAME_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 
 /** Closes the chat of a header of the chat part (see `registerAgentsChatPartActions`). */
 export const AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID = 'workbench.action.agentsView.closeChat';
@@ -140,14 +141,15 @@ export function registerAgentsChatPartActions(): IDisposable {
 		}
 	}));
 
-	// Closes all the chats of the chat part, which closes it: right after Close in the More Actions of a header of a chat it shows
+	// Closes all the chats of the chat part, which closes it: right after Close in the More Actions of a header of a chat it shows,
+	// while it shows them as tabs; in Single, it shows one at a time
 	store.add(registerAction2(class extends Action2 {
 		constructor() {
 			super({
 				id: AGENTS_CHAT_PART_CLOSE_ALL_CHATS_COMMAND_ID,
 				title: localize2('agentsView.closeAllChats', "Close All"),
 				precondition: ChatContextKeys.enabled,
-				menu: SessionHeaderMenus.map(id => ({ id, group: 'secondary/0_pane', order: 20, when: inChatPart })),
+				menu: SessionHeaderMenus.map(id => ({ id, group: 'secondary/0_pane', order: 20, when: ContextKeyExpr.and(inChatPart, ContextKeyExpr.equals(`config.${SESSIONS_CHAT_TABS_SETTING}`, SessionsChatTabsMode.Multiple)) })),
 			});
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {

@@ -25,6 +25,7 @@ import { InAgentsChatPartContext } from '../../../browser/agentsView/agentsChatP
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Menus } from '../../../browser/menus.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
 import { SessionIsCreatedContext, SessionSupportsRenameContext } from '../../../common/contextkeys.js';
 import { INewSessionTarget } from '../../../browser/parts/chatView.js';
 import { ISessionSection, SessionItemContextMenuId, SessionSectionToolbarMenuId } from '../../../browser/views/sessionsList.js';
@@ -134,7 +135,7 @@ suite('Agents chat part actions', () => {
 		}, { inSecond: '/work/tools', outside: '/work/vscode', none: '/work/vscode' });
 	});
 
-	test('the More Actions of a header of the chat part start with Close, which closes that chat only, then Close All, which closes all its chats; then Rename... and View Mode, as the Agents window\'s; none show in the Agents window', async () => {
+	test('the More Actions of a header of the chat part start with Close, which closes that chat only, then Close All, which closes all its chats, while it shows them as tabs; then Rename... and View Mode, as the Agents window\'s; none show in the Agents window', async () => {
 		const before = new Set(MenuRegistry.getMenuItems(Menus.SessionBarToolbar));
 		store.add(registerAgentsChatPartActions());
 		const session = buildTestSession({ id: 's', title: 's', chats: [{ id: 'peer', title: 'Peer' }] });
@@ -152,17 +153,22 @@ suite('Agents chat part actions', () => {
 		await run(AGENTS_CHAT_PART_CLOSE_ALL_CHATS_COMMAND_ID, session.session, undefined);
 		// Its commands, and the View Mode submenu: other features add submenus of their own, such as how the chat part shows its chats
 		const added = MenuRegistry.getMenuItems(Menus.SessionBarToolbar).filter(item => !before.has(item) && (isIMenuItem(item) || item.submenu === MenuId.ChatViewMode));
-		const keys: Record<string, boolean> = { [ChatContextKeys.enabled.key]: true, [SessionIsCreatedContext.key]: true, [SessionSupportsRenameContext.key]: true, [AgentsChatPartVisibleContext.key]: true };
-		const shown = (inChatPart: boolean) => added
-			.filter(item => item.when?.evaluate({ getValue: <T>(key: string) => (key === InAgentsChatPartContext.key ? inChatPart : keys[key]) as T }) ?? true)
+		const keys: Record<string, unknown> = { [ChatContextKeys.enabled.key]: true, [SessionIsCreatedContext.key]: true, [SessionSupportsRenameContext.key]: true, [AgentsChatPartVisibleContext.key]: true };
+		const shown = (inChatPart: boolean, chatTabs: string = SessionsChatTabsMode.Multiple) => added
+			.filter(item => item.when?.evaluate({ getValue: <T>(key: string) => (key === InAgentsChatPartContext.key ? inChatPart : key === `config.${SESSIONS_CHAT_TABS_SETTING}` ? chatTabs : keys[key]) as T }) ?? true)
 			.map(item => isIMenuItem(item) ? `${item.group} ${item.order} ${typeof item.command.title === 'string' ? item.command.title : item.command.title.value}` : `${item.group} ${item.order} ${item.submenu.id}`);
 		const keybinding = KeybindingsRegistry.getDefaultKeybindings().find(item => item.command === AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID);
 
-		assert.deepStrictEqual({ closed, chatPart: shown(true), agentsWindow: shown(false), keybindingWhen: keybinding?.when?.serialize() }, {
+		assert.deepStrictEqual({ closed, chatPart: shown(true), single: shown(true, SessionsChatTabsMode.Single), agentsWindow: shown(false), keybindingWhen: keybinding?.when?.serialize() }, {
 			closed: [main.toString(), peer.resource.toString(), 'all'],
 			chatPart: [
 				'secondary/0_pane 10 Close',
 				'secondary/0_pane 20 Close All',
+				'secondary/4_manage 5 Rename...',
+				`secondary/4_manage 10 ${MenuId.ChatViewMode.id}`,
+			],
+			single: [
+				'secondary/0_pane 10 Close',
 				'secondary/4_manage 5 Rename...',
 				`secondary/4_manage 10 ${MenuId.ChatViewMode.id}`,
 			],
