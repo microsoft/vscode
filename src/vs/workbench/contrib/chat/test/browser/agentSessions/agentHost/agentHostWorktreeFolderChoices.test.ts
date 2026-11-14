@@ -32,7 +32,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 	const session = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-1' });
 
 	/** The choices in a window whose folder is at `at`, recording the folders and isolation it sets for the session. */
-	async function createChoices(options: { readonly enabled: boolean; readonly at: URI; readonly isolation?: string; readonly state?: WorkbenchState; readonly listed?: readonly URI[] }) {
+	async function createChoices(options: { readonly enabled: boolean; readonly at: URI; readonly isolation?: string; readonly state?: WorkbenchState; readonly listed?: readonly URI[]; readonly resolveLocation?: (location: URI) => Promise<IResolvedFolderLocation | undefined> }) {
 		const config = { values: { isolation: options.isolation ?? 'folder' } as Record<string, unknown> };
 		const changes: string[] = [];
 		const listed = { locations: options.listed ?? [feature, other] };
@@ -52,7 +52,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 			getLocations: async () => listed.locations.map(uri => upcastPartial<IFolderLocation>({ uri, label: uri.path.split('/').pop() })),
 			getLocation: () => options.at.path === primary.path ? undefined : upcastPartial<IResolvedFolderLocation>({ uri: options.at, label: options.at.path.split('/').pop() }),
 			// As git links them: only the worktrees of the window's folder resolve, not another repository or the folder itself
-			resolveLocation: async (_primary: URI, location: URI) => location.path.startsWith('/work/vscode.worktrees/') ? upcastPartial<IResolvedFolderLocation>({ uri: location }) : undefined,
+			resolveLocation: async (_primary: URI, location: URI) => options.resolveLocation ? options.resolveLocation(location) : location.path.startsWith('/work/vscode.worktrees/') ? upcastPartial<IResolvedFolderLocation>({ uri: location }) : undefined,
 		}));
 		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({
 			getFolder: () => undefined,
@@ -118,6 +118,32 @@ suite('AgentHostWorktreeFolderChoices', () => {
 			otherRepositoryChip: { icon: 'folder', label: null, description: 'Folder: another-repo' },
 			primaryAliasChip: { icon: 'folder', label: null, description: 'Folder: vscode' },
 		});
+	});
+
+	test('a folder it does not list, which a failed read does not prove a worktree, is read again as it reads the worktrees again, and shows as a worktree once proven', async () => {
+		const unlisted = URI.file('/work/vscode.worktrees/small-random-change-addition');
+		let reads = 0;
+		let readable = false;
+		const { choices } = await createChoices({
+			enabled: true, at: primary, resolveLocation: async location => {
+				reads++;
+				// As the providers answer where git could not be read: not a location
+				return readable ? upcastPartial<IResolvedFolderLocation>({ uri: location }) : undefined;
+			},
+		});
+		const settle = () => new Promise<void>(resolve => setTimeout(resolve, 0));
+		const icon = () => choices.getChip(unlisted).icon.id;
+		const failed = icon();
+		await settle();
+		// Read once, as it renders again
+		const afterFailure = [icon(), icon()];
+		readable = true;
+		// Such as as a provider or the folder's location changes
+		choices.refresh();
+		const pending = icon();
+		await settle();
+
+		assert.deepStrictEqual({ failed, afterFailure, pending, proven: icon(), reads }, { failed: 'folder', afterFailure: ['folder', 'folder'], pending: 'folder', proven: 'worktree', reads: 2 });
 	});
 
 	test('is active only with the setting on in a window with a single local folder', async () => {
