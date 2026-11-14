@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/worlpaker/go-syntax/commit/c74e22eb9ef32958e3edd130ea750ce78d8b8241",
+	"version": "https://github.com/worlpaker/go-syntax/commit/4a9b120a52c30e209133ab69e868e13c980be40e",
 	"name": "Go",
 	"scopeName": "source.go",
 	"patterns": [
@@ -1929,7 +1929,7 @@
 				},
 				{
 					"comment": "one line with semicolon(;) without formatting gofmt - single type | property variables and types",
-					"match": "(?:(?<=\\{)((?:\\s*(?:(?:(?:\\w+\\,\\s*)+)?(?:\\w+\\s+))?(?:(?:(?:\\s*(?:[\\*\\[\\]]+)?(?:\\<\\-\\s*)?\\bchan\\b(?:\\s*\\<\\-)?\\s*)+)?(?:[^\\s/\\`\"]+)(?:\\;)?))+)\\s*(?=\\}))",
+					"match": "(?:(?<=\\{)([^/\\`\"]*[^\\s/\\`\"])\\s*(?=\\}))",
 					"captures": {
 						"1": {
 							"patterns": [

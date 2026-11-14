@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/76dc409348227db00f6779772f7763dc90cdf22e",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/0837e7aab6b7d59b719e4136f97ad4c6fe34ef41",
 	"name": "TeX",
 	"scopeName": "text.tex",
 	"patterns": [
@@ -35,10 +35,26 @@
 			"include": "#ifnextchar"
 		},
 		{
+			"include": "#endinput"
+		},
+		{
 			"include": "#macro-general"
 		}
 	],
 	"repository": {
+		"endinput": {
+			"begin": "^\\s*((\\\\)endinput)",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.control.input.tex"
+				},
+				"2": {
+					"name": "punctuation.definition.keyword.tex"
+				}
+			},
+			"end": "(?!)",
+			"contentName": "comment.line.percentage.tex"
+		},
 		"catcode": {
 			"match": "((\\\\)catcode)`(?:\\\\)?.(=)(\\d+)",
 			"captures": {
