@@ -752,6 +752,10 @@ export abstract class AbstractLoggerService extends Disposable implements ILogge
 	}
 
 	createLogger(idOrResource: URI | string, options?: ILoggerOptions): ILogger {
+		return this.createLoggerWithRegistration(idOrResource, options, info => this.registerLogger(info));
+	}
+
+	protected createLoggerWithRegistration(idOrResource: URI | string, options: ILoggerOptions | undefined, register: (info: ILoggerResource) => void): ILogger {
 		const resource = this.toResource(idOrResource);
 		const id = isString(idOrResource) ? idOrResource : (options?.id ?? hash(resource.toString()).toString(16));
 		let logger = this._loggers.get(resource)?.logger;
@@ -772,7 +776,7 @@ export abstract class AbstractLoggerService extends Disposable implements ILogge
 				when: options?.when
 			}
 		};
-		this.registerLogger(loggerEntry.info);
+		register(loggerEntry.info);
 		// TODO: @sandy081 Remove this once registerLogger can take ILogger
 		this._loggers.set(resource, loggerEntry);
 		return logger;
