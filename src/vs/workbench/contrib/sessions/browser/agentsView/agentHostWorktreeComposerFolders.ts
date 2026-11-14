@@ -7,7 +7,7 @@ import { CancellationTokenSource } from '../../../../../base/common/cancellation
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -22,6 +22,10 @@ import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js
 import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { IAllowedFolderPresentation } from '../chat/sessionWorkspacePicker.js';
 import { IEditorWindowComposerFoldersService } from '../editorWindow/editorWindowComposerFolders.js';
+import { IAgentHostWorktreeSessionSource, IAgentHostWorktreeSessionSources } from '../../../chat/browser/agentSessions/agentHost/agentHostWorktreeSessionSources.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 
 /**
  * The folders the chat part's new-session composers create their sessions in: the window's folders and, for the one local
@@ -145,6 +149,60 @@ export class AgentHostWorktreeComposerFolders extends Disposable {
 }
 
 /**
+ * Where the local agent host sessions of the editor window's session layer (`ISessionsManagementService`) and their chats
+ * work, for worktree support, which the Chat view's sessions list does not have: a session created in the chat part or
+ * a Sessions view. It only nominates them; the worktree location provider decides which are locations of the folder.
+ */
+export class AgentHostWorktreeSessionLayerSource extends Disposable implements IAgentHostWorktreeSessionSource {
+
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	readonly onDidChange = this._onDidChange.event;
+
+	constructor(
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+	) {
+		super();
+		// Also as a session comes to work elsewhere, such as in the worktree its first request created
+		const sessionsChanged = observableSignalFromEvent(this, _sessionsManagementService.onDidChangeSessions);
+		let first = true;
+		this._register(autorun(reader => {
+			sessionsChanged.read(reader);
+			for (const session of _sessionsManagementService.getAllSessions()) {
+				session.isArchived.read(reader);
+				session.workspace.read(reader);
+				for (const chat of session.chats.read(reader)) {
+					chat.workspace.read(reader);
+				}
+			}
+			if (!first) {
+				this._onDidChange.fire();
+			}
+			first = false;
+		}));
+	}
+
+	getWorkingDirectory(chatResource: URI): URI | undefined {
+		const found = this._sessionsManagementService.getSessionForChatResource(chatResource);
+		if (!found || !isLocalAgentHostSession(found.session)) {
+			return undefined;
+		}
+		return (found.chat.workspace.get() ?? found.session.workspace.get())?.folders[0]?.workingDirectory;
+	}
+
+	getWorkingDirectories(): readonly URI[] {
+		return this._sessionsManagementService.getAllSessions()
+			.filter(isLocalAgentHostSession)
+			.flatMap(session => [session.workspace.get(), ...session.chats.get().map(chat => chat.workspace.get())])
+			.flatMap(workspace => workspace?.folders.map(folder => folder.workingDirectory) ?? []);
+	}
+}
+
+/** Whether `session` is a non-archived session of the local agent host. */
+function isLocalAgentHostSession(session: ISession): boolean {
+	return session.providerId === LOCAL_AGENT_HOST_PROVIDER_ID && !session.isArchived.get();
+}
+
+/**
  * While worktree support (`chat.editorWindow.enableWorktree`) and AI features are on, the editor window's new-session
  * composers, such as the chat part's and the Chat view's, also offer the locations of the window's folder, and follow the
  * folder as it moves. Neither needs nor creates the chat part.
@@ -155,6 +213,7 @@ export class AgentHostWorktreeComposerFoldersContribution extends Disposable imp
 
 	constructor(
 		@IEditorWindowComposerFoldersService composerFoldersService: IEditorWindowComposerFoldersService,
+		@IAgentHostWorktreeSessionSources sessionSources: IAgentHostWorktreeSessionSources,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -171,6 +230,8 @@ export class AgentHostWorktreeComposerFoldersContribution extends Disposable imp
 			if (!active.read(reader)) {
 				return;
 			}
+			// Where the sessions of the editor window's session layer work count as the folder's worktrees, and chats there follow
+			reader.store.add(sessionSources.registerSource(reader.store.add(instantiationService.createInstance(AgentHostWorktreeSessionLayerSource))));
 			const folders = reader.store.add(instantiationService.createInstance(AgentHostWorktreeComposerFolders));
 			reader.store.add(composerFoldersService.setComposerFolderOptions(() => {
 				folders.refresh();

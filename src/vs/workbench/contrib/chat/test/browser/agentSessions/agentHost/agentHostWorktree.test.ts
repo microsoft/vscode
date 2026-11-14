@@ -36,6 +36,7 @@ import { IAgentSessionsService } from '../../../../browser/agentSessions/agentSe
 import { IChatViewHostService, IChatViewHostShownSession } from '../../../../browser/chatViewHost.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { IChatSessionCommitEvent, IChatSessionsService, SessionType } from '../../../../common/chatSessionsService.js';
+import { AgentHostWorktreeSessionSources, IAgentHostWorktreeSessionSources } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSessionSources.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 
@@ -89,6 +90,16 @@ suite('AgentHostWorktree', () => {
 			},
 		}));
 		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ onDidCommitSession: onDidCommitSession.event }));
+		// Where the chats of the editor window's session layer work, which the Chat view's sessions list does not list
+		const sessionLayerDirectories = new Map<string, string>();
+		const onDidChangeSessionLayer = store.add(new Emitter<void>());
+		const sessionSources = store.add(new AgentHostWorktreeSessionSources());
+		store.add(sessionSources.registerSource({
+			getWorkingDirectory: (chat: URI) => { const path = sessionLayerDirectories.get(chat.toString()); return path ? URI.file(path) : undefined; },
+			getWorkingDirectories: () => [...sessionLayerDirectories.values()].map(path => URI.file(path)),
+			onDidChange: onDidChangeSessionLayer.event,
+		}));
+		instantiationService.stub(IAgentHostWorktreeSessionSources, sessionSources);
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({
 			getSession: (resource: URI) => {
 				const path = workingDirectories.get(resource.toString());
@@ -162,7 +173,7 @@ suite('AgentHostWorktree', () => {
 		/** The user moves the folder in the window's title, which the workspace makes like any other move. */
 		const userStartsMoveTo = (location: URI) => setFolderLocation(location, { reason: 'user' });
 		const commit = (original: URI, committed: URI) => onDidCommitSession.fire({ original, committed });
-		return { show, workingDirectories, onDidChangeSessions, moves, applied, opened, providers, triggers: telemetryService.triggers, setEnabled, userMovesTo, userStartsMoveTo, commit, contribution, marks };
+		return { show, workingDirectories, onDidChangeSessions, sessionLayerDirectories, onDidChangeSessionLayer, moves, applied, opened, providers, triggers: telemetryService.triggers, setEnabled, userMovesTo, userStartsMoveTo, commit, contribution, marks };
 	}
 
 	const settle = () => new Promise<void>(resolve => setTimeout(resolve, 0));
@@ -511,5 +522,28 @@ suite('AgentHostWorktree', () => {
 		await settle();
 
 		assert.deepStrictEqual(feature.applied, ['/work/vscode', '/work/vscode.worktrees/created']);
+	});
+
+	test('follows a chat of the editor window\'s session layer, which the Chat view\'s sessions list does not list: as the user opens it, and on its own as its session comes to work in a worktree', async () => {
+		// Chats as the editor window's session layer names them
+		const chat = (id: string) => URI.from({ scheme: 'ahp-chat', path: `/${id}` });
+		const feature = createWorktree({ enabled: true });
+		feature.sessionLayerDirectories.set(chat('existing').toString(), worktree.fsPath);
+		feature.show(chat('existing'));
+		await settle();
+		const opened = [...feature.moves];
+		feature.show(localChat);
+		await settle();
+		// A new chat whose first request created a worktree for its session
+		feature.show(chat('new'));
+		await settle();
+		feature.sessionLayerDirectories.set(chat('new').toString(), created.fsPath);
+		feature.onDidChangeSessionLayer.fire();
+		await settle();
+
+		assert.deepStrictEqual({ opened, moves: feature.moves }, {
+			opened: ['/work/vscode.worktrees/feature'],
+			moves: ['/work/vscode.worktrees/feature', '/work/vscode', '/work/vscode.worktrees/created (automatic)'],
+		});
 	});
 });
