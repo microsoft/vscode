@@ -419,6 +419,8 @@ export class SessionChatInputToolbar extends Disposable {
 	readonly onDidChangeVisibility: Event<boolean>;
 	readonly activityBarActions: IObservable<readonly IAction[]>;
 	private readonly _inputPills: ChatInputPills;
+	/** Whether the Changes pill hides, such as while the input shows the session's changes as its working set. */
+	private readonly _changesHidden = observableValue<IObservable<boolean>>(this, constObservable(false));
 	private _inputElement: HTMLElement | undefined;
 
 	/** Sentinel distinguishing "no override" from an explicit `undefined` session. */
@@ -811,7 +813,12 @@ export class SessionChatInputToolbar extends Disposable {
 			debugName: 'SessionChatInputToolbar.content',
 			compact,
 			enabled: pillsVisible,
-			sources: derived(reader => sources.sources.flatMap(source => source.kind === SessionChatPillKind.Artifacts ? [...integratedSources.read(reader), source] : [source])),
+			sources: derived(reader => {
+				const changesHidden = this._changesHidden.read(reader).read(reader);
+				return sources.sources
+					.filter(source => !changesHidden || source.kind !== SessionChatPillKind.Changes)
+					.flatMap(source => source.kind === SessionChatPillKind.Artifacts ? [...integratedSources.read(reader), source] : [source]);
+			}),
 			offeredKinds: SESSION_CHAT_PILL_KINDS,
 			context: this._session,
 			actionRunner,
@@ -844,6 +851,11 @@ export class SessionChatInputToolbar extends Disposable {
 	 * changes and status, resolving the owning session for provider gating and the
 	 * open-changes action. Clears any explicit {@link setSession} override.
 	 */
+	/** Hides the Changes pill while `hidden`, such as while the input shows the session's changes as its working set. */
+	setChangesHidden(hidden: IObservable<boolean>): void {
+		this._changesHidden.set(hidden, undefined);
+	}
+
 	setChat(chat: IChat | undefined): void {
 		this.setDebugData(undefined);
 		this._sessionOverride.set('unset', undefined);
