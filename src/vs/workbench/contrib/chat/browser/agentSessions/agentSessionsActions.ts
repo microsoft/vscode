@@ -1219,6 +1219,7 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 
 		const newOrientation = this.getOrientation();
 		const lastWidthForOrientation = chatView?.getLastDimensions(newOrientation)?.width;
+		const currentBodyWidth = chatView.getLastDimensions(chatView.getSessionsViewerOrientation())?.width; // the latest layout, before the orientation changes
 
 		if ((!canResizeView || validatedConfiguredOrientation === 'sideBySide') && newOrientation === AgentSessionsViewerOrientation.Stacked) {
 			chatView.updateConfiguredSessionsViewerOrientation('stacked');
@@ -1235,7 +1236,6 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 
 		// The part is wider than the Chat view's body by its chrome, such as its margins and border: the Chat view shows
 		// side by side only once its body is wide enough
-		const currentBodyWidth = chatView.getLastDimensions(newOrientation === AgentSessionsViewerOrientation.SideBySide ? AgentSessionsViewerOrientation.Stacked : AgentSessionsViewerOrientation.SideBySide)?.width;
 		const chrome = currentBodyWidth !== undefined ? Math.max(0, currentSize.width - currentBodyWidth) : 1; // without a measure, a possible theme border
 
 		const chatViewDefaultWidth = 300;

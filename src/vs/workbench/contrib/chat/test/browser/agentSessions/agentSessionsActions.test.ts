@@ -551,7 +551,7 @@ suite('AgentSessionsActions', () => {
 	});
 
 	test('Show Agent Sessions Sidebar widens the Chat view until its body fits side by side, past the chrome of its part, or maximizes it, and leaves one wide enough', async () => {
-		const run = async (partWidth: number, bodyWidth: number, applies: boolean) => {
+		const run = async (partWidth: number, bodyWidth: number, applies: boolean, staleStackedBodyWidth?: number) => {
 			const calls: string[] = [];
 			let width = partWidth;
 			const instantiationService = disposables.add(new TestInstantiationService());
@@ -567,7 +567,9 @@ suite('AgentSessionsActions', () => {
 			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsEnabled]: true, [ChatConfiguration.ChatViewSessionsOrientation]: 'sideBySide' }));
 			instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
 				getActiveViewWithId: (<T>() => upcastPartial<ChatViewPane>({
-					getLastDimensions: orientation => orientation === AgentSessionsViewerOrientation.Stacked ? { width: bodyWidth, height: 800 } : undefined,
+					// With a stale stacked width, the Chat view is laid out side by side now
+					getSessionsViewerOrientation: () => staleStackedBodyWidth === undefined ? AgentSessionsViewerOrientation.Stacked : AgentSessionsViewerOrientation.SideBySide,
+					getLastDimensions: orientation => orientation === AgentSessionsViewerOrientation.Stacked ? { width: staleStackedBodyWidth ?? bodyWidth, height: 800 } : staleStackedBodyWidth === undefined ? undefined : { width: bodyWidth, height: 800 },
 					updateConfiguredSessionsViewerOrientation: () => { },
 				}) as T) as IViewsService['getActiveViewWithId'],
 			}));
@@ -583,10 +585,13 @@ suite('AgentSessionsActions', () => {
 			// The window cannot give the part that width
 			refused: await run(600, 591, false),
 			wideEnough: await run(700, 691, true),
+			// The chrome comes from the current layout, not from the other orientation's older one
+			staleOtherOrientation: await run(700, 691, true, 591),
 		}, {
 			narrowBody: ['setSize 609'],
 			refused: ['setSize 609', 'maximized true'],
 			wideEnough: [],
+			staleOtherOrientation: [],
 		});
 	});
 });
