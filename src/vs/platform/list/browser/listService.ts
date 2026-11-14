@@ -182,6 +182,7 @@ const listSmoothScrolling = 'workbench.list.smoothScrolling';
 const mouseWheelScrollSensitivityKey = 'workbench.list.mouseWheelScrollSensitivity';
 const fastScrollSensitivityKey = 'workbench.list.fastScrollSensitivity';
 const treeExpandMode = 'workbench.tree.expandMode';
+const treeCollapseRecursive = 'workbench.tree.collapseRecursive';
 const treeStickyScroll = 'workbench.tree.enableStickyScroll';
 const treeStickyScrollMaxElements = 'workbench.tree.stickyScrollMaxItemCount';
 
@@ -1168,6 +1169,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 			paddingBottom: paddingBottom,
 			hideTwistiesOfChildlessElements: options.hideTwistiesOfChildlessElements,
 			expandOnlyOnTwistieClick: options.expandOnlyOnTwistieClick ?? (configurationService.getValue<'singleClick' | 'doubleClick'>(treeExpandMode) === 'doubleClick'),
+			collapseRecursive: options.collapseRecursive ?? Boolean(configurationService.getValue(treeCollapseRecursive)),
 			contextViewProvider: contextViewService as IContextViewProvider,
 			findWidgetStyles: defaultFindWidgetStyles,
 			enableStickyScroll: options.enableStickyScroll ?? Boolean(configurationService.getValue(treeStickyScroll)),
@@ -1320,6 +1322,10 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 				}
 				if (e.affectsConfiguration(treeExpandMode) && options.expandOnlyOnTwistieClick === undefined) {
 					newOptions = { ...newOptions, expandOnlyOnTwistieClick: configurationService.getValue<'singleClick' | 'doubleClick'>(treeExpandMode) === 'doubleClick' };
+				}
+				if (e.affectsConfiguration(treeCollapseRecursive) && options.collapseRecursive === undefined) {
+					const collapseRecursive = Boolean(configurationService.getValue(treeCollapseRecursive));
+					newOptions = { ...newOptions, collapseRecursive };
 				}
 				if (e.affectsConfiguration(treeStickyScroll) && options.enableStickyScroll === undefined) {
 					const enableStickyScroll = configurationService.getValue<boolean>(treeStickyScroll);
@@ -1480,6 +1486,11 @@ configurationRegistry.registerConfiguration({
 			enum: ['singleClick', 'doubleClick'],
 			default: 'singleClick',
 			description: localize('expand mode', "Controls how tree folders are expanded when clicking the folder names. Note that some trees and lists might choose to ignore this setting if it is not applicable."),
+		},
+		[treeCollapseRecursive]: {
+			type: 'boolean',
+			default: false,
+			description: localize('collapse recursive', "Controls whether collapsing a tree item also collapses its descendants."),
 		},
 		[treeStickyScroll]: {
 			type: 'boolean',
