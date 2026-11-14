@@ -191,6 +191,10 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 
 	/** Makes `host` the host that showed something last: a new chat of New Chat while `newChat`. */
 	private claim(host: IChatViewHost, newChat = false): void {
+		// A host no longer registered, such as one that completes a reveal after it was removed, shows nothing of the Chat view's
+		if (host !== this.chatViewHost && !this.registrations.some(registration => registration.host === host)) {
+			return;
+		}
 		this.latest.set({ host, newChat }, undefined);
 		this.updateChatViewTracking();
 	}
