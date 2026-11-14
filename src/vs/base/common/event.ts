@@ -1175,7 +1175,7 @@ export class Emitter<T> {
 	private readonly _leakWarningErrorHandler?: (err: Error) => void;
 	private _leakageMon?: LeakageMonitor;
 	private readonly _perfMon?: EventProfiling;
-	private _disposed?: true;
+	protected _disposed?: boolean;
 	private _event?: Event<T>;
 
 	/**
@@ -1562,6 +1562,10 @@ export class PauseableEmitter<T> extends Emitter<T> {
 
 	resume(): void {
 		if (this._isPaused !== 0 && --this._isPaused === 0) {
+			if (this._disposed) {
+				this._eventQueue.clear();
+				return;
+			}
 			if (this._mergeFn) {
 				// use the merge function to create a single composite
 				// event. make a copy in case firing pauses this emitter
@@ -1582,13 +1586,18 @@ export class PauseableEmitter<T> extends Emitter<T> {
 	}
 
 	override fire(event: T): void {
-		if (this._size) {
+		if (this._size && !this._disposed) {
 			if (this._isPaused !== 0) {
 				this._eventQueue.push(event);
 			} else {
 				super.fire(event);
 			}
 		}
+	}
+
+	override dispose(): void {
+		super.dispose();
+		this._eventQueue.clear();
 	}
 }
 
@@ -1612,6 +1621,14 @@ export class DebounceEmitter<T> extends PauseableEmitter<T> {
 		}
 		super.fire(event);
 	}
+
+	override dispose(): void {
+		if (this._handle) {
+			clearTimeout(this._handle);
+			this._handle = undefined;
+		}
+		super.dispose();
+	}
 }
 
 /**
@@ -1628,21 +1645,31 @@ export class MicrotaskEmitter<T> extends Emitter<T> {
 	}
 	override fire(event: T): void {
 
-		if (!this.hasListeners()) {
+		if (!this.hasListeners() || this._disposed) {
 			return;
 		}
 
 		this._queuedEvents.push(event);
 		if (this._queuedEvents.length === 1) {
 			queueMicrotask(() => {
-				if (this._mergeFn) {
-					super.fire(this._mergeFn(this._queuedEvents));
-				} else {
-					this._queuedEvents.forEach(e => super.fire(e));
+				if (this._disposed) {
+					this._queuedEvents = [];
+					return;
 				}
+				const events = this._queuedEvents;
 				this._queuedEvents = [];
+				if (this._mergeFn) {
+					super.fire(this._mergeFn(events));
+				} else {
+					events.forEach(e => super.fire(e));
+				}
 			});
 		}
+	}
+
+	override dispose(): void {
+		super.dispose();
+		this._queuedEvents = [];
 	}
 }
 
