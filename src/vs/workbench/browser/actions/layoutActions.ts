@@ -22,7 +22,7 @@ import { IPaneCompositePartService } from '../../services/panecomposite/browser/
 import { ToggleAuxiliaryBarAction } from '../parts/auxiliarybar/auxiliaryBarActions.js';
 import { TogglePanelAction } from '../parts/panel/panelActions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, IsSessionsWindowContext, TitleBarStyleContext, IsAuxiliaryWindowContext, CustomMenuBarVisibleContext, LayoutModeContext } from '../../common/contextkeys.js';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, ChatPartVisibleContext, EditorAreaHiddenByChatContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, IsSessionsWindowContext, TitleBarStyleContext, IsAuxiliaryWindowContext, CustomMenuBarVisibleContext, LayoutModeContext } from '../../common/contextkeys.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
@@ -272,6 +272,60 @@ registerAction2(class extends Action2 {
 
 	run(accessor: ServicesAccessor): void {
 		accessor.get(IWorkbenchLayoutService).toggleMaximizedPanel();
+	}
+});
+
+// --- Hide / Show Editor Area for the Chat Part
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.hideEditorAreaForChat',
+			title: {
+				...localize2('hideEditorAreaForChat', "Hide Editor Area"),
+				mnemonicTitle: localize({ key: 'miHideEditorArea', comment: ['&& denotes a mnemonic'] }, "Hide &&Editor Area"),
+			},
+			category: Categories.View,
+			f1: true,
+			precondition: ContextKeyExpr.and(ChatPartVisibleContext, MainEditorAreaVisibleContext, IsAuxiliaryWindowFocusedContext.toNegated()),
+			menu: {
+				id: MenuId.MenubarAppearanceMenu,
+				group: '2_workbench_layout',
+				order: 6,
+				when: ContextKeyExpr.and(ChatPartVisibleContext, MainEditorAreaVisibleContext, IsSessionsWindowContext.negate())
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IWorkbenchLayoutService).setEditorHiddenByChat(true);
+	}
+});
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.showEditorAreaHiddenForChat',
+			title: {
+				...localize2('showEditorAreaHiddenForChat', "Show Editor Area"),
+				mnemonicTitle: localize({ key: 'miShowEditorAreaHiddenForChat', comment: ['&& denotes a mnemonic'] }, "Show &&Editor Area"),
+			},
+			category: Categories.View,
+			f1: true,
+			precondition: EditorAreaHiddenByChatContext,
+			menu: {
+				id: MenuId.MenubarAppearanceMenu,
+				group: '2_workbench_layout',
+				order: 6,
+				when: ContextKeyExpr.and(EditorAreaHiddenByChatContext, IsSessionsWindowContext.negate())
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IWorkbenchLayoutService).setEditorHiddenByChat(false);
 	}
 });
 

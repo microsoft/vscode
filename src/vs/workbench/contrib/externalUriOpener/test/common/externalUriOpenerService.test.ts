@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -13,6 +14,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ViewColumn } from '../../../../../platform/editor/common/editor.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ExternalUriOpenerService, IExternalOpenerProvider, IExternalUriOpener, ILinkHandler } from '../../common/externalUriOpenerService.js';
@@ -197,6 +199,23 @@ suite('ExternalUriOpenerService', () => {
 		const uri = URI.parse('http://contoso.com');
 		const opener = await externalUriOpenerService.getOpener(uri, { sourceUri: uri }, CancellationToken.None);
 		assert.strictEqual(opener?.id, 'enabled');
+	});
+
+	test('Should log failing openers but not cancelled ones', async () => {
+		const errors: unknown[] = [];
+		instantiationService.stub(ILogService, new class extends NullLogService { override error(error: unknown) { errors.push(error); } });
+		const failure = new Error('failed');
+		const externalUriOpenerService = disposables.add(instantiationService.createInstance(ExternalUriOpenerService));
+		disposables.add(externalUriOpenerService.registerExternalOpenerProvider(new class implements IExternalOpenerProvider {
+			async *getOpeners(_targetUri: URI): AsyncGenerator<IExternalUriOpener> {
+				yield { id: 'cancelled', label: 'cancelled', canOpen: async () => { throw new CancellationError(); }, openExternalUri: async () => true };
+				yield { id: 'failing', label: 'failing', canOpen: async () => { throw failure; }, openExternalUri: async () => true };
+			}
+		}));
+
+		const uri = URI.parse('http://contoso.com');
+		const opener = await externalUriOpenerService.getOpener(uri, { sourceUri: uri }, CancellationToken.None);
+		assert.deepStrictEqual({ opener, errors }, { opener: undefined, errors: [failure] });
 	});
 
 	test('Should list link handlers with the one opening the link by default first', async () => {

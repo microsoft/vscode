@@ -128,6 +128,8 @@ export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', fa
 export const IsMainEditorCenteredLayoutContext = new RawContextKey<boolean>('isCenteredLayout', false, localize('isMainEditorCenteredLayout', "Whether centered layout is enabled for the main editor"));
 export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVertically', false, localize('splitEditorsVertically', "Whether editors split vertically"));
 export const MainEditorAreaVisibleContext = new RawContextKey<boolean>('mainEditorAreaVisible', true, localize('mainEditorAreaVisible', "Whether the editor area in the main window is visible"));
+export const ChatPartVisibleContext = new RawContextKey<boolean>('chatPartVisible', false, localize('chatPartVisible', "Whether the chat part is visible"));
+export const EditorAreaHiddenByChatContext = new RawContextKey<boolean>('editorAreaHiddenByChat', false, localize('editorAreaHiddenByChat', "Whether the editor area is hidden so that the chat part takes its space"));
 export const EditorTabsVisibleContext = new RawContextKey<boolean>('editorTabsVisible', true, localize('editorTabsVisible', "Whether editor tabs are visible"));
 
 //#endregion
