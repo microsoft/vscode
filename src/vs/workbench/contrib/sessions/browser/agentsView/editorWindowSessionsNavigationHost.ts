@@ -51,7 +51,7 @@ export class EditorWindowSessionsNavigationHost implements ISessionsNavigationSe
 		try {
 			// Providers redirect superseded resources, such as of a session they adopted, and leave unfamiliar ones unchanged
 			const resolved = await this._sessionsManagementService.resolveSessionResource(sessionResource, 'open');
-			const session = await waitForAgentsViewSession(this._sessionsManagementService, resolved, () => this._sessionsManagementService.getSession(resolved));
+			const session = await waitForAgentsViewSession(this._sessionsManagementService, () => this._sessionsManagementService.getSession(resolved));
 			if (session) {
 				await this._presenter.openChat(session, undefined, { preserveFocus: options?.preserveFocus });
 			}

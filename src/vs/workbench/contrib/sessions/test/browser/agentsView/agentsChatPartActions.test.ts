@@ -180,6 +180,7 @@ suite('Agents chat part actions', () => {
 		const read = new MarkAgentSessionReadAction();
 		const unread = new MarkAgentSessionUnreadAction();
 
+		const before = CommandsRegistry.getCommand(SESSIONS_LIST_MARK_READ_COMMAND_ID);
 		const registration = registerAgentsChatPartActions();
 		// A chat tab of a side chat and of a session's main chat run the agent sessions' commands
 		for (const [action, context] of [[read, { session, chat: side }], [unread, { session, chat: main }]] as const) {
@@ -187,9 +188,9 @@ suite('Agents chat part actions', () => {
 		}
 		registration.dispose();
 
-		assert.deepStrictEqual({ marked, registeredAfterDispose: !!CommandsRegistry.getCommand(SESSIONS_LIST_MARK_READ_COMMAND_ID) }, {
+		assert.deepStrictEqual({ marked, restoredAfterDispose: CommandsRegistry.getCommand(SESSIONS_LIST_MARK_READ_COMMAND_ID) === before }, {
 			marked: ['read chat side', 'unread s1'],
-			registeredAfterDispose: false,
+			restoredAfterDispose: true,
 		});
 	});
 });

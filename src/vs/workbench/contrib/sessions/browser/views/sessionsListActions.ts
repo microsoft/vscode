@@ -874,8 +874,7 @@ function createSessionsListActions(): DisposableStore {
 	const store = new DisposableStore();
 
 	// What marks the list's targets read or unread, which the commands of either window run
-	store.add(CommandsRegistry.registerCommand(SESSIONS_LIST_MARK_READ_COMMAND_ID, (accessor, context?: ISession | ISession[] | ISessionChatItem) => markSessionListTargetsRead(accessor, context, true)));
-	store.add(CommandsRegistry.registerCommand(SESSIONS_LIST_MARK_UNREAD_COMMAND_ID, (accessor, context?: ISession | ISession[] | ISessionChatItem) => markSessionListTargetsRead(accessor, context, false)));
+	store.add(registerSessionsListReadStateCommands());
 
 	store.add(AccessibleViewRegistry.register({
 		name: 'sessions-list-notification',

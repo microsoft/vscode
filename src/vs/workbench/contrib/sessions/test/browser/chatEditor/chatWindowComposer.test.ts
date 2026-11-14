@@ -514,6 +514,29 @@ suite('Chat window composer', () => {
 		});
 	});
 
+	test('a background send that fails once its composer followed its host to another folder offers its prompt back, rather than restoring it silently there', () => {
+		const store = disposables.add(new DisposableStore());
+		const { events, onDidEnd, slots, createComposer } = createServices(store);
+		const composer = store.add(createComposer());
+		const { slot } = slots[0];
+		events.length = 0;
+		// Sent in the background: the composer records what was written, clears its input, and its request is accepted
+		const attempt = composer.input.beginSendAttempt({ inputText: 'fix it', attachments: [] });
+		composer.input.set({ inputText: '', attachments: [] });
+		const session = createSession('sent', { folder: '/repo' });
+		composer.trackBackgroundSend({ session, query: 'fix it', attachedContext: undefined, requestedInBackground: true, isLatest: () => true });
+		composer.input.endSendAttempt(attempt);
+
+		const followed = composer.retargetFolder(URI.file('/repo.worktrees/a'), URI.file('/repo'));
+		onDidEnd.fire({ session, owner: slot, started: false, readopted: false, error: new Error('no agent') });
+
+		assert.deepStrictEqual({ followed, input: composer.input.get().input.inputText, events }, {
+			followed: true,
+			input: '',
+			events: ['notify: Couldn\'t start the session in repo with type: no agent [Restore Prompt, Copy Prompt]'],
+		});
+	});
+
 	test('a composer does not follow its host to another folder while it sends: from the user\'s submit, before its request is accepted, until the request ends', () => {
 		const store = disposables.add(new DisposableStore());
 		const { onDidAccept, onDidEnd, slots, createComposer } = createServices(store);
