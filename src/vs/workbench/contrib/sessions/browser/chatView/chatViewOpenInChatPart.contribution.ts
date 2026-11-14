@@ -9,18 +9,18 @@ import { autorun, derived, observableFromEvent } from '../../../../../base/commo
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ActiveAuxiliaryContext, AuxiliaryBarMaximizeHiddenContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ChatViewContainerId, ChatViewId } from '../../../chat/browser/chat.js';
-import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
 import { IChatViewSessionsListService } from '../../../chat/browser/widgetHosts/viewPane/chatViewSessionsList.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessionsRuntime.js';
+import { AgentsViewAvailable } from '../agentsView/agentsChatPartContext.js';
 import { IEditorWindowChatPartService } from '../agentsView/agentsChatPartContribution.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -54,7 +54,6 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		@IEditorWindowChatPartService chatPartService: IEditorWindowChatPartService,
 		@IEditorWindowSessionsRuntime sessionsRuntime: IEditorWindowSessionsRuntime,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IChatViewHostService private readonly _chatViewHostService: IChatViewHostService,
 		@IChatViewSessionsListService private readonly _sessionsListService: IChatViewSessionsListService,
 	) {
 		super();
@@ -64,11 +63,12 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		}
 
 		const setting = observableConfigValue(ChatConfiguration.ChatViewSessionsOpenInChatPart, false, configurationService);
-		const chatKeys = new Set([ChatContextKeys.enabled.key]);
-		const chatEnabled = observableFromEvent(this, Event.filter(_contextKeyService.onDidChangeContext, e => e.affectsSome(chatKeys)), () => !!ChatContextKeys.enabled.getValue(_contextKeyService));
-		// Not with AI features disabled
-		const enabled = derived(this, reader => setting.read(reader) && chatEnabled.read(reader));
-		this._register(chatPartService.enable({ anchorViewId: ChatViewId, anchorPriority: CHAT_VIEW_ANCHOR_PRIORITY, enabled }));
+		// What the chat part's host needs to show chats: not with AI features disabled, nor with agents disabled
+		const available = ContextKeyExpr.and(ChatContextKeys.enabled, AgentsViewAvailable)!;
+		const availableKeys = new Set(available.keys());
+		const chatAvailable = observableFromEvent(this, Event.filter(_contextKeyService.onDidChangeContext, e => e.affectsSome(availableKeys)), () => _contextKeyService.contextMatchesRules(available));
+		const enabled = derived(this, reader => setting.read(reader) && chatAvailable.read(reader));
+		this._register(chatPartService.enable({ anchorViewId: ChatViewId, anchorPriority: CHAT_VIEW_ANCHOR_PRIORITY, enabled, ownsNewChat: false }));
 		// The sessions that the chat part shows are known while the Chat view lists them
 		this._register(autorun(reader => {
 			if (enabled.read(reader)) {
@@ -79,15 +79,15 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 	}
 
 	/**
-	 * While the Chat view shows only its sessions, as it does with a sessions list while a host replaces it, such as the chat
-	 * part's, the secondary side bar does not offer to maximize it.
+	 * While the Chat view shows only its sessions, as its sessions list says, the secondary side bar does not offer to
+	 * maximize it.
 	 */
 	private _hideMaximizeWhileSessionsOnly(): void {
 		const hidden = AuxiliaryBarMaximizeHiddenContext.bindTo(this._contextKeyService);
 		const activeAuxiliaryKeys = new Set([ActiveAuxiliaryContext.key]);
 		const activeAuxiliary = observableFromEvent(this, Event.filter(this._contextKeyService.onDidChangeContext, e => e.affectsSome(activeAuxiliaryKeys)), () => this._contextKeyService.getContextKeyValue<string>(ActiveAuxiliaryContext.key));
 		this._register(autorun(reader => {
-			const sessionsOnly = this._chatViewHostService.replaced.read(reader) && !!this._sessionsListService.provider;
+			const sessionsOnly = this._sessionsListService.sessionsOnly.read(reader);
 			hidden.set(sessionsOnly && activeAuxiliary.read(reader) === ChatViewContainerId);
 		}));
 		this._register(toDisposable(() => hidden.reset()));

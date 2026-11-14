@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable } from '../../../../../../base/common/observable.js';
+import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -14,9 +14,9 @@ import { IContextKeyService } from '../../../../../../platform/contextkey/common
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { ChatViewId } from '../../../../chat/browser/chat.js';
-import { IChatViewHostService } from '../../../../chat/browser/chatViewHost.js';
+import { ChatViewContainerId, ChatViewId } from '../../../../chat/browser/chat.js';
 import { IChatViewSessionsListService } from '../../../../chat/browser/widgetHosts/viewPane/chatViewSessionsList.js';
+import { ActiveAuxiliaryContext, AuxiliaryBarMaximizeHiddenContext, RemoteNameContext } from '../../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { IEditorWindowChatPartOptions, IEditorWindowChatPartService } from '../../../browser/agentsView/agentsChatPartContribution.js';
@@ -27,10 +27,11 @@ suite('ChatViewOpenInChatPartContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(options: { remote?: boolean; sessionsWindow?: boolean; setting?: boolean; chatEnabled?: boolean } = {}) {
-		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOpenInChatPart]: options.setting ?? false });
+	function setup(options: { remote?: boolean; sessionsWindow?: boolean; setting?: boolean; chatEnabled?: boolean; agentEnabled?: boolean } = {}) {
+		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOpenInChatPart]: options.setting ?? false, [ChatConfiguration.AgentEnabled]: options.agentEnabled ?? true });
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(options.chatEnabled ?? true);
+		RemoteNameContext.bindTo(contextKeyService).set('');
 		const chatPartOptions: IEditorWindowChatPartOptions[] = [];
 		const runtimeOptions: IEditorWindowSessionsRuntimeOptions[] = [];
 		let runtimeHeld = 0;
@@ -44,8 +45,8 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		instantiationService.stub(IEditorWindowSessionsRuntime, upcastPartial<IEditorWindowSessionsRuntime>({
 			enable: (o: IEditorWindowSessionsRuntimeOptions): IDisposable => { runtimeOptions.push(o); runtimeHeld++; return toDisposable(() => runtimeHeld--); },
 		}));
-		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ replaced: constObservable(false) }));
-		instantiationService.stub(IChatViewSessionsListService, upcastPartial<IChatViewSessionsListService>({ provider: undefined }));
+		const sessionsOnly = observableValue('sessionsOnly', false);
+		instantiationService.stub(IChatViewSessionsListService, upcastPartial<IChatViewSessionsListService>({ sessionsOnly }));
 		instantiationService.stub(IConfigurationService, configurationService);
 
 		store.add(instantiationService.createInstance(ChatViewOpenInChatPartContribution));
@@ -54,7 +55,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			runtime: runtimeOptions.map(o => o.viewIds),
 			runtimeHeld,
 		});
-		return { state, configurationService, contextKeyService, chatPartOptions };
+		return { state, configurationService, contextKeyService, chatPartOptions, sessionsOnly };
 	}
 
 	test('registers nothing in remote and Agents windows', () => {
@@ -71,6 +72,26 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			off: { anchors: [{ anchorViewId: ChatViewId, anchorPriority: 1, enabled: false }], runtime: [], runtimeHeld: 0 },
 			on: { anchors: [{ anchorViewId: ChatViewId, anchorPriority: 1, enabled: true }], runtime: [[ChatViewId]], runtimeHeld: 1 },
 		});
+	});
+
+	test('leaves the new chat button of the Chat view to the Chat view', () => {
+		assert.strictEqual(setup({ setting: true }).chatPartOptions[0].ownsNewChat, false);
+	});
+
+	test('hides Maximize only while the sessions list of the Chat view shows only the sessions', () => {
+		const { contextKeyService, sessionsOnly } = setup({ setting: true });
+		ActiveAuxiliaryContext.bindTo(contextKeyService).set(ChatViewContainerId);
+		const hidden = () => contextKeyService.getContextKeyValue(AuxiliaryBarMaximizeHiddenContext.key);
+		const steps = [hidden()];
+		sessionsOnly.set(true, undefined);
+		steps.push(hidden());
+		sessionsOnly.set(false, undefined);
+		steps.push(hidden());
+		assert.deepStrictEqual(steps, [false, true, false]);
+	});
+
+	test('is off while agents are disabled, as the chat part\'s host cannot show chats then', () => {
+		assert.strictEqual(setup({ setting: true, agentEnabled: false }).chatPartOptions[0].enabled.get(), false);
 	});
 
 	test('follows the setting and AI features', async () => {
