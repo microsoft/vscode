@@ -47,7 +47,7 @@ suite('AgentHostWorktree', () => {
 	const created = URI.file('/work/vscode.worktrees/created');
 
 	/** The feature in a window whose folder is at `at`, recording the moves it asks for, the chats it opens and its experiment triggers. */
-	function createWorktree(options: { readonly enabled: boolean; readonly at?: URI; readonly canSetLocation?: boolean; readonly worktrees?: readonly URI[]; readonly resolving?: Promise<void>; readonly terminalCwd?: URI; readonly setting?: Promise<void> }) {
+	function createWorktree(options: { readonly enabled: boolean; readonly at?: URI; readonly canSetLocation?: boolean; readonly worktrees?: readonly URI[]; readonly resolving?: Promise<void>; readonly terminalCwd?: URI; readonly setting?: Promise<void>; readonly resolvingFor?: Record<string, Promise<void>> }) {
 		const worktrees = options.worktrees ?? [worktree, created];
 		const marks: string[] = [];
 		const terminal = upcastPartial<ITerminalInstance>({
@@ -109,6 +109,7 @@ suite('AgentHostWorktree', () => {
 			getLocation: () => workspace.at.path === primary.path ? undefined : upcastPartial<IResolvedFolderLocation>({ providerId: 'agentHost.sessionWorktrees' }),
 			resolveLocation: async (_primary: URI, location: URI) => {
 				await options.resolving;
+				await options.resolvingFor?.[location.path];
 				return worktrees.some(known => known.path === location.path) ? upcastPartial<IResolvedFolderLocation>({ uri: location }) : undefined;
 			},
 			registerProvider: () => { providers.push('registered'); return toDisposable(() => providers.push('unregistered')); },
@@ -491,5 +492,24 @@ suite('AgentHostWorktree', () => {
 		const listed = Reflect.get(feature.contribution, '_listedSessions') as { readonly size: number };
 
 		assert.deepStrictEqual({ listed: listed.size, last: feature.contribution.getLastSession(worktree)?.path }, { listed: 1, last: '/s24' });
+	});
+
+	test('keeping the folder in place for a later chat supersedes only the earlier move, not that chat\'s switch still under way', async () => {
+		const setting = new DeferredPromise<void>();
+		const resolvingCreated = new DeferredPromise<void>();
+		const feature = createWorktree({ enabled: true, setting: setting.p, resolvingFor: { [created.path]: resolvingCreated.p } });
+		feature.workingDirectories.set(agentSession('a').toString(), worktree.fsPath);
+		feature.workingDirectories.set(agentSession('b').toString(), created.fsPath);
+		feature.show(agentSession('a'));
+		await settle();
+		feature.show(agentSession('b'));
+		await settle();
+		setting.complete();
+		await settle();
+		resolvingCreated.complete();
+		await settle();
+		await settle();
+
+		assert.deepStrictEqual(feature.applied, ['/work/vscode', '/work/vscode.worktrees/created']);
 	});
 });
