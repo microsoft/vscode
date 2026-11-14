@@ -70,7 +70,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		instantiationService.stub(IEditorWindowSessionsRuntime, upcastPartial<IEditorWindowSessionsRuntime>({
 			enable: (o: IEditorWindowSessionsRuntimeOptions): IDisposable => { runtimeOptions.push(o); runtimeHeld++; return toDisposable(() => runtimeHeld--); },
 		}));
-		const sessionsList = new ChatViewSessionsListService();
+		const sessionsList = store.add(new ChatViewSessionsListService());
 		instantiationService.stub(IChatViewSessionsListService, sessionsList);
 		const chatViewHosts = observableValue('chatViewHosts', false);
 		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ chatViewHosts }));
@@ -206,7 +206,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			stub(IEditorWindowSessionsRuntime, { enable: () => toDisposable(() => { }) });
 			stub(IEditorWindowSessionsPresenterService, { registerPresenter: () => toDisposable(() => { }), registerComposerHolder: () => toDisposable(() => { }) });
 			stub(IAgentsChatPartFrame, { get part() { return undefined!; }, contentCreated: constObservable(false) });
-			const sessionsList = new ChatViewSessionsListService();
+			const sessionsList = store.add(new ChatViewSessionsListService());
 			stub(IChatViewSessionsListService, sessionsList);
 			const owner = { session: { resource: agentSession }, chat: { resource: agentSession } };
 			stub(IAgentsChatPartService, { openChat: async () => { calls.push('chat part opens'); }, openComposer: async () => { calls.push('chat part composer'); }, activeChat: constObservable(undefined), isShowing: () => false });

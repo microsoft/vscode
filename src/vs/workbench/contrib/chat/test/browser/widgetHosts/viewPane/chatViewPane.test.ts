@@ -127,7 +127,7 @@ suite('ChatViewPane sessions refresh', () => {
 	});
 
 	test('the Chat view takes the sessions list of the provider registered last, and its own once none is', () => {
-		const service = new ChatViewSessionsListService();
+		const service = store.add(new ChatViewSessionsListService());
 		const provider = (name: string) => upcastPartial<IChatViewSessionsListProvider>({ create: () => { throw new Error(name); } });
 		const a = provider('a');
 		const b = provider('b');
@@ -141,7 +141,7 @@ suite('ChatViewPane sessions refresh', () => {
 	});
 
 	test('the Chat view shows only its sessions while a claim is held, also without a provided list', () => {
-		const service = new ChatViewSessionsListService();
+		const service = store.add(new ChatViewSessionsListService());
 		const steps = [service.sessionsOnly.get()];
 		const first = service.claimSessionsOnly();
 		const second = service.claimSessionsOnly();
@@ -151,6 +151,129 @@ suite('ChatViewPane sessions refresh', () => {
 		second.dispose();
 		steps.push(service.sessionsOnly.get());
 		assert.deepStrictEqual(steps, [false, true, true, false]);
+	});
+
+	test('the sessions list follows the provider live: a provider registering replaces the Chat view\'s own list, and its own list returns as it goes, the replaced one disposed', () => {
+		const service = store.add(new ChatViewSessionsListService());
+		const disposed: string[] = [];
+		const control = (name: string) => upcastPartial<AgentSessionsControl>({ dispose: () => disposed.push(name), setVisible: () => { } });
+		let ownLists = 0;
+		const viewPaneContainer = document.createElement('div');
+		const filter = Object.assign(toDisposable(() => { }), { onDidChange: Event.None, isDefault: () => true });
+		const host = {
+			_register: <T extends { dispose(): void }>(value: T) => store.add(value),
+			instantiationService: {
+				createInstance: (ctor: typeof AgentSessionsControl | typeof AgentSessionsFilter | typeof MenuWorkbenchToolBar) => {
+					if (ctor === AgentSessionsControl) {
+						return control(`own ${++ownLists}`);
+					}
+					return ctor === AgentSessionsFilter ? filter : Object.assign(toDisposable(() => { }), { context: undefined });
+				},
+			},
+			hostService: { onDidChangeFocus: Event.None },
+			sessionsListService: service,
+			configurationService: new TestConfigurationService(),
+			onDidChangeBodyVisibility: Event.None,
+			getLocationBasedColors: () => ({ listOverrideStyles: {} }),
+			doUpdateConfiguredSessionsViewerOrientation: () => { },
+			viewPaneContainer,
+			isBodyVisible: () => true,
+			sessionsViewerVisible: true,
+			updateSessionsControlVisibility: () => ({ changed: false, visible: true }),
+			relayout: () => { },
+			sessionsControl: undefined as unknown,
+			sessionsTitleContainer: undefined as HTMLElement | undefined,
+		};
+		const createControl = Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => void;
+		createControl.call(host, document.createElement('div'));
+		const providedControl = control('provided');
+		const state = () => ({ control: host.sessionsControl === providedControl ? 'provided' : `own ${ownLists}`, sessionsOnly: service.sessionsOnly.get(), sessionsOnlyClass: viewPaneContainer.classList.contains('sessions-only'), title: host.sessionsTitleContainer?.style.display !== 'none', disposed: disposed.splice(0) });
+		const steps = [state()];
+
+		const registration = service.registerProvider(upcastPartial<IChatViewSessionsListProvider>({
+			create: () => ({ control: providedControl, hasHeader: true, sessionsOnly: constObservable(true) }),
+		}));
+		steps.push(state());
+		registration.dispose();
+		steps.push(state());
+
+		assert.deepStrictEqual(steps, [
+			{ control: 'own 1', sessionsOnly: false, sessionsOnlyClass: false, title: true, disposed: [] },
+			{ control: 'provided', sessionsOnly: true, sessionsOnlyClass: true, title: false, disposed: ['own 1'] },
+			{ control: 'own 2', sessionsOnly: false, sessionsOnlyClass: false, title: true, disposed: ['provided'] },
+		]);
+	});
+
+	test('as the sessions list swaps live, the new list takes focus only if the replaced list had it, or the chat input while the new list does not show', () => {
+		const service = store.add(new ChatViewSessionsListService());
+		const filter = Object.assign(toDisposable(() => { }), { onDidChange: Event.None, isDefault: () => true });
+		const parent = mainWindow.document.body.appendChild(document.createElement('div'));
+		const elsewhere = mainWindow.document.body.appendChild(document.createElement('input'));
+		const chatInput = mainWindow.document.body.appendChild(document.createElement('textarea'));
+		store.add(toDisposable(() => { parent.remove(); elsewhere.remove(); chatInput.remove(); }));
+		// Each list renders a focusable row into its container, which its focus focuses
+		const render = (container: HTMLElement, name: string) => {
+			const row = container.appendChild(document.createElement('input'));
+			row.name = name;
+			return upcastPartial<AgentSessionsControl>({ dispose: () => { }, setVisible: () => { }, focus: () => row.focus() });
+		};
+		const host = {
+			_register: <T extends { dispose(): void }>(value: T) => store.add(value),
+			instantiationService: {
+				createInstance: (ctor: typeof AgentSessionsControl | typeof AgentSessionsFilter | typeof MenuWorkbenchToolBar, container?: HTMLElement) => {
+					if (ctor === AgentSessionsControl) {
+						return render(container!, 'own');
+					}
+					return ctor === AgentSessionsFilter ? filter : Object.assign(toDisposable(() => { }), { context: undefined });
+				},
+			},
+			hostService: { onDidChangeFocus: Event.None },
+			sessionsListService: service,
+			configurationService: new TestConfigurationService(),
+			onDidChangeBodyVisibility: Event.None,
+			getLocationBasedColors: () => ({ listOverrideStyles: {} }),
+			doUpdateConfiguredSessionsViewerOrientation: () => { },
+			viewPaneContainer: document.createElement('div'),
+			isBodyVisible: () => true,
+			sessionsViewerVisible: true,
+			// Whether the list shows after the swap, as the Chat view's visibility rules say, such as its own list while
+			// its sessions are disabled in the settings
+			sessionsVisible: true,
+			updateSessionsControlVisibility: () => ({ changed: false, visible: host.sessionsVisible }),
+			relayout: () => { },
+			sessionsControlContainer: undefined as HTMLElement | undefined,
+			_widget: { focusInput: () => chatInput.focus() },
+		};
+		Object.assign(host, { focusInput: Reflect.get(ChatViewPane.prototype, 'focusInput') });
+		const createControl = Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => void;
+		createControl.call(host, parent);
+		const focusList = () => host.sessionsControlContainer!.querySelector('input')!.focus();
+		const active = () => {
+			const element = mainWindow.document.activeElement;
+			return element === chatInput ? 'chat input' : element === elsewhere ? 'elsewhere' : (element as HTMLInputElement | null)?.name ?? 'none';
+		};
+		const provide = (sessionsOnly: boolean) => service.registerProvider(upcastPartial<IChatViewSessionsListProvider>({
+			create: container => ({ control: render(container, 'provided'), hasHeader: true, sessionsOnly: constObservable(sessionsOnly) }),
+		}));
+		const steps: string[] = [];
+
+		// The list has focus, and the list that replaces it shows: it takes focus
+		focusList();
+		const provided = provide(false);
+		steps.push(active());
+		// Focus is elsewhere, such as in an editor: it stays there
+		elsewhere.focus();
+		provided.dispose();
+		steps.push(active());
+		// The provided list, showing only the sessions, has focus, and the Chat view's own list that replaces it does not
+		// show: the chat input takes focus
+		const sessionsOnly = provide(true);
+		focusList();
+		host.sessionsVisible = false;
+		sessionsOnly.dispose();
+		steps.push(active());
+
+		assert.deepStrictEqual(steps, ['provided', 'elsewhere', 'chat input']);
 	});
 
 	test('sessions layout telemetry reports the settled layout once shown and restored, then only changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -220,7 +343,7 @@ suite('ChatViewPane sessions refresh', () => {
 				},
 			},
 			hostService: { onDidChangeFocus: focusChanged.event },
-			sessionsListService: { provider: undefined, sessionsOnly: constObservable(false) },
+			sessionsListService: { provider: undefined, onDidChangeProvider: Event.None, sessionsOnly: constObservable(false) },
 			configurationService: new TestConfigurationService(),
 			onDidChangeBodyVisibility: Event.None,
 			getLocationBasedColors: () => ({ listOverrideStyles: {} }),
