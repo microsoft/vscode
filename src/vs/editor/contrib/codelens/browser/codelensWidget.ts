@@ -138,7 +138,10 @@ class CodeLensContentWidget implements IContentWidget {
 	}
 
 	updatePosition(line: number): void {
-		const column = this._editor.getModel().getLineFirstNonWhitespaceColumn(line);
+		const model = this._editor.getModel();
+		const lineCount = model.getLineCount();
+		line = Math.max(1, Math.min(line, lineCount));
+		const column = model.getLineFirstNonWhitespaceColumn(line);
 		this._widgetPosition = {
 			position: { lineNumber: line, column: column },
 			preference: [ContentWidgetPositionPreference.ABOVE]
