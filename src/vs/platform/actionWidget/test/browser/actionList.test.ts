@@ -397,6 +397,27 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('a row with a detail is laid out alike with descriptions inline or not: its label, and its detail below it as far apart', () => {
+		const offsets = (inlineDescription: boolean) => {
+			const widget = createActionListWidget(disposables, {
+				items: [{ ...action('New Worktree'), detail: 'Creates a separate copy for this session', group: { title: '', icon: Codicon.worktree } }],
+				listOptions: { showFilter: false, inlineDescription },
+			});
+			const wrapper = document.createElement('div');
+			wrapper.classList.add('action-widget');
+			widget.domNode.parentElement?.insertBefore(wrapper, widget.domNode);
+			wrapper.appendChild(widget.domNode);
+			disposables.add({ dispose: () => wrapper.remove() });
+			widget.layout(600, 200);
+			const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row.action')!;
+			const bounds = row.getBoundingClientRect();
+			const of = (selector: string) => { const b = row.querySelector<HTMLElement>(selector)!.getBoundingClientRect(); return { left: b.left - bounds.left, top: b.top - bounds.top }; };
+			return { height: bounds.height, title: of('.title'), detail: of('.detail') };
+		};
+
+		assert.deepStrictEqual(offsets(true), offsets(false));
+	});
+
 	test('wrapped details resize rows without clipping or overlapping subsequent items', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [{ ...action('Remote environment'), detail: 'Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot. '.repeat(3) }, action('Next')],

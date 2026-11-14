@@ -449,8 +449,8 @@
 
 /* Inline description mode — description rendered right after the label */
 .action-widget .inline-description .monaco-list-row.action {
-	/* Override the row gap so group-title and toolbar sit flush */
-	gap: 0;
+	/* Override the gap between items so group-title and toolbar sit flush; a detail keeps the gap above it */
+	column-gap: 0;
 
 	.title {
 		flex: 0 1 auto;
