@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../../../common/event.js';
 import { DisposableStore } from '../../../../common/lifecycle.js';
 import { isEqual } from '../../../../common/resources.js';
 import { URI } from '../../../../common/uri.js';
-import { BufferReader, BufferWriter, ChannelClient, ChannelServer, ClientConnectionEvent, deserialize, getDelayedChannel, IChannel, IMessagePassingProtocol, IPCClient, IPCServer, IServerChannel, ProxyChannel, serialize } from '../../common/ipc.js';
+import { BufferReader, BufferWriter, ChannelClient, ChannelServer, ClientConnectionEvent, deserialize, getDelayedChannel, IChannel, IMessagePassingProtocol, IPCClient, IPCServer, IServerChannel, IStructuredCloneMessage, IStructuredCloneMessagePassingProtocol, ProxyChannel, serialize } from '../../common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../test/common/utils.js';
 
 class QueueProtocol implements IMessagePassingProtocol {
@@ -53,6 +53,52 @@ class QueueProtocol implements IMessagePassingProtocol {
 function createProtocolPair(): [IMessagePassingProtocol, IMessagePassingProtocol] {
 	const one = new QueueProtocol();
 	const other = new QueueProtocol();
+	one.other = other;
+	other.other = one;
+
+	return [one, other];
+}
+
+class StructuredCloneQueueProtocol implements IStructuredCloneMessagePassingProtocol {
+
+	readonly type = 'structuredClone';
+	private buffering = true;
+	private messages: IStructuredCloneMessage[] = [];
+	private readonly _onMessage = new Emitter<IStructuredCloneMessage>({
+		onDidAddFirstListener: () => {
+			for (const message of this.messages) {
+				this._onMessage.fire(message);
+			}
+
+			this.messages = [];
+			this.buffering = false;
+		},
+		onDidRemoveLastListener: () => {
+			this.buffering = true;
+		}
+	});
+
+	readonly onMessage = this._onMessage.event;
+	other!: StructuredCloneQueueProtocol;
+	lastSent: IStructuredCloneMessage | undefined;
+
+	send(message: IStructuredCloneMessage): void {
+		this.lastSent = message;
+		this.other.receive(structuredClone(message));
+	}
+
+	private receive(message: IStructuredCloneMessage): void {
+		if (this.buffering) {
+			this.messages.push(message);
+		} else {
+			this._onMessage.fire(message);
+		}
+	}
+}
+
+function createStructuredCloneProtocolPair(): [StructuredCloneQueueProtocol, StructuredCloneQueueProtocol] {
+	const one = new StructuredCloneQueueProtocol();
+	const other = new StructuredCloneQueueProtocol();
 	one.other = other;
 	other.other = one;
 
@@ -249,6 +295,191 @@ suite('Base IPC', function () {
 		assert.strictEqual(b3, b4);
 	});
 
+	test('structured clone protocol preserves native cloneable values', async function () {
+		const [clientProtocol, serverProtocol] = createStructuredCloneProtocolPair();
+		const channelDisposables = store.add(new DisposableStore());
+		const server = store.add(new ChannelServer(serverProtocol, 'ctx'));
+		server.registerChannel('echo', ProxyChannel.fromService({
+			echo: (value: unknown) => value
+		}, channelDisposables));
+		const client = store.add(new ChannelClient(clientProtocol));
+		const service = ProxyChannel.toService<{ echo(value: unknown): Promise<unknown> }>(client.getChannel('echo'));
+		const cycle: { value: string; self?: unknown } = { value: 'cycle' };
+		cycle.self = cycle;
+		const input = {
+			regexp: /structured/gi,
+			bytes: Uint8Array.from([1, 2, 3]),
+			map: new Map([['answer', 42]]),
+			cycle
+		};
+
+		const result = await service.echo(input) as typeof input;
+
+		assert.deepStrictEqual({
+			headerIsArray: Array.isArray(clientProtocol.lastSent?.header),
+			messageIsBuffer: clientProtocol.lastSent instanceof VSBuffer,
+			regexp: result.regexp.toString(),
+			bytesIsUint8Array: result.bytes instanceof Uint8Array,
+			bytes: [...result.bytes],
+			map: result.map.get('answer'),
+			cycle: result.cycle.self === result.cycle
+		}, {
+			headerIsArray: true,
+			messageIsBuffer: false,
+			regexp: '/structured/gi',
+			bytesIsUint8Array: true,
+			bytes: [1, 2, 3],
+			map: 42,
+			cycle: true
+		});
+	});
+
+	suite('structured clone marshalling', () => {
+		let server: ChannelServer;
+		let client: ChannelClient;
+
+		setup(() => {
+			const [clientProtocol, serverProtocol] = createStructuredCloneProtocolPair();
+			server = store.add(new ChannelServer(serverProtocol, 'ctx'));
+			client = store.add(new ChannelClient(clientProtocol));
+			server.registerChannel('echo', {
+				call: async (_ctx, _command, arg) => arg,
+				listen: () => Event.None
+			});
+		});
+
+		test('proxy calls revive nested URI arguments and results', async () => {
+			const uri = URI.parse('file:///folder/test%20file?query#fragment');
+			const channelDisposables = store.add(new DisposableStore());
+			server.registerChannel('uris', ProxyChannel.fromService({
+				open: (openables: { folderUri: URI }[]) => {
+					assert.ok(openables[0].folderUri instanceof URI);
+					assert.strictEqual(openables[0].folderUri.toString(), uri.toString());
+					return { resource: openables[0].folderUri };
+				}
+			}, channelDisposables));
+			const service = ProxyChannel.toService<{ open(openables: { folderUri: URI }[]): Promise<{ resource: URI }> }>(client.getChannel('uris'));
+			const input = [{ folderUri: uri }];
+
+			const result = await service.open(input);
+
+			assert.deepStrictEqual({
+				isURI: result.resource instanceof URI,
+				uri: result.resource.toString(),
+				inputUnchanged: input[0].folderUri === uri
+			}, { isURI: true, uri: uri.toString(), inputUnchanged: true });
+		});
+
+		test('VSBuffer arguments and responses retain their methods', async () => {
+			const channelDisposables = store.add(new DisposableStore());
+			server.registerChannel('buffers', ProxyChannel.fromService({
+				readClipboardBuffer: () => VSBuffer.fromString('clipboard'),
+				writeClipboardBuffer: (value: VSBuffer) => value.toString()
+			}, channelDisposables));
+			const service = ProxyChannel.toService<{
+				readClipboardBuffer(): Promise<VSBuffer>;
+				writeClipboardBuffer(value: VSBuffer): Promise<string>;
+			}>(client.getChannel('buffers'));
+
+			const buffer = await service.readClipboardBuffer();
+			const text = await service.writeClipboardBuffer(buffer);
+
+			assert.deepStrictEqual({ isVSBuffer: buffer instanceof VSBuffer, text: buffer.toString(), written: text }, {
+				isVSBuffer: true, text: 'clipboard', written: 'clipboard'
+			});
+		});
+
+		test('nested buffers preserve cycles, aliases and native binary values', async () => {
+			const buffer = VSBuffer.wrap(Uint8Array.from([0, 97, 98, 99, 0]).subarray(1, 4));
+			const ordinary = { buffer: buffer.buffer, byteLength: buffer.byteLength };
+			const input = {
+				buffer,
+				array: [buffer],
+				map: new Map([[buffer, buffer]]),
+				set: new Set([buffer]),
+				bytes: buffer.buffer,
+				ordinary,
+				cycle: {} as { self?: unknown; buffer?: VSBuffer }
+			};
+			input.cycle.self = input.cycle;
+			input.cycle.buffer = buffer;
+
+			const result = await client.getChannel('echo').call<typeof input>('echo', input);
+
+			assert.deepStrictEqual({
+				isVSBuffer: result.buffer instanceof VSBuffer,
+				text: result.buffer.toString(),
+				length: result.buffer.byteLength,
+				arrayAlias: result.array[0] === result.buffer,
+				mapAlias: result.map.get(result.buffer) === result.buffer,
+				setAlias: result.set.has(result.buffer),
+				cycle: result.cycle.self === result.cycle,
+				cycleAlias: result.cycle.buffer === result.buffer,
+				bytesAreNative: result.bytes instanceof Uint8Array,
+				bytes: [...result.bytes],
+				ordinaryIsVSBuffer: result.ordinary instanceof VSBuffer,
+				ordinaryBytes: [...result.ordinary.buffer],
+				inputUnchanged: input.array[0] === buffer && input.cycle.buffer === buffer && input.ordinary === ordinary
+			}, {
+				isVSBuffer: true, text: 'abc', length: 3,
+				arrayAlias: true, mapAlias: true, setAlias: true, cycle: true, cycleAlias: true,
+				bytesAreNative: true, bytes: [97, 98, 99], ordinaryIsVSBuffer: false, ordinaryBytes: [97, 98, 99],
+				inputUnchanged: true
+			});
+		});
+
+		test('events restore VSBuffer payloads and subscription arguments', async () => {
+			const emitter = store.add(new Emitter<VSBuffer>());
+			server.registerChannel('events', {
+				call: async () => { throw new Error('not implemented'); },
+				listen: <T>(_ctx: string, _event: string, arg?: VSBuffer): Event<T> => {
+					assert.ok(arg instanceof VSBuffer);
+					assert.strictEqual(arg.toString(), 'subscription');
+					return emitter.event as Event<T>;
+				}
+			});
+			const resultPromise = Event.toPromise(client.getChannel('events').listen<VSBuffer>('event', VSBuffer.fromString('subscription')));
+			emitter.fire(VSBuffer.fromString('event'));
+
+			const result = await resultPromise;
+
+			assert.deepStrictEqual({ isVSBuffer: result instanceof VSBuffer, text: result.toString() }, { isVSBuffer: true, text: 'event' });
+		});
+
+		test('disabled URI marshalling still restores VSBuffer values', async () => {
+			const uri = URI.file('/folder/file');
+			const channelDisposables = store.add(new DisposableStore());
+			server.registerChannel('raw', ProxyChannel.fromService({ echo: (value: unknown) => value }, channelDisposables, { disableMarshalling: true }));
+			const service = ProxyChannel.toService<{ echo(value: unknown): Promise<{ uri: object; buffer: VSBuffer }> }>(client.getChannel('raw'), { disableMarshalling: true });
+
+			const result = await service.echo({ uri, buffer: VSBuffer.fromString('raw') });
+
+			assert.deepStrictEqual({
+				uri: result.uri,
+				isURI: result.uri instanceof URI,
+				isVSBuffer: result.buffer instanceof VSBuffer,
+				text: result.buffer.toString()
+			}, { uri: uri.toJSON(), isURI: false, isVSBuffer: true, text: 'raw' });
+		});
+
+		test('connection contexts restore VSBuffer values', async () => {
+			const [clientProtocol, serverProtocol] = createStructuredCloneProtocolPair();
+			const connections = store.add(new Emitter<ClientConnectionEvent>());
+			const ipcServer = store.add(new IPCServer<{ buffer: VSBuffer }>(connections.event));
+			ipcServer.registerChannel('context', {
+				call: async (ctx, _command, arg) => {
+					assert.strictEqual(ctx.buffer.toString(), arg);
+					return arg;
+				},
+				listen: () => Event.None
+			});
+			const ipcClient = store.add(new IPCClient(clientProtocol, { buffer: VSBuffer.fromString('context') }));
+			connections.fire({ protocol: serverProtocol, onDidClientDisconnect: Event.None });
+
+			assert.strictEqual(await ipcClient.getChannel('context').call('read', 'context'), 'context');
+		});
+	});
+
 	suite('one to one', function () {
 		let server: IPCServer;
 		let client: IPCClient;
@@ -391,6 +622,16 @@ suite('Base IPC', function () {
 			const writer = new BufferWriter();
 			serialize(writer, input);
 			assert.deepStrictEqual(deserialize(new BufferReader(writer.buffer)), input);
+		});
+
+		test('round trips Uint8Array values over buffer protocols', () => {
+			const input = [Uint8Array.from([1, 2, 3])];
+			const writer = new BufferWriter();
+			serialize(writer, input);
+
+			const result = deserialize(new BufferReader(writer.buffer));
+			assert.ok(result[0] instanceof Uint8Array);
+			assert.deepStrictEqual([...result[0]], [1, 2, 3]);
 		});
 
 		test('BufferWriter releases its buffers on dispose', () => {
