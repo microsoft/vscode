@@ -85,6 +85,12 @@ class FakeGroup {
 		editor.dispose();
 		return true;
 	}
+	async closeAllEditors(): Promise<boolean> {
+		for (const editor of [...this.editors]) {
+			await this.closeEditor(editor);
+		}
+		return true;
+	}
 	focus(): void { }
 	dispose(): void {
 		this.onDidActiveEditorChangeEmitter.dispose();
@@ -734,6 +740,22 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual({ oneLeft, none: layout() }, {
 			oneLeft: { groups: [{ tabs: ['/b'], active: '/b' }], activeGroup: 0, visible: true },
 			none: { groups: [{ tabs: [], active: null }], activeGroup: 0, visible: false },
+		});
+	});
+
+	test('closing all its chats closes every tab, in each of its groups, which closes the chat part', async () => {
+		const { service, layout } = createService();
+		await service.openChat(session, chatA);
+		await service.openChat(session, chatB, { sideBySide: true });
+		await service.openChat(session, chatC);
+		const open = layout();
+
+		await service.closeAllChats();
+		const closed = layout();
+
+		assert.deepStrictEqual({ open, closed: { tabs: closed.groups.flatMap(group => group.tabs), visible: closed.visible } }, {
+			open: { groups: [{ tabs: ['/a'], active: '/a' }, { tabs: ['/b', '/c'], active: '/c' }], activeGroup: 1, visible: true },
+			closed: { tabs: [], visible: false },
 		});
 	});
 

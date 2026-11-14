@@ -100,6 +100,9 @@ export interface IAgentsChatPartService {
 	/** Closes the tab of `chatResource`, where the chat part shows it. */
 	closeChat(chatResource: URI): Promise<void>;
 
+	/** Closes the tabs of all its chats, which closes it. */
+	closeAllChats(): Promise<void>;
+
 	/** Whether the chat part shows `chatResource` in one of its tabs. */
 	isShowing(chatResource: URI): boolean;
 
@@ -372,6 +375,10 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		if (chat) {
 			this._closeChat(chat);
 		}
+	}
+
+	async closeAllChats(): Promise<void> {
+		await Promise.all((this._part?.groups ?? []).map(group => group.closeAllEditors()));
 	}
 
 	isShowing(chatResource: URI): boolean {
