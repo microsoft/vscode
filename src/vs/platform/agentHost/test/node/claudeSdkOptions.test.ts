@@ -372,6 +372,16 @@ suite('claudeSdkOptions / buildOptions plugins projection', () => {
 			nonessential: '1',
 		});
 	});
+
+	test('proxy transport disallows WebSearch (CAPI does not support it)', async () => {
+		const opts = await buildOptions(input(undefined), proxyTransport, () => { });
+		assert.deepStrictEqual(opts.disallowedTools, ['WebSearch']);
+	});
+
+	test('native transport leaves WebSearch available', async () => {
+		const opts = await buildOptions(input(undefined), { kind: 'native' }, () => { });
+		assert.strictEqual(opts.disallowedTools, undefined);
+	});
 });
 
 suite('claudeSdkOptions / buildOptions resumeSessionAt projection', () => {
