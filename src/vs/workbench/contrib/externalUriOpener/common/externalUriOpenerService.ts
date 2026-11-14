@@ -208,7 +208,6 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 			try {
 				return { opener, priority: await opener.canOpen(sourceUri, token) };
 			} catch (e) {
-				// A caller that cancels its lookup cancels the openers' checks too.
 				if (!isCancellationError(e)) {
 					this.logService.error(e);
 				}

@@ -626,7 +626,6 @@ export class SessionChatInputToolbar extends Disposable {
 			extensionService.onDidChangeExtensions,
 			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(externalUriOpenersSettingId)),
 		));
-		// Compared by link value: state updates recreate equal URIs, and each changed result restarts the opener checks.
 		const activityBarOpenerRefs = derivedOpts<readonly { id: string; uri: URI }[]>({
 			owner: this,
 			equalsFn: (a, b) => a.length === b.length && a.every((ref, index) => ref.id === b[index].id && isEqual(ref.uri, b[index].uri)),
