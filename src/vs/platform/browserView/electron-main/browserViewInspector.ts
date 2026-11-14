@@ -70,11 +70,10 @@ export class BrowserViewInspector extends Disposable {
 	private readonly _onDidChangeElementSelectionState = this._register(new Emitter<IBrowserElementSelectionState>());
 	readonly onDidChangeElementSelectionState: Event<IBrowserElementSelectionState> = this._onDidChangeElementSelectionState.event;
 
-	private _elementSelectionActive = false;
-	get isElementSelectionActive(): boolean { return this._elementSelectionActive; }
+	get isElementSelectionActive(): boolean { return !!this._activeSelection.value; }
 	get elementSelectionState(): IBrowserElementSelectionState {
 		return {
-			active: this._elementSelectionActive,
+			active: this.isElementSelectionActive,
 			options: this._activeSelection.value?.options ?? {}
 		};
 	}
@@ -355,7 +354,7 @@ export class BrowserViewInspector extends Disposable {
 	 * Toggle element selection mode across all frames.
 	 */
 	async toggleElementSelection(enabled?: boolean, options: IBrowserElementSelectionOptions = {}): Promise<void> {
-		const newEnabled = enabled ?? !this._elementSelectionActive;
+		const newEnabled = enabled ?? !this.isElementSelectionActive;
 		if (!newEnabled) {
 			this._activeSelection.clear();
 			return;
@@ -371,7 +370,6 @@ export class BrowserViewInspector extends Disposable {
 			activeSelection.options = updatedOptions;
 			try {
 				if (await this._startInspection(activeSelection, updatedOptions)) {
-					this._elementSelectionActive = true;
 					this._onDidChangeElementSelectionState.fire({ active: true, options: updatedOptions });
 				}
 			} catch {
@@ -386,9 +384,8 @@ export class BrowserViewInspector extends Disposable {
 			options: updatedOptions,
 			dispose: () => {
 				if (this._activeSelection.value === selection) {
-					this._elementSelectionActive = false;
-					this._onDidChangeElementSelectionState.fire({ active: false, options: selection.options });
 					this._activeSelection.clearAndLeak();
+					this._onDidChangeElementSelectionState.fire({ active: false, options: selection.options });
 					void this._queueInspectionOperation(async () => {
 						await this.browser.emulator.setElementSelectionActive(false);
 						await Promise.all([...this._registry.inspectors].map(i => i.stopInspection()));
@@ -398,7 +395,6 @@ export class BrowserViewInspector extends Disposable {
 		};
 		this._activeSelection.value = selection;
 		// Report active before the (possibly slow) first attach so a second click toggles it off instead of re-enabling.
-		this._elementSelectionActive = true;
 		this._onDidChangeElementSelectionState.fire({ active: true, options: updatedOptions });
 		try {
 			await this._startInspection(selection, updatedOptions);
@@ -406,11 +402,6 @@ export class BrowserViewInspector extends Disposable {
 			if (this._activeSelection.value === selection && selection.options === updatedOptions) {
 				this._activeSelection.clear();
 			}
-		}
-		// Disposal clears the selection without running its dispose handler, so settle the early active report here.
-		if (!this._activeSelection.value && this._elementSelectionActive) {
-			this._elementSelectionActive = false;
-			this._onDidChangeElementSelectionState.fire({ active: false, options: selection.options });
 		}
 	}
 
