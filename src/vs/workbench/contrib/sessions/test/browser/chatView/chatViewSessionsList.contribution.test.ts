@@ -24,6 +24,7 @@ import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor,
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
+import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { FindAgentSessionInViewerAction, RefreshAgentSessionsViewerAction } from '../../../../chat/browser/agentSessions/agentSessionsActions.js';
@@ -42,7 +43,7 @@ import { IChatViewSessionsListService } from '../../../../chat/browser/widgetHos
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionGroupToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId } from '../../../browser/views/sessionsList.js';
-import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { IEditorWindowSessionsRuntime } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
 
@@ -114,6 +115,7 @@ suite('ChatViewSessionsGate', () => {
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
 		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ onDidChangePartVisibility: Event.None, isVisible: () => false }));
+		instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({ when: () => Promise.resolve() }));
 		stub?.(instantiationService);
 		return disposables.add(instantiationService.createInstance(ChatViewSessionsGate));
 	}
@@ -213,6 +215,10 @@ suite('ChatViewSessionsGate', () => {
 		};
 		const inView = createSession('inView');
 		const inChatPart = createSession('inChatPart');
+		// A peer chat, whose session outside the list's scope is known only later
+		const peer = createSession('peer');
+		let peerKnown = false;
+		const sessionChanged = disposables.add(new Emitter<readonly ISessionChange[]>());
 		const shownSession = observableValue<IChatViewHostShownSession | undefined>('shownSession', undefined);
 		let mainHost: EditorWindowMainSessionHost | undefined;
 		createGate(true, undefined, undefined, instantiationService => {
@@ -221,7 +227,8 @@ suite('ChatViewSessionsGate', () => {
 			instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ shownSession, replaced }));
 			instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 				onDidChangeSessions: Event.None,
-				getSessionForChatResource: resource => [inView, inChatPart].map(session => ({ session, chat: session.mainChat.get() })).find(shown => extUri.isEqual(shown.chat.resource, resource)),
+				onDidChangeSession: sessionChanged.event,
+				getSessionForChatResource: resource => [inView, inChatPart, ...(peerKnown ? [peer] : [])].map(session => ({ session, chat: session.mainChat.get() })).find(shown => extUri.isEqual(shown.chat.resource, resource)),
 				markRead: async session => { marked.push(session.sessionId); (session.mainChat.get().isRead as ISettableObservable<boolean>).set(true, undefined); return true; },
 			}));
 			const host = mainHost = instantiationService.createInstance(EditorWindowMainSessionHost);
@@ -237,8 +244,13 @@ suite('ChatViewSessionsGate', () => {
 		steps.inChatPart = mainHost!.session.get()?.sessionId;
 		replaced.set(false, undefined);
 		steps.backInView = mainHost!.session.get()?.sessionId;
+		shownSession.set({ resource: peer.mainChat.get().resource, reason: 'open' }, undefined);
+		steps.peerUnknown = mainHost!.session.get()?.sessionId;
+		peerKnown = true;
+		sessionChanged.fire([{ session: peer, kind: 'added' }]);
+		steps.peerKnown = mainHost!.session.get()?.sessionId;
 
-		assert.deepStrictEqual({ steps, marked }, { steps: { inView: 'inView', inChatPart: 'inChatPart', backInView: 'inView' }, marked: ['inView'] });
+		assert.deepStrictEqual({ steps, marked }, { steps: { inView: 'inView', inChatPart: 'inChatPart', backInView: 'inView', peerUnknown: undefined, peerKnown: 'peer' }, marked: ['inView', 'peer'] });
 	});
 
 	test('Refresh and Find of the Chat view act on the shared sessions list that the Chat view shows in place of its own', async () => {

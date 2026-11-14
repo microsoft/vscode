@@ -128,7 +128,8 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const chatViewHostService = accessor.get(IChatViewHostService);
 		const viewsService = accessor.get(IViewsService);
-		const sessionsChanged = observableSignalFromEvent(this, sessionsManagementService.onDidChangeSessions);
+		// Of every session, also one outside the list's scope, such as the session of a peer chat whose ownership arrives later
+		const sessionsChanged = observableSignalFromEvent(this, sessionsManagementService.onDidChangeSession);
 		const shown = derived(this, reader => {
 			const shownSession = chatViewHostService.shownSession.read(reader);
 			if (!shownSession) {
