@@ -2278,8 +2278,8 @@ export class CommandCenter {
 				: l10n.t('\n\nAre you sure you want to discard ALL changes in {0} files?', trackedResources.length);
 
 			const yesTracked = trackedResources.length === 1
-				? l10n.t('Discard 1 Tracked File')
-				: l10n.t('Discard All {0} Tracked Files', trackedResources.length);
+				? l10n.t('Discard Changes in 1 Tracked File')
+				: l10n.t('Discard Changes in {0} Tracked Files', trackedResources.length);
 
 			const yesAll = l10n.t('Discard All {0} Files', resources.length);
 			const pick = await window.showWarningMessage(`${untrackedMessage} ${untrackedMessageDetail}${trackedMessage}\n\nThis is IRREVERSIBLE!\nYour current working set will be FOREVER LOST if you proceed.`, { modal: true }, yesTracked, yesAll);
@@ -2311,8 +2311,8 @@ export class CommandCenter {
 				? l10n.t('Restore File')
 				: l10n.t('Restore All {0} Files', resources.length)
 			: resources.length === 1
-				? l10n.t('Discard File')
-				: l10n.t('Discard All {0} Files', resources.length);
+				? l10n.t('Discard Changes')
+				: l10n.t('Discard Changes in {0} Files', resources.length);
 
 		const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
