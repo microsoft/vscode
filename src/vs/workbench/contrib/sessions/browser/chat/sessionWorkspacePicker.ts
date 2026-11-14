@@ -2925,6 +2925,8 @@ export class WorkspacePicker extends Disposable {
 						folderUri,
 						providerId: resolved.providerId,
 						checked: (!newWorktreeSelected && this._isSelectedFolder(folderUri)) || undefined,
+						// Its accessible name says where the window's folder is now, which its check does not
+						ariaLabel: current ? localize('workspacePicker.currentFolderAriaLabel', "{0}, {1}", presentation?.label ?? resolved.workspace.label, getCurrentFolderLocationDescription()) : undefined,
 					},
 				},
 			});
