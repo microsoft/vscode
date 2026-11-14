@@ -402,6 +402,20 @@ export function recoverAttachmentMentions(message: IParsedChatRequest, variables
 		if (variable.kind === 'file' || variable.kind === 'directory') {
 			mentions.add(`${chatVariableLeader}file:${variable.name}`).add(`${chatVariableLeader}${variable.name}`);
 		}
+		if (variable.kind === 'symbol' || isLocation(variable.value) || variable.id.startsWith('vscode.symbol/')) {
+			const symbolNames = new Set([variable.name, variable.fullName]);
+			if (variable.name.startsWith('sym:')) {
+				symbolNames.add(variable.name.slice(4));
+			}
+			if (variable.fullName?.startsWith('sym:')) {
+				symbolNames.add(variable.fullName.slice(4));
+			}
+			for (const symbolName of symbolNames) {
+				if (symbolName) {
+					mentions.add(`${chatVariableLeader}sym:${symbolName}`).add(`${chatAgentLeader}sym:${symbolName}`);
+				}
+			}
+		}
 		if (variable.id.startsWith(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX)) {
 			const link = variable.id.slice(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX.length);
 			mentions.add(link);
