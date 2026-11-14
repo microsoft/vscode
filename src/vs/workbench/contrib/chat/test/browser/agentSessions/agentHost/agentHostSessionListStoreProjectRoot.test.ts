@@ -32,23 +32,17 @@ suite('AgentHostSessionListStore - project root', () => {
 		...(workspaceFile ? { _meta: withSessionMultiRootMetadata(undefined, { workspaceFile: URI.file(workspaceFile).toString() }) } : {}),
 	});
 
-	test('while matching by project root, also lists the sessions whose project is a folder of the window, such as in its worktrees, and lists them again as it turns on and off', async () => {
+	/** The sessions list of a window on `folders`, of the workspace file `configuration` if any, while matching by project root as `matchProjectRoot` says. */
+	function createList(sessions: readonly IAgentSessionMetadata[], options?: { readonly folders?: readonly string[]; readonly configuration?: string }) {
 		const matchProjectRoot = observableValue('matchProjectRoot', false);
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({ registerSessionResource: (backendSession: URI) => backendSession }));
+		const folders = (options?.folders ?? ['/work/vscode']).map(folder => upcastPartial<IWorkspaceFolder>({ uri: URI.file(folder) }));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
-			getWorkspace: () => upcastPartial<IWorkspace>({ uri: URI.file('/work/vscode'), folders: [upcastPartial<IWorkspaceFolder>({ uri: URI.file('/work/vscode') })] }),
+			getWorkspace: () => upcastPartial<IWorkspace>(options?.configuration ? { configuration: URI.file(options.configuration), folders } : { uri: URI.file('/work/vscode'), folders }),
 			onDidChangeWorkspaceFolders: Event.None,
 		}));
-		const sessions = [
-			session('in-folder', '/work/vscode/src', '/work/vscode'),
-			// Works in a worktree of the window's folder, which it reports as its project
-			session('worktree', '/work/vscode.worktrees/feature', '/work/vscode'),
-			session('unrelated', '/work/other.worktrees/x', '/work/other'),
-			// A session of another multi-root workspace that shares the folder: only the windows of its workspace file list it
-			session('multi-root', '/work/vscode.worktrees/multi', '/work/vscode', '/work/other.code-workspace'),
-		];
 		const connection: IAgentHostSessionListConnection = {
 			onDidNotification: Event.None,
 			resourceUris: identityAgentHostResourceUriMapper,
@@ -58,11 +52,25 @@ suite('AgentHostSessionListStore - project root', () => {
 			dispatch: () => { },
 		};
 		const list = store.add(instantiationService.createInstance(AgentHostSessionListStore, connection, { matchProjectRoot }));
-		const shown = () => list.getSessions('copilot').map(entry => entry.rawId).sort();
-		const settle = async () => {
-			await new Promise<void>(resolve => setTimeout(resolve, 0));
-			await list.refresh(CancellationToken.None);
+		return {
+			matchProjectRoot,
+			shown: () => list.getSessions('copilot').map(entry => entry.rawId).sort(),
+			settle: async () => {
+				await new Promise<void>(resolve => setTimeout(resolve, 0));
+				await list.refresh(CancellationToken.None);
+			},
 		};
+	}
+
+	test('while matching by project root, also lists the sessions whose project is a folder of the window, such as in its worktrees, and lists them again as it turns on and off', async () => {
+		const { matchProjectRoot, shown, settle } = createList([
+			session('in-folder', '/work/vscode/src', '/work/vscode'),
+			// Works in a worktree of the window's folder, which it reports as its project
+			session('worktree', '/work/vscode.worktrees/feature', '/work/vscode'),
+			session('unrelated', '/work/other.worktrees/x', '/work/other'),
+			// A session of a multi-root workspace whose project is the folder: not listed by its project in a single-folder window
+			session('multi-root', '/work/vscode.worktrees/multi', '/work/vscode', '/work/other.code-workspace'),
+		]);
 
 		await settle();
 		const off = shown();
@@ -77,5 +85,16 @@ suite('AgentHostSessionListStore - project root', () => {
 			on: ['in-folder', 'worktree'],
 			offAgain: ['in-folder'],
 		});
+	});
+
+	test('in a window of a workspace file, a session of another workspace file whose project is one of its folders is not listed by its project', async () => {
+		const { matchProjectRoot, shown, settle } = createList([
+			session('this-workspace', '/work/vscode.worktrees/a', '/work/vscode', '/work/this.code-workspace'),
+			session('other-workspace', '/work/vscode.worktrees/b', '/work/vscode', '/work/other.code-workspace'),
+		], { folders: ['/work/vscode', '/work/tools'], configuration: '/work/this.code-workspace' });
+		matchProjectRoot.set(true, undefined);
+		await settle();
+
+		assert.deepStrictEqual(shown(), ['this-workspace']);
 	});
 });
