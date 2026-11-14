@@ -9029,12 +9029,12 @@ suite('WorkspacePicker - Allowed folders', () => {
 		assert.deepStrictEqual({ atFolder, inNewWorktree, atWorktree, fromWorktree: { chip: chip(), selected: newWorktree.selected } }, {
 			atFolder: {
 				items: ['worktree New Worktree', 'folder local/vscode *', 'worktree a'],
-				chip: { icon: 'folder', label: null, ariaLabel: 'Folder: local/vscode', hover: 'Folder: local/vscode' },
+				chip: { icon: 'folder', label: 'local/vscode', ariaLabel: 'Folder: local/vscode', hover: 'Folder: local/vscode' },
 			},
 			inNewWorktree: { icon: 'worktree', label: 'Worktree', ariaLabel: 'New worktree of local/vscode', hover: 'New worktree of local/vscode' },
 			atWorktree: {
 				items: ['worktree New Worktree', 'folder local/vscode', 'worktree a *'],
-				chip: { icon: 'worktree', label: null, ariaLabel: 'Worktree: a', hover: 'Worktree: a' },
+				chip: { icon: 'worktree', label: 'a', ariaLabel: 'Worktree: a', hover: 'Worktree: a' },
 			},
 			fromWorktree: { chip: { icon: 'worktree', label: 'Worktree', ariaLabel: 'New worktree of local/vscode', hover: 'New worktree of local/vscode' }, selected: true },
 		});

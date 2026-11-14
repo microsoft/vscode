@@ -2505,7 +2505,7 @@ export class WorkspacePicker extends Disposable {
 						? localize('workspacePicker.categorySelectionAriaLabel', "{0}: {1}", options.label ?? options.ariaLabel, label)
 						: options.ariaLabel);
 			if (chip && badgeCount === 0) {
-				// By its icon only, but for New Worktree: it names the folder or worktree for screen readers
+				// What it is, a folder, a worktree or New Worktree, by name for screen readers
 				trigger.setAttribute('aria-label', chip.description);
 			}
 			if (reflectsWorkspace) {
@@ -2961,7 +2961,7 @@ export class WorkspacePicker extends Disposable {
 
 	/**
 	 * The chip of a picker whose allowed folders are a window's folder and its worktrees (with a {@link IAllowedFolderPresentation.kind}):
-	 * by its icon only, a folder or a worktree, but New Worktree by its name, with what it is for screen readers and on hover.
+	 * by its icon, a folder or a worktree, and its name, or Worktree for New Worktree, with what it is for screen readers and on hover.
 	 */
 	private _getLocationChip(workspace: ISessionWorkspace, providerId: string | undefined): { readonly icon: ThemeIcon; readonly label: string | undefined; readonly description: string } | undefined {
 		const folderUri = workspace.folders[0]?.root;
@@ -2978,8 +2978,8 @@ export class WorkspacePicker extends Disposable {
 			return { icon: WORKSPACE_PICKER_WORKTREE_ICON, label: localize('workspacePicker.newWorktreeChip', "Worktree"), description: localize('workspacePicker.newWorktreeChipDescription', "New worktree of {0}", of) };
 		}
 		return presentation.kind === 'worktree'
-			? { icon: WORKSPACE_PICKER_WORKTREE_ICON, label: undefined, description: localize('workspacePicker.worktreeChipDescription', "Worktree: {0}", name) }
-			: { icon: presentation.icon ?? Codicon.folder, label: undefined, description: localize('workspacePicker.folderChipDescription', "Folder: {0}", name) };
+			? { icon: WORKSPACE_PICKER_WORKTREE_ICON, label: name, description: localize('workspacePicker.worktreeChipDescription', "Worktree: {0}", name) }
+			: { icon: presentation.icon ?? Codicon.folder, label: name, description: localize('workspacePicker.folderChipDescription', "Folder: {0}", name) };
 	}
 
 	/** What the chip of a picker restricted to a window's folder and its worktrees shows, by name: for its hover. */
