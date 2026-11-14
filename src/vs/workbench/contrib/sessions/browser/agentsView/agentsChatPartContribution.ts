@@ -15,6 +15,7 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/e
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
+import { ChatPartEnabledContext } from '../../../../common/contextkeys.js';
 import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
 import { ChangesMultiDiffSourceResolver } from '../../../sessionChanges/browser/changesMultiDiffSourceResolver.js';
 import { SessionChangesEditor } from '../../../sessionChanges/browser/sessionChangesEditor.js';
@@ -136,6 +137,11 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 			}
 		}));
 		store.add(toDisposable(() => visible.reset()));
+
+		// Whether a feature enables the chat area now, not whether the part was ever created: it follows the settings
+		const enabledKey = ChatPartEnabledContext.bindTo(this._contextKeyService);
+		store.add(autorun(reader => enabledKey.set(this.enabled.read(reader))));
+		store.add(toDisposable(() => enabledKey.reset()));
 
 		// The sessions of its chats are known while it shows, and while its composers hold drafts, also while chats no longer
 		// open in it
