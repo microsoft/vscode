@@ -537,6 +537,19 @@ suite('Chat window composer', () => {
 		});
 	});
 
+	test('a composer that follows its host to a folder outside the window\'s folders offers that folder, so its picker shows where its draft is', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createServices(store);
+		const composers = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const composer = store.add(composers.create(URI.parse('vscode-agents-composer:/allowed'), { target: { folderUri: URI.file('/repo') }, allowedFolders: constObservable([URI.file('/repo')]) }, async () => { }));
+		const allowed = () => composer.allowedFolders?.get().map(folder => folder.path);
+
+		const before = allowed();
+		composer.retargetFolder(URI.file('/repo.worktrees/a'), URI.file('/repo'));
+
+		assert.deepStrictEqual({ before, after: allowed() }, { before: ['/repo'], after: ['/repo', '/repo.worktrees/a'] });
+	});
+
 	test('a composer does not follow its host to another folder while it sends: from the user\'s submit, before its request is accepted, until the request ends', () => {
 		const store = disposables.add(new DisposableStore());
 		const { onDidAccept, onDidEnd, slots, createComposer } = createServices(store);

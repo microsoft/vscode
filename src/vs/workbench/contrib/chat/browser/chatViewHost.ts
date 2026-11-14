@@ -60,6 +60,12 @@ export interface IChatViewNewChatTarget {
 	readonly folder?: URI;
 	readonly providerId?: string;
 	readonly sessionType?: string;
+	/** The model the new chat starts with, where its session type offers it. */
+	readonly modelId?: string;
+	/** The mode the new chat shows, such as an agent's custom agent, where its session type offers it. */
+	readonly modeId?: string;
+	/** Whether the session of the new chat runs in a Dev Container. */
+	readonly requireDevContainer?: boolean;
 }
 
 /** How {@link IChatViewHost.newChat} starts a new chat. */
