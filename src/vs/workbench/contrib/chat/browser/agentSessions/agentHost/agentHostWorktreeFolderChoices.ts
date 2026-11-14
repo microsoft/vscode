@@ -48,8 +48,13 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 
 	/** The folder's worktrees, read ahead of time, as the chip asks for its choices synchronously. */
 	private _locations: readonly IFolderLocation[] = [];
-	/** Whether folders it does not list are worktrees of the window's folder, by the window's folder and the folder. */
-	private readonly _provenWorktrees = new Map<string, boolean>();
+	/**
+	 * Whether folders it does not list are worktrees of the window's folder, by the window's folder and the folder, or still
+	 * being resolved: read again as it reads the worktrees again (see {@link refresh}), such as after a failed read.
+	 */
+	private readonly _provenWorktrees = new Map<string, boolean | 'resolving'>();
+	/** Increases as it reads the worktrees again: what resolved before then does not apply. */
+	private _provenGeneration = 0;
 	private readonly _refresh = this._register(new MutableDisposable());
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
@@ -90,6 +95,8 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 
 	/** Reads the folder's worktrees again, such as one that a session created since. */
 	refresh(): void {
+		this._provenWorktrees.clear();
+		this._provenGeneration++;
 		const primary = this._workspaceContextService.getWorkspace().uri;
 		if (!primary || !this.isActive()) {
 			this._refresh.clear();
@@ -213,13 +220,21 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 		const key = `${primary.toString()}\n${folder.toString()}`;
 		const known = this._provenWorktrees.get(key);
 		if (known === undefined) {
-			this._provenWorktrees.set(key, false);
-			this._folderLocationService.resolveLocation(primary, folder, CancellationToken.None).then(location => {
-				if (location && !this._store.isDisposed) {
-					this._provenWorktrees.set(key, true);
+			this._provenWorktrees.set(key, 'resolving');
+			const generation = this._provenGeneration;
+			const settle = (worktree: boolean) => {
+				if (generation !== this._provenGeneration || this._store.isDisposed) {
+					return;
+				}
+				this._provenWorktrees.set(key, worktree);
+				if (worktree) {
 					this._onDidChange.fire();
 				}
-			}, onUnexpectedError);
+			};
+			this._folderLocationService.resolveLocation(primary, folder, CancellationToken.None).then(location => settle(!!location), error => {
+				settle(false);
+				onUnexpectedError(error);
+			});
 		}
 		return known === true;
 	}
