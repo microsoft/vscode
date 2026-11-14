@@ -1178,35 +1178,37 @@ suite('PluginInstallService', () => {
 			}, { result: { updatedNames: [], failedNames: [] }, updated: [plugin], added: [] });
 		});
 
-		test('uses the refreshed Git descriptor and replaces the old installed URI', async () => {
-			const plugin = createPlugin({ sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: 'main', path: 'plugins/test' } });
-			const livePlugin = createPlugin({ sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: 'main', path: 'plugins/test', sha: 'new-sha' } });
-			const oldUri = URI.file('/cache/ref_main/plugins/test');
-			const newUri = URI.file('/cache/sha_new-sha/plugins/test');
-			const { service, state } = createService({
-				installedPlugins: [{ pluginUri: oldUri, plugin }],
-				fetchedMarketplacePlugins: [livePlugin],
-				pluginSourceInstallUris: new Map([[PluginSourceKind.GitHub, newUri]]),
-				ensurePluginSourceResult: newUri,
-				recordInstalledPlugins: true,
-			});
+		for (const automatic of [false, true]) {
+			test(`uses the refreshed Git descriptor and replaces the old installed URI (${automatic ? 'automatic' : 'manual'})`, async () => {
+				const plugin = createPlugin({ sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: 'main', path: 'plugins/test' } });
+				const livePlugin = createPlugin({ sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: 'main', path: 'plugins/test', sha: 'new-sha' } });
+				const oldUri = URI.file('/cache/ref_main/plugins/test');
+				const newUri = URI.file('/cache/sha_new-sha/plugins/test');
+				const { service, state } = createService({
+					installedPlugins: [{ pluginUri: oldUri, plugin }],
+					fetchedMarketplacePlugins: [livePlugin],
+					pluginSourceInstallUris: new Map([[PluginSourceKind.GitHub, newUri]]),
+					ensurePluginSourceResult: newUri,
+					recordInstalledPlugins: true,
+				});
 
-			const result = await service.updateAllPlugins({ silent: true }, CancellationToken.None);
+				const result = await service.updateAllPlugins({ silent: true, automatic }, CancellationToken.None);
 
-			assert.deepStrictEqual({
-				result,
-				ensured: state.ensurePluginSourceDescriptors,
-				installed: state.installedPlugins,
-				removed: state.removedPluginUris,
-				fetchOptions: state.fetchMarketplaceOptions,
-			}, {
-				result: { updatedNames: [plugin.name], failedNames: [] },
-				ensured: [livePlugin.sourceDescriptor],
-				installed: [{ pluginUri: newUri, plugin: livePlugin }],
-				removed: [oldUri.toString()],
-				fetchOptions: [{ refresh: true }],
+				assert.deepStrictEqual({
+					result,
+					ensured: state.ensurePluginSourceDescriptors,
+					installed: state.installedPlugins,
+					removed: state.removedPluginUris,
+					fetchOptions: state.fetchMarketplaceOptions,
+				}, {
+					result: { updatedNames: [plugin.name], failedNames: [] },
+					ensured: [livePlugin.sourceDescriptor],
+					installed: [{ pluginUri: newUri, plugin: livePlugin }],
+					removed: [oldUri.toString()],
+					fetchOptions: [{ refresh: true, priority: automatic ? 'background' : undefined }],
+				});
 			});
-		});
+		}
 
 		for (const kind of [PluginSourceKind.Npm, PluginSourceKind.Pip] as const) {
 			for (const force of [false, true]) {
