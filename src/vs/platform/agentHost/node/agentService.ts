@@ -855,6 +855,23 @@ export interface IAgentServiceOptions {
 }
 
 type ChatNotice = SystemNotificationResponsePart & { readonly content: string };
+
+/** A provider's history change for a chat, applied once the chat has no running turn. */
+interface IPendingChatHistory {
+	readonly provider: IAgent;
+	readonly chat: URI;
+	readonly turns: readonly Turn[];
+	/** See {@link IAgentChatHistoryChange.replace}. */
+	readonly replace?: boolean;
+	/** The turn that was running when a replacing change arrived. It and later turns are kept. */
+	readonly keepFromTurnId?: string;
+}
+
+/** Records the turn a replacing change must keep when no turn was running as it arrived: the first one that runs while it waits. */
+function withKeptTurn(change: IPendingChatHistory, activeTurnId: string): IPendingChatHistory {
+	return change.replace && change.keepFromTurnId === undefined ? { ...change, keepFromTurnId: activeTurnId } : change;
+}
+
 /** Combines an earlier notice with the next one, or returns `undefined` when they stay separate. */
 type ChatNoticeMerge = (previous: SystemNotificationResponsePart, next: ChatNotice) => ChatNotice | undefined;
 
@@ -1144,8 +1161,8 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Owning session of each watched chat, recorded when the watch starts. */
 	private readonly _chatWatchOwners = new ResourceMap<string>();
 	/** External histories waiting for their chat's turn to end; delivered when its current owner goes idle (Block 4: the owner is read then). */
-	private readonly _pendingChatHistories = new Map<string, { readonly provider: IAgent; readonly chat: URI; readonly turns: readonly Turn[] }>();
-	/** Chats a provider reloaded from storage whose turns wait for a running turn to end before they are replaced ({@link _replaceReloadedChatTurns}). */
+	private readonly _pendingChatHistories = new Map<string, IPendingChatHistory>();
+	/** Chats a provider reloaded on import whose turns wait for a running turn to end before they are replaced ({@link _replaceReloadedChatTurns}). */
 	private readonly _pendingChatReloads = new Map<string, IAgent>();
 	private readonly _authService: AgentHostAuthenticationService;
 	/** Shared side-effect handler for action dispatch and session lifecycle. */
@@ -1560,7 +1577,7 @@ export class AgentService extends Disposable implements IAgentService {
 				for (const [key, pending] of this._pendingChatHistories) {
 					if (this._chatOwnership.getChatOwner(key) === session) {
 						this._pendingChatHistories.delete(key);
-						void this._chatHistoryRefreshes.queue(key, () => this._refreshChatHistory(pending.provider, pending.chat, pending.turns)).catch(error => {
+						void this._chatHistoryRefreshes.queue(key, () => this._refreshChatHistory(pending)).catch(error => {
 							this._logService.warn('[AgentService] Failed to apply pending external history', error);
 						});
 					}
@@ -2127,13 +2144,13 @@ export class AgentService extends Disposable implements IAgentService {
 			subscriptions.add(provider.onDidChangeChatData(e => this._onChatDataChanged(e)));
 			if (provider.onDidChangeChatHistory) {
 				subscriptions.add(provider.onDidChangeChatHistory(event => {
-					void this._chatHistoryRefreshes.queue(event.chat.toString(), () => this._refreshChatHistory(provider, event.chat, event.turns)).catch(error => {
+					// A replacing change keeps the turn running now, which may end before the change applies.
+					const keepFromTurnId = event.replace ? this._stateManager.getChatState(event.chat.toString())?.activeTurn?.id : undefined;
+					const change: IPendingChatHistory = { provider, chat: event.chat, turns: event.turns, replace: event.replace, keepFromTurnId };
+					void this._chatHistoryRefreshes.queue(event.chat.toString(), () => this._refreshChatHistory(change)).catch(error => {
 						this._logService.warn('[AgentService] Failed to refresh external chat history', error);
 					});
 				}));
-			}
-			if (provider.onDidReloadChat) {
-				subscriptions.add(provider.onDidReloadChat(chat => this._queueReloadedChatTurns(provider, chat)));
 			}
 			subscriptions.add(provider.onDidSpawnChat(e => this._onChatSpawned(e)));
 			this._providerSubscriptions.set(provider.id, subscriptions);
@@ -10802,7 +10819,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/** Routes a passive provider snapshot through normal hydration while retaining host-owned turns. */
-	private async _refreshChatHistory(provider: IAgent, chat: URI, providerTurns: readonly Turn[]): Promise<void> {
+	private async _refreshChatHistory(change: IPendingChatHistory): Promise<void> {
+		const { provider, chat, turns: providerTurns } = change;
 		const owner = this._chatOwnership.getChatOwner(chat.toString());
 		if (owner === undefined) {
 			return;
@@ -10815,22 +10833,28 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		if (previous.activeTurn) {
-			this._pendingChatHistories.set(chat.toString(), { provider, chat, turns: providerTurns });
+			this._pendingChatHistories.set(chat.toString(), withKeptTurn(change, previous.activeTurn.id));
 			return;
 		}
 		const storage = this._chatStorageResource(session, chat);
 		const hydrated = await this._chatContributions.hydrateTurns({ session: session.toString(), chat: chat.toString(), isDefaultChat: this._chatOwnership.isDefaultChat(session.toString(), chat.toString()), storageResource: storage, workspaceTransitions: await this._loadWorkspaceTransitions(URI.parse(storage)) }, providerTurns);
 		const turns = await this._interleaveLocalTurns(session.toString(), chat.toString(), hydrated);
-		const byId = new Map(turns.map(turn => [turn.id, turn]));
-		const refreshed = previous.turns.map(turn => byId.get(turn.id) ?? turn);
-		const existing = new Set(previous.turns.map(turn => turn.id));
-		refreshed.push(...turns.filter(turn => !existing.has(turn.id)));
+		let refreshed: Turn[];
+		if (change.replace) {
+			const kept = change.keepFromTurnId === undefined ? -1 : previous.turns.findIndex(turn => turn.id === change.keepFromTurnId);
+			refreshed = kept === -1 ? turns : [...turns, ...previous.turns.slice(kept)];
+		} else {
+			const byId = new Map(turns.map(turn => [turn.id, turn]));
+			refreshed = previous.turns.map(turn => byId.get(turn.id) ?? turn);
+			const existing = new Set(previous.turns.map(turn => turn.id));
+			refreshed.push(...turns.filter(turn => !existing.has(turn.id)));
+		}
 		if (!this._store.isDisposed && this._providerService.getProviderForChat(session, chat) === provider && this._subscriptions.hasSubscribers(chat) && this._chatWatches.get(chat) === watch) {
 			const current = this._stateManager.getChatState(chat.toString());
 			if (current?.activeTurn) {
-				this._pendingChatHistories.set(chat.toString(), { provider, chat, turns: providerTurns });
+				this._pendingChatHistories.set(chat.toString(), withKeptTurn(change, current.activeTurn.id));
 			} else if (current && current.turns !== previous.turns) {
-				void this._chatHistoryRefreshes.queue(chat.toString(), () => this._refreshChatHistory(provider, chat, providerTurns)).catch(error => this._logService.warn('[AgentService] Failed to reconcile external history', error));
+				void this._chatHistoryRefreshes.queue(chat.toString(), () => this._refreshChatHistory(change)).catch(error => this._logService.warn('[AgentService] Failed to reconcile external history', error));
 			} else {
 				this._stateManager.refreshChatHistory(chat.toString(), previous.turns, refreshed);
 			}

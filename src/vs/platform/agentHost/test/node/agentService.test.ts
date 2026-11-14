@@ -48,7 +48,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
-import { AgentPermissionKind, AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type AuthenticateParams, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, resolveSessionBackedStorage, type IAgent, type IAgentAdoptedWorktree, type IAgentChatAdoptionResult, type IAgentChatCanvasWatchHost, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentImportChatOptions, type IAgentImportedChat } from '../../common/agent.js';
+import { AgentPermissionKind, AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type AuthenticateParams, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, resolveSessionBackedStorage, type IAgent, type IAgentAdoptedWorktree, type IAgentChatAdoptionResult, type IAgentChatCanvasWatchHost, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentImportChatOptions, type IAgentImportedChat, type IAgentChatHistoryChange } from '../../common/agent.js';
 import { AgentHostPrewarmSessionsSettingId, IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, platformSessionSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactIntegrationsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostChatResourcesConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostPrewarmSessionsConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../common/agentHostSchema.js';
@@ -15166,6 +15166,48 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		for (const turnEndsFirst of [false, true]) {
+			testWithExternalSessionClock(`a replacing history change replaces the turns before the running turn${turnEndsFirst ? ', which ends before the change applies,' : ' once it ends'} without duplicating live turns`, async () => {
+				const svc = createExternalSessionService();
+				setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Last30Days, 1);
+				const historyChanges = disposables.add(new Emitter<IAgentChatHistoryChange>());
+				const agent = disposables.add(new class extends TimedExternalAgent { readonly onDidChangeChatHistory = historyChanges.event; }('codex'));
+				const turn = (id: string, text: string): Turn => ({ id, state: TurnState.Complete, message: { text, origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined });
+				agent.chats.getMessages = async () => [turn('first', 'First message')];
+				registerTestAgentProvider(svc, agent);
+				await svc.listSessions();
+				svc.markStartupComplete();
+				await svc.whenDeferredWorkSettled();
+				const session = agent.addSession('external-replaced-history', Date.now(), undefined, 'External history');
+				agent.fireDiscoveredChats((await agent.listExternalChats()).map(chat => ({ ...chat, external: true })));
+				await (svc as unknown as { _providerDiscoveryRegistrations: ReadonlyMap<string, Promise<void>> })._providerDiscoveryRegistrations.get(agent.id);
+				await svc.whenCatalogReconciliationIdle();
+				await waitForSessionListReconciliation(svc);
+				const chat = URI.parse(buildDefaultChatUri(session));
+				await svc.subscribe(chat, 'history-viewer');
+				const manager = getStateManager(svc);
+				manager.dispatchServerAction(chat.toString(), chatTurnStarted('live', 'Sent here'));
+				manager.dispatchServerAction(chat.toString(), chatTurnComplete('live', 1));
+				manager.dispatchServerAction(chat.toString(), chatTurnStarted('running', 'Taking over'));
+
+				historyChanges.fire({ chat, turns: [turn('first', 'First message'), turn('stored-live', 'Sent here'), turn('elsewhere', 'Sent in the CLI')], replace: true });
+				if (turnEndsFirst) {
+					manager.dispatchServerAction(chat.toString(), chatTurnComplete('running', 1));
+				}
+				await timeout(0);
+				const firstUpdate = manager.getChatState(chat.toString())?.turns.map(turn => turn.message.text);
+				if (!turnEndsFirst) {
+					manager.dispatchServerAction(chat.toString(), chatTurnComplete('running', 1));
+					await timeout(0);
+				}
+
+				assert.deepStrictEqual({ firstUpdate, after: manager.getChatState(chat.toString())?.turns.map(turn => `${turn.id}: ${turn.message.text}`) }, {
+					firstUpdate: turnEndsFirst ? ['First message', 'Sent here', 'Sent in the CLI', 'Taking over'] : ['First message', 'Sent here'],
+					after: ['first: First message', 'stored-live: Sent here', 'elsewhere: Sent in the CLI', 'running: Taking over'],
+				});
+			});
+		}
+
 		testWithExternalSessionClock('hydrated discovery refreshes surfaced titles without changing recency or custom titles', async () => {
 			class LazyTitleAgent extends TimedExternalAgent {
 				title = 'Session';
@@ -17356,13 +17398,6 @@ suite('AgentService (node dispatcher)', () => {
 			readonly importChatCalls: string[] = [];
 			importChatError: Error | undefined;
 			importedSelection: IAgentImportedChat | undefined;
-			readonly reloadedChats = new Emitter<URI>();
-			readonly onDidReloadChat = this.reloadedChats.event;
-
-			override dispose(): void {
-				this.reloadedChats.dispose();
-				super.dispose();
-			}
 
 			override async listExternalChats(): Promise<IAgentListedChat[]> {
 				return [];
@@ -17477,27 +17512,6 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({ whileRunning, after: turnTexts() }, {
 				whileRunning: { turns: ['From the CLI'], running: 'sent-meanwhile' },
 				after: ['From the CLI', 'Back in the CLI', 'Sent meanwhile'],
-			});
-		});
-
-		test('a provider that reloads a chat while its turn runs replaces the chat\'s turns once the turn ends', async () => {
-			const { svc, agent, session, chat } = await createImportableExternalSession();
-			const userMessage = (messageId: string, content: string): IHistoryRecord => ({ type: 'message', session, role: 'user', messageId, content, toolRequests: [] });
-			const manager = getStateManager(svc);
-			const turnTexts = () => manager.getChatState(chat)?.turns.map(turn => turn.message.text);
-			agent.sessionMessages = [userMessage('msg-1', 'From the CLI')];
-			await svc.importSession(session);
-			manager.dispatchServerAction(chat, chatTurnStarted('taking-over', 'Taking over'));
-			agent.sessionMessages = [userMessage('msg-1', 'From the CLI'), userMessage('msg-2', 'Back in the CLI')];
-			agent.reloadedChats.fire(URI.parse(chat));
-			await timeout(0);
-			const whileRunning = turnTexts();
-			agent.sessionMessages = [...agent.sessionMessages, userMessage('msg-3', 'Taking over')];
-			manager.dispatchServerAction(chat, chatTurnComplete('taking-over', 1));
-			await waitForCondition(manager.onDidEmitEnvelope, () => turnTexts()?.length === 3, 'the reloaded turns should replace the chat\'s turns');
-			assert.deepStrictEqual({ whileRunning, after: turnTexts() }, {
-				whileRunning: ['From the CLI'],
-				after: ['From the CLI', 'Back in the CLI', 'Taking over'],
 			});
 		});
 
@@ -41405,7 +41419,7 @@ suite('AgentService (node dispatcher)', () => {
 				const internals = service as unknown as {
 					_postChatNotice: AgentService['_postChatNotice'];
 					_pendingChatHistories: Map<string, { readonly provider: IAgent; readonly chat: URI; readonly turns: readonly Turn[] }>;
-					_refreshChatHistory(provider: IAgent, chat: URI, turns: readonly Turn[]): Promise<void>;
+					_refreshChatHistory(change: { readonly chat: URI }): Promise<void>;
 				};
 				internals._postChatNotice(peer.toString(), {
 					kind: ResponsePartKind.SystemNotification,
@@ -41415,7 +41429,7 @@ suite('AgentService (node dispatcher)', () => {
 				const provider = getTestAgentHostProviderService(service).getProviderForSession(source)!;
 				internals._pendingChatHistories.set(peer.toString(), { provider, chat: peer, turns: [] });
 				const refreshed: string[] = [];
-				stub(internals, '_refreshChatHistory').callsFake(async (_provider, chat) => { refreshed.push(chat.toString()); });
+				stub(internals, '_refreshChatHistory').callsFake(async ({ chat }) => { refreshed.push(chat.toString()); });
 
 				await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
 				const beforeTurnEnds = { refreshed: [...refreshed], noticed: stateManager.getChatState(peer.toString())?.turns.length };

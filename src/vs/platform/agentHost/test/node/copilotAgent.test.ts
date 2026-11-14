@@ -21375,7 +21375,7 @@ suite('CopilotAgent', () => {
 			const result = await provisionSession(agent, { session, workingDirectories: [URI.file('/workspace')] });
 			client.inUseSessionIds.add(JSON.parse(result.providerData!).sdkSessionId);
 			const events: string[] = [];
-			disposables.add(agent.onDidReloadChat(reloaded => events.push(`reloaded ${isEqual(reloaded, chat)}`)));
+			disposables.add(agent.onDidChangeChatHistory!(change => events.push(`history replace=${change.replace} for chat=${isEqual(change.chat, chat)}`)));
 			disposables.add(agent.onDidChatProgress(signal => {
 				if (signal.kind !== 'action') {
 					return;
@@ -21403,7 +21403,7 @@ suite('CopilotAgent', () => {
 				const { runtimes, events, send } = await createHeldChat({ answer });
 				const outcome = await send();
 				assert.deepStrictEqual({ outcome, events, sends: runtimes.map(runtime => runtime.sendCalls), disconnects: runtimes.map(runtime => runtime.disconnectCalls) }, answer === 'takeOver'
-					? { outcome: 'resolved', events: ['asked sessionInUse', 'reloaded true'], sends: [0, 1], disconnects: [1, 0] }
+					? { outcome: 'resolved', events: ['asked sessionInUse', 'history replace=true for chat=true'], sends: [0, 1], disconnects: [1, 0] }
 					: { outcome: 'resolved', events: ['asked sessionInUse', 'cancelled'], sends: [0], disconnects: [0] });
 			});
 		}
