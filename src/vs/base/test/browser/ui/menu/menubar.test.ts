@@ -168,6 +168,8 @@ suite('Menubar', () => {
 			open: host.querySelector('.menubar-menu-button.open')?.getAttribute('aria-label') ?? null,
 			marked: host.classList.contains('menu-open')
 		});
+		// Hosts must not be notified while the menubar is disposed, or they could re-create it
+		const eventsDuringDispose: string[] = [];
 		try {
 			// A single menu would only be shown in the overflow menu
 			menubar.push([
@@ -190,19 +192,24 @@ suite('Menubar', () => {
 			openFile();
 			record();
 		} finally {
+			store.add(menubar.onFocusStateChange(focused => eventsDuringDispose.push(`focus:${focused}`)));
+			store.add(menubar.onVisibilityChange(visible => eventsDuringDispose.push(`visible:${visible}`)));
 			menubar.dispose();
 			record();
 			host.remove();
 			ModifierKeyEmitter.disposeInstance();
 		}
 
-		assert.deepStrictEqual(states, [
-			{ open: 'File', marked: true },
-			{ open: 'View', marked: true },
-			{ open: null, marked: false },
-			{ open: 'File', marked: true },
-			{ open: null, marked: false }
-		]);
+		assert.deepStrictEqual({ states, eventsDuringDispose }, {
+			states: [
+				{ open: 'File', marked: true },
+				{ open: 'View', marked: true },
+				{ open: null, marked: false },
+				{ open: 'File', marked: true },
+				{ open: null, marked: false }
+			],
+			eventsDuringDispose: []
+		});
 	});
 
 	suite('compact mode', () => {

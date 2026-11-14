@@ -441,10 +441,11 @@ export class MenuBar extends Disposable {
 	}
 
 	override dispose(): void {
-		// Close an open menu first, so the container (which the host can reuse) is not left marked as open,
-		// and the menu's focused elements are not removed during disposal, which re-enters blur handling
+		// Close an open menu first, so the container (which the host can reuse) is not left marked as open, and the menu's
+		// focused elements are not removed during disposal, which re-enters blur handling. This does not go through the
+		// focus state, so that hosts are not notified (and cannot re-create the menubar) while it is being disposed.
 		if (this.isOpen) {
-			this.setUnfocusedState();
+			this.cleanupCustomMenu();
 		}
 
 		super.dispose();
