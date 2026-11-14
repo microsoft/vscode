@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
@@ -11,7 +12,6 @@ import { createDecorator, IInstantiationService } from '../../../../../../platfo
 import { IListStyles } from '../../../../../../base/browser/ui/list/listWidget.js';
 import { IStyleOverride } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentSessionRefreshReason, IAgentSession } from '../../agentSessions/agentSessionsModel.js';
-import { IChatViewNewChatTarget } from '../../chatViewHost.js';
 
 /** The sessions list that the Chat view shows in its sessions section: its own, or one that a provider gives it. */
 export interface IChatViewSessionsListControl extends IDisposable {
@@ -29,19 +29,6 @@ export interface IChatViewSessionsListControl extends IDisposable {
 	getFocus(): IAgentSession[];
 }
 
-/** A composer of new chats that the Chat view shows in place of its chat while it shows a new chat. */
-export interface IChatViewSessionsComposer extends IDisposable {
-	/** The height of its content, which the Chat view gives it at its bottom, below the sessions while they are stacked. */
-	readonly height: IObservable<number>;
-	layout(width: number, height: number): void;
-	focus(): void;
-	/**
-	 * Starts over with a new chat, as New Chat of the Chat view does: without the input, the attachments and the target it had,
-	 * aimed at `target` when given, such as the folder and the session type of a new session that a sessions list starts.
-	 */
-	newChat(target?: IChatViewNewChatTarget): void;
-}
-
 /** A sessions list of the Chat view, with how the Chat view shows it. */
 export interface IChatViewSessionsList {
 	readonly control: IChatViewSessionsListControl;
@@ -49,8 +36,6 @@ export interface IChatViewSessionsList {
 	readonly hasHeader: boolean;
 	/** Whether the Chat view shows only the sessions, without its chat. */
 	readonly sessionsOnly: IObservable<boolean>;
-	/** Creates, in `container`, the composer of new chats that the Chat view shows in place of its new chat. */
-	createComposer?(container: HTMLElement): IChatViewSessionsComposer;
 }
 
 /** Gives the Chat view a sessions list in place of its own. */
@@ -68,6 +53,8 @@ export const IChatViewSessionsListService = createDecorator<IChatViewSessionsLis
 export interface IChatViewSessionsListService {
 	readonly _serviceBrand: undefined;
 	readonly provider: IChatViewSessionsListProvider | undefined;
+	/** Fires as {@link provider} changes, such as a feature that provides the list turning on or off. */
+	readonly onDidChangeProvider: Event<void>;
 	registerProvider(provider: IChatViewSessionsListProvider): IDisposable;
 
 	/** Whether the Chat view shows only the sessions of the list it shows, without its chat: false while it shows no provided list. */
@@ -77,9 +64,12 @@ export interface IChatViewSessionsListService {
 	setActiveList(list: IChatViewSessionsList): IDisposable;
 }
 
-export class ChatViewSessionsListService implements IChatViewSessionsListService {
+export class ChatViewSessionsListService extends Disposable implements IChatViewSessionsListService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidChangeProvider = this._register(new Emitter<void>());
+	readonly onDidChangeProvider = this._onDidChangeProvider.event;
 
 	/** One registration each, also of the same provider. */
 	private readonly _providers: { readonly provider: IChatViewSessionsListProvider }[] = [];
@@ -102,11 +92,20 @@ export class ChatViewSessionsListService implements IChatViewSessionsListService
 
 	registerProvider(provider: IChatViewSessionsListProvider): IDisposable {
 		const registration = { provider };
+		const previous = this.provider;
 		this._providers.push(registration);
+		// The same provider registering again, such as a feature that holds it more than once, changes nothing
+		if (this.provider !== previous) {
+			this._onDidChangeProvider.fire();
+		}
 		return toDisposable(() => {
 			const index = this._providers.indexOf(registration);
 			if (index >= 0) {
+				const previous = this.provider;
 				this._providers.splice(index, 1);
+				if (this.provider !== previous) {
+					this._onDidChangeProvider.fire();
+				}
 			}
 		});
 	}
