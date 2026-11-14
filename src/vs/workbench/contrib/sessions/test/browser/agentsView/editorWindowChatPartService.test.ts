@@ -118,6 +118,23 @@ suite('EditorWindowChatPartService', () => {
 		]);
 	});
 
+	test('a feature that enables it twice with the same options keeps it until it disposes both', async () => {
+		const { service, events } = createService({ visible: false });
+		const options = { anchorViewId: 'list', anchorPriority: 1, enabled: constObservable(true) };
+
+		const first = service.enable(options);
+		const second = service.enable(options);
+		first.dispose();
+		const afterFirst = { enabled: service.enabled.get(), events: [...events] };
+		second.dispose();
+		await timeout(0);
+
+		assert.deepStrictEqual({ afterFirst, afterBoth: service.enabled.get() }, {
+			afterFirst: { enabled: true, events: ['create part', 'hold providers', 'register composer holder', 'register host', 'register presenter', 'anchor list', 'anchor list', 'anchor list'] },
+			afterBoth: false,
+		});
+	});
+
 	test('restores the chats it showed as the window last closed, while chats open in it', async () => {
 		const { service, events } = createService({ visible: true });
 

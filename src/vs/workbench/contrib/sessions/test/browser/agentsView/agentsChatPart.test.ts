@@ -308,6 +308,40 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual({ draft, untitled, firstTurn: active() }, { draft: 'none', untitled: 'none', firstTurn: { session: true, chat: true } });
 	});
 
+	test('the session a composer\'s first send made shows as committed, until the user picks its tab again', async () => {
+		const status = observableValue<SessionStatus>('status', SessionStatus.Untitled);
+		const mainChat = upcastPartial<IChat>({ resource: chatA });
+		const created = upcastPartial<ISession>({ status, mainChat: constObservable(mainChat) });
+		const newSession = observableValue<ISession | undefined>('newSession', undefined);
+		const { service, part } = createService({ newSession });
+		const shown = () => { const value = service.shownSession.get(); return value ? `${value.resource.path} ${value.reason}` : 'none'; };
+
+		await service.openComposer(undefined);
+		const composerTab = part.activeGroup.activeEditor!;
+		const draft = shown();
+		newSession.set(created, undefined);
+		status.set(SessionStatus.InProgress, undefined);
+		const committed = shown();
+		// The user moves to another tab, and back to the composer's
+		await service.openComposer(undefined, { newComposer: true });
+		part.activeGroup.open(composerTab);
+
+		assert.deepStrictEqual({ draft, committed, picked: shown() }, { draft: 'none', committed: '/a commit', picked: '/a open' });
+	});
+
+	test('a chat opened as restored shows as restored, and as opened once the user opens it', async () => {
+		const restoredSession = buildTestSession({ id: 'restored', title: 'Restored' });
+		const main = restoredSession.mainChat.chat.resource;
+		const { service } = createService({ sessions: () => [restoredSession.session] });
+		const shown = async () => { await timeout(0); const value = service.shownSession.get(); return value && `${isEqual(value.resource, main) ? 'main' : value.resource.toString()} ${value.reason}`; };
+
+		await service.openChat(restoredSession.session, main, { restore: true });
+		const restored = await shown();
+		await service.openChat(restoredSession.session, main);
+
+		assert.deepStrictEqual({ restored, opened: await shown() }, { restored: 'main restore', opened: 'main open' });
+	});
+
 	test('closing the tab of a composer releases it: opening and closing composers keeps nothing', async () => {
 		const { service, part, state } = createService();
 		const baseline = state().sessionListeners;
@@ -566,6 +600,25 @@ suite('AgentsChatPartService', () => {
 		await service.openChat(shownSession.session, main);
 
 		assert.deepStrictEqual({ restored, reopened, opened: await shown() }, { restored: 'peer restore', reopened: 'peer open', opened: 'main open' });
+	});
+
+	test('a chat the user opens while the chat part restores is opened, and the tab the restore activates is restored', async () => {
+		const shownSession = buildTestSession({ id: 'overlap', title: 'Overlap', chats: [{ id: 'peer', title: 'Peer' }] });
+		const main = shownSession.mainChat.chat.resource;
+		const peer = shownSession.chats.get('peer')!.chat.resource;
+		const { service } = createService({ stored: JSON.stringify({ chats: [main.toString(), peer.toString()], active: 1 }), visible: true, sessions: () => [shownSession.session] });
+		const shown = () => { const value = service.shownSession.get(); return value && `${isEqual(value.resource, main) ? 'main' : isEqual(value.resource, peer) ? 'peer' : value.resource.toString()} ${value.reason}`; };
+
+		const restoring = service.restore();
+		// The user opens the restored tab that the restore activates, while it is under way
+		await service.openChat(shownSession.session, peer);
+		await restoring;
+		await timeout(0);
+		const afterRestore = shown();
+		await service.openChat(shownSession.session, main);
+		await timeout(0);
+
+		assert.deepStrictEqual({ afterRestore, afterOpen: shown() }, { afterRestore: 'peer open', afterOpen: 'main open' });
 	});
 
 	test('its composers offer the window\'s folders, or those a feature provides while it does', () => {

@@ -201,7 +201,23 @@ suite('AgentsChatViewHost', () => {
 		});
 	});
 
-	test('deactivated while it loads the session it starts, it shows neither the session nor a composer', async () => {
+	test('opens a session as restored when asked to, so that it does not report it as opened', async () => {
+		const chatResource = URI.parse('agent-host-copilot:/session-1');
+		const { owner, widget } = sessionOf(chatResource);
+		const opened: (boolean | undefined)[] = [];
+		const { host } = createHost({
+			chatPart: { openChat: async (_session, _chat, openOptions) => { opened.push(openOptions?.restore); } },
+			sessionsManagementService: { getSessionForChatResource: () => owner },
+			widgets: [widget],
+		});
+
+		await host.openSession(chatResource, { restore: true });
+		await host.openSession(chatResource);
+
+		assert.deepStrictEqual(opened, [true, undefined]);
+	});
+
+	test('deactivated while it loads the session it starts, it releases the session and starts nothing', async () => {
 		const load = new DeferredPromise<void>();
 		const calls: string[] = [];
 		const { host, calls: hostCalls } = createHost({ chatService: { acquireOrLoadSession: async () => { await load.p; return upcastPartial<IChatModelReference>({ dispose: () => calls.push('release model') }); } } });
@@ -209,12 +225,36 @@ suite('AgentsChatViewHost', () => {
 		const starting = host.startSession(URI.parse('agent-host-copilot:/untitled-1'), { local: false, importingConversation: false });
 		host.deactivate();
 		load.complete();
-		const start = await starting;
-		const shown = await start.complete(URI.parse('agent-host-copilot:/session-1'), true);
+		let cancelled = false;
+		try {
+			await starting;
+		} catch (error) {
+			cancelled = isCancellationError(error);
+		}
+
+		assert.deepStrictEqual({ cancelled, calls: [...hostCalls, ...calls] }, { cancelled: true, calls: ['release model'] });
+	});
+
+	test('deactivated while it looks up the session it started, it shows neither the session nor a composer', async () => {
+		const lookup = new DeferredPromise<void>();
+		const chatResource = URI.parse('agent-host-copilot:/session-1');
+		const { owner } = sessionOf(chatResource);
+		const { host, calls } = createHost({
+			sessionsManagementService: {
+				getSessionForChatResource: () => lookup.isSettled ? owner : undefined,
+				onDidChangeSession: listener => { void lookup.p.then(() => listener([])); return toDisposable(() => { }); },
+			},
+		});
+
+		const start = await host.startSession(URI.parse('agent-host-copilot:/untitled-1'), { local: false, importingConversation: false });
+		const completing = start.complete(chatResource, true);
+		host.deactivate();
+		lookup.complete();
+		const shown = await completing;
 		const composer = await start.createComposer();
 		start.dispose();
 
-		assert.deepStrictEqual({ shown, composer, calls: [...hostCalls, ...calls] }, { shown: false, composer: undefined, calls: ['release model'] });
+		assert.deepStrictEqual({ shown, composer, calls }, { shown: false, composer: undefined, calls: ['hold agent-host-copilot:/untitled-1', 'acquire', 'release', 'release agent-host-copilot:/untitled-1'] });
 	});
 
 	test('deactivated while it looks a session up, it does not open the chat part', async () => {

@@ -125,7 +125,7 @@ export class AgentsChatViewHost implements IChatViewHost {
 			if (!owner || generation !== this._generation) {
 				return undefined;
 			}
-			await this._chatPart.openChat(owner.session, owner.chat.resource, { preserveFocus: options?.preserveFocus });
+			await this._chatPart.openChat(owner.session, owner.chat.resource, { preserveFocus: options?.preserveFocus, restore: options?.restore });
 			return await this._waitForWidget(owner.chat.resource);
 		} finally {
 			hold.dispose();
@@ -160,6 +160,11 @@ export class AgentsChatViewHost implements IChatViewHost {
 		const model = await this._chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, 'AgentsChatViewHost#startSession', 'explicitOverride');
 		if (!model) {
 			throw new Error(`Unable to load the chat session ${sessionResource.toString()}`);
+		}
+		if (generation !== this._generation) {
+			// Deactivated while the model loaded: it holds it no longer, and starts nothing
+			model.dispose();
+			throw new CancellationError();
 		}
 		const sessionType = sessionResource.scheme;
 		let composer: Promise<IChatWidget | undefined> | undefined;

@@ -64,8 +64,9 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _owners = observableValue<readonly IEditorWindowChatPartOptions[]>(this, []);
-	readonly enabled: IObservable<boolean> = derived(this, reader => this._owners.read(reader).some(owner => owner.enabled.read(reader)));
+	/** One per call of {@link enable}, also of the same options: each is removed by its own disposal only. */
+	private readonly _owners = observableValue<readonly { readonly options: IEditorWindowChatPartOptions }[]>(this, []);
+	readonly enabled: IObservable<boolean> = derived(this, reader => this._owners.read(reader).some(owner => owner.options.enabled.read(reader)));
 
 	/** What the chat part does while a feature enabled it. */
 	private readonly _active = this._register(new MutableDisposable<DisposableStore>());
@@ -84,11 +85,12 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 	}
 
 	enable(options: IEditorWindowChatPartOptions): IDisposable {
-		this._owners.set([...this._owners.get(), options], undefined);
+		const owner = { options };
+		this._owners.set([...this._owners.get(), owner], undefined);
 		this._active.value ??= this._activate();
 		this._updateAnchor();
 		return toDisposable(() => {
-			this._owners.set(this._owners.get().filter(candidate => candidate !== options), undefined);
+			this._owners.set(this._owners.get().filter(candidate => candidate !== owner), undefined);
 			if (!this._owners.get().length) {
 				this._active.clear();
 			} else {
@@ -98,7 +100,7 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 	}
 
 	private _updateAnchor(): void {
-		const anchor = [...this._owners.get()].sort((a, b) => b.anchorPriority - a.anchorPriority).at(0);
+		const anchor = this._owners.get().map(owner => owner.options).sort((a, b) => b.anchorPriority - a.anchorPriority).at(0);
 		this._layoutService.setChatPartAnchor(anchor && { viewId: anchor.anchorViewId });
 	}
 
