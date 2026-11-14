@@ -127,7 +127,7 @@ export class AgentsChatViewHost implements IChatViewHost {
 		const generation = this._generation;
 		const hold = this._providers.acquire();
 		try {
-			const owner = await waitForAgentsViewSession(this._sessionsManagementService, sessionResource, () => this._sessionsManagementService.getSessionForChatResource(sessionResource));
+			const owner = await waitForAgentsViewSession(this._sessionsManagementService, () => this._sessionsManagementService.getSessionForChatResource(sessionResource));
 			if (!owner || generation !== this._generation) {
 				return undefined;
 			}
