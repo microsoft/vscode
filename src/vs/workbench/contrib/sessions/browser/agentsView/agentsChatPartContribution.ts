@@ -7,7 +7,7 @@ import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -19,6 +19,7 @@ import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
 import { ChangesMultiDiffSourceResolver } from '../../../sessionChanges/browser/changesMultiDiffSourceResolver.js';
 import { SessionChangesEditor } from '../../../sessionChanges/browser/sessionChangesEditor.js';
 import { SessionChangesEditorInput, SessionChangesEditorSerializer } from '../../../sessionChanges/browser/sessionChangesEditorInput.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../editorWindow/editorWindowSessionsPresenter.js';
 import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessionsRuntime.js';
 import { IAgentsChatPartService, restoreAgentsChatPart } from './agentsChatPart.js';
@@ -120,30 +121,31 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 		// The part, before the workbench creates its grid: reading it creates the delayed frame
 		void this._frame.part;
 
-		// The Changes editor that the pills of the chats open in the editor area, as the Agents window registers it
+		// What shows chats is provisioned as it is first needed, and stays, also once chats no longer open in it: before then,
+		// the window has only the empty part, hidden
+		let visible: IContextKey<boolean> | undefined;
+		const provision = () => visible ??= this._provision(store);
+
+		// The Changes editor that the pills of the chats open in the editor area, as the Agents window registers it: from the
+		// start, so that one the window restores, also while chats do not open in the chat part, is not dropped. Restoring one
+		// provisions what shows its changes, such as the sessions of its chats.
 		store.add(Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 			EditorPaneDescriptor.create(SessionChangesEditor, SessionChangesEditor.ID, localize('sessionChangesEditor.label', "Changes")),
 			[new SyncDescriptor(SessionChangesEditorInput)]
 		));
-		store.add(Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(SessionChangesEditorInput.ID, SessionChangesEditorSerializer));
+		store.add(Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(SessionChangesEditorInput.ID, class extends SessionChangesEditorSerializer {
+			override deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
+				provision();
+				return super.deserialize(instantiationService, serializedEditor);
+			}
+		}));
 		// Its diffs, also of a Changes editor that the window restores
 		store.add(this._instantiationService.createInstance(ChangesMultiDiffSourceResolver));
 
-		const visible = AgentsChatPartVisibleContext.bindTo(this._contextKeyService);
-		store.add(this._layoutService.onDidChangePartVisibility(({ partId }) => {
-			if (partId === Parts.CHAT_PART) {
-				visible.set(this._layoutService.isVisible(Parts.CHAT_PART));
+		store.add(autorun(reader => {
+			if (this.enabled.read(reader)) {
+				provision();
 			}
-		}));
-		store.add(toDisposable(() => visible.reset()));
-
-		// The sessions of its chats are known while it shows, and while its composers hold drafts, also while chats no longer
-		// open in it
-		store.add(this._sessionsRuntime.enable({ viewIds: [] }));
-		const existing = () => this._frame.contentCreated.get() ? this._frame.content.get() : undefined;
-		store.add(this._presenterService.registerComposerHolder({
-			hasComposer: () => !!existing()?.hasComposer(),
-			closeIdleComposers: async () => existing()?.closeIdleComposers(),
 		}));
 
 		// The picker of its changesets, in the header row it shows itself in an editor window
@@ -182,11 +184,36 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 				return;
 			}
 			const restored = this.enabled.get() ? restoreAgentsChatPart(this._layoutService, this._contextKeyService, () => this._chatPart()) : undefined;
-			visible.set(this._layoutService.isVisible(Parts.CHAT_PART));
+			visible?.set(this._layoutService.isVisible(Parts.CHAT_PART));
 			return restored;
 		}).catch(onUnexpectedError);
 
 		return store;
+	}
+
+	/**
+	 * Provisions what shows chats in the chat part and their changes, into `store`: the context of its visibility, which it
+	 * returns, and the sessions of its chats.
+	 */
+	private _provision(store: DisposableStore): IContextKey<boolean> {
+		const visible = AgentsChatPartVisibleContext.bindTo(this._contextKeyService);
+		store.add(this._layoutService.onDidChangePartVisibility(({ partId }) => {
+			if (partId === Parts.CHAT_PART) {
+				visible.set(this._layoutService.isVisible(Parts.CHAT_PART));
+			}
+		}));
+		store.add(toDisposable(() => visible.reset()));
+
+		// The sessions of its chats are known while it shows, and while its composers hold drafts, also while chats no longer
+		// open in it
+		store.add(this._sessionsRuntime.enable({ viewIds: [] }));
+		const existing = () => this._frame.contentCreated.get() ? this._frame.content.get() : undefined;
+		store.add(this._presenterService.registerComposerHolder({
+			hasComposer: () => !!existing()?.hasComposer(),
+			closeIdleComposers: async () => existing()?.closeIdleComposers(),
+		}));
+
+		return visible;
 	}
 
 	private _chatPart(): IAgentsChatPartService {
