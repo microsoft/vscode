@@ -724,8 +724,10 @@ suite('ChatViewPane session transitions', () => {
 		const takenLater = await second;
 		await a.acquired.complete({ modelRef: a.ref });
 		const takenEarlier = await first;
+		// The rig's next chat, which these New Chats do not use
+		rig.nextRef.dispose();
 
-		assert.deepStrictEqual({ takenEarlier, takenLater, bindings: rig.bindings.map(resource => resource?.path), composerCalls, disposedNew, shown: rig.widget.viewModel?.sessionResource.path }, {
+		assert.deepStrictEqual({ takenEarlier, takenLater, bindings: rig.bindings.map(resource => resource?.path), composerCalls, disposedNew, shown: rig.widget.viewModel?.sessionResource?.path }, {
 			takenEarlier: true,
 			takenLater: true,
 			bindings: ['/untitled-b'],
