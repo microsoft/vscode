@@ -485,6 +485,17 @@ suite('Workbench layout chat part', () => {
 			});
 		});
 
+		test('hiding the chat part while a maximized secondary side bar had hidden it shows the editor area again', () => {
+			const { layout } = createGridLayout(configuration);
+			layout.setEditorHiddenByChat(true);
+			layout.toggleMaximizedAuxiliaryBar();
+			layout.setPartHidden(true, Parts.CHAT_PART);
+			assert.deepStrictEqual({ afterHide: state(layout), maximized: layout.isAuxiliaryBarMaximized() }, {
+				afterHide: { hiddenByChat: false, editor: true, chat: false, panel: true },
+				maximized: false,
+			});
+		});
+
 		test('maximizing the secondary side bar and restoring it keeps the editor area hidden', () => {
 			const { layout } = createGridLayout(configuration);
 			layout.setEditorHiddenByChat(true);

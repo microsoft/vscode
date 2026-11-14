@@ -416,7 +416,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			// Hidden for the chat part, opening an editor only shows the editor area again
 			if (this.isEditorHiddenByChat()) {
-				this.setEditorHiddenByChat(false);
+				// An editor that opens in the background does not unmaximize a secondary side bar that the user chose
+				if (!(explicitUserAction === false && this.isAuxiliaryBarMaximized())) {
+					this.setEditorHiddenByChat(false);
+				}
 				return;
 			}
 
@@ -2004,9 +2007,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return; // return: leaving maximised auxiliary bar made this part visible
 		}
 
-		// Showing the editor area, for whatever reason, ends hiding it for the chat part
-		if (!hidden) {
-			this.clearEditorHiddenByChat();
+		// Showing the editor area, for whatever reason, ends hiding it for the chat part. The chat part keeps its priority
+		// until the editor area is back in the grid, so that the editor takes its width from the chat part, not from its neighbors.
+		const endsHiddenByChat = !hidden && this.isEditorHiddenByChat();
+		if (endsHiddenByChat) {
+			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT, false);
 		}
 
 		this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, hidden);
@@ -2020,6 +2025,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Propagate to grid
 		this.workbenchGrid.setViewVisible(this.editorPartView, !hidden);
+		if (endsHiddenByChat) {
+			const chatPart = this.getChatHostPart();
+			if (chatPart) {
+				chatPart.fillsEditorArea = false;
+			}
+		}
 
 		// The editor and panel cannot be hidden at the same time
 		// unless we have a maximized auxiliary bar or a chat part shows
@@ -2479,21 +2490,19 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		}
 
-		if (this.chatPartHidden === hidden) {
-			return;
+		if (this.chatPartHidden !== hidden) {
+			// Focus inside the chat part that hides moves to the panel or the editor, not to the body of the window
+			const hadFocus = hidden && this.hasFocus(Parts.CHAT_PART);
+			this.chatPartHidden = hidden;
+			this.workbenchGrid.setViewVisible(this.chatPartView, !hidden);
+			// The sashes beside it move: where they meet the others changes too
+			this.updateSashEndpoints();
+			if (hadFocus) {
+				this.focusPanelOrEditor();
+			}
 		}
 
-		// Focus inside the chat part that hides moves to the panel or the editor, not to the body of the window
-		const hadFocus = hidden && this.hasFocus(Parts.CHAT_PART);
-		this.chatPartHidden = hidden;
-		this.workbenchGrid.setViewVisible(this.chatPartView, !hidden);
-		// The sashes beside it move: where they meet the others changes too
-		this.updateSashEndpoints();
-		if (hadFocus) {
-			this.focusPanelOrEditor();
-		}
-
-		// Closing the chat part gives the editor area its width back, also when it was hidden
+		// Closing the chat part gives the editor area its width back, also when it was hidden, or hidden with the chat part by a maximized secondary side bar
 		if (hidden && !this.isVisible(Parts.EDITOR_PART) && (this.isEditorHiddenByChat() || (!this.isVisible(Parts.PANEL_PART) && !this.isAuxiliaryBarMaximized()))) {
 			this.setEditorHidden(false);
 		}
