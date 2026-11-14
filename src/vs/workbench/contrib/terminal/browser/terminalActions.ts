@@ -51,6 +51,7 @@ import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../services/ed
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { accessibleViewCurrentProviderId, accessibleViewIsShown, accessibleViewOnLastLine } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { IRemoteTerminalAttachTarget, ITerminalProfileResolverService, ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../common/terminal.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
@@ -278,6 +279,19 @@ export interface ITerminalServicesCollection {
 	editingService: ITerminalEditingService;
 	profileService: ITerminalProfileService;
 	profileResolverService: ITerminalProfileResolverService;
+}
+
+/**
+ * Hides the terminal view if it is visible, otherwise shows and focuses it. Unlike
+ * {@link TerminalCommandId.Toggle}, which hides the view only when it has focus, this works from UI
+ * that takes focus when clicked, such as a status bar item.
+ */
+export async function toggleTerminalVisibility(viewsService: Pick<IViewsService, 'isViewVisible' | 'closeView' | 'openView'>): Promise<void> {
+	if (viewsService.isViewVisible(TERMINAL_VIEW_ID)) {
+		viewsService.closeView(TERMINAL_VIEW_ID);
+	} else {
+		await viewsService.openView(TERMINAL_VIEW_ID, true);
+	}
 }
 
 function getTerminalServices(accessor: ServicesAccessor): ITerminalServicesCollection {
@@ -512,6 +526,13 @@ export function registerTerminalActions() {
 			c.service.setActiveInstance(instance);
 			await focusActiveTerminal(instance, c);
 		}
+	});
+
+	registerTerminalAction({
+		id: TerminalCommandId.ToggleVisibility,
+		title: localize2('workbench.action.terminal.toggleVisibility', 'Toggle Terminal Visibility'),
+		f1: false,
+		run: (c, accessor) => toggleTerminalVisibility(accessor.get(IViewsService))
 	});
 
 	registerTerminalAction({
