@@ -179,7 +179,7 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 	private trackShownSession(host: IChatViewHost): IDisposable {
 		return host.shownSession ? runOnChange(host.shownSession, shown => {
 			if (shown) {
-				this.claim(host);
+				this.claim(host, false, false);
 			}
 		}) : Disposable.None;
 	}
@@ -187,8 +187,17 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 	private readonly _replaced = observableValue(this, false);
 	readonly replaced: IObservable<boolean> = this._replaced;
 
-	/** Makes `host` the host that showed something last: a new chat of New Chat while `newChat`. */
-	private claim(host: IChatViewHost, newChat = false): void {
+	/** Counts the claims that something asked for, such as an open, as opposed to a host showing a chat on its own. */
+	private requestedClaims = 0;
+
+	/**
+	 * Makes `host` the host that showed something last: a new chat of New Chat while `newChat`. A claim that something asked
+	 * for (`requested`) supersedes a New Chat under way, which then no longer claims its host.
+	 */
+	private claim(host: IChatViewHost, newChat = false, requested = true): void {
+		if (requested) {
+			this.requestedClaims++;
+		}
 		// A host no longer registered, such as one that completes a reveal after it was removed, shows nothing of the Chat view's
 		if (host !== this.chatViewHost && !this.registrations.some(registration => registration.host === host)) {
 			return;
@@ -281,13 +290,15 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 	}
 
 	async newChat(target?: IChatViewNewChatTarget, options?: IChatViewHostNewChatOptions): Promise<boolean> {
+		// An open or other request that completes meanwhile shows what it asked for: the New Chat, superseded, claims nothing
+		const requestedClaims = this.requestedClaims;
 		let host = this.host;
 		let taken = await host.newChat?.(target, options) ?? false;
 		if (!taken && options?.ownChat && host !== this.chatViewHost) {
 			host = this.chatViewHost;
 			taken = await host.newChat?.(target, options) ?? false;
 		}
-		if (taken) {
+		if (taken && requestedClaims === this.requestedClaims) {
 			this.claim(host, true);
 		}
 		return taken;
