@@ -8,17 +8,18 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { CellIdPatternRe, getCellIdMap } from '../../../platform/notebook/common/helpers';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
+import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { LinkifiedPart, LinkifiedText, LinkifyLocationAnchor } from '../common/linkifiedText';
 import { IContributedLinkifier, LinkifierContext } from '../common/linkifyService';
-import { Disposable, IDisposable } from '../../../util/vs/base/common/lifecycle';
 
 /**
  * Linkifies notebook cell IDs in chat responses.
  * The linkified text will show as "<Cell ID> (Cell <number>)" where number is the cell's index + 1.
  */
-export class NotebookCellLinkifier extends Disposable implements IDisposable, IContributedLinkifier {
-	private cells = new Map<string, WeakRef<NotebookCell>>();
-	private notebookCellIds = new WeakMap<NotebookDocument, Set<string>>();
+export class NotebookCellLinkifier extends Disposable implements IContributedLinkifier {
+	// Cell IDs are truncated hashes, so distinct notebooks can have the same ID.
+	private readonly cells = new Map<string, Set<WeakRef<NotebookCell>>>();
+	private notebookCellIds = new WeakMap<NotebookDocument, Map<string, WeakRef<NotebookCell>>>();
 	private initialized = false;
 	constructor(
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
@@ -31,7 +32,7 @@ export class NotebookCellLinkifier extends Disposable implements IDisposable, IC
 		const parts: LinkifiedPart[] = [];
 
 		// Safety check
-		if (!text || !this.workspaceService?.notebookDocuments) {
+		if (this._store.isDisposed || !text || !this.workspaceService?.notebookDocuments) {
 			return { parts: [text] };
 		}
 
@@ -76,7 +77,8 @@ export class NotebookCellLinkifier extends Disposable implements IDisposable, IC
 	private resolveCellId(cellId: string): LinkifyLocationAnchor | undefined {
 		try {
 			this.initializeCellIds();
-			const cell = this.cells.get(cellId)?.deref();
+			const candidates = this.cells.get(cellId);
+			const cell = candidates && Array.from(candidates).at(-1)?.deref();
 			if (!cell) {
 				return;
 			}
@@ -91,30 +93,46 @@ export class NotebookCellLinkifier extends Disposable implements IDisposable, IC
 		if (this.initialized) {
 			return;
 		}
+		this.initialized = true;
+		const removeNbCellIds = (notebook: NotebookDocument) => {
+			this.notebookCellIds.get(notebook)?.forEach((cell, cellId) => {
+				const candidates = this.cells.get(cellId);
+				candidates?.delete(cell);
+				if (!candidates?.size) {
+					this.cells.delete(cellId);
+				}
+			});
+			this.notebookCellIds.delete(notebook);
+		};
 		const updateNbCellIds = (notebook: NotebookDocument) => {
-			const ids = this.notebookCellIds.get(notebook) ?? new Set<string>();
-			ids.forEach(id => this.cells.delete(id));
+			removeNbCellIds(notebook);
+			const ids = new Map<string, WeakRef<NotebookCell>>();
 			getCellIdMap(notebook).forEach((cell, cellId) => {
-				this.cells.set(cellId, new WeakRef(cell));
-				ids.add(cellId);
+				const reference = new WeakRef(cell);
+				let candidates = this.cells.get(cellId);
+				if (!candidates) {
+					candidates = new Set();
+					this.cells.set(cellId, candidates);
+				}
+				candidates.add(reference);
+				ids.set(cellId, reference);
 			});
 			this.notebookCellIds.set(notebook, ids);
 		};
 
 		this._register(this.workspaceService.onDidOpenNotebookDocument(notebook => updateNbCellIds(notebook)));
-		this._register(this.workspaceService.onDidCloseNotebookDocument(notebook => {
-			if (this.workspaceService.notebookDocuments.length === 0) {
-				this.cells.clear();
-				return;
-			}
-			const ids = this.notebookCellIds.get(notebook) ?? new Set<string>();
-			ids.forEach(id => this.cells.delete(id));
-		}));
+		this._register(this.workspaceService.onDidCloseNotebookDocument(notebook => removeNbCellIds(notebook)));
 		this._register(this.workspaceService.onDidChangeNotebookDocument(e => {
 			if (e.contentChanges.length) {
 				updateNbCellIds(e.notebook);
 			}
 		}));
 		this.workspaceService.notebookDocuments.forEach(notebook => updateNbCellIds(notebook));
+	}
+
+	override dispose(): void {
+		super.dispose();
+		this.cells.clear();
+		this.notebookCellIds = new WeakMap();
 	}
 }
