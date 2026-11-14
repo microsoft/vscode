@@ -10,7 +10,7 @@ import type { IAgentModelInfo } from '../../common/agent.js';
 import { modelConfigurationSourceKey } from '../../common/agentModelConfiguration.js';
 import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../common/meta/agentModelConfigurationMeta.js';
 import { withAgentModelAutoTiersMeta } from '../../common/meta/agentModelMeta.js';
-import { omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration, type CopilotManagedModelPolicy } from '../../node/copilot/copilotManagedModelConfiguration.js';
+import { createCopilotModelConfigurationReport, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration, type CopilotManagedModelPolicy } from '../../node/copilot/copilotManagedModelConfiguration.js';
 
 suite('Copilot managed model configuration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -45,6 +45,20 @@ suite('Copilot managed model configuration', () => {
 			managed: { model: true, keys: ['thinkingLevel', 'contextSize'] },
 			originalDefault: 'low',
 		});
+	});
+
+	test('reports the runtime model by its catalog id and an unset context tier as the default window', () => {
+		const byok: IAgentModelInfo = { ...model, id: 'customendpoint/pool-model', name: 'Pool' };
+		const report = (current: Parameters<typeof createCopilotModelConfigurationReport>[2]) => createCopilotModelConfigurationReport([model, byok], { values: {} }, current, undefined, new NullLogService()).current;
+		assert.deepStrictEqual([
+			report({ modelId: 'gpt-5', providerId: 'copilot', reasoningEffort: 'high' }),
+			report({ modelId: 'gpt-5', providerId: 'copilot', reasoningEffort: 'high', contextTier: 'long_context' }),
+			report({ modelId: 'pool-model', providerId: 'customendpoint', contextTier: 'default' }),
+		], [
+			{ id: 'gpt-5', config: { thinkingLevel: 'high', [modelConfigurationSourceKey('thinkingLevel')]: 'default', contextSize: 200_000, [modelConfigurationSourceKey('contextSize')]: 'default' } },
+			{ id: 'gpt-5', config: { thinkingLevel: 'high', [modelConfigurationSourceKey('thinkingLevel')]: 'default', contextSize: 1_000_000, [modelConfigurationSourceKey('contextSize')]: 'default' } },
+			{ id: 'customendpoint/pool-model', config: { contextSize: 200_000, [modelConfigurationSourceKey('contextSize')]: 'default' } },
+		]);
 	});
 
 	test('unavailable models and unresolved aliases never transfer their options to another model', () => {
