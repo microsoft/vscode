@@ -151,6 +151,36 @@ suite('Multicursor selection', () => {
 		});
 	});
 
+	test('issue #107090: Add selection to next find match does not work with regex find mode', () => {
+		withTestCodeEditor([
+			'something',
+			'someething',
+			'someeething',
+			'nothing'
+		], { serviceCollection: serviceCollection, hasTextFocus: false }, (editor) => {
+
+			const findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
+			const multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
+			const addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
+
+			editor.setSelection(new Selection(1, 1, 1, 1));
+			findController.getState().change({ searchString: 'some+thing', isRegex: true, isRevealed: true }, false);
+
+			addSelectionToNextFindMatch.run(null!, editor);
+			addSelectionToNextFindMatch.run(null!, editor);
+			addSelectionToNextFindMatch.run(null!, editor);
+
+			assert.deepStrictEqual(editor.getSelections()!.map(fromRange), [
+				[1, 1, 1, 10],
+				[2, 1, 2, 11],
+				[3, 1, 3, 12],
+			]);
+
+			multiCursorSelectController.dispose();
+			findController.dispose();
+		});
+	});
+
 	test('AddSelectionToNextFindMatchAction can work with multiline', () => {
 		withTestCodeEditor([
 			'',
