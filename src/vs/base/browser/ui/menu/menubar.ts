@@ -1057,6 +1057,11 @@ export class MenuBar extends Disposable {
 		};
 
 		const menuWidget = this.menuDisposables.add(new Menu(menuHolder, customMenu.actions, menuOptions, this.menuStyle));
+		// Round the edge that meets the title to the device pixel the title's edge is painted at, so the menu neither covers the title nor leaves a gap
+		DOM.alignToDevicePixels(menuHolder, {
+			horizontal: this.options.compactMode?.horizontal === HorizontalDirection.Left ? 'nearestEnd' : 'nearest',
+			vertical: this.options.compactMode?.vertical === VerticalDirection.Above ? 'nearestEnd' : 'nearest'
+		});
 		this.menuDisposables.add(menuWidget.onDidCancel(() => {
 			this.focusState = MenubarState.FOCUSED;
 		}));
