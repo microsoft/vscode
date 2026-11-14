@@ -578,7 +578,8 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.sizing-fixed:not(.sticky-compact):not(.sticky-shrink) {
+/* Honor fixed sizing instead of the legacy leading-action minimum. */
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.sizing-fixed.tab-actions-left:not(.sticky-compact):not(.sticky-shrink) {
 	min-width: var(--tab-sizing-current-width, var(--tab-sizing-fixed-min-width, 50px));
 }
 

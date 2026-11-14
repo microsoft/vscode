@@ -1029,6 +1029,28 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(results.filter(result => !result.widthsMatch || !result.actionsInBounds), []);
 	});
 
+	test('connected fixed width bounds leave compact and shrink pinned tabs at their dedicated widths', async () => {
+		const group = connectedGroup();
+		openNamedEditors(['sticky.ts', 'regular.ts']);
+		const sticky = model.getEditorByIndex(0)!;
+		model.stick(sticky);
+		control.stickEditor(sticky);
+		const results = [];
+		for (const pinnedTabSizing of ['compact', 'shrink'] as const) {
+			for (const minimum of [50, 120]) {
+				const oldOptions = partOptions;
+				partOptions = { ...partOptions, tabSizing: 'fixed', pinnedTabSizing, tabSizingFixedMinWidth: minimum, tabSizingFixedMaxWidth: 140, editorActionsLocation: 'hidden' };
+				control.updateOptions(oldOptions, partOptions);
+				await layoutConnectedGroup(group, 600);
+				results.push({
+					pinnedTabSizing, minimum,
+					width: container.querySelector<HTMLElement>('.tab.sticky')!.getBoundingClientRect().width,
+				});
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, width: result.pinnedTabSizing === 'compact' ? 28 : 80 })));
+	});
+
 	test('fit and shrink tabs ignore fixed width bounds and respond to available space', async () => {
 		const group = connectedGroup();
 		const root = group.closest<HTMLElement>('.monaco-workbench')!;

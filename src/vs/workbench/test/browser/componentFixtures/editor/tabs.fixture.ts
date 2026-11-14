@@ -672,6 +672,9 @@ function createDensityFixtures() {
 }
 
 function createLayoutFixtures() {
+	const narrowFixedEditors = ['a.ts', 'b.ts', 'c.ts'].map((name, index) => ({
+		resource: file(`/project/${name}`), pinned: true, active: index === 1,
+	}));
 	return {
 		ActionsHidden: defineComponentFixture({
 			render: render(true, { partOptions: { tabActionCloseVisibility: false } }),
@@ -721,6 +724,28 @@ function createLayoutFixtures() {
 		LongNamesFixed: defineComponentFixture({
 			render: render(true, { partOptions: { tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120 }, editors: longLabelEditorSpecs(), width: 520 }),
 			expectedVisualDescriptions: ['Fixed-size long labels use equal tab widths, real ellipses, and stable action columns.'],
+		}),
+		FixedWidthMaximum: defineComponentFixture({
+			fileIconTheme: 'none',
+			themes: ['dark'],
+			additionalThemes: ['light2026', 'darkHighContrast'],
+			render: render(true, {
+				editors: narrowFixedEditors,
+				partOptions: { tabSizing: 'fixed', tabSizingFixedMinWidth: 50, tabSizingFixedMaxWidth: 60, editorActionsLocation: 'hidden' },
+				width: 420,
+			}),
+			expectedVisualDescriptions: ['Fixed Connected tabs honor a maximum below 80px while keeping the active Close action inside its tab.'],
+		}),
+		FixedWidthMinimum: defineComponentFixture({
+			fileIconTheme: 'none',
+			themes: ['dark'],
+			additionalThemes: ['light2026', 'darkHighContrast'],
+			render: render(true, {
+				editors: narrowFixedEditors,
+				partOptions: { tabSizing: 'fixed', tabSizingFixedMinWidth: 50, tabSizingFixedMaxWidth: 160, editorActionsLocation: 'hidden' },
+				width: 150,
+			}),
+			expectedVisualDescriptions: ['Fixed Connected tabs shrink to the configured minimum before overflowing a narrow editor group.'],
 		}),
 		LongNamesShrink: defineComponentFixture({
 			render: render(true, { partOptions: { tabSizing: 'shrink' }, editors: longLabelEditorSpecs(), width: 520 }),
