@@ -31,7 +31,8 @@
 		"./typings",
 		"./vs/**/*.ts",
 		"./vscode-dts/vscode.proposed.*.d.ts",
-		"./vscode-dts/vscode.d.ts"
+		"./vscode-dts/vscode.d.ts",
+		"mitig-memory-leaks/mitig.ts"
 	],
 	"exclude": [
 		"vs/workbench/contrib/webview/browser/pre/service-worker.js"
