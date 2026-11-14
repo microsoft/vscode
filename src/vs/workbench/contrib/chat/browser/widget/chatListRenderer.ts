@@ -130,8 +130,9 @@ import { ChatImageGenerationBatchPart } from './chatContentParts/chatImageGenera
 import { ChatInlineAttachmentRenderer, ChatMarkdownDecorationsRenderer } from './chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { getInlineRequestAttachments, recoverAttachmentMentions } from '../../common/attachments/chatInlineAttachments.js';
 import { ChatEditorOptions } from './chatOptions.js';
+import { ChatInputNotificationWidget } from './input/chatInputNotificationWidget.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './chatContentParts/codeBlockPart.js';
-import { autorun, autorunPerKeyedItem, autorunSelfDisposable, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, autorunPerKeyedItem, autorunSelfDisposable, constObservable, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -151,6 +152,7 @@ const WORKING_CAUGHT_UP_DEBOUNCE_MS = 750;
 const DEFAULT_CHAT_ITEM_HORIZONTAL_PADDING = 40;
 
 export interface IChatListItemTemplate {
+	transcriptNotice?: ChatInputNotificationWidget;
 	currentElement?: ChatTreeItem;
 	renderedReadOnly?: boolean;
 	renderedInputRequests?: boolean;
@@ -1966,6 +1968,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			ChatContextKeys.responseSupportsIssueReporting.bindTo(templateData.contextKeyService).set(!!element.agent?.metadata.supportIssueReporting);
 			ChatContextKeys.responseVote.bindTo(templateData.contextKeyService).set(element.vote === ChatAgentVoteDirection.Up ? 'up' : element.vote === ChatAgentVoteDirection.Down ? 'down' : '');
 			templateData.feedbackSurveyWidget.render(element);
+			if (!readOnly && isAgentHostTarget(getChatSessionType(element.sessionResource)) && this.viewModel?.model.getRequests()[0]?.id === element.requestId
+				&& !dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row')) {
+				const widget = this.chatWidgetService.getWidgetBySessionResource(element.sessionResource);
+				if (widget && widget.transcriptDomNode.contains(this.delegate.container) && !templateData.transcriptNotice) {
+					const notice = templateData.elementDisposables.add(this.instantiationService.createInstance(ChatInputNotificationWidget, {
+						placement: 'transcript', inputUri: widget.input.inputUri, sessionResource: constObservable(element.sessionResource), focusInput: () => widget.focusInput(),
+					}));
+					templateData.transcriptNotice = notice;
+					templateData.elementDisposables.add(toDisposable(() => { templateData.transcriptNotice = undefined; }));
+					templateData.rowContainer.insertBefore(notice.domNode, templateData.footerToolbarContainer);
+				}
+			}
 		} else {
 			ChatContextKeys.responseVote.bindTo(templateData.contextKeyService).set('');
 			templateData.feedbackSurveyWidget.render(undefined);

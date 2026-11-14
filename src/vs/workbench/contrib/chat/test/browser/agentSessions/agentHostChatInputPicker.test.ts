@@ -1096,12 +1096,16 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		const withoutMetadata = permissionPicker['_getSandboxStandaloneToggle']()!.disabled;
 		await sandboxReady();
 		await permissionPicker['_showPicker'](dom.$('div'));
-		const staleToggle = actionWidget.items.find(item => item.standaloneToggle)!.standaloneToggle!;
+		const initialRow = actionWidget.items.find(item => item.standaloneToggle)!;
+		const staleToggle = initialRow.standaloneToggle!;
+		assert.strictEqual(initialRow.hover?.content, staleToggle.title);
 		state._meta = withSessionSandboxPolicy(undefined, { enabled: true, allowBypass: false });
 		permissionPicker['_sandboxConfigChanged'].trigger(undefined);
 		staleToggle.onChange(true);
-		const required = actionWidget.items.find(item => item.standaloneToggle)!.standaloneToggle!;
+		const requiredRow = actionWidget.items.find(item => item.standaloneToggle)!;
+		const required = requiredRow.standaloneToggle!;
 		const enforced = { checked: required.checked, disabled: required.disabled, title: required.title };
+		assert.strictEqual(requiredRow.hover?.content, required.title);
 		state._meta = withSessionSandboxPolicy(undefined, { enabled: false });
 		permissionPicker['_sandboxConfigChanged'].trigger(undefined);
 		const removed = actionWidget.items.find(item => item.standaloneToggle)!.standaloneToggle!;

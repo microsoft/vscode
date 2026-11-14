@@ -102,6 +102,7 @@ export interface IChatInputNotificationModelSelection {
 
 /** Input-local capabilities used to filter and execute semantic notification actions. */
 export interface IChatInputNotificationDelegate {
+	readonly placement?: 'transcript';
 	readonly hostVisible?: IObservable<boolean>;
 	readonly inputUri?: URI;
 	readonly modelTargetChatSessionType?: IObservable<string | undefined>;
@@ -203,6 +204,9 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 			dismissible: false,
 			autoDismissOnMessage: false,
 		} : this._notificationService.getActiveNotification(candidate => {
+			if (candidate.placement !== this._delegate?.placement) {
+				return false;
+			}
 			const body = this._resolveBody(candidate);
 			if (body) {
 				bodies.set(candidate.id, body);
