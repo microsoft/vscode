@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -46,8 +47,21 @@ suite('EditorWindowSessionsList', () => {
 
 	test('registers the Sessions view and the setup view in the container', () => {
 		const container = { id: 'test.editorWindowSessionsList', title: localize2Value('Chat'), icon: undefined } as unknown as IViewContainerDescriptor;
+		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+		// A contribution of the window may already have registered these views elsewhere
+		const restores: (() => void)[] = [];
+		for (const id of [SessionsViewId, AGENTS_VIEW_SETUP_VIEW_ID]) {
+			const existing = viewsRegistry.getView(id);
+			const existingContainer = viewsRegistry.getViewContainer(id);
+			if (existing && existingContainer) {
+				viewsRegistry.deregisterViews([existing], existingContainer);
+				restores.push(() => viewsRegistry.registerViews([existing], existingContainer));
+			}
+		}
 		store.add(registerEditorWindowSessionsViews(container, observableValue('scoped', false)));
-		const views = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).getViews(container).map(view => ({ id: view.id, when: view.when?.serialize() }));
+		// Disposed after the registration above
+		store.add(toDisposable(() => restores.forEach(restore => restore())));
+		const views = viewsRegistry.getViews(container).map(view => ({ id: view.id, when: view.when?.serialize() }));
 		assert.deepStrictEqual(views, [
 			{ id: SessionsViewId, when: AgentsViewWhen.serialize() },
 			{ id: AGENTS_VIEW_SETUP_VIEW_ID, when: ContextKeyExpr.and(AgentsViewAvailable, AgentsViewNeedsSetup)?.serialize() },
