@@ -7,7 +7,7 @@ import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { basename, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -22,6 +22,7 @@ import { getCurrentFolderLocationDescription, getNewWorktreeLabel, groupFolderLo
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
+import { IAgentHostWorktreeSessionSources } from './agentHostWorktreeSessionSources.js';
 import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 
@@ -57,13 +58,14 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
 		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
+		@IAgentHostWorktreeSessionSources sessionSources: IAgentHostWorktreeSessionSources,
 	) {
 		super();
 		this._register(_folderLocationService.onDidChangeProviders(() => this.refresh()));
 		this._register(_folderLocationService.onDidChangeLocation(() => this.refresh()));
 		// A session can come to work in a new worktree meanwhile, such as one in the background
 		const refreshForSessions = this._register(new RunOnceScheduler(() => this.refresh(), 500));
-		this._register(agentSessionsService.model.onDidChangeSessions(() => {
+		this._register(Event.any(agentSessionsService.model.onDidChangeSessions, sessionSources.onDidChange)(() => {
 			if (this.isActive()) {
 				refreshForSessions.schedule();
 			}

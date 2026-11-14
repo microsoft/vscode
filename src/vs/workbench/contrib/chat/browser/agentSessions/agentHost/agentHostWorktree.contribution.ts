@@ -6,6 +6,7 @@
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -37,6 +38,7 @@ import { IChatSessionsService, isLocalAgentHostTarget } from '../../../common/ch
 import { ChatConfiguration } from '../../../common/constants.js';
 import { isUntitledChatSession, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatViewHostService } from '../../chatViewHost.js';
+import { IAgentHostWorktreeSessionSources } from './agentHostWorktreeSessionSources.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
 import { AGENT_HOST_WORKTREE_LOCATIONS_PROVIDER_ID, AgentHostWorktreeLocationProvider } from './agentHostWorktreeLocations.js';
 
@@ -122,6 +124,7 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 	constructor(
 		@IChatViewHostService private readonly _chatViewHostService: IChatViewHostService,
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
+		@IAgentHostWorktreeSessionSources private readonly _sessionSources: IAgentHostWorktreeSessionSources,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -274,6 +277,11 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 
 	/** The working directory of the local agent host session of `resource`, as the sessions list has it. */
 	private _workingDirectory(resource: URI): URI | undefined {
+		// A chat of another session layer, such as the editor window's, as a source has it
+		const fromSource = this._sessionSources.getWorkingDirectory(resource);
+		if (fromSource) {
+			return fromSource;
+		}
 		if (!isLocalAgentHostTarget(resource.scheme)) {
 			return undefined;
 		}
@@ -281,12 +289,20 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		return typeof path === 'string' && path ? URI.file(path) : undefined;
 	}
 
+	/**
+	 * Whether the chat of `resource` may work in a folder that the folder follows: any but a local chat, such as an agent
+	 * host session of any session layer, whose working directory may only become known once its first request ran.
+	 */
+	private _isFollowable(resource: URI): boolean {
+		return !LocalChatSessionUri.isLocalSession(resource);
+	}
+
 	/** Follows the shown agent host session on its own as its working directory becomes known or changes. */
 	private _watchWorkingDirectory(shown: IShownChat): void {
-		if (!isLocalAgentHostTarget(shown.resource.scheme)) {
+		if (!this._isFollowable(shown.resource)) {
 			return;
 		}
-		this._sessionsListener.value = this._agentSessionsService.model.onDidChangeSessions(() => {
+		this._sessionsListener.value = Event.any(this._agentSessionsService.model.onDidChangeSessions, this._sessionSources.onDidChange)(() => {
 			const workingDirectory = this._workingDirectory(shown.resource);
 			if (this._shown !== shown || !workingDirectory || extUriBiasedIgnorePathCase.isEqual(workingDirectory, shown.workingDirectory)) {
 				return;
@@ -310,7 +326,7 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		let target: URI | undefined;
 		if (LocalChatSessionUri.isLocalSession(shown.resource)) {
 			target = primary;
-		} else if (isLocalAgentHostTarget(shown.resource.scheme)) {
+		} else if (this._isFollowable(shown.resource)) {
 			shown.workingDirectory = this._workingDirectory(shown.resource);
 			// Not listed with its working directory yet, such as a session its first request just started: it follows as it is
 			this._watchWorkingDirectory(shown);

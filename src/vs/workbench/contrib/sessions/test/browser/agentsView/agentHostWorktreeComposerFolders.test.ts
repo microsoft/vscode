@@ -8,6 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -23,7 +24,11 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { EditorWindowComposerFoldersService, IEditorWindowComposerFolderOptions, IEditorWindowComposerFoldersService } from '../../../browser/editorWindow/editorWindowComposerFolders.js';
-import { AgentHostWorktreeComposerFolders, AgentHostWorktreeComposerFoldersContribution } from '../../../browser/agentsView/agentHostWorktreeComposerFolders.js';
+import { AgentHostWorktreeComposerFolders, AgentHostWorktreeComposerFoldersContribution, AgentHostWorktreeSessionLayerSource } from '../../../browser/agentsView/agentHostWorktreeComposerFolders.js';
+import { AgentHostWorktreeSessionSources, IAgentHostWorktreeSessionSources } from '../../../../chat/browser/agentSessions/agentHost/agentHostWorktreeSessionSources.js';
+import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
+import { IChat, ISession, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 
 suite('AgentHostWorktreeComposerFolders', () => {
 
@@ -215,6 +220,8 @@ suite('AgentHostWorktreeComposerFolders', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }));
+		instantiationService.stub(IAgentHostWorktreeSessionSources, store.add(new AgentHostWorktreeSessionSources()));
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, getAllSessions: () => [], getSessionForChatResource: () => undefined }));
 		// No chat part: the service of the window's composers only
 		instantiationService.stub(IEditorWindowComposerFoldersService, upcastPartial<IEditorWindowComposerFoldersService>({
 			setComposerFolderOptions: provider => { calls.push('options'); options = provider; return toDisposable(() => { calls.push('options cleared'); options = undefined; }); },
@@ -256,6 +263,8 @@ suite('AgentHostWorktreeComposerFolders', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.EditorWindowEnableWorktree]: true }));
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }));
+		instantiationService.stub(IAgentHostWorktreeSessionSources, store.add(new AgentHostWorktreeSessionSources()));
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, getAllSessions: () => [], getSessionForChatResource: () => undefined }));
 		const service = instantiationService.createInstance(EditorWindowComposerFoldersService);
 		instantiationService.stub(IEditorWindowComposerFoldersService, service);
 		const retargeted: string[] = [];
@@ -267,5 +276,50 @@ suite('AgentHostWorktreeComposerFolders', () => {
 		onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
 
 		assert.deepStrictEqual(retargeted, ['chat part: /work/vscode -> /work/vscode.worktrees/a', 'Chat view: /work/vscode -> /work/vscode.worktrees/a']);
+	});
+
+	test('the session layer\'s source knows where its non-archived local agent host sessions and their chats work, and tells as that changes', () => {
+		const workspace = (path: string) => upcastPartial<ISessionWorkspace>({ folders: [{ root: URI.file('/work/vscode'), workingDirectory: URI.file(path), name: 'vscode', description: undefined }] });
+		const chat = (resource: string, path?: string) => upcastPartial<IChat>({ resource: URI.from({ scheme: 'ahp-chat', path: resource }), workspace: observableValue('workspace', path ? workspace(path) : undefined) });
+		const created = chat('/created');
+		const session = (providerId: string, path: string, chats: IChat[], archived = false) => upcastPartial<ISession>({
+			providerId,
+			isArchived: observableValue('archived', archived),
+			workspace: observableValue('workspace', workspace(path)),
+			chats: observableValue('chats', chats),
+		});
+		const sessions = [
+			session(LOCAL_AGENT_HOST_PROVIDER_ID, '/work/vscode.worktrees/a', [chat('/a'), created]),
+			session(LOCAL_AGENT_HOST_PROVIDER_ID, '/work/vscode.worktrees/archived', [chat('/archived')], true),
+			session('remote-agent-host', '/work/vscode.worktrees/remote', [chat('/remote')]),
+		];
+		const onDidChangeSessions = store.add(new Emitter<never>());
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			onDidChangeSessions: onDidChangeSessions.event,
+			getAllSessions: () => sessions,
+			getSessionForChatResource: (resource: URI) => {
+				for (const candidate of sessions) {
+					const found = candidate.chats.get().find(c => c.resource.toString() === resource.toString());
+					if (found) {
+						return { session: candidate, chat: found };
+					}
+				}
+				return undefined;
+			},
+		}));
+		const source = store.add(instantiationService.createInstance(AgentHostWorktreeSessionLayerSource));
+		let changes = 0;
+		store.add(source.onDidChange(() => changes++));
+		const of = (path: string) => source.getWorkingDirectory(URI.from({ scheme: 'ahp-chat', path }))?.path;
+		const before = { a: of('/a'), archived: of('/archived'), remote: of('/remote'), all: source.getWorkingDirectories().map(uri => uri.path) };
+		// The chat's first request created a worktree of its own
+		(created.workspace as ReturnType<typeof observableValue<ISessionWorkspace | undefined>>).set(workspace('/work/vscode.worktrees/created'), undefined);
+
+		assert.deepStrictEqual({ before, created: of('/created'), changes }, {
+			before: { a: '/work/vscode.worktrees/a', archived: undefined, remote: undefined, all: ['/work/vscode.worktrees/a'] },
+			created: '/work/vscode.worktrees/created',
+			changes: 1,
+		});
 	});
 });
