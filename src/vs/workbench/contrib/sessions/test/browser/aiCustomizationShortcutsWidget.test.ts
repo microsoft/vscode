@@ -6,12 +6,16 @@
 import assert from 'assert';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IMenu, IMenuChangeEvent, IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IAICustomizationItemsModel } from '../../../chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { IAgentHostToolSetEnablementService } from '../../../chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IAICustomizationWorkspaceService } from '../../../chat/common/aiCustomizationWorkspaceService.js';
@@ -20,6 +24,28 @@ import { ILanguageModelToolsService, IToolSet } from '../../../chat/common/tools
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
 import { IAICustomizationMcpServerCountService } from '../../browser/customizationMcpServerCount.js';
+
+function createInstantiationService(disposables: Pick<DisposableStore, 'add'>): TestInstantiationService {
+	const instantiationService = workbenchInstantiationService({}, disposables);
+	instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
+	instantiationService.stub(IAICustomizationItemsModel, {
+		getCount: () => constObservable(1),
+		getPluginCount: () => constObservable(1),
+	});
+	instantiationService.stub(IAICustomizationMcpServerCountService, { count: constObservable(1) });
+	instantiationService.stub(ILanguageModelToolsService, { toolSets: constObservable<readonly IToolSet[]>([]) });
+	instantiationService.stub(IAgentHostToolSetEnablementService, {
+		observe: () => constObservable({ toolSets: new Map<string, boolean>(), tools: new Map<string, boolean>() }),
+	});
+	const descriptor = upcastPartial<IHarnessDescriptor>({ id: 'test', label: 'Test', icon: Codicon.extensions });
+	instantiationService.stub(ICustomizationHarnessService, {
+		activeHarness: constObservable('test'),
+		availableHarnesses: constObservable([descriptor]),
+		getActiveDescriptor: () => descriptor,
+	});
+	instantiationService.stub(IAICustomizationWorkspaceService, { managementSections: [] });
+	return instantiationService;
+}
 
 suite('AI customization shortcuts header', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -34,25 +60,7 @@ suite('AI customization shortcuts header', () => {
 		container.style.cssText = 'position: fixed; top: 0; left: 0; width: 300px; height: 200px; z-index: 10000;';
 		disposables.add(toDisposable(() => container.remove()));
 
-		const instantiationService = workbenchInstantiationService({}, disposables);
-		instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
-		instantiationService.stub(IAICustomizationItemsModel, {
-			getCount: () => constObservable(1),
-			getPluginCount: () => constObservable(1),
-		});
-		instantiationService.stub(IAICustomizationMcpServerCountService, { count: constObservable(1) });
-		instantiationService.stub(ILanguageModelToolsService, { toolSets: constObservable<readonly IToolSet[]>([]) });
-		instantiationService.stub(IAgentHostToolSetEnablementService, {
-			observe: () => constObservable({ toolSets: new Map<string, boolean>(), tools: new Map<string, boolean>() }),
-		});
-		const descriptor = upcastPartial<IHarnessDescriptor>({ id: 'test', label: 'Test', icon: Codicon.extensions });
-		instantiationService.stub(ICustomizationHarnessService, {
-			activeHarness: constObservable('test'),
-			availableHarnesses: constObservable([descriptor]),
-			getActiveDescriptor: () => descriptor,
-		});
-		instantiationService.stub(IAICustomizationWorkspaceService, { managementSections: [] });
-		disposables.add(instantiationService.createInstance(AICustomizationShortcutsWidget, container, undefined));
+		disposables.add(createInstantiationService(disposables).createInstance(AICustomizationShortcutsWidget, container, undefined));
 
 		const renderedHeader = container.querySelector<HTMLElement>('.ai-customization-header');
 		assert.ok(renderedHeader);
@@ -206,5 +214,80 @@ suite('AI customization shortcuts header', () => {
 				keyboard: { focused: true, focusVisible: true, outline: ['solid', 'rgb(0, 0, 255)'], fillOutline: 'none' },
 			}, theme);
 		}
+	});
+});
+
+suite('AI customization shortcuts list', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps keyboard focus at its position when updating the items replaces the focused one, until focus leaves', async () => {
+		const container = DOM.append(mainWindow.document.body, DOM.$('div'));
+		disposables.add(toDisposable(() => container.remove()));
+		const outside = DOM.append(mainWindow.document.body, DOM.$('button'));
+		disposables.add(toDisposable(() => outside.remove()));
+		let labels = ['Overview', 'Skills', 'More'];
+		const onDidChange = disposables.add(new Emitter<IMenuChangeEvent>());
+		const instantiationService = createInstantiationService(disposables);
+		instantiationService.stub(IMenuService, upcastPartial<IMenuService>({
+			createMenu: () => upcastPartial<IMenu>({
+				onDidChange: onDidChange.event,
+				getActions: () => [['navigation', labels.map(label => upcastPartial<MenuItemAction>({ id: label, label, tooltip: '', enabled: true, run: async () => { } }))]],
+				dispose: () => { },
+			}),
+		}));
+		disposables.add(instantiationService.createInstance(AICustomizationShortcutsWidget, container, undefined));
+		const items = () => [...container.querySelectorAll<HTMLElement>('.actions-container > .action-item')];
+		// Hidden Electron windows move focus without dispatching focus events, so dispatch them like a focused window.
+		const dispatchFocusEvents = (previous: Element | null | undefined, next: HTMLElement | undefined) => {
+			if (!mainWindow.document.hasFocus()) {
+				previous?.dispatchEvent(new FocusEvent('blur', { relatedTarget: next ?? null }));
+				previous?.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: next ?? null }));
+				next?.dispatchEvent(new FocusEvent('focus', { relatedTarget: previous ?? null }));
+				next?.dispatchEvent(new FocusEvent('focusin', { bubbles: true, relatedTarget: previous ?? null }));
+			}
+		};
+		const moveFocus = (element: HTMLElement | undefined) => {
+			const previous = DOM.getActiveElement();
+			if (element) {
+				element.focus();
+			} else if (DOM.isHTMLElement(previous)) {
+				previous.blur();
+			}
+			dispatchFocusEvents(previous, element);
+		};
+		// Enters the list afresh, so that its action bar tracks the focused item like with keyboard navigation.
+		const focus = async (index: number) => {
+			moveFocus(undefined);
+			await timeout(0);
+			moveFocus(items()[index].querySelector<HTMLElement>('.action-label') ?? undefined);
+		};
+		const focused = () => {
+			const active = DOM.getActiveElement();
+			return active === outside ? 'outside' : labels[items().findIndex(item => item.contains(active))] ?? 'none';
+		};
+		const update = async (next: string[]) => {
+			// A focused window moves focus out of the focused item before updating the items removes it.
+			if (container.contains(DOM.getActiveElement())) {
+				dispatchFocusEvents(DOM.getActiveElement(), undefined);
+			}
+			labels = next;
+			onDidChange.fire(upcastPartial<IMenuChangeEvent>({}));
+			await Promise.resolve();
+			return focused();
+		};
+
+		await focus(2);
+		const more = await update(['Overview', 'Skills', 'Agents', 'Hooks', 'Less']);
+		await focus(4);
+		const less = await update(['Overview', 'Skills', 'More']);
+		await focus(1);
+		moveFocus(undefined);
+		await Promise.resolve();
+		const focusLeftToNothing = await update(['Overview', 'Skills', 'Agents', 'Hooks', 'Less']);
+		await focus(1);
+		moveFocus(outside);
+		const focusLeftToOutside = await update(['Overview', 'Skills', 'More']);
+
+		assert.deepStrictEqual({ more, less, focusLeftToNothing, focusLeftToOutside }, { more: 'Agents', less: 'More', focusLeftToNothing: 'none', focusLeftToOutside: 'outside' });
 	});
 });
