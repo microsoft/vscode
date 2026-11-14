@@ -14,6 +14,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/brow
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../chat/browser/actions/chatActions.js';
 import { Menus, SessionHeaderMenus } from '../menus.js';
+import { registerSessionChatTabsActions } from '../sessionChatTabsActions.js';
 import { InAgentsChatPartContext } from './agentsChatPartContext.js';
 import { IAgentsChatPartService } from './agentsChatPart.js';
 import { getEditorWindowComposerTarget } from '../editorWindow/editorWindowSessionsPresenter.js';
@@ -36,8 +37,19 @@ export const AgentsChatPartVisibleContext = new RawContextKey<boolean>('agentsCh
  * disposed: a new session or a new chat without a workspace in a tab of its own, and focusing, toggling and closing the
  * chat part.
  */
+/** The choices of how the chat part shows its chats, from the header of a chat it shows. */
+export const AgentsChatPartChatTabsMenu = new MenuId('AgentsChatPartChatTabs');
+
 export function registerAgentsChatPartActions(): IDisposable {
 	const store = new DisposableStore();
+
+	// How the chat part shows its chats, which can be of different sessions: from the header of the chat it shows
+	store.add(registerSessionChatTabsActions({
+		idPrefix: 'workbench.action.agentsView',
+		submenu: AgentsChatPartChatTabsMenu,
+		when: ContextKeyExpr.and(ChatContextKeys.enabled, InAgentsChatPartContext),
+		precondition: ChatContextKeys.enabled,
+	}));
 
 	store.add(registerAction2(class extends Action2 {
 		constructor() {
