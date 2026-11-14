@@ -174,6 +174,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	/** Why the view sets the chat it shows, while it sets it: it restores the chat it last showed, or the user brought one up. */
 	private _showReason: IChatViewHostShownSession['reason'] = 'open';
 	private readonly _shownSession = observableValue<IChatViewHostShownSession | undefined>(this, undefined);
+	/** How often it reported the chat it shows ({@link shownSession}): whether a load reported its chat itself. */
+	private _shownReports = 0;
 	/** The chat the view shows, and whether it shows it as the user brought it up or as it restored it. */
 	readonly shownSession: IObservable<IChatViewHostShownSession | undefined> = this._shownSession;
 	private readonly customizationMigrationsAvailable = observableValue(this, false);
@@ -1608,6 +1610,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Each time the user opens it, also where it is reported as opened already, as where it works may matter again
 		if (shown && (reason === 'open' || shown.reason !== reason) && isEqual(shown.resource, sessionResource)) {
 			this._shownSession.set({ resource: sessionResource, reason }, undefined);
+			this._shownReports++;
 		}
 	}
 
@@ -1620,6 +1623,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private updateShownSession(reason: IChatViewHostShownSession['reason'] = this._showReason): void {
 		const shownResource = this._widget.viewModel?.sessionResource;
 		this._shownSession.set(shownResource && { resource: shownResource, reason }, undefined);
+		this._shownReports++;
 	}
 
 	/** @param showReason why it shows the chat ({@link shownSession}). */
@@ -1785,6 +1789,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.loadSessionCts.value?.cancel();
 		const cts = this.loadSessionCts.value = new CancellationTokenSource();
 		const token = cts.token;
+		const shownReports = this._shownReports;
 		const open = this._openDiagnostics.value = !isUntitledChatSession(sessionResource) && this.layoutService.isRestored()
 			? this.chatOpenDiagnosticsService.startOpen('panel', sessionResource, token, alreadyShown)
 			: undefined;
@@ -1864,6 +1869,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				open?.complete(this._widget?.visible && !this.element.ownerDocument.hidden);
 			} else if (!token.isCancellationRequested) {
 				open?.fail(new Error('Another chat was shown instead of the requested one'));
+			}
+			// The chat it shows is reported once for this load: a chat it set is reported already, such as one it showed
+			// already is not, and a load that a later one superseded reports nothing, so the latest open's reason stands
+			if (!token.isCancellationRequested && this._shownReports === shownReports) {
+				this.reportShown(sessionResource, showReason);
 			}
 			return loadedModel;
 		} catch (error) {
