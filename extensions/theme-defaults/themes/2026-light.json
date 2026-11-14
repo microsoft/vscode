@@ -415,7 +415,12 @@
 			}
 		},
 		{
-			"scope": "support",
+			"scope": [
+				"support",
+				"support.function",
+				"support.type",
+				"support.class"
+			],
 			"settings": {
 				"foreground": "#0550ae"
 			}
