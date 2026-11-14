@@ -9,12 +9,12 @@ import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -147,8 +147,6 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			stub(IViewDescriptorService, { getViewLocationById: () => null });
 			stub(IWorkbenchLayoutService, { setChatPartAnchor: () => { }, onDidChangePartVisibility: Event.None, isVisible: () => false, setPartHidden: () => { } });
 			stub(IProgressService, {});
-			// The banner's Changes editor header that the chat part contribution creates in the integrated try-out
-			stub(IActionViewItemService, { register: () => toDisposable(() => { }) });
 			stub(IContextKeyService, contextKeyService);
 			stub(IConfigurationService, configurationService);
 			stub(IWorkbenchEnvironmentService, { remoteAuthority: undefined, isSessionsWindow: false });
@@ -166,6 +164,8 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			stub(IEditorService, { activeEditor: undefined });
 			const loadingModel = new DeferredPromise<void>();
 			stub(IChatService, { acquireOrLoadSession: async () => { await loadingModel.p; return { dispose: () => { } } as never; } });
+			// The shared chat part contribution can create toolbars that register action view items, depending on what else is merged in
+			stub(IActionViewItemService, { onDidChange: Event.None, register: () => toDisposable(() => { }), lookUp: () => undefined });
 			stub(INotificationService, { info: () => undefined! });
 
 			// Without the Changes editor's own services
