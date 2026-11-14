@@ -24,16 +24,16 @@ import { getEditorWindowComposerTarget } from '../../../browser/editorWindow/edi
 import { IAgentsChatPartOpenOptions, IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
 import { AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID, AgentsChatPartChatTabsMenu, registerAgentsChatPartActions, registerAgentsViewNewSessionActions } from '../../../browser/agentsView/agentsChatPartActions.js';
 import { InAgentsChatPartContext } from '../../../browser/agentsView/agentsChatPartContext.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Menus } from '../../../browser/menus.js';
+import { SessionIsCreatedContext, SessionSupportsRenameContext } from '../../../common/contextkeys.js';
+import { RENAME_SESSION_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { INewSessionTarget } from '../../../browser/parts/chatView.js';
 import { ISessionSection, SessionItemContextMenuId, SessionSectionToolbarMenuId } from '../../../browser/views/sessionsList.js';
 import { buildTestSession } from '../../common/testSessionBuilder.js';
 import { ChatViewId } from '../../../../chat/browser/chat.js';
+import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 
 suite('Agents chat part actions', () => {
 
@@ -194,7 +194,8 @@ suite('Agents chat part actions', () => {
 		}, { inSecond: '/work/tools', outside: '/work/vscode', none: '/work/vscode' });
 	});
 
-	test('Close in the header of a chat of the chat part closes the tab of that chat only: a peer chat, else its session\'s main chat; it shows only in the chat part, not in the Agents window', async () => {
+	test('the More Actions of a header of the chat part start with Close, which closes that chat only, and offer Rename... and View Mode, as the Agents window\'s do; none show in the Agents window', async () => {
+		const before = new Set(MenuRegistry.getMenuItems(Menus.SessionBarToolbar));
 		store.add(registerAgentsChatPartActions());
 		const session = buildTestSession({ id: 's', title: 's', chats: [{ id: 'peer', title: 'Peer' }] });
 		const closed: string[] = [];
@@ -204,13 +205,23 @@ suite('Agents chat part actions', () => {
 		const peer = session.chats.get('peer')!.chat;
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID)!.handler(accessor, session.session, undefined));
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID)!.handler(accessor, session.session, peer));
-		const item = MenuRegistry.getMenuItems(Menus.SessionBarToolbar).filter(isIMenuItem).find(item => item.command.id === AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID);
+		// Its commands, and the View Mode submenu: other features add submenus of their own, such as how the chat part shows its chats
+		const added = MenuRegistry.getMenuItems(Menus.SessionBarToolbar).filter(item => !before.has(item) && (isIMenuItem(item) || item.submenu === MenuId.ChatViewMode));
+		const keys: Record<string, boolean> = { [ChatContextKeys.enabled.key]: true, [SessionIsCreatedContext.key]: true, [SessionSupportsRenameContext.key]: true };
+		const shown = (inChatPart: boolean) => added
+			.filter(item => item.when?.evaluate({ getValue: <T>(key: string) => (key === InAgentsChatPartContext.key ? inChatPart : keys[key]) as T }) ?? true)
+			.map(item => `${item.group} ${item.order} ${isIMenuItem(item) ? item.command.id : item.submenu.id}`);
+		const keybinding = KeybindingsRegistry.getDefaultKeybindings().find(item => item.command === AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID);
 
-		assert.deepStrictEqual({ closed, group: item?.group, icon: ThemeIcon.isThemeIcon(item?.command.icon) ? item.command.icon.id : undefined, when: item?.when?.serialize() }, {
+		assert.deepStrictEqual({ closed, chatPart: shown(true), agentsWindow: shown(false), keybindingWhen: keybinding?.when?.serialize() }, {
 			closed: [main.toString(), peer.resource.toString()],
-			group: 'navigation',
-			icon: Codicon.closeSmall.id,
-			when: ContextKeyExpr.and(ChatContextKeys.enabled, InAgentsChatPartContext)?.serialize(),
+			chatPart: [
+				`secondary/0_pane 10 ${AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID}`,
+				`secondary/4_manage 5 ${RENAME_SESSION_COMMAND_ID}`,
+				`secondary/4_manage 10 ${MenuId.ChatViewMode.id}`,
+			],
+			agentsWindow: [],
+			keybindingWhen: ContextKeyExpr.and(ChatContextKeys.enabled, InAgentsChatPartContext)?.serialize(),
 		});
 	});
 
