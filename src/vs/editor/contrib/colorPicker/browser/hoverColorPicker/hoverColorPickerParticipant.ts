@@ -87,7 +87,7 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 
 			const colorData = colorDetector.getColorData(d.range.getStartPosition());
 			if (colorData) {
-				const colorHover = ColorHover.fromBaseColor(this, await createColorHover(this._editor.getModel(), colorData.colorInfo, colorData.provider));
+				const colorHover = ColorHover.fromBaseColor(this, await createColorHover(this._editor, colorData.colorInfo, colorData.provider));
 				return [colorHover];
 			}
 
@@ -117,7 +117,6 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 
 		const disposables = new DisposableStore();
 		const colorHover = hoverParts[0];
-		const editorModel = editor.getModel();
 		const model = colorHover.model;
 		this._colorPicker = disposables.add(new ColorPickerWidget(context.fragment, model, editor.getOption(EditorOption.pixelRatio), this._themeService, ColorPickerWidgetType.Hover));
 
@@ -125,12 +124,17 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 		let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
 
 		disposables.add(model.onColorFlushed(async (color: Color) => {
-			await updateColorPresentations(editorModel, model, color, range, colorHover);
+			await updateColorPresentations(editor, model, color, range, colorHover);
 			editorUpdatedByColorPicker = true;
 			range = updateEditorModel(editor, range, model);
 		}));
 		disposables.add(model.onDidChangeColor((color: Color) => {
-			updateColorPresentations(editorModel, model, color, range, colorHover);
+			updateColorPresentations(editor, model, color, range, colorHover);
+		}));
+		disposables.add(editor.onDidChangeConfiguration(e => {
+			if (e.hasChanged(EditorOption.colorPickerUseModernSyntax)) {
+				updateColorPresentations(editor, model, model.color, range, colorHover);
+			}
 		}));
 		disposables.add(editor.onDidChangeModelContent((e) => {
 			if (editorUpdatedByColorPicker) {

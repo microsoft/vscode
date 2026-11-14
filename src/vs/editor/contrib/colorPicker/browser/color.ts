@@ -20,8 +20,10 @@ export async function getColors(colorProviderRegistry: LanguageFeatureRegistry<D
 	return _findColorData<IColorData>(new ColorDataCollector(), colorProviderRegistry, model, token, defaultColorDecoratorsEnablement);
 }
 
-export function getColorPresentations(model: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider, token: CancellationToken): Promise<IColorPresentation[] | null | undefined> {
-	return Promise.resolve(provider.provideColorPresentations(model, colorInfo, token));
+export async function getColorPresentations(model: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider, token: CancellationToken, useModernSyntax = false): Promise<IColorPresentation[] | null | undefined> {
+	return provider instanceof DefaultDocumentColorProvider
+		? provider.provideColorPresentations(model, colorInfo, token, useModernSyntax)
+		: provider.provideColorPresentations(model, colorInfo, token);
 }
 
 export interface IColorData {
@@ -111,4 +113,3 @@ export function _setupColorCommand(accessor: ServicesAccessor, resource: URI): {
 	const defaultColorDecoratorsEnablement = accessor.get(IConfigurationService).getValue<'auto' | 'always' | 'never'>('editor.defaultColorDecorators', { resource });
 	return { model, colorProviderRegistry, defaultColorDecoratorsEnablement };
 }
-

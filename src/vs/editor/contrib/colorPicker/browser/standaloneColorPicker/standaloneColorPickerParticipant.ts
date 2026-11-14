@@ -41,7 +41,6 @@ export class StandaloneColorPickerRenderedParts extends Disposable {
 
 	constructor(editor: IActiveCodeEditor, context: IEditorHoverRenderContext, colorHover: StandaloneColorPickerHover, themeService: IThemeService) {
 		super();
-		const editorModel = editor.getModel();
 		const colorPickerModel = colorHover.model;
 
 		this.color = colorHover.model.color;
@@ -57,7 +56,12 @@ export class StandaloneColorPickerRenderedParts extends Disposable {
 			this.color = color;
 		}));
 		this._register(colorPickerModel.onDidChangeColor((color: Color) => {
-			updateColorPresentations(editorModel, colorPickerModel, color, colorHover.range, colorHover);
+			updateColorPresentations(editor, colorPickerModel, color, colorHover.range, colorHover);
+		}));
+		this._register(editor.onDidChangeConfiguration(e => {
+			if (e.hasChanged(EditorOption.colorPickerUseModernSyntax)) {
+				updateColorPresentations(editor, colorPickerModel, colorPickerModel.color, colorHover.range, colorHover);
+			}
 		}));
 		let editorUpdatedByColorPicker = false;
 		this._register(editor.onDidChangeModelContent((e) => {
@@ -68,7 +72,7 @@ export class StandaloneColorPickerRenderedParts extends Disposable {
 				editor.focus();
 			}
 		}));
-		updateColorPresentations(editorModel, colorPickerModel, this.color, colorHover.range, colorHover);
+		updateColorPresentations(editor, colorPickerModel, this.color, colorHover.range, colorHover);
 	}
 }
 
@@ -103,7 +107,7 @@ export class StandaloneColorPickerParticipant {
 		const colorInfo = foundColorInfo ?? defaultColorInfo;
 		const colorProvider = foundColorProvider ?? defaultColorProvider;
 		const foundInEditor = !!foundColorInfo;
-		const colorHover = StandaloneColorPickerHover.fromBaseColor(this, await createColorHover(this._editor.getModel(), colorInfo, colorProvider));
+		const colorHover = StandaloneColorPickerHover.fromBaseColor(this, await createColorHover(this._editor, colorInfo, colorProvider));
 		return { colorHover, foundInEditor };
 	}
 
@@ -114,7 +118,7 @@ export class StandaloneColorPickerParticipant {
 		const colorPickerModel = colorHoverData.model;
 		let range = new Range(colorHoverData.range.startLineNumber, colorHoverData.range.startColumn, colorHoverData.range.endLineNumber, colorHoverData.range.endColumn);
 		if (this._color) {
-			await updateColorPresentations(this._editor.getModel(), colorPickerModel, this._color, range, colorHoverData);
+			await updateColorPresentations(this._editor, colorPickerModel, this._color, range, colorHoverData);
 			range = updateEditorModel(this._editor, range, colorPickerModel, insertionRanges);
 		}
 	}

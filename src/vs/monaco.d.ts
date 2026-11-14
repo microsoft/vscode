@@ -3580,6 +3580,10 @@ declare namespace monaco.editor {
 		 */
 		colorDecoratorsLimit?: number;
 		/**
+		 * Use modern CSS syntax for built-in color picker presentations. Extension-provided presentations are unchanged. Defaults to false.
+		 */
+		colorPickerUseModernSyntax?: boolean;
+		/**
 		 * Control the behaviour of comments in the editor.
 		 */
 		comments?: IEditorCommentsOptions;
@@ -5303,7 +5307,8 @@ declare namespace monaco.editor {
 		effectiveAllowVariableFonts = 176,
 		doubleClickSelectsBlock = 177,
 		fullwidthCharacterWidth = 178,
-		effectiveFullwidthCharacterWidth = 179
+		effectiveFullwidthCharacterWidth = 179,
+		colorPickerUseModernSyntax = 180
 	}
 
 	export const EditorOptions: {
@@ -5338,6 +5343,7 @@ declare namespace monaco.editor {
 		colorDecoratorActivatedOn: IEditorOption<EditorOption.colorDecoratorsActivatedOn, 'hover' | 'clickAndHover' | 'click'>;
 		colorDecoratorsLimit: IEditorOption<EditorOption.colorDecoratorsLimit, number>;
 		columnSelection: IEditorOption<EditorOption.columnSelection, boolean>;
+		colorPickerUseModernSyntax: IEditorOption<EditorOption.colorPickerUseModernSyntax, boolean>;
 		comments: IEditorOption<EditorOption.comments, Readonly<Required<IEditorCommentsOptions>>>;
 		contextmenu: IEditorOption<EditorOption.contextmenu, boolean>;
 		copyWithSyntaxHighlighting: IEditorOption<EditorOption.copyWithSyntaxHighlighting, boolean>;

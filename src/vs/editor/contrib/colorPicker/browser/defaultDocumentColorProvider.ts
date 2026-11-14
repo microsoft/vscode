@@ -21,13 +21,19 @@ export class DefaultDocumentColorProvider implements DocumentColorProvider {
 		return this._editorWorkerService.computeDefaultDocumentColors(model.uri);
 	}
 
-	provideColorPresentations(_model: ITextModel, colorInfo: IColorInformation, _token: CancellationToken): IColorPresentation[] {
+	provideColorPresentations(_model: ITextModel, colorInfo: IColorInformation, _token: CancellationToken, useModernSyntax = false): IColorPresentation[] {
 		const range = colorInfo.range;
 		const colorFromInfo: IColor = colorInfo.color;
 		const color = new Color(new RGBA(Math.round(255 * colorFromInfo.red), Math.round(255 * colorFromInfo.green), Math.round(255 * colorFromInfo.blue), colorFromInfo.alpha));
 
-		const rgb = Color.Format.CSS.formatRGB(color);
-		const hsl = Color.Format.CSS.formatHSL(color);
+		const { rgba, hsla } = color;
+		const opacity = rgba.a === 1 ? '' : ` / ${+(rgba.a * 100).toFixed(2)}%`;
+		const rgb = useModernSyntax
+			? `rgb(${rgba.r} ${rgba.g} ${rgba.b}${opacity})`
+			: Color.Format.CSS.formatRGB(color);
+		const hsl = useModernSyntax
+			? `hsl(${hsla.h}deg ${Math.round(hsla.s * 100)}% ${Math.round(hsla.l * 100)}%${opacity})`
+			: Color.Format.CSS.formatHSL(color);
 		const hex = Color.Format.CSS.formatHexA(color, true);
 
 		const colorPresentations: IColorPresentation[] = [];
