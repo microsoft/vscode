@@ -52,7 +52,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	private readonly useWAL: boolean;
 	private readonly busyTimeout: number | undefined;
 
-	private readonly whenConnected: Promise<IDatabaseConnection>;
+	private whenConnected: Promise<IDatabaseConnection>;
 
 	constructor(
 		private readonly path: string,
@@ -66,11 +66,25 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	}
 
 	async getItems(): Promise<Map<string, string>> {
-		const connection = await this.whenConnected;
+		let connection = await this.whenConnected;
 
 		const items = new Map<string, string>();
 
-		const rows = await this.all(connection, 'SELECT * FROM ItemTable');
+		let rows: { key: string; value: string }[];
+		try {
+			rows = await this.all(connection, 'SELECT * FROM ItemTable');
+		} catch (error) {
+			if (error.code !== 'SQLITE_CORRUPT' || connection.isInMemory) {
+				throw error;
+			}
+
+			// A corrupt page does not prevent opening the DB, so connect() did not
+			// recover from the backup. Do it now, before anything can overwrite it.
+			this.logger.error(`[storage ${this.name}] getItems(): Unable to read DB, restoring from backup`);
+			this.whenConnected = this.reconnectFromBackup(connection);
+			connection = await this.whenConnected;
+			rows = await this.all(connection, 'SELECT * FROM ItemTable');
+		}
 		rows.forEach(row => items.set(row.key, row.value));
 
 		if (this.logger.isTracing) {
@@ -292,29 +306,42 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 				return this.connect(path, false /* not another retry */);
 			}
 
-			// Otherwise, best we can do is to recover from a backup if that exists, as such we
-			// move the DB to a different filename and try to load from backup. If that fails,
-			// a new empty DB is being created automatically.
-			//
-			// The final fallback is to use an in-memory DB which should only happen if the target
-			// folder is really not writeable for us.
-			//
+			// Otherwise, best we can do is to recover from a backup if that exists
+			return this.connectFromBackup(path);
+		}
+	}
+
+	private async reconnectFromBackup(connection: IDatabaseConnection): Promise<IDatabaseConnection> {
+
+		// Close the corrupt DB first so that it can be deleted (errors are ignored, it is corrupt)
+		await new Promise<void>(resolve => connection.db.close(() => resolve()));
+
+		return this.connectFromBackup(this.path);
+	}
+
+	private async connectFromBackup(path: string): Promise<IDatabaseConnection> {
+
+		// Move the DB to a different filename and try to load from backup. If that fails,
+		// a new empty DB is being created automatically.
+		//
+		// The final fallback is to use an in-memory DB which should only happen if the target
+		// folder is really not writeable for us.
+		//
+		try {
+			await fs.promises.unlink(path);
 			try {
-				await fs.promises.unlink(path);
-				try {
-					await Promises.rename(this.toBackupPath(path), path, false /* no retry */);
-				} catch {
-					// ignore
-				}
-
-				return await this.doConnect(path);
-			} catch (error) {
-				this.logger.error(`[storage ${this.name}] open(): Unable to use backup due to ${error}`);
-
-				// In case of any error to open the DB, use an in-memory
-				// DB so that we always have a valid DB to talk to.
-				return this.doConnect(SQLiteStorageDatabase.IN_MEMORY_PATH);
+				await Promises.rename(this.toBackupPath(path), path, false /* no retry */);
+			} catch {
+				// ignore
 			}
+
+			return await this.doConnect(path);
+		} catch (error) {
+			this.logger.error(`[storage ${this.name}] open(): Unable to use backup due to ${error}`);
+
+			// In case of any error to open the DB, use an in-memory
+			// DB so that we always have a valid DB to talk to.
+			return this.doConnect(SQLiteStorageDatabase.IN_MEMORY_PATH);
 		}
 	}
 
