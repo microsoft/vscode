@@ -287,6 +287,7 @@ suite('ChatViewPane session transitions', () => {
 			restoringSession: Promise<void> | undefined;
 			readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 			reportOpened(sessionResource: URI): void;
+			reportRestored(sessionResource: URI): void;
 		} = Object.assign(Object.create(ChatViewPane.prototype), {
 			_store: paneStore,
 			_showReason: 'open',
@@ -376,6 +377,10 @@ suite('ChatViewPane session transitions', () => {
 		const otherReported = shown(restored);
 		restored.pane.reportOpened(nextResource);
 		const reopened = shown(restored);
+		// Picked again, such as after the user moved the window's folder away: reported again
+		const reportedBefore = restored.pane.shownSession.get();
+		restored.pane.reportOpened(nextResource);
+		const reportedAgain = restored.pane.shownSession.get() !== reportedBefore;
 		Object.assign(restored.pane, { chatService: { acquireOrLoadSession: async () => savedReference() } });
 		await restored.pane.loadSession(savedResource);
 		const afterLoad = shown(restored);
@@ -384,6 +389,10 @@ suite('ChatViewPane session transitions', () => {
 		Object.assign(restored.pane, { chatService: { acquireOrLoadSession: async () => Object.assign(toDisposable(() => { }), { object: upcastPartial<IChatModel>({ sessionResource: recalledResource }) }) } });
 		await restored.pane.loadSession(recalledResource, undefined, 'restore');
 		const loadedToRestore = shown(restored);
+		// The chat it shows, opened again as one to restore, such as where it was opened before
+		restored.pane.reportOpened(recalledResource);
+		restored.pane.reportRestored(recalledResource);
+		const reopenedToRestore = shown(restored);
 
 		// The user loads a chat while the restore still prepares its chat's configuration
 		const preparing = new DeferredPromise<void>();
@@ -400,12 +409,14 @@ suite('ChatViewPane session transitions', () => {
 		await loading;
 		await restoration;
 
-		assert.deepStrictEqual({ afterRestore, otherReported, reopened, afterLoad, loadedToRestore, superseded: shown(superseded) }, {
+		assert.deepStrictEqual({ afterRestore, otherReported, reopened, reportedAgain, afterLoad, loadedToRestore, reopenedToRestore, superseded: shown(superseded) }, {
 			afterRestore: '/untitled-next restore',
 			otherReported: '/untitled-next restore',
 			reopened: '/untitled-next open',
+			reportedAgain: true,
 			afterLoad: '/saved open',
 			loadedToRestore: '/recalled restore',
+			reopenedToRestore: '/recalled restore',
 			superseded: '/saved open',
 		});
 	});

@@ -985,6 +985,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
 		const provided = this.providedSessionsList = this.sessionsListService.provider?.create(this.sessionsControlContainer, this.instantiationService, { overrideStyles: this.getLocationBasedColors().listOverrideStyles });
 		if (provided) {
+			this._register(this.sessionsListService.setActiveList(provided));
 			// A list of its own header and actions, in place of those of the Chat view's list
 			setVisibility(!provided.hasHeader, sessionsTitleContainer);
 			setVisibility(false, newSessionButtonContainer);
@@ -1563,12 +1564,25 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	/**
 	 * Reports the chat of `sessionResource` as one that the user brought up, also where the view shows it already, such as
-	 * one it restored that the user picks in a sessions list.
+	 * one it restored, or one the user picks again in a sessions list, which is reported again.
 	 */
 	reportOpened(sessionResource: URI): void {
+		this._reportShown(sessionResource, 'open');
+	}
+
+	/**
+	 * Reports the chat of `sessionResource` as one that it restores, also where the view shows it already as opened, such
+	 * as the last chat of where the user moved the window's folder.
+	 */
+	reportRestored(sessionResource: URI): void {
+		this._reportShown(sessionResource, 'restore');
+	}
+
+	private _reportShown(sessionResource: URI, reason: 'open' | 'restore'): void {
 		const shown = this._shownSession.get();
-		if (shown?.reason === 'restore' && isEqual(shown.resource, sessionResource)) {
-			this._shownSession.set({ resource: sessionResource, reason: 'open' }, undefined);
+		// Each time the user opens it, also where it is reported as opened already, as where it works may matter again
+		if (shown && (reason === 'open' || shown.reason !== reason) && isEqual(shown.resource, sessionResource)) {
+			this._shownSession.set({ resource: sessionResource, reason }, undefined);
 		}
 	}
 

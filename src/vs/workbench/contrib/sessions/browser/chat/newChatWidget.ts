@@ -794,6 +794,14 @@ export class NewChatWidget extends Disposable {
 		}
 		if (this._draftHost) {
 			this._register(this._reseedAfterFailedSend(this._draftHost));
+			// Its host aims it at another folder, such as where the window's folder moved: its draft is created there
+			if (this._draftHost.onDidRetarget) {
+				this._register(this._draftHost.onDidRetarget(target => {
+					if (!isSessionCreated(this._session.get())) {
+						this._seedRequestedTarget(target);
+					}
+				}));
+			}
 		}
 
 		// Comment 2: Re-evaluate the tip when the selected model changes, because
