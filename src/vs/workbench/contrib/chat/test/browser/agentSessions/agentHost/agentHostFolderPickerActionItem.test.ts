@@ -155,6 +155,8 @@ suite('AgentHostFolderPickerActionItem', () => {
 		root.appendChild(row);
 		const lane = document.createElement('div');
 		lane.className = 'chat-secondary-input-toolbar';
+		// As wide as the toolbar is told it is, so that what it lays out is what it measures
+		lane.style.width = `${availableWidth}px`;
 		row.appendChild(lane);
 		const folderAction = store.add(new Action('workbench.action.chat.openAgentHostFolderPicker', 'Folder'));
 		const neighbors = [store.add(new Action('copilot', 'Copilot')), store.add(new Action('permissions', 'Manual permissions'))];
@@ -188,7 +190,7 @@ suite('AgentHostFolderPickerActionItem', () => {
 			toolbar.relayout();
 			return { minWidth: chip?.getMinimumWidth() ?? 0, overflowed: toolbar.hasOverflow(), floor };
 		};
-		return { select, chip: () => chip, longName, shortName };
+		return { select, chip: () => chip, lane, longName, shortName };
 	}
 
 	test('last in a narrow row, it needs the width of the name it shows now: a shorter name, or No Workspace, brings it back from the overflow', () => {
@@ -225,5 +227,32 @@ suite('AgentHostFolderPickerActionItem', () => {
 			shortAsFresh: short.minWidth === fresh.minWidth,
 			noWorkspaceLessThanLong: none.minWidth < long.minWidth,
 		}, { overflowed: [false, false, false, false], longNeedsMore: true, measuredWithinLongFloor: true, shortAsFresh: true, noWorkspaceLessThanLong: true });
+	});
+	test('at a narrow width it really is, a long name, fresh or after a short one, needs what it does in a wide row, without overlapping its neighbors', () => {
+		const wideRow = createRow(1000);
+		const wide = { short: wideRow.select(wideRow.shortName).minWidth, long: wideRow.select(wideRow.longName).minWidth };
+		root.textContent = '';
+		const { select, lane, longName, shortName } = createRow(160);
+		/** Whether the items it shows lie within it, one after another. */
+		const laidOut = () => {
+			const laneBounds = lane.getBoundingClientRect();
+			const bounds = [...lane.getElementsByClassName('action-item')].map(item => item.getBoundingClientRect()).filter(rect => rect.width > 0);
+			return bounds.every((rect, index) => rect.left >= laneBounds.left - 0.5 && rect.right <= laneBounds.right + 0.5 && (index === 0 || rect.left >= bounds[index - 1].right - 0.5));
+		};
+		// Narrowed by the row as it first renders, before the toolbar moves it to the overflow
+		const freshLong = { ...select(longName), laidOut: laidOut() };
+		const short = { ...select(shortName), laidOut: laidOut() };
+		const long = { ...select(longName), laidOut: laidOut() };
+		const shortAgain = { ...select(shortName), laidOut: laidOut() };
+
+		assert.deepStrictEqual({
+			minWidths: [freshLong.minWidth, short.minWidth, long.minWidth, shortAgain.minWidth],
+			overflowed: [freshLong.overflowed, short.overflowed, long.overflowed, shortAgain.overflowed],
+			laidOut: [freshLong.laidOut, short.laidOut, long.laidOut, shortAgain.laidOut],
+		}, {
+			minWidths: [wide.long, wide.short, wide.long, wide.short],
+			overflowed: [true, false, true, false],
+			laidOut: [true, true, true, true],
+		});
 	});
 });
