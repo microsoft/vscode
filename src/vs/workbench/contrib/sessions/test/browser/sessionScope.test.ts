@@ -214,7 +214,7 @@ suite('SessionsListingScopeFilter', () => {
 		});
 	});
 
-	test('lists a session that works in a folder of the scope, or whose root or repository is one, not by the path of a worktree alone, nor by a repository it shares with a listed session, nor by a worktree of its repository', () => {
+	test('lists a session that works in a folder of the scope, or whose root or repository is one, not by a project only inside one, by the path of a worktree alone, by a repository it shares with a listed session, nor by a worktree of its repository', () => {
 		const folderOf = (path: string, root: string, repository?: string, workTree?: string) => ({ root: URI.file(root), workingDirectory: URI.file(path), name: path, description: undefined, gitRepository: repository ? upcastPartial<ISessionGitRepository>({ uri: URI.file(repository), workTreeUri: workTree ? URI.file(workTree) : undefined }) : undefined });
 		const sessionOf = (id: string, folder: ReturnType<typeof folderOf>): ISession => ({ ...buildTestSession({ id, title: id }).session, workspace: constObservable<ISessionWorkspace | undefined>({ ...buildTestWorkspace(id), folders: [folder] }) });
 		const sessions = [
@@ -222,6 +222,8 @@ suite('SessionsListingScopeFilter', () => {
 			sessionOf('inSubfolder', folderOf('/work/repo/src/app', '/work/repo/src/app', '/elsewhere/shared')),
 			sessionOf('worktreeByRoot', folderOf('/work/repo.worktrees/feature', '/work/repo')),
 			sessionOf('worktreeByRepository', folderOf('/work/repo.worktrees/fix', '/work/repo.worktrees/fix', '/work/repo')),
+			// A project inside a folder of the scope, such as a package of a monorepo, is not one of the scope
+			sessionOf('nestedProject', folderOf('/work/trees/pkg-x', '/work/repo/pkg', '/work/repo/pkg')),
 			sessionOf('worktreePathOnly', folderOf('/work/repo.worktrees/draft', '/work/repo.worktrees/draft')),
 			sessionOf('sharesRepository', folderOf('/elsewhere/clone', '/elsewhere/clone', '/elsewhere/shared')),
 			sessionOf('worktreeOfScopeOnly', folderOf('/elsewhere/other', '/elsewhere/other', '/elsewhere/other', '/work/repo/src/tree')),
