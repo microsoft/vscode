@@ -10,6 +10,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { addStandardDisposableListener, isHTMLElement } from '../../../base/browser/dom.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import type { IHoverDelegate2, IHoverOptions, IHoverWidget, IManagedHoverContentOrFactory } from '../../../base/browser/ui/hover/hover.js';
+import { deepClone, equals } from '../../../base/common/objects.js';
 
 export const IHoverService = createDecorator<IHoverService>('hoverService');
 
@@ -46,6 +47,7 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 	}
 
 	private readonly hoverDisposables = this._register(new DisposableStore());
+	private readonly hoverUpdates = new WeakMap<IHoverWidget, { options: IHoverDelegateOptions; configuration: ReturnType<typeof getHoverUpdateConfiguration> }>();
 
 	constructor(
 		public readonly placement: 'mouse' | 'element',
@@ -65,7 +67,8 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 	}
 
 	showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined {
-		const overrideOptions = typeof this.overrideOptions === 'function' ? this.overrideOptions(options, focus) : this.overrideOptions;
+		const resolvedOptions = this.resolveOptions(options, focus);
+		const configuration = getHoverUpdateConfiguration(resolvedOptions);
 
 		// close hover on escape
 		this.hoverDisposables.clear();
@@ -78,27 +81,58 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 			}));
 		}
 
-		const id = isHTMLElement(options.content)
-			? undefined
-			: typeof options.content === 'string'
-				? options.content.toString()
-				: options.content.value;
+		const hover = this.hoverService.showInstantHover(resolvedOptions, focus);
+		if (hover) {
+			this.hoverUpdates.set(hover, { options, configuration });
+		}
+		return hover;
+	}
 
-		return this.hoverService.showInstantHover({
+	/**
+	 * Reevaluate overrides while preserving the widget when its effective configuration is unchanged.
+	 */
+	updateHover(hover: IHoverWidget, content: string, focus?: boolean): boolean {
+		const previous = this.hoverUpdates.get(hover);
+		if (!previous || hover.isDisposed) {
+			return false;
+		}
+		const options = { ...previous.options, content };
+		const resolvedOptions = this.resolveOptions(options, focus);
+		if (typeof resolvedOptions.content !== 'string') {
+			return false;
+		}
+		const configuration = getHoverUpdateConfiguration(resolvedOptions);
+		if (previous.configuration.target !== configuration.target ||
+			previous.configuration.container !== configuration.container ||
+			previous.configuration.hoverPosition !== configuration.hoverPosition ||
+			previous.configuration.clippingElement !== configuration.clippingElement ||
+			!equals(previous.configuration.options, configuration.options) ||
+			!hover.updateContent?.(resolvedOptions.content)) {
+			return false;
+		}
+		this.hoverUpdates.set(hover, { options, configuration });
+		return true;
+	}
+
+	/**
+	 * Resolve the same delegate configuration for creation and in-place compatibility checks.
+	 */
+	private resolveOptions(options: IHoverDelegateOptions, focus?: boolean): IHoverOptions {
+		const overrideOptions = typeof this.overrideOptions === 'function' ? this.overrideOptions(options, focus) : this.overrideOptions;
+		return {
 			...options,
 			...overrideOptions,
 			persistence: {
 				hideOnKeyDown: true,
 				...overrideOptions.persistence
 			},
-			id,
 			appearance: {
 				...options.appearance,
 				compact: true,
 				skipFadeInAnimation: this.isInstantlyHovering(),
 				...overrideOptions.appearance
 			}
-		}, focus);
+		};
 	}
 
 	private isInstantlyHovering(): boolean {
@@ -118,6 +152,27 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 			this.lastHoverHideTime = Date.now();
 		}
 	}
+}
+
+/**
+ * Snapshot configuration independently of mutable option objects, keeping DOM and event identities
+ * out of structural cloning. Fade-in animation only applies when a widget is created.
+ */
+function getHoverUpdateConfiguration(options: IHoverOptions) {
+	return {
+		target: options.target,
+		container: options.container,
+		hoverPosition: options.position?.hoverPosition,
+		clippingElement: options.position?.clippingElement,
+		options: deepClone({
+			...options,
+			content: undefined,
+			target: undefined,
+			container: undefined,
+			position: { ...options.position, hoverPosition: undefined, clippingElement: undefined },
+			appearance: { ...options.appearance, skipFadeInAnimation: undefined },
+		}),
+	};
 }
 
 // TODO@benibenj remove this, only temp fix for contextviews
