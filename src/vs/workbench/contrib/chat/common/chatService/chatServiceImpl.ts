@@ -477,9 +477,10 @@ export class ChatService extends Disposable implements IChatService {
 		// that sessions are discoverable after a reload.
 		this._chatSessionStore.updateAndFlushIndexSync(liveLocalChats, liveNonLocalChats);
 
-		// Kick off async file writes for session data.
-		this._chatSessionStore.storeSessions(liveLocalChats);
-		this._chatSessionStore.storeSessionsMetadataOnly(liveNonLocalChats);
+		// Disposal already handles persistence for these models. Another save
+		// could outlive them and overwrite history with their cleared data.
+		this._chatSessionStore.storeSessions(liveLocalChats.filter(session => !this._sessionModels.isPendingDisposal(session.sessionResource)));
+		this._chatSessionStore.storeSessionsMetadataOnly(liveNonLocalChats.filter(session => !this._sessionModels.isPendingDisposal(session.sessionResource)));
 	}
 
 	/**

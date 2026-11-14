@@ -7423,6 +7423,82 @@ suite('ChatService', () => {
 		ref.dispose();
 	});
 
+	for (const useLogSessionStorage of [true, false]) {
+		test(`overlapping disposal saves preserve a reacquired and released session (${useLogSessionStorage ? 'log' : 'flat'} storage)`, async () => {
+			const fileService = createInMemoryFileService(testDisposables, Schemas.file);
+			instantiationService.stub(IFileService, fileService);
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ 'chat.useLogSessionStorage': useLogSessionStorage }));
+			const testService = createChatService();
+			instantiationService.stub(IChatService, testService);
+			const ref = startSessionModel(testService);
+			const resource = ref.object.sessionResource;
+			const response = await testService.sendRequest(resource, 'keep this conversation');
+			ChatSendResult.assertSent(response);
+			await response.data.responseCompletePromise;
+
+			ref.dispose();
+			// Queue the history read between the two final-reference saves.
+			const historyRefresh = testService.getHistorySessionItems();
+			const reacquired = testService.acquireExistingSession(resource);
+			assert.ok(reacquired);
+			testDisposables.add(reacquired).dispose();
+			await historyRefresh;
+			await testService.waitForModelDisposals();
+
+			const restartedService = createChatService();
+			const history = await restartedService.getHistorySessionItems();
+			const restored = await getOrRestoreModel(restartedService, resource);
+			assert.deepStrictEqual({
+				history: history.map(item => item.sessionResource),
+				requests: restored?.getRequests().map(request => request.message.text),
+			}, {
+				history: [resource],
+				requests: ['keep this conversation'],
+			});
+		});
+
+		for (const { releaseReference, refreshHistory } of [
+			{ releaseReference: true, refreshHistory: true },
+			{ releaseReference: true, refreshHistory: false },
+			{ releaseReference: false, refreshHistory: true },
+		]) {
+			test(`queued autosave preserves a ${releaseReference ? 'released' : 'retained'} session (${useLogSessionStorage ? 'log' : 'flat'} storage, history refresh: ${refreshHistory})`, async () => {
+				const fileService = createInMemoryFileService(testDisposables, Schemas.file);
+				instantiationService.stub(IFileService, fileService);
+				instantiationService.stub(IConfigurationService, new TestConfigurationService({ 'chat.useLogSessionStorage': useLogSessionStorage }));
+				const testService = createChatService();
+				instantiationService.stub(IChatService, testService);
+				const ref = startSessionModel(testService);
+				const resource = ref.object.sessionResource;
+				const response = await testService.sendRequest(resource, 'keep this conversation');
+				ChatSendResult.assertSent(response);
+				await response.data.responseCompletePromise;
+
+				if (releaseReference) {
+					ref.dispose();
+				}
+				// A history refresh can separate the final-reference save from the autosave.
+				const historyRefresh = refreshHistory ? testService.getHistorySessionItems() : undefined;
+				const storageService = instantiationService.get(IStorageService) as TestStorageService;
+				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+				await historyRefresh;
+				await testService.getHistorySessionItems();
+				await testService.waitForModelDisposals();
+
+				const restartedService = createChatService();
+				const history = await restartedService.getHistorySessionItems();
+				const restored = await getOrRestoreModel(restartedService, resource);
+				assert.deepStrictEqual({
+					history: history.map(item => item.sessionResource),
+					requests: restored?.getRequests().map(request => request.message.text),
+				}, {
+					history: [resource],
+					requests: ['keep this conversation'],
+				});
+			});
+		}
+	}
+
 	test('session storage does not wait for editing diff stats', async () => {
 		const fileService = createInMemoryFileService(testDisposables, Schemas.file);
 		instantiationService.stub(IFileService, fileService);
