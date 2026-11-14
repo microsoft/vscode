@@ -162,8 +162,9 @@ export class AgentHostWorktreeSessionLayerSource extends Disposable implements I
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
-		// Also as a session comes to work elsewhere, such as in the worktree its first request created
-		const sessionsChanged = observableSignalFromEvent(this, _sessionsManagementService.onDidChangeSessions);
+		// As any session it knows is added, removed or changes, also one outside the listed ones (getAllSessions), and as a
+		// session comes to work elsewhere, such as in the worktree its first request created
+		const sessionsChanged = observableSignalFromEvent(this, _sessionsManagementService.onDidChangeSession);
 		let first = true;
 		this._register(autorun(reader => {
 			sessionsChanged.read(reader);
