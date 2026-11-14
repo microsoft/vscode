@@ -401,6 +401,12 @@ export interface IChatWidgetViewOptions {
 	 */
 	isSessionsWindow?: boolean;
 
+	/**
+	 * Whether the input shows its session's changes as a working set, as the editor window's chat does, also while
+	 * {@link isSessionsWindow} is set, such as for a session's chat outside the Agents window. Never in the Agents window.
+	 */
+	sessionWorkingSet?: boolean;
+
 	/** Checked state of a permissions picker hosted outside the chat input. */
 	readonly sandboxToggleChecked?: IObservable<boolean>;
 
@@ -474,6 +480,8 @@ export interface IChatAcceptInputOptions {
 export interface IChatWidgetViewModelChangeEvent {
 	readonly previousSessionResource: URI | undefined;
 	readonly currentSessionResource: URI | undefined;
+	/** Whether the widget shows the session that its first request made of the one it showed, such as a new chat's. */
+	readonly committed?: boolean;
 }
 
 /**

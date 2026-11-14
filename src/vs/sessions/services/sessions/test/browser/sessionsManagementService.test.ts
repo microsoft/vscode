@@ -88,6 +88,7 @@ import { SessionHostService } from '../../../../../workbench/contrib/sessions/br
 import { createMainWindowInstantiationService, getMainWindowHost, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { getSingletonServiceDescriptors } from '../../../../../platform/instantiation/common/extensions.js';
+import { EditorWindowMainSessionHost } from '../../../../../workbench/contrib/sessions/browser/agentsView/editorWindowMainSessionHost.js';
 import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ISessionPaneContent } from '../../../../../workbench/services/sessions/common/sessionPane.js';
@@ -864,7 +865,8 @@ suite('SessionsManagementService', () => {
 				disposable: (view.gridHost as Partial<IDisposable>).dispose !== undefined,
 				hosts: sessionHostService.hosts.get().filter(host => host.kind === SessionHostKind.MainWindow).length,
 				injected: injected === view.gridHost,
-				rootRegistration: getSingletonServiceDescriptors().some(([id]) => id === ISessionHost),
+				// Editor windows register their own root host, which shows what a feature binds; the Agents window registers none
+				rootRegistration: getSingletonServiceDescriptors().some(([id, descriptor]) => id === ISessionHost && descriptor.ctor !== EditorWindowMainSessionHost),
 				rootInjection,
 				shownBefore,
 				shownAfter: view.gridHost.session.get()?.sessionId,
@@ -10348,10 +10350,12 @@ suite('SessionsManagementService', () => {
 			});
 		}
 
-		function setup(sessions: ISession[]) {
+		function setup(sessions: ISession[], listed: (session: ISession) => boolean = () => true) {
 			const provider = new class extends TestSessionsProvider {
 				constructor() { super(sessions[0]); }
-				override getSessions(): ISession[] { return sessions; }
+				// Its listing scope may hide a session it still knows, such as one of another folder in an editor window
+				override getSessions(): ISession[] { return sessions.filter(listed); }
+				override getAllSessions(): ISession[] { return sessions; }
 			};
 			const { part, content } = createSessionsPartTestHarness(disposables);
 			const partService = new TestSessionsPartService(content.onDidFocusPane, content);
@@ -10390,6 +10394,20 @@ suite('SessionsManagementService', () => {
 				open: ['mainA', 'b'],
 				canReopenAgain: false,
 			});
+		});
+
+		test('reopens a closed chat of a session that its provider no longer lists, but still knows', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('b')]);
+			let inScope = true;
+			const { view } = setup([sessionA], () => inScope);
+
+			await view.openSession(sessionA.resource);
+			const chatB = sessionA.chats.get().find(c => c.title.get() === 'b')!;
+			await view.closeChat(activeSessionOf(view)!, chatB);
+			inScope = false;
+			await view.reopenLastClosedItem();
+
+			assert.deepStrictEqual(view.activePane.get()!.tabs.openChats.get().map(c => c.title.get()), ['mainA', 'b']);
 		});
 
 		test('an explicitly closed session returns to its grid index', async () => {
