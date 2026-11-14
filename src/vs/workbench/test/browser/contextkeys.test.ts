@@ -7,6 +7,7 @@ import assert from 'assert';
 import { Emitter } from '../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
+import { MenuRegistry } from '../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
@@ -55,14 +56,24 @@ suite('Workbench Context Keys - Editor Area Hidden For Chat', () => {
 		chatPartEnabled: contextKeyService.getContextKeyValue('chatPartEnabled'),
 	});
 
-	test('the keys are set at construction with a visible chat part and follow it', () => {
+	test('the keys follow a chat part that the layout creates visible, without an event, once the window restored, and then follow it', async () => {
 		const layoutService = new ChatLayoutService();
+		let restored!: () => void;
+		layoutService.whenRestored = new Promise<void>(resolve => restored = resolve);
 		layoutService.chatEnabled = false;
+		layoutService.chatVisible = false;
 		const contextKeyService = create(layoutService);
 		const atConstruction = snapshot(contextKeyService);
 
-		// The chat part joins the layout after the handler was created
+		// The layout creates the chat part from its stored state, visible, and fires no visibility event
 		layoutService.chatEnabled = true;
+		layoutService.chatVisible = true;
+		restored();
+		await layoutService.whenRestored;
+		await Promise.resolve();
+		const restoredKeys = snapshot(contextKeyService);
+		const paletteEnabled = !!MenuRegistry.getCommand('workbench.action.toggleEditorVisibility')?.precondition?.evaluate(contextKeyService.getContext(null));
+
 		layoutService.chatVisible = false;
 		layoutService.emitter.fire({ partId: Parts.CHAT_PART, visible: false });
 		const hiddenChat = snapshot(contextKeyService);
@@ -71,8 +82,10 @@ suite('Workbench Context Keys - Editor Area Hidden For Chat', () => {
 		layoutService.editorHidden = true;
 		layoutService.emitter.fire({ partId: Parts.EDITOR_PART, visible: false });
 
-		assert.deepStrictEqual({ atConstruction, hiddenChat, editorHidden: snapshot(contextKeyService) }, {
-			atConstruction: { chatPartVisible: true, editorAreaHiddenByChat: false, chatPartEnabled: false },
+		assert.deepStrictEqual({ atConstruction, restoredKeys, paletteEnabled, hiddenChat, editorHidden: snapshot(contextKeyService) }, {
+			atConstruction: { chatPartVisible: false, editorAreaHiddenByChat: false, chatPartEnabled: false },
+			restoredKeys: { chatPartVisible: true, editorAreaHiddenByChat: false, chatPartEnabled: true },
+			paletteEnabled: true,
 			hiddenChat: { chatPartVisible: false, editorAreaHiddenByChat: false, chatPartEnabled: true },
 			editorHidden: { chatPartVisible: true, editorAreaHiddenByChat: true, chatPartEnabled: true },
 		});
