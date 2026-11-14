@@ -2961,7 +2961,7 @@ export class WorkspacePicker extends Disposable {
 
 	/**
 	 * The chip of a picker whose allowed folders are a window's folder and its worktrees (with a {@link IAllowedFolderPresentation.kind}):
-	 * by its icon, a folder or a worktree, and its name, or Worktree for New Worktree, with what it is for screen readers and on hover.
+	 * by its icon, a folder or a worktree, and its name, or New Worktree by that name, with what it is for screen readers and on hover.
 	 */
 	private _getLocationChip(workspace: ISessionWorkspace, providerId: string | undefined): { readonly icon: ThemeIcon; readonly label: string | undefined; readonly description: string } | undefined {
 		const folderUri = workspace.folders[0]?.root;
@@ -2975,7 +2975,7 @@ export class WorkspacePicker extends Disposable {
 			const primary = presentation.kind === 'worktree' ? this._getAllowedFolders()?.find(candidate => this.options.getAllowedFolderPresentation?.(candidate)?.kind === 'folder') : undefined;
 			const primaryResolved = primary ? this._resolveFolder(primary) : undefined;
 			const of = primary && primaryResolved ? this.options.getAllowedFolderPresentation?.(primary)?.label ?? this._getFolderWorkspaceLabel(primaryResolved.workspace, primaryResolved.providerId) : name;
-			return { icon: WORKSPACE_PICKER_WORKTREE_ICON, label: localize('workspacePicker.newWorktreeChip', "Worktree"), description: localize('workspacePicker.newWorktreeChipDescription', "New worktree of {0}", of) };
+			return { icon: WORKSPACE_PICKER_WORKTREE_ICON, label: getNewWorktreeLabel(), description: localize('workspacePicker.newWorktreeChipDescription', "New worktree of {0}", of) };
 		}
 		return presentation.kind === 'worktree'
 			? { icon: WORKSPACE_PICKER_WORKTREE_ICON, label: name, description: localize('workspacePicker.worktreeChipDescription', "Worktree: {0}", name) }

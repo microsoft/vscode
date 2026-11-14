@@ -8998,7 +8998,7 @@ suite('WorkspacePicker - Allowed folders', () => {
 		});
 	});
 
-	test('with a window\'s folder and its worktrees, shows New Worktree and the worktrees by the worktree icon, and its chip by its icon only, naming it for screen readers and on hover, but New Worktree as Worktree, also from a worktree', async () => {
+	test('with a window\'s folder and its worktrees, shows New Worktree and the worktrees by the worktree icon, and its chip by its icon and name, or New Worktree by that name, also from a worktree, naming what it is for screen readers and on hover', async () => {
 		const newWorktree = { selected: false };
 		const { picker } = createPicker(['/local/vscode', '/local/vscode.worktrees/a'], undefined, {
 			getAllowedFolderPresentation: folderUri => folderUri.path === '/local/vscode'
@@ -9031,12 +9031,12 @@ suite('WorkspacePicker - Allowed folders', () => {
 				items: ['worktree New Worktree', 'folder local/vscode *', 'worktree a'],
 				chip: { icon: 'folder', label: 'local/vscode', ariaLabel: 'Folder: local/vscode', hover: 'Folder: local/vscode' },
 			},
-			inNewWorktree: { icon: 'worktree', label: 'Worktree', ariaLabel: 'New worktree of local/vscode', hover: 'New worktree of local/vscode' },
+			inNewWorktree: { icon: 'worktree', label: 'New Worktree', ariaLabel: 'New worktree of local/vscode', hover: 'New worktree of local/vscode' },
 			atWorktree: {
 				items: ['worktree New Worktree', 'folder local/vscode', 'worktree a *'],
 				chip: { icon: 'worktree', label: 'a', ariaLabel: 'Worktree: a', hover: 'Worktree: a' },
 			},
-			fromWorktree: { chip: { icon: 'worktree', label: 'Worktree', ariaLabel: 'New worktree of local/vscode', hover: 'New worktree of local/vscode' }, selected: true },
+			fromWorktree: { chip: { icon: 'worktree', label: 'New Worktree', ariaLabel: 'New worktree of local/vscode', hover: 'New worktree of local/vscode' }, selected: true },
 		});
 	});
 
@@ -9063,7 +9063,7 @@ suite('WorkspacePicker - Allowed folders', () => {
 
 		assert.deepStrictEqual({ atWorktree, inNewWorktree: { checked: checked(), label: trigger.querySelector('.sessions-chat-dropdown-label')?.textContent, selected: picker.selectedFolderUri?.path } }, {
 			atWorktree: { selected: '/local/vscode.worktrees/a', events: ['change /local/vscode.worktrees/a', 'select /local/vscode.worktrees/a'], checked: ['/local/vscode.worktrees/a'], ariaLabel: 'Worktree: a', worktreeIcon: true },
-			inNewWorktree: { checked: ['New Worktree'], label: 'Worktree', selected: '/local/vscode.worktrees/a' },
+			inNewWorktree: { checked: ['New Worktree'], label: 'New Worktree', selected: '/local/vscode.worktrees/a' },
 		});
 	});
 
