@@ -96,35 +96,38 @@ suite('Sessions - Workbench', () => {
 		}, { mainEditor: false, mainEditorWithoutWindow: false, chatWindowEditor: true, chatWindowPanel: false, editorWindowEditor: false });
 	});
 
-	test('leaves native resize to the host window while retaining iOS and phone viewport listeners', () => {
+	test('leaves native resize to the host window while retaining iOS and mobile viewport listeners', () => {
 		const viewport = mainWindow.visualViewport;
 		assert.ok(viewport);
 		const results = [false, true].map(isIOSWindow => {
 			const listeners = store.add(new DisposableStore());
 			let layouts = 0;
-			let phone = false;
+			let viewportClass: 'phone' | 'tablet' | 'desktop' = 'desktop';
 			const workbench: { registerLayoutListeners(isIOSWindow: boolean): void } = Object.assign(Object.create(Workbench.prototype), {
 				parent: document.createElement('div'),
 				_register: <T extends IDisposable>(disposable: T) => listeners.add(disposable),
 				layout: () => layouts++,
-				layoutPolicy: { viewportClass: { get: () => phone ? 'phone' : 'desktop' } },
+				layoutPolicy: { viewportClass: { get: () => viewportClass } },
 			});
 			workbench.registerLayoutListeners(isIOSWindow);
 			mainWindow.dispatchEvent(new Event('resize'));
 			const native = layouts;
 			viewport.dispatchEvent(new Event('resize'));
 			const desktopVisual = layouts;
-			phone = true;
+			viewportClass = 'phone';
 			viewport.dispatchEvent(new Event('resize'));
 			const phoneVisual = layouts;
+			viewportClass = 'tablet';
+			viewport.dispatchEvent(new Event('resize'));
+			const tabletVisual = layouts;
 			listeners.dispose();
 			mainWindow.dispatchEvent(new Event('resize'));
 			viewport.dispatchEvent(new Event('resize'));
-			return { isIOSWindow, native, desktopVisual, phoneVisual, afterDisposal: layouts };
+			return { isIOSWindow, native, desktopVisual, phoneVisual, tabletVisual, afterDisposal: layouts };
 		});
 		assert.deepStrictEqual(results, [
-			{ isIOSWindow: false, native: 0, desktopVisual: 0, phoneVisual: 1, afterDisposal: 1 },
-			{ isIOSWindow: true, native: 1, desktopVisual: 1, phoneVisual: 1, afterDisposal: 1 },
+			{ isIOSWindow: false, native: 0, desktopVisual: 0, phoneVisual: 1, tabletVisual: 2, afterDisposal: 2 },
+			{ isIOSWindow: true, native: 1, desktopVisual: 1, phoneVisual: 1, tabletVisual: 1, afterDisposal: 1 },
 		]);
 	});
 

@@ -1635,7 +1635,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		const visualViewport = getWindow(this.parent).visualViewport;
 		if (visualViewport && !isIOSWindow) {
 			this._register(addDisposableListener(visualViewport, 'resize', () => {
-				if (this.layoutPolicy.viewportClass.get() === 'phone') {
+				if (this.layoutPolicy.viewportClass.get() !== 'desktop') {
 					this.layout();
 				}
 			}));
@@ -2099,7 +2099,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		const previousClass = this._previousViewportClass;
 		this.layoutPolicy.update(layoutViewportDimension.width, layoutViewportDimension.height);
 		const currentClass = this.layoutPolicy.viewportClass.get();
-		this._mainContainerDimension = currentClass === 'phone'
+		this._mainContainerDimension = currentClass !== 'desktop'
 			? getMobileViewportDimension(layoutViewportDimension, getWindow(this.parent).visualViewport)
 			: layoutViewportDimension;
 		this.mainContainer.classList.toggle(LayoutClasses.PHONE_LAYOUT, currentClass === 'phone');
