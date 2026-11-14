@@ -143,7 +143,7 @@ export class AgentHostSessionListStore extends Disposable {
 		// folders changes, since filtering depends on it. The agent host itself
 		// doesn't know which workspace this VS Code window has open.
 		this._trackFolderLocation();
-		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
+		const onDidChangeWorkspace = () => {
 			if (this._options.filterToWorkspace === false) {
 				return;
 			}
@@ -151,7 +151,11 @@ export class AgentHostSessionListStore extends Disposable {
 			this._cacheValid = false;
 			this._filterEntriesToWorkspace();
 			void this.refresh(CancellationToken.None);
-		}));
+		};
+		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(onDidChangeWorkspace));
+		// Also as the window's workspace changes without its folders, such as as Save Workspace As turns a folder into a
+		// workspace file: the locations its folder had are no longer its own
+		this._register(this._workspaceContextService.onDidChangeWorkbenchState(onDidChangeWorkspace));
 	}
 
 	getSessions(provider: string): readonly IAgentHostSessionListEntry[] {
@@ -553,8 +557,9 @@ export class AgentHostSessionListStore extends Disposable {
 				return extUriBiasedIgnorePathCase.isEqual(URI.parse(multiRoot.workspaceFile), configuration);
 			}
 			// An empty window shows every session; a single-folder (or other
-			// non-multi-root) window falls back to working-directory containment.
-			return folders.length === 0 || this._matchesAnyFolder(workingDirectories, folders);
+			// non-multi-root) window falls back to working-directory containment,
+			// also in the locations its folder had, as for any other session.
+			return folders.length === 0 || this._matchesAnyFolder(workingDirectories, folders) || this._matchesAnyLocation(workingDirectories);
 		}
 		if (folders.length === 0) {
 			return true;
