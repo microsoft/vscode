@@ -12,11 +12,12 @@ import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsNavigationService } from '../sessionsNavigationService.js';
 import type { IOpenChatOptions, IOpenSessionOptions } from '../sessionsService.js';
 import { IAgentsChatPartService } from './agentsChatPart.js';
+import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
 import { IAgentsViewProvidersService, waitForAgentsViewSession } from './agentsViewProviders.js';
 
 /**
- * The navigation of an editor window with the Sessions view: sessions and chats open in tabs of its chat part, beside the
- * editor area. The window has no grid of sessions: the active tab of the chat part is its active session.
+ * The navigation of an editor window with the Sessions view: sessions and chats open where the Chat view's chats show, such as
+ * in tabs of its chat part, beside the editor area, while its host replaces the Chat view; to the side, in the chat part. The window has no grid of sessions: the active tab of the chat part is its active session.
  */
 export class EditorWindowSessionsNavigationHost implements ISessionsNavigationService {
 
@@ -26,6 +27,7 @@ export class EditorWindowSessionsNavigationHost implements ISessionsNavigationSe
 
 	constructor(
 		@IAgentsChatPartService private readonly _chatPart: IAgentsChatPartService,
+		@IChatViewHostService private readonly _chatViewHostService: IChatViewHostService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IAgentsViewProvidersService private readonly _providers: IAgentsViewProvidersService,
 	) { }
@@ -40,7 +42,7 @@ export class EditorWindowSessionsNavigationHost implements ISessionsNavigationSe
 		try {
 			const session = await waitForAgentsViewSession(this._sessionsManagementService, sessionResource, () => this._sessionsManagementService.getSession(sessionResource));
 			if (session) {
-				await this._chatPart.openChat(session, undefined, { preserveFocus: options?.preserveFocus });
+				await this._chatViewHostService.openSession(session.mainChat.get().resource, { preserveFocus: options?.preserveFocus });
 			}
 		} finally {
 			hold.dispose();
@@ -51,8 +53,8 @@ export class EditorWindowSessionsNavigationHost implements ISessionsNavigationSe
 		await this._chatPart.openChat(session, undefined, { preserveFocus: options?.preserveFocus, sideBySide: true });
 	}
 
-	async openChat(session: ISession, chatUri: URI, options?: IOpenChatOptions): Promise<void> {
-		await this._chatPart.openChat(session, chatUri, { preserveFocus: options?.preserveFocus });
+	async openChat(_session: ISession, chatUri: URI, options?: IOpenChatOptions): Promise<void> {
+		await this._chatViewHostService.openSession(chatUri, { preserveFocus: options?.preserveFocus });
 	}
 
 	async openChatToSide(session: ISession, chatResource: URI, options?: { readonly preserveFocus?: boolean }): Promise<void> {
