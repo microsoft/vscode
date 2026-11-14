@@ -17,6 +17,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { ChatViewId } from '../../../../chat/browser/chat.js';
 import { IChatViewHostService } from '../../../../chat/browser/chatViewHost.js';
 import { IChatViewSessionsListService } from '../../../../chat/browser/widgetHosts/viewPane/chatViewSessionsList.js';
+import { RemoteNameContext } from '../../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { IEditorWindowChatPartOptions, IEditorWindowChatPartService } from '../../../browser/agentsView/agentsChatPartContribution.js';
@@ -31,6 +32,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOpenInChatPart]: options.setting ?? false, [ChatConfiguration.AgentEnabled]: options.agentEnabled ?? true });
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(options.chatEnabled ?? true);
+		RemoteNameContext.bindTo(contextKeyService).set('');
 		const chatPartOptions: IEditorWindowChatPartOptions[] = [];
 		const runtimeOptions: IEditorWindowSessionsRuntimeOptions[] = [];
 		let runtimeHeld = 0;
