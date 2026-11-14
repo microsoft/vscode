@@ -7289,6 +7289,49 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('switching the folder of a single-folder window to another location and back keeps its sessions listed', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			// The folder of the window moves to a linked checkout, as its folder location: the workspace stays the same
+			const primary = URI.file('/workspace/root');
+			const checkout = URI.file('/workspace/root.worktrees/feature');
+			let folder = primary;
+			const onDidChangeWorkspaceFolders = disposables.add(new Emitter<{ readonly added: never[]; readonly removed: never[]; readonly changed: never[] }>());
+			instantiationService.stub(IWorkspaceContextService, {
+				getWorkbenchState: () => WorkbenchState.FOLDER,
+				getWorkspace: () => testIWorkspace({ id: '', uri: primary, folders: [{ uri: folder, name: 'root', index: 0, toResource: () => folder }] }),
+				getWorkspaceFolder: () => null,
+				onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			});
+
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'primary'), startTime: 1000, modifiedTime: 2000, summary: 'In the folder', workingDirectories: [URI.file('/workspace/root/sub')] });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'checkout'), startTime: 1000, modifiedTime: 3000, summary: 'In the checkout', workingDirectories: [checkout] });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'elsewhere'), startTime: 1000, modifiedTime: 1500, summary: 'Elsewhere', workingDirectories: [URI.file('/other/place')] });
+
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+			const removed: string[] = [];
+			disposables.add(listController.onDidChangeChatSessionItems(delta => removed.push(...(delta.removed ?? []).map(resource => resource.path))));
+			const labels = () => listController.items.map(item => item.label).sort();
+
+			await listController.refresh(CancellationToken.None);
+			const atPrimary = labels();
+			folder = checkout;
+			onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+			await timeout(0);
+			const atCheckout = labels();
+			folder = primary;
+			onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+			await timeout(0);
+
+			// Removing a session from the list disposes the content of its chats that are open, which turns them read-only
+			assert.deepStrictEqual({ atPrimary, atCheckout, back: labels(), removed }, {
+				atPrimary: ['In the folder'],
+				atCheckout: ['In the checkout', 'In the folder'],
+				back: ['In the checkout', 'In the folder'],
+				removed: [],
+			});
+		});
+
 		test('workspace folder change re-filters the retained snapshot when refresh fails', async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 			const workspaceFolder = URI.file('/workspace/root');

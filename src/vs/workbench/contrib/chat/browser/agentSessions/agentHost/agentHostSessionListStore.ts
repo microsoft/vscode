@@ -106,6 +106,13 @@ export class AgentHostSessionListStore extends Disposable {
 	/** Sessions already reported as having an unusable (non-local) project root. */
 	private readonly _reportedNonLocalProjects = new Set<string>();
 
+	/**
+	 * The locations the folder of a single-folder window was at since the window showed its workspace, such as a linked
+	 * checkout it moved to and back from: the same workspace, whose sessions stay listed while its folder moves. Removing a
+	 * session from the list disposes the content of its chats that are open, which turns them read-only.
+	 */
+	private readonly _folderLocations: URI[] = [];
+
 	constructor(
 		private readonly _connection: IAgentHostSessionListConnection,
 		private readonly _options: {
@@ -135,10 +142,12 @@ export class AgentHostSessionListStore extends Disposable {
 		// Re-fetch the session list whenever the set of VS Code workspace
 		// folders changes, since filtering depends on it. The agent host itself
 		// doesn't know which workspace this VS Code window has open.
+		this._trackFolderLocation();
 		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
 			if (this._options.filterToWorkspace === false) {
 				return;
 			}
+			this._trackFolderLocation();
 			this._cacheValid = false;
 			this._filterEntriesToWorkspace();
 			void this.refresh(CancellationToken.None);
@@ -550,7 +559,30 @@ export class AgentHostSessionListStore extends Disposable {
 		if (folders.length === 0) {
 			return true;
 		}
-		return this._matchesAnyFolder(workingDirectories, folders);
+		return this._matchesAnyFolder(workingDirectories, folders) || this._matchesAnyLocation(workingDirectories);
+	}
+
+	private _trackFolderLocation(): void {
+		const workspace = this._workspaceContextService.getWorkspace();
+		if (workspace.configuration || !workspace.uri || workspace.folders.length !== 1) {
+			this._folderLocations.length = 0;
+			return;
+		}
+		// Another workspace starts over: its folder is first at the workspace's own location
+		if (!this._folderLocations.some(location => extUriBiasedIgnorePathCase.isEqual(location, workspace.uri))) {
+			this._folderLocations.length = 0;
+			this._folderLocations.push(workspace.uri);
+		}
+		const location = workspace.folders[0].uri;
+		if (!this._folderLocations.some(known => extUriBiasedIgnorePathCase.isEqual(known, location))) {
+			this._folderLocations.push(location);
+		}
+	}
+
+	private _matchesAnyLocation(workingDirectories: readonly URI[]): boolean {
+		return workingDirectories.some(directory =>
+			this._folderLocations.some(location => extUriBiasedIgnorePathCase.isEqualOrParent(directory, location))
+		);
 	}
 
 	private _filterEntriesToWorkspace(): void {
