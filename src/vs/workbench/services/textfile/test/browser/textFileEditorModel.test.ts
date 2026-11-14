@@ -29,6 +29,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { BrowserTextFileService } from '../../browser/browserTextFileService.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { computeStringDiffWithMetadata } from '../../../../../editor/common/services/editorWebWorker.js';
+import { linesDiffComputers } from '../../../../../editor/common/diff/linesDiffComputers.js';
 import { TestEditorWorkerService } from '../../../../../editor/test/common/services/testEditorWorkerService.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { EndOfLineSequence } from '../../../../../editor/common/model.js';
@@ -904,6 +905,8 @@ suite('Files - TextFileEditorModel', () => {
 });
 
 suite('Files - TextFileEditorModel external changes', () => {
+	// Load @vscode/diff before the tests run on fake timers.
+	suiteSetup(() => linesDiffComputers.getAdvanced());
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const resource = URI.file('/reconciliation.txt');
 	const baseline = 'first\nmiddle\nlast\n';

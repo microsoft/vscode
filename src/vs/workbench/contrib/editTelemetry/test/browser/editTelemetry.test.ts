@@ -19,6 +19,7 @@ import { ScmAdapter } from '../../browser/telemetry/scmAdapter.js';
 import { EditSources } from '../../../../../editor/common/textModelEditSource.js';
 import { DiffService } from '../../browser/helpers/documentWithAnnotatedEdits.js';
 import { computeStringDiffWithMetadata } from '../../../../../editor/common/services/editorWebWorker.js';
+import { linesDiffComputers } from '../../../../../editor/common/diff/linesDiffComputers.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -34,6 +35,8 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 
 suite('Edit Telemetry', () => {
+	// Load @vscode/diff before the tests run on fake timers.
+	suiteSetup(() => linesDiffComputers.getAdvanced());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('reports Agent Host session mode for accepted and rejected edits', () => {

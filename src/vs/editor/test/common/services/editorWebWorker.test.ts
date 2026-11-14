@@ -30,6 +30,11 @@ suite('EditorWebWorker', () => {
 			return this._getModel(uri);
 		}
 
+		// These tests cover the worker's plumbing; `advanced` uses `@vscode/diff`, covered by the fixture tests.
+		protected override _resolveLinesDiffComputer(algorithm: DiffAlgorithmName): ILinesDiffComputer | Promise<ILinesDiffComputer> {
+			return algorithm === 'advanced' ? new DefaultLinesDiffComputer() : super._resolveLinesDiffComputer(algorithm);
+		}
+
 		private _modelCount = 0;
 
 		addModel(lines: string[], eol: string = '\n') {
@@ -157,10 +162,25 @@ suite('EditorWebWorker', () => {
 			assert.deepStrictEqual({ identical: result.identical, changes: result.changes.length }, { identical: false, changes: 1 });
 		});
 
-		test('never falls back for the built-in algorithms', async () => {
-			await assert.rejects(run('advanced', fakeComputer(() => { throw new Error('built-in failed'); }), true), /built-in failed/);
-			await assert.rejects(resolveLinesDiffComputerWithFallback('advanced', () => Promise.reject(new Error('built-in load failed'))), /built-in load failed/);
-			assert.deepStrictEqual(await run('advanced', fakeComputer(() => invalidDiff), true), { usesBuiltin: false, validity: 'invalid', fallback: undefined });
+		test('never falls back for legacy', async () => {
+			await assert.rejects(run('legacy', fakeComputer(() => { throw new Error('legacy failed'); }), true), /legacy failed/);
+			await assert.rejects(resolveLinesDiffComputerWithFallback('legacy', () => Promise.reject(new Error('legacy load failed'))), /legacy load failed/);
+		});
+
+		test('advanced uses the package and falls back like the other package algorithms', async () => {
+			const previousHandler = errorHandler.getUnexpectedErrorHandler();
+			setUnexpectedErrorHandler(() => { });
+			try {
+				assert.deepStrictEqual([
+					await run('advanced', fakeComputer(() => { throw new Error('package failed'); }), false),
+					await run('advanced', fakeComputer(() => invalidDiff), true),
+				], [
+					{ usesBuiltin: true, validity: undefined, fallback: 'error' },
+					{ usesBuiltin: true, validity: 'valid', fallback: 'invalid' },
+				]);
+			} finally {
+				setUnexpectedErrorHandler(previousHandler);
+			}
 		});
 	});
 

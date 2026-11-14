@@ -13,12 +13,15 @@ import { AnnotatedStringEdit, StringEdit } from '../../../../../editor/common/co
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { StringText } from '../../../../../editor/common/core/text/abstractText.js';
 import { computeStringDiffWithMetadata } from '../../../../../editor/common/services/editorWebWorker.js';
+import { linesDiffComputers } from '../../../../../editor/common/diff/linesDiffComputers.js';
 import { EditSources, TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { CombineStreamedChanges, DiffService, EditSourceData, IDocumentWithAnnotatedEdits, MinimizeEditsProcessor } from '../../browser/helpers/documentWithAnnotatedEdits.js';
 
 suite('Documents with Annotated Edits', () => {
+	// Load @vscode/diff before the tests run on fake timers.
+	suiteSetup(() => linesDiffComputers.getAdvanced());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('releases consumed document snapshots while continuing to track edits', async function () {
