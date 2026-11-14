@@ -20,7 +20,7 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { ChatViewContainerId, ChatViewId } from '../../../chat/browser/chat.js';
 import { ActiveAuxiliaryContext, AuxiliaryBarMaximizeHiddenContext } from '../../../../common/contextkeys.js';
 import { Event } from '../../../../../base/common/event.js';
-import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
 import { ChatConfiguration, isChatViewSessionsListEnabled } from '../../../chat/common/constants.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
@@ -75,7 +75,10 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 				this._register(registerAgentsViewNewSessionActions());
 				this._register(instantiationService.createInstance(SessionsArchiveActionsContribution));
 			});
-			// The chat part, where the chats of sessions can open too
+			// The chat part, where the chats of sessions open while chat.viewSessions.openInChatPart is on: otherwise it does
+			// not show, also not as the window restores it shown, which it hides before the chat part restores its chats
+			const openInChatPart = observableConfigValue(ChatConfiguration.ChatViewSessionsOpenInChatPart, false, configurationService);
+			this.hideChatPartUnlessUsed(accessor.get(IWorkbenchLayoutService), accessor.get(ILifecycleService), openInChatPart);
 			this._register(instantiationService.createInstance(AgentsChatPartContribution));
 
 			// The chat part docks beside the Chat view, which lists the sessions whose chats it shows
@@ -89,10 +92,24 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 			active.set(true);
 			this._register(toDisposable(() => active.reset()));
 			const surface = this._register(instantiationService.createInstance(ChatViewSessionsSurface));
-			const router = new ChatViewSessionsRouter(surface, () => instantiationService.invokeFunction(accessor => accessor.get(IAgentsChatPartService)), observableConfigValue(ChatConfiguration.ChatViewSessionsOpenInChatPart, false, configurationService));
+			const router = new ChatViewSessionsRouter(surface, () => instantiationService.invokeFunction(accessor => accessor.get(IAgentsChatPartService)), openInChatPart);
 			this.hideMaximizeWhileInChatPart(contextKeyService, router);
 			this.replaceChatViewPane(surface, router);
 			this.registerChatViewHost(instantiationService, accessor.get(IChatViewHostService), accessor.get(IViewsService), router);
+		});
+	}
+
+	/** Hides the chat part while the chats open in the Chat view: as the window is ready, and as they stop opening in the chat part. */
+	private hideChatPartUnlessUsed(layoutService: IWorkbenchLayoutService, lifecycleService: ILifecycleService, openInChatPart: IObservable<boolean>): void {
+		void lifecycleService.when(LifecyclePhase.Ready).then(() => {
+			if (this._store.isDisposed) {
+				return;
+			}
+			this._register(autorun(reader => {
+				if (!openInChatPart.read(reader) && layoutService.isVisible(Parts.CHAT_PART)) {
+					layoutService.setPartHidden(true, Parts.CHAT_PART);
+				}
+			}));
 		});
 	}
 
