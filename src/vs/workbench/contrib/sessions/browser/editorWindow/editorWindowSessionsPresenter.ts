@@ -122,9 +122,10 @@ export class EditorWindowSessionsPresenterService extends Disposable implements 
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _registered = observableValue<readonly IEditorWindowSessionsPresenter[]>(this, []);
+	/** One per registration, also of the same presenter or holder: each is removed by its own disposal only. */
+	private readonly _registered = observableValue<readonly { readonly presenter: IEditorWindowSessionsPresenter }[]>(this, []);
 	readonly presenter: IObservable<IEditorWindowSessionsPresenter>;
-	private readonly _composerHolders = new Set<IEditorWindowComposerHolder>();
+	private readonly _composerHolders = new Set<{ readonly holder: IEditorWindowComposerHolder }>();
 
 	constructor(
 		@IChatViewHostService chatViewHostService: IChatViewHostService,
@@ -132,25 +133,27 @@ export class EditorWindowSessionsPresenterService extends Disposable implements 
 	) {
 		super();
 		const chatView = new ChatViewSessionsPresenter(chatViewHostService, commandService);
-		this.presenter = derived(this, reader => this._registered.read(reader).at(-1) ?? chatView);
+		this.presenter = derived(this, reader => this._registered.read(reader).at(-1)?.presenter ?? chatView);
 	}
 
 	registerPresenter(presenter: IEditorWindowSessionsPresenter): IDisposable {
-		this._registered.set([...this._registered.get(), presenter], undefined);
-		return toDisposable(() => this._registered.set(this._registered.get().filter(candidate => candidate !== presenter), undefined));
+		const registration = { presenter };
+		this._registered.set([...this._registered.get(), registration], undefined);
+		return toDisposable(() => this._registered.set(this._registered.get().filter(candidate => candidate !== registration), undefined));
 	}
 
 	registerComposerHolder(holder: IEditorWindowComposerHolder): IDisposable {
-		this._composerHolders.add(holder);
-		return toDisposable(() => this._composerHolders.delete(holder));
+		const registration = { holder };
+		this._composerHolders.add(registration);
+		return toDisposable(() => this._composerHolders.delete(registration));
 	}
 
 	hasComposer(): boolean {
-		return [...this._composerHolders].some(holder => holder.hasComposer());
+		return [...this._composerHolders].some(({ holder }) => holder.hasComposer());
 	}
 
 	async closeIdleComposers(): Promise<void> {
-		await Promise.all([...this._composerHolders].map(holder => holder.closeIdleComposers()));
+		await Promise.all([...this._composerHolders].map(({ holder }) => holder.closeIdleComposers()));
 	}
 }
 
