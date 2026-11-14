@@ -10,6 +10,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../base/common
 import { isCancellationError, onUnexpectedError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IReference, toDisposable } from '../../../base/common/lifecycle.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { ISelection } from '../../../editor/common/core/selection.js';
 import { IOutlineService } from '../../services/outline/browser/outline.js';
 import { MainThreadCustomTextEditorNavigation } from './mainThreadCustomTextEditorNavigation.js';
@@ -94,6 +95,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 	 * Webview handle of each resolved input. An input is resolved again if creating its document failed.
 	 */
 	private readonly _webviewHandles = new WeakMap<CustomEditorWebviewInput, extHostProtocol.WebviewHandle>();
+	private readonly _customEditorModels = new Set<MainThreadCustomEditorModel>();
 
 	private readonly _webviewOriginStore: ExtensionKeyedWebviewOriginStore;
 
@@ -471,6 +473,14 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		return pending.promise.p;
 	}
 
+	override dispose(): void {
+		for (const model of this._customEditorModels) {
+			model.markDisconnected();
+		}
+		this._customEditorModels.clear();
+		super.dispose();
+	}
+
 	public $unregisterEditorProvider(viewType: string): void {
 		if (!this._editorProviders.has(viewType)) {
 			throw new Error(`No provider for ${viewType} registered`);
@@ -501,14 +511,18 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				}
 			case CustomEditorModelType.Custom:
 				{
-					const model = MainThreadCustomEditorModel.create(this._instantiationService, this._proxyCustomEditors, viewType, resource, options, this._untitledTextEditorService, () => {
+					const modelPromise = MainThreadCustomEditorModel.create(this._instantiationService, this._proxyCustomEditors, viewType, resource, options, this._untitledTextEditorService, () => {
 						return Array.from(this.mainThreadWebviewPanels.webviewInputs)
 							.filter(editor =>
 								(editor instanceof CustomEditorInput && isEqual(editor.resource, resource))
 								|| (editor instanceof CustomEditorDiffInput && (isEqual(editor.originalResource, resource) || isEqual(editor.modifiedResource, resource)))
 								|| (editor instanceof CustomEditorSideBySideDiffInput && isEqual(editor.resource, resource))) as CustomEditorWebviewInput[];
-					}, cancellation);
-					return this._customEditorService.models.add(resource, viewType, model);
+					}, cancellation).then(model => {
+						this._customEditorModels.add(model);
+						model.onWillDispose(() => this._customEditorModels.delete(model));
+						return model;
+					});
+					return this._customEditorService.models.add(resource, viewType, modelPromise);
 				}
 		}
 	}
@@ -726,11 +740,39 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	private readonly _onDidSave: Emitter<IWorkingCopySaveEvent> = this._register(new Emitter<IWorkingCopySaveEvent>());
 	readonly onDidSave: Event<IWorkingCopySaveEvent> = this._onDidSave.event;
 
-	readonly onDidChangeReadonly = Event.None;
+	private _isDisconnected = false;
+	private readonly _onDidChangeReadonly: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChangeReadonly: Event<void> = this._onDidChangeReadonly.event;
+
+	public markDisconnected(): void {
+		if (!this._isDisconnected) {
+			this._isDisconnected = true;
+			if (this._editable) {
+				this._undoService.removeElements(this._editorResource);
+			}
+			if (this._hotExitState.type === HotExitState.Type.Pending) {
+				this._hotExitState.operation.cancel();
+				this._hotExitState = HotExitState.NotAllowed;
+			}
+			this._onDidChangeReadonly.fire();
+
+			for (const editor of this._getEditors()) {
+				if (editor.webview?.container) {
+					editor.webview.container.style.pointerEvents = 'none';
+				}
+			}
+		}
+	}
 
 	//#endregion
 
-	public isReadonly(): boolean {
+	public isReadonly(): boolean | IMarkdownString {
+		if (this._isDisconnected) {
+			return {
+				value: localize('customEditor.disconnected', "The extension for this custom editor has disconnected or restarted. Please reload the editor or window to resume editing."),
+				isTrusted: true
+			};
+		}
 		return !this._editable;
 	}
 
@@ -743,7 +785,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	}
 
 	public pushEdit(editId: number, label: string | undefined) {
-		if (!this._editable) {
+		if (!this._editable || this._isDisconnected) {
 			throw new Error('Document is not editable');
 		}
 
@@ -763,6 +805,9 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	}
 
 	public changeContent() {
+		if (this._isDisconnected) {
+			return;
+		}
 		this.change(() => {
 			this._isDirtyFromContentChange = true;
 		});
@@ -858,7 +903,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	}
 
 	public async saveCustomEditor(options?: ISaveOptions): Promise<URI | undefined> {
-		if (!this._editable) {
+		if (!this._editable || this._isDisconnected) {
 			return undefined;
 		}
 
@@ -955,6 +1000,14 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 
 		if (!this._editable) {
 			return backupData;
+		}
+
+		if (this._isDisconnected) {
+			if (this.canHotExit && typeof this._backupId === 'string') {
+				backupMeta.backupId = this._backupId;
+				return backupData;
+			}
+			throw new Error(localize('customEditor.backupFailedDisconnected', "Cannot back up custom editor '{0}': the backing extension has disconnected.", this.name));
 		}
 
 		if (this._hotExitState.type === HotExitState.Type.Pending) {
