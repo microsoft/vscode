@@ -8,7 +8,11 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../..
 import { CancellationError } from '../../../../../../../base/common/errors.js';
 import { DeferredPromise, RunOnceScheduler, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
-import { constObservable } from '../../../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IProgressService } from '../../../../../../../platform/progress/common/progress.js';
+import { IViewsService } from '../../../../../../services/views/common/viewsService.js';
+import { ChatViewHostService } from '../../../../browser/widgetHosts/viewPane/chatViewHostService.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
@@ -20,6 +24,8 @@ import { NullLogService } from '../../../../../../../platform/log/common/log.js'
 import { AccountPolicyGateState } from '../../../../../../services/policies/common/accountPolicyService.js';
 import { TestContextService, TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
 import { ChatViewPane } from '../../../../browser/widgetHosts/viewPane/chatViewPane.js';
+import { IChatWidgetViewModelChangeEvent } from '../../../../browser/chat.js';
+import { IChatViewHostShownSession } from '../../../../browser/chatViewHost.js';
 import { ChatWidget } from '../../../../browser/widget/chatWidget.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ChatOpenDiagnosticsService } from '../../../../common/chatOpenDiagnosticsService.js';
@@ -34,8 +40,8 @@ import { AgentSessionsFilter } from '../../../../browser/agentSessions/agentSess
 import { MenuWorkbenchToolBar } from '../../../../../../../platform/actions/browser/toolbar.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { AgentSessionsViewerOrientation } from '../../../../browser/agentSessions/agentSessions.js';
-import { Position } from '../../../../../../services/layout/browser/layoutService.js';
-import { ViewContainerLocation } from '../../../../../../common/views.js';
+import { IWorkbenchLayoutService, Position } from '../../../../../../services/layout/browser/layoutService.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../../../common/views.js';
 
 suite('ChatViewPane sessions refresh', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -166,11 +172,14 @@ suite('ChatViewPane session transitions', () => {
 	function createPane(resolving: Promise<void> = Promise.resolve(), preparing: Promise<void> = Promise.resolve()) {
 		const previousModel = upcastPartial<IChatModel>({ sessionResource: previousResource });
 		const nextModel = upcastPartial<IChatModel>({ sessionResource: nextResource });
+		const shownSession = observableValue<IChatViewHostShownSession | undefined>('shownSession', undefined);
 		let shown: IChatModel | undefined = previousModel;
 		let input = 'previous draft';
 		const bindings: (URI | undefined)[] = [];
 		const disposed: URI[] = [];
 		const locks: string[] = [];
+		/** Tells the pane its widget's chat changed, as the widget's onDidChangeViewModel does. */
+		let didChangeViewModel = (_committed?: boolean) => { };
 		const paneStore = store.add(new DisposableStore());
 		const modelRef = paneStore.add(new MutableDisposable<IChatModelReference>());
 		const createReference = (model: IChatModel): IChatModelReference => Object.assign(toDisposable(() => {
@@ -182,12 +191,23 @@ suite('ChatViewPane session transitions', () => {
 		const widget = {
 			get viewModel() { return shown && { model: shown, sessionResource: shown.sessionResource }; },
 			getViewState: () => ({}),
+			restoreViewState: () => { },
 			getInput: () => input,
 			setInput: (value: string) => { input = value; },
+			// Like ChatWidget: the chat it shows already is not set again, and its view model does not change
 			setModel: (model: IChatModel | undefined) => {
+				if (model && shown && model.sessionResource.toString() === shown.sessionResource.toString()) {
+					return;
+				}
 				shown = model;
 				input = '';
 				bindings.push(model?.sessionResource);
+				didChangeViewModel();
+			},
+			/** As its first request makes the session it sends in, which the widget then shows */
+			showCommitted: (model: IChatModel) => {
+				shown = model;
+				didChangeViewModel(true);
 			},
 			lockToCodingAgent: (_name: string, _displayName: string, sessionType: string) => { locks.push(sessionType); },
 			unlockFromCodingAgent: () => { locks.push('local'); },
@@ -197,11 +217,18 @@ suite('ChatViewPane session transitions', () => {
 		const nextRef = createReference(nextModel);
 		const pane: {
 			showModel(token: CancellationToken, ref: IChatModelReference): Promise<IChatModel | undefined>;
-			loadSession(resource: URI): Promise<IChatModel | undefined>;
+			loadSession(resource: URI, sessionTypeSelectionReason?: undefined, showReason?: 'open' | 'restore'): Promise<IChatModel | undefined>;
 			applyModel(): void;
 			restoringSession: Promise<void> | undefined;
+			readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
+			reportOpened(sessionResource: URI): void;
+			reportRestored(sessionResource: URI): void;
 		} = Object.assign(Object.create(ChatViewPane.prototype), {
 			_store: paneStore,
+			_showReason: 'open',
+			_shownReports: 0,
+			_shownSession: shownSession,
+			shownSession,
 			modelRef,
 			widgetViewStates: new Map(),
 			viewState: {},
@@ -222,6 +249,7 @@ suite('ChatViewPane session transitions', () => {
 			agentSessionsService: { model: { getSession: () => undefined } },
 			updateActions: () => { },
 		});
+		didChangeViewModel = committed => (Reflect.get(pane, 'onDidChangeShownModel') as (e: IChatWidgetViewModelChangeEvent) => void).call(pane, { previousSessionResource: undefined, currentSessionResource: shown?.sessionResource, committed });
 		return { pane, paneStore, widget, modelRef, nextModel, nextRef, bindings, disposed, locks };
 	}
 
@@ -269,6 +297,187 @@ suite('ChatViewPane session transitions', () => {
 			});
 		});
 	}
+
+	test('reports a restored chat as restored and a chat that the user loads as opened, also one that supersedes a restore under way', async () => {
+		const shown = (rig: ReturnType<typeof createPane>) => { const value = rig.pane.shownSession.get(); return value && `${value.resource.path} ${value.reason}`; };
+		const savedResource = nextResource.with({ path: '/saved' });
+		const savedReference = () => Object.assign(toDisposable(() => { }), { object: upcastPartial<IChatModel>({ sessionResource: savedResource }) });
+
+		const restored = createPane();
+		Object.assign(restored.pane, { acquireTransferredOrPersistedSession: async () => ({ modelRef: restored.nextRef }) });
+		restored.pane.applyModel();
+		await restored.pane.restoringSession;
+		const afterRestore = shown(restored);
+		// The user picks the restored chat that the view shows already, such as in a sessions list
+		restored.pane.reportOpened(previousResource);
+		const otherReported = shown(restored);
+		restored.pane.reportOpened(nextResource);
+		const reopened = shown(restored);
+		// Picked again, such as after the user moved the window's folder away: reported again
+		const reportedBefore = restored.pane.shownSession.get();
+		restored.pane.reportOpened(nextResource);
+		const reportedAgain = restored.pane.shownSession.get() !== reportedBefore;
+		// Its first request makes a session of the new chat, which the widget then shows: not one the user picked
+		restored.widget.showCommitted(upcastPartial<IChatModel>({ sessionResource: nextResource.with({ path: '/committed' }) }));
+		const committed = shown(restored);
+		// The user opens it, also as the chat it shows
+		restored.pane.reportOpened(nextResource.with({ path: '/committed' }));
+		const committedOpened = shown(restored);
+		Object.assign(restored.pane, { chatService: { acquireOrLoadSession: async () => savedReference() } });
+		await restored.pane.loadSession(savedResource);
+		const afterLoad = shown(restored);
+		// A chat loaded as one to restore, such as the last chat of where the user moved the folder
+		const recalledResource = nextResource.with({ path: '/recalled' });
+		Object.assign(restored.pane, { chatService: { acquireOrLoadSession: async () => Object.assign(toDisposable(() => { }), { object: upcastPartial<IChatModel>({ sessionResource: recalledResource }) }) } });
+		await restored.pane.loadSession(recalledResource, undefined, 'restore');
+		const loadedToRestore = shown(restored);
+		// The chat it shows, opened again as one to restore, such as where it was opened before
+		restored.pane.reportOpened(recalledResource);
+		restored.pane.reportRestored(recalledResource);
+		const reopenedToRestore = shown(restored);
+
+		// The user loads a chat while the restore still prepares its chat's configuration
+		const preparing = new DeferredPromise<void>();
+		const superseded = createPane(Promise.resolve(), preparing.p);
+		Object.assign(superseded.pane, {
+			acquireTransferredOrPersistedSession: async () => ({ modelRef: superseded.nextRef }),
+			chatService: { acquireOrLoadSession: async () => savedReference() },
+		});
+		superseded.pane.applyModel();
+		const restoration = superseded.pane.restoringSession;
+		await timeout(0);
+		const loading = superseded.pane.loadSession(savedResource);
+		await preparing.complete();
+		await loading;
+		await restoration;
+
+		assert.deepStrictEqual({ afterRestore, otherReported, reopened, reportedAgain, committed, committedOpened, afterLoad, loadedToRestore, reopenedToRestore, superseded: shown(superseded) }, {
+			afterRestore: '/untitled-next restore',
+			otherReported: '/untitled-next restore',
+			reopened: '/untitled-next open',
+			reportedAgain: true,
+			committed: '/committed commit',
+			committedOpened: '/committed open',
+			afterLoad: '/saved open',
+			loadedToRestore: '/recalled restore',
+			reopenedToRestore: '/recalled restore',
+			superseded: '/saved open',
+		});
+	});
+
+	test('through the Chat view host, each open reports the chat it shows exactly once: a chat it loads, the chat it shows already when picked again, to restore, and a committed one', async () => {
+		const rig = createPane();
+		// Each open below loads a chat of its own
+		rig.nextRef.dispose();
+		const savedResource = nextResource.with({ path: '/saved' });
+		const committedResource = nextResource.with({ path: '/committed' });
+		const reference = (resource: URI) => Object.assign(toDisposable(() => { }), { object: upcastPartial<IChatModel>({ sessionResource: resource }) });
+		Object.assign(rig.pane, { chatService: { acquireOrLoadSession: async (resource: URI) => reference(resource) } });
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
+			openView: (async () => rig.pane) as IViewsService['openView'],
+			onDidChangeViewVisibility: Event.None,
+			getViewWithId: (<T>() => rig.pane as T) as IViewsService['getViewWithId'],
+		}));
+		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({}));
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({}));
+		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({}));
+		const host = instantiationService.createInstance(ChatViewHostService);
+		const stream: string[] = [];
+		store.add(autorun(reader => {
+			const shown = rig.pane.shownSession.read(reader);
+			stream.push(shown ? `${shown.resource.path} ${shown.reason}` : 'none');
+		}));
+		const step = async (name: string, open: () => Promise<unknown>) => {
+			const before = stream.length;
+			await open();
+			return { [name]: stream.slice(before) };
+		};
+
+		assert.deepStrictEqual(Object.assign({},
+			await step('loaded', () => host.openSession(savedResource, { preserveFocus: true })),
+			await step('pickedAgain', () => host.openSession(savedResource, { preserveFocus: true })),
+			await step('restored', () => host.openSession(savedResource, { preserveFocus: true, restore: true })),
+			await step('committed', () => host.openSession(committedResource, { preserveFocus: true, commit: true })),
+		), {
+			loaded: ['/saved open'],
+			pickedAgain: ['/saved open'],
+			restored: ['/saved restore'],
+			committed: ['/committed commit'],
+		});
+	});
+
+	test('through the Chat view host, an open of the chat it shows already that supersedes a restore of it under way reports the open, not the restore', async () => {
+		const rig = createPane();
+		rig.nextRef.dispose();
+		const chat = nextResource.with({ path: '/chat' });
+		const reference = () => Object.assign(toDisposable(() => { }), { object: upcastPartial<IChatModel>({ sessionResource: chat }) });
+		// The restore's load and the explicit open's each wait, so that the superseded restore ends first
+		const restoring = new DeferredPromise<void>();
+		const opening = new DeferredPromise<void>();
+		const loads = [async () => reference(), async () => { await restoring.p; return reference(); }, async () => { await opening.p; return reference(); }];
+		Object.assign(rig.pane, { chatService: { acquireOrLoadSession: () => loads.shift()!() } });
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
+			openView: (async () => rig.pane) as IViewsService['openView'],
+			onDidChangeViewVisibility: Event.None,
+			getViewWithId: (<T>() => rig.pane as T) as IViewsService['getViewWithId'],
+		}));
+		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({}));
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({}));
+		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({}));
+		const host = instantiationService.createInstance(ChatViewHostService);
+		await host.openSession(chat, { preserveFocus: true });
+		const stream: string[] = [];
+		store.add(autorun(reader => {
+			const shown = rig.pane.shownSession.read(reader);
+			stream.push(shown ? `${shown.resource.path} ${shown.reason}` : 'none');
+		}));
+		stream.length = 0;
+
+		const restore = host.openSession(chat, { preserveFocus: true, restore: true });
+		await timeout(0);
+		const open = host.openSession(chat, { preserveFocus: true });
+		await timeout(0);
+		await restoring.complete();
+		await restore;
+		await opening.complete();
+		await open;
+
+		assert.deepStrictEqual({ stream, shown: rig.pane.shownSession.get()?.reason }, { stream: ['/chat open'], shown: 'open' });
+	});
+
+	test('through the Chat view host, the session that a started chat moves to after its first request stays reported as committed', async () => {
+		const rig = createPane();
+		rig.nextRef.dispose();
+		const untitled = nextResource.with({ path: '/untitled-started' });
+		const committed = nextResource.with({ path: '/committed' });
+		const reference = (resource: URI) => Object.assign(toDisposable(() => { }), { object: upcastPartial<IChatModel>({ sessionResource: resource }) });
+		Object.assign(rig.pane, { chatService: { acquireOrLoadSession: async (resource: URI) => reference(resource) }, focus: () => { } });
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
+			openView: (async () => rig.pane) as IViewsService['openView'],
+			onDidChangeViewVisibility: Event.None,
+			getViewWithId: (<T>() => rig.pane as T) as IViewsService['getViewWithId'],
+		}));
+		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({}));
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({}));
+		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({}));
+		const host = instantiationService.createInstance(ChatViewHostService);
+		const start = await host.startSession(untitled, { local: false, importingConversation: false });
+		const stream: string[] = [];
+		store.add(autorun(reader => {
+			const shown = rig.pane.shownSession.read(reader);
+			stream.push(shown ? `${shown.resource.path} ${shown.reason}` : 'none');
+		}));
+		stream.length = 0;
+		// The first request committed the session, which the host shows as committed, then the start moves to it
+		await host.openSession(committed, { preserveFocus: true, commit: true });
+		await start.moved(committed);
+		start.dispose();
+
+		assert.deepStrictEqual(stream, ['/committed commit']);
+	});
 
 	test('cancelling a replacement releases its pending reference before provider activation completes', async () => {
 		const resolving = new DeferredPromise<void>();
@@ -448,6 +657,8 @@ suite('ChatViewPane chat open diagnostics', () => {
 			notificationService: { error: () => { } },
 			progressService: { withProgress: (_: unknown, task: () => Promise<unknown>) => task() },
 			loadSessionCts: { value: undefined, },
+			_shownSession: observableValue<IChatViewHostShownSession | undefined>('shownSession', undefined),
+			_shownReports: 0,
 			_applyModelCts: { value: undefined },
 			element: { ownerDocument: { hidden: false } },
 			_widget: { viewModel: options.shown ? { sessionResource: options.shown } : undefined, visible: true, getInput: () => '' },
