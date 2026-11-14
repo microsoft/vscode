@@ -97,13 +97,13 @@ suite('AgentHostWorktreeFolderChoices', () => {
 
 	test('New Worktree has the session work in a new worktree, which the label shows, and picking a folder again works in it', async () => {
 		const { choices, actions, items, changes } = await createChoices({ enabled: true, at: primary });
-		const chip = (folder: URI) => { const { icon, label, description } = choices.getChip(folder); return { icon: icon.id, label: label ?? null, description }; };
+		const chip = (folder: URI) => { const { icon, label, description } = choices.getChip(folder); return { icon: icon.id, label, description }; };
 		const folderChip = chip(primary);
 		await actions(primary).find(action => action.label === 'New Worktree')!.run();
 		const inNewWorktree = { items: items(primary), chip: chip(primary) };
 		await actions(primary).find(action => action.label === 'feature')!.run();
 
-		// By its icon only, but New Worktree by its name; what it is, by name, for screen readers and on hover
+		// By its icon and name, or New Worktree by that name; what it is, by name, for screen readers and on hover
 		// An existing chat, whose started session works in a folder that the chip does not list: a worktree once git proves it
 		// one; another repository, or the window's folder by another path, is a folder
 		// A folder named like a worktree VS Code creates for the folder shows as one before it is read, as after a reload; one elsewhere once git proves it
@@ -115,20 +115,20 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		assert.deepStrictEqual({ inNewWorktree, changes, folderChip, worktreeChip: chip(feature), beforeRead, unlistedWorktreeChip: chip(unlisted.worktree), elsewhereChip: chip(unlisted.elsewhere), otherRepositoryChip: chip(unlisted.otherRepository), primaryAliasChip: chip(unlisted.primaryAlias) }, {
 			inNewWorktree: { items: ['New Worktree *', '[Folder] vscode (Current)', '[Worktrees] feature', '[Worktrees] other'], chip: { icon: 'worktree', label: 'New Worktree', description: 'New worktree of vscode' } },
 			changes: ['isolation worktree', 'folder /work/vscode.worktrees/feature', 'isolation folder'],
-			folderChip: { icon: 'folder', label: null, description: 'Folder: vscode' },
-			worktreeChip: { icon: 'worktree', label: null, description: 'Worktree: feature' },
+			folderChip: { icon: 'folder', label: 'vscode', description: 'Folder: vscode' },
+			worktreeChip: { icon: 'worktree', label: 'feature', description: 'Worktree: feature' },
 			beforeRead: { worktree: 'worktree', elsewhere: 'folder' },
-			unlistedWorktreeChip: { icon: 'worktree', label: null, description: 'Worktree: small-random-change-addition' },
-			elsewhereChip: { icon: 'worktree', label: null, description: 'Worktree: fix' },
-			otherRepositoryChip: { icon: 'folder', label: null, description: 'Folder: another-repo' },
-			primaryAliasChip: { icon: 'folder', label: null, description: 'Folder: vscode' },
+			unlistedWorktreeChip: { icon: 'worktree', label: 'small-random-change-addition', description: 'Worktree: small-random-change-addition' },
+			elsewhereChip: { icon: 'worktree', label: 'fix', description: 'Worktree: fix' },
+			otherRepositoryChip: { icon: 'folder', label: 'another-repo', description: 'Folder: another-repo' },
+			primaryAliasChip: { icon: 'folder', label: 'vscode', description: 'Folder: vscode' },
 		});
 	});
 
 	test('offers No Workspace last while the Chat view lists sessions, which the chip then shows by name, and picking a folder again works in it', async () => {
 		const withoutSessionsList = await createChoices({ enabled: true, at: primary });
 		const { choices, actions, items, changes } = await createChoices({ enabled: true, at: primary, sessionsList: true });
-		const chip = () => { const { icon, label, description } = choices.getChip(primary); return { icon: icon.id, label: label ?? null, description }; };
+		const chip = () => { const { icon, label, description } = choices.getChip(primary); return { icon: icon.id, label, description }; };
 		await actions(primary).find(action => action.label === 'New Worktree')!.run();
 		await actions(primary).find(action => action.label === 'No Workspace')!.run();
 		const noWorkspace = { items: items(primary), chip: chip(), icon: actions(primary).at(-1)?.icon?.id, separate: actions(primary).at(-1)?.category?.label === '' };
@@ -143,7 +143,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 				icon: 'comment',
 				separate: true,
 			},
-			folderAgain: { items: ['[Folder] vscode (Current) *', '[Worktrees] feature', '[Worktrees] other', 'No Workspace'], chip: { icon: 'folder', label: null, description: 'Folder: vscode' } },
+			folderAgain: { items: ['[Folder] vscode (Current) *', '[Worktrees] feature', '[Worktrees] other', 'No Workspace'], chip: { icon: 'folder', label: 'vscode', description: 'Folder: vscode' } },
 			// No longer in a new worktree of the folder it no longer has
 			changes: ['isolation worktree', 'isolation folder', 'no workspace', 'folder /work/vscode'],
 		});
@@ -192,6 +192,8 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		store.add(choices.onDidChange(() => changes++));
 		const settle = () => new Promise<void>(resolve => setTimeout(resolve, 0));
 		const icons = () => [real, notWorktree, primaryLink, flaky].map(folder => choices.getChip(folder).icon.id);
+		// Its name shows at once, before git answers
+		const labels = [real, notWorktree, primaryLink, flaky].map(folder => choices.getChip(folder).label);
 		const pending = icons();
 		await settle();
 		const settled = { icons: icons(), changes, description: choices.getChip(notWorktree).description };
@@ -200,7 +202,8 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		const pendingAgain = icons();
 		await settle();
 
-		assert.deepStrictEqual({ pending, settled, pendingAgain, reread: icons() }, {
+		assert.deepStrictEqual({ labels, pending, settled, pendingAgain, reread: icons() }, {
+			labels: ['real', 'not-a-worktree', 'primary-link', 'flaky'],
 			pending: ['worktree', 'worktree', 'worktree', 'worktree'],
 			settled: { icons: ['worktree', 'folder', 'folder', 'folder'], changes: 3, description: 'Folder: not-a-worktree' },
 			pendingAgain: ['worktree', 'worktree', 'worktree', 'worktree'],

@@ -146,10 +146,10 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 	}
 
 	/**
-	 * The chip for the selected `folder`: by its icon only, a folder or a worktree, but New Worktree by its name, with what it
-	 * is for screen readers and on hover.
+	 * The chip for the selected `folder`: by its icon, a folder or a worktree, and its name, or New Worktree by that name, with
+	 * what it is for screen readers and on hover. The name shows at once; only the icon settles once git proves a worktree.
 	 */
-	getChip(folder: URI): { readonly icon: ThemeIcon; readonly label: string | undefined; readonly description: string } {
+	getChip(folder: URI): { readonly icon: ThemeIcon; readonly label: string; readonly description: string } {
 		const choices = this._choices();
 		const choice = choices.find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate.uri, folder));
 		const primary = choices.find(candidate => candidate.kind === 'folder');
@@ -163,8 +163,8 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 		// A folder it does not list, such as the worktree a started session works in, is a worktree once git proves it one
 		const worktree = choice ? choice.kind === 'worktree' : this._isProvenWorktree(folder);
 		return worktree
-			? { icon: WORKTREE_ICON, label: undefined, description: localize('agentHost.folderPicker.worktreeChipDescription', "Worktree: {0}", name) }
-			: { icon: Codicon.folder, label: undefined, description: localize('agentHost.folderPicker.folderChipDescription', "Folder: {0}", name) };
+			? { icon: WORKTREE_ICON, label: name, description: localize('agentHost.folderPicker.worktreeChipDescription', "Worktree: {0}", name) }
+			: { icon: Codicon.folder, label: name, description: localize('agentHost.folderPicker.folderChipDescription', "Folder: {0}", name) };
 	}
 
 	/** The chip's choices, `selected` checked, unless the session is to work in a new worktree. */
