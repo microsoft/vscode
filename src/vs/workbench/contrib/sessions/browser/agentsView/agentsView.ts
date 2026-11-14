@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ContextKeyExpr, ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
+import { localize } from '../../../../../nls.js';
+import { ContextKeyExpr, ContextKeyExpression, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { RemoteNameContext } from '../../../../common/contextkeys.js';
 import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
@@ -32,3 +33,6 @@ export const AgentsViewNeedsSetup: ContextKeyExpression = ContextKeyExpr.and(
 export const AgentsViewWhen: ContextKeyExpression = ContextKeyExpr.and(AgentsViewAvailable, AgentsViewNeedsSetup.negate())!;
 
 export const AGENTS_VIEW_SETUP_VIEW_ID = 'workbench.view.agents.setup';
+
+/** Whether a menu shows for the chat part beside the editor area, such as the More Actions of its editor groups. */
+export const InAgentsChatPartContext = new RawContextKey<boolean>('inAgentsChatPart', false, localize('inAgentsChatPart', "Whether the context is the chat part beside the editor area."));
