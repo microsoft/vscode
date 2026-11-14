@@ -19,6 +19,7 @@ import { filterMap } from '../../../util/common/arrays';
 import { assert, assertNever } from '../../../util/vs/base/common/assert';
 import { Disposable, toDisposable } from '../../../util/vs/base/common/lifecycle';
 import { LRUCache } from '../../../util/vs/base/common/map';
+import { isMacintosh, isWindows } from '../../../util/vs/base/common/platform';
 import { isDefined } from '../../../util/vs/base/common/types';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { IExtensionContribution } from '../../common/contributions';
@@ -68,6 +69,13 @@ const exportPromptLogsAsJsonCommand = 'github.copilot.chat.debug.exportPromptLog
 const exportAllPromptLogsAsJsonCommand = 'github.copilot.chat.debug.exportAllPromptLogsAsJson';
 const saveCurrentMarkdownCommand = 'github.copilot.chat.debug.saveCurrentMarkdown';
 const showRawRequestBodyCommand = 'github.copilot.chat.debug.showRawRequestBody';
+
+// Mirror the workbench's platform-specific "Reveal in OS" labels (see REVEAL_IN_OS_LABEL)
+const revealInOSLabel = isWindows
+	? vscode.l10n.t('Reveal in File Explorer')
+	: isMacintosh
+		? vscode.l10n.t('Reveal in Finder')
+		: vscode.l10n.t('Open Containing Folder');
 
 export class RequestLogTree extends Disposable implements IExtensionContribution {
 	readonly id = 'requestLogTree';
@@ -356,13 +364,12 @@ export class RequestLogTree extends Disposable implements IExtensionContribution
 					await vscode.workspace.fs.delete(vscode.Uri.file(tempDir));
 
 					// Show success message with option to reveal the file
-					const revealAction = 'Reveal in Explorer';
 					const result = await vscode.window.showInformationMessage(
 						`Successfully exported ${filesToArchive.length} entries to ${saveUri.fsPath}`,
-						revealAction
+						revealInOSLabel
 					);
 
-					if (result === revealAction) {
+					if (result === revealInOSLabel) {
 						await vscode.commands.executeCommand('revealFileInOS', saveUri);
 					}
 				} else {
@@ -406,15 +413,14 @@ export class RequestLogTree extends Disposable implements IExtensionContribution
 				await vscode.workspace.fs.writeFile(saveUri, Buffer.from(finalContent, 'utf8'));
 
 				// Show success message with option to reveal the file
-				const revealAction = 'Reveal in Explorer';
 				const openAction = 'Open File';
 				const result = await vscode.window.showInformationMessage(
 					`Successfully exported prompt with ${promptObject.logCount} log entries to ${saveUri.fsPath}`,
-					revealAction,
+					revealInOSLabel,
 					openAction
 				);
 
-				if (result === revealAction) {
+				if (result === revealInOSLabel) {
 					await vscode.commands.executeCommand('revealFileInOS', saveUri);
 				} else if (result === openAction) {
 					await vscode.commands.executeCommand('vscode.open', saveUri);
@@ -493,15 +499,14 @@ export class RequestLogTree extends Disposable implements IExtensionContribution
 
 				// Show success message with option to reveal the file (only for user-initiated calls)
 				if (!savePath) {
-					const revealAction = 'Reveal in Explorer';
 					const openAction = 'Open File';
 					const result = await vscode.window.showInformationMessage(
 						`Successfully exported ${exportData.totalPrompts} prompts with ${exportData.totalLogEntries} log entries to ${saveUri.fsPath}`,
-						revealAction,
+						revealInOSLabel,
 						openAction
 					);
 
-					if (result === revealAction) {
+					if (result === revealInOSLabel) {
 						await vscode.commands.executeCommand('revealFileInOS', saveUri);
 					} else if (result === openAction) {
 						await vscode.commands.executeCommand('vscode.open', saveUri);
