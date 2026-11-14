@@ -2549,37 +2549,82 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('persistent history groups survive updates and dispose on removal', () => {
-		const { automationService, widget } = setup();
+		const { automationService, sessionsManagementService, widget } = setup();
 		automationService.setAutomations([automation()]);
 
-		// Create a run in "today" bucket
-		const todayRun = run({ id: 'run-today', startedAt: new Date().toISOString() });
-		automationService.setRuns([todayRun]);
+		const completedRuns = Array.from({ length: 100 }, (_, index) => {
+			const sessionResource = SESSION_RESOURCE.with({ path: `/history-${index}` });
+			sessionsManagementService.addSession(sessionResource, `History ${index}`);
+			return run({ id: `run-history-${index}`, sessionResource });
+		});
+		automationService.setRuns(completedRuns);
 
 		const todayGroup = widget.element.querySelector('.automations-history-group');
 		const todayList = todayGroup?.querySelector('.automations-run-session-list');
 		assert.ok(todayGroup, 'today group should exist');
 		assert.ok(todayList, 'today group should have a session list');
 
-		// Add a second run in same bucket — group identity should be preserved
-		const todayRun2 = run({ id: 'run-today-2', startedAt: new Date().toISOString(), sessionResource: SECOND_SESSION_RESOURCE });
-		automationService.setRuns([todayRun, todayRun2]);
+		const activeRun = run({
+			id: 'run-active',
+			status: 'running',
+			sessionResource: undefined,
+			externalResource: URI.parse('https://github.com/microsoft/vscode/actions/runs/1'),
+		});
+		automationService.setRuns([activeRun, ...completedRuns]);
+		const todayGroupWithTemporaryRow = widget.element.querySelector('.automations-history-group');
+		const todayListWithTemporaryRow = todayGroupWithTemporaryRow?.querySelector('.automations-run-session-list');
 
-		const todayGroupAfter = widget.element.querySelector('.automations-history-group');
+		automationService.setRuns([{ ...activeRun, sessionResource: SECOND_SESSION_RESOURCE }, ...completedRuns]);
+		const todayGroupAfterSessionAppears = widget.element.querySelector('.automations-history-group');
 		assert.deepStrictEqual({
-			groupReused: todayGroupAfter === todayGroup,
-			listReused: todayGroupAfter?.querySelector('.automations-run-session-list') === todayList,
-			rowCount: todayGroupAfter?.querySelectorAll('.session-item').length,
+			groupReusedWithTemporaryRow: todayGroupWithTemporaryRow === todayGroup,
+			listReusedWithTemporaryRow: todayListWithTemporaryRow === todayList,
+			groupReusedAfterSessionAppears: todayGroupAfterSessionAppears === todayGroup,
+			listReusedAfterSessionAppears: todayGroupAfterSessionAppears?.querySelector('.automations-run-session-list') === todayList,
+			listCount: todayGroupAfterSessionAppears?.querySelectorAll('.automations-run-session-list').length,
+			rowCount: todayGroupAfterSessionAppears?.querySelectorAll('.session-item').length,
 		}, {
-			groupReused: true,
-			listReused: true,
-			rowCount: 2,
+			groupReusedWithTemporaryRow: true,
+			listReusedWithTemporaryRow: true,
+			groupReusedAfterSessionAppears: true,
+			listReusedAfterSessionAppears: true,
+			listCount: 1,
+			rowCount: 101,
 		});
 
-		// Remove all runs — group should be disposed and removed from DOM
 		automationService.setRuns([]);
 		const remainingGroups = widget.element.querySelectorAll('.automations-history-group');
 		assert.strictEqual(remainingGroups.length, 0, 'groups should be removed when empty');
+	});
+
+	test('rekeys a reused history list before the native block splits', () => {
+		const { automationService, sessionsManagementService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		const leftResource = SESSION_RESOURCE.with({ path: '/history-left' });
+		const rightResource = SESSION_RESOURCE.with({ path: '/history-right' });
+		sessionsManagementService.addSession(leftResource, 'Left');
+		sessionsManagementService.addSession(rightResource, 'Right');
+		sessionsManagementService.addSession(SECOND_SESSION_RESOURCE, 'Split');
+		const anchor = run({ id: 'run-anchor', status: 'running', sessionResource: undefined, externalResource: URI.parse('https://github.com/microsoft/vscode/actions/runs/1') });
+		const split = run({ id: 'run-split', status: 'running', sessionResource: undefined, externalResource: URI.parse('https://github.com/microsoft/vscode/actions/runs/2') });
+		const left = run({ id: 'run-left', sessionResource: leftResource });
+		const right = run({ id: 'run-right', sessionResource: rightResource });
+
+		automationService.setRuns([anchor, split, left, right]);
+		const reusedList = widget.element.querySelector('.automations-run-session-list');
+		automationService.setRuns([anchor, { ...split, sessionResource: SECOND_SESSION_RESOURCE }, left, right]);
+		automationService.setRuns([anchor, left, split, right]);
+		const lists = [...widget.element.querySelectorAll('.automations-run-session-list')];
+
+		assert.deepStrictEqual({
+			reused: lists[0] === reusedList,
+			listCount: lists.length,
+			rowCounts: lists.map(list => list.querySelectorAll('.session-item').length),
+		}, {
+			reused: true,
+			listCount: 2,
+			rowCounts: [1, 1],
+		});
 	});
 
 	test('run feedback survives acknowledgement and refresh until the new run session appears', async () => {

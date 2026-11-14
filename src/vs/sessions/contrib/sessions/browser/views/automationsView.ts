@@ -2033,11 +2033,23 @@ class AutomationHistorySection extends Disposable {
 					}
 					items.push({ run: runs[index++], session });
 				}
-				activeLists.add(listKey);
-				let block = entry.sessionLists.get(listKey);
+				const blockKey = listKey;
+				let block = activeLists.has(blockKey) ? undefined : entry.sessionLists.get(blockKey);
+				if (!block) {
+					const sessionKeys = new Set(items.map(item => this.uriIdentityService.extUri.getComparisonKey(item.session.resource)));
+					for (const [key, candidate] of entry.sessionLists) {
+						if (!activeLists.has(key) && candidate.sessions.some(session => sessionKeys.has(this.uriIdentityService.extUri.getComparisonKey(session.resource)))) {
+							entry.sessionLists.deleteAndLeak(key);
+							block = candidate;
+							entry.sessionLists.set(blockKey, block);
+							break;
+						}
+					}
+				}
+				activeLists.add(blockKey);
 				if (!block) {
 					block = this.createSessionList(entry.runsContainer);
-					entry.sessionLists.set(listKey, block);
+					entry.sessionLists.set(blockKey, block);
 				}
 				this.updateGroupSessions(block, items);
 				element = block.listContainer;
