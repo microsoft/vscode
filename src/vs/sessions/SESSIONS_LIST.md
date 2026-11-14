@@ -68,6 +68,8 @@ A caller can acquire a disposable reveal of a session row or its archive action 
 
 User-created groups and workspace sections share a user-managed order below the fixed sections. Workspace capping may initially hide inactive workspaces; search and explicit user promotion reveal them.
 
+The editor window's sessions providers list only the sessions of its workspace: its registration passes them a listing scope (its folders, the repositories their `.git` names, and the GitHub repositories of those repositories' `origin`, so that a Copilot Cloud session of the same repository on any branch is in it), while the Agents window, which passes none, lists every session. A provider then lists only the sessions whose folder is, or is inside, a scope folder, or that share a git repository (such as a worktree) with one, learned from all of its sessions, in `getSessions` and `onDidChangeSessions`: a session that leaves the scope is reported as changed, not removed, as removal means deletion. Lookups (`getAllSessions`, `getSession`, `getSessionForChatResource`) still find every session, so a session of another folder opens by its resource. Matching reads only the folder and repository metadata providers report. The list knows only that it is scoped (the `scoped` option): it then hides no workspace section, leaves out comparisons without a listed session, and says when it shows no session.
+
 ### Repository grouping
 
 Repository grouping places sessions by the GitHub repository of their primary folder, so the sessions of one repository share a section whichever environment runs them. A cloud session names its repository through its workspace; other sessions report it through their Git metadata. Sessions without a GitHub repository keep their workspace section. A section shows its repository's name, adding the owner only when several repository sections share that name.
@@ -81,6 +83,10 @@ User-created groups and the date sections share a user-managed order below the f
 ### Environment grouping
 
 Environment grouping uses the provider-neutral environment identity, combining sessions across harnesses and workspaces on This Computer, in Cloud, or on the same remote host. Environment sections otherwise follow workspace sections' user-managed ordering and capping rules. Their identities remain stable across display-name changes.
+
+### Worktree grouping
+
+Worktree grouping is offered only by a host that asks for it (the editor window's Agents viewlet, through `allowWorktreeGrouping`); a view that does not offer it, such as the Agents window's, keeps its default. It places each session by the local folder its main chat works in, as the provider reports it: the main checkouts first, then the worktrees, each by their latest activity, then an "Other" section for sessions without a local folder. Sections are identified by the folder URI, named by the folder and the branch the provider reports, and show the full path on hover. They otherwise follow workspace sections' ordering, nesting and capping rules.
 
 ### Inbox grouping
 
@@ -178,7 +184,7 @@ A collapsed session row uses the provider's aggregate status without inspecting 
 
 ## Persistence
 
-List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace, repository, or environment section, the Chats section, and custom group, pins, automation sessions shown in the list, custom groups with their nesting, automatic-section parents and mixed child order, manual sort keys, and top-level section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
+List presentation state is profile-scoped user state, kept in the storage of the window's own profile: the editor window's Sessions view does not share it with the Agents window. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace, repository, or environment section, the Chats section, and custom group, pins, automation sessions shown in the list, custom groups with their nesting, automatic-section parents and mixed child order, manual sort keys, and top-level section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
 
 Pinned canvases are not list state: their rows mirror `IPinnedCanvasService`, which persists them per workspace. Like Automations, they appear in the separate navigation list when it is shown, and otherwise directly below Automations in the sessions tree. They are absent while there are no pins.
 

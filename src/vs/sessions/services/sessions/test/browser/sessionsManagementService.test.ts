@@ -88,6 +88,7 @@ import { SessionHostService } from '../../../../../workbench/contrib/sessions/br
 import { createMainWindowInstantiationService, getMainWindowHost, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { getSingletonServiceDescriptors } from '../../../../../platform/instantiation/common/extensions.js';
+import { EditorWindowMainSessionHost } from '../../../../../workbench/contrib/sessions/browser/agentsView/editorWindowMainSessionHost.js';
 import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ISessionPaneContent } from '../../../../../workbench/services/sessions/common/sessionPane.js';
@@ -864,7 +865,8 @@ suite('SessionsManagementService', () => {
 				disposable: (view.gridHost as Partial<IDisposable>).dispose !== undefined,
 				hosts: sessionHostService.hosts.get().filter(host => host.kind === SessionHostKind.MainWindow).length,
 				injected: injected === view.gridHost,
-				rootRegistration: getSingletonServiceDescriptors().some(([id]) => id === ISessionHost),
+				// Editor windows register their own root host, for their Sessions view; the Agents window registers none
+				rootRegistration: getSingletonServiceDescriptors().some(([id, descriptor]) => id === ISessionHost && descriptor.ctor !== EditorWindowMainSessionHost),
 				rootInjection,
 				shownBefore,
 				shownAfter: view.gridHost.session.get()?.sessionId,

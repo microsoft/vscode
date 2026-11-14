@@ -239,6 +239,78 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	/** A session of the folder `root`, labelled `label`. */
+	function createFolderSession(id: string, label: string, root: string, createdAt?: Date, options?: ITestSessionOptions): ISession {
+		const { session } = createTestSession(id, { ...options, workspaceLabel: label, createdAt });
+		const uri = URI.parse(root);
+		return { ...session, workspace: constObservable({ ...session.workspace.get()!, uri, folders: [{ root: uri, workingDirectory: uri, name: label, description: undefined, gitRepository: undefined }] }) };
+	}
+
+	test('a scoped list says so when it shows no session, also when the filters hide its sessions', () => {
+		const harness = createListHarness(disposables, [createFolderSession('archived', 'vscode', 'file:///work/vscode', undefined, { isArchived: true })]);
+		const container = harness.createContainer(400, 1400);
+		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+			grouping: () => SessionsGrouping.Workspace,
+			sorting: () => SessionsSorting.Created,
+			scoped: constObservable(true),
+			onSessionOpen: () => { },
+		}));
+		list.setExcludeArchived(true);
+		list.layout(1400, 400);
+
+		assert.deepStrictEqual({
+			sessions: list.getVisibleSessions().length,
+			rows: [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].map(row => row.textContent?.trim()).filter(text => text === 'No sessions to show in this folder.'),
+		}, { sessions: 0, rows: ['No sessions to show in this folder.'] });
+	});
+
+	test('a scoped list leaves out a comparison whose sessions the providers do not list, nested in a custom group', () => {
+		const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000);
+		const work: ISessionGroup = { id: 'work', name: 'Work', createdAt: 1 };
+		const comparisonGroup: ISessionGroup = { id: 'comparison-group', name: 'Compare: Elsewhere', createdAt: 2, parentId: work.id };
+		const attempts = ['attempt-1', 'attempt-2'].map((id, index) => createFolderSession(id, 'other', 'file:///other', hoursAgo(2 + index)));
+		const comparison: ISessionComparison = {
+			id: 'comparison-1',
+			groupId: comparisonGroup.id,
+			title: 'Elsewhere',
+			createdAt: 1,
+			workspace: URI.parse('file:///other'),
+			prompt: 'Elsewhere',
+			participants: attempts.map((session, index) => ({
+				id: `participant-${index}`,
+				role: SessionComparisonParticipantRole.Attempt,
+				harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' },
+				sessionResource: session.resource,
+			})),
+		};
+		// The providers list only the sessions of the window's folder; lookups still find those of other folders
+		const harness = createListHarness(disposables, [createFolderSession('here', 'repo', 'file:///work/repo', hoursAgo(1))], {
+			groups: [work, comparisonGroup],
+			memberships: new Map(attempts.map(session => [session.sessionId, comparisonGroup.id])),
+			comparisons: [comparison],
+		});
+		harness.managementService.unlistedSessions = attempts;
+		const render = (scoped: IObservable<boolean> | undefined) => {
+			const container = harness.createContainer(400, 1400);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				scoped,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			return {
+				sessions: list.getVisibleSessions().map(session => session.sessionId).sort(),
+				comparison: !!container.querySelector('.session-comparison-group'),
+			};
+		};
+
+		assert.deepStrictEqual({ unscoped: render(undefined), scoped: render(constObservable(true)) }, {
+			unscoped: { sessions: ['here'], comparison: true },
+			scoped: { sessions: ['here'], comparison: false },
+		});
+	});
+
 	test('lazy archive discovery follows section expansion, not the filter or local refresh', () => {
 		const harness = createListHarness(disposables, []);
 		harness.managementService.archivedSessionItems.set({ available: true, state: 'idle' }, undefined);

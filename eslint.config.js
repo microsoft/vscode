@@ -2013,6 +2013,7 @@ export default [
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
+						'vs/workbench/contrib/sessions/providers/*/~', // the sessions providers of the Sessions view (chat.agentsView.enabled)
 						'vs/workbench/contrib/terminal/terminal.all.js',
 						'vs/sessions/sessions.core.main.js',
 					]

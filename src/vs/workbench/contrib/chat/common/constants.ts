@@ -49,6 +49,8 @@ export enum ChatConfiguration {
 	ExtraMarketplaces = 'chat.plugins.extraMarketplaces',
 	EnabledPlugins = 'chat.plugins.enabledPlugins',
 	AgentEnabled = 'chat.agent.enabled',
+	ChatViewSessionsListEnabled = 'chat.viewSessions.sessionsList.enabled',
+	ChatViewSessionsOpenInChatPart = 'chat.viewSessions.openInChatPart',
 	AgentsPickerInAttachContextMenu = 'sessions.chat.experimental.agentsPickerInAttachContextMenu',
 	/** Desktop only: lets chat attach a screenshot of the window of another app. */
 	AppWindowScreenshotsEnabled = 'chat.appWindowScreenshots.enabled',
@@ -234,6 +236,25 @@ export const enum OpenInAgentsTitleBarHoverVariant {
 	ManyWindowsToOne = 'manyWindowsToOne',
 	/** A hover card with the {@link AgentsWindowGraphicVariant.WindowComparison} graphic, and the button stays an icon. */
 	WindowComparison = 'windowComparison',
+}
+
+/**
+ * Whether a window shows the sessions of the Agents window in its Chat view ({@link ChatConfiguration.ChatViewSessionsListEnabled}).
+ * Not while the Agents view of an editor window (`chat.sessionsView.enabled`) is on, which shows them in a view of its own and
+ * takes precedence. Read it once, as the window starts: the settings need a reload.
+ */
+export function isChatViewSessionsListEnabled(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsListEnabled) === true
+		&& configurationService.getValue<boolean>('chat.sessionsView.enabled') !== true;
+}
+
+/**
+ * Whether a window surfaces every local agent host agent, as the Agents window does: also a local editor window that shows
+ * the sessions in its Chat view ({@link isChatViewSessionsListEnabled}), so that its list and chats are those of the Agents
+ * window. A remote window never shows them. Read it once, as the window starts: the setting needs a reload.
+ */
+export function surfacesAllLocalAgentHostAgents(environment: { readonly isSessionsWindow: boolean; readonly remoteAuthority?: string }, configurationService: IConfigurationService): boolean {
+	return environment.isSessionsWindow || (!environment.remoteAuthority && isChatViewSessionsListEnabled(configurationService));
 }
 
 /**

@@ -12,6 +12,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, IReaderWithStore, mapObservableArrayCached, observableSignal, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { getComparisonKey } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { isCopilotReviewAuthor } from '../../../../platform/github/common/pullRequestFeedback.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatModelReference, IChatService, IChatToolInvocation } from '../../chat/common/chatService/chatService.js';
@@ -19,7 +20,7 @@ import { IChatSessionsService } from '../../chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { IChatModel, IChatResponseModel } from '../../chat/common/model/chatModel.js';
 import { getChatSessionType } from '../../chat/common/model/chatUri.js';
-import { IGitHubService } from './github/githubService.js';
+import { IGitHubService } from '../browser/github/githubService.js';
 import { getSessionGitHubReferences } from '../common/github/sessionGitHubReferences.js';
 import { GitHubCIOverallStatus, GitHubPullRequestState } from '../common/github/types.js';
 import { getPullRequestKey } from '../common/github/utils.js';
@@ -523,3 +524,6 @@ function parseTimestamp(value: string | undefined): number | undefined {
 	const parsed = Date.parse(value);
 	return Number.isFinite(parsed) ? parsed : undefined;
 }
+
+// Registered here, once, for both the Agents window and the Sessions view of editor windows, which load this module
+registerSingleton(ISessionAttentionService, SessionAttentionService, InstantiationType.Delayed);

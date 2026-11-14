@@ -237,6 +237,12 @@ interface INewChatWidgetFixtureOptions {
 	readonly dismissConnector?: boolean;
 	readonly focusConnectorRecommendations?: boolean;
 	readonly tipsEnabled?: boolean;
+	/**
+	 * Where the composer shows: by default the Sessions part of the Agents window; else in the chat part of a chat window, or
+	 * of an editor window, without any class of the Agents window. It shows in the chat editor there, as the chat part's
+	 * editor shows a composer.
+	 */
+	readonly host?: 'chatWindow' | 'editorWindow';
 }
 
 class FixturePickerActionViewItem extends BaseActionViewItem implements IChatInputPickerResponsiveState {
@@ -450,6 +456,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		expectConnectorRecommendation = connectorPrompt !== undefined && connectorRecommendationsSetting && tipsEnabled && (migrationCount === 0 || ignoreMigrations),
 		dismissConnector = false,
 		focusConnectorRecommendations = false,
+		host,
 	} = options;
 	if (petEnabled) {
 		configureChatPetFixtureFileRoot(disposableStore);
@@ -823,7 +830,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		container.style.overflow = 'hidden';
 		container.style.transform = 'translate3d(0, 0, 0)';
 	}
-	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
+	container.classList.add('monaco-workbench');
+	container.classList.toggle('agent-sessions-workbench', host !== 'editorWindow');
 	container.classList.toggle('phone-layout', phoneLayout);
 	const phoneLayoutContext = IsPhoneLayoutContext.bindTo(instantiationService.get(IContextKeyService));
 	phoneLayoutContext.set(phoneLayout);
@@ -833,7 +841,16 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		: chatBackground === 'loud'
 			? loudChatBackground
 			: instantiationService.get(ISessionsChatBackgroundService).getBackground();
-	const sessionView = dom.append(hasChatBackground ? createChatBackgroundPart(container, disposableStore, background) : container, dom.$('.session-view.is-active'));
+	assert(!host || !hasChatBackground, 'A composer in a chat part shows over its surface, without a wallpaper.');
+	// A chat part is an editor part in a cell of its window's grid, whose chat editor shows the composer
+	const chatPart = host ? dom.append(dom.append(container, dom.$('.fixture-chat-part-cell')), dom.$('.part.editor.sessions-chat-surface')) : undefined;
+	if (chatPart) {
+		for (const element of [chatPart.parentElement!, chatPart]) {
+			element.style.width = '100%';
+			element.style.height = '100%';
+		}
+	}
+	const sessionView = dom.append(chatPart ?? (hasChatBackground ? createChatBackgroundPart(container, disposableStore, background) : container), dom.$(chatPart ? '.session-view.chat-editor-content.modern-ui-editor-tab-group' : '.session-view.is-active'));
 	if (hasChatBackground && isHighContrast(context.theme.type)) {
 		assert(!container.querySelector('.has-chat-background')
 			&& container.querySelectorAll('.sessions-chat-codicon-background .codicon').length === 0
@@ -842,11 +859,12 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	}
 	sessionView.style.width = '100%';
 	sessionView.style.height = '100%';
-	if (!hasChatBackground) {
+	// A chat part's surface paints its background
+	if (!hasChatBackground && !chatPart) {
 		sessionView.style.backgroundColor = asCssVariable(activeSessionViewBackground);
 	}
 	sessionView.style.setProperty('--session-view-background', asCssVariable(activeSessionViewBackground));
-	const sessionViewContent = dom.append(sessionView, dom.$('.session-view-content'));
+	const sessionViewContent = dom.append(sessionView, dom.$(chatPart ? '.session-view-content.standalone-chat' : '.session-view-content'));
 	sessionViewContent.style.width = '100%';
 	sessionViewContent.style.height = '100%';
 
@@ -1568,6 +1586,18 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	NewSessionDefault: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderNewChatWidget(context, { withWorkspace: true }),
+	}),
+	NewSessionInChatWindow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The new-session composer as the chat part of a chat window shows it, in its chat editor, when no chat is open there.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, host: 'chatWindow' }),
+	}),
+	NewSessionInEditorWindow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The empty state of the chat part of an editor window with the Agents view: the same composer as NewSessionInChatWindow, without any class of the Agents window, and looking exactly as there.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, host: 'editorWindow' }),
 	}),
 	NewSessionPetOnInput: defineComponentFixture({
 		labels: { kind: 'screenshot' },
