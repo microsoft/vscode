@@ -9,6 +9,9 @@ import { getSingletonServiceDescriptors } from '../../../../../../../platform/in
 import { _util, ServiceIdentifier } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { EditorWindowMainSessionHost } from '../../../../browser/agentsView/editorWindowMainSessionHost.js';
+import { constObservable } from '../../../../../../../base/common/observable.js';
+import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
+import { IChat, ISession, SessionStatus } from '../../../../../../services/sessions/common/session.js';
 import { ChatView, NewChatView } from '../../../../browser/chat/chatView.js';
 import { NewChatInSessionWidget } from '../../../../browser/chat/newChatInSessionWidget.js';
 import { NewChatWidget } from '../../../../browser/chat/newChatWidget.js';
@@ -103,5 +106,22 @@ suite('Editor window sessions services', () => {
 		const host = new EditorWindowMainSessionHost(contextKeyService);
 
 		assert.deepStrictEqual({ used, content: host.content.get(), session: host.session.get(), chat: host.chat.get() }, { used: [], content: { kind: 'empty' }, session: undefined, chat: undefined });
+	});
+
+	test('the session host of an editor window shows the chat an override names in place of the bound one, until the override ends', () => {
+		const contextKeyService = upcastPartial<IContextKeyService>({});
+		const host = new EditorWindowMainSessionHost(contextKeyService);
+		const chat = (id: string) => ({ session: upcastPartial<ISession>({ sessionId: id, status: constObservable(SessionStatus.Completed), mainChat: constObservable(upcastPartial<IChat>({})) }), chat: upcastPartial<IChat>({}) });
+		const shownId = () => host.session.get()?.sessionId;
+
+		const bound = host.bindShownChat(constObservable(chat('chat part')));
+		const beforeOverride = shownId();
+		const override = host.overrideShownChat(constObservable(chat('chat view')));
+		const overridden = shownId();
+		override.dispose();
+		const afterOverride = shownId();
+		bound.dispose();
+
+		assert.deepStrictEqual({ beforeOverride, overridden, afterOverride, afterBound: shownId() }, { beforeOverride: 'chat part', overridden: 'chat view', afterOverride: 'chat part', afterBound: undefined });
 	});
 });
