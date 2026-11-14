@@ -15,6 +15,7 @@ import { Layout } from '../../browser/layout.js';
 import { Part, updateSashEndpoints } from '../../browser/part.js';
 import { PanelAlignment, Parts, Position } from '../../services/layout/browser/layoutService.js';
 import { NullTelemetryService } from '../../../platform/telemetry/common/telemetryUtils.js';
+import { ViewContainerLocation } from '../../common/views.js';
 
 suite('Workbench layout sash endpoints', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -145,6 +146,8 @@ suite('Workbench layout chat part', () => {
 		readonly alignment: PanelAlignment;
 		/** The chat part, with the layout it was left in; none without a chat part. */
 		readonly chat?: { readonly visible: boolean; readonly size: number } | 'noLayout';
+		/** The location of the view the chat part docks beside; `null` for a view that is not known; no anchor without. */
+		readonly anchor?: ViewContainerLocation | null;
 	}
 
 	/** The state a window left, to start another window from, as after a reload. */
@@ -192,6 +195,7 @@ suite('Workbench layout chat part', () => {
 			['auxiliaryBar.hidden', false],
 		]);
 		const initialization = new Map<string, unknown>([['sideBar.size', 250], ['auxiliaryBar.size', 260], ['panel.size', 200]]);
+		const anchor = { location: configuration.anchor ?? null };
 		let stored = saved ? saved.stored : configuration.chat && configuration.chat !== 'noLayout' ? JSON.stringify({ version: 1, ...configuration.chat }) : undefined;
 		const layout = store.add(new class extends Layout {
 			override isVisible(part: Parts, targetWindow?: Window): boolean {
@@ -207,7 +211,7 @@ suite('Workbench layout chat part', () => {
 			telemetryService: NullTelemetryService,
 			// No view containers: the side bar and the panel show and hide empty
 			paneCompositeService: { getActivePaneComposite: () => undefined, getLastActivePaneCompositeId: () => undefined },
-			viewDescriptorService: { getViewContainersByLocation: () => [] },
+			viewDescriptorService: { getViewContainersByLocation: () => [], getViewLocationById: () => anchor.location },
 			configurationService: { getValue: () => undefined },
 			storageService: { get: () => stored, store: (_key: string, value: string) => stored = value },
 			stateModel: {
@@ -216,12 +220,15 @@ suite('Workbench layout chat part', () => {
 				getInitializationValue: (key: { name: string; defaultValue: unknown }) => initialization.get(key.name) ?? key.defaultValue,
 			},
 		});
+		if (configuration.anchor !== undefined) {
+			layout.setChatPartAnchor({ viewId: 'sessions' });
+		}
 		const descriptor = (Reflect.get(layout, 'createGridDescriptor') as () => ISerializedGrid).call(layout);
 		const save = (): ISavedLayout => {
 			(Reflect.get(layout, 'saveChatPartLayout') as () => void).call(layout);
 			return { runtime, stored };
 		};
-		return { layout, views, descriptor, save };
+		return { layout, views, descriptor, save, anchor };
 	}
 
 	/** The parts of `node`, nested as the grid nests them, marking hidden parts. */
@@ -297,13 +304,13 @@ suite('Workbench layout chat part', () => {
 	});
 
 	function createGridLayout(configuration: ILayoutConfiguration, saved?: ISavedLayout) {
-		const { layout, views, descriptor, save } = createLayout(configuration, saved);
+		const { layout, views, descriptor, save, anchor } = createLayout(configuration, saved);
 		const grid = store.add(SerializableGrid.deserialize(descriptor, { fromJSON: ({ type }: { type: Parts }) => views.get(type)! }, { proportionalLayout: false }));
 		append(layout.mainContainer, grid.element);
 		grid.layout(1600, 900);
 		Object.assign(layout, { workbenchGrid: grid });
 		const middle = () => shape((grid.serialize().root.data as ISerializedNode[])[2]);
-		return { layout, grid, middle, save };
+		return { layout, grid, middle, save, anchor, views };
 	}
 
 	test('the visible neighbors of the parts beside a chat part are the chat part, as long as it shows', () => {
@@ -413,5 +420,96 @@ suite('Workbench layout chat part', () => {
 		const runtime = new Map(saved.runtime).set('panel.alignment', 'justify');
 		const { layout } = createGridLayout(configuration, { ...saved, runtime });
 		assert.deepStrictEqual({ panelMaximized: layout.isPanelMaximized(), chat: layout.isVisible(Parts.CHAT_PART) }, { panelMaximized: false, chat: true });
+	});
+
+	test('docks the chat part beside the editor on the side of its anchor view\'s container', () => {
+		const middle = (configuration: Omit<ILayoutConfiguration, 'chat' | 'alignment'>) => shape((createLayout({ alignment: 'center', chat: { visible: true, size: 400 }, ...configuration }).descriptor.root.data as ISerializedNode[])[2]);
+		assert.deepStrictEqual({
+			sideBar: middle({ sideBar: Position.LEFT, panel: Position.BOTTOM, anchor: ViewContainerLocation.Sidebar }),
+			sideBarRight: middle({ sideBar: Position.RIGHT, panel: Position.BOTTOM, anchor: ViewContainerLocation.Sidebar }),
+			auxiliaryBar: middle({ sideBar: Position.LEFT, panel: Position.BOTTOM, anchor: ViewContainerLocation.AuxiliaryBar }),
+			auxiliaryBarSideBarRight: middle({ sideBar: Position.RIGHT, panel: Position.BOTTOM, anchor: ViewContainerLocation.AuxiliaryBar }),
+			auxiliaryBarWithPanelOnItsSide: middle({ sideBar: Position.LEFT, panel: Position.RIGHT, anchor: ViewContainerLocation.AuxiliaryBar }),
+			rightPanel: middle({ sideBar: Position.LEFT, panel: Position.RIGHT, anchor: ViewContainerLocation.Panel }),
+			bottomPanel: middle({ sideBar: Position.RIGHT, panel: Position.BOTTOM, anchor: ViewContainerLocation.Panel }),
+			unknownView: middle({ sideBar: Position.LEFT, panel: Position.BOTTOM, anchor: null }),
+		}, {
+			sideBar: ['activitybar', 'sidebar', [['chat', 'editor'], 'panel'], 'auxiliarybar'],
+			sideBarRight: ['auxiliarybar', [['editor', 'chat'], 'panel'], 'sidebar', 'activitybar'],
+			auxiliaryBar: ['activitybar', 'sidebar', [['editor', 'chat'], 'panel'], 'auxiliarybar'],
+			auxiliaryBarSideBarRight: ['auxiliarybar', [['chat', 'editor'], 'panel'], 'sidebar', 'activitybar'],
+			auxiliaryBarWithPanelOnItsSide: ['activitybar', 'sidebar', 'editor', 'chat', 'panel', 'auxiliarybar'],
+			rightPanel: ['activitybar', 'sidebar', 'editor', 'chat', 'panel', 'auxiliarybar'],
+			bottomPanel: ['auxiliarybar', [['editor', 'chat'], 'panel'], 'sidebar', 'activitybar'],
+			unknownView: ['activitybar', 'sidebar', [['chat', 'editor'], 'panel'], 'auxiliarybar'],
+		});
+	});
+
+	test('the chat part follows its anchor view as the view moves, the side bar flips and the panel moves', () => {
+		const { layout, middle, anchor } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor: ViewContainerLocation.AuxiliaryBar });
+		const setSideBarPosition = (position: Position) => (Reflect.get(layout, 'setSideBarPosition') as (position: Position) => void).call(layout, position);
+		// As the view descriptor service tells the layout that a view or a view container moved
+		const moveAnchor = (location: ViewContainerLocation) => { anchor.location = location; (Reflect.get(layout, 'updateChatPartPosition') as () => void).call(layout); };
+		const step = () => ({ grid: middle(), position: layout.getChatPartPosition() });
+		const steps: Record<string, unknown> = {};
+		steps.auxiliaryBar = step();
+		setSideBarPosition(Position.RIGHT);
+		steps.sideBarRight = step();
+		moveAnchor(ViewContainerLocation.Sidebar);
+		steps.movedToSideBar = step();
+		moveAnchor(ViewContainerLocation.Panel);
+		layout.setPanelPosition(Position.LEFT);
+		steps.movedToLeftPanel = step();
+		layout.setPanelPosition(Position.RIGHT);
+		steps.panelRight = step();
+		layout.setPanelPosition(Position.BOTTOM);
+		steps.panelBottom = step();
+		layout.setPartHidden(true, Parts.CHAT_PART);
+		moveAnchor(ViewContainerLocation.AuxiliaryBar);
+		steps.movedWhileHidden = step();
+		layout.setPartHidden(false, Parts.CHAT_PART);
+		steps.shownAgain = step();
+		assert.deepStrictEqual(steps, {
+			auxiliaryBar: { grid: ['activitybar', 'sidebar', [['editor', 'chat'], 'panel'], 'auxiliarybar'], position: Position.RIGHT },
+			sideBarRight: { grid: ['auxiliarybar', [['chat', 'editor'], 'panel'], 'sidebar', 'activitybar'], position: Position.LEFT },
+			movedToSideBar: { grid: ['auxiliarybar', [['editor', 'chat'], 'panel'], 'sidebar', 'activitybar'], position: Position.RIGHT },
+			movedToLeftPanel: { grid: ['auxiliarybar', 'panel', 'chat', 'editor', 'sidebar', 'activitybar'], position: Position.LEFT },
+			panelRight: { grid: ['auxiliarybar', 'editor', 'chat', 'panel', 'sidebar', 'activitybar'], position: Position.RIGHT },
+			panelBottom: { grid: ['auxiliarybar', [['editor', 'chat'], 'panel'], 'sidebar', 'activitybar'], position: Position.RIGHT },
+			movedWhileHidden: { grid: ['auxiliarybar', [['(chat)', 'editor'], 'panel'], 'sidebar', 'activitybar'], position: Position.LEFT },
+			shownAgain: { grid: ['auxiliarybar', [['chat', 'editor'], 'panel'], 'sidebar', 'activitybar'], position: Position.LEFT },
+		});
+	});
+
+	test('the chat part keeps its width as it follows its anchor view, shown or hidden', () => {
+		const { layout, grid, anchor } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor: ViewContainerLocation.AuxiliaryBar });
+		const moveAnchor = (location: ViewContainerLocation) => { anchor.location = location; (Reflect.get(layout, 'updateChatPartPosition') as () => void).call(layout); };
+		// The width the grid gives the chat part, or would give it once shown
+		const chatWidth = (node: ISerializedNode): number | undefined => node.type === 'leaf'
+			? (node.data as { type: string }).type === Parts.CHAT_PART ? node.size : undefined
+			: (node.data as ISerializedNode[]).reduce<number | undefined>((width, child) => width ?? chatWidth(child), undefined);
+		const widths: (number | undefined)[] = [];
+		moveAnchor(ViewContainerLocation.Sidebar);
+		widths.push(chatWidth(grid.serialize().root));
+		moveAnchor(ViewContainerLocation.AuxiliaryBar);
+		widths.push(chatWidth(grid.serialize().root));
+		layout.setPartHidden(true, Parts.CHAT_PART);
+		moveAnchor(ViewContainerLocation.Sidebar);
+		layout.setPartHidden(false, Parts.CHAT_PART);
+		widths.push(chatWidth(grid.serialize().root));
+		assert.deepStrictEqual(widths, [400, 400, 400]);
+	});
+
+	test('a chat part docked beside the secondary side bar hides while that is maximized and shows again on its side', () => {
+		const { layout, middle } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor: ViewContainerLocation.AuxiliaryBar });
+		const steps: Record<string, unknown> = {};
+		layout.toggleMaximizedAuxiliaryBar();
+		steps.maximized = layout.isVisible(Parts.CHAT_PART);
+		layout.toggleMaximizedAuxiliaryBar();
+		steps.restored = middle();
+		assert.deepStrictEqual(steps, {
+			maximized: false,
+			restored: ['activitybar', 'sidebar', [['editor', 'chat'], 'panel'], 'auxiliarybar'],
+		});
 	});
 });
