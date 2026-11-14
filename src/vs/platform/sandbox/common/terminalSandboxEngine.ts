@@ -15,7 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { extractDomainFromUri, matchesDomainPattern, normalizeDomain, normalizeDomainPattern } from '../../networkFilter/common/domainMatcher.js';
+import { extractDomainFromUri, isDomainDenied, matchesDomainPattern, normalizeDomain, normalizeDomainPattern } from '../../networkFilter/common/domainMatcher.js';
 import { AgentNetworkDomainSettingId } from '../../networkFilter/common/settings.js';
 import { ISandboxDependencyStatus } from './sandboxHelperService.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId, isAgentSandboxEnabledValue, isTerminalSandboxSupported } from './settings.js';
@@ -508,7 +508,7 @@ export class TerminalSandboxEngine extends Disposable {
 		const blockedDomains = new Set<string>();
 		const explicitlyDeniedDomains = new Set<string>();
 		for (const domain of domains) {
-			if (deniedDomains.some(pattern => matchesDomainPattern(domain, pattern))) {
+			if (isDomainDenied(domain, deniedDomains)) {
 				blockedDomains.add(domain);
 				explicitlyDeniedDomains.add(domain);
 				continue;
