@@ -8808,9 +8808,11 @@ suite('WorkspacePicker - Allowed folders', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** A picker of an editor window's composer, which offers only the window's folders. */
-	function createPicker(folders: readonly string[], noWorkspace?: { selected: boolean }, options?: Pick<IWorkspacePickerOptions, 'getAllowedFolderPresentation' | 'newWorktree'>) {
+	function createPicker(folders: readonly string[], noWorkspace?: { selected: boolean }, options?: Pick<IWorkspacePickerOptions, 'getAllowedFolderPresentation' | 'newWorktree'> & { readonly resolves?: (folderUri: URI) => boolean }) {
 		const providersService = store.add(new MockSessionsProvidersService());
-		providersService.setProviders([createMockProvider('local-1', { group: SESSION_WORKSPACE_GROUP_LOCAL })]);
+		const provider = createMockProvider('local-1', { group: SESSION_WORKSPACE_GROUP_LOCAL });
+		const resolveWorkspace = provider.resolveWorkspace;
+		providersService.setProviders([{ ...provider, resolveWorkspace: (folderUri: URI) => options?.resolves && !options.resolves(folderUri) ? undefined : resolveWorkspace(folderUri) }]);
 		const allowedFolders = observableValue<readonly URI[]>('allowedFolders', folders.map(folder => URI.file(folder)));
 		let shows = 0;
 		const actionWidgetService = upcastPartial<IActionWidgetService>({ isVisible: false, hide: () => { }, show: () => { shows++; }, updateItems: () => { } });
@@ -8919,6 +8921,34 @@ suite('WorkspacePicker - Allowed folders', () => {
 		});
 	});
 
+	test('with sections for the window\'s folder and its worktrees, offers New Worktree first and each section\'s current folder first, described as current', async () => {
+		const noWorkspace = { selected: false };
+		let current = '/local/vscode.worktrees/b';
+		const { picker } = createPicker(['/local/vscode.worktrees/b', '/local/vscode', '/local/vscode.worktrees/a'], noWorkspace, {
+			getAllowedFolderPresentation: folderUri => folderUri.path === '/local/vscode'
+				? { kind: 'folder', current: current === folderUri.path }
+				: { label: folderUri.path.split('/').pop(), description: `feature-${folderUri.path.split('/').pop()}`, icon: Codicon.gitBranchCheckout, kind: 'worktree', current: current === folderUri.path },
+			newWorktree: { isAvailable: () => true, isSelected: () => false, setSelected: () => { } },
+		});
+		picker.setSelectedWorkspace(URI.file('/local/vscode.worktrees/b'), { fireEvent: false });
+		const items = () => picker.getItems().map(item => item.kind === ActionListItemKind.Separator
+			? `---${item.label ? ` ${item.label}` : ''}`
+			: `${item.label}${item.description ? ` (${item.description})` : ''}${item.item?.checked ? ' *' : ''}`);
+
+		const atWorktree = items();
+		const ariaLabels = picker.getItems().filter(item => item.item?.folderUri).map(item => item.item?.ariaLabel ?? null);
+		current = '/local/vscode';
+		await picker.dispatchFolder(URI.file('/local/vscode'), 'local-1');
+		const atFolder = items();
+
+		assert.deepStrictEqual({ atWorktree, ariaLabels, atFolder }, {
+			atWorktree: ['Chat', '---', 'New Worktree', '--- Folder', 'local/vscode', '--- Worktrees', 'b (Current) *', 'a (feature-a)'],
+			// Screen readers hear where the window's folder is now, apart from the checked choice
+			ariaLabels: [null, 'b, Current', null],
+			atFolder: ['Chat', '---', 'New Worktree', '--- Folder', 'local/vscode (Current) *', '--- Worktrees', 'b (feature-b)', 'a (feature-a)'],
+		});
+	});
+
 	test('picking another folder after New Worktree selects it, also where leaving New Worktree selects the first folder again as its configuration changes', async () => {
 		const newWorktree = { selected: true };
 		const { picker } = createPicker(['/local/a', '/local/b'], undefined, {
@@ -8965,6 +8995,96 @@ suite('WorkspacePicker - Allowed folders', () => {
 		}, {
 			items: ['check git-branch-checkout a (feature-a)', 'blank folder local/vscode'],
 			trigger: { label: 'Workspace: a', worktreeIcon: true },
+		});
+	});
+
+	test('with a window\'s folder and its worktrees, shows New Worktree and the worktrees by the worktree icon, and its chip by its icon only, naming it for screen readers and on hover, but New Worktree as Worktree, also from a worktree', async () => {
+		const newWorktree = { selected: false };
+		const { picker } = createPicker(['/local/vscode', '/local/vscode.worktrees/a'], undefined, {
+			getAllowedFolderPresentation: folderUri => folderUri.path === '/local/vscode'
+				? { kind: 'folder' }
+				: { label: 'a', description: 'feature-a', icon: Codicon.gitBranchCheckout, kind: 'worktree' },
+			newWorktree: { isAvailable: () => true, isSelected: () => newWorktree.selected, setSelected: selected => { newWorktree.selected = selected; } },
+		});
+		picker.setSelectedWorkspace(URI.file('/local/vscode'), { fireEvent: false });
+		const container = document.createElement('div');
+		picker.renderCategoryTriggers(container, [{ label: 'Workspace', ariaLabel: 'Choose a workspace', icon: Codicon.project, reflectsWorkspace: true, attachesContext: false }]);
+		const trigger = container.querySelector<HTMLElement>('.sessions-workspace-picker-trigger [role="button"]')!;
+		const iconOf = (element: Element | null) => [...element?.classList ?? []].find(name => name.startsWith('codicon-') && name !== 'codicon-chevron-down-compact')?.slice('codicon-'.length);
+		const chip = () => ({
+			icon: iconOf(trigger.querySelector('.codicon:not(.sessions-chat-dropdown-chevron)')),
+			label: trigger.querySelector('.sessions-chat-dropdown-label')?.textContent ?? null,
+			ariaLabel: trigger.getAttribute('aria-label'),
+			hover: picker.getSelectedLocationDescription() ?? null,
+		});
+		const items = () => picker.getItems().filter(item => item.kind !== ActionListItemKind.Separator).map(item => `${item.labelIcon?.id} ${item.label}${item.item?.checked ? ' *' : ''}`);
+
+		const atFolder = { items: items(), chip: chip() };
+		await picker.dispatchItem(picker.getItems().find(item => item.label === 'New Worktree')!.item!);
+		const inNewWorktree = chip();
+		await picker.dispatchFolder(URI.file('/local/vscode.worktrees/a'), 'local-1');
+		const atWorktree = { items: items(), chip: chip() };
+		await picker.dispatchItem(picker.getItems().find(item => item.label === 'New Worktree')!.item!);
+
+		assert.deepStrictEqual({ atFolder, inNewWorktree, atWorktree, fromWorktree: { chip: chip(), selected: newWorktree.selected } }, {
+			atFolder: {
+				items: ['worktree New Worktree', 'folder local/vscode *', 'worktree a'],
+				chip: { icon: 'folder', label: null, ariaLabel: 'Folder: local/vscode', hover: 'Folder: local/vscode' },
+			},
+			inNewWorktree: { icon: 'worktree', label: 'Worktree', ariaLabel: 'New worktree of local/vscode', hover: 'New worktree of local/vscode' },
+			atWorktree: {
+				items: ['worktree New Worktree', 'folder local/vscode', 'worktree a *'],
+				chip: { icon: 'worktree', label: null, ariaLabel: 'Worktree: a', hover: 'Worktree: a' },
+			},
+			fromWorktree: { chip: { icon: 'worktree', label: 'Worktree', ariaLabel: 'New worktree of local/vscode', hover: 'New worktree of local/vscode' }, selected: true },
+		});
+	});
+
+	test('at a worktree selected by another form of its path, which no provider resolves, selects the worktree the window\'s folder is at, as one selection with its events, so its row is checked, its chip shows it and New Worktree sticks', async () => {
+		const newWorktree = { selected: false };
+		const { picker } = createPicker(['/local/vscode.worktrees/a', '/local/vscode', '/private/local/vscode.worktrees/a'], undefined, {
+			// The window's folder is at the worktree, also by the other form of its path
+			getAllowedFolderPresentation: folderUri => folderUri.path === '/local/vscode' ? { kind: 'folder' } : { label: 'a', kind: 'worktree', current: true },
+			newWorktree: { isAvailable: () => true, isSelected: () => newWorktree.selected, setSelected: selected => { newWorktree.selected = selected; } },
+			resolves: folderUri => !folderUri.path.startsWith('/private/'),
+		});
+		const events: string[] = [];
+		store.add(picker.onDidSelectWorkspace(folderUri => events.push(`select ${folderUri?.path}`)));
+		store.add(picker.onDidChangeSelection(() => events.push(`change ${picker.selectedFolderUri?.path}`)));
+		picker.setSelectedWorkspace(URI.file('/private/local/vscode.worktrees/a'));
+		// Before any trigger renders it, as a composer reads it
+		const selected = picker.selectedFolderUri?.path;
+		const container = document.createElement('div');
+		picker.renderCategoryTriggers(container, [{ label: 'Workspace', ariaLabel: 'Choose a workspace', icon: Codicon.project, reflectsWorkspace: true, attachesContext: false }]);
+		const trigger = container.querySelector<HTMLElement>('.sessions-workspace-picker-trigger [role="button"]')!;
+		const checked = () => picker.getItems().filter(item => item.item?.checked).map(item => item.item?.folderUri?.path ?? item.label);
+		const atWorktree = { selected, events: [...events], checked: checked(), ariaLabel: trigger.getAttribute('aria-label'), worktreeIcon: !!trigger.querySelector('.codicon-worktree') };
+		await picker.dispatchItem(picker.getItems().find(item => item.label === 'New Worktree')!.item!);
+
+		assert.deepStrictEqual({ atWorktree, inNewWorktree: { checked: checked(), label: trigger.querySelector('.sessions-chat-dropdown-label')?.textContent, selected: picker.selectedFolderUri?.path } }, {
+			atWorktree: { selected: '/local/vscode.worktrees/a', events: ['change /local/vscode.worktrees/a', 'select /local/vscode.worktrees/a'], checked: ['/local/vscode.worktrees/a'], ariaLabel: 'Worktree: a', worktreeIcon: true },
+			inNewWorktree: { checked: ['New Worktree'], label: 'Worktree', selected: '/local/vscode.worktrees/a' },
+		});
+	});
+
+	test('a worktree selected by another form of its path before the window\'s folder is known to be there is selected again by the worktree, once, with its events, as the folders tell', () => {
+		let known = false;
+		const { picker, allowedFolders } = createPicker(['/local/vscode.worktrees/a', '/local/vscode', '/private/local/vscode.worktrees/a'], undefined, {
+			getAllowedFolderPresentation: folderUri => folderUri.path === '/local/vscode' ? { kind: 'folder' } : { label: 'a', kind: 'worktree', current: known },
+			resolves: folderUri => !folderUri.path.startsWith('/private/'),
+		});
+		picker.setSelectedWorkspace(URI.file('/private/local/vscode.worktrees/a'), { fireEvent: false });
+		const before = picker.selectedFolderUri?.path;
+		const events: string[] = [];
+		store.add(picker.onDidSelectWorkspace(folderUri => events.push(`select ${folderUri?.path}`)));
+		store.add(picker.onDidChangeSelection(() => events.push(`change ${picker.selectedFolderUri?.path}`)));
+		known = true;
+		allowedFolders.set([...allowedFolders.get()], undefined);
+
+		assert.deepStrictEqual({ before, after: picker.selectedFolderUri?.path, events }, {
+			before: '/private/local/vscode.worktrees/a',
+			after: '/local/vscode.worktrees/a',
+			events: ['change /local/vscode.worktrees/a', 'select /local/vscode.worktrees/a'],
 		});
 	});
 
