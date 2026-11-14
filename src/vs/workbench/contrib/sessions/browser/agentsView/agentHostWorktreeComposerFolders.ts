@@ -24,7 +24,7 @@ import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { IAllowedFolderPresentation } from '../chat/sessionWorkspacePicker.js';
 import { IEditorWindowComposerFoldersService } from '../editorWindow/editorWindowComposerFolders.js';
 import { IAgentHostWorktreeSessionSource, IAgentHostWorktreeSessionSources } from '../../../chat/browser/agentSessions/agentHost/agentHostWorktreeSessionSources.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 
@@ -179,17 +179,19 @@ export class AgentHostWorktreeSessionLayerSource extends Disposable implements I
 		this._register(autorun(reader => {
 			sessionsChanged.read(reader);
 			const working: string[] = [];
+			const directories = (workspace: ISessionWorkspace | undefined) => workspace?.folders.map(folder => folder.workingDirectory.toString()).join(',') ?? '';
 			for (const session of _sessionsManagementService.getAllSessions()) {
 				const local = session.providerId === LOCAL_AGENT_HOST_PROVIDER_ID && !session.isArchived.read(reader);
-				const sessionDirectory = session.workspace.read(reader)?.folders[0]?.workingDirectory;
+				const sessionWorkspace = session.workspace.read(reader);
 				for (const chat of session.chats.read(reader)) {
 					const chatWorkspace = chat.workspace.read(reader);
 					if (local) {
-						working.push(`${chat.resource.toString()}=${(chatWorkspace?.folders[0]?.workingDirectory ?? sessionDirectory)?.toString()}`);
+						// Every folder it works in, which the worktrees count; the first is where it follows
+						working.push(`${chat.resource.toString()}=${directories(chatWorkspace ?? sessionWorkspace)}`);
 					}
 				}
 				if (local) {
-					working.push(`*=${sessionDirectory?.toString()}`);
+					working.push(`*=${directories(sessionWorkspace)}`);
 				}
 			}
 			const key = working.join('\n');
