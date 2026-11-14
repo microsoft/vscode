@@ -19,6 +19,7 @@ import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
 import { ChangesMultiDiffSourceResolver } from '../../../sessionChanges/browser/changesMultiDiffSourceResolver.js';
 import { SessionChangesEditor } from '../../../sessionChanges/browser/sessionChangesEditor.js';
 import { SessionChangesEditorInput, SessionChangesEditorSerializer } from '../../../sessionChanges/browser/sessionChangesEditorInput.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../editorWindow/editorWindowSessionsPresenter.js';
 import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessionsRuntime.js';
 import { IAgentsChatPartService, restoreAgentsChatPart } from './agentsChatPart.js';
@@ -118,12 +119,30 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 		// The part, before the workbench creates its grid: reading it creates the delayed frame
 		void this._frame.part;
 
-		// What shows chats is provisioned as chats first open in it, and stays, also once they no longer do: before then, the
-		// window has only the empty part, hidden
+		// What shows chats is provisioned as it is first needed, and stays, also once chats no longer open in it: before then,
+		// the window has only the empty part, hidden
 		let visible: IContextKey<boolean> | undefined;
+		const provision = () => visible ??= this._provision(store);
+
+		// The Changes editor that the pills of the chats open in the editor area, as the Agents window registers it: from the
+		// start, so that one the window restores, also while chats do not open in the chat part, is not dropped. Restoring one
+		// provisions what shows its changes, such as the sessions of its chats.
+		store.add(Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+			EditorPaneDescriptor.create(SessionChangesEditor, SessionChangesEditor.ID, localize('sessionChangesEditor.label', "Changes")),
+			[new SyncDescriptor(SessionChangesEditorInput)]
+		));
+		store.add(Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(SessionChangesEditorInput.ID, class extends SessionChangesEditorSerializer {
+			override deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
+				provision();
+				return super.deserialize(instantiationService, serializedEditor);
+			}
+		}));
+		// Its diffs, also of a Changes editor that the window restores
+		store.add(this._instantiationService.createInstance(ChangesMultiDiffSourceResolver));
+
 		store.add(autorun(reader => {
-			if (!visible && this.enabled.read(reader)) {
-				visible = this._provision(store);
+			if (this.enabled.read(reader)) {
+				provision();
 			}
 		}));
 
@@ -167,19 +186,10 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 	}
 
 	/**
-	 * Provisions what shows chats in the chat part, into `store`: the Changes editor that the pills of its chats open, the context
-	 * of its visibility, which it returns, and the sessions of its chats.
+	 * Provisions what shows chats in the chat part and their changes, into `store`: the context of its visibility, which it
+	 * returns, and the sessions of its chats.
 	 */
 	private _provision(store: DisposableStore): IContextKey<boolean> {
-		// The Changes editor that the pills of the chats open in the editor area, as the Agents window registers it
-		store.add(Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
-			EditorPaneDescriptor.create(SessionChangesEditor, SessionChangesEditor.ID, localize('sessionChangesEditor.label', "Changes")),
-			[new SyncDescriptor(SessionChangesEditorInput)]
-		));
-		store.add(Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(SessionChangesEditorInput.ID, SessionChangesEditorSerializer));
-		// Its diffs, also of a Changes editor that the window restores
-		store.add(this._instantiationService.createInstance(ChangesMultiDiffSourceResolver));
-
 		const visible = AgentsChatPartVisibleContext.bindTo(this._contextKeyService);
 		store.add(this._layoutService.onDidChangePartVisibility(({ partId }) => {
 			if (partId === Parts.CHAT_PART) {

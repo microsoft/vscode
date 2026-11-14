@@ -22,6 +22,11 @@ import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPart
 import { AgentsChatViewHost } from '../../../browser/agentsView/agentsChatViewHost.js';
 import { IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { IEditorWindowSessionsRuntime } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
+import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { EditorExtensions, IEditorFactoryRegistry } from '../../../../../common/editor.js';
+import { EditorInput } from '../../../../../common/editor/editorInput.js';
+import { SessionChangesEditorInput } from '../../../../sessionChanges/browser/sessionChangesEditorInput.js';
 
 suite('EditorWindowChatPartService', () => {
 
@@ -138,6 +143,24 @@ suite('EditorWindowChatPartService', () => {
 		assert.deepStrictEqual({ afterFirst, afterBoth: service.enabled.get() }, {
 			afterFirst: { enabled: true, events: ['create part', 'hold providers', 'register composer holder', 'register host', 'register presenter', 'anchor list', 'anchor list', 'anchor list'] },
 			afterBoth: false,
+		});
+	});
+
+	test('restores a Changes editor saved as the window closed also while chats do not open in it, and provisions the sessions of its changes as it does', async () => {
+		const { service, events } = createService({ visible: false });
+		disposables.add(service.enable({ anchorViewId: 'chat', anchorPriority: 1, enabled: constObservable(false) }));
+		const beforeRestore = [...events];
+
+		// The window restores a Changes editor that it saved, as its editors start
+		const editorFactory = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
+		disposables.add(new TestInstantiationService()).invokeFunction(accessor => editorFactory.start(accessor));
+		const serializer = editorFactory.getEditorSerializer(SessionChangesEditorInput.ID);
+		const restored = serializer?.deserialize(upcastPartial<IInstantiationService>({ createInstance: () => upcastPartial<EditorInput>({}) }), JSON.stringify({ multiDiffSourceUri: 'session-changes:/session' }));
+
+		assert.deepStrictEqual({ beforeRestore, restored: !!restored, afterRestore: events.slice(beforeRestore.length) }, {
+			beforeRestore: ['create part', 'anchor chat'],
+			restored: true,
+			afterRestore: ['hold providers', 'register composer holder'],
 		});
 	});
 
