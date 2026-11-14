@@ -14,8 +14,9 @@ import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/brow
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../chat/browser/actions/chatActions.js';
 import { Menus, SessionHeaderMenus } from '../menus.js';
-import { InAgentsChatPartContext } from './agentsView.js';
-import { getAgentsChatPartComposerTarget, IAgentsChatPartService } from './agentsChatPart.js';
+import { InAgentsChatPartContext } from './agentsChatPartContext.js';
+import { IAgentsChatPartService } from './agentsChatPart.js';
+import { getEditorWindowComposerTarget } from '../editorWindow/editorWindowSessionsPresenter.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getSessionPresentationWorkspace, ISession } from '../../../../services/sessions/common/session.js';
 import { INewSessionTarget } from '../parts/chatView.js';
@@ -49,7 +50,7 @@ export function registerAgentsChatPartActions(): IDisposable {
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const chatPart = accessor.get(IAgentsChatPartService);
-			await chatPart.openComposer(getAgentsChatPartComposerTarget(accessor.get(IWorkspaceContextService), accessor.get(IEditorService)));
+			await chatPart.openComposer(getEditorWindowComposerTarget(accessor.get(IWorkspaceContextService), accessor.get(IEditorService)));
 		}
 	}));
 
@@ -136,7 +137,7 @@ export function registerAgentsChatPartActions(): IDisposable {
 			if (layoutService.isVisible(Parts.CHAT_PART)) {
 				layoutService.setPartHidden(true, Parts.CHAT_PART);
 			} else {
-				await chatPart.show(getAgentsChatPartComposerTarget(accessor.get(IWorkspaceContextService), accessor.get(IEditorService)));
+				await chatPart.show(getEditorWindowComposerTarget(accessor.get(IWorkspaceContextService), accessor.get(IEditorService)));
 			}
 		}
 	}));

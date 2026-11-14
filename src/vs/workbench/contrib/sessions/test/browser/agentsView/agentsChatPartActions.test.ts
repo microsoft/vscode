@@ -15,7 +15,8 @@ import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../..
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ISession, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
-import { getAgentsChatPartComposerTarget, IAgentsChatPartOpenOptions, IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
+import { getEditorWindowComposerTarget } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
+import { IAgentsChatPartOpenOptions, IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
 import { registerAgentsChatPartActions, registerAgentsViewNewSessionActions } from '../../../browser/agentsView/agentsChatPartActions.js';
 import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Menus } from '../../../browser/menus.js';
@@ -106,7 +107,7 @@ suite('Agents chat part actions', () => {
 			getWorkspace: () => upcastPartial<IWorkspace>({ folders }),
 			getWorkspaceFolder: (resource: URI) => folders.find(folder => resource.path.startsWith(`${folder.uri.path}/`)) ?? null,
 		});
-		const target = (activeResource: URI | undefined) => getAgentsChatPartComposerTarget(workspaceContextService, upcastPartial<IEditorService>({
+		const target = (activeResource: URI | undefined) => getEditorWindowComposerTarget(workspaceContextService, upcastPartial<IEditorService>({
 			activeEditor: activeResource && upcastPartial<EditorInput>({ resource: activeResource }),
 		}))?.folderUri?.path;
 

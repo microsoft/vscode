@@ -15,7 +15,7 @@ import { IChatViewSessionsComposer, IChatViewSessionsList, IChatViewSessionsList
 import './media/chatViewSessionsList.css';
 import { DisposableResizeObserver, getWindow } from '../../../../../base/browser/dom.js';
 import { combinedDisposable, Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -26,7 +26,8 @@ import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerR
 import { SessionChatEditorEntry, waitForSessionChat } from '../chatEditor/sessionChatEditorHost.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
-import { getAgentsChatPartComposerTarget, IAgentsChatPartService } from './agentsChatPart.js';
+import { IAgentsChatPartService } from './agentsChatPart.js';
+import { getEditorWindowComposerTarget } from '../editorWindow/editorWindowSessionsPresenter.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { SessionsView } from '../views/sessionsView.js';
 import { createEditorWindowSessionsScope, createEditorWindowSessionsView } from './editorWindowSessionsList.js';
@@ -127,10 +128,9 @@ class ChatViewSessionsComposer extends Disposable implements IChatViewSessionsCo
 
 	private _createComposer(): void {
 		const resource = createChatWindowComposerResource();
-		const windowFolders = observableFromEvent(this, this._workspaceContextService.onDidChangeWorkspaceFolders, () => this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri));
-		// The folders, and their presentation, of the chat part's composers: the window's folders while it offers none
-		const folderOptions = this._chatPart().getComposerFolderOptions?.() ?? { allowedFolders: windowFolders };
-		const target = getAgentsChatPartComposerTarget(this._workspaceContextService, this._editorService);
+		// The folders, and their presentation, of the chat part's composers: the window's folders unless a feature offers others
+		const folderOptions = this._chatPart().getComposerFolderOptions();
+		const target = getEditorWindowComposerTarget(this._workspaceContextService, this._editorService);
 		const composer = this._composers.create(resource, { target, ...folderOptions }, session => this._open(session, undefined, false));
 		const entry = this._instantiationService.createInstance(ChatViewComposerEntry, resource, composer, constObservable(this._window));
 		this._view.clear();

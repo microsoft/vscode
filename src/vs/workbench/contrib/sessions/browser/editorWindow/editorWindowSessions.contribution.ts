@@ -66,6 +66,9 @@ import { EditorWindowSessionsService } from '../agentsView/editorWindowSessionsS
 import { EditorWindowSessionsNavigationHost } from '../agentsView/editorWindowSessionsNavigationHost.js';
 import { EditorWindowSessionsPresenterService, IEditorWindowSessionsPresenterService } from './editorWindowSessionsPresenter.js';
 import { EditorWindowSessionsRuntime, IEditorWindowSessionsRuntime } from './editorWindowSessionsRuntime.js';
+import { AgentsChatPartFrame, IAgentsChatPartFrame } from '../agentsView/agentsChatPartFrame.js';
+import { AgentsChatPartService, IAgentsChatPartService } from '../agentsView/agentsChatPart.js';
+import { EditorWindowChatPartService, IEditorWindowChatPartService } from '../agentsView/agentsChatPartContribution.js';
 
 // The sessions services of an editor window, for the sessions features it can host. Every one is created only as it is
 // first used, and nothing in the window uses them until such a feature does.
@@ -124,3 +127,8 @@ registerSingleton(ISessionsNavigationService, EditorWindowSessionsNavigationHost
 registerSingleton(IEditorWindowSessionsPresenterService, EditorWindowSessionsPresenterService, InstantiationType.Delayed);
 // Holds the sessions providers for the features that enable it, while what they show shows
 registerSingleton(IEditorWindowSessionsRuntime, EditorWindowSessionsRuntime, InstantiationType.Delayed);
+
+// The chat part, which shows chats of sessions in tabs beside the editor area, once a feature enables it
+registerSingleton(IEditorWindowChatPartService, EditorWindowChatPartService, InstantiationType.Delayed);
+registerSingleton(IAgentsChatPartFrame, AgentsChatPartFrame, InstantiationType.Delayed);
+registerSingleton(IAgentsChatPartService, AgentsChatPartService, InstantiationType.Delayed);
