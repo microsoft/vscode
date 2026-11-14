@@ -39,7 +39,7 @@ import { SessionsGridContent } from '../../../../../workbench/contrib/sessions/b
 import { ISessionsPartContentHost } from '../../../../../workbench/browser/parts/sessions/sessionsPartContent.js';
 import { MobileChatEditPresenter } from '../../browser/mobileChatEditPresenter.js';
 import { MobileChatViewFactory } from '../../browser/mobileChatViewFactory.js';
-import { MobileNullChatWindowService } from '../../browser/mobileNullChatWindowService.js';
+import { NullChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/nullChatWindowService.js';
 import { MobileSessionsListPresentation } from '../../browser/mobileSessionsListPresentation.js';
 
 suite('Mobile presentation composition', () => {
@@ -47,7 +47,7 @@ suite('Mobile presentation composition', () => {
 	teardown(() => sinon.restore());
 
 	test('separate chat windows cannot be activated by mobile consumers', async () => {
-		const windows = new MobileNullChatWindowService();
+		const windows = new NullChatWindowService();
 		await assert.rejects(windows.open(URI.parse('chat:/test')), /Separate chat windows are not available/);
 		assert.throws(() => windows.registerProvider(upcastPartial<IChatWindowProvider>({})), /Separate chat windows are not available/);
 	});

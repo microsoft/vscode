@@ -127,7 +127,7 @@ export class AgentHostAgentPickerAction extends Action2 {
 				group: 'navigation',
 				order: -1,
 				when: ContextKeyExpr.and(
-					IsActiveSessionAgentHost, IsPhoneLayoutContext.negate(), ChatContextKeys.inAutomationsDialog.negate(),
+					ChatContextKeys.enabled, IsActiveSessionAgentHost, IsPhoneLayoutContext.negate(), ChatContextKeys.inAutomationsDialog.negate(),
 				),
 			}, {
 				id: Menus.AutomationsDialogInputToolbar,
@@ -142,7 +142,7 @@ export class AgentHostAgentPickerAction extends Action2 {
 				group: 'navigation',
 				order: 0,
 				// Hide the agent picker while a delegation (continue in) target is pending.
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, IsSessionsWindowContext, InSessionHostScopeContext, IsPhoneLayoutContext.negate(), ChatContextKeys.hasPendingDelegationTarget.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, IsSessionsWindowContext, InSessionHostScopeContext, IsPhoneLayoutContext.negate(), ChatContextKeys.hasPendingDelegationTarget.negate()),
 			}],
 		});
 	}
@@ -474,7 +474,7 @@ export function registerAgentHostAgentPickerActions(): IDisposable {
 	store.add(KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: OPEN_AGENT_HOST_AGENT_PICKER_COMMAND_ID,
 		weight: KeybindingWeight.EditorContrib + 1,
-		when: AgentHostAgentPickerKeybindingContext,
+		when: ContextKeyExpr.and(ChatContextKeys.enabled, AgentHostAgentPickerKeybindingContext),
 		primary: KeyMod.CtrlCmd | KeyCode.Period,
 		handler: () => openActiveAgentHostAgentPicker(),
 	}));
