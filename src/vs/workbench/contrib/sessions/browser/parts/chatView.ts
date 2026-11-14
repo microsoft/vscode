@@ -175,6 +175,11 @@ export interface IChatViewInputOptions {
 	readonly minLines?: number;
 	/** Whether the status pills of the session show above the input; `true` by default. */
 	readonly showPills?: boolean;
+	/**
+	 * Whether the changes of an Agent Host session show as a working set above the input, with Keep and Undo, in place of
+	 * its Changes pill, as the editor window's chat shows them. Never in the Agents window; `false` by default.
+	 */
+	readonly workingSet?: boolean;
 }
 
 /**
