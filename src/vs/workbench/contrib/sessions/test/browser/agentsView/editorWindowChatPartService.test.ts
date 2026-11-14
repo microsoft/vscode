@@ -99,7 +99,7 @@ suite('EditorWindowChatPartService', () => {
 		]);
 	});
 
-	test('while chats do not open in it, it neither restores nor shows, and the Chat view keeps its chats; once they do, it replaces the Chat view; its composers hold the providers throughout', async () => {
+	test('while chats do not open in it, it neither restores nor shows, and the Chat view keeps its chats, and until they first do, the window has only its empty part; once they do, it replaces the Chat view, and its composers hold the providers from then on', async () => {
 		const enabled = observableValue('enabled', false);
 		const { service, events } = createService({ visible: true });
 		const step = (label: string) => events.push(`-- ${label}`);
@@ -114,10 +114,10 @@ suite('EditorWindowChatPartService', () => {
 		registration.dispose();
 
 		assert.deepStrictEqual(events, [
-			'create part', 'hold providers', 'register composer holder', 'anchor chat',
+			'create part', 'anchor chat',
 			'hide',
 			'-- chats open in the chat part',
-			'register host', 'register presenter',
+			'hold providers', 'register composer holder', 'register host', 'register presenter',
 			'-- they no longer do',
 			'unregister host', 'deactivate host', 'unregister presenter',
 			'anchor undefined', 'release providers', 'unregister composer holder',
