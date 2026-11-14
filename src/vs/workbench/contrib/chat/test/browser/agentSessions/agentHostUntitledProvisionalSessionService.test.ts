@@ -668,6 +668,28 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 	});
 
+	test('a send right after No Workspace, before the host resolves its configuration, graduates the session without a working directory and with the configuration picked with it', async () => {
+		const ui = untitledChatUri('no-workspace-send');
+		const real = ui.with({ path: '/real-no-workspace-send' });
+		const folder = URI.file('/folder');
+		folderService.setFolder(ui, folder);
+		await provisional.getOrCreate(ui, 'copilot', folder);
+		await provisional.applyConfigChange(ui, 'copilot', folder, { isolation: 'worktree' });
+		// As the folder chip picks No Workspace: at once, without awaiting the host
+		folderService.setNoWorkspace(ui);
+		void provisional.applyConfigChange(ui, 'copilot', undefined, { isolation: 'folder' });
+		const rebound = await provisional.tryRebind(ui, real, 'copilot');
+
+		const creation = agentHost.createCalls.find(call => call.session?.path === rebound?.path);
+		assert.deepStrictEqual({
+			workingDirectories: creation?.workingDirectories,
+			isolation: creation?.config?.isolation,
+		}, {
+			workingDirectories: undefined,
+			isolation: 'folder',
+		});
+	});
+
 	test('disposing either UI mapping preserves the graduated backend', async () => {
 		const ui = untitledChatUri('retained-backend-disposal');
 		const real = ui.with({ path: '/real-retained-backend-disposal' });

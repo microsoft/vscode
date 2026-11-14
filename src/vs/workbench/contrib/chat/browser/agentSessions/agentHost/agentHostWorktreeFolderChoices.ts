@@ -172,7 +172,8 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 		const noWorkspaceSelected = this.isNoWorkspaceSelected();
 		const newWorktreeSelected = !noWorkspaceSelected && this.isNewWorktreeSelected();
 		const actions: IActionWidgetDropdownAction[] = [];
-		if (this._isolation()?.worktree) {
+		// A new worktree is of the selected folder, which No Workspace does not have
+		if (!noWorkspaceSelected && this._isolation()?.worktree) {
 			actions.push({
 				...action,
 				id: 'agentHostFolder.newWorktree',
@@ -224,14 +225,20 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 				icon: NO_WORKSPACE_ICON,
 				enabled: true,
 				category: { label: '', order: sections.length + 1 },
-				run: async () => {
+				run: () => {
 					const sessionResource = this._sessionResource();
+					const provider = sessionResource && getLocalAgentHostSessionProvider(sessionResource);
 					if (!sessionResource) {
 						return;
 					}
-					// Not in a new worktree of a folder it no longer has
-					await this._setIsolation(false);
+					// Read before the folder changes, which resets the session's configuration
+					const isolation = this._isolation();
+					// All at once, as a send right after it graduates the session with what it then has: without a folder,
+					// and not in a new worktree of a folder it no longer has
 					this._newSessionFolderService.setNoWorkspace(sessionResource);
+					if (provider && isolation?.inPlace && isolation.values[isolation.key] !== isolation.inPlace) {
+						this._provisional.applyConfigChange(sessionResource, provider, undefined, { [isolation.key]: isolation.inPlace }).catch(onUnexpectedError);
+					}
 					onDidPick();
 				},
 			});
