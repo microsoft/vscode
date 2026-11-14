@@ -2610,17 +2610,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	/**
-	 * The width the grid gives the editor and the chat part together: of the branch that holds both, which their own widths
-	 * exceed where they are at their minimum in too narrow a branch, or theirs where they are parts of the window's row.
+	 * The width the grid gives the editor and the chat part together: that of the branch that holds both, less that of its
+	 * other children, such as the primary side bar beside them when the panel is aligned to its side. Their own widths
+	 * exceed it where they are at their minimum in too narrow a branch.
 	 */
 	private getChatPartColumnWidth(): number {
-		const holdsBoth = (node: GridBranchNode<ISerializableView>) => node.children.some(child => !isGridBranchNode(child) && child.view === this.editorPartView)
-			&& node.children.some(child => !isGridBranchNode(child) && child.view === this.chatPartView);
+		const isEditorOrChat = (node: GridNode<ISerializableView>) => !isGridBranchNode(node) && (node.view === this.editorPartView || node.view === this.chatPartView);
 		const find = (node: GridNode<ISerializableView>): GridBranchNode<ISerializableView> | undefined => {
 			if (!isGridBranchNode(node)) {
 				return undefined;
 			}
-			if (holdsBoth(node)) {
+			if (node.children.filter(isEditorOrChat).length === 2) {
 				return node;
 			}
 			for (const child of node.children) {
@@ -2632,10 +2632,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return undefined;
 		};
 		const branch = find(this.workbenchGrid.getViews());
-		if (branch && branch !== this.workbenchGrid.getViews() && branch.children.length === 2) {
-			return branch.box.width;
+		if (!branch) {
+			return this.workbenchGrid.getViewSize(this.editorPartView).width + this.workbenchGrid.getViewSize(this.chatPartView!).width;
 		}
-		return this.workbenchGrid.getViewSize(this.editorPartView).width + this.workbenchGrid.getViewSize(this.chatPartView!).width;
+		const others = branch.children.filter(child => !isEditorOrChat(child)).reduce((width, child) => width + child.box.width, 0);
+		return branch.box.width - others;
 	}
 
 	/** The visible parts beyond the editor's column on the chat part's side, closest first. */
