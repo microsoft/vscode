@@ -169,10 +169,13 @@ suite('ChatViewPane sessions refresh', () => {
 		assert.deepStrictEqual(focused, ['sessions', 'composer', 'chat']);
 	});
 
-	test('as New Chat clears a chat with focus in the Chat view, the composer that shows in its place takes focus', () => {
+	test('as the composer shows in place of a chat that had focus, such as New Chat clearing it, it takes focus, but not from the sessions or other controls of the Chat view', () => {
 		const focused: string[] = [];
 		const element = mainWindow.document.body.appendChild(document.createElement('div'));
-		const input = element.appendChild(document.createElement('textarea'));
+		const chat = element.appendChild(document.createElement('div'));
+		const chatInput = chat.appendChild(document.createElement('textarea'));
+		// Such as the filter of the sessions beside the chat
+		const sessionsFilter = element.appendChild(document.createElement('input'));
 		let empty = false;
 		const host = {
 			providedComposer: { focus: () => focused.push('composer') },
@@ -180,26 +183,27 @@ suite('ChatViewPane sessions refresh', () => {
 			composerShown: false,
 			viewPaneContainer: document.createElement('div'),
 			element,
-			_widget: { get viewModel() { return { model: { title: '' } }; }, isEmpty: () => empty },
+			_widget: { domNode: chat, get viewModel() { return { model: { title: '' } }; }, isEmpty: () => empty },
 			relayout: () => { },
 		};
 		const update = Reflect.get(ChatViewPane.prototype, 'updateComposerVisibility') as (this: typeof host) => void;
-		try {
-			update.call(host);
-			input.focus();
-			// New Chat clears the chat
-			empty = true;
-			update.call(host);
-			// Shown again, without focus in the Chat view
+		const steps: string[][] = [];
+		const clearWith = (focus: HTMLElement) => {
 			empty = false;
 			update.call(host);
-			input.blur();
+			focus.focus();
+			// The chat clears: New Chat, or a saved chat that loads while it is held, which clears the chat it replaces
 			empty = true;
 			update.call(host);
+			steps.push(focused.splice(0));
+		};
+		try {
+			clearWith(chatInput);
+			clearWith(sessionsFilter);
 		} finally {
 			element.remove();
 		}
-		assert.deepStrictEqual(focused, ['composer']);
+		assert.deepStrictEqual(steps, [['composer'], []]);
 	});
 
 	test('the Chat view takes the sessions list of the provider registered last, and its own once none is', () => {
@@ -727,6 +731,43 @@ suite('ChatViewPane session transitions', () => {
 			shown: '/untitled-fresh',
 		});
 	}));
+
+	test('of two New Chats of its own under way, the later one shows its new chat and aims the composer, also as the earlier one completes last', async () => {
+		const rig = createPane();
+		const disposedNew: string[] = [];
+		const newChat = (name: string) => {
+			const model = upcastPartial<IChatModel>({ sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: `/untitled-${name}` }) });
+			return { model, ref: Object.assign(toDisposable(() => disposedNew.push(name)), { object: model }) as IChatModelReference, acquired: new DeferredPromise<{ modelRef: IChatModelReference }>() };
+		};
+		const a = newChat('a');
+		const b = newChat('b');
+		const acquisitions = [a, b];
+		const composerCalls: string[] = [];
+		Object.assign(rig.pane, {
+			acquireDefaultNewSession: () => acquisitions.shift()!.acquired.p,
+			updateViewState: () => { },
+			providedComposer: { newChat: (target?: { folder?: URI }) => composerCalls.push(`newChat ${target?.folder?.path}`), focus: () => composerCalls.push('focus') },
+			composerShown: false,
+		});
+		const run = Reflect.get(ChatViewPane.prototype, 'newChat') as (this: object, target: { folder: URI }, options: { ownChat: boolean; preserveFocus: boolean }) => Promise<boolean>;
+		const first = run.call(rig.pane, { folder: URI.file('/a') }, { ownChat: true, preserveFocus: true });
+		const second = run.call(rig.pane, { folder: URI.file('/b') }, { ownChat: true, preserveFocus: true });
+		await b.acquired.complete({ modelRef: b.ref });
+		const takenLater = await second;
+		await a.acquired.complete({ modelRef: a.ref });
+		const takenEarlier = await first;
+		// The rig's next chat, which these New Chats do not use
+		rig.nextRef.dispose();
+
+		assert.deepStrictEqual({ takenEarlier, takenLater, bindings: rig.bindings.map(resource => resource?.path), composerCalls, disposedNew, shown: rig.widget.viewModel?.sessionResource?.path }, {
+			takenEarlier: true,
+			takenLater: true,
+			bindings: ['/untitled-b'],
+			composerCalls: ['newChat /b'],
+			disposedNew: ['a'],
+			shown: '/untitled-b',
+		});
+	});
 
 	for (const untitled of [true, false]) {
 		test(`${untitled ? 'new chats stay bound' : 'saved chats still clear'} while a slow load is pending`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {

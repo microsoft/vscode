@@ -36,6 +36,30 @@ suite('EditorWindowComposerFoldersService', () => {
 		assert.deepStrictEqual(steps, [['/repo'], ['/repo', '/repo.worktrees/a'], ['/repo', '/repo.worktrees/a'], ['/repo']]);
 	});
 
+	test('the options a composer took before a provider was set follow the provider, its presentation too, and the window\'s folders again once it goes', () => {
+		const service = new EditorWindowComposerFoldersService(upcastPartial<IWorkspaceContextService>({
+			onDidChangeWorkspaceFolders: Event.None,
+			getWorkspace: () => upcastPartial<IWorkspace>({ folders: [upcastPartial<IWorkspaceFolder>({ uri: URI.file('/repo') })] }),
+		}));
+		// Taken once, as a composer created during restore takes them
+		const options = service.getComposerFolderOptions();
+		const read = () => ({ folders: options.allowedFolders?.get().map(folder => folder.path), worktree: options.getFolderPresentation?.(URI.file('/repo.worktrees/a'))?.description });
+		const before = read();
+
+		const provider = service.setComposerFolderOptions(() => ({
+			allowedFolders: constObservable([URI.file('/repo'), URI.file('/repo.worktrees/a')]),
+			getFolderPresentation: folder => ({ label: folder.path, description: 'Worktree' }),
+		}));
+		const provided = read();
+		provider.dispose();
+
+		assert.deepStrictEqual({ before, provided, after: read() }, {
+			before: { folders: ['/repo'], worktree: undefined },
+			provided: { folders: ['/repo', '/repo.worktrees/a'], worktree: 'Worktree' },
+			after: { folders: ['/repo'], worktree: undefined },
+		});
+	});
+
 	test('retargets every registered composer, of the chat part and of the Chat view alike, until it is no longer registered', () => {
 		const service = new EditorWindowComposerFoldersService(upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<IWorkspace>({ folders: [] }) }));
 		const calls: string[] = [];
