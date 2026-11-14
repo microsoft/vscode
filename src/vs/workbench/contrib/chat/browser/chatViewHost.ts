@@ -42,6 +42,16 @@ export interface IChatViewHostOpenOptions {
 	 * the user opens, such as the chat that was last shown where the user moved the window's folder.
 	 */
 	readonly restore?: boolean;
+	/**
+	 * Shows the session as the one that the first request of the chat it shows made of it ({@link IChatViewHostShownSession.reason}
+	 * `commit`), rather than one the user opens.
+	 */
+	readonly commit?: boolean;
+}
+
+/** Why a host shows a session that it opens with `options`. */
+export function getChatViewHostOpenReason(options: IChatViewHostOpenOptions | undefined): IChatViewHostShownSession['reason'] {
+	return options?.commit ? 'commit' : options?.restore ? 'restore' : 'open';
 }
 
 /** How {@link IChatViewHost.startSession} starts a session that its caller may send a first request to. */
