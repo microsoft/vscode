@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
-import { NullLogService } from '../../../log/common/log.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession, type IAgent } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
@@ -1645,10 +1645,12 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		/** Receives the resource of each session database that is opened. */
 		dbOpens?: string[];
 		operations?: IAgentHostChangesetOperationService;
+		/** Receives what the state manager logs; the service logs to `log`. */
+		stateManagerLog?: ILogService;
 	}): { svc: TestAgentHostChangesetService; stateManager: AgentHostStateManager; log: RecordingLogService } {
 		const resource = options.session?.resource ?? sessionStr;
 		const log = options.log ?? new RecordingLogService();
-		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const stateManager = disposables.add(new AgentHostStateManager(options.stateManagerLog ?? new NullLogService()));
 		const db = options.db ?? new TestSessionDatabase();
 		// The production diff-count worker runs an ESM module in a raw
 		// worker_thread, which the unit-test harness cannot load, so substitute
@@ -2793,6 +2795,30 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		svc.refreshChangesetCatalog(peer);
 
 		assert.strictEqual(stateManager.getChatState(peer)?.changesets?.find(changeset => changeset.changeKind === 'branch')?.description, 'peer-feature → origin/peer-base');
+	});
+
+	test('a chat gets its catalogue once it is restored, and refreshing it before that logs nothing', async () => {
+		const restored = buildChatUri(sessionStr, 'restored');
+		const stateManagerLog = new RecordingLogService();
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, stateManagerLog });
+		stateManager.dispatchServerAction(sessionStr, { type: ActionType.SessionReady });
+		stateManager.registerRestoredChatSummary(sessionStr, restored, {
+			storageResource: creationTimeChatStorageResource(sessionStr, restored, buildDefaultChatUri(sessionStr)),
+			resolver: async () => ({ turns: [] }),
+		});
+
+		svc.refreshChangesetCatalog(restored);
+		const whileListed = { chatState: stateManager.getChatState(restored), warnings: stateManagerLog.warnings };
+		await stateManager.resolveChatState(restored);
+		svc.refreshChangesetCatalog(restored);
+
+		assert.deepStrictEqual({
+			whileListed,
+			afterRestore: { warnings: stateManagerLog.warnings, changeKinds: stateManager.getChatState(restored)?.changesets?.map(changeset => changeset.changeKind) },
+		}, {
+			whileListed: { chatState: undefined, warnings: [] },
+			afterRestore: { warnings: [], changeKinds: ['session', 'turn'] },
+		});
 	});
 
 	test('ready sessions publish session changes and chat catalogues using the chat Git state', () => {
