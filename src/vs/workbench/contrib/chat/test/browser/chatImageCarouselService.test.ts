@@ -14,10 +14,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { createScreenshotToolImage, getScreenshotToolImageData, IScreenshotToolEdit, IScreenshotToolEditable, IScreenshotToolMarkUp, IScreenshotToolService, ScreenshotToolSurface } from '../../../screenshotTool/browser/screenshotTool.js';
 import { createTestScreenshotToolService } from '../../../screenshotTool/test/browser/screenshotToolTestUtils.js';
 import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
 import { ChatAttachmentModel } from '../../browser/attachments/chatAttachmentModel.js';
+import { ChatAttachmentWidgetRegistry } from '../../browser/attachments/chatAttachmentWidgetRegistry.js';
+import { DefaultChatAttachmentWidgetRegistry } from '../../browser/attachments/defaultChatAttachmentWidgetRegistry.js';
 import { buildCollectionArgs, buildSingleImageArgs, ChatImageCarouselService, collectCarouselSections, findClickedImageIndex, ICarouselCollectionArgs, ICarouselSection } from '../../browser/chatImageCarouselService.js';
 import { IChatToolInvocationSerialized } from '../../common/chatService/chatService.js';
 import { getChatMarkdownImageId } from '../../common/chatImageExtraction.js';
@@ -31,6 +34,12 @@ suite('ChatImageCarouselService helpers', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => sinon.restore());
+
+	function createAttachmentRegistry(screenshotTool: IScreenshotToolService): DefaultChatAttachmentWidgetRegistry {
+		return new DefaultChatAttachmentWidgetRegistry(screenshotTool, upcastPartial<IFileService>({
+			readFile: async () => { throw new Error('Attached images are in memory'); },
+		}), store.add(new NullLogService()));
+	}
 
 	function makeRequest(id: string, variables: IChatRequestViewModel['variables'], messageText: string = 'Request'): IChatRequestViewModel {
 		return {
@@ -557,7 +566,7 @@ suite('ChatImageCarouselService helpers', () => {
 					upcastPartial<ICommandService>({ executeCommand }),
 					upcastPartial<IFileService>({ readFile }),
 					upcastPartial<IChatSessionsService>({}),
-					upcastPartial<IScreenshotToolService>({}),
+					new ChatAttachmentWidgetRegistry(),
 				);
 
 				await service.openCarouselAtResource(clickedUri, data, {
@@ -610,7 +619,7 @@ suite('ChatImageCarouselService helpers', () => {
 					upcastPartial<ICommandService>({ executeCommand }),
 					upcastPartial<IFileService>({ readFile: async () => { throw new Error('Attached images are in memory'); } }),
 					upcastPartial<IChatSessionsService>({}),
-					upcastPartial<IScreenshotToolService>({
+					createAttachmentRegistry(upcastPartial<IScreenshotToolService>({
 						isSupported: supported,
 						getEditableAttachment: () => undefined,
 						registerEditableAttachment: (attachment, screenshot) => registered.push([attachment, screenshot]),
@@ -619,7 +628,7 @@ suite('ChatImageCarouselService helpers', () => {
 							const edit: IScreenshotToolEdit = { original: marked, annotationState: { actions: [], undoneActions: [], crop: null }, image: marked, annotated: true };
 							return { result: Promise.resolve(edit), focus: () => { }, finish: () => { }, dispose: () => { } };
 						},
-					}),
+					})),
 				);
 
 				await service.openCarouselAtResource(URI.from({ scheme: Schemas.data, path: 'pasted/pasted.png' }), png, { preferCurrentInput: true });
@@ -699,7 +708,7 @@ suite('ChatImageCarouselService helpers', () => {
 					upcastPartial<ICommandService>({ executeCommand }),
 					upcastPartial<IFileService>({ readFile: async () => { throw new Error('Attached images are in memory'); } }),
 					upcastPartial<IChatSessionsService>({}),
-					screenshotTool,
+					createAttachmentRegistry(screenshotTool),
 				);
 				await service.openCarouselAtResource(file, png, { preferCurrentInput: true });
 				const [[, { collection }]] = executeCommand.args as [string, ICarouselCollectionArgs][];
@@ -755,7 +764,7 @@ suite('ChatImageCarouselService helpers', () => {
 				upcastPartial<ICommandService>({ executeCommand }),
 				upcastPartial<IFileService>({ readFile: async () => { throw new Error('Images should load lazily'); } }),
 				upcastPartial<IChatSessionsService>({}),
-				upcastPartial<IScreenshotToolService>({}),
+				new ChatAttachmentWidgetRegistry(),
 			);
 			const clicked = ChatResponseResource.createUri(sessionResource, 'generated', 0, 'generated-image-1.png');
 			await service.openCarouselAtResource(clicked, undefined, {
@@ -783,7 +792,7 @@ suite('ChatImageCarouselService helpers', () => {
 				upcastPartial<ICommandService>({ executeCommand }),
 				upcastPartial<IFileService>({ readFile: async () => { throw new Error('Images should load lazily'); } }),
 				upcastPartial<IChatSessionsService>({}),
-				upcastPartial<IScreenshotToolService>({}),
+				new ChatAttachmentWidgetRegistry(),
 			);
 			await service.openCarouselAtResource(uri, undefined, { sessionResource, additionalImages: [{ uri, mimeType: 'image/png' }] });
 
@@ -802,7 +811,7 @@ suite('ChatImageCarouselService helpers', () => {
 				upcastPartial<ICommandService>({ executeCommand }),
 				upcastPartial<IFileService>({ readFile: async () => { throw new Error('Images should load lazily'); } }),
 				upcastPartial<IChatSessionsService>({}),
-				upcastPartial<IScreenshotToolService>({}),
+				new ChatAttachmentWidgetRegistry(),
 			);
 			await service.openCarouselAtResource(uri, undefined, {
 				sessionResource, includeChatImages: false,
@@ -836,7 +845,7 @@ suite('ChatImageCarouselService helpers', () => {
 				upcastPartial<ICommandService>({ executeCommand }),
 				upcastPartial<IFileService>({ readFile: async () => { throw new Error('Images should load lazily'); } }),
 				upcastPartial<IChatSessionsService>({ resolveChatResponseUri: (_sessionResource, href) => URI.file(href).toString() }),
-				upcastPartial<IScreenshotToolService>({}),
+				new ChatAttachmentWidgetRegistry(),
 			);
 
 			await service.openCarouselAtResource(light, undefined, { sessionResource, imageId: getChatMarkdownImageId(response.id, light) });
@@ -875,7 +884,7 @@ suite('ChatImageCarouselService helpers', () => {
 				upcastPartial<ICommandService>({ executeCommand }),
 				upcastPartial<IFileService>({ readFile: async () => { throw new Error('Images should load lazily'); } }),
 				upcastPartial<IChatSessionsService>({ resolveChatResponseUri: (_sessionResource, href) => href }),
-				upcastPartial<IScreenshotToolService>({}),
+				new ChatAttachmentWidgetRegistry(),
 			);
 
 			// The response image shows the file's current contents, the attachment pill its snapshot

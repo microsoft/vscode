@@ -181,7 +181,7 @@ suite('Sessions presentation entry isolation', () => {
 				worktreePresentation: worktreePresentation.filter(file => dependencies.has(file)),
 			}, {
 				workingSet: [['ISessionEditorWorkingSetService', 'SessionEditorWorkingSetService']],
-				screenshot: [['IScreenshotToolService', mobile ? 'MobileNullScreenshotToolService' : 'ScreenshotToolService']],
+				screenshot: mobile ? [] : [['IScreenshotToolService', 'ScreenshotToolService']],
 				worktreeSuggestion: mobile ? [] : [['IWorktreeSuggestionService', 'WorktreeSuggestionService']],
 				desktopLayout: !mobile,
 				desktopScreenshot: !mobile,
@@ -190,23 +190,29 @@ suite('Sessions presentation entry isolation', () => {
 			});
 		});
 
-		test(`${entry} selects edit, list, clipboard and chat-view presentation without importing the other entry`, () => {
+		test(`${entry} selects edit, list, attachment and chat-view presentation without importing the other entry`, () => {
 			const mobile = entry.includes('.mobile.');
 			const dependencies = collectSourceDependencies(entry);
-			const normal = [defaultChatPresentation, defaultEditPresentation, defaultListPresentation];
+			const normal = [
+				defaultChatPresentation, defaultEditPresentation, defaultListPresentation,
+				'src/vs/workbench/contrib/chat/browser/attachments/defaultChatAttachmentWidgetRegistry.ts',
+				'src/vs/workbench/contrib/chat/browser/actions/chatScreenshotContextPicker.ts',
+			];
 			const experimental = ['mobileChatEditPresenter.ts', 'mobileSessionsListPresentation.ts', 'mobileClipboardImageContext.ts', 'mobileChatViewFactory.ts'].map(file => mobilePresentationRoot + file);
 			const registrations = [
-				...getSingletonRegistrations(mobile ? mobilePresentationRoot + 'mobile.contribution.ts' : defaultChatPresentation),
-				...getSingletonRegistrations(mobile ? mobilePresentationRoot + 'mobile.contribution.ts' : defaultSessionsRegistrations),
-			];
+				defaultChatPresentation, defaultSessionsRegistrations, mobilePresentationRoot + 'mobile.contribution.ts',
+				'src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts',
+			].filter(file => dependencies.has(file)).flatMap(getSingletonRegistrations);
 			assert.deepStrictEqual({
 				files: [...normal, ...experimental].filter(file => dependencies.has(file)),
-				edit: registrations.find(([id]) => id === 'IChatEditPresentationService'),
-				list: registrations.find(([id]) => id === 'ISessionsListPresentation'),
+				edit: registrations.filter(([id]) => id === 'IChatEditPresentationService'),
+				list: registrations.filter(([id]) => id === 'ISessionsListPresentation'),
+				attachments: registrations.filter(([id]) => id === 'IChatAttachmentWidgetRegistry'),
 			}, {
 				files: mobile ? experimental : normal,
-				edit: ['IChatEditPresentationService', mobile ? 'MobileChatEditPresenter' : 'DefaultChatEditPresentationService'],
-				list: ['ISessionsListPresentation', mobile ? 'MobileSessionsListPresentation' : 'DefaultSessionsListPresentation'],
+				edit: [['IChatEditPresentationService', mobile ? 'MobileChatEditPresenter' : 'DefaultChatEditPresentationService']],
+				list: [['ISessionsListPresentation', mobile ? 'MobileSessionsListPresentation' : 'DefaultSessionsListPresentation']],
+				attachments: [['IChatAttachmentWidgetRegistry', mobile ? 'ChatAttachmentWidgetRegistry' : 'DefaultChatAttachmentWidgetRegistry']],
 			});
 		});
 
