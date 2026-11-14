@@ -164,11 +164,14 @@ export class UriTemplate {
 							} else if (isLabel) {
 								pairs.push(k + '=' + thisVal);
 							} else if (isPath) {
-								pairs.push('/' + k + '=' + UriTemplate._encode(thisVal, isReserved));
+								pairs.push('/' + UriTemplate._encode(k, isReserved) + '=' + UriTemplate._encode(thisVal, isReserved));
 							} else {
 								pairs.push(k + '=' + UriTemplate._encode(thisVal, isReserved));
 							}
 						}
+					}
+					if (pairs.length === 0) {
+						continue;
 					}
 					if (isLabel) {
 						vals.push(pairs.join('.'));
@@ -186,9 +189,17 @@ export class UriTemplate {
 					const pairs: string[] = [];
 					for (const k in value) {
 						if (Object.prototype.hasOwnProperty.call(value, k)) {
-							pairs.push(k);
-							pairs.push(String((value as Record<string, unknown>)[k]));
+							if (isPath) {
+								pairs.push(UriTemplate._encode(k, isReserved));
+								pairs.push(UriTemplate._encode(String((value as Record<string, unknown>)[k]), isReserved));
+							} else {
+								pairs.push(k);
+								pairs.push(String((value as Record<string, unknown>)[k]));
+							}
 						}
+					}
+					if (pairs.length === 0) {
+						continue;
 					}
 					// For label, param, form, join as keys=semi,;,dot,.,comma,, (no encoding of , or ;)
 					const joined = pairs.join(',');
@@ -196,6 +207,8 @@ export class UriTemplate {
 						vals.push(joined);
 					} else if (isParam || isForm || isFormCont) {
 						vals.push(v.name + '=' + joined);
+					} else if (isPath) {
+						vals.push('/' + joined);
 					} else {
 						vals.push(joined);
 					}
@@ -222,6 +235,8 @@ export class UriTemplate {
 						vals.push(v.name + '=' + value.join(','));
 					} else if (isForm || isFormCont) {
 						vals.push(v.name + '=' + value.join(','));
+					} else if (isPath) {
+						vals.push('/' + value.map(x => UriTemplate._encode(x, isReserved)).join(','));
 					} else {
 						vals.push(value.map(x => UriTemplate._encode(x, isReserved)).join(','));
 					}
@@ -268,7 +283,7 @@ export class UriTemplate {
 		} else if (isFormCont) {
 			joined = vals.length ? prefix + vals.join('&') : '';
 		} else if (isFragment) {
-			joined = prefix + vals.join(',');
+			joined = vals.length ? prefix + vals.join(',') : '';
 		} else if (isReserved) {
 			joined = vals.join(',');
 		} else {
