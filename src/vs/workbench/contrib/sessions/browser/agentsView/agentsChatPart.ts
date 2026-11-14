@@ -436,7 +436,14 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			reason: localize('agentsChatPart.cannotMove', "A chat stays in the chat part."),
 			canMoveTo: group => !!this._part?.groups.some(candidate => candidate.id === group),
 		});
-		Event.once(chat.input.onWillDispose)(() => this._chats.deleteAndDispose(chat.input));
+		// Its chat goes with its editor, once the editor's dispose is done: disposing the chat disposes the editor, and what
+		// it shows, which would otherwise happen within the editor's own dispose, such as as its session is removed meanwhile
+		Event.once(chat.input.onWillDispose)(() => {
+			const ending = this._chats.deleteAndLeak(chat.input);
+			if (ending) {
+				queueMicrotask(() => ending.dispose());
+			}
+		});
 		return chat;
 	}
 

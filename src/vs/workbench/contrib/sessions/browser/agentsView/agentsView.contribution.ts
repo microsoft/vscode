@@ -16,6 +16,8 @@ import { FocusedSessionHostService, SessionHostService } from '../sessionHostSer
 import { ISessionWorktreeCleanupService, SessionWorktreeCleanupService } from '../sessionInputBanners/sessionWorktreeCleanupService.js';
 import { ISessionsListModelService, SessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionsNavigationService } from '../sessionsNavigationService.js';
+import { ISessionDraftsService, SessionDraftsService } from '../sessionDraftsService.js';
+import { IScheduledChatsService, ScheduledChatsService } from '../scheduledChatsService.js';
 import { ISessionAttentionService } from '../../common/sessionAttentionService.js';
 import { AgentsChatPartService, IAgentsChatPartService } from './agentsChatPart.js';
 import { AgentsChatPartFrame, IAgentsChatPartFrame } from './agentsChatPartFrame.js';
@@ -57,6 +59,9 @@ registerSingleton(IFocusedSessionHostService, FocusedSessionHostService, Instant
 registerSingleton(ISessionAttentionService, SessionAttentionService, InstantiationType.Delayed);
 registerSingleton(IGitHubService, GitHubService, InstantiationType.Delayed);
 registerSingleton(ISessionWorktreeCleanupService, SessionWorktreeCleanupService, InstantiationType.Delayed);
+// The drafts and scheduled requests of the composers, which the Sessions view and the chats inject, as in the Agents window
+registerSingleton(ISessionDraftsService, SessionDraftsService, InstantiationType.Delayed);
+registerSingleton(IScheduledChatsService, ScheduledChatsService, InstantiationType.Delayed);
 
 // The chat part, and the chats it shows
 registerSingleton(IAgentsChatPartFrame, AgentsChatPartFrame, InstantiationType.Delayed);

@@ -485,6 +485,36 @@ suite('AgentsChatPartService', () => {
 		});
 	});
 
+	test('closing a chat while its provider is released, which removes its session as its tab disposes, disposes its tab once, not from within its own dispose', async () => {
+		const built = buildTestSession({ id: 'released', title: 'Released' });
+		let sessions: readonly ISession[] = [built.session];
+		const { service, part, fireSessionsChanged } = createService({ sessions: () => sessions });
+		await service.openChat(built.session, built.mainChat.chat.resource);
+		const input = part.activeGroup.activeEditor!;
+		// The providers are released as the chat part's editors are disposed: its session is removed meanwhile
+		Event.once(input.onWillDispose)(() => {
+			sessions = [];
+			fireSessionsChanged([], [built.session]);
+		});
+		let depth = 0;
+		let reentered = 0;
+		const dispose = input.dispose.bind(input);
+		input.dispose = () => {
+			reentered += depth;
+			depth++;
+			try {
+				dispose();
+			} finally {
+				depth--;
+			}
+		};
+
+		await service.closeChat(built.mainChat.chat.resource);
+		await timeout(0);
+
+		assert.deepStrictEqual({ reentered, showing: service.isShowing(built.mainChat.chat.resource), disposed: input.isDisposed() }, { reentered: 0, showing: false, disposed: true });
+	});
+
 	test('closing the last chat closes the chat part, which closing a chat it does not show leaves as it is', async () => {
 		const { service, layout } = createService();
 		await service.openChat(session, chatA);
