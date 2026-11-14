@@ -72,6 +72,11 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 			// The chat part, where the chats of sessions can open too
 			this._register(instantiationService.createInstance(AgentsChatPartContribution));
 
+			// The chat part docks beside the Chat view, which lists the sessions whose chats it shows
+			const layoutService = accessor.get(IWorkbenchLayoutService);
+			layoutService.setChatPartAnchor({ viewId: ChatViewId });
+			this._register(toDisposable(() => layoutService.setChatPartAnchor(undefined)));
+
 			const surface = this._register(instantiationService.createInstance(ChatViewSessionsSurface));
 			this.replaceChatViewPane(surface);
 			this.registerChatViewHost(instantiationService, accessor.get(IChatViewHostService), accessor.get(IViewsService), surface);

@@ -81,11 +81,13 @@ suite('ChatViewSessionsGate', () => {
 
 	let createdChatParts: number;
 	let hosts: number;
+	let chatPartAnchor: string | undefined;
 	let viewVisibility: Emitter<{ id: string; visible: boolean }>;
 
 	function createGate(enabled: boolean, remoteAuthority?: string, configuration?: Record<string, unknown>): ChatViewSessionsGate {
 		createdChatParts = 0;
 		hosts = 0;
+		chatPartAnchor = undefined;
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([IAgentsChatPartFrame, new SyncDescriptor(class {
 			constructor() {
 				createdChatParts++;
@@ -95,7 +97,7 @@ suite('ChatViewSessionsGate', () => {
 		viewVisibility = disposables.add(new Emitter<{ id: string; visible: boolean }>());
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: viewVisibility.event, isViewVisible: () => false }));
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority }));
-		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ onDidChangePartVisibility: Event.None, isVisible: () => false }));
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ onDidChangePartVisibility: Event.None, isVisible: () => false, setChatPartAnchor: anchor => chatPartAnchor = anchor?.viewId }));
 		instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({ when: () => Promise.resolve() }));
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ registerHost: () => { hosts++; return toDisposable(() => hosts--); } }));
@@ -140,16 +142,16 @@ suite('ChatViewSessionsGate', () => {
 		assert.deepStrictEqual({ ...registered(), reads }, { ...before, chatViewPane: 'chat', reads: [ChatConfiguration.ChatViewSessionsListEnabled] });
 	});
 
-	test('shows the sessions in the Chat view itself, with a chat host, and the actions of the list only once it shows, while the setting is on', () => {
+	test('shows the sessions in the Chat view itself, with a chat host and the chat part docked beside it, and the actions of the list only once it shows, while the setting is on', () => {
 		const before = registered();
 		const listActionsBefore = sessionItemMenuItems();
 		const gate = createGate(true);
-		const whileOn = { ...registered(), hosts, createdChatParts, listActionsBeforeShown: sessionItemMenuItems() - listActionsBefore };
+		const whileOn = { ...registered(), hosts, chatPartAnchor, createdChatParts, listActionsBeforeShown: sessionItemMenuItems() - listActionsBefore };
 		gate.dispose();
 
-		assert.deepStrictEqual({ whileOn, afterDispose: { ...registered(), hosts } }, {
-			whileOn: { ...before, chatViewPane: 'sessions', hosts: 1, createdChatParts: 1, listActionsBeforeShown: 0 },
-			afterDispose: { ...before, chatViewPane: 'chat', hosts: 0 },
+		assert.deepStrictEqual({ whileOn, afterDispose: { ...registered(), hosts, chatPartAnchor } }, {
+			whileOn: { ...before, chatViewPane: 'sessions', hosts: 1, chatPartAnchor: ChatViewId, createdChatParts: 1, listActionsBeforeShown: 0 },
+			afterDispose: { ...before, chatViewPane: 'chat', hosts: 0, chatPartAnchor: undefined },
 		});
 	});
 
