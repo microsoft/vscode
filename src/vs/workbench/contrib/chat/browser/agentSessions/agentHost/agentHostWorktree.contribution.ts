@@ -7,10 +7,10 @@ import { CancellationTokenSource } from '../../../../../../base/common/cancellat
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { autorun } from '../../../../../../base/common/observable.js';
-import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { dirname, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import Severity from '../../../../../../base/common/severity.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -26,14 +26,14 @@ import { Registry } from '../../../../../../platform/registry/common/platform.js
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { logSettingExperimentTrigger } from '../../../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
+import { IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IWorkspaceEditingService } from '../../../../../services/workspaces/common/workspaceEditing.js';
 import { ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { isUntitledChatSession, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatViewHostService } from '../../chatViewHost.js';
@@ -110,12 +110,15 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 	private readonly _sessionsListener = this._register(new MutableDisposable());
 
 	private readonly _lastSessions: ResourceMap<URI>;
+	/** The remembered sessions the sessions list has listed: one that it no longer lists was deleted. */
+	private readonly _listedSessions = new ResourceSet();
 	/** The locations the folder has been at in this window, whose terminals started there are marked once it moves. */
 	private readonly _visitedLocations: URI[] = [];
 
 	constructor(
 		@IChatViewHostService private readonly _chatViewHostService: IChatViewHostService,
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
+		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -142,6 +145,7 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 			this._request++;
 			this._foreground++;
 			this._cts.dispose(true);
+			this._supersedePendingMoves();
 			this._clearTerminalMarks();
 		}));
 
@@ -160,7 +164,9 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		this._register(autorun(reader => {
 			const shown = _chatViewHostService.shownSession.read(reader);
 			this._sessionsListener.clear();
-			this._shown = shown && !isUntitledChatSession(shown.resource) ? { resource: shown.resource, workingDirectory: undefined, followOnceKnown: shown.reason === 'open' } : undefined;
+			// A chat the user opens follows; so does one that a first request made, on its own, as the user did not pick it
+			const follows = shown?.reason === 'open' || shown?.reason === 'commit';
+			this._shown = shown && !isUntitledChatSession(shown.resource) ? { resource: shown.resource, workingDirectory: undefined, followOnceKnown: follows } : undefined;
 			if (shown) {
 				this._logTrigger(shown.resource);
 			}
@@ -168,9 +174,13 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 				// The user's latest choice: no switch asked for before applies, also where this chat moves nothing
 				this._request++;
 				this._foreground++;
+				this._supersedePendingMoves();
+			} else if (shown.reason === 'commit') {
+				// No automatic switch of a chat shown before applies, but one that the user asked for does
+				this._foreground++;
 			}
 			if (this._shown?.followOnceKnown) {
-				this._follow(this._shown, false);
+				this._follow(this._shown, shown?.reason === 'commit');
 			} else if (this._shown) {
 				// A restored chat moves nothing, but the folder follows it as it comes to work elsewhere
 				this._shown.workingDirectory = this._workingDirectory(this._shown.resource);
@@ -202,6 +212,10 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 			}
 		}));
 		this._markTerminals();
+
+		// A session that a first request made in place of a new chat stays the last one of its location; a deleted one does not
+		this._register(chatSessionsService.onDidCommitSession(({ original, committed }) => this._replaceLastSession(original, committed)));
+		this._register(_agentSessionsService.model.onDidChangeSessions(() => this._forgetDeletedSessions()));
 	}
 
 	/** The session the user last opened while the folder was at `location`, its own location or a worktree. */
@@ -289,10 +303,15 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 			this._watchWorkingDirectory(shown);
 			target = shown.workingDirectory;
 		}
-		if (!target || target.scheme !== Schemas.file || extUriBiasedIgnorePathCase.isEqual(target, folder.uri)) {
+		if (!target || target.scheme !== Schemas.file || !this._enabled) {
 			return;
 		}
-		if (!this._enabled || (automatic && this._switching > 0)) {
+		if (extUriBiasedIgnorePathCase.isEqual(target, folder.uri)) {
+			// Where the folder is: the chat is the last one of its location also without a move
+			this._rememberSession(folder.uri, shown.resource);
+			return;
+		}
+		if (automatic && this._switching > 0) {
 			return;
 		}
 		void this._switch(shown.resource, primary, target, automatic ? this._foreground : undefined);
@@ -319,7 +338,7 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 			if (!extUriBiasedIgnorePathCase.isEqual(target, primary)) {
 				// A worktree, also one inside the folder; else a folder inside the folder's own location works there
 				const exists = await this._exists(target);
-				const location = exists ? await this._folderLocationService.resolveLocation(primary, target, this._cts.token) : undefined;
+				const location = exists ? await this._resolveEnclosingLocation(primary, target) : undefined;
 				if (this._store.isDisposed) {
 					return;
 				}
@@ -340,6 +359,10 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 				}
 			}
 			if (this._isAt(target)) {
+				// Where the folder is already, such as a chat in a folder inside the worktree it is at
+				if (request === this._request && this._enabled) {
+					this._rememberSession(target, session);
+				}
 				return;
 			}
 			// Read again right before the move: it may have been turned off, disposed, or a later choice came, meanwhile
@@ -362,6 +385,10 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 				return;
 			}
 			const applied = request === this._request && this._isAt(target);
+			if (!this._isAt(target) && this._ownMove && extUriBiasedIgnorePathCase.isEqual(this._ownMove, target)) {
+				// Superseded in the workspace: the next move there is not its own
+				this._ownMove = undefined;
+			}
 			if (automatic && applied) {
 				this._rememberSession(target, session);
 			}
@@ -375,6 +402,35 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		} finally {
 			this._switching--;
 		}
+	}
+
+	/**
+	 * The location of `primary` that `target` is in: `target` itself, or the closest folder it is in, such as the worktree
+	 * of a chat that works in a folder inside it. None for a folder in the folder's own location.
+	 */
+	private async _resolveEnclosingLocation(primary: URI, target: URI): Promise<IResolvedFolderLocation | undefined> {
+		for (let candidate = target; !this._cts.token.isCancellationRequested && !extUriBiasedIgnorePathCase.isEqual(candidate, primary); candidate = dirname(candidate)) {
+			const location = await this._folderLocationService.resolveLocation(primary, candidate, this._cts.token);
+			if (location) {
+				return location;
+			}
+			if (extUriBiasedIgnorePathCase.isEqual(dirname(candidate), candidate)) {
+				break;
+			}
+		}
+		return undefined;
+	}
+
+	/**
+	 * A later choice keeps the folder where it is, or it is disposed: a move it asked for that the workspace still makes
+	 * does not apply, as asking for where the folder is supersedes it.
+	 */
+	private _supersedePendingMoves(): void {
+		const folder = this._workspaceContextService.getWorkspace().folders[0];
+		if (this._pendingMoves === 0 || !folder || !this._folderLocationService.canSetLocation(folder)) {
+			return;
+		}
+		this._workspaceEditingService.setFolderLocation(folder.uri).catch(error => this._logService.error('[worktree] could not keep the folder where it is', error));
 	}
 
 	private _isAt(location: URI): boolean {
@@ -396,8 +452,14 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 
 	private _openLastSession(folder: IWorkspaceFolder): void {
 		const last = this.getLastSession(folder.uri);
-		if (last && !extUriBiasedIgnorePathCase.isEqual(last, this._shown?.resource)) {
-			this._chatViewHostService.openSession(last, { preserveFocus: true }).catch(error => this._logService.trace('[worktree] could not open the last chat of the folder\'s location', error));
+		if (!last) {
+			return;
+		}
+		// The location the user picked again, and its chat, stay the most recent
+		this._rememberSession(folder.uri, last);
+		if (!extUriBiasedIgnorePathCase.isEqual(last, this._shown?.resource)) {
+			// Shown as restored, so that it keeps the folder where the user moved it, also where it works elsewhere now
+			this._chatViewHostService.openSession(last, { preserveFocus: true, restore: true }).catch(error => this._logService.trace('[worktree] could not open the last chat of the folder\'s location', error));
 		}
 	}
 
@@ -442,6 +504,10 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 	}
 
 	private _rememberSession(location: URI, session: URI): void {
+		const latest = [...this._lastSessions].at(-1);
+		if (latest && extUriBiasedIgnorePathCase.isEqual(latest[0], location) && extUriBiasedIgnorePathCase.isEqual(latest[1], session)) {
+			return;
+		}
 		// A chat is the last one of the location it works at only, and the most recent is last, so the oldest goes first
 		for (const [known, resource] of [...this._lastSessions]) {
 			if (extUriBiasedIgnorePathCase.isEqual(resource, session)) {
@@ -456,6 +522,43 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 			}
 			this._lastSessions.delete(oldest);
 		}
+		if (this._agentSessionsService.getSession(session)) {
+			this._listedSessions.add(session);
+		}
+		this._storeLastSessions();
+	}
+
+	private _replaceLastSession(from: URI, to: URI): void {
+		let changed = false;
+		for (const [location, resource] of this._lastSessions) {
+			if (extUriBiasedIgnorePathCase.isEqual(resource, from)) {
+				this._lastSessions.set(location, to);
+				changed = true;
+			}
+		}
+		if (changed) {
+			this._storeLastSessions();
+		}
+	}
+
+	/** Forgets a remembered session that the sessions list listed but no longer does. */
+	private _forgetDeletedSessions(): void {
+		let changed = false;
+		for (const [location, resource] of this._lastSessions) {
+			if (this._agentSessionsService.getSession(resource)) {
+				this._listedSessions.add(resource);
+			} else if (this._listedSessions.has(resource)) {
+				this._listedSessions.delete(resource);
+				this._lastSessions.delete(location);
+				changed = true;
+			}
+		}
+		if (changed) {
+			this._storeLastSessions();
+		}
+	}
+
+	private _storeLastSessions(): void {
 		const entries = [...this._lastSessions].map(([known, resource]) => [known.toString(), resource.toString()]);
 		this._storageService.store(LAST_SESSIONS_STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}

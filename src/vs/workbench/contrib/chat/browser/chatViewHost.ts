@@ -16,10 +16,12 @@ export const IChatViewHostService = createDecorator<IChatViewHostService>('chatV
 export interface IChatViewHostShownSession {
 	readonly resource: URI;
 	/**
-	 * `open` when the user brought the chat up, such as by picking it in the sessions list, starting a new chat or sending
-	 * the first request of one; `restore` when the host shows the chat it last showed, such as as the window starts.
+	 * `open` when the user brought the chat up, such as by picking it in the sessions list or starting a new chat;
+	 * `commit` when the first request of a new chat made it the session it became, which the user did not pick; `restore`
+	 * when the host shows a chat that it does not bring up for the user, such as the chat it last showed as the window
+	 * starts, or one opened with {@link IChatViewHostOpenOptions.restore}.
 	 */
-	readonly reason: 'open' | 'restore';
+	readonly reason: 'open' | 'commit' | 'restore';
 }
 
 /** How {@link IChatViewHost.reveal} shows the host. */
@@ -35,6 +37,11 @@ export interface IChatViewHostRevealOptions {
 export interface IChatViewHostOpenOptions {
 	readonly preserveFocus?: boolean;
 	readonly sessionTypeSelectionReason?: SessionTypeSelectionReason;
+	/**
+	 * Shows the session as one the host restores ({@link IChatViewHostShownSession.reason} `restore`) rather than one
+	 * the user opens, such as the chat that was last shown where the user moved the window's folder.
+	 */
+	readonly restore?: boolean;
 }
 
 /** How {@link IChatViewHost.startSession} starts a session that its caller may send a first request to. */
