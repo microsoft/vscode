@@ -1014,6 +1014,49 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		assert.strictEqual(quickpick.selectedItems.length, 0);
 	});
 
+	for (const disposePrevious of [false, true]) {
+		test(`clears recycled aria-checked between distinct quick picks (dispose previous: ${disposePrevious})`, () => {
+			controller.layout({ height: 400, width: 600 }, 0);
+			const multi = store.add(controller.createQuickPick());
+			multi.canSelectMany = true;
+			multi.items = [{ label: 'checked' }, { label: 'unchecked' }];
+			multi.show();
+			multi.selectedItems = [multi.items[0]];
+			const previousRows = Array.from(fixture.querySelectorAll<HTMLElement>('.quick-input-list .monaco-list-row'));
+			const previousStates = previousRows.map(row => ({
+				role: row.getAttribute('role'),
+				checked: row.getAttribute('aria-checked')
+			}));
+			if (disposePrevious) {
+				multi.dispose();
+			}
+
+			const single = store.add(controller.createQuickPick());
+			single.items = [{ label: 'first option' }, { label: 'second option' }];
+			single.show();
+			const states = Array.from(fixture.querySelectorAll<HTMLElement>('.quick-input-list .monaco-list-row'), row => ({
+				reused: previousRows.includes(row),
+				role: row.getAttribute('role'),
+				checked: row.getAttribute('aria-checked'),
+				checkboxes: row.querySelectorAll('input[type=checkbox]').length
+			}));
+			single.activeItems = [single.items[1]];
+			controller.accept();
+
+			assert.deepStrictEqual({ previousStates, states, selected: single.selectedItems }, {
+				previousStates: [
+					{ role: 'checkbox', checked: 'true' },
+					{ role: 'checkbox', checked: 'false' }
+				],
+				states: [
+					{ reused: true, role: 'option', checked: null, checkboxes: 0 },
+					{ reused: true, role: 'option', checked: null, checkboxes: 0 }
+				],
+				selected: [single.items[1]]
+			});
+		});
+	}
+
 	test('activeItems - verify onDidChangeActive is triggered after setting items', async () => {
 		const quickpick = store.add(controller.createQuickPick());
 
