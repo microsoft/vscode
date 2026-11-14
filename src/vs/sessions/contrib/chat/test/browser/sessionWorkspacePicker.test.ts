@@ -24,7 +24,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, ActionListWidget, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
+import '../../../../../base/browser/ui/codicons/codiconStyles.js';
 import { RemoteAgentHostConnectionStatus, IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -8815,7 +8819,8 @@ suite('WorkspacePicker - Allowed folders', () => {
 		providersService.setProviders([{ ...provider, resolveWorkspace: (folderUri: URI) => options?.resolves && !options.resolves(folderUri) ? undefined : resolveWorkspace(folderUri) }]);
 		const allowedFolders = observableValue<readonly URI[]>('allowedFolders', folders.map(folder => URI.file(folder)));
 		let shows = 0;
-		const actionWidgetService = upcastPartial<IActionWidgetService>({ isVisible: false, hide: () => { }, show: () => { shows++; }, updateItems: () => { } });
+		const shown: { listOptions?: IActionListOptions } = {};
+		const actionWidgetService = upcastPartial<IActionWidgetService>({ isVisible: false, hide: () => { }, show: (...args: unknown[]) => { shows++; shown.listOptions = args[8] as IActionListOptions | undefined; }, updateItems: () => { } });
 		const getNoWorkspaceOption = noWorkspace && (() => ({ description: 'No workspace', isSelected: noWorkspace.selected, select: () => { noWorkspace.selected = true; } }));
 		const picker = createTestPicker(store, providersService, undefined, undefined, DispatchingWorkspacePicker, undefined, undefined, undefined, { restoreFromSessions: false, allowedFolders, getNoWorkspaceOption, ...options }, undefined, actionWidgetService) as DispatchingWorkspacePicker;
 		const container = document.createElement('div');
@@ -8830,7 +8835,7 @@ suite('WorkspacePicker - Allowed folders', () => {
 				ariaLabel: trigger.getAttribute('aria-label'),
 			};
 		};
-		return { picker, allowedFolders, snapshot };
+		return { picker, allowedFolders, snapshot, shown };
 	}
 
 	test('offers only the window\'s folders: read-only for one folder, such as a worktree, and a choice for several', () => {
@@ -8922,6 +8927,52 @@ suite('WorkspacePicker - Allowed folders', () => {
 			inNewWorktree: { items: ['local/vscode', 'a (feature-a)', '---', 'New Worktree *'], trigger: 'Workspace: local/vscode - New Worktree' },
 			folderAgain: { items: ['local/vscode *', 'a (feature-a)', '---', 'New Worktree'], trigger: 'Workspace: local/vscode' },
 			selected: false,
+		});
+	});
+
+	test('lays out its choices with details as the Agents window\'s isolation picker does, and its worktrees aligned with them', async () => {
+		const { picker, shown } = createPicker(['/local/vscode.worktrees/b', '/local/vscode'], { selected: false }, {
+			getAllowedFolderPresentation: folderUri => folderUri.path === '/local/vscode'
+				? { kind: 'folder', current: true }
+				: { label: 'b', description: 'feature-b', icon: Codicon.gitBranchCheckout, kind: 'worktree', current: false },
+			newWorktree: { isAvailable: () => true, isSelected: () => false, setSelected: () => { } },
+		});
+		picker.setSelectedWorkspace(URI.file('/local/vscode'), { fireEvent: false });
+		picker.showPicker();
+		const render = (items: readonly IActionListItem<unknown>[], listOptions: IActionListOptions | undefined) => {
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.set(IKeybindingService, new MockKeybindingService());
+			instantiationService.set(IHoverService, NullHoverService);
+			instantiationService.set(IOpenerService, NullOpenerService);
+			const widget = store.add(instantiationService.createInstance(ActionListWidget<unknown>, 'layout', false, items, { onHide: () => { }, onSelect: () => { } }, undefined, listOptions));
+			const wrapper = mainWindow.document.body.appendChild(document.createElement('div'));
+			wrapper.classList.add('action-widget');
+			wrapper.appendChild(widget.domNode);
+			store.add({ dispose: () => wrapper.remove() });
+			widget.layout(400, 400);
+			return [...widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row.action')].map(row => {
+				const bounds = row.getBoundingClientRect();
+				const of = (selector: string) => {
+					const element = row.querySelector<HTMLElement>(selector);
+					const b = element && mainWindow.getComputedStyle(element).display !== 'none' ? element.getBoundingClientRect() : undefined;
+					return b && { left: b.left - bounds.left, top: b.top - bounds.top };
+				};
+				const icon = row.querySelector<HTMLElement>('.codicon');
+				return { height: bounds.height, iconSize: icon && mainWindow.getComputedStyle(icon).fontSize, title: of('.title'), detail: of('.detail') };
+			});
+		};
+		// As the isolation picker shows its choices: by their icons, with no list options of its own
+		const [isolation] = render([{ kind: ActionListItemKind.Action, label: 'New Worktree', detail: 'Creates a separate copy for this session', group: { title: '', icon: Codicon.worktree }, item: {} }], undefined);
+		const rows = render(picker.getItems(), shown.listOptions);
+		const twoLine = rows.filter(row => row.detail);
+		const worktree = rows.find(row => !row.detail)!;
+
+		assert.deepStrictEqual({
+			twoLine: twoLine.map(row => ({ ...row, title: { left: row.title?.left, top: row.title?.top } })),
+			worktree: { iconSize: worktree.iconSize, titleLeft: worktree.title?.left },
+		}, {
+			twoLine: [isolation, isolation, isolation].map(row => ({ ...row, title: { left: row.title?.left, top: row.title?.top } })),
+			worktree: { iconSize: isolation.iconSize, titleLeft: isolation.title?.left },
 		});
 	});
 

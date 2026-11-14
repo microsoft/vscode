@@ -904,7 +904,8 @@
 	outline-offset: var(--vscode-spacing-sizeNone);
 }
 
-.action-widget .sessions-new-chat-picker-list .monaco-list-row.action .codicon {
+/* A picker restricted to a window's folders keeps the action list's icons, which its choices' details align with. */
+.action-widget .sessions-new-chat-picker-list:not(.sessions-restricted-workspace-picker-list) .monaco-list-row.action .codicon {
 	font-size: var(--vscode-codiconFontSize);
 }
 
