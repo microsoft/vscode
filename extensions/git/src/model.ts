@@ -477,13 +477,26 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				.filter(repository => !!repository) as Repository[];
 
 			const activeRepositories = new Set<Repository>(activeRepositoriesList);
-			const openRepositoriesToDispose = removed
-				.map(folder => this.getOpenRepository(folder.uri))
-				.filter(r => !!r)
-				.filter(r => !activeRepositories.has(r!.repository))
-				.filter(r => !(workspace.workspaceFolders || []).some(f => isDescendant(f.uri.fsPath, r!.repository.root))) as OpenRepository[];
+
+			// A repository may be rooted at, inside, or ABOVE a workspace folder
+			// (for example, when git.openRepositoryInParentFolders is enabled).
+			const overlapsFolder = (folderPath: string, repositoryRoot: string): boolean =>
+				pathEquals(folderPath, repositoryRoot) ||
+				isDescendant(folderPath, repositoryRoot) ||
+				isDescendant(repositoryRoot, folderPath);
+
+			const remainingFolders = workspace.workspaceFolders || [];
+			const openRepositoriesToDispose = this.openRepositories
+				.filter(r => removed.some(folder => overlapsFolder(folder.uri.fsPath, r.repository.root)))
+				.filter(r => !activeRepositories.has(r.repository))
+				// Keep a parent repo open while any remaining child workspace folder uses it.
+				.filter(r => !remainingFolders.some(folder => overlapsFolder(folder.uri.fsPath, r.repository.root)));
 
 			openRepositoriesToDispose.forEach(r => r.dispose());
+
+			// Preserve manually closed repository markers. Removing them here would
+			// allow the next repository scan to reopen a repository the user closed.
+
 			this.logger.trace(`[Model][onDidChangeWorkspaceFolders] Workspace folders: [${possibleRepositoryFolders.map(p => p.uri.fsPath).join(', ')}]`);
 			await Promise.all(possibleRepositoryFolders.map(p => this.openRepository(p.uri.fsPath)));
 		}
@@ -491,6 +504,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			this.logger.warn(`[Model][onDidChangeWorkspaceFolders] Error: ${err}`);
 		}
 	}
+
 
 	private async onDidChangeWorkspaceTrustedFolders(): Promise<void> {
 		try {
