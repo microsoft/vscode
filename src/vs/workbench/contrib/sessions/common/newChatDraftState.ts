@@ -76,6 +76,14 @@ export interface IComposerInputSnapshot {
 	/** Ends the attempt of `id`: its send was rejected, failed, was cancelled or started. Never ends a newer attempt. */
 	endSendAttempt(id: string): void;
 	/**
+	 * Marks the input as submitting from the user's submit, before the checks and waits that precede its send attempt, such
+	 * as for the session to be ready or the host's confirmation, until the returned disposable is disposed: also as the
+	 * submit is cancelled or fails.
+	 */
+	beginSubmit(): IDisposable;
+	/** Whether a submit is under way (see {@link beginSubmit}). */
+	readonly isSubmitting: boolean;
+	/**
 	 * Registers the composer's input as the one that shows an input its host gives back ({@link ComposerInputSnapshot.restore}),
 	 * until the returned disposable is disposed. `restorer` returns whether it showed it: not while it cannot, such as while
 	 * it sends.
@@ -90,6 +98,7 @@ export class ComposerInputSnapshot implements IComposerInputSnapshot {
 	private _attempt: IComposerSendAttempt | undefined;
 
 	private _restorer: ((input: IChatDraft) => boolean) | undefined;
+	private _submits = 0;
 
 	constructor(state?: IComposerInputState) {
 		this._input = state?.input ?? { inputText: '', attachments: [] };
@@ -113,6 +122,15 @@ export class ComposerInputSnapshot implements IComposerInputSnapshot {
 		if (this._attempt?.id === id) {
 			this._attempt = undefined;
 		}
+	}
+
+	beginSubmit(): IDisposable {
+		this._submits++;
+		return toDisposable(() => this._submits--);
+	}
+
+	get isSubmitting(): boolean {
+		return this._submits > 0;
 	}
 
 	registerRestorer(restorer: (input: IChatDraft) => boolean): IDisposable {

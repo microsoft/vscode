@@ -579,7 +579,10 @@ suite('Chat window composer', () => {
 		const aimsAt = () => composer.requestedTarget.get()?.folderUri?.path;
 		const retarget = (folder: string, from: string) => ({ done: composer.retargetFolder(URI.file(folder), URI.file(from)), aimsAt: aimsAt() });
 
-		// Submitted: its checks and the draft's preparation are under way, its request not accepted yet
+		// Submitted: its checks, such as for its session to be ready or the host's confirmation, are under way before its send attempt
+		const submitting = composer.input.beginSubmit();
+		const whileChecking = retarget('/repo.worktrees/a', '/repo');
+		// Its send attempt: the draft's preparation is under way, its request not accepted yet
 		const attempt = composer.input.beginSendAttempt({ inputText: 'hello', attachments: [] });
 		const beforeAccepted = retarget('/repo.worktrees/a', '/repo');
 		// Accepted: its request is under way
@@ -589,9 +592,11 @@ suite('Chat window composer', () => {
 		// It did not start its session: the composer shows its draft again and follows its host again
 		onDidEnd.fire({ session: draft, owner: slot, started: false, readopted: false });
 		composer.input.endSendAttempt(attempt);
+		submitting.dispose();
 		const afterEnded = retarget('/repo.worktrees/a', '/repo');
 
-		assert.deepStrictEqual({ beforeAccepted, accepted, afterEnded }, {
+		assert.deepStrictEqual({ whileChecking, beforeAccepted, accepted, afterEnded }, {
+			whileChecking: { done: false, aimsAt: '/repo' },
 			beforeAccepted: { done: false, aimsAt: '/repo' },
 			accepted: { done: false, aimsAt: '/repo' },
 			afterEnded: { done: true, aimsAt: '/repo.worktrees/a' },
@@ -648,6 +653,31 @@ suite('Chat window composer', () => {
 			sending: { input: { inputText: 'in flight', attachments: [], references: undefined } },
 			sent: 'started',
 		});
+	});
+
+	test('a restored composer follows its host to another folder only while its host had aimed it, not once the user picked its folder, nor one stored before that was stored', async () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService, storageService } = createServices(store);
+		const resource = (name: string) => URI.parse(`vscode-agents-composer:/${name}`);
+		const open = async () => { };
+		const composers = instantiationService.createInstance(ChatWindowComposers, async () => undefined);
+		const hostAimed = composers.create(resource('host'), { target: { folderUri: URI.file('/repo') } }, open);
+		const userPicked = composers.create(resource('user'), { target: { folderUri: URI.file('/repo') } }, open);
+		userPicked.setRequestedTarget({ folderUri: URI.file('/repo.worktrees/c') }, 'user');
+		storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+		// A composer stored by a build that did not store its host's folder
+		storageService.store(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, stringify([...parse(storageService.get(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, StorageScope.WORKSPACE)!), { resource: resource('older'), target: { folderUri: URI.file('/repo') }, input: { inputText: '', attachments: [] } }]), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		composers.dispose();
+		[hostAimed, userPicked].forEach(composer => composer.dispose());
+
+		const reloaded = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const follows = async (name: string, from: string) => {
+			const restored = await reloaded.restore(resource(name), open);
+			const composer = restored?.kind === 'composer' ? store.add(restored.composer) : undefined;
+			return composer?.retargetFolder(URI.file('/repo.worktrees/a'), URI.file(from));
+		};
+
+		assert.deepStrictEqual({ host: await follows('host', '/repo'), user: await follows('user', '/repo.worktrees/c'), older: await follows('older', '/repo') }, { host: true, user: false, older: false });
 	});
 
 	test('the stored composers the restoration of the chat windows did not claim are forgotten, while open ones and claimed ones are stored again', () => {
