@@ -48,8 +48,8 @@ function packageTask(sourceFolderName: string, destinationFolderName: string) {
 
 		const license = gulp.src(['remote/LICENSE'], { base: 'remote', allowEmpty: true });
 
-		// `remote/web` is a member of the `remote` workspace, which installs most of its dependencies in
-		// `remote/node_modules`. The web build packages them flat, in its own `node_modules`.
+		// `remote/web` is a member of the `remote` workspace. The web build packages its production
+		// dependencies flat, in its own `node_modules`.
 		const deps = es.merge(...getFlatProductionDependencies(WEB_FOLDER).map(dependency => {
 			const d = path.relative(REPO_ROOT, dependency.source);
 			return gulp.src([`${d}/**`, `!${d}/node_modules/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`], { base: path.relative(REPO_ROOT, dependency.base), dot: true })

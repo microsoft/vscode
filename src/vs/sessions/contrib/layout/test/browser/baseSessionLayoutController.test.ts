@@ -14,10 +14,12 @@ import { StorageScope, WillSaveStateReason } from '../../../../../platform/stora
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/common/terminal.js';
+import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
+import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { BaseLayoutController } from '../../browser/baseSessionLayoutController.js';
 import { IMenuItem, isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
-import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { SessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
@@ -25,7 +27,7 @@ import { SessionStatus } from '../../../../../workbench/services/sessions/common
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { OS } from '../../../../../base/common/platform.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { KeybindingResolver, ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
@@ -55,6 +57,8 @@ class TestRevealEmptyWorkingSetLayoutController extends BaseLayoutController {
 	protected override _shouldRevealEditorPartForEmptyWorkingSet(revealEditorPart: boolean): boolean { return revealEditorPart; }
 	protected override _shouldHideEditorPartOnApply(editorPartHidden: boolean): boolean { return editorPartHidden; }
 }
+
+const noOtherEditorParts = upcastPartial<IEditorGroupsService>({ parts: [] });
 
 suite('BaseLayoutController', () => {
 
@@ -144,6 +148,9 @@ suite('BaseLayoutController', () => {
 		const scenarios: Record<string, Record<string, ContextKeyValue>> = {
 			layoutActions: base,
 			layoutActionsOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: false },
+			docked: { ...base, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: false, [`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`]: true },
+			dockedActivityBarOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: false, [`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`]: true },
+			dockedEditorMaximized: { ...base, editorMaximized: true, [`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`]: true },
 			activityBarOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: false },
 			// The activity bar is hidden with the Sessions part while the editor is maximized, and in the phone layout.
 			editorMaximized: { ...base, editorMaximized: true },
@@ -162,6 +169,9 @@ suite('BaseLayoutController', () => {
 			placement: {
 				layoutActions: ['activityBar'],
 				layoutActionsOff: ['titleBar'],
+				docked: [],
+				dockedActivityBarOff: ['titleBar'],
+				dockedEditorMaximized: ['titleBar'],
 				activityBarOff: ['titleBar'],
 				editorMaximized: ['titleBar'],
 				phoneLayout: ['titleBar'],
@@ -487,6 +497,236 @@ suite('BaseLayoutController', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual(harness.activeGroupEditors.map(e => e.resource?.toString()), [regular.toString()]);
+	});
+
+	test('[B2] switching away from an applied session whose files moved to another window saves the placeholder-only set instead of keeping the stale one', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		harness.visibleEditorsList = [{}];
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		const placeholder = store.add(new EmptyFileEditorInput(undefined, harness.layoutService, noOtherEditorParts));
+		harness.activeGroupEditors = [placeholder];
+		harness.visibleEditorsList = [placeholder, store.add(new TestStubEditorInput(URI.file('/repo/in-a-chat-window.ts')))];
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.saveWorkingSetCalls, [`session-working-set:${sessionA.resource.toString()}`, `session-working-set:${sessionB.resource.toString()}`, `session-working-set:${sessionA.resource.toString()}`]);
+		assert.strictEqual(harness.editorWorkingSetService.takeEditorsFor(sessionA, sessionA.mainChat.get().resource)?.editors.length, 0);
+	});
+
+	test('[B2] closing every file of a restored session while the empty-file placeholder remains saves the empty set when switching away', async () => {
+		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/repo') }] });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/repo/util.ts')))];
+		harness.visibleEditorsList = harness.activeGroupEditors;
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		const placeholder = store.add(new EmptyFileEditorInput(undefined, harness.layoutService, noOtherEditorParts));
+		harness.activeGroupEditors = [placeholder];
+		harness.visibleEditorsList = [placeholder];
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.activeGroupEditors.map(editor => editor.resource?.path), []);
+	});
+
+	test('a stash whose handoff fails while its session is focused again is applied to the main part', async () => {
+		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/repo') }] });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/repo/util.ts')))];
+		harness.visibleEditorsList = harness.activeGroupEditors;
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+
+		const handle = harness.editorWorkingSetService.takeEditorsFor(sessionA, sessionA.mainChat.get().resource);
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		const whileLeased = harness.activeGroupEditors.map(editor => editor.resource?.path);
+		handle?.dispose();
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileLeased, afterFailure: harness.activeGroupEditors.map(editor => editor.resource?.path) }, { whileLeased: [], afterFailure: ['/repo/util.ts'] });
+	});
+
+	test('takes the editors of a session whose working set is saved, which stay saved until the taker has them', async () => {
+		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/repo') }] });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/repo/util.ts')))];
+		harness.visibleEditorsList = harness.activeGroupEditors;
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+
+		const taken = harness.editorWorkingSetService.takeEditorsFor(sessionA, sessionA.mainChat.get().resource);
+		const beforeAccept = harness.deleteWorkingSetCalls.length;
+		taken?.accept();
+
+		assert.deepStrictEqual({
+			editors: taken?.editors.map(editor => editor.resource?.path),
+			deletedBeforeAccept: beforeAccept,
+			deletedAfterAccept: harness.deleteWorkingSetCalls,
+			takenAgain: harness.editorWorkingSetService.takeEditorsFor(sessionA, sessionA.mainChat.get().resource),
+			ofTheActiveSession: harness.editorWorkingSetService.takeEditorsFor(sessionB, sessionB.mainChat.get().resource),
+		}, {
+			editors: ['/repo/util.ts'],
+			deletedBeforeAccept: 0,
+			deletedAfterAccept: [`session-working-set:${sessionA.resource.toString()}`],
+			takenAgain: undefined,
+			ofTheActiveSession: undefined,
+		});
+	});
+
+	test('hands a session\'s stashed editors to one taker at a time until it accepts or disposes', async () => {
+		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/repo') }] });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/repo/util.ts')))];
+		harness.visibleEditorsList = harness.activeGroupEditors;
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+		const chat = sessionA.mainChat.get().resource;
+
+		const first = harness.editorWorkingSetService.takeEditorsFor(sessionA, chat);
+		const whileTaken = harness.editorWorkingSetService.takeEditorsFor(sessionA, chat);
+		first?.dispose();
+		const afterDispose = harness.editorWorkingSetService.takeEditorsFor(sessionA, chat);
+		afterDispose?.accept();
+		afterDispose?.dispose();
+
+		assert.deepStrictEqual({
+			first: first?.editors.length,
+			whileTaken,
+			afterDispose: afterDispose?.editors.length,
+			afterAccept: harness.editorWorkingSetService.takeEditorsFor(sessionA, chat),
+		}, { first: 1, whileTaken: undefined, afterDispose: 1, afterAccept: undefined });
+	});
+
+	test('accepting a stash disposes the resolved editors the window did not adopt', async () => {
+		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/repo') }] });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/repo/util.ts')))];
+		harness.visibleEditorsList = harness.activeGroupEditors;
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+
+		const handle = harness.editorWorkingSetService.takeEditorsFor(sessionA, sessionA.mainChat.get().resource);
+		handle?.accept();
+
+		assert.deepStrictEqual(handle?.editors.map(editor => editor.isDisposed()), [true]);
+	});
+
+	test('a stash taken for a window is not applied to the main part meanwhile, and the old handle never removes a newer stash', async () => {
+		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/repo') }] });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/repo/util.ts')))];
+		harness.visibleEditorsList = harness.activeGroupEditors;
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+		const chat = sessionA.mainChat.get().resource;
+
+		const handle = harness.editorWorkingSetService.takeEditorsFor(sessionA, chat);
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/repo/newer.ts')))];
+		harness.visibleEditorsList = harness.activeGroupEditors;
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+		handle?.accept();
+		handle?.dispose();
+		const newer = harness.editorWorkingSetService.takeEditorsFor(sessionA, chat);
+
+		assert.deepStrictEqual({
+			taken: handle?.editors.length,
+			newer: newer?.editors.map(editor => editor.resource?.path),
+		}, { taken: 1, newer: ['/repo/newer.ts'] });
+		newer?.dispose();
+	});
+
+	test('a stash whose handoff fails after its session was removed is not resurrected', async () => {
+		createController({ useModal: 'some', chatLayoutMode: 'chat', desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/repo/util.ts')))];
+		harness.visibleEditorsList = harness.activeGroupEditors;
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+		const chat = sessionA.mainChat.get().resource;
+
+		const handle = harness.editorWorkingSetService.takeEditorsFor(sessionA, chat);
+		harness.onDidChangeSessions.fire({ added: [], removed: [sessionA], changed: [] });
+		handle?.dispose();
+
+		assert.deepStrictEqual({
+			taken: handle?.editors.length,
+			afterDispose: harness.editorWorkingSetService.takeEditorsFor(sessionA, chat),
+		}, { taken: 1, afterDispose: undefined });
+	});
+
+	test('a stash whose handoff fails after its session was replaced is restored under the replacement', async () => {
+		createController({ useModal: 'some', chatLayoutMode: 'chat', desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const replacement = makeSession(URI.parse('session:a2'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/repo/util.ts')))];
+		harness.visibleEditorsList = harness.activeGroupEditors;
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+		const chat = sessionA.mainChat.get().resource;
+
+		const handle = harness.editorWorkingSetService.takeEditorsFor(sessionA, chat);
+		harness.onDidReplaceSession.fire({ from: sessionA, to: replacement });
+		handle?.dispose();
+		const restored = harness.editorWorkingSetService.takeEditorsFor(replacement, replacement.mainChat.get().resource);
+
+		assert.deepStrictEqual({
+			taken: handle?.editors.length,
+			restored: restored?.editors.map(editor => editor.resource?.path),
+			old: harness.editorWorkingSetService.takeEditorsFor(sessionA, chat),
+		}, { taken: 1, restored: ['/repo/util.ts'], old: undefined });
+		restored?.dispose();
 	});
 
 	test('[B2] switching away keeps an untitled editor bound to a file path that has content and restores it on return', async () => {

@@ -7510,6 +7510,47 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		});
 	});
 
+	test('MCP permission signals recover original server names only for a unique live match', async () => {
+		const { ctx, canUseTool } = await materialize();
+		const identities: { mcpServerName: string | undefined; mcpToolName: string | undefined }[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(signal => {
+			if (signal.kind === 'pending_confirmation') {
+				identities.push({ mcpServerName: signal.mcpServerName, mcpToolName: signal.mcpToolName });
+				ctx.agent.respondToPermissionRequest(signal.state.toolCallId, true);
+			}
+		}));
+		const serverNames = [['corp.hub'], ['corp.hub', 'corp_hub'], ['other'], undefined];
+		const results = [];
+		for (const [index, names] of serverNames.entries()) {
+			ctx.sdk.mcpServerStatusResult = names?.map(name => ({ name, status: 'connected' }));
+			results.push((await canUseTool('mcp__corp_hub__get__me', {}, makeOptions(`tu_mcp_${index}`)))?.behavior);
+		}
+		assert.deepStrictEqual({ identities, results }, {
+			identities: [
+				{ mcpServerName: 'corp.hub', mcpToolName: 'get__me' },
+				{ mcpServerName: undefined, mcpToolName: undefined },
+				{ mcpServerName: undefined, mcpToolName: undefined },
+				{ mcpServerName: undefined, mcpToolName: undefined },
+			],
+			results: ['allow', 'allow', 'allow', 'allow'],
+		});
+	});
+
+	test('SDK abort during MCP identity lookup denies without emitting a stale confirmation', async () => {
+		const { ctx, canUseTool } = await materialize();
+		ctx.sdk.mcpServerStatusResult = [{ name: 'corp', status: 'connected' }];
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(signal => signals.push(signal)));
+		const controller = new AbortController();
+		const pending = canUseTool('mcp__corp__get_me', {}, { ...makeOptions('tu_mcp_aborted'), signal: controller.signal });
+		controller.abort();
+		const result = await pending;
+		await tick();
+		assert.deepStrictEqual({ result, confirmations: signals.filter(signal => signal.kind === 'pending_confirmation') }, {
+			result: { behavior: 'deny', message: 'User declined' }, confirmations: [],
+		});
+	});
+
 	test('WebFetch permission signals carry a URL, not a filesystem path', async () => {
 		const { ctx, canUseTool } = await materialize();
 		const signals: AgentSignal[] = [];

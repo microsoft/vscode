@@ -25,6 +25,7 @@ export type CustomizationDisabledReason =
 			readonly uri: string;
 			readonly clientId?: string;
 			readonly enablement?: readonly CustomizationEnablement[];
+			readonly _meta?: Record<string, unknown>;
 		};
 	};
 
@@ -87,7 +88,7 @@ export function getCustomizationScopeEnablement(customization: { readonly enable
  * disabled. The plugin takes precedence because its child cannot take effect
  * until the plugin is enabled again.
  */
-export function getCustomizationDisabledReason(customization: { readonly enablement?: readonly CustomizationEnablement[] }, plugin?: { readonly id: string; readonly name: string; readonly uri: string; readonly clientId?: string; readonly enablement?: readonly CustomizationEnablement[] }): CustomizationDisabledReason | undefined {
+export function getCustomizationDisabledReason(customization: { readonly enablement?: readonly CustomizationEnablement[] }, plugin?: { readonly id: string; readonly name: string; readonly uri: string; readonly clientId?: string; readonly enablement?: readonly CustomizationEnablement[]; readonly _meta?: Record<string, unknown> }): CustomizationDisabledReason | undefined {
 	if (plugin && !isCustomizationEnabled(plugin)) {
 		return {
 			source: 'plugin',
@@ -97,6 +98,7 @@ export function getCustomizationDisabledReason(customization: { readonly enablem
 				uri: plugin.uri,
 				...(plugin.clientId === undefined ? undefined : { clientId: plugin.clientId }),
 				enablement: plugin.enablement,
+				...(plugin._meta === undefined ? undefined : { _meta: plugin._meta }),
 			},
 		};
 	}

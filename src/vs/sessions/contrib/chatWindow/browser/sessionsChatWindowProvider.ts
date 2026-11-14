@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatWindow.css';
-import { raceTimeout, timeout } from '../../../../base/common/async.js';
+import { timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { extUri, isEqual } from '../../../../base/common/resources.js';
-import { DeepPartial } from '../../../../base/common/types.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -18,20 +17,24 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IEditorGroupView, IEditorGroupViewOptions } from '../../../../workbench/browser/parts/editor/editor.js';
-import { GroupModelChangeKind, IEditorPartOptions } from '../../../../workbench/common/editor.js';
+import { GroupModelChangeKind } from '../../../../workbench/common/editor.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatWindow, IChatWindowChat, IChatWindowChrome, IChatWindowChromeElement, IChatWindowContent, IChatWindowEditors, IChatWindowLook, IChatWindowNewChatOptions, IChatWindowProvider, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { getChatWindowMainPartOptions, IChatWindow, IChatWindowChat, IChatWindowChrome, IChatWindowChromeElement, IChatWindowContent, IChatWindowEditors, IChatWindowLook, IChatWindowNewChatFolder, IChatWindowNewChatOptions, IChatWindowProvider, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ITitleService } from '../../../../workbench/services/title/browser/titleService.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { EmptyEditorGroupAddTab } from '../../../../workbench/browser/parts/sessions/emptyEditorGroupAddTab.js';
 import { observeSessionActivityBarSize, registerSessionActivityBarExternalHost } from '../../../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
 import { MenuActivityBar, MenuActivityBarSize } from '../../../../workbench/browser/parts/activitybar/menuActivityBar.js';
+import { AgentsPartCard } from '../../../../workbench/browser/parts/sessions/agentsPartCard.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ISizeService } from '../../../../platform/theme/common/sizeService.js';
+import { agentsPanelsSpacing } from '../../../../platform/theme/common/sizeRegistry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { CustomViewVisibleContext } from '../../../common/agentsWindowContextKeys.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
@@ -39,47 +42,33 @@ import { SessionsChatSurface } from '../../../../workbench/contrib/sessions/brow
 import { bindSessionHostScopeContext, getMainWindowHost, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IChatHostOpenerService } from '../../../../workbench/services/sessions/browser/chatHostOpener.js';
-import { IChat, ISession, isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
+import { ISession, isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionPaneContent } from '../../../../workbench/services/sessions/common/sessionPane.js';
 import { bindSessionScopeContextKeys } from '../../../../workbench/contrib/sessionChanges/browser/sessionActionsHost.js';
 import { SessionChangesEditorFileListContext } from '../../../../workbench/contrib/sessions/common/changes.js';
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { CHAT_WINDOWS_ENABLED_SETTING, ChatWindowHasUnsentComposerContext, getUnsentComposerMoveReason } from '../common/chatWindows.js';
-import { ChatModelHold, chatWindowTitle, isChatWindowChatGone } from './chatWindowOpening.js';
-import { ChatEditorInput, getChatEditorInputDetails, ISessionChatViewHost, registerSessionChatViewHost } from '../../chatEditor/browser/chatEditor.js';
+import { isChatWindowChatGone } from '../../../../workbench/contrib/sessions/browser/chatEditor/sessionChatOpening.js';
+import { IResolvedSessionChat, ISessionChatEditorShown, resolveSessionChat, SessionChatEditorEntry, waitForSessionChat } from '../../../../workbench/contrib/sessions/browser/chatEditor/sessionChatEditorHost.js';
 import { ISessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { getSessionAgentMergeConfigurationObservable } from '../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
-import { ShownChatReadMarker } from '../../../../workbench/contrib/sessions/browser/shownChatReadMarker.js';
-import { ChatEditorContent, IChatEditorComposer } from '../../chatEditor/browser/chatEditorContent.js';
-import { localize } from '../../../../nls.js';
 import { ISessionGroupsService } from '../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
-import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerResource, getChatWindowComposerTarget, IChatWindowComposerInit, isChatWindowComposerResource } from './chatWindowComposer.js';
+import { INewSessionTarget } from '../../../../workbench/contrib/sessions/browser/parts/chatView.js';
+import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerResource, getChatWindowComposerTarget, IChatWindowComposerInit, isChatWindowComposerResource } from '../../../../workbench/contrib/sessions/browser/chatEditor/chatWindowComposer.js';
+import { ChatWindowSessionDropTarget } from './chatWindowSessionDropTarget.js';
 
 /** The class of the element of an Agents chat window. */
 export const AGENTS_CHAT_WINDOW_CLASS = 'agents-chat-window';
-
-/** How long restoring a chat window waits for its session to load. */
-const RESTORE_SESSION_TIMEOUT = 30_000;
 
 /**
  * The width of the strip's column at the right of a chat window, as the main window's Session Activity Bar column is
  * (`SessionActivityBarColumn`): the gap between cards, none with compact layout density, which it keeps to the cards to
  * its left, and a {@link MenuActivityBar} at the size chosen for the Session Activity Bar, which fills the rest.
  */
-export function getChatWindowStripWidth(compact: boolean, size: MenuActivityBarSize): number {
-	return (compact ? 0 : AGENTS_FLOATING_PANEL_GAP) + MenuActivityBar.getWidth(compact, size);
-}
-
-/**
- * The options of the main part of a chat window: its tabs follow `workbench.editor.showTabs`, live, as the main window's
- * editor area does; `none` shows as `single`, so that the part keeps its title with its actions. Double-clicking a tab
- * does not maximize or expand a group: the window arranges its parts.
- */
-export function getChatWindowMainPartOptions(showTabs: string | undefined): DeepPartial<IEditorPartOptions> {
-	return { doubleClickTabToToggleEditorGroupSizes: 'off', ...(showTabs === 'none' ? { showTabs: 'single' } : undefined) };
+export function getChatWindowStripWidth(compact: boolean, size: MenuActivityBarSize, gap: number = AGENTS_FLOATING_PANEL_GAP, connectedTabs = true): number {
+	const frameInset = connectedTabs ? Math.min(AgentsPartCard.BORDER_WIDTH, Math.floor(gap / 2)) : 0;
+	return (compact ? 0 : Math.max(0, gap - frameInset)) + MenuActivityBar.getWidth(compact, size);
 }
 
 /** The options of the groups of the main part of a chat window: those of the main window's editor area of the Agents window. */
@@ -106,79 +95,17 @@ export function focusChatWindowUnlessFocused(targetWindow: { readonly document: 
 	}
 }
 
-/** A session and the chat of it that a resource names: a session names its own; a chat its session. */
-interface IResolvedChat {
-	readonly session: ISession;
-	readonly chat: URI | undefined;
-}
-
-function resolveChat(sessionsManagementService: ISessionsManagementService, resource: URI): IResolvedChat | undefined {
-	const session = sessionsManagementService.getSession(resource);
-	if (session) {
-		return { session, chat: undefined };
-	}
-	for (const candidate of sessionsManagementService.getSessions()) {
-		if (candidate.chats.get().some(chat => isEqual(chat.resource, resource))) {
-			return { session: candidate, chat: resource };
-		}
-	}
-	return undefined;
-}
-
 /**
- * One chat of a chat window: its editor, and the provider's session of the chat, which its editor shows and the window
- * acts on while it is the window's active chat. It observes the session without owning it, and follows the chat, such as
- * when its session is replaced or the chat moves to another session; the chat ends, and leaves the window, once it is
- * deleted or archived.
+ * One chat of a chat window (see {@link SessionChatEditorEntry}), which the window acts on while it is the window's active
+ * chat. It keeps the chat out of the main window's grid while it shows it, closes it through the window's opener, and keeps
+ * a new-session composer in its window until it sends its session.
  */
-class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISessionChatViewHost {
+class SessionsChatWindowChat extends SessionChatEditorEntry implements IChatWindowChat {
 
-	readonly chat: ISettableObservable<URI>;
-	readonly input: ChatEditorInput;
-	readonly title: IObservable<string>;
-
-	private readonly _onDidEnd = this._register(new Emitter<void>());
-	readonly onDidEnd = this._onDidEnd.event;
-	private _ended = false;
-	private _disposed = false;
-
-	/** The provider's session of the chat, and the chat, once known. */
-	private readonly _shown = observableValue<{ readonly session: ISession; readonly chat: IChat } | undefined>(this, undefined);
-	/** Its new-session composer while the chat is that, until the composer's foreground request starts its session. */
-	private readonly _composer = observableValue<ChatWindowComposerModel | undefined>(this, undefined);
-	private readonly _composerStore = this._register(new MutableDisposable<DisposableStore>());
-	/** The session the composer sent and the session's main chat, once the session is created, until the chat becomes it. */
-	private readonly _composerShown = derived(this, reader => {
-		const session = this._composer.read(reader)?.session.read(reader);
-		return session && isSessionCreated(session, reader) ? { session, chat: session.mainChat.read(reader) } : undefined;
-	});
-	readonly session: IObservable<ISession | undefined> = derived(this, reader => {
-		const composer = this._composer.read(reader);
-		return composer ? composer.session.read(reader) : this._shown.read(reader)?.session;
-	});
-	readonly shownChat: IObservable<IChat | undefined> = derived(this, reader => this._composer.read(reader) ? this._composerShown.read(reader)?.chat : this._shown.read(reader)?.chat);
-	readonly content: IObservable<ISessionPaneContent | undefined>;
-	readonly composer: IObservable<IChatEditorComposer | undefined> = derived(this, reader => {
-		const composer = this._composer.read(reader);
-		return composer && { draftHost: composer, session: composer.session };
-	});
-	/** Whether it is a new-session composer that has not sent its session yet. */
-	get isComposer(): boolean { return !!this._composer.get(); }
-	/** Whether it is a new-session composer that has not sent its session yet, which cannot leave its window. */
-	readonly isUnsentComposer: IObservable<boolean> = derived(this, reader => !!this._composer.read(reader));
-	/** The session the chat was last known in, so that its end is known while the session no longer lists it. */
-	private _knownSession: ISession | undefined;
-
-	private readonly _onWillDispose = this._register(new Emitter<void>());
-	readonly onWillDispose = this._onWillDispose.event;
 	/** Keeps the chat out of the main window's grid while the window shows it. */
 	private readonly _gridHold = this._register(new MutableDisposable());
-
-	/** The views of its editor, the last of which shows it; see {@link view}. */
-	private readonly _attachedViews: ChatEditorContent[] = [];
-	private readonly _view = observableValue<ChatEditorContent | undefined>(this, undefined);
-	readonly view: IObservable<ChatEditorContent | undefined> = this._view;
-	private readonly _heldChat: ChatModelHold;
+	private _heldSession: ISession | undefined;
+	private readonly _shownSession = observableValue<ISessionChatEditorShown | undefined>(this, undefined);
 
 	readonly window: IObservable<IChatWindow | undefined>;
 	readonly active: IObservable<boolean>;
@@ -187,7 +114,7 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 		owner: SessionsChatWindowContent,
 		chatResource: URI,
 		composer: ChatWindowComposerModel | undefined,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@IChatService chatService: IChatService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IChatHostOpenerService private readonly _chatHostOpenerService: IChatHostOpenerService,
@@ -195,82 +122,29 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
-		super();
-		this.chat = observableValue<URI>(this, chatResource);
-		this.content = derived(this, reader => {
-			if (this._composer.read(reader)) {
-				const shown = this._composerShown.read(reader);
-				return shown && this._contentOf(shown, () => this._composerShown.read(undefined) === shown);
-			}
-			const shown = this._shown.read(reader);
-			return shown && this._contentOf(shown, () => this._shown.read(undefined) === shown);
-		});
-		this.input = this._register(new ChatEditorInput(chatResource));
-		this._register(registerSessionChatViewHost(this.input, this));
+		super(chatResource, sessionsManagementService, chatService, sessionsListModelService, sessionsProvidersService, configurationService);
 		this.window = owner.window;
 		this.active = derived(this, reader => isEqual(owner.window.read(reader)?.chat.read(reader), this.chat.read(reader)));
-		this.title = derived(this, reader => {
-			if (this._composer.read(reader)) {
-				return localize('chatWindow.newSession', "New Session");
-			}
-			const session = this.session.read(reader);
-			return session ? chatWindowTitle(session, this.chat.read(reader), reader) : '';
-		});
-		this._register(autorun(reader => this.input.setName(this.title.read(reader))));
-		// Its tab shows the status of the chat, as the sessions list does, while its header, which shows it too, hides.
+		// It takes the chat out of the main window's grid only once the window binds it: the window first takes along the
+		// editors the main window has open for the chat's session, which taking the chat out of the grid closes.
 		this._register(autorun(reader => {
-			const shown = this._shown.read(reader);
-			this.input.setDetails(shown && getChatEditorInputDetails(shown.session, shown.chat, this.title.read(reader), reader, sessionsListModelService,
-				() => getSessionAgentMergeConfigurationObservable(shown.session, sessionsProvidersService, configurationService, shown.chat)));
-		}));
-		// It is read once it shows, as the active chat of the main window is: while it is the active chat of its window,
-		// focused or not, and its editor shows it.
-		const readMarker = new ShownChatReadMarker(_sessionsManagementService, extUri);
-		this._register(autorun(reader => {
-			const shown = this._shown.read(reader);
-			if (!shown) {
-				readMarker.reset();
-				return;
+			const shown = this._shownSession.read(reader);
+			if (shown && this.window.read(reader) && this._heldSession?.sessionId !== shown.session.sessionId) {
+				this._heldSession = shown.session;
+				this._gridHold.value = this._sessionsService.hideChatFromGrid(shown.session, shown.chat.resource);
 			}
-			const visible = this.active.read(reader) && !!this._view.read(reader)?.visible.read(reader);
-			readMarker.update(shown.session, visible ? shown.chat : undefined, reader);
 		}));
-
 		// The loaded model of the chat bridges its move into the window, from the main window's grid, which lets go of it.
-		this._heldChat = this._register(new ChatModelHold(resource => chatService.acquireExistingSession(resource, 'ChatWindow#move')));
-		if (composer) {
-			this._setComposer(composer);
-		} else {
-			this._heldChat.hold(chatResource, this._boundCheck());
-		}
-
-		const sessionsChanged = observableSignalFromEvent(this, _sessionsManagementService.onDidChangeSessions);
-		this._register(autorun(reader => {
-			sessionsChanged.read(reader);
-			this._update(reader);
-		}));
+		this.start(composer, 'ChatWindow#move');
 	}
 
-	/**
-	 * Shows `composer`, which it owns, until a foreground request of it starts its session: the chat then becomes that
-	 * session's main chat, in the same editor, and the composer goes. Closing the composer before discards its draft.
-	 */
-	private _setComposer(composer: ChatWindowComposerModel): void {
-		const store = new DisposableStore();
-		store.add(composer);
-		// Its tab shows while it is a composer, also alone in its group, so it can be closed there: until its session's chat
-		// shows, it has no title of its own, as its session header hides.
-		this.input.setRendersTitle(false);
-		store.add(toDisposable(() => this.input.setRendersTitle(true)));
-		store.add(composer.onDidStart(session => {
-			const main = session.mainChat.get().resource;
-			transaction(tx => {
-				this._composer.set(undefined, tx);
-				this.chat.set(main, tx);
-			});
-			this._composerStore.clear();
-		}));
+	protected override onDidShowSession(shown: ISessionChatEditorShown): void {
+		this._shownSession.set(shown, undefined);
+	}
+
+	protected override onDidSetComposer(_composer: ChatWindowComposerModel, store: DisposableStore): void {
 		// It stays in its window until it sends its session.
 		this.input.setMoveRestriction({
 			reason: getUnsentComposerMoveReason(),
@@ -280,113 +154,14 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 			},
 		});
 		store.add(toDisposable(() => this.input.setMoveRestriction(undefined)));
-		this._composerStore.value = store;
-		this._composer.set(composer, undefined);
 	}
 
-	private _end(): void {
-		if (!this._ended) {
-			this._ended = true;
-			this._onDidEnd.fire();
-		}
+	protected override closeShown(resource: URI): void {
+		void this._chatHostOpenerService.getOpenerOf(resource)?.close(resource).catch(onUnexpectedError);
 	}
 
-	private _update(reader: IReader): void {
-		if (this._ended || this._composer.read(reader)) {
-			return;
-		}
-		const chatResource = this.chat.read(reader);
-		// The chats of the session it was in, as these change without the sessions changing, such as as one is deleted
-		// or replaced; the lookup below is not observable.
-		this._knownSession?.chats.read(reader);
-		this._knownSession?.loading.read(reader);
-		const owner = this._sessionsManagementService.getSessionForChatResource(chatResource);
-		if (owner) {
-			if (this._knownSession !== owner.session) {
-				owner.session.chats.read(reader);
-				owner.session.loading.read(reader);
-			}
-			this._knownSession = owner.session;
-			if (isChatWindowChatGone(owner.session, chatResource, reader)) {
-				this._end();
-				return;
-			}
-			const shown = this._shown.get();
-			if (shown?.session !== owner.session || shown.chat !== owner.chat) {
-				const sessionChanged = shown?.session.sessionId !== owner.session.sessionId;
-				this._shown.set({ session: owner.session, chat: owner.chat }, undefined);
-				if (sessionChanged) {
-					this._gridHold.value = this._sessionsService.hideChatFromGrid(owner.session, owner.chat.resource);
-				}
-			}
-			return;
-		}
-		// Gone once the session it was in has loaded and no longer lists it, such as once it was deleted
-		if (this._knownSession && isChatWindowChatGone(this._knownSession, chatResource, reader)) {
-			this._end();
-		}
-	}
-
-	override dispose(): void {
-		// What it showed acts on it no more, such as a content its editor kept, once its window let go of it.
-		this._disposed = true;
-		this._onWillDispose.fire();
-		super.dispose();
-	}
-
-	/**
-	 * What its editor's pane shows of `shown`: its one chat, as a detached pane shows, apart from the session's slot. Closing
-	 * the pane closes the chat in its window, through the window's opener, while it still shows that chat of that session: a
-	 * content kept past the chat moving or its session being replaced, its chat ending, or its window letting go of it, as
-	 * its window closes or the chat moves to another window, closes nothing.
-	 */
-	private _contentOf(shown: { readonly session: ISession; readonly chat: IChat }, isShown: () => boolean): ISessionPaneContent {
-		const chats = constObservable([shown.chat]);
-		return {
-			session: shown.session,
-			chat: constObservable(shown.chat),
-			state: {
-				sticky: constObservable(false),
-				tabs: { openChats: chats, closedChats: constObservable([]), lastClosedChat: undefined, visibleChatTabs: chats, shouldShowChatTabs: constObservable(true) },
-				isDetached: true,
-			},
-			close: () => {
-				if (this._disposed || this._ended || !isShown()) {
-					return;
-				}
-				// The chat's own resource while the composer shows its session, which the window knows the chat by.
-				const resource = this._composer.get() ? this.chat.get() : shown.chat.resource;
-				void this._chatHostOpenerService.getOpenerOf(resource)?.close(resource).catch(onUnexpectedError);
-			},
-		};
-	}
-
-	attach(view: ChatEditorContent): IDisposable {
-		this._attachedViews.push(view);
-		this._view.set(view, undefined);
-		return toDisposable(() => {
-			const index = this._attachedViews.indexOf(view);
-			if (index >= 0) {
-				this._attachedViews.splice(index, 1);
-			}
-			this._view.set(this._attachedViews.at(-1), undefined);
-		});
-	}
-
-	/** Whether the chat view of its editor has bound to its model: it loaded, or showed that it was loading and is done. */
-	private _boundCheck(): () => boolean {
-		let loading = false;
-		return () => {
-			const view = this._view.get()?.primaryChatView.get();
-			if (!view) {
-				return false;
-			}
-			if (view.isLoadingTranscript.get()) {
-				loading = true;
-				return false;
-			}
-			return loading;
-		};
+	createDropTarget(element: HTMLElement, chat: () => URI | undefined): IDisposable {
+		return this._instantiationService.createInstance(ChatWindowSessionDropTarget, element, chat);
 	}
 }
 
@@ -469,7 +244,7 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 		if (isChatWindowComposerResource(resource)) {
 			return await this._resolveComposer(resource);
 		}
-		const resolved = resolveChat(this._sessionsManagementService, resource);
+		const resolved = resolveSessionChat(this._sessionsManagementService, resource);
 		if (!resolved) {
 			return undefined;
 		}
@@ -532,21 +307,26 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 
 	/**
 	 * Opens a new-session composer as a tab of the window's active chat, in its group, or beside it, which starts its session
-	 * as the active chat's (see {@link getChatWindowComposerTarget}), and whose sessions join the custom group of the sessions
-	 * list the active chat's session is in. While the active chat is a composer that has not sent its session, it shows that
-	 * one instead. The composer's chat becomes its session's main chat once it sends it in the foreground.
+	 * in the folder of the options (see {@link _getFolderTarget}), or else as the active chat's (see
+	 * {@link getChatWindowComposerTarget}), and whose sessions join the custom group of the sessions list the active chat's
+	 * session is in, or that the sessions of the active composer join. Without a folder, while the active chat is a composer that has not sent its session, it shows that one
+	 * instead; with a folder, it replaces that composer when closing it loses nothing, before and once the new one shows. The
+	 * composer's chat becomes its session's main chat once it sends it in the foreground.
 	 */
 	async openNewChat(window: IChatWindow, options?: IChatWindowNewChatOptions): Promise<void> {
 		const active = this.activeChat.get();
-		if (active?.isComposer) {
+		if (active?.isComposer && !options?.folder) {
 			await this._chatWindowService.open(active.chat.get(), { window, preserveFocus: options?.preserveFocus });
 			return;
 		}
+		const replaced = options?.folder && active?.isPristineComposer ? active : undefined;
 		const session = active?.session.get();
 		const resource = createChatWindowComposerResource();
 		const init: IChatWindowComposerInit = {
-			target: getChatWindowComposerTarget(this._sessionsManagementService, this._sessionsProvidersService, session, active?.shownChat.get()),
-			groupId: session && this._sessionGroupsService.getGroupOfSession(session.sessionId),
+			target: options?.folder
+				? this._getFolderTarget(options.folder)
+				: getChatWindowComposerTarget(this._sessionsManagementService, this._sessionsProvidersService, session, active?.shownChat.get()),
+			groupId: active?.isComposer ? active.composerGroupId : session && this._sessionGroupsService.getGroupOfSession(session.sessionId),
 		};
 		this._pendingComposers.set(resource.toString(), this._composers.create(resource, init, this._openStartedSession(resource)));
 		try {
@@ -556,6 +336,18 @@ export class SessionsChatWindowContent extends Disposable implements IChatWindow
 			// Not taken by a chat, such as when the window went away meanwhile
 			this._pendingComposers.deleteAndDispose(resource.toString());
 		}
+		if (replaced?.isPristineComposer && this.showsChat(resource)) {
+			await this.closeChat(replaced.chat.get());
+		}
+	}
+
+	/**
+	 * What a composer opened for `folder` starts its session with: the folder, and the provider that resolved it with that
+	 * provider's first session type for the folder, as a new session in a folder of a provider starts in the main window.
+	 */
+	private _getFolderTarget(folder: IChatWindowNewChatFolder): INewSessionTarget {
+		const sessionTypeId = folder.providerId === undefined ? undefined : this._sessionsManagementService.getSessionTypesForFolder(folder.uri).find(type => type.providerId === folder.providerId)?.sessionType.id;
+		return { folderUri: folder.uri, ...(folder.providerId ? { providerId: folder.providerId } : {}), ...(sessionTypeId ? { sessionTypeId } : {}) };
 	}
 
 	/** Whether `chat` is one of its new-session composers that has not sent its session. */
@@ -683,6 +475,8 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		@IChatHostOpenerService chatHostOpenerService: IChatHostOpenerService,
 		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
 		@IStorageService storageService: IStorageService,
+		@ISizeService sizeService: ISizeService,
+		@IThemeService themeService: IThemeService,
 	) {
 		super();
 		this._composers = this._register(_instantiationService.createInstance(ChatWindowComposers, resource => this._waitForChat(resource).then(resolved => resolved?.session)));
@@ -723,9 +517,11 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		const showTabs = observableConfigValue<string | undefined>('workbench.editor.showTabs', undefined, _configurationService);
 		this._compact = derived(this, reader => density.read(reader) === ModernUIDensity.Compact);
 		this._stripSize = observeSessionActivityBarSize(this, storageService, this._register(new DisposableStore()));
+		const spacing = observableFromEvent(this, Event.any(sizeService.onDidChangeSizes, themeService.onDidColorThemeChange),
+			() => sizeService.getSize(agentsPanelsSpacing, themeService.getColorTheme())!.value);
 		this.look = {
 			// The parts are cards, as the main window's are, unless Layout Density is compact, which keeps them flush.
-			gap: derived(reader => density.read(reader) === ModernUIDensity.Compact ? 0 : AGENTS_FLOATING_PANEL_GAP),
+			gap: derived(reader => this._compact.read(reader) ? 0 : spacing.read(reader)),
 			// The cards keep the gap to the edges of the window as the main window's do; the title row spans the window at the top.
 			outerInsets: derived(reader => {
 				const gap = density.read(reader) === ModernUIDensity.Compact ? 0 : AGENTS_FLOATING_PANEL_GAP;
@@ -744,7 +540,7 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 	}
 
 	async resolveContent(resource: URI): Promise<SessionsChatWindowContent | undefined> {
-		if (isChatWindowComposerResource(resource) ? !this._composers.hasStored(resource) : !resolveChat(this._sessionsManagementService, resource)) {
+		if (isChatWindowComposerResource(resource) ? !this._composers.hasStored(resource) : !resolveSessionChat(this._sessionsManagementService, resource)) {
 			return undefined;
 		}
 		const content = this._instantiationService.createInstance(SessionsChatWindowContent, this._composers, (original: URI, canonical: URI) => {
@@ -758,7 +554,7 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 	}
 
 	async moveToMainWindow(chats: readonly URI[], editors: IChatWindowEditors): Promise<void> {
-		const moved = chats.map(chat => resolveChat(this._sessionsManagementService, chat)).filter(resolved => !!resolved)
+		const moved = chats.map(chat => resolveSessionChat(this._sessionsManagementService, chat)).filter(resolved => !!resolved)
 			.map(resolved => ({ session: resolved.session, chatResource: resolved.chat ?? resolved.session.mainChat.get().resource }));
 		const first = moved[0];
 		if (!first) {
@@ -799,14 +595,20 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 			return resolved;
 		}
 		// What it would resolve as now, from what is known: a stored composer as the session its send started, once that is
-		// known and created, a session as its main chat.
+		// known and created, a session as its main chat, a chat by a previous identity of its session as its current resource.
 		if (isChatWindowComposerResource(original)) {
 			const sent = this._composers.storedAttemptSessionOf(original);
 			const session = sent && this._sessionsManagementService.getSession(sent);
 			return session && isSessionCreated(session) ? session.mainChat.get().resource : undefined;
 		}
-		const chat = resolveChat(this._sessionsManagementService, original);
-		return chat && !chat.chat ? chat.session.mainChat.get().resource : undefined;
+		const known = resolveSessionChat(this._sessionsManagementService, original);
+		if (!known) {
+			return undefined;
+		}
+		if (!known.chat) {
+			return known.session.mainChat.get().resource;
+		}
+		return isEqual(known.chat, original) ? undefined : known.chat;
 	}
 
 	/** Opens a new-session composer in `window`, as {@link SessionsChatWindowContent.openNewChat} does. */
@@ -833,24 +635,8 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		return !isChatWindowChatGone(session, resolved.chat, undefined);
 	}
 
-	private async _waitForChat(resource: URI): Promise<IResolvedChat | undefined> {
-		const resolved = resolveChat(this._sessionsManagementService, resource);
-		if (resolved) {
-			return resolved;
-		}
-		const store = new DisposableStore();
-		try {
-			return await raceTimeout(new Promise<IResolvedChat | undefined>(resolve => {
-				store.add(this._sessionsManagementService.onDidChangeSessions(() => {
-					const loaded = resolveChat(this._sessionsManagementService, resource);
-					if (loaded) {
-						resolve(loaded);
-					}
-				}));
-			}), RESTORE_SESSION_TIMEOUT);
-		} finally {
-			store.dispose();
-		}
+	private _waitForChat(resource: URI): Promise<IResolvedSessionChat | undefined> {
+		return waitForSessionChat(this._sessionsManagementService, resource);
 	}
 
 	/**
@@ -875,6 +661,7 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 	 */
 	private _createStrip(container: HTMLElement): IChatWindowChromeElement {
 		container.classList.add('session-activity-bar-host');
+		const editorTabStyle = observableConfigValue<ModernUIEditorTabStyle>(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, ModernUIEditorTabStyle.Connected, this._configurationService);
 		const registration = registerSessionActivityBarExternalHost(container.ownerDocument.body, {
 			element: container,
 			active: constObservable(true),
@@ -884,7 +671,7 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		return {
 			visible: observableConfigValue<boolean>(SESSION_ACTIVITY_BAR_SETTING, true, this._configurationService),
 			// Right beside the cards, the gap to them in the column, as in the main window's column; see the grid.
-			size: derived(reader => getChatWindowStripWidth(this._compact.read(reader), this._stripSize.read(reader))),
+			size: derived(reader => getChatWindowStripWidth(this._compact.read(reader), this._stripSize.read(reader), this.look.gap.read(reader), editorTabStyle.read(reader) === ModernUIEditorTabStyle.Connected)),
 			layout: () => { },
 			dispose: () => registration.dispose(),
 		};

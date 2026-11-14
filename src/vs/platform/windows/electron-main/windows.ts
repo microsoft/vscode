@@ -33,6 +33,7 @@ export interface IWindowsMainService {
 	readonly onDidMaximizeWindow: Event<ICodeWindow>;
 	readonly onDidUnmaximizeWindow: Event<ICodeWindow>;
 	readonly onDidChangeFullScreen: Event<{ window: ICodeWindow; fullscreen: boolean }>;
+	readonly onDidChangeAlwaysOnTop: Event<{ window: ICodeWindow; alwaysOnTop: boolean }>;
 	readonly onDidTriggerSystemContextMenu: Event<{ readonly window: ICodeWindow; readonly x: number; readonly y: number }>;
 	readonly onDidDestroyWindow: Event<ICodeWindow>;
 
@@ -142,6 +143,42 @@ export interface IDefaultBrowserWindowOptionsOverrides {
 	notResizable?: boolean;
 	noBackgroundThrottling?: boolean;
 	backgroundColor?: string;
+	panel?: boolean;
+	opacity?: number;
+}
+
+/**
+ * Whether windows must never be shown or focused: `--hidden-window` is
+ * only honored when running extension tests (`--extensionTestsPath`).
+ */
+export function isHiddenWindowMode(environmentMainService: IEnvironmentMainService): boolean {
+	return environmentMainService.args['hidden-window'] === true && !!environmentMainService.extensionTestsLocationURI;
+}
+
+/**
+ * Whether background throttling may be enabled at runtime: a hidden window
+ * is never visible, so throttling would apply to it permanently.
+ */
+export function isBackgroundThrottlingAllowed(environmentMainService: IEnvironmentMainService, allowed: boolean): boolean {
+	return allowed && !isHiddenWindowMode(environmentMainService);
+}
+
+/**
+ * The mode an auxiliary window is restored into. Fullscreen is restored as
+ * maximized because auxiliary windows do not support restoring fullscreen.
+ */
+export function getAuxiliaryWindowRestoreMode(mode: WindowMode | undefined): WindowMode {
+	return mode === WindowMode.Maximized || mode === WindowMode.Fullscreen ? WindowMode.Maximized : WindowMode.Normal;
+}
+
+/**
+ * The mode an auxiliary window is restored into when it is claimed. Prefer the
+ * mode requested at creation: `options.show` is also false for windows that are
+ * hidden with `--hidden-window`. Otherwise probe `options.show`, because
+ * maximized windows are never shown initially to reduce flicker.
+ */
+export function getClaimedAuxiliaryWindowMode(requestedMode: WindowMode | undefined, options: electron.BrowserWindowConstructorOptions): WindowMode {
+	return requestedMode ?? (options.show === false ? WindowMode.Maximized : WindowMode.Normal);
 }
 
 export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, overrides?: IDefaultBrowserWindowOptionsOverrides, webPreferences?: electron.WebPreferences): electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
@@ -247,8 +284,21 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		}
 	}
 
-	if (overrides?.alwaysOnTop) {
+	if (overrides?.alwaysOnTop ?? windowState.alwaysOnTop) {
 		options.alwaysOnTop = true;
+	}
+
+	if (overrides?.panel) {
+		options.fullscreenable = false;
+		if (isMacintosh) {
+			options.type = 'panel';
+		} else {
+			options.skipTaskbar = true;
+		}
+	}
+
+	if (typeof overrides?.opacity === 'number') {
+		options.opacity = overrides.opacity;
 	}
 
 	if (overrides?.frameless) {
@@ -276,6 +326,14 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		options.webPreferences = {
 			...options.webPreferences,
 			backgroundThrottling: false,
+		};
+	}
+
+	if (isHiddenWindowMode(environmentMainService)) {
+		options.show = false;
+		options.webPreferences = {
+			...options.webPreferences,
+			backgroundThrottling: false, // a never shown window must keep timers, animation frames and page visibility like a visible one
 		};
 	}
 

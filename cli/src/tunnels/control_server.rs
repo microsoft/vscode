@@ -105,10 +105,10 @@ struct HandlerContext {
 	http: Arc<FallbackSimpleHttp>,
 	/// requests being served by the client
 	http_requests: HttpRequestsMap,
-	/// Shared handle to the background `ensure_supervisor_running` task,
-	/// awaited in `handle_serve` to mix the bridge info into the spawned
-	/// server's args. `None` for callers (e.g. `command-shell`) that
-	/// already applied the bridge eagerly.
+	/// Shared `ensure_supervisor_running` future, awaited in `handle_serve`
+	/// so the spawned server can discover the supervisor via the shared
+	/// local agent-host endpoint registry. `None` for `command-shell`, whose
+	/// server starts its own agent host when no shared one is running.
 	active_agent_host: Option<SharedActiveAgentHost>,
 }
 
@@ -220,13 +220,13 @@ pub async fn serve(
 	// The supervisor is the only process that binds the user-facing TCP
 	// listener and publishes the canonical registry entry; we never spawn
 	// an in-process sidecar here. This future is genuinely lazy: nothing
-	// drives it until a consumer that actually needs the legacy (v5)
-	// single-supervisor endpoint awaits a clone of it — currently
-	// `handle_serve`'s `agentHostProxy` bridge, and the root/default route
-	// of the `agent-host` port forwarder below. A tunnel that nobody
-	// connects to must not spawn a standalone supervisor by itself; the
-	// protocol-v6 selection route (also below) consults the registry
-	// directly instead and never touches this future.
+	// drives it until a consumer needs the supervisor — currently
+	// `handle_serve`, so the spawned server discovers it via the registry,
+	// and the legacy (v5) root/default route of the `agent-host` port
+	// forwarder below. A tunnel that nobody connects to must not spawn a
+	// standalone supervisor by itself; the protocol-v6 selection route
+	// (also below) consults the registry directly and never touches this
+	// future.
 	let active_agent_host: SharedActiveAgentHost = {
 		let launcher_paths = launcher_paths.clone();
 		let log = log.clone();
@@ -811,17 +811,19 @@ async fn handle_serve(
 	csa.connection_token = params.connection_token.or(csa.connection_token);
 	csa.install_extensions.extend(params.extensions);
 
-	// Mix in the agent-host bridge info now that we actually need to spawn
-	// the VS Code server. `active_agent_host` is genuinely lazy (see the
-	// comment in `serve()`), so awaiting it here is what first drives the
-	// supervisor to start. If it failed we still serve — the renderer
-	// just won't see `agentHostProxy`.
+	// Ensure the supervisor is running before spawning the VS Code server
+	// so the server can discover it via the shared local agent-host endpoint
+	// registry. `active_agent_host` is genuinely lazy (see `serve()`), so
+	// awaiting it here first drives the supervisor to start. The bridge
+	// arguments are only for servers that predate registry discovery, since
+	// the client may request an older server commit; newer servers ignore
+	// them. On failure, the server will start its own agent host.
 	if let Some(ah_fut) = c.active_agent_host.clone() {
 		match ah_fut.await {
 			Ok(a) => a.apply_to_bridge(&mut csa),
 			Err(e) => warning!(
 				c.log,
-				"Agent host supervisor unavailable; renderer will not see agentHostProxy: {}",
+				"Agent host supervisor unavailable; server will start its own agent host: {}",
 				e
 			),
 		}

@@ -13,7 +13,6 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
 import { URI } from '../../../../base/common/uri.js';
-import { OperatingSystem } from '../../../../base/common/platform.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
@@ -25,7 +24,7 @@ import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../common/agentHostUri
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../storage/common/storage.js';
 import type { StorageValue } from '../../../../base/parts/storage/common/storage.js';
-import type { Implementation } from '../../common/state/protocol/common/commands.js';
+import { PathStyle, type Implementation, type InitializeResult } from '../../common/state/protocol/common/commands.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 import { AHP_UNSUPPORTED_PROTOCOL_VERSION, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { computeReconnectDelay } from '../../common/reconnectPolicy.js';
@@ -69,15 +68,12 @@ class MockProtocolClient extends Disposable {
 	readonly onDidReceiveOtlpLogs = Event.None;
 	readonly onDidConnectionDiagnostic = Event.None;
 	readonly connectionState = 'connecting' as const;
-	readonly initializeResult = undefined;
+	connectionError: ProtocolError | undefined;
+	readonly initializeResult = observableValue<InitializeResult | undefined>(this, undefined);
 	readonly telemetryCapabilities = undefined;
 	readonly triggerVscodeUpgradeCalls: string[] = [];
-	operatingSystem = 'linux';
-	networkDiagnosticsError: Error | undefined;
-	networkDiagnosticsDeferred: DeferredPromise<void> | undefined;
+	pathStyle: PathStyle | undefined;
 	networkDiagnosticsRequestCount = 0;
-	/** Completes when the first network diagnostics request (the host operating system lookup) is issued. */
-	readonly networkDiagnosticsRequested = new DeferredPromise<void>();
 	nextReconnectAt: number | undefined;
 	reconnectNowCalls = 0;
 	reconnectNowResult = false;
@@ -89,7 +85,18 @@ class MockProtocolClient extends Disposable {
 	}
 
 	async connect(): Promise<void> {
-		return this.connectDeferred.p;
+		await this.connectDeferred.p;
+		this.publishPathStyle(this.pathStyle);
+	}
+
+	publishPathStyle(pathStyle: PathStyle | undefined): void {
+		this.pathStyle = pathStyle;
+		this.initializeResult.set({
+			protocolVersion: '1.0.0',
+			serverSeq: 0,
+			snapshots: [],
+			...(pathStyle === undefined ? {} : { environment: { pathStyle } }),
+		}, undefined);
 	}
 
 	get isDisposed(): boolean {
@@ -108,18 +115,9 @@ class MockProtocolClient extends Disposable {
 
 	async getNetworkDiagnosticsInfo() {
 		this.networkDiagnosticsRequestCount++;
-		this.networkDiagnosticsRequested.complete();
-		const deferred = this.networkDiagnosticsDeferred;
-		const error = this.networkDiagnosticsError;
-		if (deferred) {
-			await deferred.p;
-		}
-		if (error) {
-			throw error;
-		}
 		return {
 			version: '1.0.0',
-			os: this.operatingSystem,
+			os: 'linux',
 			arch: 'x64',
 			proxySettings: {},
 			proxyEnv: {},
@@ -277,6 +275,13 @@ class TestConfigurationService {
 		this._enabled = enabled;
 		this._onDidChangeConfiguration.fire({
 			affectsConfiguration: (key: string) => key === RemoteAgentHostsEnabledSettingId,
+		});
+	}
+
+	setAutoConnect(autoConnect: boolean): void {
+		this._autoConnect = autoConnect;
+		this._onDidChangeConfiguration.fire({
+			affectsConfiguration: (key: string) => key === RemoteAgentHostAutoConnectSettingId,
 		});
 	}
 
@@ -916,6 +921,60 @@ suite('RemoteAgentHostService', () => {
 	});
 
 	suite('factory connections', () => {
+		for (const autoConnect of [false, true]) {
+			for (const { name, error, retryable } of [
+				{ name: 'cancellation', error: new CancellationError(), retryable: false },
+				{ name: 'host key denial', error: new NonReconnectableTransportError('Host key denied'), retryable: false },
+				{ name: 'network failure', error: new Error('connect ETIMEDOUT'), retryable: true },
+			]) {
+				test(`SSH ${name} follows the service retry policy (auto-connect ${autoConnect})`, () => runWithFakedTimers({}, async () => {
+					configService.setAutoConnect(autoConnect);
+					const attempts: (boolean | undefined)[] = [];
+					const factory = disposables.add(new class extends TestConnectionFactory {
+						override createConnection(entry: IRemoteAgentHostEntry, options?: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
+							attempts.push(options?.userInitiated);
+							return super.createConnection(entry);
+						}
+					}(RemoteAgentHostEntryType.SSH));
+					disposables.add(service.registerConnectionFactory(factory));
+					const entry: IRemoteAgentHostEntry = {
+						name: 'Machine',
+						connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:machine', sshConfigHost: 'machine', hostName: 'machine.example' },
+					};
+					const address = getEntryAddress(entry);
+					factory.stageFailure(entry, error);
+					if (!autoConnect) {
+						service.reconnect(address, true);
+					}
+					await assert.rejects(service.waitForConnection(address), err => err === error);
+					while (service.pendingConnections.length) {
+						await Event.toPromise(service.onDidChangePendingConnections);
+					}
+
+					const replacement = disposables.add(new MockProtocolClient(address));
+					factory.stage(entry, replacement);
+					await replacement.connectDeferred.complete();
+					await timeout(60_000);
+					const beforeExplicitReconnect = attempts.slice();
+					const recoveredAutomatically = retryable && autoConnect;
+					if (!recoveredAutomatically) {
+						service.reconnect(address, true);
+					}
+					const connected = await service.waitForConnection(address);
+
+					assert.deepStrictEqual({
+						beforeExplicitReconnect,
+						attempts,
+						status: connected.status,
+					}, {
+						beforeExplicitReconnect: recoveredAutomatically ? [false, false] : [!autoConnect],
+						attempts: recoveredAutomatically ? [false, false] : [!autoConnect, true],
+						status: RemoteAgentHostConnectionStatus.connected,
+					});
+				}));
+			}
+		}
+
 		function connectionState(address: string) {
 			const connection = service.connections.find(connection => connection.address === address);
 			return { status: connection?.status, lastConnectionError: connection?.lastConnectionError };
@@ -1458,20 +1517,42 @@ suite('RemoteAgentHostService', () => {
 			assert.strictEqual((await recovered).address, address);
 		}));
 
-		test('authentication restoration failure rejects callers waiting for recovery', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('protocol incompatibility rejects callers waiting for recovery', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const factory = createFactory();
 			const entry = cloudSandboxEntry('Environment', 'cloudsandbox:failed-auth-wait');
 			const address = getEntryAddress(entry);
 			const client = disposables.add(new MockProtocolClient(address));
 			await reconnectStagedConnection(factory, entry, client);
 			client.fireConnectionState('reconnecting');
-			const recovered = assert.rejects(service.waitForConnection(address), /Authentication failed/);
+			const recovered = assert.rejects(service.waitForConnection(address), /protocol versions/);
 			client.fireConnectionState('incompatible');
 			await recovered;
-			await assert.rejects(service.waitForConnection(address), /Authentication failed/);
+			await assert.rejects(service.waitForConnection(address), /protocol versions/);
 		}));
 
-		test('authentication restoration failure is terminal rather than an outer retry', () => runWithFakedTimers({}, async () => {
+		test('recovery preserves host protocol versions and the advertised server upgrade method', async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Environment', 'cloudsandbox:upgrade-after-recovery');
+			const address = getEntryAddress(entry);
+			const client = disposables.add(new MockProtocolClient(address));
+			await reconnectStagedConnection(factory, entry, client);
+			client.fireConnectionState('reconnecting');
+			const waiting = assert.rejects(service.waitForConnection(address), /host requires an upgrade/);
+			client.connectionError = new ProtocolError(AHP_UNSUPPORTED_PROTOCOL_VERSION, 'host requires an upgrade', {
+				supportedVersions: ['2.0.0'], _meta: { vscodeUpgradeMethod: '_vscodeUpgrade' },
+			});
+			client.fireConnectionState('incompatible');
+			await waiting;
+			const status = service.connections[0].status;
+			assert.ok(RemoteAgentHostConnectionStatus.isIncompatible(status));
+			const upgrade = await service.triggerServerUpgrade(address, status.vscodeUpgradeMethod!);
+			assert.deepStrictEqual({ status, upgrade, methods: client.triggerVscodeUpgradeCalls }, {
+				status: RemoteAgentHostConnectionStatus.incompatible('host requires an upgrade', ['1.0.0', '0.10.0', '0.9.0'], ['2.0.0'], '_vscodeUpgrade'),
+				upgrade: { ok: true, upgradeStarted: true }, methods: ['_vscodeUpgrade'],
+			});
+		});
+
+		test('protocol incompatibility stops outer retries', () => runWithFakedTimers({}, async () => {
 			const factory = createFactory();
 			const entry = cloudSandboxEntry('Sandbox', 'cloudsandbox:auth');
 			const client = disposables.add(new MockProtocolClient(getEntryAddress(entry)));
@@ -1491,9 +1572,44 @@ suite('RemoteAgentHostService', () => {
 					{ state: 'reconnecting', time: 1000 },
 					{ state: 'failed', time: 3000 },
 				],
-				status: RemoteAgentHostConnectionStatus.incompatible('Authentication failed during connection initialization.', ['1.0.0', '0.10.0', '0.9.0']),
+				status: RemoteAgentHostConnectionStatus.incompatible('The remote agent host does not support this client\'s protocol versions.', ['1.0.0', '0.10.0', '0.9.0']),
 			});
 		}));
+
+		for (const kind of [RemoteAgentHostEntryType.CloudSandbox, RemoteAgentHostEntryType.SSH]) {
+			for (const scenario of ['automatic', 'manual', 'recovery'] as const) {
+				test(`rejected agent authentication retains its recovery guidance without retrying (${kind}, ${scenario})`, () => runWithFakedTimers({}, async () => {
+					const factory = createFactory(kind);
+					const entry: IRemoteAgentHostEntry = kind === RemoteAgentHostEntryType.SSH
+						? { name: 'Machine', connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:rejected-auth', sshConfigHost: 'rejected-auth', hostName: 'machine.example' } }
+						: cloudSandboxEntry('Environment', 'cloudsandbox:rejected-auth');
+					const address = getEntryAddress(entry);
+					const client = disposables.add(new MockProtocolClient(address));
+					if (scenario === 'recovery') {
+						await reconnectStagedConnection(factory, entry, client);
+						client.fireConnectionState('reconnecting');
+						const waiting = assert.rejects(service.waitForConnection(address), /Authentication failed/);
+						client.fireClose(AgentHostTransportFailureReason.AuthenticationFailed);
+						await waiting;
+					} else {
+						factory.stage(entry, client);
+						service.reconnect(address, scenario === 'manual');
+						const waiting = assert.rejects(service.waitForConnection(address), /Authentication failed/);
+						await waitForFactoryConnection(factory, 1);
+						client.fireClose(AgentHostTransportFailureReason.AuthenticationFailed);
+						await client.connectDeferred.error(new InitialAuthenticationError(new Error('credential rejected')));
+						await waiting;
+					}
+					await timeout(60_000);
+					assert.deepStrictEqual({ creations: factory.createdConnectionCount, status: service.connections[0].status, error: service.connections[0].lastConnectionError }, {
+						creations: 1,
+						status: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.AuthenticationFailed),
+						error: 'Authentication failed. Reconnect to sign in again.',
+					});
+					service.dispose();
+				}));
+			}
+		}
 
 		for (const initiallyConnected of [false, true]) {
 			test(`does not restart client-owned recovery after ${initiallyConnected ? 'a live connection' : 'an initial handshake'} gives up`, () => runWithFakedTimers({}, async () => {
@@ -1720,41 +1836,37 @@ suite('RemoteAgentHostService', () => {
 			assert.strictEqual(factory.createdConnectionCount, 1);
 		});
 
-		for (const authenticationFailure of [false, true]) {
-			test(`keeps an incompatible factory connection addressable for server upgrade after ${authenticationFailure ? 'authentication' : 'protocol negotiation'} failure`, async () => {
-				const factory = createFactory();
-				const entry = cloudSandboxEntry('Cloud Sandbox', 'cloud:incompatible');
-				const client = new MockProtocolClient('cloud:incompatible');
-				factory.stage(entry, client);
-				service.reconnect(getEntryAddress(entry));
-				const wait = service.waitForConnection(getEntryAddress(entry));
-				await waitForFactoryConnection(factory, 1);
-				const changed = Event.toPromise(service.onDidChangeConnections);
-				const error = authenticationFailure
-					? new InitialAuthenticationError(new Error('Unsupported protocol version'))
-					: new ProtocolError(AHP_UNSUPPORTED_PROTOCOL_VERSION, 'Unsupported protocol version', { supportedVersions: ['2.0.0'] });
-				const originalFailure = assert.rejects(wait, rejected => rejected === error);
-				client.fireConnectionState('incompatible');
-				const joiningFailure = assert.rejects(service.waitForConnection(getEntryAddress(entry)), rejected => rejected === error);
-				client.connectDeferred.error(error);
-				await changed;
-				await Promise.all([originalFailure, joiningFailure]);
+		test('keeps a protocol-incompatible factory connection addressable for server upgrade', async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Cloud Sandbox', 'cloud:incompatible');
+			const client = new MockProtocolClient('cloud:incompatible');
+			factory.stage(entry, client);
+			service.reconnect(getEntryAddress(entry));
+			const wait = service.waitForConnection(getEntryAddress(entry));
+			await waitForFactoryConnection(factory, 1);
+			const changed = Event.toPromise(service.onDidChangeConnections);
+			const error = new ProtocolError(AHP_UNSUPPORTED_PROTOCOL_VERSION, 'Unsupported protocol version', { supportedVersions: ['2.0.0'] });
+			const originalFailure = assert.rejects(wait, rejected => rejected === error);
+			client.fireConnectionState('incompatible');
+			const joiningFailure = assert.rejects(service.waitForConnection(getEntryAddress(entry)), rejected => rejected === error);
+			client.connectDeferred.error(error);
+			await changed;
+			await Promise.all([originalFailure, joiningFailure]);
 
-				const upgradeResult = await service.triggerServerUpgrade('cloud:incompatible', '_vscodeUpgrade');
+			const upgradeResult = await service.triggerServerUpgrade('cloud:incompatible', '_vscodeUpgrade');
 
-				assert.deepStrictEqual({
-					status: service.connections[0].status,
-					connectedConnection: service.getConnection('cloud:incompatible'),
-					upgradeCalls: client.triggerVscodeUpgradeCalls,
-					upgradeResult,
-				}, {
-					status: RemoteAgentHostConnectionStatus.incompatible(error.message, ['1.0.0', '0.10.0', '0.9.0'], authenticationFailure ? undefined : ['2.0.0']),
-					connectedConnection: undefined,
-					upgradeCalls: ['_vscodeUpgrade'],
-					upgradeResult: { ok: true, upgradeStarted: true },
-				});
+			assert.deepStrictEqual({
+				status: service.connections[0].status,
+				connectedConnection: service.getConnection('cloud:incompatible'),
+				upgradeCalls: client.triggerVscodeUpgradeCalls,
+				upgradeResult,
+			}, {
+				status: RemoteAgentHostConnectionStatus.incompatible(error.message, ['1.0.0', '0.10.0', '0.9.0'], ['2.0.0']),
+				connectedConnection: undefined,
+				upgradeCalls: ['_vscodeUpgrade'],
+				upgradeResult: { ok: true, upgradeStarted: true },
 			});
-		}
+		});
 
 		test('records factory and setup stages before an entry exists and preserves failure evidence', async () => {
 			const pending = new DeferredPromise<IRemoteAgentHostCreatedConnection>();
@@ -2082,130 +2194,118 @@ suite('RemoteAgentHostService', () => {
 		});
 	});
 
-	suite('host operating system', () => {
-		async function waitForOperatingSystem(address: string, operatingSystem: OperatingSystem): Promise<void> {
-			while (service.connections.find(connection => connection.address === address)?.operatingSystem !== operatingSystem) {
+	suite('host path style', () => {
+		async function waitForPathStyle(address: string, pathStyle: PathStyle): Promise<void> {
+			while (service.connections.find(connection => connection.address === address)?.pathStyle !== pathStyle) {
 				await Event.toPromise(service.onDidChangeConnections);
 			}
 		}
 
-		test('resolves mixed authority operating systems independently', async () => {
+		test('resolves mixed authority path styles independently without diagnostics', async () => {
 			configService.setEntries([
 				{ name: 'Windows', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://windows:8080' } },
-				{ name: 'Linux', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://linux:8080' } },
+				{ name: 'POSIX', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://posix:8080' } },
 			]);
 			await waitForCreatedClients(2);
-			createdClients[0].operatingSystem = 'win32';
-			createdClients[1].operatingSystem = 'linux';
+			createdClients[0].pathStyle = PathStyle.Windows;
+			createdClients[1].pathStyle = PathStyle.Posix;
 			createdClients[0].connectDeferred.complete();
 			createdClients[1].connectDeferred.complete();
 			await Promise.all([
-				waitForOperatingSystem('windows:8080', OperatingSystem.Windows),
-				waitForOperatingSystem('linux:8080', OperatingSystem.Linux),
+				waitForPathStyle('windows:8080', PathStyle.Windows),
+				waitForPathStyle('posix:8080', PathStyle.Posix),
 			]);
 
 			assert.deepStrictEqual(service.connections.map(connection => ({
 				address: connection.address,
-				operatingSystem: connection.operatingSystem,
+				pathStyle: connection.pathStyle,
 			})), [
-				{ address: 'windows:8080', operatingSystem: OperatingSystem.Windows },
-				{ address: 'linux:8080', operatingSystem: OperatingSystem.Linux },
+				{ address: 'windows:8080', pathStyle: PathStyle.Windows },
+				{ address: 'posix:8080', pathStyle: PathStyle.Posix },
 			]);
+			assert.deepStrictEqual(createdClients.map(client => client.networkDiagnosticsRequestCount), [0, 0]);
 		});
 
-		test('retries operating system lookup after a soft reconnect', async () => {
-			configService.setEntries([{ name: 'Windows', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://windows:8080' } }]);
+		test('refreshes path style after a soft reconnect', async () => {
+			configService.setEntries([{ name: 'Host', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host:8080' } }]);
 			await waitForCreatedClients(1);
-			createdClients[0].operatingSystem = 'win32';
-			createdClients[0].networkDiagnosticsError = new Error('transport closed');
+			createdClients[0].pathStyle = PathStyle.Windows;
 			createdClients[0].connectDeferred.complete();
-			await waitForConnected();
-			await createdClients[0].networkDiagnosticsRequested.p;
-			// Let the rejected lookup finish (microtasks only), so the reconnect starts a new lookup instead of retrying an in-flight one.
-			await timeout(0);
-			createdClients[0].networkDiagnosticsError = undefined;
+			await waitForPathStyle('host:8080', PathStyle.Windows);
 
 			createdClients[0].fireConnectionState('reconnecting');
+			createdClients[0].publishPathStyle(PathStyle.Posix);
 			createdClients[0].fireConnectionState('connected');
-			await waitForOperatingSystem('windows:8080', OperatingSystem.Windows);
+			await waitForPathStyle('host:8080', PathStyle.Posix);
 
 			assert.deepStrictEqual({
-				operatingSystem: service.connections[0]?.operatingSystem,
+				pathStyle: service.connections[0]?.pathStyle,
 				networkDiagnosticsRequestCount: createdClients[0].networkDiagnosticsRequestCount,
 			}, {
-				operatingSystem: OperatingSystem.Windows,
-				networkDiagnosticsRequestCount: 2,
+				pathStyle: PathStyle.Posix,
+				networkDiagnosticsRequestCount: 0,
 			});
 		});
 
-		test('retries an in-flight operating system lookup after a soft reconnect', async () => {
-			configService.setEntries([{ name: 'Windows', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://windows:8080' } }]);
-			await waitForCreatedClients(1);
-			createdClients[0].operatingSystem = 'win32';
-			createdClients[0].networkDiagnosticsError = new Error('transport closed');
-			const initialRequest = createdClients[0].networkDiagnosticsDeferred = new DeferredPromise<void>();
-			createdClients[0].connectDeferred.complete();
-			await waitForConnected();
-			await createdClients[0].networkDiagnosticsRequested.p;
-
-			createdClients[0].fireConnectionState('reconnecting');
-			createdClients[0].fireConnectionState('connected');
-			createdClients[0].networkDiagnosticsDeferred = undefined;
-			createdClients[0].networkDiagnosticsError = undefined;
-			initialRequest.complete();
-			await waitForOperatingSystem('windows:8080', OperatingSystem.Windows);
-
-			assert.strictEqual(createdClients[0].networkDiagnosticsRequestCount, 2);
-		});
-
-		test('retains the last known operating system while redialing and refreshes replacement connections', async () => {
+		test('retains the last known path style while redialing and refreshes replacement connections', async () => {
 			configService.setEntries([{ name: 'Host', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host:8080' } }]);
 			await waitForCreatedClients(1);
-			createdClients[0].operatingSystem = 'win32';
+			createdClients[0].pathStyle = PathStyle.Windows;
 			createdClients[0].connectDeferred.complete();
-			await waitForOperatingSystem('host:8080', OperatingSystem.Windows);
+			await waitForPathStyle('host:8080', PathStyle.Windows);
 
 			service.reconnect('host:8080');
 			await waitForCreatedClients(2);
-			const whileRedialing = service.connections[0]?.operatingSystem;
-			createdClients[1].operatingSystem = 'linux';
+			const whileRedialing = service.connections[0]?.pathStyle;
+			createdClients[1].pathStyle = PathStyle.Posix;
 			createdClients[1].connectDeferred.complete();
-			await waitForOperatingSystem('host:8080', OperatingSystem.Linux);
+			await waitForPathStyle('host:8080', PathStyle.Posix);
 
 			assert.deepStrictEqual({
 				whileRedialing,
-				afterReplacement: service.connections[0]?.operatingSystem,
+				afterReplacement: service.connections[0]?.pathStyle,
 			}, {
-				whileRedialing: OperatingSystem.Windows,
-				afterReplacement: OperatingSystem.Linux,
+				whileRedialing: PathStyle.Windows,
+				afterReplacement: PathStyle.Posix,
 			});
 		});
 
-		test('clears operating system state on removal and disablement', async () => {
+		test('clears path style on replacement without metadata, removal, and disablement', async () => {
 			const entry: IRemoteAgentHostEntry = { name: 'Host', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host:8080' } };
 			configService.setEntries([entry]);
 			await waitForCreatedClients(1);
-			createdClients[0].operatingSystem = 'win32';
+			createdClients[0].pathStyle = PathStyle.Windows;
 			createdClients[0].connectDeferred.complete();
-			await waitForOperatingSystem('host:8080', OperatingSystem.Windows);
+			await waitForPathStyle('host:8080', PathStyle.Windows);
+
+			service.reconnect('host:8080');
+			await waitForCreatedClients(2);
+			const whileRedialing = service.connections[0]?.pathStyle;
+			createdClients[1].connectDeferred.complete();
+			await waitForConnected();
+			const afterReplacement = service.connections[0]?.pathStyle;
 
 			configService.setEntries([]);
 			configService.setEntries([entry]);
-			await waitForCreatedClients(2);
-			const afterRemoval = service.connections[0]?.operatingSystem;
-			createdClients[1].operatingSystem = 'linux';
-			createdClients[1].connectDeferred.complete();
-			await waitForOperatingSystem('host:8080', OperatingSystem.Linux);
+			await waitForCreatedClients(3);
+			const afterRemoval = service.connections[0]?.pathStyle;
+			createdClients[2].pathStyle = PathStyle.Posix;
+			createdClients[2].connectDeferred.complete();
+			await waitForPathStyle('host:8080', PathStyle.Posix);
 
 			configService.setEnabled(false);
 			configService.setEnabled(true);
-			await waitForCreatedClients(3);
-			const afterDisablement = service.connections[0]?.operatingSystem;
+			await waitForCreatedClients(4);
+			const afterDisablement = service.connections[0]?.pathStyle;
 
 			assert.deepStrictEqual({
+				whileRedialing,
+				afterReplacement,
 				afterRemoval,
 				afterDisablement,
 			}, {
+				whileRedialing: PathStyle.Windows,
+				afterReplacement: undefined,
 				afterRemoval: undefined,
 				afterDisablement: undefined,
 			});
@@ -2417,7 +2517,7 @@ suite('RemoteAgentHostService', () => {
 		test('updates formatter with native Windows path formatting after connecting', async () => {
 			configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
 			await waitForCreatedClients(1);
-			createdClients[0].operatingSystem = 'win32';
+			createdClients[0].pathStyle = PathStyle.Windows;
 			createdClients[0].connectDeferred.complete();
 
 			const formatter = await waitForFormatter('host1:8080', candidate => candidate?.formatting.separator === '\\');

@@ -1100,12 +1100,20 @@ export class PartGrid extends Disposable {
 	 * cell takes, so that the other cells keep their sizes.
 	 */
 	private addCell(cell: PartGridCell, location: PartGridLocation, size: number | undefined, donorId?: string): void {
+		// A cell that does not show, such as a part without editors, joins at its size without taking any room: the cells
+		// beside it keep their sizes until it shows
+		const invisible = !this.isCellVisible(cell.id);
 		if (!this.grid) {
 			this.setGrid(new PartGridLayout(cell, { proportionalLayout: true }));
 		} else if (hasKey(location, { reference: true })) {
-			this.grid.addView(cell, size ?? Sizing.Split, this.getCell(location.reference), location.direction);
+			const reference = this.getCell(location.reference);
+			const referenceSize = this.grid.getViewSize(reference);
+			const half = Math.round((location.direction === Direction.Up || location.direction === Direction.Down ? referenceSize.height : referenceSize.width) / 2);
+			// Beside a cell that does not show either, it shows in the row or column they then share as before: that would
+			// have nothing to show
+			this.grid.addView(cell, invisible && this.grid.isViewVisible(reference) ? Sizing.Invisible(size ?? half) : size ?? Sizing.Split, reference, location.direction);
 		} else {
-			this.addAtEdge(cell, location.edge, size, donorId);
+			this.addAtEdge(cell, location.edge, size, donorId, invisible);
 		}
 
 		this.updateAllVisibility();
@@ -1203,8 +1211,8 @@ export class PartGrid extends Disposable {
 		return this.empty.has(id);
 	}
 
-	private addAtEdge(cell: PartGridCell, edge: Direction, size: number | undefined, donorId?: string): void {
-		addAtEdge(this.arrangement(), cell, edge, size, donorId);
+	private addAtEdge(cell: PartGridCell, edge: Direction, size: number | undefined, donorId?: string, invisible = false): void {
+		addAtEdge(this.arrangement(), cell, edge, size, donorId, invisible);
 	}
 
 	/**
@@ -1444,6 +1452,15 @@ export class PartGrid extends Disposable {
 	}
 
 	/**
+	 * The least size of a cell, with the frame of its card, which the grid
+	 * holds it to.
+	 */
+	getCellMinimumSize(id: string): IViewSize {
+		const cell = this.getCell(id);
+		return { width: cell.minimumWidth, height: cell.minimumHeight };
+	}
+
+	/**
 	 * Resizes a cell; a dimension left out keeps its size.
 	 */
 	resizeCell(id: string, size: Partial<IViewSize>): void {
@@ -1655,12 +1672,20 @@ export class PartGrid extends Disposable {
 			changed = cell.setLook(insets, frames[index]) || changed;
 		});
 
-		updateGridGapSashes(grid, true);
+		updateGridGapSashes(grid, true, this.gap);
 
 		// Insets change the size constraints of the cells
 		if (changed && relayout) {
 			grid.layout(grid.width, grid.height);
 		}
+	}
+
+	/**
+	 * The topology, sizes and visibility of the cells of the grid, without the
+	 * state of the parts in them; see {@link createState}.
+	 */
+	serializeGrid(): ISerializedGrid | undefined {
+		return this.grid?.serialize();
 	}
 
 	/**
@@ -1827,41 +1852,41 @@ export function getGridWithViewOnTop(state: ISerializedGrid, id: string): ISeria
 	return { root: { type: 'branch', data: [pinned, ...below], size: state.width }, orientation: Orientation.VERTICAL, width: state.width, height: state.height };
 }
 
-function addAtEdge<T extends IArrangedView>(arrangement: IArrangement<T>, cell: T, edge: Direction, size: number | undefined, donorId?: string): void {
+function addAtEdge<T extends IArrangedView>(arrangement: IArrangement<T>, cell: T, edge: Direction, size: number | undefined, donorId?: string, invisible = false): void {
 	const grid = arrangement.grid;
 	const orientation = edge === Direction.Up || edge === Direction.Down ? Orientation.VERTICAL : Orientation.HORIZONTAL;
 	const atEnd = edge === Direction.Right || edge === Direction.Down;
-	if (addBesideSpanningViews(arrangement, cell, orientation, atEnd, size)) {
+	if (addBesideSpanningViews(arrangement, cell, orientation, atEnd, size, invisible)) {
 		return;
 	}
-	if (addAtEdgeOfParts(arrangement, cell, orientation, atEnd, size, donorId)) {
+	if (addAtEdgeOfParts(arrangement, cell, orientation, atEnd, size, donorId, invisible)) {
 		return;
 	}
 
 	const root = grid.getViews();
 	const edgeChild = root.children[atEnd ? root.children.length - 1 : 0];
+	const extent = orientation === Orientation.VERTICAL ? grid.height : grid.width;
 
 	// Beside the only cell, or beside a cell at that edge of the root
 	// along the grid's orientation, the grid adds it in place
 	if (!isGridBranchNode(edgeChild) && (root.children.length === 1 || (grid.orientation === orientation && donorId === undefined))) {
-		grid.addView(cell, size ?? Sizing.Distribute, edgeChild.view, edge);
+		grid.addView(cell, invisible ? Sizing.Invisible(size ?? Math.round(extent / (root.children.length + 1))) : size ?? Sizing.Distribute, edgeChild.view, edge);
 		return;
 	}
 
 	// Otherwise the grid is rebuilt with the cell at the edge of its root
 	const state = grid.serialize();
-	const extent = orientation === Orientation.VERTICAL ? state.height : state.width;
 	const children = state.root.type === 'branch' ? state.root.data : [state.root];
 	let cellSize = Math.min(size ?? Math.round(extent / (grid.orientation === orientation ? root.children.length + 1 : 2)), extent);
 	let newRoot: ISerializedNode;
 	if (grid.orientation === orientation) {
-		const donated = takeRoom(arrangement, children, cellSize, size, donorId);
+		const donated = invisible ? { children, size: cellSize } : takeRoom(arrangement, children, cellSize, size, donorId);
 		cellSize = donated.size;
-		const added: ISerializedNode = { type: 'leaf', data: cell.toJSON(), size: cellSize };
+		const added: ISerializedNode = { type: 'leaf', data: cell.toJSON(), size: cellSize, ...(invisible ? { visible: false } : {}) };
 		newRoot = { ...state.root, type: 'branch', data: atEnd ? [...donated.children, added] : [added, ...donated.children] };
 	} else {
-		const added: ISerializedNode = { type: 'leaf', data: cell.toJSON(), size: cellSize };
-		const rest: ISerializedNode = { type: 'branch', data: children, size: Math.max(0, extent - cellSize) };
+		const added: ISerializedNode = { type: 'leaf', data: cell.toJSON(), size: cellSize, ...(invisible ? { visible: false } : {}) };
+		const rest: ISerializedNode = { type: 'branch', data: children, size: invisible ? extent : Math.max(0, extent - cellSize) };
 		newRoot = { type: 'branch', data: atEnd ? [rest, added] : [added, rest], size: orientation === Orientation.VERTICAL ? state.width : state.height };
 	}
 	arrangement.replace({ root: newRoot, orientation, width: state.width, height: state.height });
@@ -1874,7 +1899,7 @@ function addAtEdge<T extends IArrangedView>(arrangement: IArrangement<T>, cell: 
  * spanning past the cell. Returns whether it added the cell: not without such
  * chrome there.
  */
-function addBesideSpanningViews<T extends IArrangedView>(arrangement: IArrangement<T>, cell: T, orientation: Orientation, atEnd: boolean, size: number | undefined): boolean {
+function addBesideSpanningViews<T extends IArrangedView>(arrangement: IArrangement<T>, cell: T, orientation: Orientation, atEnd: boolean, size: number | undefined, invisible: boolean): boolean {
 	const state = arrangement.grid.serialize();
 	// Chrome along the left or right edge spans the window from top to bottom, beside cells at its top or bottom edge
 	const spansAlongEdge = (id: string) => {
@@ -1916,15 +1941,17 @@ function addBesideSpanningViews<T extends IArrangedView>(arrangement: IArrangeme
 		return false;
 	}
 
-	const cellSize = Math.min(size ?? Math.round(extent / 2), extent);
-	const rest = Math.max(0, extent - cellSize);
-	const added: ISerializedNode = { type: 'leaf', data: cell.toJSON(), size: cellSize };
-	let beside: ISerializedNode;
 	const [only] = parts;
+	const shows = (child: ISerializedNode) => child.type !== 'leaf' || child.visible !== false;
+	// Not where nothing else in that column (or row) shows, which would then have nothing to show
+	const hides = invisible && (parts.length !== 1 || only.type !== 'branch' || only.data.some(shows));
+	const cellSize = Math.min(size ?? Math.round(extent / 2), extent);
+	const rest = hides ? extent : Math.max(0, extent - cellSize);
+	const added: ISerializedNode = { type: 'leaf', data: cell.toJSON(), size: cellSize, ...(hides ? { visible: false } : {}) };
+	let beside: ISerializedNode;
 	if (parts.length === 1 && only.type === 'branch') {
 		// A column (or row) along the edge already: the cell joins it at that end, and what shows in it makes room. Hidden
 		// children take no room: they keep the size they had, to show at again.
-		const shows = (child: ISerializedNode) => child.type !== 'leaf' || child.visible !== false;
 		const total = only.data.reduce((sum, child) => sum + (shows(child) ? child.size ?? 0 : 0), 0);
 		const factor = total ? rest / total : 1;
 		const data = only.data.map(child => shows(child) ? { ...child, size: Math.round((child.size ?? 0) * factor) } : child);
@@ -1949,7 +1976,7 @@ function addBesideSpanningViews<T extends IArrangedView>(arrangement: IArrangeme
  * holds the parts: a cell added there goes beside the parts, and the
  * views keep spanning the window. Returns whether it added the cell.
  */
-function addAtEdgeOfParts<T extends IArrangedView>(arrangement: IArrangement<T>, cell: T, orientation: Orientation, atEnd: boolean, size: number | undefined, donorId: string | undefined): boolean {
+function addAtEdgeOfParts<T extends IArrangedView>(arrangement: IArrangement<T>, cell: T, orientation: Orientation, atEnd: boolean, size: number | undefined, donorId: string | undefined, invisible: boolean): boolean {
 	const state = arrangement.grid.serialize();
 	const isView = (child: ISerializedNode) => child.type === 'leaf' && !arrangement.isPart((child.data as { id: string }).id);
 	const path: number[] = [];
@@ -1982,13 +2009,14 @@ function addAtEdgeOfParts<T extends IArrangedView>(arrangement: IArrangement<T>,
 	const extent = orientation === Orientation.VERTICAL ? state.height : state.width;
 	const cellSize = Math.min(size ?? Math.round(extent / (nodeOrientation === orientation ? node.data.length + 1 : 2)), extent);
 	let replacement: ISerializedNode;
+	const hidden = invisible ? { visible: false } : {};
 	if (nodeOrientation === orientation) {
-		const donated = takeRoom(arrangement, node.data, cellSize, size, donorId);
-		const added: ISerializedNode = { type: 'leaf', data: cell.toJSON(), size: donated.size };
+		const donated = invisible ? { children: node.data, size: cellSize } : takeRoom(arrangement, node.data, cellSize, size, donorId);
+		const added: ISerializedNode = { type: 'leaf', data: cell.toJSON(), size: donated.size, ...hidden };
 		replacement = { ...node, data: [...donated.children.slice(0, index), added, ...donated.children.slice(index)] };
 	} else {
-		const added: ISerializedNode = { type: 'leaf', data: cell.toJSON(), size: cellSize };
-		const rest: ISerializedNode = { type: 'branch', data: node.data, size: Math.max(0, (node.size ?? extent) - cellSize) };
+		const added: ISerializedNode = { type: 'leaf', data: cell.toJSON(), size: cellSize, ...hidden };
+		const rest: ISerializedNode = { type: 'branch', data: node.data, size: invisible ? node.size ?? extent : Math.max(0, (node.size ?? extent) - cellSize) };
 		replacement = { type: 'branch', data: atEnd ? [rest, added] : [added, rest], size: node.size };
 	}
 

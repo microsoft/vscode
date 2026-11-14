@@ -53,6 +53,7 @@ import { getCanvasReferenceKey, ICanvas, ICanvasReference } from '../../../../..
 suite('SessionCanvasService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const emptyRegistryService = upcastPartial<ISessionCanvasRegistryService>({
+		owner: constObservable({ providerId: 'local-agent-host', session: URI.parse('agent-host-session:/session'), chat: URI.parse('agent-host-chat:/session/main') }),
 		supportsCanvases: constObservable(false),
 		availableCanvases: constObservable([]),
 		openCanvas: async () => { },
@@ -489,6 +490,135 @@ suite('SessionCanvasService', () => {
 		});
 	});
 
+	test('reloads a retained page through its network once and keeps a failed same-source reload cached', async () => {
+		const harness = createHarness();
+		await harness.openSettled[0];
+		await Promise.resolve();
+		const input = harness.opened[0];
+		const events: string[] = [];
+		const proxyReady = new DeferredPromise<void>();
+		const pageLoaded = new DeferredPromise<void>();
+		let fail = false;
+		let creates = 0;
+		const model = upcastPartial<IBrowserViewModel>({
+			network: { authority: 'ssh-remote+host' },
+			onWillDispose: Event.None,
+			loadURL: async url => {
+				events.push(`load ${url}`);
+				if (fail) {
+					throw new Error('load failed');
+				}
+				await pageLoaded.p;
+			},
+			dispose: () => { },
+		});
+		harness.setCreateBrowserModelHandler(async () => { creates++; return model; });
+		harness.setAcquireNetworkHandler(async network => {
+			events.push('acquire');
+			await proxyReady.p;
+			return { object: network, dispose: () => events.push('release') };
+		});
+		const source = harness.canvas.source!;
+		await assert.rejects(harness.canvasService.resolveCanvasModel(input.reference, source, true), CancellationError);
+		await harness.canvasService.resolveCanvasModel(input.reference, source);
+		const first = harness.canvasService.resolveCanvasModel(input.reference, source, true);
+		const duplicate = harness.canvasService.resolveCanvasModel(input.reference, source, true);
+		const whileProxyStarts = [...events];
+		proxyReady.complete();
+		await timeout(0);
+		const whileLoading = [...events];
+		pageLoaded.complete();
+		const resolutions = await Promise.all([first, duplicate]);
+		fail = true;
+		await assert.rejects(harness.canvasService.resolveCanvasModel(input.reference, source, true), /load failed/);
+		const cached = await harness.canvasService.resolveCanvasModel(input.reference, source);
+
+		assert.deepStrictEqual({
+			creates, whileProxyStarts, whileLoading, events,
+			sameModel: [...resolutions, cached].every(resolution => resolution.model === model),
+			reused: [...resolutions, cached].map(resolution => resolution.reused),
+		}, {
+			creates: 1, whileProxyStarts: ['acquire'], whileLoading: ['acquire', 'load https://example.test/preview'],
+			events: ['acquire', 'load https://example.test/preview', 'release', 'acquire', 'load https://example.test/preview', 'release'],
+			sameModel: true, reused: [false, true, true],
+		});
+	});
+
+	test('does not reload a stale retained source after its remote proxy becomes ready', async () => {
+		const results: { transition: string; events: string[] }[] = [];
+		for (const transition of ['membership', 'source', 'owner', 'dispose']) {
+			const harness = createHarness();
+			await harness.openSettled[0];
+			await Promise.resolve();
+			const input = harness.opened[0];
+			const events: string[] = [];
+			const proxyReady = new DeferredPromise<void>();
+			harness.setCreateBrowserModelHandler(async () => upcastPartial<IBrowserViewModel>({
+				network: { authority: 'ssh-remote+host' },
+				onWillDispose: Event.None,
+				loadURL: async () => { events.push('load'); },
+				dispose: () => { },
+			}));
+			harness.setAcquireNetworkHandler(async network => {
+				events.push('acquire');
+				await proxyReady.p;
+				return { object: network, dispose: () => events.push('release') };
+			});
+			const source = harness.canvas.source!;
+			await harness.canvasService.resolveCanvasModel(input.reference, source);
+			const reloading = harness.canvasService.resolveCanvasModel(input.reference, source, true);
+			const rejected = assert.rejects(reloading, CancellationError);
+			if (transition === 'membership') {
+				harness.canvases.set(undefined, undefined);
+			} else if (transition === 'source') {
+				harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+			} else if (transition === 'owner') {
+				harness.activeSession.set(undefined, undefined);
+			} else {
+				harness.canvasService.dispose();
+			}
+			proxyReady.complete();
+			await rejected;
+			results.push({ transition, events });
+		}
+
+		assert.deepStrictEqual(results, ['membership', 'source', 'owner', 'dispose'].map(transition => ({ transition, events: ['acquire', 'release'] })));
+	});
+
+	test('reattaches the retained page without waiting for a manual reload that later fails', async () => {
+		const harness = createHarness();
+		await harness.openSettled[0];
+		await Promise.resolve();
+		const input = harness.opened[0];
+		const loading = new DeferredPromise<void>();
+		const model = upcastPartial<IBrowserViewModel>({
+			onWillDispose: Event.None,
+			loadURL: () => loading.p,
+			dispose: () => { },
+		});
+		harness.setCreateBrowserModelHandler(async () => model);
+		const source = harness.canvas.source!;
+		await harness.canvasService.resolveCanvasModel(input.reference, source);
+		const reloading = harness.canvasService.resolveCanvasModel(input.reference, source, true);
+		const failed = assert.rejects(reloading, /load failed/);
+		let reattached: ICanvasModelResolution | undefined;
+		let reattachError: Error | undefined;
+		const returning = harness.canvasService.resolveCanvasModel(input.reference, source).then(
+			resolution => { reattached = resolution; },
+			error => { reattachError = error; },
+		);
+		await timeout(0);
+		const attachedBeforeFailure = reattached?.model === model;
+		loading.error(new Error('load failed'));
+		await Promise.all([returning, failed]);
+		const cached = await harness.canvasService.resolveCanvasModel(input.reference, source);
+
+		assert.deepStrictEqual({
+			attachedBeforeFailure, sameModel: reattached?.model === model, reused: reattached?.reused,
+			reattachError: reattachError?.message, cached: cached.model === model,
+		}, { attachedBeforeFailure: true, sameModel: true, reused: true, reattachError: undefined, cached: true });
+	});
+
 	test('waits for the remote network proxy before loading a returning source into the retained page, and holds it until the load settles', async () => {
 		const pageLoaded = new DeferredPromise<void>();
 		const { harness, input, events } = await createRetainedPageAwaitingProvider({ authority: 'ssh-remote+host' }, () => pageLoaded.p);
@@ -792,7 +922,7 @@ suite('SessionCanvasService', () => {
 		});
 	});
 
-	test('contributes titled canvas instances to the Add Tab Canvas submenu', async () => {
+	test('contributes the chat\'s running canvases to the Add Tab Canvas submenu, with their tab open or closed', async () => {
 		const canvases: ISessionCanvas[] = [
 			{ resource: URI.parse('agent-host-canvas:/preview-editor'), instanceId: 'editor', title: 'Preview', source: URI.parse('https://example.test/editor') },
 			{ resource: URI.parse('agent-host-canvas:/preview-sidebar'), instanceId: 'sidebar', title: 'Preview', source: URI.parse('https://example.test/sidebar') },
@@ -803,13 +933,15 @@ suite('SessionCanvasService', () => {
 		];
 		const { canvasService, canvases: canvasStates, contextService, opened } = createHarness(true, canvases);
 		const registration = store.add(registerSessionCanvasActions(canvasService, emptyRegistryService, contextService));
-		for (const input of [...opened]) {
-			input.dispose();
-		}
 		const getItems = () => MenuRegistry.getMenuItems(AgentsWindowMenus.SessionsEditorTabsBarAddTabCanvas)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id.startsWith(`${REOPEN_SESSION_CANVAS_COMMAND_ID}.`))
 			.sort((first, second) => (first.order ?? 0) - (second.order ?? 0));
+		const getTitles = () => getItems().map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
+		const titlesWhileOpen = getTitles();
+		for (const input of [...opened]) {
+			input.dispose();
+		}
 		const getSubmenus = () => MenuRegistry.getMenuItems(AgentsWindowMenus.SessionsEditorTabsBarAddTab)
 			.filter(isISubmenuItem)
 			.filter(item => item.submenu === AgentsWindowMenus.SessionsEditorTabsBarAddTabCanvas);
@@ -831,13 +963,14 @@ suite('SessionCanvasService', () => {
 		const refreshedItems = getItems();
 		await CommandsRegistry.getCommand(items[1].command.id)!.handler(upcastPartial<ServicesAccessor>({}));
 		const remainingItems = getItems();
-		const remainingTitles = remainingItems.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
+		const remainingTitles = getTitles();
 		const remainingCommandIds = remainingItems.map(item => item.command.id);
 		const staleCommandsRegistered = initialCommandIds.map(id => CommandsRegistry.getCommand(id) !== undefined);
 		registration.dispose();
 
 		assert.deepStrictEqual({
 			submenuTitles: submenus.map(item => typeof item.title === 'string' ? item.title : item.title.value),
+			titlesWhileOpen,
 			titles: items.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value),
 			groups: items.map(item => item.group),
 			requiresChat: when.includes(ChatContextKeys.enabled.key),
@@ -862,6 +995,7 @@ suite('SessionCanvasService', () => {
 			remainingCommandsAfterDispose: remainingCommandIds.map(id => CommandsRegistry.getCommand(id) !== undefined),
 		}, {
 			submenuTitles: ['Canvas'],
+			titlesWhileOpen: ['Preview (editor, 2)', 'Preview (sidebar)', 'Preview (editor)', 'Dashboard', 'Logs (1)', 'Logs (1, 2)'],
 			titles: ['Preview (editor, 2)', 'Preview (sidebar)', 'Preview (editor)', 'Dashboard', 'Logs (1)', 'Logs (1, 2)'],
 			groups: ['1_running', '1_running', '1_running', '1_running', '1_running', '1_running'],
 			requiresChat: true,
@@ -877,13 +1011,13 @@ suite('SessionCanvasService', () => {
 			reopenedResource: 'agent-host-canvas:/preview-sidebar',
 			refreshedCommandIds: initialCommandIds,
 			refreshedTitles: ['Preview', 'Preview Updated', 'Preview (editor)', 'Dashboard', 'Logs (1)', 'Logs (1, 2)'],
-			remainingTitles: ['Preview', 'Preview (editor)', 'Dashboard', 'Logs (1)', 'Logs (1, 2)'],
-			initialCommandsRegisteredAfterReopen: [true, false, true, true, true, true],
+			remainingTitles: ['Preview', 'Preview Updated', 'Preview (editor)', 'Dashboard', 'Logs (1)', 'Logs (1, 2)'],
+			initialCommandsRegisteredAfterReopen: [true, true, true, true, true, true],
 			itemsAfterDispose: 0,
 			submenusAfterDispose: 0,
 			listSubmenusAfterDispose: 0,
 			activityBarSubmenusAfterDispose: 0,
-			remainingCommandsAfterDispose: [false, false, false, false, false],
+			remainingCommandsAfterDispose: [false, false, false, false, false, false],
 		});
 	});
 

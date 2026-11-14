@@ -227,13 +227,15 @@ export class GitHubService extends Disposable implements IGitHubService {
 					};
 					lease.add(client.onDidInvalidate(invalidate));
 					lease.add(client.credentials.onDidInvalidate(event => {
-						if (event.credential && missionControl) {
-							client.transport.invalidateAccount(missionControlAccount(missionControl.endpoint, event.credential.account), event.credential.signal.reason);
+						// A reauthorized credential is still valid for the accounts derived from it.
+						const credential = event.reason === 'reauthorization' ? undefined : event.credential;
+						if (credential && missionControl) {
+							client.transport.invalidateAccount(missionControlAccount(missionControl.endpoint, credential.account), credential.signal.reason);
 						}
-						if (event.credential && connectorsHost) {
-							const account = connectorsAccount(connectorsHost, event.credential.account);
-							if (account !== event.credential.account) {
-								client.transport.invalidateAccount(account, event.credential.signal.reason);
+						if (credential && connectorsHost) {
+							const account = connectorsAccount(connectorsHost, credential.account);
+							if (account !== credential.account) {
+								client.transport.invalidateAccount(account, credential.signal.reason);
 							}
 						}
 						if (event.reason === 'account') {

@@ -13,14 +13,15 @@ import { MessageAttachmentKind, type MessageAttachment } from './state/protocol/
 /**
  * The Agent Host-local `file` URIs of the files and folders a user message attaches:
  * the exact file, or the folder itself for a directory. Host-created snapshots
- * (already readable from the session data folder), embedded content, and
- * non-`file` resources are ignored. A client-wrapped `vscode-agent-host` URI is
- * unwrapped to the host URI it stands for. `.` and `..` segments are resolved.
+ * (already readable from the session data folder), embedded content, skill
+ * references, and non-`file` resources are ignored. A client-wrapped
+ * `vscode-agent-host` URI is unwrapped to the host URI it stands for.
+ * `.` and `..` segments are resolved.
  */
 export function getAttachedLocalPaths(attachments: readonly MessageAttachment[] | undefined): URI[] {
 	const paths: URI[] = [];
 	for (const attachment of attachments ?? []) {
-		if (attachment.type !== MessageAttachmentKind.Resource || isHostSnapshotAttachment(attachment)) {
+		if (attachment.type !== MessageAttachmentKind.Resource || attachment.displayKind === 'skill' || isHostSnapshotAttachment(attachment)) {
 			continue;
 		}
 		let uri: URI;

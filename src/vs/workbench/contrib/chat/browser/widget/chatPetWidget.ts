@@ -2763,8 +2763,20 @@ export class ChatPetWidget extends Disposable {
 				}
 			},
 		)) : undefined;
+		const hide = actions.add(new Action(
+			'chat.pet.hide',
+			localize('chatPet.hide.action', "Hide Pet"),
+			undefined,
+			true,
+			() => {
+				if (this.chatPetService.enabled.get()) {
+					this.chatPetService.toggle();
+				}
+			},
+		));
 		const interactionSeparator = new Separator();
 		const appearanceSeparator = new Separator();
+		const hideSeparator = new Separator();
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => event ? new StandardMouseEvent(dom.getWindow(this._button.element), event) : this._button.element,
 			autoSelectItem: !event,
@@ -2777,6 +2789,8 @@ export class ChatPetWidget extends Disposable {
 				resetSize,
 				appearanceSeparator,
 				changeColor,
+				hideSeparator,
+				hide,
 			],
 			onHide: () => {
 				this._contextMenuVisible = false;

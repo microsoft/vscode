@@ -18,11 +18,12 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IChatContextService } from '../../../chat/browser/contextContrib/chatContextService.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { ILanguageModelToolsService, IToolData, IToolImpl, ToolDataSource, ToolSet } from '../../../chat/common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsConfirmationService } from '../../../chat/common/tools/languageModelToolsConfirmationService.js';
 import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { getBrowserPagesContext, getSessionId } from './browserToolHelpers.js';
 import { ClickBrowserTool, ClickBrowserToolData } from './clickBrowserTool.js';
 import { DragElementTool, DragElementToolData } from './dragElementTool.js';
-import { HandleDialogBrowserTool, HandleDialogBrowserToolData } from './handleDialogBrowserTool.js';
+import { HandleDialogBrowserTool, HandleDialogBrowserToolConfirmationContribution, HandleDialogBrowserToolData, HandleDialogBrowserToolId } from './handleDialogBrowserTool.js';
 import { HoverElementTool, HoverElementToolData } from './hoverElementTool.js';
 import { ListBrowserPagesTool, ListBrowserPagesToolData } from './listBrowserPagesTool.js';
 import { NavigateBrowserTool, NavigateBrowserToolData } from './navigateBrowserTool.js';
@@ -65,6 +66,7 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 		@IChatService private readonly chatService: IChatService,
 		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
+		@ILanguageModelToolsConfirmationService confirmationService: ILanguageModelToolsConfirmationService,
 	) {
 		super();
 
@@ -78,6 +80,8 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 				deprecated: true
 			},
 		));
+		const uploadPathConfirmation = this._register(this.instantiationService.createInstance(HandleDialogBrowserToolConfirmationContribution));
+		this._register(confirmationService.registerConfirmationContribution(HandleDialogBrowserToolId, uploadPathConfirmation));
 
 		this._updateToolRegistrations();
 

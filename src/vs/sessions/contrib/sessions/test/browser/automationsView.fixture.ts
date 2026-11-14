@@ -19,14 +19,19 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getEntryAddress, IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -38,19 +43,21 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
-import { stubSessionHosts, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { navigationServiceOf, stubSessionHosts, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureDomCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { CustomViewNode } from '../../../../browser/parts/customViewNode.js';
 import { CustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsNavigationService } from '../../../../../workbench/contrib/sessions/browser/sessionsNavigationService.js';
 import { IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
+import '../../../../browser/media/style.css';
 
 const WORKSPACE = URI.parse('file:///workspaces/vscode');
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
@@ -107,6 +114,33 @@ class FixtureAutomationService extends mock<IAutomationService>() {
 	override canRunAutomation(): boolean { return true; }
 	override canUpdateAutomation(): boolean { return true; }
 	override canDeleteAutomation(): boolean { return true; }
+}
+
+class FixtureRemoteAgentHostService extends mock<IRemoteAgentHostService>() {
+
+	override readonly onDidChangeConnections = Event.None;
+	override readonly onDidChangeConfiguredEntries = Event.None;
+	override readonly configuredEntries: readonly IRemoteAgentHostEntry[];
+	override readonly connections: readonly IRemoteAgentHostConnectionInfo[];
+
+	constructor(entries: readonly IRemoteAgentHostEntry[]) {
+		super();
+		const tunnelCount = entries.filter(entry => entry.connection.type === RemoteAgentHostEntryType.Tunnel).length;
+		const fillerEntries = Array.from({ length: tunnelCount > 0 ? Math.max(0, 5 - tunnelCount) : 0 }, (_, index): IRemoteAgentHostEntry => ({
+			name: `Remote host ${tunnelCount + index + 1}`,
+			connection: {
+				type: RemoteAgentHostEntryType.Tunnel,
+				tunnelId: `fixture-${tunnelCount + index + 1}`,
+				clusterId: 'test',
+			},
+		}));
+		this.configuredEntries = [...entries, ...fillerEntries];
+		this.connections = this.configuredEntries.map(entry => ({
+			name: entry.name,
+			address: getEntryAddress(entry),
+			status: RemoteAgentHostConnectionStatus.disconnected,
+		}));
+	}
 }
 
 class FixtureSessionsManagementService extends mock<ISessionsManagementService>() {
@@ -197,11 +231,28 @@ interface IAutomationsFixtureOptions {
 	readonly followUp?: boolean;
 	readonly historyState?: AutomationCatalogueState;
 	readonly emptyHistory?: boolean;
+	readonly remoteEntries?: readonly IRemoteAgentHostEntry[];
+	readonly githubEnvironments?: readonly IMissionControlHost[];
+	readonly interaction?: 'cardHover' | 'cardActionHover' | 'cardActionOpen' | 'cardActionFocus' | 'cardFocus' | 'templateHover' | 'templateSectionHover';
 }
 
+const TUNNEL_ENTRIES: readonly IRemoteAgentHostEntry[] = [
+	{ name: 'Remote build host', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'build', clusterId: 'test' } },
+	{ name: 'Remote test host', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'test', clusterId: 'test' } },
+];
+const GITHUB_ENVIRONMENT_ENTRY: IRemoteAgentHostEntry = {
+	name: 'GitHub Environment',
+	connection: {
+		type: RemoteAgentHostEntryType.CloudSandbox,
+		address: 'cloudsandbox:environment',
+		environmentId: 'environment',
+		environmentKind: 'user-local',
+	},
+};
+const remoteProviderId = (entry: IRemoteAgentHostEntry) => `agenthost-${agentHostAuthority(getEntryAddress(entry))}`;
 const UNAVAILABLE_PROVIDERS: readonly IAutomationProviderDescriptor[] = [
-	{ id: 'remote-build-host', label: 'Remote build host', unavailableReasonCode: 'disconnected' },
-	{ id: 'remote-test-host', label: 'Remote test host', unavailableReasonCode: 'disconnected' },
+	{ id: remoteProviderId(TUNNEL_ENTRIES[0]), label: TUNNEL_ENTRIES[0].name, unavailableReasonCode: 'disconnected' },
+	{ id: remoteProviderId(TUNNEL_ENTRIES[1]), label: TUNNEL_ENTRIES[1].name, unavailableReasonCode: 'disconnected' },
 	{ id: 'windows-host', label: 'Windows host', unavailableReasonCode: 'disabled' },
 	{ id: 'linux-host', label: 'Linux host', unavailableReasonCode: 'unsupported' },
 	{ id: 'mac-host', label: 'Mac host', unavailableReasonCode: 'incompatible' },
@@ -249,11 +300,24 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 	Unavailable: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
-		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, catalogueState: 'unavailable', unavailableProviders: [UNAVAILABLE_PROVIDERS[0]] }),
+		expectedVisualDescriptions: ['The unavailable empty state has no disconnected icon. No automations yet is followed by its description, then an italic remote detection count and Manage Remotes link.'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, catalogueState: 'unavailable', unavailableProviders: [UNAVAILABLE_PROVIDERS[0]], remoteEntries: TUNNEL_ENTRIES }),
+	}),
+	GitHubEnvironmentUnavailable: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A disconnected GitHub Environment does not add a warning or remote count to the normal No automations yet empty state.'],
+		render: ctx => renderAutomations(ctx, {
+			width: 1000,
+			height: 620,
+			populated: false,
+			catalogueState: 'unavailable',
+			unavailableProviders: [{ id: remoteProviderId(GITHUB_ENVIRONMENT_ENTRY), label: GITHUB_ENVIRONMENT_ENTRY.name, unavailableReasonCode: 'disconnected' }],
+			githubEnvironments: [{ id: 'environment', name: GITHUB_ENVIRONMENT_ENTRY.name, kind: 'user-local', status: 'offline' }],
+		}),
 	}),
 	UnavailableMultipleReasons: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, catalogueState: 'unavailable', unavailableProviders: UNAVAILABLE_PROVIDERS }),
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, catalogueState: 'unavailable', unavailableProviders: UNAVAILABLE_PROVIDERS, remoteEntries: TUNNEL_ENTRIES }),
 	}),
 	NarrowUnavailable: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -265,18 +329,18 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 	PartialUnavailable: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The unavailable banner below the automation cards names the disconnected Remote build host and has an inline Manage Remotes text link after the message.'],
-		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: [UNAVAILABLE_PROVIDERS[0]] }),
+		expectedVisualDescriptions: ['The unavailable banner below the automation cards shows an italic remote detection count followed by a Manage Remotes text link instead of the disconnected-host warning.'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: [UNAVAILABLE_PROVIDERS[0]], remoteEntries: TUNNEL_ENTRIES }),
 	}),
 	PartialDisconnectedRemotes: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The unavailable banner names both disconnected hosts, Remote build host and Remote test host, followed by a Manage Remotes text link.'],
-		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: UNAVAILABLE_PROVIDERS.slice(0, 2) }),
+		expectedVisualDescriptions: ['The unavailable banner shows an italic remote detection count followed by a Manage Remotes text link without listing the disconnected hosts.'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: UNAVAILABLE_PROVIDERS.slice(0, 2), remoteEntries: TUNNEL_ENTRIES }),
 	}),
 	NarrowPartialDisconnectedRemotes: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['At a narrow width, the unavailable banner wraps the disconnected hosts message and the Manage Remotes link without clipping either.'],
-		render: ctx => renderAutomations(ctx, { width: 520, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: UNAVAILABLE_PROVIDERS.slice(0, 2) }),
+		expectedVisualDescriptions: ['At a narrow width, the unavailable banner keeps the italic remote detection count and Manage Remotes link readable without clipping either.'],
+		render: ctx => renderAutomations(ctx, { width: 520, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: UNAVAILABLE_PROVIDERS.slice(0, 2), remoteEntries: TUNNEL_ENTRIES }),
 	}),
 	PartialUnavailableMultipleReasons: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -286,6 +350,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 			populated: true,
 			catalogueState: 'unavailable',
 			unavailableProviders: UNAVAILABLE_PROVIDERS,
+			remoteEntries: TUNNEL_ENTRIES,
 		}),
 	}),
 	PartialError: defineComponentFixture({
@@ -299,6 +364,46 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 	Narrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderAutomations(ctx, { width: 520, height: 720, populated: true }),
+	}),
+	CardHover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, interaction: 'cardHover' }),
+	}),
+	CardActionHover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The pointer is over the More Actions control. In high contrast themes, only the action has a dashed active-contrast boundary; the parent card does not.'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, interaction: 'cardActionHover' }),
+	}),
+	CardActionOpen: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The More Actions control is open. In high contrast themes, only the action has a solid active-contrast boundary; the parent card does not.'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, interaction: 'cardActionOpen' }),
+	}),
+	CardActionFocus: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The More Actions control has keyboard focus while the pointer remains over the card. In high contrast themes, only the action has a solid focus boundary; the parent card does not.'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, interaction: 'cardActionFocus' }),
+	}),
+	CardFocus: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The real automation card button has keyboard focus. In high contrast themes, the card has a two-stroke inset solid focus boundary and the production prompt hover is visible.'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, interaction: 'cardFocus' }),
+	}),
+	TemplateHover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, interaction: 'templateHover' }),
+	}),
+	TemplateSectionHover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The pointer is over the Built-in Templates disclosure. In high contrast themes, a dashed active-contrast outline surrounds the section header.'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, interaction: 'templateSectionHover' }),
 	}),
 	CloudHistory: defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
@@ -321,7 +426,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 	}),
 });
 
-function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFixtureOptions): void {
+async function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFixtureOptions): Promise<void> {
 	const data = options.repositoryOnly ? createRepositoryOnlyData() : options.cloud ? createCloudData() : options.populated ? createPopulatedData() : { automations: [], runs: [] };
 	const configurationService = new TestConfigurationService({
 		chat: { automations: { enabled: true } },
@@ -334,6 +439,7 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 	const customViewService = ctx.disposableStore.add(new CustomViewService(new NullLogService(), ctx.disposableStore.add(new InMemoryStorageService())));
 	const runs = options.emptyHistory ? [] : data.runs;
 	const automationService = new FixtureAutomationService(data.automations, runs, options.catalogueState ?? 'ready', options.unavailableProviders ?? []);
+	const remoteAgentHostService = new FixtureRemoteAgentHostService(options.remoteEntries ?? []);
 	automationService.historyState = constObservable(options.historyState ?? 'ready');
 	const sessionsManagementService = new FixtureSessionsManagementService(options.cloud && !options.nativeCloud ? [] : runs);
 	const agentPluginService = new class extends mock<IAgentPluginService>() {
@@ -363,6 +469,14 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 		colorTheme: ctx.theme,
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
+			if (options.interaction === 'cardFocus') {
+				reg.definePartialInstance(ILayoutService, { getContainer: () => ctx.container });
+				reg.define(IHoverService, class extends HoverService {
+					override showInstantHover(options: Parameters<IHoverService['showInstantHover']>[0]) {
+						return super.showInstantHover({ ...options, container: ctx.container }, false);
+					}
+				});
+			}
 			reg.defineInstance(IActionViewItemService, actionViewItemService);
 			reg.define(IListService, ListService);
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
@@ -375,17 +489,24 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 				override readonly extUri = new ExtUri(() => true);
 			}());
 			reg.defineInstance(IAutomationService, automationService);
+			reg.defineInstance(IRemoteAgentHostService, remoteAgentHostService);
+			reg.defineInstance(IMissionControlEnvironmentService, new class extends mock<IMissionControlEnvironmentService>() {
+				override readonly enabled = true;
+				override readonly hosts = constObservable(options.githubEnvironments ?? []);
+			}());
 			reg.defineInstance(IAutomationRunner, new class extends mock<IAutomationRunner>() { }());
 			reg.defineInstance(IAutomationDialogService, new class extends mock<IAutomationDialogService>() { }());
 			reg.defineInstance(IAgentPluginService, agentPluginService);
 			reg.defineInstance(ICustomViewService, customViewService);
 			reg.defineInstance(ISessionsManagementService, sessionsManagementService);
-			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
+			const sessionsService = new class extends mock<ISessionsService>() {
 				readonly gridShown = constObservable([]);
 				override readonly slotPanes = testGridPanes(this.gridShown);
 				readonly activeSession = constObservable(undefined);
 				override async openSession(): Promise<void> { }
-			}());
+			}();
+			reg.defineInstance(ISessionsService, sessionsService);
+			reg.defineInstance(ISessionsNavigationService, navigationServiceOf(sessionsService));
 			reg.defineInstance(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 				override readonly onDidChange = Event.None;
 				override isSessionPinned(): boolean { return false; }
@@ -418,6 +539,16 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 	});
 	stubSessionHosts(instantiationService, ctx.disposableStore);
 
+	ctx.container.classList.add('monaco-workbench');
+	if (options.interaction === 'cardActionHover' || options.interaction === 'cardActionOpen' || options.interaction === 'cardActionFocus') {
+		ctx.container.classList.add('agent-sessions-workbench');
+	}
+	ctx.container.style.width = `${options.width}px`;
+	ctx.container.style.height = `${options.height}px`;
+	ctx.container.style.setProperty('--session-view-background', 'var(--vscode-agentsPanel-background, var(--vscode-sideBar-background))');
+	ctx.container.style.setProperty('--session-view-foreground', 'var(--vscode-agentsPanel-foreground, var(--vscode-sideBar-foreground))');
+	ctx.container.style.backgroundColor = 'var(--session-view-background)';
+
 	ctx.disposableStore.add(instantiationService.createInstance(AutomationsCustomViewContribution));
 	customViewService.showCustomView(AUTOMATIONS_CUSTOM_VIEW_ID);
 	const descriptor = customViewService.activeCustomView.get();
@@ -425,17 +556,42 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 		throw new Error('Automations custom view was not registered');
 	}
 
-	ctx.container.classList.add('monaco-workbench');
-	ctx.container.style.width = `${options.width}px`;
-	ctx.container.style.height = `${options.height}px`;
-	ctx.container.style.setProperty('--session-view-background', 'var(--vscode-agentsPanel-background, var(--vscode-sideBar-background))');
-	ctx.container.style.setProperty('--session-view-foreground', 'var(--vscode-agentsPanel-foreground, var(--vscode-sideBar-foreground))');
-	ctx.container.style.backgroundColor = 'var(--session-view-background)';
-
 	const node = ctx.disposableStore.add(instantiationService.createInstance(CustomViewNode, descriptor));
 	node.element.style.height = '100%';
 	ctx.container.appendChild(node.element);
 	node.layout(options.width, options.height);
+	if (options.interaction === 'cardHover') {
+		node.element.querySelector<HTMLElement>('.automations-card')?.classList.add('hovered');
+	} else if (options.interaction === 'cardActionHover' || options.interaction === 'cardActionOpen' || options.interaction === 'cardActionFocus') {
+		const card = node.element.querySelector<HTMLElement>('.automations-card');
+		const actions = card?.querySelector<HTMLElement>('.automations-card-actions');
+		const action = card?.querySelector<HTMLElement>('.automations-card-more-actions-button');
+		if (!card || !actions || !action) {
+			throw new Error('Automation card action was not rendered');
+		}
+		card.classList.add('hovered');
+		actions.classList.add(options.interaction === 'cardActionFocus' ? 'focus-within' : 'hovered');
+		action.classList.add(options.interaction === 'cardActionFocus' ? 'focus-visible' : 'hovered');
+		if (options.interaction === 'cardActionOpen') {
+			actions.classList.add('menu-open');
+			action.setAttribute('aria-expanded', 'true');
+		} else if (options.interaction === 'cardActionFocus') {
+			ctx.focus({ focus: () => action.focus({ focusVisible: true }) });
+		}
+	} else if (options.interaction === 'cardFocus') {
+		const main = node.element.querySelector<HTMLElement>('.automations-card-main');
+		if (!main) {
+			throw new Error('Automation card was not rendered');
+		}
+		ctx.focus({ focus: () => main.focus({ focusVisible: true }) });
+		if (ctx.overrideFocus) {
+			await waitForFixtureDomCondition(ctx.container.ownerDocument.body, () => ctx.container.ownerDocument.querySelector('.monaco-hover') !== null, ctx.disposableStore);
+		}
+	} else if (options.interaction === 'templateHover') {
+		node.element.querySelector<HTMLElement>('.automations-template-card')?.classList.add('hovered');
+	} else if (options.interaction === 'templateSectionHover') {
+		node.element.querySelector<HTMLElement>('.automations-template-section-summary')?.classList.add('hovered');
+	}
 	if (options.showDropTarget) {
 		const dataTransfer = new DataTransfer();
 		dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify([URI.file('/shared/review.automation.md').toString()]));

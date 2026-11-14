@@ -181,6 +181,8 @@ The MCP side-channel scenarios use the `channel` advertised by a real ready serv
 
 The expanded side-channel cases cover structured results, ordered content/resource encodings, empty results, concurrent error isolation, resource retry, and catalog additions/removals/schema changes. Catalog readiness is established by the actual `tools/list` result, not by a model-facing tool-change notification that need not fire for an idle MCP Apps request.
 
+The root stdio MCP environment scenario exercises the addressed chat's normal first-turn server loading, then checks its `Ready` notification and actual tool result. Registering an OAuth listener does not start MCP servers ([github/copilot-agent-runtime#36782](https://github.com/github/copilot-agent-runtime/pull/36782)).
+
 Copilot's `runtime MCP: identical plugin republished under a different URI does not restart servers` scenario copies a client's plugin without changing its content nonce, republishes it at a new URI, and checks that the next turn retains a single MCP process start without stopped/starting transitions. Two replayed no-tool turns exercise the live-session restart check; an unclaimed early launch would bypass that check for a host-only MCP start. Cache eviction of older materialized roots and duplicate-name plugin ownership are outside this scenario.
 
 Live client-tool coverage updates a materialized Copilot session over AHP and checks real execution plus the provider-bound request. Removal assertions project the effective Anthropic inventory, including structured addition/removal blocks, rather than assuming a cache-preserving runtime must rewrite its baseline tool array.
@@ -313,6 +315,10 @@ The managed-telemetry suite asserts actual session-correlated native spans at lo
 Copilot session finalization preloads the SDK agent catalog before exposing a created or resumed chat. This avoids the runtime's lazy-discovery event-publication defect when configuration discovery and explicit plugin directories are both enabled ([github/copilot-agent-runtime#27963](https://github.com/github/copilot-agent-runtime/issues/27963)). Discovery, plugins, and native span assertions remain enabled; remove the preload only after the fixed runtime passes those scenarios without it.
 
 The managed-permissions AHP suite sends real client policy contributions rather than calling SDK tools directly. It checks native read/write asks under Allow All and Assisted approval, one-time confirmation, denied side effects, unconditional managed denials, live updates to default and peer chats, and current contributions on cold resume. Successful file mutations and real tool results are the oracles; replayed assistant responses are not proof of enforcement.
+
+The synthetic managed-permissions suite checks native read-only shell approval on both platforms: `echo` and `Write-Output` complete without a callback unless a managed ask applies. Managed asks still require approval on create and cold resume, and removing them restores the read-only fast path.
+
+The synthetic credential-sponsorship suite selects GPT-5.3 Codex for its native `apply_patch` and `rg` tool contract and advertises the local fixture's Chat Completions transport for that model. It retains actual file mutations, shell credential isolation, scoped/legacy prompt parity, and cold-history assertions; legacy GPT models do not support the freeform patch tool.
 
 Client tool results that require confirmation remain in protocol state without being forwarded to the provider. Approval forwards the stored result; denial forwards a failure without the denied content. The Copilot result-confirmation scenario asserts that no continuation model request is made while the result is pending, and unit routing tests cover both decisions on default and peer chats from client and server actions.
 
@@ -514,6 +520,8 @@ After recording, **review the diff** (paths normalized? no usernames, tokens, or
 [`../copilotSdkManagedSettings.integrationTest.ts`](../copilotSdkManagedSettings.integrationTest.ts) snapshots the complete `managedSettings.schema()` response from the bundled SDK/runtime. This is a sessionless SDK integration test, not an AHP scenario: it creates no chat, calls no model, and starts no MCP servers. It uses an isolated home without login credentials. The snapshot preserves the schema's descriptions, defaults, validation rules, and composition metadata.
 
 The same suite verifies the bundled model-policy composition contract: model-specific effort/context options stay with the channel supplying the model, Auto and missing-model policies discard those options with diagnostics, and lock/default metadata survives composition. Composition is not model-catalog validation: an unavailable model or unsupported effort can still appear in `values`. These tests do not certify session enforcement or picker behavior.
+
+The sandbox network schema accepts IPv4/IPv6 CIDR rules and describes resolved-address allow/deny checks. Private-network destinations follow outbound rules; host-loopback access is controlled independently. The snapshot pins this runtime-owned contract, not live network enforcement.
 
 The runtime-owned `fusionTier` policy uses `standard` for Auto Balance, `high` for HydraFusion with Auto Intelligence fallback, and `max` for HydraFusion Max. Explicit `unmanaged` suppresses the legacy `autoTier` fallback. Without an explicit Fusion policy, composition reports legacy Auto efficiency/balance as `standard` and intelligence as `high` without changing legacy execution.
 

@@ -15,6 +15,37 @@ export interface Timeline {
 	readonly records: TimelineRecord[];
 }
 
+const mobileArtifactName = 'vscode_web_linux_mobile_archive-unsigned';
+
+/**
+ * Whether the timeline record is the given stage. Stages are matched by their
+ * YAML identifier, since the record name is the stage's display name when one
+ * is set.
+ */
+export function isStage(record: TimelineRecord, stage: string): boolean {
+	return record.type === 'Stage' && (record.identifier === stage || record.name === stage);
+}
+
+export function warnIfMobileArtifactMissing(timeline: Timeline, artifactNames: readonly string[]): void {
+	if (timeline.records.some(record => isStage(record, 'Mobile') && record.state === 'completed') && !artifactNames.includes(mobileArtifactName)) {
+		console.log(`##vso[task.logissue type=warning]Mobile was enabled but ${mobileArtifactName} was not produced. Check the Mobile stage; continuing the ordinary release.`);
+	}
+}
+
+/** Mobile publication is best-effort; ordinary artifact failures still block release. */
+export async function runArtifactPublishOperation<T>(name: string, operation: () => Promise<T>): Promise<{ succeeded: true; value: T } | { succeeded: false }> {
+	try {
+		return { succeeded: true, value: await operation() };
+	} catch (error) {
+		if (name !== mobileArtifactName) {
+			throw error;
+		}
+		const message = `[${name}] Mobile publication failed; continuing the ordinary release: ${error}`;
+		console.log(`##vso[task.logissue type=warning]${message.replaceAll('%', '%AZP25').replaceAll('\r', '%0D').replaceAll('\n', '%0A')}`);
+		return { succeeded: false };
+	}
+}
+
 /**
  * Artifacts that can only be published once a job succeeded, by job name. The
  * platform test jobs run in parallel with the jobs that produce these artifacts

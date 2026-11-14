@@ -24,6 +24,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
+$scriptStartTime = [DateTime]::UtcNow
 Import-Module (Join-Path $PSScriptRoot '..\..\build\azure-pipelines\common\wsl.psm1') -Force
 $wsl = Join-Path $env:SystemRoot 'System32\wsl.exe'
 $workspace = if ($CI -eq 'AzureDevOps') { $env:BUILD_SOURCESDIRECTORY } else { $env:GITHUB_WORKSPACE }
@@ -37,8 +38,9 @@ if (-not $workspace -or $runId -notmatch '^\d+$' -or $runAttempt -notmatch '^\d+
 $rootfsUrl = 'https://cloud-images.ubuntu.com/wsl/jammy/20250318/ubuntu-jammy-wsl-amd64-ubuntu22.04lts.rootfs.tar.gz'
 $rootfsSha256 = '1483cc5c1dce13064f774834cbffdff226559fd522a67a381a8ea77d63fb4109'
 # The frontend is built from this PR; the unchanged backend uses a pinned published server. The WSL Kerberos proxy smoke
-# tests need a server with the agent host's client proxy, Kerberos and certificate support.
-$serverCommit = '67710841ad061a9e253214f87bf5415a185ab2ff'
+# tests need a server with the agent host's client proxy, Kerberos and certificate support, and the WSL Basic PAC proxy
+# smoke tests one with its Basic proxy authentication through the client.
+$serverCommit = '54ab79431a5858c9546c7161e5afe5fd9e8570d6'
 $aptPackages = 'ca-certificates curl git iproute2 procps docker.io libatomic1 libkrb5-3 krb5-kdc krb5-admin-server squid-openssl openssl'
 $devContainerImage = 'mcr.microsoft.com/devcontainers/base:ubuntu-24.04'
 $serverPath = '/opt/vscode-smoke-server'
@@ -255,6 +257,79 @@ function Import-RootfsDistribution([string] $Install) {
 
 <#
 .SYNOPSIS
+Downloads the .deb files listed in apt's --print-uris output to a directory until a deadline, and returns how many of
+them it got. It leaves the packages it does not get to apt.
+
+.DESCRIPTION
+The packages are downloaded by the host rather than by apt in the distribution. The Azure mirror at times serves package
+files at under 100 KB/s for minutes, or not at all for a while, while its index files stay fast, and apt keeps such a
+connection until this step times out. Here the packages are downloaded in parallel, so stalls overlap rather than add
+up. A transfer that stays below 256 KB/s for 20 seconds is stopped and continued on a fresh connection from where it
+stopped, so a slow connection loses no bytes. Retries back off only after an attempt that got no bytes. The Azure mirror
+is the only source, as archive.ubuntu.com answers 403 to the build agents.
+A file of the wrong hash is downloaded again once, and apt checks each file against the index when it installs.
+#>
+function Save-DebPackages([string] $UriList, [string] $Directory, [datetime] $Deadline) {
+	$packages = foreach ($line in Get-Content -LiteralPath $UriList) {
+		if ($line -match "^'(https?://[^']+)' ([A-Za-z0-9_.+~%-]+\.deb) (\d+) (SHA512|SHA256|SHA1|MD5Sum):([0-9a-f]+)") {
+			[pscustomobject]@{
+				Url = $Matches[1]
+				Name = $Matches[2]
+				Destination = Join-Path $Directory $Matches[2]
+				Size = [long]$Matches[3]
+				Algorithm = @{ SHA512 = 'SHA512'; SHA256 = 'SHA256'; SHA1 = 'SHA1'; MD5Sum = 'MD5' }[$Matches[4]]
+				Hash = $Matches[5].ToUpperInvariant()
+			}
+		}
+	}
+	$downloaded = $packages | ForEach-Object -ThrottleLimit 6 -Parallel {
+		$package = $_
+		$deadline = $using:Deadline
+		$retryDelay = 1
+		$hashMismatches = 0
+		while ($true) {
+			$length = if (Test-Path -LiteralPath $package.Destination) { (Get-Item -LiteralPath $package.Destination).Length } else { 0 }
+			if ($length -eq $package.Size) {
+				if ((Get-FileHash -LiteralPath $package.Destination -Algorithm $package.Algorithm).Hash -eq $package.Hash) {
+					return $package.Name
+				}
+				$hashMismatches++
+				Write-Host "$($package.Name) does not match its $($package.Algorithm) hash."
+			}
+			if ($length -ge $package.Size) {
+				Remove-Item -LiteralPath $package.Destination
+				$length = 0
+			}
+			$remainingSeconds = [int]($deadline - [DateTime]::UtcNow).TotalSeconds
+			if ($remainingSeconds -lt 10 -or $hashMismatches -ge 2) {
+				Remove-Item -LiteralPath $package.Destination -ErrorAction SilentlyContinue
+				Write-Host "Leaving $($package.Name) for apt to download (got $length of $($package.Size) bytes)."
+				return
+			}
+			$curlOutput = curl.exe --fail --location --silent --show-error --connect-timeout 10 --max-time ([Math]::Min(120, $remainingSeconds)) --speed-limit 262144 --speed-time 20 --continue-at - --output $package.Destination $package.Url 2>&1
+			$exitCode = $LASTEXITCODE
+			if ($exitCode -eq 0) {
+				continue
+			}
+			# 33: the server did not accept the range request, so the next attempt starts over.
+			if ($exitCode -eq 33) {
+				Remove-Item -LiteralPath $package.Destination -ErrorAction SilentlyContinue
+			}
+			$newLength = if (Test-Path -LiteralPath $package.Destination) { (Get-Item -LiteralPath $package.Destination).Length } else { 0 }
+			Write-Host "Download of $($package.Name) stopped at $newLength of $($package.Size) bytes: $(($curlOutput | Out-String).Trim())"
+			if ($newLength -gt $length) {
+				$retryDelay = 1
+			} else {
+				Start-Sleep -Seconds $retryDelay
+				$retryDelay = [Math]::Min(2 * $retryDelay, 16)
+			}
+		}
+	}
+	return @($downloaded).Count
+}
+
+<#
+.SYNOPSIS
 Installs the pinned Linux server, the apt packages and the non-root test user into the distribution.
 #>
 function Install-DistributionContent {
@@ -295,44 +370,11 @@ done
 apt-get install -y -qq --print-uris --no-install-recommends $aptPackages > '$linuxRoot/apt-uris.txt'
 "@ 180
 
-	# The packages are downloaded by the host rather than by apt in the distribution. The Azure mirror at times serves
-	# package files to the distribution at about 120 KB/s for minutes while its index files stay fast, and apt keeps such
-	# a connection rather than giving up on it. Here a transfer that stays below 1 MB/s for 15 seconds is abandoned and
-	# retried on a fresh connection, then on the main Ubuntu archive. apt checks each file against the index when it installs.
-	# The host gives up after 4 minutes in total, leaving the packages it did not get to apt, within the step's timeout.
-	$debCount = 0
-	$hostDownloadDeadline = [DateTime]::UtcNow.AddMinutes(4)
-	foreach ($line in Get-Content -LiteralPath (Join-Path $Root 'apt-uris.txt')) {
-		if ($line -notmatch "^'(https?://[^']+)' ([A-Za-z0-9_.+~%-]+\.deb) (\d+) (SHA512|SHA256|SHA1|MD5Sum):([0-9a-f]+)") {
-			continue
-		}
-		$url, $name, $size, $hash = $Matches[1], $Matches[2], [long]$Matches[3], $Matches[5]
-		$algorithm = @{ SHA512 = 'SHA512'; SHA256 = 'SHA256'; SHA1 = 'SHA1'; MD5Sum = 'MD5' }[$Matches[4]]
-		$destination = Join-Path $debDirectory $name
-		$downloaded = $false
-		# Each attempt opens a fresh connection: the Azure mirror twice, then the main Ubuntu archive.
-		$fallback = $url -replace '^http://azure\.archive\.ubuntu\.com/', 'http://archive.ubuntu.com/'
-		foreach ($candidate in @($url, $url, $fallback)) {
-			$remainingSeconds = [int]($hostDownloadDeadline - [DateTime]::UtcNow).TotalSeconds
-			if ($remainingSeconds -lt 10) {
-				break
-			}
-			curl.exe --fail --location --silent --show-error --connect-timeout 10 --max-time ([Math]::Min(120, $remainingSeconds)) --speed-limit 1048576 --speed-time 15 --output $destination $candidate
-			if ($LASTEXITCODE -eq 0 -and (Get-Item -LiteralPath $destination).Length -eq $size -and (Get-FileHash -LiteralPath $destination -Algorithm $algorithm).Hash -eq $hash.ToUpperInvariant()) {
-				$downloaded = $true
-				break
-			}
-			Write-Host "Download of $name from $candidate failed (curl exit code $LASTEXITCODE)."
-		}
-		if (-not $downloaded) {
-			Remove-Item -LiteralPath $destination -ErrorAction SilentlyContinue
-			Write-Host "Leaving $name for apt to download."
-			continue
-		}
-		$debCount++
-	}
+	# The host stops 10 minutes after the script started, leaving at least 5 minutes of the Azure DevOps step's 15-minute
+	# timeout for installing.
+	$debCount = Save-DebPackages (Join-Path $Root 'apt-uris.txt') $debDirectory $scriptStartTime.AddMinutes(10)
 	Write-Host "Downloaded $debCount packages on the host."
-	# A failed curl above must not become the exit code of this script.
+	# A failed curl in Save-DebPackages must not become the exit code of this script.
 	$global:LASTEXITCODE = 0
 
 	Invoke-Wsl @"

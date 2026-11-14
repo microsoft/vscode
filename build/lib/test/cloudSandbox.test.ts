@@ -512,15 +512,15 @@ suite('Cloud Sandbox install setup', () => {
 			},
 		}, {
 			matching: {
-				calls: [{ command: 'pnpm', args: ['--version'] }],
+				calls: [{ command: 'pnpm', args: ['--pm-on-fail=ignore', '--version'] }],
 				installed: false,
 				hostBin: ['node', 'npm', 'npx'],
 			},
 			mismatching: {
 				calls: [
-					{ command: 'pnpm', args: ['--version'] },
+					{ command: 'pnpm', args: ['--pm-on-fail=ignore', '--version'] },
 					{ command: 'npm', args: ['install', '--prefix', directory, '--no-save', '--no-package-lock', '--no-audit', '--no-fund', 'pnpm@11.28.8'] },
-					{ command: 'pnpm', args: ['--version'] },
+					{ command: 'pnpm', args: ['--pm-on-fail=ignore', '--version'] },
 				],
 				link: installedPnpm,
 				hostBin: ['node', 'npm', 'npx', 'pnpm'],
@@ -643,7 +643,7 @@ suite('Cloud Sandbox install setup', () => {
 		`);
 		fs.writeFileSync(path.join(npmDirectory, 'electronTypes.ts'), 'export async function ensureElectronTypes() {}');
 		fs.writeFileSync(path.join(npmDirectory, 'dirs.ts'), `
-			export const workspaceMembers = [''], separateRoots = [], separateRootMembers = {}, distroRoots = [], standaloneRoots = [], dirs = [''];
+			export const workspaceMembers = [''], separateRoots = [], separateRootMembers = {}, distroRoots = [], dirs = [''];
 		`);
 		fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({
 			name: 'sandbox-install-test', version: '1.0.0', type: 'module',

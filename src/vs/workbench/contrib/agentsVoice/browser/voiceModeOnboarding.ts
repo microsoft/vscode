@@ -1044,7 +1044,7 @@ export class VoiceModeOnboardingBanner extends ChatInputNoticeWidget implements 
 		// else, so make them real controls: reachable by Tab and operable by
 		// Enter or Space like any other button. The renderer owns this DOM, so a
 		// selector is the only handle on it - same as the empty-editor hint.
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		for (const link of description.querySelectorAll('a')) {
 			link.tabIndex = 0;
 			link.setAttribute('role', 'button');

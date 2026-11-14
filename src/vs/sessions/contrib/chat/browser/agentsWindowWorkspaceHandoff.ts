@@ -54,8 +54,15 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 	private readonly _pending = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _notification = this._register(new MutableDisposable());
 	private _cancelPending: ((state: WorkspaceHandoffState) => void) | undefined;
+	private _startupProvidersRegistered = false;
 
+	/**
+	 * @param whenStartupProvidersRegistered Settles once the providers that register during startup have
+	 * registered. Several of them can accept the same folder, so resolving earlier can pick whichever registered
+	 * first instead of the preferred provider, for example Cloud instead of This Computer for a local folder.
+	 */
 	constructor(
+		private readonly whenStartupProvidersRegistered: Promise<unknown>,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -72,6 +79,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 	) {
 		super();
 		this._register(lifecycleService.onWillShutdown(() => this.cancel()));
+		whenStartupProvidersRegistered.finally(() => this._startupProvidersRegistered = true).catch(() => undefined);
 	}
 
 	cancel(): void {
@@ -183,6 +191,10 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 				const resolution = await raceCancellationError(remoteResolution, source.token);
 				folderUri = resolution.folderUri ?? folderUri;
 				remoteUnavailableReason = resolution.unavailableReason;
+			}
+			if (folderUri && !this._startupProvidersRegistered) {
+				onState('waitingForProvider');
+				await raceCancellationError(this.whenStartupProvidersRegistered.catch(() => undefined), source.token);
 			}
 			// A remote editor window must not fall back to an unrelated local folder.
 			const remoteWithoutFolder = !!intent.remote && !intent.draft && !folderUri;

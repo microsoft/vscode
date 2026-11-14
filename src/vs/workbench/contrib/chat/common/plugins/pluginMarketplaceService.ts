@@ -10,7 +10,7 @@ import { CancellationError, getErrorMessage, isCancellationError, onUnexpectedEr
 import { Event } from '../../../../../base/common/event.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../base/common/map.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -22,14 +22,17 @@ import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
+import { toRepositoryRef } from '../../../../../platform/github/common/client/routing.js';
+import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
+import { RequestError, RequestPriority } from '../../../../../platform/github/common/types.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMeteredConnectionService } from '../../../../../platform/meteredConnection/common/meteredConnection.js';
 import { ObservableMemento, observableMemento } from '../../../../../platform/observable/common/observableMemento.js';
 import { COPILOT_STRICT_MARKETPLACES_KEY, IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
-import { asJson, IRequestService } from '../../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import type { Dto } from '../../../../services/extensions/common/proxyIdentifier.js';
+import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
 import { AutoUpdateConfigurationKey, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatConfiguration } from '../constants.js';
 import { customizationSearchMatchesAny } from '../aiCustomizationSearch.js';
@@ -231,6 +234,8 @@ export interface IMarketplaceInstalledPlugin {
 export interface IFetchMarketplacePluginsOptions {
 	/** Bypass the marketplace caches (HTTP TTL cache and cloned-repository TTL) and re-read from the remote. */
 	readonly refresh?: boolean;
+	/** GitHub request priority; omit to use the client's interactive default. */
+	readonly priority?: RequestPriority;
 	/**
 	 * Called for each marketplace that could not be read. Individual failures
 	 * are otherwise swallowed so that one bad marketplace cannot fail the
@@ -450,7 +455,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IRequestService private readonly _requestService: IRequestService,
+		@IWorkbenchGitHubService private readonly _gitHubService: IWorkbenchGitHubService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService private readonly _fileService: IFileService,
 		@IAgentPluginRepositoryService private readonly _pluginRepositoryService: IAgentPluginRepositoryService,
@@ -724,31 +729,56 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 		let repoMayBePrivate = true;
 		let readError: Error | undefined;
-
-		const plugins = await this._readPluginsFromDefinitions(reference, async (defPath) => {
-			if (token.isCancellationRequested) {
-				return undefined;
+		const recordReadError = (error: unknown) => {
+			if (RequestError.isResponseTooLarge(error)) {
+				repoMayBePrivate = false;
+				readError = new Error(localize('pluginMarketplace.responseTooLarge', "Unable to read marketplace '{0}': the GitHub response exceeds the size limit.", reference.displayLabel));
+			} else if (error instanceof GitHubRequestError && error.statusCode !== undefined) {
+				const statusCode = error.statusCode;
+				repoMayBePrivate &&= statusCode >= 400 && statusCode < 500;
+				if (statusCode >= 500 || RequestError.isRateLimited(error)) {
+					readError = new Error(localize('pluginMarketplace.httpReadFailed', "Unable to read marketplace '{0}' (HTTP {1}).", reference.displayLabel, statusCode));
+				}
+			} else {
+				readError = new Error(localize('pluginMarketplace.readFailed', "Unable to read marketplace '{0}'.", reference.displayLabel));
 			}
-			const ref = encodeURIComponent(reference.ref ?? 'main');
-			const url = `https://raw.githubusercontent.com/${repo}/${ref}/${defPath}`;
-			try {
-				const context = await this._requestService.request({ type: 'GET', url, callSite: 'pluginMarketplaceService.fetchPluginList' }, token);
-				const statusCode = context.res.statusCode;
-				if (statusCode !== 200) {
-					repoMayBePrivate &&= statusCode !== undefined && statusCode >= 400 && statusCode < 500;
-					if (statusCode === undefined || statusCode >= 500 || statusCode === 429) {
-						readError = new Error(localize('pluginMarketplace.httpReadFailed', "Unable to read marketplace '{0}' (HTTP {1}).", reference.displayLabel, statusCode ?? 'unknown'));
+			this._logService.debug(`[PluginMarketplaceService] Failed to read marketplace ${reference.rawValue}:`, error);
+		};
+
+		let plugins: IMarketplacePlugin[];
+		const lifetime = new DisposableStore();
+		const signal = CancellationToken.toAbortSignal(token, lifetime);
+		try {
+			const client = lifetime.add(await this._gitHubService.acquireAnonymousApiClient(signal));
+			const repository = toRepositoryRef(repo);
+			const commit = await client.content.resolveRef(repository, reference.ref ?? 'main', signal, { caller: 'pluginMarketplaceService.resolveRef', noCache: options?.refresh, priority: options?.priority });
+			plugins = await this._readPluginsFromDefinitions(reference, async defPath => {
+				signal.throwIfAborted();
+				try {
+					const text = await client.content.getRawFile(repository, commit, defPath, signal, { caller: 'pluginMarketplaceService.fetchPluginList', priority: options?.priority });
+					const json: IMarketplaceJson | null = JSON.parse(text);
+					return json ?? undefined;
+				} catch (error) {
+					if (signal.aborted || isCancellationError(error) || RequestError.isResponseTooLarge(error)) {
+						throw error;
 					}
-					this._logService.debug(`[PluginMarketplaceService] ${url} returned status ${statusCode}, skipping`);
+					recordReadError(error);
 					return undefined;
 				}
-				return await asJson<IMarketplaceJson>(context) ?? undefined;
-			} catch (err) {
-				readError = new Error(localize('pluginMarketplace.readFailed', "Unable to read marketplace '{0}'.", reference.displayLabel));
-				this._logService.debug(`[PluginMarketplaceService] Failed to fetch marketplace.json from ${url}:`, err);
-				return undefined;
+			});
+		} catch (error) {
+			if (signal.aborted || isCancellationError(error)) {
+				return [];
 			}
-		});
+			recordReadError(error);
+			plugins = [];
+		} finally {
+			lifetime.dispose();
+		}
+
+		if (token.isCancellationRequested) {
+			return [];
+		}
 
 		if (plugins.length > 0) {
 			cache.set(reference.canonicalId, {
@@ -1002,7 +1032,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 	private async _readPluginsForInstalledEntry(reference: IMarketplaceReference, token: CancellationToken): Promise<IMarketplacePlugin[]> {
 		if (reference.kind === MarketplaceReferenceKind.GitHubShorthand && reference.githubRepo) {
-			return this._fetchFromGitHubRepo(reference, reference.githubRepo, token);
+			return this._fetchFromGitHubRepo(reference, reference.githubRepo, token, { priority: 'background' });
 		}
 
 		return this._readPluginsFromDirectory(this._pluginRepositoryService.getRepositoryUri(reference), reference, token);
@@ -1177,8 +1207,8 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		}
 
 		const sourceDescriptor: IPluginSourceDescriptor = reference.kind === MarketplaceReferenceKind.GitHubShorthand
-			? { kind: PluginSourceKind.GitHub, repo: reference.githubRepo! }
-			: { kind: PluginSourceKind.GitUrl, url: reference.cloneUrl };
+			? { kind: PluginSourceKind.GitHub, repo: reference.githubRepo!, ...(reference.ref ? { ref: reference.ref } : {}) }
+			: { kind: PluginSourceKind.GitUrl, url: reference.cloneUrl, ...(reference.ref ? { ref: reference.ref } : {}) };
 		const agentManifest = await readAgentPluginManifest(repoDir, this._fileService);
 		if (agentManifest) {
 			return {

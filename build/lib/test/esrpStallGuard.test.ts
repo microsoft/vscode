@@ -4,14 +4,89 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'node:assert/strict';
+import cp from 'node:child_process';
 import { suite, test } from 'node:test';
-import { EsrpProgress, getEsrpStallTimeoutMs, runWithEsrpStallGuard } from '../../azure-pipelines/common/sign.ts';
+import { EsrpProgress, getEsrpStallTimeoutMs, main, runWithEsrpStallGuard } from '../../azure-pipelines/common/sign.ts';
 
 function fakeEsrp(script: string): string[] {
 	return ['-e', script];
 }
 
 suite('ESRP stall guard', () => {
+	test('signing entrypoints send authentication on stdin without token files or environment credentials', async t => {
+		const credentials = ['SYSTEM_ACCESSTOKEN', 'ENDPOINT_AUTH_SYSTEMVSSCONNECTION', 'ENDPOINT_AUTH_PARAMETER_SYSTEMVSSCONNECTION_ACCESSTOKEN'];
+		for (const name of credentials) {
+			const original = process.env[name];
+			process.env[name] = 'synthetic-esrp-token';
+			t.after(() => {
+				if (original === undefined) {
+					delete process.env[name];
+				} else {
+					process.env[name] = original;
+				}
+			});
+		}
+
+		t.mock.method(cp, 'execSync', () => '6.0.428');
+		const spawn = cp.spawn;
+		t.mock.method(cp, 'spawn', (command: string, args: readonly string[], options: cp.SpawnOptions) => {
+			assert.equal(command, 'dotnet');
+			assert.ok(!JSON.stringify(args).includes('synthetic-esrp-token'));
+			const metadata = JSON.parse(args[args.indexOf('-federatedTokenData') + 1]);
+			assert.deepEqual({
+				source: metadata.systemAccessTokenSource,
+				tokenFile: metadata.systemAccessToken,
+				keyFile: metadata.encryptionKey
+			}, { source: 'stdin', tokenFile: undefined, keyFile: undefined });
+			return spawn(process.execPath, ['-e', `
+				const assert = require('node:assert/strict');
+				assert.equal(require('node:fs').readFileSync(0, 'utf8'), 'synthetic-esrp-token\\n');
+				for (const name of ${JSON.stringify(credentials)}) {
+					assert.equal(process.env[name], undefined);
+				}
+				process.stdout.write('ESRP_AUTH_INPUT_');
+				setTimeout(() => process.stdout.write('READY\\r\\n'), 10);
+			`], options);
+		});
+
+		for (const type of ['sign-windows', 'sign-darwin', 'sign-pgp']) {
+			await main(['/task/6.1.3/net6.0/esrpcli.dll', type, '.', '*.unsigned-test-file']);
+		}
+	});
+
+	test('rejects missing or invalid authentication before starting a process', t => {
+		const original = process.env['SYSTEM_ACCESSTOKEN'];
+		t.after(() => {
+			if (original === undefined) {
+				delete process.env['SYSTEM_ACCESSTOKEN'];
+			} else {
+				process.env['SYSTEM_ACCESSTOKEN'] = original;
+			}
+		});
+		for (const token of ['', ' ', 'synthetic\ncredential', 'x'.repeat(32768)]) {
+			process.env['SYSTEM_ACCESSTOKEN'] = token;
+			assert.throws(() => main([]), /^Error: Missing or invalid SYSTEM_ACCESSTOKEN for ESRP signing\.$/);
+		}
+		delete process.env['SYSTEM_ACCESSTOKEN'];
+		assert.throws(() => main([]), /^Error: Missing or invalid SYSTEM_ACCESSTOKEN for ESRP signing\.$/);
+	});
+
+	test('rejects a CLI that does not acknowledge the stdin contract', async () => {
+		await assert.rejects(
+			runWithEsrpStallGuard(process.execPath, fakeEsrp(`require('node:fs').readFileSync(0, 'utf8');`), 500, 50, 'synthetic-esrp-token'),
+			/ESRP CLI exited without confirming authentication input/
+		);
+	});
+
+	test('preserves a failed authenticated session exit code', async () => {
+		const result = await runWithEsrpStallGuard(process.execPath, fakeEsrp(`
+			require('node:fs').readFileSync(0, 'utf8');
+			console.log('ESRP_AUTH_INPUT_READY');
+			process.exit(3);
+		`), 500, 50, 'synthetic-esrp-token');
+		assert.deepEqual(result, { exitCode: 3, stalled: undefined });
+	});
+
 	test('measures a stall only once ESRP reports pending operations', () => {
 		const progress = new EsrpProgress(0);
 		progress.write('Waiting for signed files...\n', 1_000);

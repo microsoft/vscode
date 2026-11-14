@@ -30,6 +30,7 @@ export class UserInfoStore extends Disposable {
 	private _isSn: boolean | undefined;
 	private _isVscodeTeamMember: boolean | undefined;
 	private _organizationList: string[] | undefined;
+	private _isProxima = false;
 
 	private _onDidChangeUserInfo = this._register(new Emitter<void>());
 	readonly onDidChangeUserInfo = this._onDidChangeUserInfo.event;
@@ -40,7 +41,11 @@ export class UserInfoStore extends Disposable {
 	static IS_SN_STORAGE_KEY = 'exp.github.copilot.isSn';
 	static IS_VSCODE_TEAM_MEMBER_STORAGE_KEY = 'exp.github.copilot.isVscodeTeamMember';
 	static ORGANIZATION_LIST_STORAGE_KEY = 'exp.github.copilot.organizationList';
-	constructor(private readonly context: IVSCodeExtensionContext, copilotTokenStore: ICopilotTokenStore) {
+	static IS_PROXIMA_STORAGE_KEY = 'exp.github.copilot.isProxima';
+	constructor(
+		private readonly context: IVSCodeExtensionContext,
+		copilotTokenStore: ICopilotTokenStore
+	) {
 		super();
 
 		if (copilotTokenStore) {
@@ -54,13 +59,17 @@ export class UserInfoStore extends Disposable {
 				}
 				return undefined;
 			};
+			const getIsProxima = (): boolean => {
+				const stamp = copilotTokenStore.copilotToken?.getTokenValue('st');
+				return !!stamp && stamp !== 'dotcom';
+			};
 
-			copilotTokenStore.onDidStoreUpdate(() => {
-				this.updateUserInfo(getInternalOrg(), copilotTokenStore.copilotToken?.sku, copilotTokenStore.copilotToken?.isFcv1(), copilotTokenStore.copilotToken?.isSn(), copilotTokenStore.copilotToken?.isVscodeTeamMember, copilotTokenStore.copilotToken?.organizationList);
-			});
+			this._register(copilotTokenStore.onDidChangeTokenData(() => {
+				this.updateUserInfo(getInternalOrg(), copilotTokenStore.copilotToken?.sku, copilotTokenStore.copilotToken?.isFcv1(), copilotTokenStore.copilotToken?.isSn(), copilotTokenStore.copilotToken?.isVscodeTeamMember, copilotTokenStore.copilotToken?.organizationList, getIsProxima());
+			}));
 
 			if (copilotTokenStore.copilotToken) {
-				this.updateUserInfo(getInternalOrg(), copilotTokenStore.copilotToken.sku, copilotTokenStore.copilotToken.isFcv1(), copilotTokenStore.copilotToken.isSn(), copilotTokenStore.copilotToken.isVscodeTeamMember, copilotTokenStore.copilotToken.organizationList);
+				this.updateUserInfo(getInternalOrg(), copilotTokenStore.copilotToken.sku, copilotTokenStore.copilotToken.isFcv1(), copilotTokenStore.copilotToken.isSn(), copilotTokenStore.copilotToken.isVscodeTeamMember, copilotTokenStore.copilotToken.organizationList, getIsProxima());
 			} else {
 				const cachedInternalValue = this.context.globalState.get<string>(UserInfoStore.INTERNAL_ORG_STORAGE_KEY);
 				const cachedSkuValue = this.context.globalState.get<string>(UserInfoStore.SKU_STORAGE_KEY);
@@ -68,8 +77,10 @@ export class UserInfoStore extends Disposable {
 				const cachedIsSnValue = this.context.globalState.get<boolean>(UserInfoStore.IS_SN_STORAGE_KEY);
 				const cachedIsVscodeTeamMemberValue = this.context.globalState.get<boolean>(UserInfoStore.IS_VSCODE_TEAM_MEMBER_STORAGE_KEY);
 				const cachedOrganizationListValue = this.context.globalState.get<string[]>(UserInfoStore.ORGANIZATION_LIST_STORAGE_KEY);
-				this.updateUserInfo(cachedInternalValue, cachedSkuValue, cachedIsFcv1Value, cachedIsSnValue, cachedIsVscodeTeamMemberValue, cachedOrganizationListValue);
+				const cachedIsProximaValue = this.context.globalState.get<boolean>(UserInfoStore.IS_PROXIMA_STORAGE_KEY) ?? false;
+				this.updateUserInfo(cachedInternalValue, cachedSkuValue, cachedIsFcv1Value, cachedIsSnValue, cachedIsVscodeTeamMemberValue, cachedOrganizationListValue, cachedIsProximaValue);
 			}
+
 		}
 	}
 
@@ -93,6 +104,10 @@ export class UserInfoStore extends Disposable {
 		return this._isVscodeTeamMember;
 	}
 
+	get isProxima(): boolean {
+		return this._isProxima;
+	}
+
 	/**
 	 * The list of organization IDs the user belongs to.
 	 * This can be used in ExP to target specific organizations via the X-GitHub-Copilot-OrganizationList filter.
@@ -101,8 +116,8 @@ export class UserInfoStore extends Disposable {
 		return this._organizationList;
 	}
 
-	private updateUserInfo(internalOrg?: string, sku?: string, isFcv1?: boolean, isSn?: boolean, isVscodeTeamMember?: boolean, organizationList?: string[]): void {
-		if (this._internalOrg === internalOrg && this._sku === sku && this._isFcv1 === isFcv1 && this._isSn === isSn && this._isVscodeTeamMember === isVscodeTeamMember && equals(this._organizationList, organizationList)) {
+	private updateUserInfo(internalOrg: string | undefined, sku: string | undefined, isFcv1: boolean | undefined, isSn: boolean | undefined, isVscodeTeamMember: boolean | undefined, organizationList: string[] | undefined, isProxima: boolean): void {
+		if (this._internalOrg === internalOrg && this._sku === sku && this._isFcv1 === isFcv1 && this._isSn === isSn && this._isVscodeTeamMember === isVscodeTeamMember && equals(this._organizationList, organizationList) && this._isProxima === isProxima) {
 			// no change
 			return;
 		}
@@ -113,15 +128,18 @@ export class UserInfoStore extends Disposable {
 		this._isSn = isSn;
 		this._isVscodeTeamMember = isVscodeTeamMember;
 		this._organizationList = organizationList;
+		this._isProxima = isProxima;
 		void this.context.globalState.update(UserInfoStore.INTERNAL_ORG_STORAGE_KEY, this._internalOrg);
 		void this.context.globalState.update(UserInfoStore.SKU_STORAGE_KEY, this._sku);
 		void this.context.globalState.update(UserInfoStore.IS_FCV1_STORAGE_KEY, this._isFcv1);
 		void this.context.globalState.update(UserInfoStore.IS_SN_STORAGE_KEY, this._isSn);
 		void this.context.globalState.update(UserInfoStore.IS_VSCODE_TEAM_MEMBER_STORAGE_KEY, this._isVscodeTeamMember);
 		void this.context.globalState.update(UserInfoStore.ORGANIZATION_LIST_STORAGE_KEY, this._organizationList);
+		void this.context.globalState.update(UserInfoStore.IS_PROXIMA_STORAGE_KEY, this._isProxima);
 
 		this._onDidChangeUserInfo.fire();
 	}
+
 }
 
 /**
@@ -176,6 +194,7 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 
 	protected _delegate: ITASExperimentationService;
 	protected readonly _userInfoStore: UserInfoStore;
+	protected readonly refreshOnUserInfoChange: boolean = true;
 
 	/** Disposes the current delegate (stopping its polling); auto-disposes the previous one on replacement. */
 	private readonly _delegateDisposable = this._register(new MutableDisposable());
@@ -196,10 +215,13 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	) {
 		super();
 
-		this._userInfoStore = new UserInfoStore(context, copilotTokenStore);
+		this._userInfoStore = this._register(new UserInfoStore(context, copilotTokenStore));
 
 		// Refresh treatments when user info changes
 		this._register(this._userInfoStore.onDidChangeUserInfo(async () => {
+			if (!this.refreshOnUserInfoChange) {
+				return;
+			}
 			await this._delegate.getTreatmentVariableAsync('vscode', 'refresh');
 			this._logService.trace(`[BaseExperimentationService] User info changed, refreshed treatments`);
 			this._signalTreatmentsChangeEvent();

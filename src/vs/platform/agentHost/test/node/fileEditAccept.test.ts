@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { isLinux } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { ISessionDatabase } from '../../common/sessionDataService.js';
@@ -11,7 +12,7 @@ import { FileEditKind, type ISessionFileDiff } from '../../common/state/sessionS
 import { createFileEditAcceptRecord, createPartialFileEditAcceptRecord, FILE_EDIT_ACCEPT_TOOL_CALL_ID_PREFIX, getUnacceptedFileEditRecords, isFileEditAcceptRecord, readFileEditEndContent } from '../../node/fileEditAccept.js';
 import { SessionDbResourceProvider } from '../../node/resourceProviders/sessionDbResourceProvider.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, computeWorkingSetDiffs, type ISessionDiffSource } from '../../node/sessionDiffAggregator.js';
+import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, computeWorkingSetDiffs, computeWorkingSetFiles, type ISessionDiffSource } from '../../node/sessionDiffAggregator.js';
 import { createSessionDataService, TestDiffComputeService } from '../common/sessionTestHelpers.js';
 import { InProcessDiffComputeService } from './inProcessDiffComputeService.js';
 
@@ -276,6 +277,39 @@ suite('fileEditAccept', () => {
 		});
 	});
 
+	// Linux tells paths apart by their case, so there these edits are of two files.
+	(isLinux ? test.skip : test)('a file whose edits spell its path differently is one working set file, also when a row accepted only one spelling', async () => {
+		const alias = '/REPO/file.ts';
+		const db = disposables.add(await SessionDatabase.open(':memory:'));
+		const sources = [{ sessionUri: SESSION, db }];
+		const diffService = new InProcessDiffComputeService();
+		const workingSet = async () => {
+			const files = await computeWorkingSetFiles(sources, diffService);
+			return { files: await readDiffs(sources, files.map(file => file.diff)), nonces: files.map(file => file.nonce) };
+		};
+		await storeEdit(db, 't1', 'tc1', FileEditKind.Edit, lines(), lines({ 0: 'L1' }));
+		// The user changes the third line before the next edit, which moves that change into the baseline.
+		await storeEdit(db, 't1', 'tc2', FileEditKind.Edit, lines({ 0: 'L1', 2: 'U3' }), lines({ 0: 'L1', 2: 'U3', 4: 'L5' }), alias);
+		const edited = await workingSet();
+		// Accepting recorded the spelling of the file's last edit, which once left its other spelling in the working set.
+		await accept(db, alias);
+		const accepted = await workingSet();
+		await storeEdit(db, 't2', 'tc3', FileEditKind.Edit, lines({ 0: 'L1', 2: 'U3', 4: 'L5' }), lines({ 0: 'L1', 2: 'U3', 4: 'L5', 5: 'L6' }));
+
+		const file = 'file:///repo/file.ts';
+		assert.deepStrictEqual({
+			edited,
+			accepted,
+			editedAgain: await workingSet(),
+			session: await readDiffs(sources, await computeSessionDiffs(SESSION, db, diffService)),
+		}, {
+			edited: { files: [{ file, before: lines({ 2: 'U3' }), after: lines({ 0: 'L1', 2: 'U3', 4: 'L5' }) }], nonces: ['tc2'] },
+			accepted: { files: [], nonces: [] },
+			editedAgain: { files: [{ file, before: lines({ 0: 'L1', 2: 'U3', 4: 'L5' }), after: lines({ 0: 'L1', 2: 'U3', 4: 'L5', 5: 'L6' }) }], nonces: ['tc3'] },
+			session: [{ file, before: lines(), after: lines({ 0: 'L1', 2: 'U3', 4: 'L5', 5: 'L6' }) }],
+		});
+	});
+
 	test('a partial accept row starts the working set at the accepted content, keeping the other changes in it', async () => {
 		const db = disposables.add(await SessionDatabase.open(':memory:'));
 		const sources = [{ sessionUri: SESSION, db }];
@@ -385,6 +419,154 @@ suite('fileEditAccept', () => {
 			parentEdited: [{ file: 'file:///repo/file.ts', before: lines({ 0: 'L1' }), after: lines({ 0: 'L1', 1: 'P2' }) }],
 			bothEdited: [{ file: 'file:///repo/file.ts', before: lines({ 0: 'L1' }), after: lines({ 0: 'L1', 1: 'P2', 4: 'C5' }) }],
 			forkEdited: [{ file: 'file:///repo/file.ts', before: lines({ 0: 'L1', 2: 'U3' }), after: lines({ 0: 'L1', 2: 'U3', 4: 'C5' }) }],
+		});
+	});
+
+	test('an accept row only covers its own database and the copies of its rows, whichever order the databases are in', async () => {
+		const diffService = new TestDiffComputeService();
+		const open = async () => {
+			const first = disposables.add(await SessionDatabase.open(':memory:'));
+			const second = disposables.add(await SessionDatabase.open(':memory:'));
+			return { first, second, sources: [{ sessionUri: SESSION, db: first }, { sessionUri: PEER, db: second }] };
+		};
+		const copy = async (from: ISessionDatabase, to: ISessionDatabase) => {
+			for (const record of await from.getAllFileEdits()) {
+				await to.storeFileEdit({ ...record, ...await from.readFileEditContent(record.toolCallId, record.filePath) });
+			}
+		};
+		const workingSet = async (sources: ISessionDiffSource[]) => readDiffs(sources, await computeWorkingSetDiffs(sources, diffService));
+
+		// The second chat's change is accepted, then the first chat changes the file.
+		const acceptedInLaterDatabase = await open();
+		await storeEdit(acceptedInLaterDatabase.second, 's1', 'tc1', FileEditKind.Edit, lines(), lines({ 0: 'S1' }));
+		await accept(acceptedInLaterDatabase.second);
+		await storeEdit(acceptedInLaterDatabase.first, 'f1', 'tc2', FileEditKind.Edit, lines({ 0: 'S1' }), lines({ 0: 'S1', 1: 'F2' }));
+		// A chat is forked after its change was accepted. The fork changes the file, then its parent does.
+		const parentEditedAfterFork = await open();
+		await storeEdit(parentEditedAfterFork.first, 'f1', 'tc1', FileEditKind.Edit, lines(), lines({ 0: 'F1' }));
+		await accept(parentEditedAfterFork.first);
+		await copy(parentEditedAfterFork.first, parentEditedAfterFork.second);
+		await storeEdit(parentEditedAfterFork.second, 's1', 'tc2', FileEditKind.Edit, lines({ 0: 'F1' }), lines({ 0: 'F1', 1: 'S2' }));
+		await storeEdit(parentEditedAfterFork.first, 'f2', 'tc3', FileEditKind.Edit, lines({ 0: 'F1', 1: 'S2' }), lines({ 0: 'F1', 1: 'S2', 2: 'F3' }));
+		// A chat is forked before its change is accepted, which accepts the fork's copy of it too.
+		const acceptedAfterFork = await open();
+		await storeEdit(acceptedAfterFork.first, 'f1', 'tc1', FileEditKind.Edit, lines(), lines({ 0: 'F1' }));
+		await copy(acceptedAfterFork.first, acceptedAfterFork.second);
+		await accept(acceptedAfterFork.first);
+		await storeEdit(acceptedAfterFork.second, 's1', 'tc2', FileEditKind.Edit, lines({ 0: 'F1' }), lines({ 0: 'F1', 1: 'S2' }));
+		// Nothing is accepted: the second chat changes the file, then the first one does.
+		const laterDatabaseEditedFirst = await open();
+		await storeEdit(laterDatabaseEditedFirst.second, 's1', 'tc1', FileEditKind.Edit, lines(), lines({ 0: 'S1' }));
+		await storeEdit(laterDatabaseEditedFirst.first, 'f1', 'tc2', FileEditKind.Edit, lines({ 0: 'S1' }), lines({ 0: 'S1', 1: 'F2' }));
+		// Both chats' changes are accepted, then both change the file again.
+		const bothEditedAfterAccepting = await open();
+		await storeEdit(bothEditedAfterAccepting.first, 'f1', 'tc1', FileEditKind.Edit, lines(), lines({ 0: 'F1' }));
+		await storeEdit(bothEditedAfterAccepting.second, 's1', 'tc2', FileEditKind.Edit, lines({ 0: 'F1' }), lines({ 0: 'F1', 1: 'S2' }));
+		await accept(bothEditedAfterAccepting.first);
+		await accept(bothEditedAfterAccepting.second);
+		await storeEdit(bothEditedAfterAccepting.first, 'f2', 'tc3', FileEditKind.Edit, lines({ 0: 'F1', 1: 'S2' }), lines({ 0: 'F1', 1: 'S2', 2: 'F3' }));
+		await storeEdit(bothEditedAfterAccepting.second, 's2', 'tc4', FileEditKind.Edit, lines({ 0: 'F1', 1: 'S2', 2: 'F3' }), lines({ 0: 'F1', 1: 'S2', 2: 'F3', 3: 'S4' }));
+		// The chats then alternate between two contents, which leaves no order to tell: one chat's changes still show the file.
+		const contentsRecur = await open();
+		await storeEdit(contentsRecur.second, 's1', 'tc1', FileEditKind.Edit, lines(), lines({ 0: 'V1' }));
+		await accept(contentsRecur.second);
+		await storeEdit(contentsRecur.first, 'f1', 'tc2', FileEditKind.Edit, lines({ 0: 'V1' }), lines({ 0: 'V2' }));
+		await accept(contentsRecur.first);
+		await storeEdit(contentsRecur.first, 'f2', 'tc3', FileEditKind.Edit, lines({ 0: 'V2' }), lines({ 0: 'V1' }));
+		await storeEdit(contentsRecur.second, 's2', 'tc4', FileEditKind.Edit, lines({ 0: 'V1' }), lines({ 0: 'V2' }));
+		await storeEdit(contentsRecur.first, 'f3', 'tc5', FileEditKind.Edit, lines({ 0: 'V2' }), lines({ 0: 'V1' }));
+
+		const file = 'file:///repo/file.ts';
+		assert.deepStrictEqual({
+			acceptedInLaterDatabase: await workingSet(acceptedInLaterDatabase.sources),
+			parentEditedAfterFork: await workingSet(parentEditedAfterFork.sources),
+			acceptedAfterFork: await workingSet(acceptedAfterFork.sources),
+			laterDatabaseEditedFirst: await workingSet(laterDatabaseEditedFirst.sources),
+			bothEditedAfterAccepting: await workingSet(bothEditedAfterAccepting.sources),
+			contentsRecur: await workingSet(contentsRecur.sources),
+		}, {
+			acceptedInLaterDatabase: [{ file, before: lines({ 0: 'S1' }), after: lines({ 0: 'S1', 1: 'F2' }) }],
+			parentEditedAfterFork: [{ file, before: lines({ 0: 'F1' }), after: lines({ 0: 'F1', 1: 'S2', 2: 'F3' }) }],
+			acceptedAfterFork: [{ file, before: lines({ 0: 'F1' }), after: lines({ 0: 'F1', 1: 'S2' }) }],
+			laterDatabaseEditedFirst: [{ file, before: lines(), after: lines({ 0: 'S1', 1: 'F2' }) }],
+			bothEditedAfterAccepting: [{ file, before: lines({ 0: 'F1', 1: 'S2' }), after: lines({ 0: 'F1', 1: 'S2', 2: 'F3', 3: 'S4' }) }],
+			contentsRecur: [{ file, before: lines({ 0: 'V1' }), after: lines({ 0: 'V2' }) }],
+		});
+	});
+
+	test('leaves out a file whose changes a forked chat undid after its parent made them', async () => {
+		const diffService = new TestDiffComputeService();
+		const fork = async (kind: FileEditKind, before: string | undefined, after: string) => {
+			const parent = disposables.add(await SessionDatabase.open(':memory:'));
+			const child = disposables.add(await SessionDatabase.open(':memory:'));
+			await storeEdit(parent, 't1', 'tc1', kind, before, after);
+			// A forked chat's database starts as a copy of its parent's rows.
+			await storeEdit(child, 't1', 'tc1', kind, before, after);
+			return { parent, child, sources: [{ sessionUri: SESSION, db: parent }, { sessionUri: PEER, db: child }] };
+		};
+		const workingSet = async (sources: ISessionDiffSource[]) => readDiffs(sources, await computeWorkingSetDiffs(sources, diffService));
+
+		// The parent creates a file and changes it, then the fork deletes it.
+		const deleted = await fork(FileEditKind.Create, undefined, 'a');
+		await storeEdit(deleted.parent, 't2', 'tc2', FileEditKind.Edit, 'a', 'b');
+		const beforeDeleting = await workingSet(deleted.sources);
+		await storeEdit(deleted.child, 'c1', 'tc3', FileEditKind.Delete, 'b', undefined);
+		// The parent changes a file twice, then the fork restores it.
+		const restored = await fork(FileEditKind.Edit, lines(), lines({ 0: 'L1' }));
+		await storeEdit(restored.parent, 't2', 'tc2', FileEditKind.Edit, lines({ 0: 'L1' }), lines({ 0: 'L1', 1: 'P2' }));
+		await storeEdit(restored.child, 'c1', 'tc3', FileEditKind.Edit, lines({ 0: 'L1', 1: 'P2' }), lines());
+
+		assert.deepStrictEqual({ beforeDeleting, deleted: await workingSet(deleted.sources), restored: await workingSet(restored.sources) }, {
+			beforeDeleting: [{ file: 'file:///repo/file.ts', before: undefined, after: 'b' }],
+			deleted: [],
+			restored: [],
+		});
+	});
+
+	// Linux tells paths apart by their case, so there these edits are of two files.
+	(isLinux ? test.skip : test)('combines the working sets of a session and a fork that spells the file\'s path differently', async () => {
+		const alias = '/REPO/file.ts';
+		const diffService = new TestDiffComputeService();
+		const fork = async () => {
+			const parent = disposables.add(await SessionDatabase.open(':memory:'));
+			const child = disposables.add(await SessionDatabase.open(':memory:'));
+			await storeEdit(parent, 't1', 'tc1', FileEditKind.Edit, lines(), lines({ 0: 'L1' }));
+			// A forked chat's database starts as a copy of its parent's rows.
+			for (const record of await parent.getAllFileEdits()) {
+				await child.storeFileEdit({ ...record, ...await parent.readFileEditContent(record.toolCallId, record.filePath) });
+			}
+			await accept(child);
+			return { parent, child, sources: [{ sessionUri: SESSION, db: parent }, { sessionUri: PEER, db: child }] };
+		};
+		const workingSet = async (sources: ISessionDiffSource[]) => {
+			const diffs = await computeWorkingSetDiffs(sources, diffService);
+			return { files: await readDiffs(sources, diffs), uris: diffs.map(diff => [diff.before?.uri, diff.after?.uri]) };
+		};
+
+		// The parent changes the file, then the fork does, with another spelling of its path.
+		const bothEdited = await fork();
+		await storeEdit(bothEdited.parent, 't2', 'tc2', FileEditKind.Edit, lines({ 0: 'L1' }), lines({ 0: 'L1', 1: 'P2' }));
+		await storeEdit(bothEdited.child, 'c1', 'tc3', FileEditKind.Edit, lines({ 0: 'L1', 1: 'P2' }), lines({ 0: 'L1', 1: 'P2', 4: 'C5' }), alias);
+		// Only the fork changes it, after the user changed it outside of the session.
+		const forkEdited = await fork();
+		await storeEdit(forkEdited.child, 'c1', 'tc3', FileEditKind.Edit, lines({ 0: 'L1', 2: 'U3' }), lines({ 0: 'L1', 2: 'U3', 4: 'C5' }), alias);
+		// Both changes are also accepted, which records the fork's spelling, and the fork changes the file again.
+		const forkAccepted = await fork();
+		await storeEdit(forkAccepted.parent, 't2', 'tc2', FileEditKind.Edit, lines({ 0: 'L1' }), lines({ 0: 'L1', 1: 'P2' }));
+		await storeEdit(forkAccepted.child, 'c1', 'tc3', FileEditKind.Edit, lines({ 0: 'L1', 1: 'P2' }), lines({ 0: 'L1', 1: 'P2', 4: 'C5' }), alias);
+		await accept(forkAccepted.parent);
+		await accept(forkAccepted.child, alias);
+		await storeEdit(forkAccepted.child, 'c2', 'tc4', FileEditKind.Edit, lines({ 0: 'L1', 1: 'P2', 4: 'C5' }), lines({ 0: 'L1', 1: 'P2', 4: 'C5', 5: 'C6' }), alias);
+
+		const file = 'file:///repo/file.ts';
+		assert.deepStrictEqual({
+			bothEdited: await workingSet(bothEdited.sources),
+			forkEdited: await workingSet(forkEdited.sources),
+			forkAccepted: await workingSet(forkAccepted.sources),
+		}, {
+			bothEdited: { files: [{ file, before: lines({ 0: 'L1' }), after: lines({ 0: 'L1', 1: 'P2', 4: 'C5' }) }], uris: [[file, file]] },
+			forkEdited: { files: [{ file, before: lines({ 0: 'L1', 2: 'U3' }), after: lines({ 0: 'L1', 2: 'U3', 4: 'C5' }) }], uris: [[file, file]] },
+			forkAccepted: { files: [{ file, before: lines({ 0: 'L1', 1: 'P2', 4: 'C5' }), after: lines({ 0: 'L1', 1: 'P2', 4: 'C5', 5: 'C6' }) }], uris: [[file, file]] },
 		});
 	});
 });

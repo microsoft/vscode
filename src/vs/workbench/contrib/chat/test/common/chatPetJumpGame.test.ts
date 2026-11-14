@@ -387,6 +387,47 @@ suite('ChatPetJumpGame', () => {
 		});
 	});
 
+	test('retry restores all crumbling platforms in the same course across repeated attempts', () => {
+		const model = climbTo(18);
+		const snapshot = () => ({
+			player: { ...model.player },
+			platforms: model.platforms.map(({ id, left, width, height, kind, collapseProgress, fallDistance }) => ({ id, left, width, height, kind, collapseProgress, fallDistance })),
+			walls: [...model.walls],
+			hops: model.hops,
+			bestHeight: model.bestHeight,
+		});
+		const crumblingState = () => model.platforms.filter(platform => platform.kind === 'crumbling')
+			.map(({ id, collapseProgress, fallDistance }) => ({ id, collapseProgress, fallDistance }));
+		advance(model, 2000);
+		assert.deepStrictEqual(crumblingState().filter(platform => platform.fallDistance >= model.petSize * 4).map(platform => platform.id), [9, 17]);
+		const before = snapshot();
+		const restored = {
+			...before,
+			platforms: before.platforms.map(platform => ({ ...platform, collapseProgress: 0, fallDistance: 0 })),
+		};
+		const intact = crumblingState().map(platform => ({ ...platform, collapseProgress: 0, fallDistance: 0 }));
+		model.hop(0);
+		advance(model, 100);
+		for (let attempt = 0; attempt < 3; attempt++) {
+			model.resetToCheckpoint();
+			assert.deepStrictEqual(snapshot(), restored);
+			advance(model, 2000);
+			assert.deepStrictEqual(crumblingState(), intact);
+		}
+
+		const platform = model.platforms[9];
+		Object.assign(model.player, {
+			x: platform.left + platform.width / 2, height: platform.height + model.petSize,
+			velocityX: 0, velocityY: 0, platform: undefined,
+		});
+		advance(model, 250);
+		const landed = { platform: model.player.platform, crumbling: platform.collapseProgress > 0, hops: model.hops };
+		advance(model, 1600);
+		assert.deepStrictEqual({ landed, collapsed: platform.collapseProgress, falling: platform.fallDistance > 0 }, {
+			landed: { platform: 9, crumbling: true, hops: 18 }, collapsed: 1, falling: true,
+		});
+	});
+
 	test('bank shots reflect horizontal speed without an extra vertical kick and land on the narrow ledge', () => {
 		const model = climbTo(11);
 		const wall = model.walls.find(wall => wall.id === 12)!;

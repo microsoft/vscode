@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* eslint-disable no-restricted-globals */
-/* eslint-disable no-restricted-syntax */
+/* eslint-disable eslint-js/no-restricted-syntax */
 
 // Only `import type` is allowed in preload scripts — Electron preloads cannot resolve module imports at runtime.
 import type { BrowserElementSelectionMode, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewPreloadLocalizedStrings, IBrowserViewTheme, IBrowserViewRect } from '../common/browserView.js';

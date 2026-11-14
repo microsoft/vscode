@@ -4,49 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, EventEmitter, LogOutputChannel, Memento, Uri, workspace } from 'vscode';
-import { Repository as GitHubRepository, RepositoryRuleset } from '@octokit/graphql-schema';
-import { AuthenticationError, OctokitService } from './auth.js';
+import type { GitHubRepositoryRuleset, GitHubRepositoryViewerInfo } from '@vscode/internal-github';
+import { AuthenticationError, GitHubService } from './auth.js';
 import type { API, BranchProtection, BranchProtectionProvider, BranchProtectionRule, Repository } from './typings/git.d.ts';
 import { DisposableStore, getRepositoryFromUrl } from './util.js';
 import { TelemetryReporter } from '@vscode/extension-telemetry';
-
-const REPOSITORY_QUERY = `
-	query repositoryPermissions($owner: String!, $repo: String!) {
-		repository(owner: $owner, name: $repo) {
-			defaultBranchRef {
-				name
-			},
-			viewerPermission
-		}
-	}
-`;
-
-const REPOSITORY_RULESETS_QUERY = `
-	query repositoryRulesets($owner: String!, $repo: String!, $cursor: String, $limit: Int = 100) {
-		repository(owner: $owner, name: $repo) {
-			rulesets(includeParents: true, first: $limit, after: $cursor) {
-				nodes {
-					name
-					enforcement
-					rules(type: PULL_REQUEST) {
-						totalCount
-					}
-					conditions {
-						refName {
-							include
-							exclude
-						}
-					}
-					target
-				},
-				pageInfo {
-					endCursor,
-					hasNextPage
-				}
-			}
-		}
-	}
-`;
 
 export class GitHubBranchProtectionProviderManager {
 
@@ -78,7 +40,7 @@ export class GitHubBranchProtectionProviderManager {
 	constructor(
 		private readonly gitAPI: API,
 		private readonly globalState: Memento,
-		private readonly octokitService: OctokitService,
+		private readonly githubService: GitHubService,
 		private readonly logger: LogOutputChannel,
 		private readonly telemetryReporter: TelemetryReporter) {
 		this.disposables.add(this.gitAPI.onDidOpenRepository(repository => {
@@ -104,7 +66,7 @@ export class GitHubBranchProtectionProviderManager {
 		const key = repository.rootUri.toString();
 		this.disposeProvider(key);
 
-		const provider = new GitHubBranchProtectionProvider(repository, this.globalState, this.octokitService, this.logger, this.telemetryReporter);
+		const provider = new GitHubBranchProtectionProvider(repository, this.globalState, this.githubService, this.logger, this.telemetryReporter);
 		const registration = this.gitAPI.registerBranchProtectionProvider(repository.rootUri, provider);
 
 		this.providers.set(key, new Disposable(() => {
@@ -150,7 +112,7 @@ export class GitHubBranchProtectionProvider implements BranchProtectionProvider 
 	constructor(
 		private readonly repository: Repository,
 		private readonly globalState: Memento,
-		private readonly octokitService: OctokitService,
+		private readonly githubService: GitHubService,
 		private readonly logger: LogOutputChannel,
 		private readonly telemetryReporter: TelemetryReporter
 	) {
@@ -162,7 +124,7 @@ export class GitHubBranchProtectionProvider implements BranchProtectionProvider 
 		this.branchProtection = this.globalState.get<BranchProtection[]>(this.globalStateKey, []);
 
 		repository.status().then(() => {
-			this.disposables.add(this.octokitService.onDidChangeSessions(() => {
+			this.disposables.add(this.githubService.onDidChangeSessions(() => {
 				this.updateRepositoryBranchProtection();
 			}));
 			this.updateRepositoryBranchProtection();
@@ -173,34 +135,24 @@ export class GitHubBranchProtectionProvider implements BranchProtectionProvider 
 		return this.branchProtection;
 	}
 
-	private async getRepositoryDetails(owner: string, repo: string): Promise<GitHubRepository> {
-		const graphql = await this.octokitService.getOctokitGraphql();
-		const { repository } = await graphql<{ repository: GitHubRepository }>(REPOSITORY_QUERY, { owner, repo });
-
+	private async getRepositoryDetails(owner: string, repo: string): Promise<GitHubRepositoryViewerInfo> {
+		const client = await this.githubService.getClient(true);
+		const repository = await client.repositories.getViewerInfo({ owner, repo });
+		if (!repository) {
+			throw new Error('GitHub repository details are unavailable.');
+		}
 		return repository;
 	}
 
-	private async getRepositoryRulesets(owner: string, repo: string): Promise<RepositoryRuleset[]> {
-		const rulesets: RepositoryRuleset[] = [];
-
-		let cursor: string | undefined = undefined;
-		const graphql = await this.octokitService.getOctokitGraphql();
-
-		while (true) {
-			const { repository } = await graphql<{ repository: GitHubRepository }>(REPOSITORY_RULESETS_QUERY, { owner, repo, cursor });
-
-			rulesets.push(...(repository.rulesets?.nodes ?? [])
-				// Active branch ruleset that contains the pull request required rule
-				.filter(node => node && node.target === 'BRANCH' && node.enforcement === 'ACTIVE' && (node.rules?.totalCount ?? 0) > 0) as RepositoryRuleset[]);
-
-			if (repository.rulesets?.pageInfo.hasNextPage) {
-				cursor = repository.rulesets.pageInfo.endCursor as string | undefined;
-			} else {
-				break;
-			}
+	private async getRepositoryRulesets(owner: string, repo: string): Promise<GitHubRepositoryRuleset[]> {
+		const client = await this.githubService.getClient(true);
+		const result = await client.repositories.listRulesetConnection({ owner, repo }, { maxPages: 1000 });
+		if (!result) {
+			throw new Error('GitHub repository rulesets are unavailable.');
 		}
 
-		return rulesets;
+		// Active branch ruleset that contains the pull request required rule
+		return (result.nodes ?? []).filter((node): node is GitHubRepositoryRuleset => node !== null && node.target === 'BRANCH' && node.enforcement === 'ACTIVE' && (node.rules?.totalCount ?? 0) > 0);
 	}
 
 	private async updateRepositoryBranchProtection(): Promise<void> {
@@ -230,8 +182,8 @@ export class GitHubBranchProtectionProvider implements BranchProtectionProvider 
 
 				for (const ruleset of repositoryRulesets) {
 					branchProtectionRules.push({
-						include: (ruleset.conditions.refName?.include ?? []).map(r => this.parseRulesetRefName(repositoryDetails, r)),
-						exclude: (ruleset.conditions.refName?.exclude ?? []).map(r => this.parseRulesetRefName(repositoryDetails, r))
+						include: (ruleset.conditions?.refName?.include ?? []).map(r => this.parseRulesetRefName(repositoryDetails, r)),
+						exclude: (ruleset.conditions?.refName?.exclude ?? []).map(r => this.parseRulesetRefName(repositoryDetails, r))
 					});
 				}
 
@@ -269,7 +221,7 @@ export class GitHubBranchProtectionProvider implements BranchProtectionProvider 
 		}
 	}
 
-	private parseRulesetRefName(repository: GitHubRepository, refName: string): string {
+	private parseRulesetRefName(repository: GitHubRepositoryViewerInfo, refName: string): string {
 		if (refName.startsWith('refs/heads/')) {
 			return refName.substring(11);
 		}

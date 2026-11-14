@@ -14,6 +14,7 @@ import { ResourceNotebookCellEdit } from '../../../bulkEdit/browser/bulkCellEdit
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextBuffer, ValidAnnotatedEditOperation } from '../../../../../editor/common/model.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 
 suite('CellOperations', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -189,6 +190,33 @@ suite('CellOperations', () => {
 				assert.notStrictEqual(cell1.getText(), cell2.getText());
 			});
 	});
+
+	for (const targetIndex of [0, 1]) {
+		test(`Copy/duplicate cells - appending to ${targetIndex === 0 ? 'source' : 'copy'} does not change the other output`, async function () {
+			await withTestNotebook(
+				[
+					['test', 'javascript', CellKind.Code, [{
+						outputId: 'original-output',
+						outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: VSBuffer.fromString('before\n') }]
+					}], {}]
+				],
+				async (editor, viewModel) => {
+					viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] });
+					await copyCellRange({ notebookEditor: editor, cell: viewModel.cellAt(0)! }, 'down');
+					editor.textModel.applyEdits([{
+						editType: CellEditType.OutputItems,
+						outputId: editor.textModel.cells[targetIndex].outputs[0].outputId,
+						append: true,
+						items: [{ mime: 'application/vnd.code.notebook.stdout', data: VSBuffer.fromString('after\n') }]
+					}], true, undefined, () => undefined, undefined, false);
+
+					assert.deepStrictEqual(
+						editor.textModel.cells.map(cell => cell.outputs[0].outputs.map(item => item.data.toString())),
+						targetIndex === 0 ? [['before\nafter\n'], ['before\n']] : [['before\n'], ['before\nafter\n']]
+					);
+				});
+		});
+	}
 
 	test('Join cell with below - single cell', async function () {
 		await withTestNotebook(

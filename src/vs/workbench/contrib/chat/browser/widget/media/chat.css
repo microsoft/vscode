@@ -596,7 +596,8 @@
 	pointer-events: auto;
 }
 
-.monaco-workbench:not(.agent-sessions-workbench) .interactive-item-container.interactive-request.editing .chat-request-timestamp-container {
+/* Not in session chats, which pad it themselves, whatever window shows them. */
+.monaco-workbench:not(.agent-sessions-workbench) .interactive-item-container.interactive-request.editing .chat-request-timestamp-container:where(:not(.sessions-chat *)) {
 	box-sizing: border-box;
 	padding-inline-end: var(--vscode-spacing-size160);
 }
@@ -2657,12 +2658,25 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
+/* An image in the input ends with a Mark Up button, which mirrors the remove button that starts the pill. */
+.interactive-session .chat-attached-context .chat-attached-context-attachment.can-mark-up {
+	padding-right: 0;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.chat-attached-context-mark-up-button {
+	order: 1;
+	padding-left: var(--vscode-spacing-size40);
+	padding-right: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+}
+
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
+/* A theme icon is centered in its box, so the box takes the height of the pill rather than the taller height of a list row. */
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-icon-label-iconpath.codicon {
-	padding-top: 2px;
+	height: auto;
 }
 
 .interactive-session .chat-input-container .chat-attached-context {
@@ -2730,11 +2744,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 /* An attachment shown as a pill inline with the text of a request, see `chat.inlineAttachments.enabled`. */
 .interactive-session .interactive-item-container.interactive-request .value .rendered-markdown .chat-attached-context.chat-request-inline-attachment {
 	display: inline-flex;
-	vertical-align: middle;
 	max-width: 100%;
 	width: auto;
 	margin: 0;
 	padding: 0;
+}
+
+/*
+ * The label of the pill sits on the baseline of the text of the request. The pill takes its baseline from its
+ * first box, which would be its icon, so a box without text that is laid out as the line of its label comes first.
+ */
+.interactive-session .interactive-item-container.interactive-request .value .rendered-markdown .chat-request-inline-attachment .chat-attached-context-attachment::before {
+	content: '\200b';
 }
 
 /* Codicons in the text of a request are moved down to its baseline, while those of a pill are centered in it. */
@@ -2873,6 +2894,22 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-chat-slashCommandForeground);
 }
 
+/*
+ * A reference in the text of a request that is not an attachment pill, such as a slash command, is level with the
+ * pills beside it, and its text stays on the baseline of the text of the request. Its box is a line that also holds
+ * the label of a pill, without text: 18px high, in the smaller font of a pill and inside the width of its border.
+ */
+.interactive-item-container.interactive-request .chat-resource-widget {
+	display: inline-block;
+	padding-block: var(--vscode-strokeThickness);
+	line-height: normal;
+}
+
+.interactive-item-container.interactive-request .chat-resource-widget::before {
+	content: '\200b';
+	font-size: var(--vscode-chat-font-size-body-xs);
+	line-height: 18px;
+}
 
 .interactive-item-container .chat-resource-widget,
 .interactive-item-container .chat-agent-widget .monaco-button {
@@ -5164,7 +5201,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-item-container.pending-request {
 	opacity: 0.7;
 
-	.request-hover {
+	&:not(.scheduled-request) .request-hover {
 		top: -17px !important;
 	}
 }
@@ -5221,6 +5258,82 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: var(--vscode-chat-font-size-body-xs);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	color: var(--vscode-descriptionForeground);
+}
+
+.interactive-item-container.scheduled-request {
+	&.scheduled-request-editing {
+		opacity: 1;
+
+		.chat-request-timestamp-container {
+			height: auto;
+			margin-top: var(--vscode-spacing-size40);
+			pointer-events: auto;
+		}
+	}
+
+	.scheduled-request-editor {
+		display: flex;
+		flex-direction: column;
+		gap: var(--vscode-spacing-size80);
+		width: 100%;
+	}
+
+	.scheduled-request-editor-actions {
+		display: flex;
+		gap: var(--vscode-spacing-size80);
+	}
+
+	.scheduled-request-editor .monaco-button {
+		width: auto;
+		flex: 0 0 auto;
+		margin: 0;
+
+		&.scheduled-request-edit-time {
+			flex: 0 1 auto;
+			margin-right: auto;
+			min-width: 0;
+
+			> span:not(.codicon) {
+				min-width: 0;
+				overflow: hidden;
+				white-space: nowrap;
+				text-overflow: ellipsis;
+			}
+		}
+	}
+
+	.scheduled-request-actions {
+		top: -17px;
+		opacity: 0;
+	}
+
+	&:focus-within .scheduled-request-actions {
+		opacity: 1;
+	}
+
+	.scheduled-request-header {
+		display: flex;
+		align-items: center;
+		gap: var(--vscode-spacing-size80);
+		color: var(--vscode-descriptionForeground);
+		font-size: var(--vscode-chat-font-size-body-xs);
+	}
+
+	.scheduled-request-description {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.scheduled-request-text,
+	.scheduled-request-attachments {
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+	}
+
+	.scheduled-request-attachments {
+		color: var(--vscode-descriptionForeground);
+		font-size: var(--vscode-chat-font-size-body-xs);
+	}
 }
 
 /* Outline removal except for HC themes */

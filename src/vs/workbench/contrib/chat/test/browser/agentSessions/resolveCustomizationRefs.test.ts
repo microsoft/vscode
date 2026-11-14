@@ -98,12 +98,13 @@ function makeAgentPluginService(plugins: readonly IAgentPlugin[] = [], profileEn
 	} as unknown as IAgentPluginService;
 }
 
-function makePlugin(uri: URI, options: { label?: string; enabled?: boolean; enablement?: ContributionEnablementState; agents?: number; mcpServers?: number } = {}): IAgentPlugin {
+function makePlugin(uri: URI, options: { label?: string; enabled?: boolean; enablement?: ContributionEnablementState; agents?: number; mcpServers?: number; copilotCliInstallation?: IAgentPlugin['copilotCliInstallation'] } = {}): IAgentPlugin {
 	const { label = 'Plugin', enabled = true, enablement = enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile, agents = 0, mcpServers = 0 } = options;
 	return {
 		uri,
 		format: PluginFormat.Copilot,
 		label,
+		copilotCliInstallation: options.copilotCliInstallation,
 		enablement: observableValue('enablement', enablement),
 		hooks: observableValue('hooks', []),
 		commands: observableValue('commands', []),
@@ -305,6 +306,64 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const withPromptFiles of [false, true]) {
+		test(`does not forward SDK plugins or stale client disable decisions to Copilot ${withPromptFiles ? 'with' : 'without'} hydrated prompt files`, async () => {
+			const sdkPlugins = [true, false].map(enabled => makePlugin(URI.file(`/sdk/plugins/${enabled}`), {
+				enabled, mcpServers: 1,
+				copilotCliInstallation: { name: `sdk-${enabled}`, marketplace: 'example' },
+			}));
+			const clientPlugins = ['extension', 'configured-location', 'vscode-managed'].map(name => makePlugin(URI.file(`/client/${name}`), { mcpServers: 1 }));
+			const plugins = [...sdkPlugins, ...clientPlugins];
+			const profileEnablement = new Map(sdkPlugins.map(plugin => [plugin.uri.toString(), false]));
+			const files = new Map<string, readonly IPromptPath[]>(withPromptFiles ? [
+				[`${PromptsType.skill}/${PromptsStorage.plugin}`, plugins.map(plugin => makePromptPath(URI.joinPath(plugin.uri, 'skills', 'example', 'SKILL.md'), PromptsType.skill, PromptsStorage.plugin))],
+			] : []);
+			const results = [];
+			const targets = [
+				{ sessionType: SessionType.AgentHostCopilot, remoteAuthority: null },
+				{ sessionType: 'agent-host-copilot', remoteAuthority: null },
+				{ sessionType: SessionType.CopilotCLI, remoteAuthority: null },
+				{ sessionType: 'remote-example-copilot', remoteAuthority: null },
+				{ sessionType: 'remote-example-copilotcli', remoteAuthority: null },
+				{ sessionType: SessionType.AgentHostCopilot, remoteAuthority: 'ssh-remote+example' },
+			];
+			for (const { sessionType, remoteAuthority } of targets) {
+				const synced = new FakeBundler();
+				const standalone = new FakeBundler();
+				const refs = await resolveCustomizationRefs(
+					makeFileService(), makePromptsService(files), new FakeSyncProvider(), makeAgentPluginService(plugins, profileEnablement),
+					makeMcpService(), makeConfigurationResolverService(), toBundlers(synced, standalone), sessionType, undefined, [], remoteAuthority,
+				);
+				results.push({
+					refs: refs.filter(ref => ref.uri !== 'open-plugin://bundle').map(ref => ref.uri),
+					synced: synced.received.flat().filter(file => file.source !== BUILTIN_STORAGE),
+					standalone: standalone.received,
+				});
+			}
+			assert.deepStrictEqual(results, targets.map(() => ({ refs: clientPlugins.map(plugin => plugin.uri.toString()), synced: [], standalone: [] })));
+		});
+	}
+
+	test('retains SDK plugin forwarding for cloud and other providers', async () => {
+		const plugin = makePlugin(URI.file('/sdk/plugin'), { mcpServers: 1, copilotCliInstallation: { name: 'sdk', marketplace: 'example' } });
+		const results = [];
+		const targets = [
+			{ sessionType: 'cloud-sandbox-task', remoteAuthority: null },
+			{ sessionType: 'agent-host-claude', remoteAuthority: null },
+			{ sessionType: 'agent-host-codex', remoteAuthority: null },
+			{ sessionType: 'remote-example-claude', remoteAuthority: null },
+			{ sessionType: 'remote-example-codex', remoteAuthority: null },
+		];
+		for (const { sessionType, remoteAuthority } of targets) {
+			const refs = await resolveCustomizationRefs(
+				makeFileService(), makePromptsService(new Map()), new FakeSyncProvider(), makeAgentPluginService([plugin]),
+				makeMcpService(), makeConfigurationResolverService(), toBundlers(new FakeBundler()), sessionType, undefined, [], remoteAuthority,
+			);
+			results.push(refs.filter(ref => ref.uri === plugin.uri.toString()).map(ref => ref.uri));
+		}
+		assert.deepStrictEqual(results, targets.map(() => [plugin.uri.toString()]));
+	});
+
 	test('contributes image guidance only to remote Copilot sessions even without user customizations', async () => {
 		const results = [];
 		for (const sessionType of ['remote-sandbox-copilot', 'remote-sandbox-claude', 'remote-sandbox-codex', SessionType.AgentHostCopilot]) {
@@ -343,6 +402,30 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		]);
 		assert.strictEqual(refs.length, 1);
 		assert.strictEqual(refs[0].name, 'Open Plugin');
+	});
+
+	test('passes extension display names to the bundler', async () => {
+		const instructions = URI.file('/extensions/acme/instructions/team.instructions.md');
+		const promptsService = makePromptsService(new Map([
+			[`${PromptsType.instructions}/${PromptsStorage.extension}`, [{ ...makePromptPath(instructions, PromptsType.instructions, PromptsStorage.extension), extension: { identifier: new ExtensionIdentifier('acme.acme-chat-kit'), displayName: 'Acme Chat Kit' } } as IPromptPath]],
+		]));
+		const bundler = new FakeBundler();
+
+		await resolveCustomizationRefs(
+			makeFileService(),
+			promptsService,
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			makeMcpService(),
+			makeConfigurationResolverService(),
+			toBundlers(bundler),
+			SessionType.CopilotCLI,
+			undefined,
+		);
+
+		assert.deepStrictEqual(bundler.received.flat().map(f => ({ uri: f.uri.toString(), extensionId: f.extensionId, extensionLabel: f.extensionLabel })), [
+			{ uri: instructions.toString(), extensionId: 'acme.acme-chat-kit', extensionLabel: 'Acme Chat Kit' },
+		]);
 	});
 
 	test('omits disabled built-in skills from the bundle', async () => {
@@ -499,6 +582,60 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		assert.deepStrictEqual(refs, []);
 	});
 
+	test('keeps native agent picker metadata without re-forwarding Copilot-owned plugin content', async () => {
+		const pluginUri = URI.file('/plugins/native');
+		const agentUri = URI.joinPath(pluginUri, 'agents', 'agent-0.agent.md');
+		const plugin: IAgentPlugin = {
+			...makePlugin(pluginUri, { agents: 1, mcpServers: 1, enablement: ContributionEnablementState.EnabledProfile }),
+			copilotCliInstallation: { name: 'native', marketplace: 'marketplace' },
+		};
+		const prompts = makePromptsService(new Map([
+			[`${PromptsType.agent}/${PromptsStorage.plugin}`, [makePromptPath(agentUri, PromptsType.agent, PromptsStorage.plugin)]],
+		]));
+		const plugins = makeAgentPluginService([plugin], new Map([[pluginUri.toString(), true]]));
+		const results = [];
+		for (const sessionType of [SessionType.CopilotCLI, SessionType.AgentHostCopilot, 'remote-sandbox-copilot', 'remote-sandbox-claude']) {
+			const refs = await resolveCustomizationRefs(
+				makeFileService(), prompts, new FakeSyncProvider(), plugins, makeMcpService(),
+				makeConfigurationResolverService(), toBundlers(new FakeBundler()), sessionType, undefined,
+			);
+			const agents = await resolveLocalCustomAgents(
+				makeFileService(), prompts, new FakeSyncProvider(), plugins, sessionType, undefined,
+			);
+			results.push({ sessionType, plugins: refs.filter(ref => ref.uri === pluginUri.toString()).map(ref => ref.name), agents: agents.map(agent => agent.name) });
+		}
+		assert.deepStrictEqual(results, [
+			{ sessionType: SessionType.CopilotCLI, plugins: [], agents: ['agent-0'] },
+			{ sessionType: SessionType.AgentHostCopilot, plugins: [], agents: ['agent-0'] },
+			{ sessionType: 'remote-sandbox-copilot', plugins: [], agents: ['agent-0'] },
+			{ sessionType: 'remote-sandbox-claude', plugins: ['Plugin'], agents: ['agent-0'] },
+		]);
+	});
+
+	test('preserves disabled runtime activation when forwarding native plugins to another provider', async () => {
+		const pluginUri = URI.file('/plugins/native-disabled');
+		const agentUri = URI.joinPath(pluginUri, 'agents', 'agent-0.agent.md');
+		const plugin: IAgentPlugin = {
+			...makePlugin(pluginUri, { agents: 1, mcpServers: 1, enablement: ContributionEnablementState.DisabledProfile }),
+			copilotCliInstallation: { name: 'native-disabled', marketplace: 'marketplace' },
+		};
+		const prompts = makePromptsService(new Map([
+			[`${PromptsType.agent}/${PromptsStorage.plugin}`, [makePromptPath(agentUri, PromptsType.agent, PromptsStorage.plugin)]],
+		]));
+		const plugins = makeAgentPluginService([plugin], new Map([[pluginUri.toString(), true]]));
+		const refs = await resolveCustomizationRefs(
+			makeFileService(), prompts, new FakeSyncProvider(), plugins, makeMcpService(),
+			makeConfigurationResolverService(), toBundlers(new FakeBundler()), 'remote-sandbox-claude', undefined,
+		);
+		const agents = await resolveLocalCustomAgents(
+			makeFileService(), prompts, new FakeSyncProvider(), plugins, 'remote-sandbox-claude', undefined,
+		);
+		assert.deepStrictEqual({
+			enablement: refs.filter(ref => ref.uri === pluginUri.toString()).map(ref => ref.enablement),
+			agents,
+		}, { enablement: [globalEnablement(false)], agents: [] });
+	});
+
 	test('includes plugins that only contribute MCP servers', async () => {
 		const pluginUri = URI.file('/plugins/mcp-only');
 		const promptsService = makePromptsService(new Map());
@@ -538,6 +675,25 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 
 		assert.deepStrictEqual(refs.map(ref => ({ uri: ref.uri, name: ref.name })), [
 			{ uri: pluginUri.toString(), name: 'Agent Only' },
+		]);
+	});
+
+	test('includes plugins without contributions VS Code parses, such as Copilot extensions with canvases', async () => {
+		const pluginUri = URI.file('/plugins/canvas-only');
+		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService([makePlugin(pluginUri, { label: 'Canvas Only' })]),
+			makeMcpService(),
+			makeConfigurationResolverService(),
+			toBundlers(new FakeBundler()),
+			SessionType.CopilotCLI,
+			undefined,
+		);
+
+		assert.deepStrictEqual(refs.map(ref => ({ uri: ref.uri, name: ref.name })), [
+			{ uri: pluginUri.toString(), name: 'Canvas Only' },
 		]);
 	});
 

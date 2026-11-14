@@ -116,9 +116,12 @@
 	outline-offset: -1px !important;
 }
 
+/* Segments stretch to the pill's height, so an icon-only segment, whose compact
+	glyph is shorter than a label's line box, lines up with its labelled neighbours. */
 .chat-pill-sections {
 	display: flex;
-	align-items: center;
+	align-self: stretch;
+	align-items: stretch;
 	min-width: 0;
 	border-radius: inherit;
 }
@@ -133,6 +136,7 @@
 }
 
 .chat-pill-item.chat-pill-segmented > .monaco-button.chat-pill-button {
+	align-self: stretch;
 	border-start-start-radius: inherit;
 	border-end-start-radius: inherit;
 	border-inline-start-width: var(--vscode-strokeThickness);
@@ -432,4 +436,12 @@
 
 .chat-pills-row > .scrollbar > .slider.active::before {
 	background: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+/* A pressed pill, such as one whose entry the chat shows. The pill button sets its colors inline. */
+.chat-pill-item.chat-pill-checked .chat-pill-button {
+	background: var(--vscode-inputOption-activeBackground) !important;
+	color: var(--vscode-inputOption-activeForeground) !important;
+	outline: 1px solid var(--vscode-inputOption-activeBorder);
+	outline-offset: -1px;
 }

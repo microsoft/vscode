@@ -3,17 +3,62 @@ packages:
   - .vscode/extensions/vscode-selfhost-import-aid
   - .vscode/extensions/vscode-selfhost-test-provider
   - .vscode/extensions/vscode-pr-pinger
+  - extensions
+  - extensions/configuration-editing
+  - extensions/copilot
+  - extensions/copilot/chat-lib
+  - extensions/css-language-features
+  - extensions/css-language-features/server
+  - extensions/debug-auto-launch
+  - extensions/debug-server-ready
+  - extensions/emmet
+  - extensions/extension-editing
+  - extensions/git
+  - extensions/git-base
+  - extensions/github
+  - extensions/github-authentication
+  - extensions/grunt
+  - extensions/gulp
+  - extensions/html-language-features
+  - extensions/html-language-features/server
+  - extensions/ipynb
+  - extensions/jake
+  - extensions/json-language-features
+  - extensions/json-language-features/server
+  - extensions/markdown-language-features
+  - extensions/markdown-language-features/test-workspace/checkbox-count-extension
+  - extensions/markdown-math
+  - extensions/merge-conflict
+  - extensions/mermaid-markdown-features
+  - extensions/microsoft-authentication
+  - extensions/notebook-renderers
+  - extensions/npm
+  - extensions/php-language-features
+  - extensions/references-view
+  - extensions/search-result
+  - extensions/simple-browser
+  - extensions/terminal-suggest
+  - extensions/tunnel-forwarding
+  - extensions/typescript-language-features
+  - extensions/vscode-api-tests
+  - extensions/vscode-colorize-perf-tests
+  - extensions/vscode-colorize-tests
+  - extensions/vscode-test-resolver
   - scripts
   - src/vs/sessions/test/e2e
   - test/automation
   - test/componentFixtures/playwright
   - test/integration/browser
   - test/monaco
+  - test/sanity
   - test/scenario
   - test/smoke
   - test/unit
 pnpmfile: .pnpmfile.mjs
-nodeLinker: hoisted
+nodeLinker: isolated
+# Don't hoist the workspace packages by their names (emmet, gulp, npm, git, ...) into
+# node_modules/.pnpm/node_modules, where they would hide the npm packages of the same name.
+hoistWorkspacePackages: false
 strictPeerDependencies: false
 autoInstallPeers: false
 dedupePeerDependents: false
@@ -28,6 +73,7 @@ minimumReleaseAgeExclude:
   - '@typescript/*'
   - '@vscode/*'
   - '@xterm/*'
+  - electron
   - node-pty
   - playwright*
   - typescript
@@ -35,13 +81,21 @@ minimumReleaseAgeExclude:
 strictDepBuilds: true
 sideEffectsCache: false
 verifyDepsBeforeRun: false
-pmOnFail: ignore
+# Every pnpm command in the repository runs with the pnpm version that `packageManager` in
+# package.json pins: another pnpm downloads it (once, into $PNPM_HOME) and runs the command with
+# it. The first YAML document of each pnpm-lock.yaml locks that version. To update pnpm, change
+# `packageManager` in package.json, build/package.json and remote/package.json, run `pnpm install`
+# in the root, build and remote, and commit the three pnpm-lock.yaml files. build and remote use
+# the same setting.
+pmOnFail: download
 skills:
   dirs: []
 optimisticRepeatInstall: false
 ignoredOptionalDependencies:
   - '@parcel/watcher-*'
 allowBuilds:
+  '@azure/msal-node-extensions@5.3.2': true
+  '@azure/msal-node-runtime@0.20.1': true
   '@parcel/watcher@2.5.6': true
   '@playwright/browser-chromium@1.61.1': true
   '@vscode/deviceid@0.1.5': true
@@ -51,6 +105,7 @@ allowBuilds:
   '@vscode/ripgrep@1.17.1': true
   '@vscode/spdlog@0.15.8': true
   '@vscode/sqlite3@5.1.12-vscode': true
+  '@vscode/vsce-sign@2.1.0': true
   '@vscode/windows-ca-certs@0.3.4': true
   '@vscode/windows-mutex@0.5.3': true
   '@vscode/windows-process-tree@0.8.0': true
@@ -58,12 +113,15 @@ allowBuilds:
   bufferutil@4.1.0: true
   cpu-features: false
   es5-ext: false
+  esbuild@0.27.2: true
+  esbuild@0.28.1: true
   foundry-local-sdk@2.2.1: true
   fsevents@1.2.13: true
   fsevents@2.3.2: true
   fsevents@2.3.3: true
   husky: false
   kerberos@2.1.1: true
+  keytar@7.9.0: true
   koffi@3.2.1: false
   native-is-elevated@0.9.0: true
   native-keymap@3.3.9: true
@@ -73,11 +131,23 @@ allowBuilds:
   utf-8-validate@5.0.10: true
   windows-foreground-love@0.6.1: true
 overrides:
-  '@typescript-eslint/types': 8.66.0
   node-gyp-build: 4.8.1
   kerberos@2.1.1>node-addon-api: 7.1.0
   koffi: 3.2.1
   serialize-javascript: ^7.0.3
   yauzl: ^3.3.1
+  vscode-css-languageservice>vscode-languageserver-types: 3.18.3
+  lodash-es: 4.18.1
+  '@vscode/web-editors@0.0.2-76>@vscode/hubrpc': 0.0.2-20
+  '@vscode/web-editors@0.0.2-104>@vscode/hubrpc': 0.0.2-54
+  '@vscode/web-editors@0.0.2-41>@vscode/hubrpc': 0.0.2-15
+  '@azure/msal-node-extensions@5.3.2>keytar': file:extensions/microsoft-authentication/packageMocks/keytar
+# @vscode/extension-telemetry requires @microsoft/applicationinsights-common without declaring it. Each
+# version gets the one of its @microsoft/applicationinsights-web-basic, which the extensions bundle
+# anyway, instead of the one that pnpm happens to hoist for the whole workspace.
+packageExtensions:
+  '@vscode/extension-telemetry':
+    dependencies:
+      '@microsoft/applicationinsights-common': ^3.3.4
 patchedDependencies:
   foundry-local-sdk: build/npm/patches/foundry-local-sdk.patch

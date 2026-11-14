@@ -59,7 +59,7 @@ function convertNode(node: Node): string {
 		case 'h6': return `\n###### ${convertChildren(el).trim()}\n`;
 
 		case 'pre': {
-			// eslint-disable-next-line no-restricted-syntax -- querying a detached DOMParser document, not the live DOM
+			// eslint-disable-next-line eslint-js/no-restricted-syntax -- querying a detached DOMParser document, not the live DOM
 			const codeEl = el.querySelector('code');
 			const text = (codeEl ?? el).textContent ?? '';
 			return `\n\`\`\`\n${text.replace(/^\n+|\n+$/g, '')}\n\`\`\`\n`;
@@ -100,7 +100,13 @@ function convertNode(node: Node): string {
 			return `- ${convertChildren(el).trim()}\n`;
 
 		case 'p':
+		case 'summary':
 			return `${convertChildren(el)}\n\n`;
+
+		case 'tr':
+			return `\n${Array.from(el.children)
+				.filter(child => child.localName === 'th' || child.localName === 'td')
+				.map(cell => convertChildren(cell).trim()).join(' | ')}\n`;
 
 		case 'div':
 			return `${convertChildren(el)}\n`;

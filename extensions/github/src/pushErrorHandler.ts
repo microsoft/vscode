@@ -5,16 +5,12 @@
 
 import { TextDecoder } from 'util';
 import { commands, env, ProgressLocation, Uri, window, workspace, QuickPickOptions, FileType, l10n, Disposable, TextDocumentContentProvider } from 'vscode';
-import { getOctokit } from './auth.js';
+import { GitHubService } from './auth.js';
+import type { GitHubRepository } from '@vscode/internal-github';
 import { GitErrorCodes } from './typings/git.constants.js';
 import type { PushErrorHandler, Remote, Repository } from './typings/git.d.ts';
 import * as path from 'path';
 import { TelemetryReporter } from '@vscode/extension-telemetry';
-
-
-
-type Awaited<T> = T extends PromiseLike<infer U> ? Awaited<U> : T;
-
 export function isInCodespaces(): boolean {
 	return env.remoteName === 'codespaces';
 }
@@ -103,7 +99,7 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 	private disposables: Disposable[] = [];
 	private commandErrors = new CommandErrorOutputTextDocumentContentProvider();
 
-	constructor(private readonly telemetryReporter: TelemetryReporter) {
+	constructor(private readonly telemetryReporter: TelemetryReporter, private readonly githubService: GitHubService) {
 		this.disposables.push(workspace.registerTextDocumentContentProvider('github-output', this.commandErrors));
 	}
 
@@ -182,19 +178,17 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 		const localName = match ? match[1] : refspec;
 		let remoteName = match ? match[2] : refspec;
 
-		const [octokit, ghRepository] = await window.withProgress({ location: ProgressLocation.Notification, cancellable: false, title: l10n.t('Create GitHub fork') }, async progress => {
+		const [client, ghRepository] = await window.withProgress({ location: ProgressLocation.Notification, cancellable: false, title: l10n.t('Create GitHub fork') }, async progress => {
 			progress.report({ message: l10n.t('Forking "{0}/{1}"...', owner, repo), increment: 33 });
 
-			const octokit = await getOctokit();
-
-			type CreateForkResponseData = Awaited<ReturnType<typeof octokit.repos.createFork>>['data'];
+			const client = await this.githubService.getClient();
 
 			// Issue: what if the repo already exists?
-			let ghRepository: CreateForkResponseData;
+			let ghRepository: GitHubRepository;
 			try {
 				if (isInCodespaces()) {
 					// Call into the codespaces extension to fork the repository
-					const resp = await commands.executeCommand<{ repository: CreateForkResponseData; ref: string }>('github.codespaces.forkRepository');
+					const resp = await commands.executeCommand<{ repository: GitHubRepository; ref: string }>('github.codespaces.forkRepository');
 					if (!resp) {
 						throw new Error('Unable to fork respository');
 					}
@@ -210,8 +204,7 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 						remoteName = ref;
 					}
 				} else {
-					const resp = await octokit.repos.createFork({ owner, repo });
-					ghRepository = resp.data;
+					ghRepository = await client.repositories.fork({ owner, repo });
 				}
 			} catch (ex) {
 				console.error(ex);
@@ -237,7 +230,7 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 
 			await repository.push('origin', localName, true);
 
-			return [octokit, ghRepository] as const;
+			return [client, ghRepository] as const;
 		});
 
 		// yield
@@ -272,9 +265,7 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 						}
 					}
 
-					const { data: pr } = await octokit.pulls.create({
-						owner,
-						repo,
+					const pr = await client.pullRequests.create({ owner, repo }, {
 						title,
 						body,
 						head: `${ghRepository.owner.login}:${remoteName}`,

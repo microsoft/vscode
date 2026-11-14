@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceCancellationError } from '../../../../../base/common/async.js';
-import { decodeHex } from '../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
@@ -16,7 +15,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { addSSHRemoteAgentHostEntry, getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { computeSSHConnectionKey, ISSHRemoteAgentHostService } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { IRemoteAgentHostLocationPreferenceService } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { computeSSHConnectionKey, ISSHRemoteAgentHostService, parseSSHRemoteAuthority } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ITunnelAgentHostService, TunnelAuthenticationRequiredError } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLRemoteAgentHostService, WSL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -29,6 +29,7 @@ import { getRemoteName } from '../../../../../platform/remote/common/remoteHosts
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IRemoteWorkspaceFolder, IRemoteWorkspaceHandoffService, RemoteAgentHostHandoffResult, RemoteWorkspaceHandoffResult } from '../../../../common/remoteWorkspaceHandoff.js';
+import { getEditorWindowSessionUnsupportedReason } from '../../../../../workbench/contrib/sessions/browser/openInVSCodeUtils.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 
 /** How long to wait for a host's provider after adding the host. */
@@ -43,12 +44,6 @@ type RemoteMachine =
 
 /** A parsed machine; an undefined WSL distribution is the default one. */
 type ParsedRemoteMachine = RemoteMachine | { readonly kind: 'wsl'; readonly distro: undefined };
-
-interface ISSHHost {
-	readonly hostName: string;
-	readonly user?: string;
-	readonly port?: number;
-}
 
 /**
  * Parses SSH, WSL and Tunnel remote authorities as their extensions do:
@@ -66,7 +61,10 @@ export function parseRemoteMachine(remoteAuthority: string): ParsedRemoteMachine
 	}
 	switch (remoteName) {
 		case 'ssh-remote': {
-			const parsed = readSSHAuthorityObject(host) ?? parseSSHHostString(host);
+			const parsed = parseSSHRemoteAuthority(remoteAuthority);
+			if (!parsed) {
+				return undefined;
+			}
 			return parsed.user === undefined && parsed.port === undefined
 				? { kind: 'ssh', sshConfigHost: parsed.hostName }
 				: { kind: 'ssh', hostName: parsed.hostName, user: parsed.user, port: parsed.port };
@@ -81,38 +79,6 @@ export function parseRemoteMachine(remoteAuthority: string): ParsedRemoteMachine
 		default:
 			return undefined;
 	}
-}
-
-function readSSHAuthorityObject(host: string): ISSHHost | undefined {
-	try {
-		const value: { hostName?: unknown; user?: unknown; port?: unknown } = JSON.parse(decodeHex(host).toString());
-		if (typeof value?.hostName !== 'string' || !value.hostName) {
-			return undefined;
-		}
-		return {
-			hostName: value.hostName,
-			user: typeof value.user === 'string' && value.user ? value.user : undefined,
-			port: typeof value.port === 'number' ? value.port : undefined,
-		};
-	} catch {
-		// Plain host names are not hex-encoded JSON.
-		return undefined;
-	}
-}
-
-/** Mirrors `HostInfo.fromString` of Remote - SSH. An address with more than one colon is an IPv6 address. */
-function parseSSHHostString(host: string): ISSHHost {
-	const { user, address = host } = /^(?:(?<user>.*)@)?(?<address>.+?)$/.exec(host)?.groups ?? {};
-	const toPort = (port: string | undefined) => port ? parseInt(port, 10) : undefined;
-	const bracketed = /^\[(?<hostName>.+?)\](?::(?<port>\d+))?$/.exec(address)?.groups;
-	if (bracketed) {
-		return { hostName: bracketed.hostName, user: user || undefined, port: toPort(bracketed.port) };
-	}
-	if (address.indexOf(':') !== address.lastIndexOf(':')) {
-		return { hostName: address, user: user || undefined };
-	}
-	const withPort = /^(?<hostName>.+?)(?::(?<port>\d+))?$/.exec(address)?.groups;
-	return { hostName: withPort?.hostName ?? address, user: user || undefined, port: toPort(withPort?.port) };
 }
 
 function isDefaultDistro(machine: ParsedRemoteMachine): machine is { readonly kind: 'wsl'; readonly distro: undefined } {
@@ -188,6 +154,7 @@ export class RemoteWorkspaceHandoffService extends Disposable implements IRemote
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@ILogService private readonly _logService: ILogService,
+		@IRemoteAgentHostLocationPreferenceService private readonly _locationPreferenceService: IRemoteAgentHostLocationPreferenceService,
 	) {
 		super();
 		this._register(toDisposable(() => this._connections.dispose(true)));
@@ -249,12 +216,10 @@ export class RemoteWorkspaceHandoffService extends Disposable implements IRemote
 			return { unavailableReason: localize('remoteWorkspaceHandoff.addFailed', "'{0}' could not be added as a remote agent host: {1}", machine ? getMachineLabel(machine) : remoteAuthority, toErrorMessage(error)) };
 		}
 		const address = getEntryAddress(entry);
-		const isTunnel = entry.connection.type === RemoteAgentHostEntryType.Tunnel;
 		return {
 			connectionAuthority: agentHostAuthority(address),
 			connected: this._connect(address, machine),
-			// A tunnel's editor windows reach its standalone agent host, which its gateway may not have selected.
-			sharesEditorWindowAgentHost: () => isTunnel && this._tunnelService.getSelectedServerType(address) !== 'editor',
+			sharesEditorWindowAgentHost: () => getEditorWindowSessionUnsupportedReason(entry, this._tunnelService, this._sshService, this._locationPreferenceService) === undefined,
 		};
 	}
 

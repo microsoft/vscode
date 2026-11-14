@@ -232,7 +232,8 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 
 	private _getConnectionMethods(): IActionWidgetDropdownAction[] {
 		const environments = this._sharing.gitHubEnvironmentsAvailability;
-		const active = this._sharing.activeMethod;
+		// Checks the method chosen last, also in another surface, while choices are being applied.
+		const active = this._sharing.pendingMethod ?? this._sharing.activeMethod;
 		const methods: IActionWidgetDropdownAction[] = [
 			{
 				...toAction({

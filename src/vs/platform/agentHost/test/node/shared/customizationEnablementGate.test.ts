@@ -8,6 +8,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isCustomizationEnabled, sortCustomizationEnablement } from '../../../common/customizationEnablement.js';
+import { withRuntimePluginEnablement } from '../../../common/meta/pluginEnablementMeta.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type AgentCustomization, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type McpServerCustomization, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution, type ICustomizationEnablementTarget, type WorkingDirectoryState } from '../../../node/agentHostCustomizationEnablementService.js';
 import { getSdkMcpServerEnablement, isCustomizationSdkEligible, recordClientPluginEnablement, resolveCustomizationEnablement } from '../../../node/shared/customizationEnablementGate.js';
@@ -145,6 +146,60 @@ function firstChildEnablement(customizations: readonly Customization[]): readonl
 }
 
 suite('CustomizationEnablementGate', () => {
+	test('runtime-owned plugins ignore conflicting host and client overlays and fail closed until initialized', () => {
+		const service = new TestEnablementService();
+		service.setEnablementFor('plugin-id', [{ kind: CustomizationEnablementKind.Session, enabled: false }]);
+		const native: PluginCustomization = {
+			...plugin(),
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'copilotcli', plugin: 'example@marketplace', globalEnabled: false, effectiveEnabled: true, repositorySupported: true }),
+		};
+		const session = URI.parse('agent-host-copilotcli:/session');
+		const resolved = resolveCustomizationEnablement(service, session, [native]);
+		const pending = resolveCustomizationEnablement(service, session, [{
+			...native,
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'copilotcli', plugin: 'example@marketplace', globalEnabled: false, repositorySupported: true }),
+		}]);
+		assert.deepStrictEqual({
+			enabled: resolved.customizations[0].type === CustomizationType.Plugin && isCustomizationEnabled(resolved.customizations[0]),
+			resolvedEligible: isCustomizationSdkEligible(resolved, native),
+			pendingEligible: isCustomizationSdkEligible(pending, native),
+			hostResolution: service.lastResolvedTarget,
+		}, { enabled: true, resolvedEligible: true, pendingEligible: false, hostResolution: undefined });
+	});
+
+	test('MCP mutation intent bypasses only runtime-owned parents, never pending children', () => {
+		const service = new TestEnablementService();
+		const session = URI.parse('agent-host-copilotcli:/session');
+		const child = server();
+		service.setEnablementFor(child.id, [{ kind: CustomizationEnablementKind.Session, enabled: true }]);
+		const results = [];
+		for (const effectiveEnabled of [false, undefined]) {
+			const native: PluginCustomization = {
+				...plugin([child]),
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+				_meta: withRuntimePluginEnablement(undefined, {
+					provider: 'copilotcli', plugin: 'example@marketplace',
+					globalEnabled: false, effectiveEnabled, repositorySupported: true,
+				}),
+			};
+			const resolved = resolveCustomizationEnablement(service, session, [native]);
+			service.setPending('session');
+			const pendingChild = resolveCustomizationEnablement(service, session, [native]);
+			service.setPending(undefined);
+			results.push([
+				getSdkMcpServerEnablement(resolved).get(child.id),
+				getSdkMcpServerEnablement(resolved, { ignoreRuntimeOwnedParents: true }).get(child.id),
+				getSdkMcpServerEnablement(pendingChild, { ignoreRuntimeOwnedParents: true }).get(child.id),
+			]);
+		}
+		service.setEnablementFor('plugin-id', [{ kind: CustomizationEnablementKind.Session, enabled: false }]);
+		const ordinary = resolveCustomizationEnablement(service, session, [plugin([child])]);
+		assert.deepStrictEqual({
+			native: results,
+			ordinary: getSdkMcpServerEnablement(ordinary, { ignoreRuntimeOwnedParents: true }).get(child.id),
+		}, { native: [[false, true, false], [false, true, false]], ordinary: false });
+	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 

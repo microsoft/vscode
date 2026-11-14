@@ -131,6 +131,12 @@ export interface IWelcomePageFeatures {
 	readonly showGettingStartedBanner: boolean;
 }
 
+export interface IAICustomizationTargetLabels {
+	readonly harness?: string;
+	readonly workspace?: string;
+	readonly environment?: string;
+}
+
 /**
  * Provides workspace context for AI Customization views.
  */
@@ -146,6 +152,17 @@ export interface IAICustomizationWorkspaceService {
 	 * Display label for the active project.
 	 */
 	readonly activeProjectLabel: IObservable<string | undefined>;
+
+	/**
+	 * Display labels for the active customization target.
+	 */
+	readonly activeTargetLabels?: IObservable<IAICustomizationTargetLabels>;
+
+	/**
+	 * Targets customization management at a specific session or chat resource.
+	 * Pass `undefined` to follow the window's focused session, new-session composer, or workspace.
+	 */
+	setActiveSessionResource?(resource: URI | undefined): void;
 
 	/**
 	 * Returns the current active project root, if any.

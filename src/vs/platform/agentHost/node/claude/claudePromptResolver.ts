@@ -53,7 +53,7 @@ export function resolvePromptToContentBlocks(
 			}
 			continue;
 		}
-		if (att.type !== MessageAttachmentKind.Resource) {
+		if (att.type !== MessageAttachmentKind.Resource || att.displayKind === 'skill') {
 			continue;
 		}
 		const uri = URI.parse(att.uri);

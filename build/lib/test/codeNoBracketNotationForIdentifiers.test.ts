@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RuleTester } from 'eslint';
 import { suite, test } from 'node:test';
+import { RuleTester } from 'oxlint/plugins-dev';
 import rule from '../../../.eslint-plugin-local/code-no-bracket-notation-for-identifiers.ts';
+
 
 RuleTester.describe = suite;
 RuleTester.it = test;
 
-new RuleTester().run('code-no-bracket-notation-for-identifiers', rule, {
+new RuleTester({ languageOptions: { sourceType: 'module' } }).run('code-no-bracket-notation-for-identifiers', rule, {
 	valid: [
 		'object.property;',
 		'object[computedProperty];',

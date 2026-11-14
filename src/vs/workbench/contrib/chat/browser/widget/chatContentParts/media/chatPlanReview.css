@@ -42,6 +42,7 @@
 
 /* In the Agents window / editor the surface is the editor background. */
 .agent-sessions-workbench .interactive-session .chat-plan-review-container > .chat-confirmation-widget2.chat-plan-review,
+.sessions-chat .interactive-session .chat-plan-review-container > .chat-confirmation-widget2.chat-plan-review,
 .editor-instance .interactive-session .chat-plan-review-container > .chat-confirmation-widget2.chat-plan-review {
 	background-color: var(--vscode-editor-background);
 }

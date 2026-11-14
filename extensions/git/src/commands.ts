@@ -3553,7 +3553,15 @@ export class CommandCenter {
 		}
 
 		try {
-			await repository.createWorktree({ path: worktreePath, branch, commitish: commitish });
+			const createdWorktreePath = await repository.createWorktree({ path: worktreePath, branch, commitish: commitish });
+
+			// Remember the location picked by the user so that it is used as the default next time
+			const worktreeRootStorageKey = `${Repository.WORKTREE_ROOT_STORAGE_KEY}:${repository.root}`;
+			const worktreeRoot = path.dirname(createdWorktreePath);
+			const lastWorktreeRoot = this.globalState.get<string>(worktreeRootStorageKey);
+			if (!lastWorktreeRoot || !pathEquals(worktreeRoot, lastWorktreeRoot)) {
+				await this.globalState.update(worktreeRootStorageKey, worktreeRoot);
+			}
 		} catch (err) {
 			if (err instanceof GitError && err.gitErrorCode === GitErrorCodes.WorktreeAlreadyExists) {
 				await this.handleWorktreeAlreadyExists(err);
@@ -4734,16 +4742,9 @@ export class CommandCenter {
 			return undefined;
 		}
 
-		// Stash
-		const regex = /^stash@{(\d+)}$/;
-		const match = regex.exec(stashUri.ref);
-		if (!match) {
-			return undefined;
-		}
-
-		const [, index] = match;
+		// Stash (the uri references the stash commit hash since the stash index changes)
 		const stashes = await repository.getStashes();
-		const stash = stashes.find(stash => stash.index === parseInt(index));
+		const stash = stashes.find(stash => stash.hash === stashUri.ref);
 		if (!stash) {
 			return undefined;
 		}
@@ -4771,7 +4772,7 @@ export class CommandCenter {
 		}
 
 		const title = `Git Stash #${stash.index}: ${stash.description}`;
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `stash@{${stash.index}}`, { scheme: 'git-stash' });
+		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), stash.hash, { scheme: 'git-stash' });
 
 		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
 		for (const change of stashChanges) {

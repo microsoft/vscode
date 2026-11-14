@@ -42,10 +42,6 @@
 	cursor: pointer;
 }
 
-.agent-sessions-get-started .get-started-toggle:hover {
-	background-color: var(--vscode-list-hoverBackground);
-}
-
 .agent-sessions-get-started .get-started-chevron {
 	display: flex;
 	flex-shrink: 0;
@@ -108,10 +104,6 @@
 	padding: 0 var(--vscode-spacing-size40);
 	border-radius: var(--vscode-cornerRadius-small);
 	cursor: pointer;
-}
-
-.agent-sessions-get-started .get-started-item-header:hover {
-	background-color: var(--vscode-list-hoverBackground);
 }
 
 .agent-sessions-get-started .get-started-item-status {

@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RuleTester } from 'eslint';
 import { suite, test } from 'node:test';
+import { RuleTester } from 'oxlint/plugins-dev';
 import { resolve } from 'path';
-import tseslint from 'typescript-eslint';
 import rule from '../code-no-timeout-polling-loop.ts';
 
 RuleTester.describe = suite;
@@ -15,7 +14,7 @@ RuleTester.it = test;
 const filename = resolve(import.meta.dirname, '../../src/vs/workbench/test/browser/example.test.ts');
 const errors = [{ messageId: 'polling' }];
 
-new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-no-timeout-polling-loop', rule, {
+new RuleTester({ languageOptions: { sourceType: 'module' } }).run('code-no-timeout-polling-loop', rule, {
 	valid: [
 		// the loop does work besides waiting
 		{ filename, code: `async function f() { for (const chunk of chunks) { emitter.fire(chunk); await timeout(10); } }` },

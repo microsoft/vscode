@@ -73,17 +73,6 @@ export class Chat {
 	}
 
 	/**
-	 * Waits until the chat view is bound to a chat session other than
-	 * `previousSessionResource`. Commands that start a new chat in the view
-	 * keep running after the command palette closes, so a message sent before
-	 * the new session is bound lands in the outgoing session and its response
-	 * is never shown.
-	 */
-	async waitForChatViewSessionChange(previousSessionResource: string | undefined, retryCount?: number): Promise<void> {
-		await this.code.waitForElement(CHAT_VIEW_BOUND_SESSION, element => !!element && element.attributes['data-bound-chat-resource'] !== previousSessionResource, retryCount);
-	}
-
-	/**
 	 * Waits until the chat view is bound to a local chat session other than
 	 * `previousSessionResource`, such as the one `smoketest.openLocalChat`
 	 * opens. That command keeps running after the command palette closes, and

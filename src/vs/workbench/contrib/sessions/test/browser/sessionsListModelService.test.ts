@@ -20,7 +20,8 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../platf
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
-import { IInboxNotificationsService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../common/inboxNotificationsService.js';
+import { ISessionAttentionService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../common/sessionAttentionService.js';
+import { getSessionInboxSection, SessionInboxSection } from '../../common/sessionInbox.js';
 
 function createSession(id: string, status: SessionStatus = SessionStatus.Completed, opts?: { createdAt?: Date; updatedAt?: Date; createdBySession?: URI; isAutomation?: boolean }): ISession {
 	return {
@@ -58,6 +59,7 @@ suite('SessionsListModelService', () => {
 	let service: SessionsListModelService;
 	let sessionsChangedEmitter: Emitter<ISessionsChangeEvent>;
 	let sessionDeletedEmitter: Emitter<ISession>;
+	let sessionReplacedEmitter: Emitter<{ readonly from: ISession; readonly to: ISession }>;
 	let sessions: ISession[];
 	let instantiationService: TestInstantiationService;
 	let storageService: InMemoryStorageService;
@@ -71,9 +73,10 @@ suite('SessionsListModelService', () => {
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService);
 		attention = observableValue('inboxAttention', new Map<string, IInboxSessionAttention>());
-		instantiationService.stub(IInboxNotificationsService, { sessionAttention: attention });
+		instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 		sessionsChangedEmitter = disposables.add(new Emitter<ISessionsChangeEvent>());
 		sessionDeletedEmitter = disposables.add(new Emitter<ISession>());
+		sessionReplacedEmitter = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		sessions = [];
 		instantiationService.stub(ISessionsManagementService, {
 			...mock<ISessionsManagementService>(),
@@ -81,9 +84,71 @@ suite('SessionsListModelService', () => {
 			getSession: resource => sessions.find(session => session.resource.toString() === resource.toString()),
 			onDidChangeSessions: sessionsChangedEmitter.event,
 			onDidDeleteSession: sessionDeletedEmitter.event,
+			onDidReplaceSession: sessionReplacedEmitter.event,
 		});
 		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
 	});
+
+	test('pin and manual order follow a session replaced by one with another ID, and back', () => {
+		const local = createSession('local');
+		const relay = createSession('relay');
+		service.pinSession(local);
+		service.applySortChanges('updated', new Map([[local.sessionId, 42]]), []);
+		const state = () => ({
+			local: { pinned: service.isSessionPinned(local), order: service.hasSortOverride(local.sessionId, 'updated') },
+			relay: { pinned: service.isSessionPinned(relay), order: service.hasSortOverride(relay.sessionId, 'updated') },
+		});
+
+		sessionReplacedEmitter.fire({ from: local, to: relay });
+		const handedOff = state();
+		sessionReplacedEmitter.fire({ from: relay, to: local });
+
+		assert.deepStrictEqual({ handedOff, handedBack: state(), order: service.getSortKey(local, 'updated') }, {
+			handedOff: { local: { pinned: false, order: false }, relay: { pinned: true, order: true } },
+			handedBack: { local: { pinned: true, order: true }, relay: { pinned: false, order: false } },
+			order: 42,
+		});
+	});
+
+	for (const listedFirst of [false, true]) {
+		test(`an Inbox acknowledgement follows a session replaced by one with another ID, and back${listedFirst ? ', when the destination is listed first' : ''}`, () => {
+			const updatedAt = new Date();
+			const local = createSession('local', SessionStatus.Completed, { updatedAt });
+			const relay = createSession('relay', SessionStatus.Completed, { updatedAt });
+			const notify = (...notified: ISession[]) => attention.set(new Map(notified.map(session => [session.sessionId, {
+				tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Now, notificationIds: [`${session.sessionId}:failingCI:o/r#1:head`], isHistoricalCompletion: false,
+			}])), undefined);
+			const handOff = (from: ISession, to: ISession) => {
+				if (listedFirst) {
+					// The destination's host lists the session, which the Inbox admits automatically, before the handoff adopts it.
+					sessions = [from, to];
+					notify(from, to);
+					sessionsChangedEmitter.fire({ added: [to], removed: [], changed: [] });
+				}
+				sessions = [to];
+				sessionReplacedEmitter.fire({ from, to });
+				notify(to);
+				sessionsChangedEmitter.fire({ added: [], removed: [from], changed: [to] });
+			};
+			const acknowledged = (session: ISession) => {
+				const state = service.getInboxState(session);
+				return state?.kind === 'done' ? state.notificationIds : state?.kind;
+			};
+			sessions = [local];
+			notify(local);
+			sessionsChangedEmitter.fire({ added: [local], removed: [], changed: [] });
+			service.setInboxState([local], 'done');
+
+			handOff(local, relay);
+			const handedOff = acknowledged(relay);
+			handOff(relay, local);
+
+			assert.deepStrictEqual({ handedOff, handedBack: acknowledged(local) }, {
+				handedOff: ['relay:failingCI:o/r#1:head'],
+				handedBack: ['local:failingCI:o/r#1:head'],
+			});
+		});
+	}
 
 	test('migrates pin and manual order from a previous identity without reapplying later', () => {
 		const previous = createSession('previous');
@@ -146,21 +211,202 @@ suite('SessionsListModelService', () => {
 
 	// -- Inbox --
 
-	test('historical completions start Done while Return to Inbox persists and remains undoable', () => {
+	test('historical unread completions only bypass the cutoff when modified within the last 7 days', () => runWithFakedTimers({ startTime: new Date(2026, 0, 1, 12).getTime() }, async () => {
+		const cases = [
+			{ id: 'yesterday-unread', updatedAt: new Date(2025, 11, 31, 23, 59, 59, 999), isRead: false, historical: true },
+			{ id: 'seven-days-unread', updatedAt: new Date(new Date(2026, 0, 1, 12).getTime() - 7 * 24 * 60 * 60 * 1000), isRead: false, historical: true },
+			{ id: 'over-seven-days-unread', updatedAt: new Date(new Date(2026, 0, 1, 12).getTime() - 7 * 24 * 60 * 60 * 1000 - 1), isRead: false, historical: true },
+			{ id: 'today-unread', updatedAt: new Date(2026, 0, 1, 11), isRead: false, historical: true },
+			{ id: 'today-read', updatedAt: new Date(2026, 0, 1, 11), isRead: true, historical: true },
+			{ id: 'last-month-unread', updatedAt: new Date(2025, 11, 1, 11), isRead: false, historical: true },
+			{ id: 'last-year-unread', updatedAt: new Date(2025, 0, 1, 11), isRead: false, historical: true },
+			{ id: 'after-cutoff-yesterday', updatedAt: new Date(2025, 11, 31, 23), isRead: false, historical: false },
+		];
+		sessions.push(...cases.map(({ id, updatedAt, isRead }) => ({
+			...createSession(id, SessionStatus.Completed, { updatedAt }),
+			isRead: constObservable(isRead),
+			lastTurnEnd: constObservable(new Date(2025, 11, 31)),
+		})));
+		attention.set(new Map(cases.map(({ id, historical }) => [id, {
+			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: historical,
+		}])), undefined);
+		assert.deepStrictEqual(sessions.map(session => [session.sessionId, service.getInboxState(session)?.kind]), [
+			['yesterday-unread', undefined],
+			['seven-days-unread', undefined],
+			['over-seven-days-unread', 'done'],
+			['today-unread', undefined],
+			['today-read', 'done'],
+			['last-month-unread', 'done'],
+			['last-year-unread', 'done'],
+			['after-cutoff-yesterday', undefined],
+		]);
+	}));
+
+	test('historical unread completions remain in Inbox after reading and reload until dismissed', () => runWithFakedTimers({ startTime: new Date(2026, 0, 1, 12).getTime() }, async () => {
+		const isRead = observableValue('historicalRead', false);
+		const updatedAt = observableValue('historicalUpdatedAt', new Date(2025, 11, 1, 23));
+		const session = { ...createSession('historical'), isRead, updatedAt };
+		sessions.push(session);
+		sessionsChangedEmitter.fire({ added: [session], removed: [], changed: [] });
+		attention.set(new Map([[session.sessionId, {
+			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: true,
+		}]]), undefined);
+		const states: (string | undefined)[] = [];
+		const observer = disposables.add(autorun(reader => states.push(service.getInboxState(session, reader)?.kind)));
+		updatedAt.set(new Date(2026, 0, 1, 11), undefined);
+		isRead.set(true, undefined);
+		observer.dispose();
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		const restored = service.getInboxState(session)?.kind;
+		service.setInboxState([session], 'done');
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual({ states, restored, dismissed: service.getInboxState(session)?.kind }, {
+			states: ['done', undefined], restored: undefined, dismissed: 'done',
+		});
+	}));
+
+	test('explicit triage of historical unread completions survives reload', () => {
+		sessions.push(...['dismissed', 'held', 'timed', 'untilActivity'].map(id => ({
+			...createSession(id), isRead: constObservable(false),
+		})));
+		attention.set(new Map(sessions.map(session => [session.sessionId, {
+			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: true,
+		}])), undefined);
+		const undoDismiss = service.setInboxState([sessions[0]], 'done');
+		const dismissed = service.getInboxState(sessions[0])?.kind;
+		undoDismiss();
+		const undone = service.getInboxState(sessions[0])?.kind;
+		service.setInboxState([sessions[0]], 'done');
+		service.setInboxState([sessions[1]], 'hold');
+		service.setInboxState([sessions[2]], Date.now() + 60_000);
+		service.setInboxState([sessions[3]], 'untilActivity');
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual({ dismissed, undone, restored: sessions.map(session => service.getInboxState(session)?.kind) }, {
+			dismissed: 'done', undone: undefined, restored: ['done', 'hold', 'snoozed', 'untilActivity'],
+		});
+	});
+
+	test('Inbox admission survives reading and notification resolution without overwriting explicit triage', () => {
+		const isRead = observableValue('notificationRead', false);
+		sessions = ['admitted', 'acknowledged', 'held'].map(id => ({
+			...createSession(id, SessionStatus.Completed, { updatedAt: new Date(2025, 0, 1) }), isRead,
+		}));
+		sessionsChangedEmitter.fire({ added: sessions, removed: [], changed: [] });
+		attention.set(new Map(sessions.map(session => [session.sessionId, {
+			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Now, notificationIds: ['review'], isHistoricalCompletion: false,
+		}])), undefined);
+		const visible = sessions.map(session => service.getInboxState(session)?.kind);
+		service.setInboxState([sessions[1]], 'done');
+		service.setInboxState([sessions[2]], 'hold');
+		isRead.set(true, undefined);
+		attention.set(new Map(sessions.map(session => [session.sessionId, {
+			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: true,
+		}])), undefined);
+		const resolved = sessions.map(session => service.getInboxState(session)?.kind);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual({ visible, resolved, restored: sessions.map(session => service.getInboxState(session)?.kind) }, {
+			visible: [undefined, undefined, undefined], resolved: [undefined, 'done', 'hold'], restored: [undefined, 'done', 'hold'],
+		});
+	});
+
+	test('Inbox admission survives reading while a historical completion is still loading', () => {
+		const isRead = observableValue('loadingRead', false);
+		const loading = observableValue('loading', true);
+		const session = { ...createSession('loading'), isRead, loading };
+		sessions = [session];
+		sessionsChangedEmitter.fire({ added: sessions, removed: [], changed: [] });
+		attention.set(new Map([[session.sessionId, {
+			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: true,
+		}]]), undefined);
+		const visible = service.getInboxState(session)?.kind;
+		isRead.set(true, undefined);
+		const readWhileLoading = service.getInboxState(session)?.kind;
+		loading.set(false, undefined);
+		const loaded = service.getInboxState(session)?.kind;
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual({ visible, readWhileLoading, loaded, restored: service.getInboxState(session)?.kind }, {
+			visible: undefined, readWhileLoading: undefined, loaded: undefined, restored: undefined,
+		});
+	});
+
+	for (const onStartup of [false, true]) {
+		test(`migrates admitted Inbox history to its new identity ${onStartup ? 'on startup' : 'on catalog update'}`, () => {
+			const isRead = observableValue('identityRead', false);
+			const previous = { ...createSession('previous'), isRead };
+			sessions = [previous];
+			sessionsChangedEmitter.fire({ added: sessions, removed: [], changed: [] });
+			const historical = { tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: true };
+			attention.set(new Map([[previous.sessionId, historical]]), undefined);
+			isRead.set(true, undefined);
+			const current: ISession = { ...previous, sessionId: 'task', resource: URI.parse('session://task'), previousIdentities: [previous] };
+			if (onStartup) {
+				service.dispose();
+			}
+			sessions = [current];
+			attention.set(new Map([[current.sessionId, historical]]), undefined);
+			if (onStartup) {
+				service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+			} else {
+				sessionsChangedEmitter.fire({ added: [current], removed: [previous], changed: [] });
+			}
+			const migrated = service.getInboxState(current)?.kind;
+			service.dispose();
+			service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+			assert.deepStrictEqual({
+				migrated, restored: service.getInboxState(current)?.kind,
+				stored: JSON.parse(storageService.get('sessionsListControl.inboxState', StorageScope.PROFILE)!),
+			}, { migrated: undefined, restored: undefined, stored: [['task', { kind: 'resumed' }]] });
+		});
+	}
+
+	test('migrates Inbox triage before automatic admission and preserves destination decisions', () => {
+		const previous = ['held', 'admitted'].map(id => createSession(id));
+		service.setInboxState([previous[0]], 'hold');
+		service.setInboxState([previous[1]], undefined);
+		sessions = previous.map(session => ({
+			...session, sessionId: `${session.sessionId}-task`, isRead: constObservable(false), previousIdentities: [session],
+		}));
+		service.setInboxState([sessions[1]], 'done');
+		attention.set(new Map(sessions.map(session => [session.sessionId, {
+			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: true,
+		}])), undefined);
+		sessionsChangedEmitter.fire({ added: sessions, removed: previous, changed: [] });
+		const migrated = sessions.map(session => service.getInboxState(session)?.kind);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual({ migrated, restored: sessions.map(session => service.getInboxState(session)?.kind) }, {
+			migrated: ['hold', 'done'], restored: ['hold', 'done'],
+		});
+	});
+
+	test('historical completions stay hidden unless explicitly acknowledged, while Return to Inbox persists and remains undoable', () => {
 		const session = createSession('historical');
 		sessions.push(session);
 		attention.set(new Map([[session.sessionId, {
 			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: true,
 		}]]), undefined);
 		const initial = service.getInboxState(session)?.kind;
+		const section = () => getSessionInboxSection(session, service.getInboxState(session));
+		const historicalSection = section();
 		const undo = service.setInboxState([session], undefined);
 		const resumed = service.getInboxState(session);
 		undo();
 		const undone = service.getInboxState(session)?.kind;
+		service.setInboxState([session], 'done');
+		const acknowledgedSection = section();
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		const restoredSection = section();
 		service.setInboxState([session], undefined);
 		service.dispose();
 		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
-		assert.deepStrictEqual({ initial, resumed, undone, restored: service.getInboxState(session), archived: session.isArchived.get() }, {
+		assert.deepStrictEqual({ initial, historicalSection, acknowledgedSection, restoredSection, resumed, undone, restored: service.getInboxState(session), archived: session.isArchived.get() }, {
+			historicalSection: SessionInboxSection.Done, acknowledgedSection: SessionInboxSection.Acknowledged, restoredSection: SessionInboxSection.Acknowledged,
 			initial: 'done', resumed: undefined, undone: 'done', restored: undefined, archived: false,
 		});
 	});
@@ -403,6 +649,27 @@ suite('SessionsListModelService', () => {
 
 	// -- Automation sessions --
 
+	test('scheduled chats bypass automation reply gating and retain their normal listing after reload', () => {
+		const scheduled: ISession = { ...createSession('scheduled', SessionStatus.InProgress, { isAutomation: true }), isScheduledChat: constObservable(true) };
+		const automation = createSession('recurring', SessionStatus.InProgress, { isAutomation: true });
+		const listed = () => [scheduled, automation].filter(session => service.isSessionListed(session)).map(session => session.sessionId);
+		const before = listed();
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual({ before, after: listed() }, { before: ['scheduled'], after: ['scheduled'] });
+	});
+
+	test('explicitly hiding a scheduled chat survives reload and overrides default listing', () => {
+		const scheduled: ISession = { ...createSession('scheduled', SessionStatus.Completed, { isAutomation: true }), isScheduledChat: constObservable(true) };
+		service.hideAutomationSessions([scheduled]);
+		const hidden = service.isSessionListed(scheduled);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		const restored = service.isSessionListed(scheduled, undefined, true);
+		service.showAutomationSessions([scheduled]);
+		assert.deepStrictEqual({ hidden, restored, shown: service.isSessionListed(scheduled) }, { hidden: false, restored: false, shown: true });
+	});
+
 	test('lists automation sessions only while they are shown and persists the shown state', () => {
 		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
 		const otherAutomation = createSession('other-automation', SessionStatus.Completed, { isAutomation: true });
@@ -424,8 +691,32 @@ suite('SessionsListModelService', () => {
 			hidden: { listed: ['regular'], stored: undefined },
 			events: [
 				{ changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] },
-				{ changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] },
+				{
+					changes: [
+						{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing },
+						{ sessionId: 'other-automation', kind: SessionListModelChangeKind.AutomationListing },
+					]
+				},
 			],
+		});
+	});
+
+	test('fires a listing change when hiding an automation run shown only by the list filter', () => {
+		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
+		const events: ISessionListModelChangeEvent[] = [];
+		disposables.add(service.onDidChange(e => events.push(e)));
+		const before = service.isSessionListed(automation, undefined, true);
+
+		service.hideAutomationSessions([automation]);
+
+		assert.deepStrictEqual({
+			before,
+			after: service.isSessionListed(automation, undefined, true),
+			events,
+		}, {
+			before: true,
+			after: false,
+			events: [{ changes: [{ sessionId: 'automation', kind: SessionListModelChangeKind.AutomationListing }] }],
 		});
 	});
 
@@ -532,6 +823,61 @@ suite('SessionsListModelService', () => {
 			afterHiddenReply: { listed: false, stored: JSON.stringify(['automation']) },
 			afterExplicitShow: { listed: true, stored: undefined },
 			afterDeletion: undefined,
+		});
+	});
+
+	test('show automation runs overrides listing policies without changing explicit choices', () => {
+		const hidden = createSession('hidden', SessionStatus.Completed, { isAutomation: true });
+		const shown = createSession('shown', SessionStatus.Completed, { isAutomation: true });
+		const policy = createSession('policy', SessionStatus.Completed, { isAutomation: true });
+		const replied = createSession('replied', SessionStatus.Completed, { isAutomation: true });
+		const regular = createSession('regular');
+		sessions = [hidden, shown, policy, replied, regular];
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const setMode = (mode: AutomationSessionsListMode) => {
+			configurationService.setUserConfiguration(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, mode);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: key => key === SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING,
+				affectedKeys: new Set([SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]),
+				change: { keys: [SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING], overrides: [] },
+				source: ConfigurationTarget.USER,
+			});
+		};
+		const listed = (showAutomationRuns: boolean) => sessions
+			.filter(session => service.isSessionListed(session, undefined, showAutomationRuns))
+			.map(session => session.sessionId);
+		service.hideAutomationSessions([hidden]);
+		service.showAutomationSessions([shown]);
+		service.showRepliedAutomationSession(replied);
+
+		setMode(AutomationSessionsListMode.Never);
+		const never = { off: listed(false), on: listed(true) };
+		setMode(AutomationSessionsListMode.AfterReply);
+		const afterReply = { off: listed(false), on: listed(true) };
+		setMode(AutomationSessionsListMode.Always);
+		const always = { off: listed(false), on: listed(true) };
+		const stored = {
+			shown: storageService.get('sessionsListControl.shownAutomationSessions', StorageScope.PROFILE),
+			hidden: storageService.get('sessionsListControl.hiddenAutomationSessions', StorageScope.PROFILE),
+		};
+
+		assert.deepStrictEqual({ never, afterReply, always, stored }, {
+			never: {
+				off: ['shown', 'replied', 'regular'],
+				on: ['shown', 'policy', 'replied', 'regular'],
+			},
+			afterReply: {
+				off: ['shown', 'replied', 'regular'],
+				on: ['shown', 'policy', 'replied', 'regular'],
+			},
+			always: {
+				off: ['shown', 'policy', 'replied', 'regular'],
+				on: ['shown', 'policy', 'replied', 'regular'],
+			},
+			stored: {
+				shown: JSON.stringify(['shown', 'replied']),
+				hidden: JSON.stringify(['hidden']),
+			},
 		});
 	});
 
@@ -942,8 +1288,8 @@ suite('SessionsListModelService', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(IInboxNotificationsService, { sessionAttention: attention });
-		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
+		instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
+		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event, onDidReplaceSession: Event.None });
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
 
 		assert.strictEqual(loadedService.isSessionPinned(createSession('s1')), true);
@@ -957,8 +1303,8 @@ suite('SessionsListModelService', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(IInboxNotificationsService, { sessionAttention: attention });
-		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
+		instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
+		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event, onDidReplaceSession: Event.None });
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
 
 		// Should not throw and should return empty state
@@ -971,7 +1317,7 @@ suite('SessionsListModelService', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		storageService.store('sessionsListControl.sortOverrides', 'not-valid-json{', StorageScope.PROFILE, StorageTarget.USER);
 		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IInboxNotificationsService, { sessionAttention: attention });
+		instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ISessionsManagementService, {
@@ -980,6 +1326,7 @@ suite('SessionsListModelService', () => {
 			getSession: resource => resource.toString() === creator.resource.toString() ? creator : undefined,
 			onDidChangeSessions: Event.None,
 			onDidDeleteSession: disposables.add(new Emitter<ISession>()).event,
+			onDidReplaceSession: Event.None,
 		});
 
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
@@ -998,10 +1345,10 @@ suite('SessionsListModelService', () => {
 		storageService.store('sessionsListControl.chatOrder', JSON.stringify({ created: { s1: ['chat://a', 'chat://b'] }, updated: {} }), StorageScope.PROFILE, StorageTarget.USER);
 		const createService = () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
-			instantiationService.stub(IInboxNotificationsService, { sessionAttention: attention });
+			instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 			instantiationService.stub(IStorageService, storageService);
 			instantiationService.stub(IConfigurationService, new TestConfigurationService());
-			instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
+			instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event, onDidReplaceSession: Event.None });
 			disposables.add(instantiationService.createInstance(SessionsListModelService));
 			return storageService.get('sessionsListControl.chatOrder', StorageScope.PROFILE);
 		};
@@ -1026,7 +1373,7 @@ suite('SessionsListModelService', () => {
 			const readMarks: string[] = [];
 			const unreadMarks: string[] = [];
 			const instantiationService = disposables.add(new TestInstantiationService());
-			instantiationService.stub(IInboxNotificationsService, { sessionAttention: attention });
+			instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 			instantiationService.stub(IStorageService, storage);
 			instantiationService.stub(IConfigurationService, new TestConfigurationService());
 			instantiationService.stub(ISessionsManagementService, {
@@ -1035,6 +1382,7 @@ suite('SessionsListModelService', () => {
 				getSession: () => undefined,
 				onDidChangeSessions: Event.None,
 				onDidDeleteSession: disposables.add(new Emitter<ISession>()).event,
+				onDidReplaceSession: Event.None,
 				markRead: async (session: ISession) => { readMarks.push(session.sessionId); },
 				markUnread: async (session: ISession) => { unreadMarks.push(session.sessionId); },
 			});
@@ -1086,7 +1434,7 @@ suite('SessionsListModelService', () => {
 			const unreadMarks: string[] = [];
 			const makeService = () => {
 				const instantiationService = disposables.add(new TestInstantiationService());
-				instantiationService.stub(IInboxNotificationsService, { sessionAttention: attention });
+				instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 				instantiationService.stub(IStorageService, storage);
 				instantiationService.stub(IConfigurationService, new TestConfigurationService());
 				instantiationService.stub(ISessionsManagementService, {
@@ -1095,6 +1443,7 @@ suite('SessionsListModelService', () => {
 					getSession: () => undefined,
 					onDidChangeSessions: Event.None,
 					onDidDeleteSession: disposables.add(new Emitter<ISession>()).event,
+					onDidReplaceSession: Event.None,
 					markRead: async (session: ISession) => { readMarks.push(session.sessionId); },
 					markUnread: async (session: ISession) => { unreadMarks.push(session.sessionId); },
 				});

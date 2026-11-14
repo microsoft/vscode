@@ -195,6 +195,14 @@ export function escapeMarkdownSyntaxTokens(text: string): string {
 }
 
 /**
+ * Escapes text that does not come from the product, so that it renders as plain text when it is placed into markdown:
+ * no links (including autolinks and bare URLs), images, theme icons or block syntax. Whitespace is collapsed to single spaces.
+ */
+export function escapeUntrustedMarkdown(text: string): string {
+	return escapeMarkdownSyntaxTokens(escapeIcons(text.replace(/\s+/g, ' '))).replace(/[<>:.@]/g, '\\$&');
+}
+
+/**
  * Escapes only the characters that would break out of markdown link text
  * (`[label](url)`) syntax: `\` and `]`. Use this when the escaped string is
  * displayed as the visible label of a link, since renderers that extract the
@@ -220,11 +228,15 @@ export function escapeMarkdownLinkText(text: string): string {
 }
 
 /**
+ * Wraps code in a fenced code block. A line that starts with at least as many
+ * backticks as the fence, after up to three spaces of indentation, would close
+ * it, so the fence is made longer than any such run.
+ *
  * @see https://github.com/microsoft/vscode/issues/193746
  */
 export function appendEscapedMarkdownCodeBlockFence(code: string, langId: string) {
 	const longestFenceLength =
-		code.match(/^`+/gm)?.reduce((a, b) => (a.length > b.length ? a : b)).length ??
+		code.match(/^ {0,3}`+/gm)?.reduce((longest, fence) => Math.max(longest, fence.trimStart().length), 0) ??
 		0;
 	const desiredFenceLength =
 		longestFenceLength >= 3 ? longestFenceLength + 1 : 3;

@@ -11,21 +11,25 @@ import { OverlayLayoutElement } from '../../../../../../base/browser/overlayLayo
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { ObjectTree } from '../../../../../../base/browser/ui/tree/objectTree.js';
 import { IObjectTreeElement } from '../../../../../../base/browser/ui/tree/tree.js';
+import { toAction } from '../../../../../../base/common/actions.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { EditSuggestionId } from '../../../../../../editor/common/textModelEditSource.js';
 import { IAccessibleViewService } from '../../../../../../platform/accessibility/browser/accessibleView.js';
+import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -45,8 +49,13 @@ import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../../../services/editor/common/editorResolverService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { TestFileService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { IChatAccessibilityService, isChatContextMenuActionContext } from '../../../browser/chat.js';
+import { IChatAccessibilityService, IChatWidgetService, isChatContextMenuActionContext } from '../../../browser/chat.js';
+import { IWebviewElement, IWebviewService } from '../../../../webview/browser/webview.js';
 import { IChatOutputRendererService } from '../../../browser/chatOutputItemRenderer.js';
+import { registerChatNativeComponentsRenderer } from '../../../browser/widget/chatContentParts/chatNativeComponents.js';
+import { chatNativeComponentsRenderer } from '../../../browser/widget/chatContentParts/chatNativeComponentsPart.js';
+import { IChatOutputPartStateCache, IOutputPartState } from '../../../browser/widget/chatContentParts/chatOutputPartStateCache.js';
+import { ChatFindWidget, IChatFindHost } from '../../../browser/widget/chatFind/chatFindWidget.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions, getChatContextMenuTargetContext, isChatBackgroundContextMenuTarget, shouldShowChatLinkOpenWith } from '../../../browser/widget/chatListWidget.js';
@@ -59,7 +68,7 @@ import { IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, ThinkingDisplayMode } from '../../../common/constants.js';
 import { ChatModel, ChatRequestModel } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { ChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { ChatViewModel, isRequestVM, isResponseVM, isScheduledRequestVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ILanguageModelToolsService, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
@@ -68,6 +77,8 @@ import { MockChatSessionsService } from '../../common/mockChatSessionsService.js
 import { MockLanguageModelToolsService } from '../../common/tools/mockLanguageModelToolsService.js';
 import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { IChatLayoutService } from '../../../common/widget/chatLayoutService.js';
+import { ChatLayoutService } from '../../../browser/widget/chatLayoutService.js';
 import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../common/promptTimeline.js';
@@ -162,6 +173,113 @@ suite('ChatListWidget', () => {
 			scrollbar: false,
 			missing: false,
 		});
+	});
+
+	test('scheduled messages expose their inline actions in the context menu', async () => {
+		let contextMenuDelegate: IContextMenuDelegate | IContextMenuMenuDelegate | undefined;
+		const contextMenuService: IContextMenuService = {
+			_serviceBrand: undefined,
+			onDidShowContextMenu: Event.None,
+			onDidHideContextMenu: Event.None,
+			showContextMenu: delegate => contextMenuDelegate = delegate,
+		};
+		const { viewModel, container, widget } = createWidget({}, undefined, false, contextMenuService);
+		let edits = 0;
+		let timeAnchor: HTMLElement | undefined;
+		const edit = toAction({ id: 'edit', label: 'Edit', run: async () => { edits++; } });
+		const reschedule = toAction({ id: 'reschedule', label: 'Reschedule', run: async (anchor?: HTMLElement) => { timeAnchor = anchor; } });
+		viewModel.setScheduledRequests([{ id: 'later', text: 'Scheduled', description: 'Tomorrow', attachments: [], actions: [edit, reschedule], editAction: edit }]);
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		const content = container.querySelector('.scheduled-request-text');
+		assert.ok(content);
+		content.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+		const actions = contextMenuDelegate?.getActions?.();
+		await actions?.[0].run();
+		await actions?.[1].run(contextMenuDelegate?.getActionsContext?.());
+		assert.deepStrictEqual({
+			ids: actions?.map(action => action.id), edits, anchored: timeAnchor === content.closest('.rendered-markdown'),
+		}, { ids: ['edit', 'reschedule'], edits: 1, anchored: true });
+	});
+
+	test('scheduled message toolbar buttons remain fully hittable above the session tree row', async () => {
+		const { disposables, viewModel, container, widget } = createWidget({}, undefined, true);
+		container.classList.add('interactive-list');
+		const host = dom.append(mainWindow.document.body, dom.$('.part.sessionspart', undefined,
+			dom.$('.sessions-chat', undefined, container.parentElement!)));
+		disposables.add(toDisposable(() => host.remove()));
+		const clicked: string[] = [];
+		const anchored: boolean[] = [];
+		const actions = [
+			{ id: 'edit', label: 'Edit', icon: Codicon.edit },
+			{ id: 'sendNow', label: 'Send Now', icon: Codicon.newLine },
+			{ id: 'reschedule', label: 'Reschedule', icon: Codicon.clock },
+			{ id: 'cancel', label: 'Cancel Schedule', icon: Codicon.closeSmall },
+		].map(({ id, label, icon }) => toAction({
+			id, label, class: ThemeIcon.asClassName(icon), run: async (anchor?: HTMLElement) => {
+				clicked.push(id);
+				if (id === 'reschedule') {
+					anchored.push(anchor === container.querySelector('.scheduled-request .rendered-markdown'));
+				}
+			},
+		}));
+		viewModel.setScheduledRequests([{ id: 'later', text: 'Scheduled message', description: 'Tomorrow', attachments: [], actions }]);
+		widget.refresh();
+		for (const width of [300, 700, 300]) {
+			container.style.width = `${width}px`;
+			widget.layout(300, width);
+			await waitForStableLayout(widget);
+			container.querySelector<HTMLElement>('.scheduled-request .rendered-markdown')!.focus();
+			const buttons = container.querySelectorAll<HTMLElement>('.scheduled-request-actions .action-label');
+			const requestRow = container.querySelector('.scheduled-request')?.closest('.monaco-list-row')?.classList.contains('request');
+			const hittable = Array.from(buttons, button => {
+				const bounds = button.getBoundingClientRect();
+				const hit = mainWindow.document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + 2);
+				const visible = !!hit && button.contains(hit);
+				hit?.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true, cancelable: true }));
+				return visible;
+			});
+			assert.deepStrictEqual({ width, requestRow, hittable, clicked: clicked.splice(0), anchored: anchored.splice(0) }, {
+				width, requestRow: true, hittable: [true, true, true, true], clicked: actions.map(action => action.id), anchored: [true],
+			});
+		}
+	});
+
+	test('scheduled message editing retains the edit state across time changes and cancellation', async () => {
+		const { viewModel, container, widget } = createWidget({}, undefined, true);
+		const request = { id: 'later', text: 'Original', description: 'Tomorrow', attachments: [], actions: [] };
+		const finish = () => {
+			viewModel.setScheduledRequests([request]);
+			widget.refresh();
+		};
+		const editing = {
+			text: request.text, runAt: '2099-01-15T10:00:00Z', description: request.description,
+			selectTime: toAction({
+				id: 'time', label: 'Time', run: async () => {
+					editing.description = 'Next week';
+					viewModel.setScheduledRequests([{ ...request, editing }]);
+					widget.refresh();
+				}
+			}),
+			save: async () => finish(),
+			cancel: finish,
+		};
+		viewModel.setScheduledRequests([{ ...request, editing }]);
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		editing.text = 'Unsaved change';
+		const time = container.querySelector<HTMLElement>('.scheduled-request-edit-time')!;
+		time.focus();
+		time.click();
+		await waitForStableLayout(widget);
+		const retained = viewModel.getItems().find(isScheduledRequestVM)?.editing === editing;
+		[...container.querySelectorAll<HTMLElement>('.scheduled-request-editing .monaco-button')].find(button => button.textContent === 'Cancel')!.click();
+		await waitForStableLayout(widget);
+		assert.deepStrictEqual({
+			retained, text: editing.text, description: editing.description, editing: !!container.querySelector('.scheduled-request-editing'),
+		}, { retained: true, text: 'Unsaved change', description: 'Next week', editing: false });
 	});
 
 	test('provides registered menu commands with the link context', async () => {
@@ -376,6 +494,7 @@ suite('ChatListWidget', () => {
 			editor: { fontSize: 13, fontFamily: 'default', fontWeight: 'normal', lineHeight: 0, wordWrap: 'on' },
 		});
 		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
+		configurationService.setUserConfiguration(ChatConfiguration.HtmlPreviewEnabled, true);
 		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
@@ -589,6 +708,367 @@ suite('ChatListWidget', () => {
 		assert.deepStrictEqual(viewModel.getItems().filter(isResponseVM).map(response => response.requestId), [
 			failed.id, cancelled.id, streaming.id, final.id,
 		]);
+	});
+
+	function stubHtmlPreviewWebviews(instantiationService: ReturnType<typeof workbenchInstantiationService>) {
+		const webviews: { marker: HTMLElement; disposed: boolean }[] = [];
+		instantiationService.stub(IChatLayoutService, store.add(instantiationService.createInstance(ChatLayoutService)));
+		const states = new Map<string, IOutputPartState>();
+		instantiationService.stub(IChatOutputPartStateCache, {
+			get: key => states.get(key),
+			set: (key, state) => states.set(key, state),
+		});
+		instantiationService.stub(IChatWidgetService, { getWidgetBySessionResource: () => undefined });
+		instantiationService.stub(IWebviewService, {
+			createWebviewElement: () => {
+				const state = { marker: dom.$('div'), disposed: false };
+				webviews.push(state);
+				return new class extends mock<IWebviewElement>() {
+					override readonly onFatalError = Event.None;
+					override readonly onDidWheel = Event.None;
+					override readonly intrinsicContentSize = constObservable({ width: 500, height: 180 });
+					override setHtml(): void { }
+					override setContextKeyService(): void { }
+					override mountTo(parent: HTMLElement): void {
+						parent.appendChild(state.marker);
+					}
+					override reinitializeAfterDismount(): void { }
+					override dispose(): void {
+						state.disposed = true;
+						state.marker.remove();
+					}
+				}();
+			},
+		});
+		return webviews;
+	}
+
+	test('HTML preview Find reveals matching source and ignores preview controls', async () => {
+		const { disposables, instantiationService, model, viewModel, container, widget } = createWidget({ rendererOptions: { renderHtmlPreviews: true } }, undefined, true);
+		stubHtmlPreviewWebviews(instantiationService);
+		const text = 'Report';
+		const request = model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+		}, { variables: [] }, 0);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```html-preview\n<p>FindNeedle</p>\n```\n\nShow Source refers to the artifact.') });
+		request.response?.complete();
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		const host: IChatFindHost = {
+			transcriptDomNode: widget.domNode,
+			getItems: () => viewModel.getItems(),
+			onDidChangeContent: Event.None,
+			reveal: (item, relativeTop) => widget.reveal(item, relativeTop),
+			getTemplateDataForRequestId: id => widget.getTemplateDataForRequestId(id),
+			onDidRerenderRow: widget.onDidRerender,
+			editorsInUse: () => widget.editorsInUse(),
+			getCodeBlockInfoForEditor: uri => widget.getCodeBlockInfoForEditor(uri),
+			getScrollTop: () => widget.scrollTop,
+			setScrollTop: top => { widget.scrollTop = top; },
+			getRenderHeight: () => widget.renderHeight,
+			getViewportAnchorItemId: () => widget.lastVisibleItem?.id,
+		};
+		const find = disposables.add(instantiationService.createInstance(ChatFindWidget, host));
+		find.show('Show Source');
+		await retry(async () => {
+			const current = mainWindow.CSS.highlights.get('chat-find-current-match');
+			assert.ok(current && current.size > 0);
+		}, 10, 50);
+		const ranges = [...mainWindow.CSS.highlights.get('chat-find-current-match')!];
+		const sourceStillHidden = container.querySelector<HTMLElement>('.chat-html-preview-source')?.hidden;
+		find.show('FindNeedle');
+		await retry(async () => {
+			assert.strictEqual(container.querySelector<HTMLElement>('.chat-html-preview-source')?.hidden, false);
+		}, 10, 50);
+		await waitForStableLayout(widget);
+		const findKeepsFocus = mainWindow.document.activeElement === find.getDomNode().querySelector('input');
+		const sourceVisible = container.querySelector<HTMLElement>('.chat-html-preview-source')!.getBoundingClientRect().height > 0;
+		assert.deepStrictEqual({
+			sourceStillHidden,
+			findKeepsFocus,
+			sourceVisible,
+			matchParents: ranges.map(range => range.startContainer.parentElement?.tagName),
+		}, { sourceStillHidden: true, findKeepsFocus: true, sourceVisible: true, matchParents: ['P'] });
+		find.hide();
+	});
+
+	for (const supportsHtmlPreviews of [false, true]) {
+		test(`updates existing responses when HTML previews are enabled or disabled (supported: ${supportsHtmlPreviews})`, async () => {
+			const { instantiationService, configurationService, model, container, widget } = createWidget(
+				{ rendererOptions: { renderHtmlPreviews: supportsHtmlPreviews } },
+				configuration => configuration.setUserConfiguration(ChatConfiguration.HtmlPreviewEnabled, false),
+				true,
+			);
+			const webviews = stubHtmlPreviewWebviews(instantiationService);
+			const text = 'Show a report';
+			const request = model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			}, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```html-preview\n<h1>Report</h1>\n```') });
+			request.response?.complete();
+			widget.refresh();
+			widget.layout(300, 500);
+			await waitForStableLayout(widget);
+			const state = () => ({
+				preview: !!container.querySelector('.chat-html-preview'),
+				source: [...container.querySelectorAll('.view-line')].some(line => !line.closest('[hidden]') && line.textContent?.includes('<h1>Report</h1>')),
+				activeWebviews: webviews.filter(webview => !webview.disposed && webview.marker.isConnected).length,
+			});
+			const states = [state()];
+			for (const enabled of [true, false, true]) {
+				await configurationService.setUserConfiguration(ChatConfiguration.HtmlPreviewEnabled, enabled);
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+					affectedKeys: new Set([ChatConfiguration.HtmlPreviewEnabled]),
+					affectsConfiguration: key => key === ChatConfiguration.HtmlPreviewEnabled,
+				}));
+				await waitForStableLayout(widget);
+				states.push(state());
+			}
+			assert.deepStrictEqual(states, [false, true, false, true].map(enabled => ({
+				preview: supportsHtmlPreviews && enabled,
+				source: !supportsHtmlPreviews || !enabled,
+				activeWebviews: supportsHtmlPreviews && enabled ? 1 : 0,
+			})));
+		});
+	}
+
+	test('recreates detached HTML webviews when scrolling a response back into view', async () => {
+		const { instantiationService, model, viewModel, container, widget } = createWidget({ rendererOptions: { renderHtmlPreviews: true } }, undefined, true);
+		const webviews = stubHtmlPreviewWebviews(instantiationService);
+		const addRequest = (text: string) => model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+		}, { variables: [] }, 0);
+		const request = addRequest('Show an HTML report');
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```html-preview\n<h1>Report</h1>\n```') });
+		request.response?.complete();
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		const initialWebview = webviews.find(webview => webview.marker.isConnected)!;
+		const parent = container.parentElement!;
+		widget.setVisible(false);
+		const disposedWhenHidden = initialWebview.disposed;
+		container.remove();
+		parent.appendChild(container);
+		widget.setVisible(true);
+		await waitForStableLayout(widget);
+		const retainedViewReplaced = initialWebview.disposed && webviews.find(webview => webview.marker.isConnected) !== initialWebview;
+		const response = viewModel.getItems().find(isResponseVM)!;
+		for (let index = 0; index < 8; index++) {
+			const followup = addRequest(`Follow-up ${index}`);
+			model.acceptResponseProgress(followup, { kind: 'markdownContent', content: new MarkdownString(`Response ${index}.\n\n`.repeat(20)) });
+			followup.response?.complete();
+		}
+		widget.refresh();
+		widget.reveal(response, 0);
+		await waitForStableLayout(widget);
+
+		const returnedPreviews: { replaced: boolean; oldDisposed: boolean; disposedWhileOffscreen: boolean }[] = [];
+		for (let pass = 0; pass < 3; pass++) {
+			const previous = webviews.find(webview => webview.marker.isConnected)!;
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			assert.strictEqual(container.querySelector('.chat-html-preview'), null, 'The preview must actually leave the rendered viewport');
+			const disposedWhileOffscreen = previous.disposed;
+			const width = pass % 2 === 0 ? 360 : 500;
+			container.style.width = `${width}px`;
+			widget.layout(300, width);
+			await waitForStableLayout(widget);
+			widget.reveal(response, 0);
+			await waitForStableLayout(widget);
+			const visible = webviews.find(webview => webview.marker.isConnected);
+			assert.ok(visible);
+			returnedPreviews.push({ replaced: visible !== previous, oldDisposed: previous.disposed, disposedWhileOffscreen });
+		}
+		const originalPreview = container.querySelector<HTMLElement>('.chat-html-preview')!;
+		let previewMenu: Parameters<IContextMenuService['showContextMenu']>[0] | undefined;
+		const contextMenu = sinon.stub(instantiationService.get(IContextMenuService), 'showContextMenu').callsFake(delegate => { previewMenu = delegate; });
+		originalPreview.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		await previewMenu!.getActions!().find(action => action.id === 'chat.htmlPreview.source')!.run();
+		contextMenu.restore();
+		for (let index = 0; index < 12; index++) {
+			const followup = addRequest(`Short follow-up ${index}`);
+			model.acceptResponseProgress(followup, { kind: 'markdownContent', content: new MarkdownString('Short response.') });
+			followup.response?.complete();
+		}
+		widget.refresh();
+		widget.scrollToEnd();
+		await waitForStableLayout(widget);
+		assert.strictEqual(container.querySelector('.chat-html-preview'), null);
+		widget.reveal(response, 0);
+		await waitForStableLayout(widget);
+		const restoredPreview = container.querySelector<HTMLElement>('.chat-html-preview')!;
+		assert.deepStrictEqual({
+			disposedWhenHidden,
+			retainedViewReplaced,
+			returnedPreviews,
+			recycled: restoredPreview !== originalPreview,
+			sourceHidden: restoredPreview.querySelector<HTMLElement>('.chat-html-preview-source')?.hidden,
+			reservedHeight: restoredPreview.querySelector<HTMLElement>('.chat-html-preview-content')?.style.height,
+		}, {
+			disposedWhenHidden: true,
+			retainedViewReplaced: true,
+			returnedPreviews: Array.from({ length: 3 }, () => ({ replaced: true, oldDisposed: true, disposedWhileOffscreen: true })),
+			recycled: true, sourceHidden: false, reservedHeight: '180px',
+		});
+	});
+
+	suite('native components', () => {
+		const metrics = '<Metric label="Passing" value="128" tone="positive" />';
+
+		function createNativeComponentsWidget(supported: boolean, markdown: string) {
+			const result = createWidget({ rendererOptions: { renderNativeComponents: supported } }, configuration => {
+				configuration.setUserConfiguration(ChatConfiguration.NativeComponentsEnabled, true);
+			}, true);
+			store.add(registerChatNativeComponentsRenderer(chatNativeComponentsRenderer));
+			const states = new Map<string, IOutputPartState>();
+			result.instantiationService.stub(IChatOutputPartStateCache, {
+				get: key => states.get(key),
+				set: (key, state) => states.set(key, state),
+			});
+			const addRequest = (text: string) => result.model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			}, { variables: [] }, 0);
+			const request = addRequest('Show the results');
+			result.model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(markdown) });
+			request.response?.complete();
+			return { ...result, addRequest };
+		}
+
+		/** Whether the block shows its visual, and whether its markup is readable as source. */
+		function shown(container: HTMLElement) {
+			return {
+				visual: !!container.querySelector('.chat-native-components-visual:not([hidden]) .chat-native-metric'),
+				source: Array.from(container.querySelectorAll('.view-line')).some(line => !line.closest('[hidden]') && line.textContent?.includes('Passing')),
+			};
+		}
+
+		for (const supported of [false, true]) {
+			test(`updates existing responses when native components or AI features are turned on or off (supported: ${supported})`, async () => {
+				const { configurationService, container, widget } = createNativeComponentsWidget(supported, `\`\`\`vscode-ui\n${metrics}\n\`\`\``);
+				widget.refresh();
+				widget.layout(300, 500);
+				await waitForStableLayout(widget);
+				const states = [shown(container)];
+				for (const [setting, value] of [
+					[ChatConfiguration.NativeComponentsEnabled, false],
+					[ChatConfiguration.NativeComponentsEnabled, true],
+					[ChatConfiguration.HtmlPreviewEnabled, false],
+					[ChatAIDisabledSettingId, true],
+					[ChatAIDisabledSettingId, false],
+				] as const) {
+					await configurationService.setUserConfiguration(setting, value);
+					configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+						affectedKeys: new Set([setting]),
+						affectsConfiguration: key => key === setting,
+					}));
+					await waitForStableLayout(widget);
+					states.push(shown(container));
+				}
+				assert.deepStrictEqual(states, [true, false, true, true, false, true].map(enabled => ({ visual: supported && enabled, source: !supported || !enabled })));
+			});
+		}
+
+		test('shows a visual again with its expanded details each time its row scrolls out of view and back', async () => {
+			const { viewModel, container, widget, addRequest, model } = createNativeComponentsWidget(true, `\`\`\`vscode-ui\n${metrics}\n<Disclosure summary="Method"><Text>Median of five runs.</Text></Disclosure>\n\`\`\``);
+			widget.refresh();
+			widget.layout(300, 500);
+			await waitForStableLayout(widget);
+			const response = viewModel.getItems().find(isResponseVM)!;
+			const original = container.querySelector<HTMLElement>('.chat-native-components')!;
+			const details = original.querySelector('details')!;
+			details.open = true;
+			details.dispatchEvent(new mainWindow.Event('toggle'));
+			for (let index = 0; index < 12; index++) {
+				const followup = addRequest(`Follow-up ${index}`);
+				model.acceptResponseProgress(followup, { kind: 'markdownContent', content: new MarkdownString(`Response ${index}.\n\n`.repeat(20)) });
+				followup.response?.complete();
+			}
+			widget.refresh();
+
+			// The list may keep the row and attach it again, or dispose it and render it anew.
+			const returns: object[] = [];
+			for (const width of [500, 360, 500]) {
+				widget.scrollToEnd();
+				await waitForStableLayout(widget);
+				const offscreen = container.querySelectorAll('.chat-native-components').length;
+				container.style.width = `${width}px`;
+				widget.layout(300, width);
+				await waitForStableLayout(widget);
+				widget.reveal(response, 0);
+				await waitForStableLayout(widget);
+				const visuals = Array.from(container.querySelectorAll<HTMLElement>('.chat-native-components'));
+				returns.push({
+					offscreen,
+					visuals: visuals.length,
+					previousLeftBehind: visuals[0] !== original && original.isConnected,
+					shown: shown(container),
+					expanded: Array.from(visuals[0].querySelectorAll('details'), element => element.open),
+				});
+			}
+			assert.deepStrictEqual(returns, Array.from({ length: 3 }, () => ({
+				offscreen: 0,
+				visuals: 1,
+				previousLeftBehind: false,
+				shown: { visual: true, source: false },
+				expanded: [true],
+			})));
+		});
+
+		test('Find searches the markup of a visual and reveals it on a match, never matching the rendered text as well', async () => {
+			const { disposables, instantiationService, viewModel, container, widget } = createNativeComponentsWidget(true, `\`\`\`vscode-ui\n${metrics}\n\`\`\`\n\nPassing refers to the test run.`);
+			widget.refresh();
+			widget.layout(300, 500);
+			await waitForStableLayout(widget);
+			const host: IChatFindHost = {
+				transcriptDomNode: widget.domNode,
+				getItems: () => viewModel.getItems(),
+				onDidChangeContent: Event.None,
+				reveal: (item, relativeTop) => widget.reveal(item, relativeTop),
+				getTemplateDataForRequestId: id => widget.getTemplateDataForRequestId(id),
+				onDidRerenderRow: widget.onDidRerender,
+				editorsInUse: () => widget.editorsInUse(),
+				getCodeBlockInfoForEditor: uri => widget.getCodeBlockInfoForEditor(uri),
+				getScrollTop: () => widget.scrollTop,
+				setScrollTop: top => { widget.scrollTop = top; },
+				getRenderHeight: () => widget.renderHeight,
+				getViewportAnchorItemId: () => widget.lastVisibleItem?.id,
+			};
+			const find = disposables.add(instantiationService.createInstance(ChatFindWidget, host));
+			find.show('refers to');
+			await retry(async () => {
+				const current = mainWindow.CSS.highlights.get('chat-find-current-match');
+				assert.ok(current && current.size > 0);
+			}, 10, 50);
+			const highlighted = () => ['chat-find-current-match', 'chat-find-other-match']
+				.flatMap(name => [...mainWindow.CSS.highlights.get(name) ?? []])
+				.map(range => range.startContainer.parentElement?.closest('.chat-native-components') ? 'inside the visual' : range.startContainer.parentElement?.tagName);
+			const proseOnly = { ...shown(container), highlighted: highlighted() };
+			// The word is in the markup, in the rendered metric and in the prose. Find starts at the prose.
+			find.show('Passing');
+			await retry(async () => assert.deepStrictEqual(highlighted(), ['P']), 10, 50);
+			const proseSelected = shown(container);
+			find.find(true);
+			await retry(async () => assert.strictEqual(shown(container).source, true), 10, 50);
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				proseOnly,
+				proseSelected,
+				markupSelected: { ...shown(container), highlighted: highlighted() },
+				findKeepsFocus: mainWindow.document.activeElement === find.getDomNode().querySelector('input'),
+			}, {
+				proseOnly: { visual: true, source: false, highlighted: ['P'] },
+				proseSelected: { visual: true, source: false },
+				markupSelected: { visual: false, source: true, highlighted: ['P'] },
+				findKeepsFocus: true,
+			});
+			find.hide();
+		});
 	});
 
 	suite('generated image preview retention', () => {
@@ -2957,6 +3437,44 @@ suite('ChatListWidget', () => {
 				aboveViewport: { wrappedBeyondViewport: true, arrowTop: container.getBoundingClientRect().top, bottom: 40 - button.offsetHeight },
 				belowViewportBottom: container.getBoundingClientRect().bottom,
 				belowViewportOffset: '0px',
+			});
+		});
+
+		test('positions the scroll arrow once per frame while scrolling toggles it', async () => {
+			const { container, widget, sticky } = await createTranscript();
+			const button = widget.scrollDownButtonDomNode;
+			const bottom = widget.scrollTop;
+			// Render and measure the rows at the top first, so that only the toggles below measure.
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			widget.scrollTop = bottom;
+			await waitForStableLayout(widget);
+			const measure = sinon.spy(container, 'getBoundingClientRect');
+			let synchronous: number;
+			try {
+				for (let index = 0; index < 5; index++) {
+					widget.scrollTop = 0;
+					widget.scrollTop = bottom;
+				}
+				widget.scrollTop = 0;
+				synchronous = measure.callCount;
+				await nextFrame();
+			} finally {
+				measure.restore();
+			}
+			await waitForStableLayout(widget);
+			const row = sticky.getBoundingClientRect();
+			const arrow = button.getBoundingClientRect();
+			assert.deepStrictEqual({
+				synchronous,
+				afterFrame: measure.callCount,
+				shown: button.style.display,
+				centered: Math.abs((row.top + row.bottom) / 2 - (arrow.top + arrow.bottom) / 2) < 0.5,
+			}, {
+				synchronous: 0,
+				afterFrame: 1,
+				shown: 'flex',
+				centered: true,
 			});
 		});
 

@@ -54,7 +54,11 @@ suite('CodeReviewService', () => {
 	class MockSessionsManagementService extends mock<ISessionsManagementService>() {
 		private readonly _onDidChangeSessions: Emitter<ISessionsChangeEvent>;
 		private readonly _activeSession: ReturnType<typeof observableValue<ITestSessionWithChat | undefined>>;
+		private readonly _onDidDiscardNewSession: Emitter<ISession>;
+		private readonly _onDidReplaceNewDraftSession: Emitter<{ readonly from: ISession; readonly to: ISession }>;
 		override readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
+		override readonly onDidDiscardNewSession: Event<ISession>;
+		override readonly onDidReplaceNewDraftSession: Event<{ readonly from: ISession; readonly to: ISession }>;
 		readonly activeSession: IObservable<ITestSessionWithChat | undefined>;
 
 		private readonly _sessions = new Map<string, ISession>();
@@ -63,6 +67,10 @@ suite('CodeReviewService', () => {
 			super();
 			this._onDidChangeSessions = disposables.add(new Emitter<ISessionsChangeEvent>());
 			this.onDidChangeSessions = this._onDidChangeSessions.event;
+			this._onDidDiscardNewSession = disposables.add(new Emitter<ISession>());
+			this.onDidDiscardNewSession = this._onDidDiscardNewSession.event;
+			this._onDidReplaceNewDraftSession = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
+			this.onDidReplaceNewDraftSession = this._onDidReplaceNewDraftSession.event;
 			this._activeSession = observableValue<ITestSessionWithChat | undefined>('test.activeSession', undefined);
 			this.activeSession = this._activeSession;
 		}
@@ -147,6 +155,14 @@ suite('CodeReviewService', () => {
 				removed: event?.removed ?? [],
 				changed: event?.changed ?? [],
 			});
+		}
+
+		fireDiscardNewSession(session: ISession): void {
+			this._onDidDiscardNewSession.fire(session);
+		}
+
+		fireReplaceNewDraftSession(from: ISession, to: ISession): void {
+			this._onDidReplaceNewDraftSession.fire({ from, to });
 		}
 	}
 
@@ -679,6 +695,18 @@ suite('CodeReviewService', () => {
 			state.kind === PRReviewStateKind.Loaded ? state.comments.map(c => c.id) : state.kind,
 			['thread-200'],
 		);
+	});
+
+	test('PR review state is released for discarded and replaced new-session drafts', () => {
+		const discarded = sessionsManagement.addSession(URI.parse('test://session/discarded'));
+		const replaced = sessionsManagement.addSession(URI.parse('test://session/replaced'));
+		const replacement = sessionsManagement.addSession(URI.parse('test://session/replacement'));
+		const states = [discarded, replaced, replacement].map(draft => service.getPRReviewState(draft.resource));
+
+		sessionsManagement.fireDiscardNewSession(discarded);
+		sessionsManagement.fireReplaceNewDraftSession(replaced, replacement);
+
+		assert.deepStrictEqual([discarded, replaced, replacement].map((draft, index) => service.getPRReviewState(draft.resource) === states[index]), [false, false, true]);
 	});
 });
 

@@ -6,22 +6,28 @@
 import { scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { DisposableMap, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { Event } from '../../../base/common/event.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { localize } from '../../../nls.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { IStorageService } from '../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { IEditorGroupView, IEditorGroupViewOptions, IEditorPartCreationOptions, IEditorPartsView } from '../../../workbench/browser/parts/editor/editor.js';
 import { IEditorPartUIState } from '../../../workbench/browser/parts/editor/editorPart.js';
 import { EditorGroupView } from '../../../workbench/browser/parts/editor/editorGroupView.js';
+import { PaneComposite } from '../../../workbench/browser/panecomposite.js';
 import { GroupIdentifier } from '../../../workbench/common/editor.js';
 import { EditorGroupLayout, GroupDirection, GroupLayoutArgument, IEditorDropTargetDelegate } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
 import { DockedEditorInput } from '../../../workbench/browser/parts/editor/dockedEditorInput.js';
 import { DockedAuxiliaryBarController } from '../dockedAuxiliaryBarController.js';
+import { CHANGES_VIEW_CONTAINER_ID } from '../../../workbench/contrib/sessions/common/changes.js';
 import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../agentsWindowMenus.js';
+import { FloatingAuxiliaryBarController } from '../floatingAuxiliaryBarController.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
 import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../workbench/browser/parts/sessions/agentsPartCard.js';
 import { MainEditorPart } from './editorPart.js';
@@ -89,12 +95,12 @@ export class DesktopMainEditorPart extends MainEditorPart {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly _storageService: IStorageService,
 		@IAgentWorkbenchLayoutService private readonly agentWorkbenchLayoutService: IAgentWorkbenchLayoutService,
 		@IHostService hostService: IHostService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(editorPartsView, _instantiationService, themeService, configurationService, storageService, agentWorkbenchLayoutService, hostService, contextKeyService);
+		super(editorPartsView, _instantiationService, themeService, configurationService, _storageService, agentWorkbenchLayoutService, hostService, contextKeyService);
 
 		this._register(configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration('workbench.editor.showTabs')) {
@@ -135,6 +141,7 @@ export class DesktopMainEditorPart extends MainEditorPart {
 	get auxiliaryBar(): DesktopAuxiliaryBarPart {
 		if (!this._auxiliaryBar) {
 			this._auxiliaryBar = this._register(this._instantiationService.createInstance(DesktopAuxiliaryBarPart));
+			this._auxiliaryBar.beforeFocus = () => this.revealFloatingDetails();
 		}
 		return this._auxiliaryBar;
 	}
@@ -175,18 +182,73 @@ export class DesktopMainEditorPart extends MainEditorPart {
 			this.element,
 			this.auxiliaryBar,
 			{
+				getPosition: () => layoutService.getDetailsPosition(),
 				getWidth: () => layoutService.getDockedAuxiliaryBarWidth(),
 				setWidth: (width: number) => layoutService.setDockedAuxiliaryBarWidth(width),
+				getHeight: () => layoutService.getDockedAuxiliaryBarHeight(),
+				setHeight: height => layoutService.setDockedAuxiliaryBarHeight(height),
 				isEditorAreaVisible: () => layoutService.isVisible(Parts.EDITOR_PART, mainWindow) || layoutService.isVisible(Parts.AUXILIARYBAR_PART),
 				isEditorVisible: () => layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
 				isAuxiliaryBarVisible: () => layoutService.isVisible(Parts.AUXILIARYBAR_PART),
 				hideAuxiliaryBar: () => layoutService.setAuxiliaryBarHiddenForResize(true),
-				setEditorContentRightInset: (px: number) => this.setContentRightInset(px),
+				setEditorContentInsets: (right, top, bottom, left) => {
+					this.setContentRightInset(right);
+					for (const group of this.groups) {
+						(group as EditorGroupView).setContentHorizontalInsets(left, right);
+						(group as EditorGroupView).setContentVerticalInsets(top, bottom);
+					}
+					this.element.style.setProperty('--sessions-editor-content-left-inset', `${left}px`);
+					this.element.style.setProperty('--sessions-editor-content-top-inset', `${top}px`);
+					this.element.style.setProperty('--sessions-editor-content-bottom-inset', `${bottom}px`);
+				},
 				getTabsHeight: () => (this.activeGroup as EditorGroupView).titleHeight.offset,
+				getEditorContentTop: () => (this.activeGroup as EditorGroupView).titleHeight.total,
+			},
+			{
+				isEnabled: () => layoutService.isAuxiliaryBarFloating(),
+				createController: () => this._instantiationService.createInstance(FloatingAuxiliaryBarController, this.element, this.auxiliaryBar, {
+					getTitle: () => this._getFloatingPanelTitle(),
+					isChangesViewActive: () => this.auxiliaryBar.getActivePaneComposite()?.getId() === CHANGES_VIEW_CONTAINER_ID,
+					getIcon: () => {
+						const composite = this.auxiliaryBar.getActivePaneComposite();
+						const icon = composite instanceof PaneComposite ? composite.getViewPaneContainer()?.viewContainer.icon : undefined;
+						return ThemeIcon.isThemeIcon(icon) ? icon : undefined;
+					},
+					onDidChangeTitle: Event.map(Event.any(this.auxiliaryBar.onDidPaneCompositeOpen, this.auxiliaryBar.onDidPaneCompositeClose), () => undefined),
+					getWidth: () => layoutService.getDockedAuxiliaryBarWidth(),
+					setWidth: width => layoutService.setDockedAuxiliaryBarWidth(width),
+					getHeight: () => this._storageService.getNumber('sessions.floatingDetails.height', StorageScope.WORKSPACE, 400),
+					setHeight: height => this._storageService.store('sessions.floatingDetails.height', height, StorageScope.WORKSPACE, StorageTarget.MACHINE),
+					getContentHeight: () => this.auxiliaryBar.getContentHeight(),
+					onDidChangeContentHeight: this.auxiliaryBar.onDidChangeContentHeight,
+					setSizeToContent: enabled => this.auxiliaryBar.setSizeToContent(enabled),
+					focusEditor: () => this.activeGroup.focus(),
+				}),
 			},
 		));
 
 		return container;
+	}
+
+	private _getFloatingPanelTitle(): string {
+		const activeComposite = this.auxiliaryBar.getActivePaneComposite();
+		return (activeComposite && this.auxiliaryBar.getPaneComposite(activeComposite.getId())?.name) || localize('floatingPanel.title', "Details");
+	}
+
+	handleEditorOpeningFromDetails(): void {
+		this._dockedAuxBar?.onDidOpenItem();
+	}
+
+	revealFloatingDetails(): void {
+		this._dockedAuxBar?.revealFloatingDetails();
+	}
+
+	get floatingDetails(): FloatingAuxiliaryBarController | undefined {
+		return this._dockedAuxBar?.floatingDetails;
+	}
+
+	override get supportsSplitting(): boolean {
+		return false;
 	}
 
 	override addGroup(location: IEditorGroupView | GroupIdentifier, _direction: GroupDirection, _groupToCopy?: IEditorGroupView): IEditorGroupView {
@@ -201,7 +263,7 @@ export class DesktopMainEditorPart extends MainEditorPart {
 	}
 
 	override createEditorDropTarget(container: unknown, delegate: IEditorDropTargetDelegate): IDisposable {
-		return super.createEditorDropTarget(container, { ...delegate, supportsSplitting: false });
+		return super.createEditorDropTarget(container, { ...delegate, supportsSplitting: this.supportsSplitting });
 	}
 
 	override async applyState(state: IEditorPartUIState | 'empty', options?: IEditorGroupViewOptions): Promise<void> {

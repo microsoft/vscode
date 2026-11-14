@@ -127,8 +127,8 @@ export class PluginInstallService implements IPluginInstallService {
 	private async _doInstallFromSource(reference: IMarketplaceReference, options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult> {
 		// Build a source descriptor for the git clone.
 		const sourceDescriptor = reference.kind === MarketplaceReferenceKind.GitHubShorthand
-			? { kind: PluginSourceKind.GitHub as const, repo: reference.githubRepo!, ...(options?.path !== undefined && reference.ref ? { ref: reference.ref } : {}) }
-			: { kind: PluginSourceKind.GitUrl as const, url: reference.cloneUrl, ...(options?.path !== undefined && reference.ref ? { ref: reference.ref } : {}) };
+			? { kind: PluginSourceKind.GitHub as const, repo: reference.githubRepo!, ...(reference.ref ? { ref: reference.ref } : {}) }
+			: { kind: PluginSourceKind.GitUrl as const, url: reference.cloneUrl, ...(reference.ref ? { ref: reference.ref } : {}) };
 
 		// Build a temporary plugin object for the trust gate and clone step.
 		const tempPlugin: IMarketplacePlugin = {
@@ -549,7 +549,7 @@ export class PluginInstallService implements IPluginInstallService {
 			// 2. Re-fetch marketplace data *after* pulling so we see any
 			//    updated plugin descriptors (new versions, refs, etc.).
 			const marketplaceIds = new Set(installed.map(entry => entry.plugin.marketplaceReference.canonicalId));
-			const marketplacePlugins = await this._pluginMarketplaceService.fetchMarketplacePlugins(token, marketplaceIds, { refresh: true });
+			const marketplacePlugins = await this._pluginMarketplaceService.fetchMarketplacePlugins(token, marketplaceIds, { refresh: true, priority: options.automatic ? 'background' : undefined });
 			const marketplaceByKey = new Map<string, IMarketplacePlugin>();
 			for (const mp of marketplacePlugins) {
 				marketplaceByKey.set(`${mp.marketplaceReference.canonicalId}::${mp.name}`, mp);

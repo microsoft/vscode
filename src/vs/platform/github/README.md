@@ -76,7 +76,7 @@ The [account interface](common/account/account.ts) is the authoritative list of 
 | Mission Control | [Automations](common/missionControl/automations.ts), [tasks](common/missionControl/tasks.ts), [environments](common/missionControl/environments.ts) |
 | Copilot Connector catalog and connection management | [Connectors](common/connectors/connectors.ts) |
 
-Repository operations use `RepositoryRef` (`{ owner, repo }`). Typed request methods take an `AbortSignal` and optional trailing request options. They normally return parsed domain data or `void`, not transport objects, ETags, or header collections. Domain-specific counts, cursors, nullable values, and acceptance states remain meaningful; HTTP success does not necessarily mean an asynchronous operation has completed.
+Repository operations use `RepositoryRef` (`{ owner, repo }`); [toRepositoryRef](common/client/routing.ts) converts an `owner/repository` identifier without silently dropping extra path segments. Typed request methods take an `AbortSignal` and optional trailing request options. They normally return parsed domain data or `void`, not transport objects, ETags, or header collections. Domain-specific counts, cursors, nullable values, and acceptance states remain meaningful; HTTP success does not necessarily mean an asynchronous operation has completed.
 
 ### Domain-specific boundaries
 
@@ -84,6 +84,7 @@ Repository operations use `RepositoryRef` (`{ owner, repo }`). Typed request met
 - **Connectors:** the [workbench consumer](../../workbench/contrib/chat/browser/aiCustomization/copilotConnectorsService.ts) owns account selection, consent, and polling. Catalog status does not grant runtime MCP access. The [provider](common/client/localConnectorsRequestProvider.ts) enforces its response-size bound, no redirects, and no automatic replay.
 - **Raw repository content:** reads are anonymous and confined to the configured raw origin and pinned repository/commit path. The text-download limit is 1 MiB; mutable refs must first be resolved to a full SHA-1 or SHA-256 commit. Raw files are not fetched through arbitrary response-provided URLs. See the [content client](common/content/contentClient.ts).
 - **Legacy resources and guarded mutations:** existing [subscriptions](common/githubQueryService.ts) and [compound mutations](common/githubPullRequestMutationService.ts) retain their own polling, reconciliation, and authorization rules. A raw endpoint call is not a replacement for guarded merging or reply-and-resolve behavior; an unpublished review reply must not be treated as a published comment.
+- **Issue reporter:** classic web and desktop issue creation uses the existing selected GitHub session through the [form-service bridge](../../workbench/contrib/issue/browser/issueFormService.ts), without selecting the default account or requesting additional scopes. The reporter captures the selected session ID, account, scopes, and issuer alongside its credential, so token renewal retains the same authorization. Unavailable or changed grants fail rather than substituting credentials. Similar-issue search uses the anonymous client. Browser previews and the separate attachment-upload pipeline retain their existing behavior and authentication.
 
 The workbench's [session feed](../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionFeed.ts) uses exponential reconnect backoff with jitter (one-second base, 60-second cap), resetting only after a connection stays healthy for 60 seconds. A failed HTTP negotiation still stops feed retries for that lifetime; discovery polling remains available.
 
@@ -101,6 +102,8 @@ The [transport](common/githubTransport.ts), [queue](common/requestQueue.ts), and
 Current numeric defaults are defined in the queue and transport, not promised as public API or server quotas.
 
 [ApiRequestOptions](common/client/request.ts) carries `caller`, an absolute millisecond `deadline`, `priority`, and `noCache`. Query parameters belong under `query`; request metadata must not become URL parameters, GraphQL variables, or request-body fields. Use background/enrichment priorities for passive work rather than giving every request interactive priority.
+
+[RequestError](common/types.ts) provides `isResponseTooLarge` and `isRateLimited` predicates. Rate-limit detection uses the transport's `rateLimit` classification, including HTTP 429 and secondary-rate-limit HTTP 403 responses; an ordinary authorization failure is not a rate limit.
 
 Lists fetch one page by default. `maxPages` opts into bounded collection; reaching the bound with more results available throws `PaginationLimitError` unless `pageLimitBehavior: 'returnPartial'` was explicitly requested. Collection follows validated REST links or GraphQL cursors, preserves server order and totals, and does not implicitly collect nested connections. `returnPartial` does not add a completeness flag to plain arrays.
 
@@ -120,12 +123,14 @@ Operations needing redirect status and headers, such as Actions log-URL retrieva
 
 ## Internal extension module
 
-The extension-host-provided `@vscode/internal-github` module ([typings](../../../typings/internal-github.d.ts)) is not part of the `vscode` API. It is resolved through the extension host's `require` interception for CommonJS importers, only for the allowlisted built-in extensions in [extHostGitHub.ts](../../workbench/api/common/extHostGitHub.ts), and binds the importing extension's identity. It exposes only the Gist operations needed by [Configuration Editing](../../../../extensions/configuration-editing/src/importExportProfiles.ts):
+The extension-host-provided `@vscode/internal-github` module ([typings](../../../typings/internal-github.d.ts)) is not part of the `vscode` API. It is resolved through the extension host's `require` interception, only for the allowlisted built-in extensions in [extHostGitHub.ts](../../workbench/api/common/extHostGitHub.ts), and binds the importing extension's identity. Node ESM consumers use `createRequire(import.meta.url)`; native ESM imports are not supported. The consumers are [Configuration Editing](../../../../extensions/configuration-editing/src/importExportProfiles.ts) and [GitHub](../../../../extensions/github/src/auth.ts).
 
-- `getClient(sessionId, token?)`: a disposable GitHub.com client with `gists.get` and `gists.create`.
+- `getClient(sessionId, token?)`: a disposable GitHub.com client with typed Gist, repository, user, repository-search and pull-request operations. Repository queries also cover viewer permissions, inherited rulesets, assignable users and commit authors.
 - `getAnonymousClient(token?)`: a disposable client with `gists.get` only.
 
-The extension chooses its session through `vscode.authentication.getSession('github', ...)`. Client acquisition never prompts, substitutes another account, or grants access to an extension. The module does not accept GitHub Enterprise sessions, raw credentials, or arbitrary HTTP requests. Additional domains can be exposed later as typed client properties.
+Ruleset reads support shared page collection through `maxPages`. The GitHub extension collects at most 1,000 pages; exceeding the limit fails rather than returning partial branch-protection rules.
+
+The extension chooses its session through `vscode.authentication.getSession('github', ...)`. Client acquisition never prompts, substitutes another account, or grants access to an extension. The module does not accept GitHub Enterprise sessions, raw credentials, arbitrary HTTP requests or caller-provided GraphQL. A retained authenticated client reports an unusable authorization or lease through `onDidInvalidate` when a request fails; callers release it and acquire a fresh client rather than automatically replaying mutations.
 
 The [main-thread bridge](../../workbench/api/browser/mainThreadGitHub.ts) enforces extension account access, rechecks it after acquisition and before requests, and invalidates pending/active authenticated clients when the provider is removed. The [extension-host facade](../../workbench/api/common/extHostGitHub.ts) provides cancellation and disposable handles. Desktop calls reach the shared-process service; web calls use the local service, and remote extension hosts reach the same main-thread bridge through RPC. Caller attribution is `extension.<extensionId>`.
 

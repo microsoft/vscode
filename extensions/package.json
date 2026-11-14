@@ -3,7 +3,6 @@
   "version": "0.0.1",
   "license": "MIT",
   "description": "Dependencies shared by all extensions",
-  "packageManager": "pnpm@12.16.0",
   "dependencies": {
     "typescript": "^6.0.3"
   },
