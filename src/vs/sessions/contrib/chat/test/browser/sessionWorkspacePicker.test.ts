@@ -8919,6 +8919,31 @@ suite('WorkspacePicker - Allowed folders', () => {
 		});
 	});
 
+	test('with sections for the window\'s folder and its worktrees, offers New Worktree first and each section\'s current folder first, described as current', async () => {
+		const noWorkspace = { selected: false };
+		let current = '/local/vscode.worktrees/b';
+		const { picker } = createPicker(['/local/vscode.worktrees/b', '/local/vscode', '/local/vscode.worktrees/a'], noWorkspace, {
+			getAllowedFolderPresentation: folderUri => folderUri.path === '/local/vscode'
+				? { kind: 'folder', current: current === folderUri.path }
+				: { label: folderUri.path.split('/').pop(), description: `feature-${folderUri.path.split('/').pop()}`, icon: Codicon.gitBranchCheckout, kind: 'worktree', current: current === folderUri.path },
+			newWorktree: { isAvailable: () => true, isSelected: () => false, setSelected: () => { } },
+		});
+		picker.setSelectedWorkspace(URI.file('/local/vscode.worktrees/b'), { fireEvent: false });
+		const items = () => picker.getItems().map(item => item.kind === ActionListItemKind.Separator
+			? `---${item.label ? ` ${item.label}` : ''}`
+			: `${item.label}${item.description ? ` (${item.description})` : ''}${item.item?.checked ? ' *' : ''}`);
+
+		const atWorktree = items();
+		current = '/local/vscode';
+		await picker.dispatchFolder(URI.file('/local/vscode'), 'local-1');
+		const atFolder = items();
+
+		assert.deepStrictEqual({ atWorktree, atFolder }, {
+			atWorktree: ['Chat', '---', 'New Worktree', '--- Folder', 'local/vscode', '--- Worktrees', 'b (Current) *', 'a (feature-a)'],
+			atFolder: ['Chat', '---', 'New Worktree', '--- Folder', 'local/vscode (Current) *', '--- Worktrees', 'b (feature-b)', 'a (feature-a)'],
+		});
+	});
+
 	test('picking another folder after New Worktree selects it, also where leaving New Worktree selects the first folder again as its configuration changes', async () => {
 		const newWorktree = { selected: true };
 		const { picker } = createPicker(['/local/a', '/local/b'], undefined, {

@@ -152,9 +152,24 @@ export interface IWorkspacePickerOptions {
 	 */
 	readonly allowedFolders?: IObservable<readonly URI[]>;
 	/** How the picker shows an allowed folder, such as a linked checkout of a window's folder: by its name and branch. */
-	readonly getAllowedFolderPresentation?: (folderUri: URI) => IFolderLocation | undefined;
+	readonly getAllowedFolderPresentation?: (folderUri: URI) => IAllowedFolderPresentation | undefined;
 	/** Offers New Worktree after the {@link allowedFolders}: a session that works in a new worktree of the selected folder. */
 	readonly newWorktree?: IWorkspacePickerNewWorktreeOption;
+}
+
+/**
+ * How a picker restricted to its allowed folders shows one of them ({@link IWorkspacePickerOptions.getAllowedFolderPresentation}),
+ * such as a linked checkout of a window's folder. A presentation with a label also gives the folder's description.
+ */
+export interface IAllowedFolderPresentation extends Partial<Omit<IFolderLocation, 'uri'>> {
+	/**
+	 * The section the folder shows in: Folder for a folder of the window, such as its primary checkout, and Worktrees for a
+	 * linked checkout of it. Once any allowed folder has one, the picker offers New Worktree first and then the two sections;
+	 * otherwise it shows the folders in their order, without sections.
+	 */
+	readonly kind?: 'folder' | 'worktree';
+	/** Whether the window's folder is at this folder now: it shows first in its section, described as current. */
+	readonly current?: boolean;
 }
 
 /** The New Worktree choice of a picker restricted to its allowed folders ({@link IWorkspacePickerOptions.newWorktree}). */
@@ -2283,30 +2298,39 @@ export class WorkspacePicker extends Disposable {
 
 	/** Puts New Worktree after `items`, when the composer offers it for the selected folder. */
 	private _withNewWorktreeItem(items: IActionListItem<IWorkspacePickerItem>[]): IActionListItem<IWorkspacePickerItem>[] {
-		const newWorktree = this.options.newWorktree;
-		const newWorktreeSelected = this._isNewWorktreeSelected();
-		if (newWorktree && this._directPickerAttachesContext !== true && this._selectedFolderUri && !this.isNoWorkspaceSelected() && newWorktree.isAvailable()) {
+		const newWorktreeItem = this._getNewWorktreeItem();
+		if (newWorktreeItem) {
 			if (items.length) {
 				items.push({ kind: ActionListItemKind.Separator, label: '' });
 			}
-			items.push({
-				kind: ActionListItemKind.Action,
-				label: localize('workspacePicker.newWorktree', "New Worktree"),
-				description: undefined,
-				ariaDescription: localize('workspacePicker.newWorktreeDescription', "Start the session in a new worktree of the selected folder."),
-				group: { title: '', icon: SESSION_WORKTREE_ICON },
-				item: {
-					id: 'workspacePicker.newWorktree',
-					checked: newWorktreeSelected || undefined,
-					run: () => {
-						newWorktree.setSelected(true);
-						this._updateTriggerLabel();
-						this._onDidChangeSelection.fire();
-					},
-				},
-			});
+			items.push(newWorktreeItem);
 		}
 		return items;
+	}
+
+	/** The New Worktree choice, when the composer offers it for the selected folder. */
+	private _getNewWorktreeItem(): IActionListItem<IWorkspacePickerItem> | undefined {
+		const newWorktree = this.options.newWorktree;
+		const newWorktreeSelected = this._isNewWorktreeSelected();
+		if (!newWorktree || this._directPickerAttachesContext === true || !this._selectedFolderUri || this.isNoWorkspaceSelected() || !newWorktree.isAvailable()) {
+			return undefined;
+		}
+		return {
+			kind: ActionListItemKind.Action,
+			label: localize('workspacePicker.newWorktree', "New Worktree"),
+			description: undefined,
+			ariaDescription: localize('workspacePicker.newWorktreeDescription', "Start the session in a new worktree of the selected folder."),
+			group: { title: '', icon: SESSION_WORKTREE_ICON },
+			item: {
+				id: 'workspacePicker.newWorktree',
+				checked: newWorktreeSelected || undefined,
+				run: () => {
+					newWorktree.setSelected(true);
+					this._updateTriggerLabel();
+					this._onDidChangeSelection.fire();
+				},
+			},
+		};
 	}
 
 	/** Puts the No Workspace choice before `items`, when the composer offers one. */
@@ -2839,7 +2863,27 @@ export class WorkspacePicker extends Disposable {
 	 */
 	protected _buildRestrictedItems(): IActionListItem<IWorkspacePickerItem>[] | undefined {
 		const allowedFolders = this._getAllowedFolders();
-		return allowedFolders && this._withSelectionMarks(this._withNewWorktreeItem(this._withNoWorkspaceItem(this._buildAllowedFolderItems(allowedFolders))));
+		if (!allowedFolders) {
+			return undefined;
+		}
+		const folders = this._buildAllowedFolderItems(allowedFolders);
+		if (!folders.some(folder => folder.kind)) {
+			return this._withSelectionMarks(this._withNewWorktreeItem(this._withNoWorkspaceItem(folders.map(folder => folder.item))));
+		}
+
+		// New Worktree first, then the window's folders and the worktrees, each in a section with the current one first
+		const newWorktreeItem = this._getNewWorktreeItem();
+		const items = this._withNoWorkspaceItem(newWorktreeItem ? [newWorktreeItem] : []);
+		const section = (title: string, sectionFolders: readonly { readonly item: IActionListItem<IWorkspacePickerItem>; readonly current: boolean }[]) => {
+			if (sectionFolders.length) {
+				items.push({ kind: ActionListItemKind.Separator, label: title });
+				items.push(...sectionFolders.filter(folder => folder.current).map(folder => folder.item), ...sectionFolders.filter(folder => !folder.current).map(folder => folder.item));
+			}
+		};
+		const windowFolders = folders.filter(folder => folder.kind !== 'worktree');
+		section(windowFolders.length > 1 ? localize('workspacePicker.folders', "Folders") : localize('workspacePicker.folder', "Folder"), windowFolders);
+		section(localize('workspacePicker.worktrees', "Worktrees"), folders.filter(folder => folder.kind === 'worktree'));
+		return this._withSelectionMarks(items);
 	}
 
 	/** The folders the picker is restricted to; none restrict it. */
@@ -2859,9 +2903,9 @@ export class WorkspacePicker extends Disposable {
 		return !!allowedFolders && allowedFolders.length <= 1 && !!this._selectedFolderUri && !this._getNoWorkspaceOption() && !this.options.newWorktree?.isAvailable();
 	}
 
-	/** The items of a picker restricted to its allowed folders: one for each folder a provider resolves. */
-	private _buildAllowedFolderItems(allowedFolders: readonly URI[]): IActionListItem<IWorkspacePickerItem>[] {
-		const items: IActionListItem<IWorkspacePickerItem>[] = [];
+	/** The items of a picker restricted to its allowed folders, one for each folder a provider resolves, with each one's section. */
+	private _buildAllowedFolderItems(allowedFolders: readonly URI[]): { readonly item: IActionListItem<IWorkspacePickerItem>; readonly kind: IAllowedFolderPresentation['kind']; readonly current: boolean }[] {
+		const items: { readonly item: IActionListItem<IWorkspacePickerItem>; readonly kind: IAllowedFolderPresentation['kind']; readonly current: boolean }[] = [];
 		const newWorktreeSelected = this._isNewWorktreeSelected();
 		for (const folderUri of allowedFolders) {
 			const resolved = this._resolveFolder(folderUri, this._isSelectedFolder(folderUri) ? this._selectedResolved?.providerId : undefined);
@@ -2869,17 +2913,24 @@ export class WorkspacePicker extends Disposable {
 				continue;
 			}
 			const presentation = this.options.getAllowedFolderPresentation?.(folderUri);
+			const current = !!presentation?.current;
 			items.push({
-				kind: ActionListItemKind.Action,
-				label: presentation?.label ?? resolved.workspace.label,
-				description: presentation ? presentation.description : resolved.workspace.description,
-				group: { title: '', icon: presentation?.icon ?? this._getWorkspaceIcon(resolved.workspace) },
-				disabled: this._isProviderUnavailable(resolved.providerId),
+				kind: presentation?.kind,
+				current,
 				item: {
-					id: `workspacePicker.workspace.${this.uriIdentityService.extUri.getComparisonKey(folderUri)}`,
-					folderUri,
-					providerId: resolved.providerId,
-					checked: (!newWorktreeSelected && this._isSelectedFolder(folderUri)) || undefined,
+					kind: ActionListItemKind.Action,
+					label: presentation?.label ?? resolved.workspace.label,
+					description: current
+						? localize('workspacePicker.current', "Current")
+						: presentation?.label !== undefined ? presentation.description : resolved.workspace.description,
+					group: { title: '', icon: presentation?.icon ?? this._getWorkspaceIcon(resolved.workspace) },
+					disabled: this._isProviderUnavailable(resolved.providerId),
+					item: {
+						id: `workspacePicker.workspace.${this.uriIdentityService.extUri.getComparisonKey(folderUri)}`,
+						folderUri,
+						providerId: resolved.providerId,
+						checked: (!newWorktreeSelected && this._isSelectedFolder(folderUri)) || undefined,
+					},
 				},
 			});
 		}
