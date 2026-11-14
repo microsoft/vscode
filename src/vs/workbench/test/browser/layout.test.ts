@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { $, append } from '../../../base/browser/dom.js';
-import { Grid, Direction, ISerializedGrid, ISerializedNode, Orientation, SerializableGrid } from '../../../base/browser/ui/grid/grid.js';
+import { Grid, Direction, ISerializableView, ISerializedGrid, ISerializedNode, Orientation, SerializableGrid } from '../../../base/browser/ui/grid/grid.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
@@ -151,6 +151,8 @@ suite('Workbench layout chat part', () => {
 		readonly anchor?: ViewContainerLocation | null;
 		/** Whether that view is registered, as it is by default; one that is not keeps a location saved for it. */
 		readonly anchorRegistered?: boolean;
+		/** The width of the window and of its bars, 1600, 250 and 260 by default. */
+		readonly widths?: { readonly window?: number; readonly sideBar?: number; readonly auxiliaryBar?: number };
 	}
 
 	/** The state a window left, to start another window from, as after a reload. */
@@ -197,7 +199,7 @@ suite('Workbench layout chat part', () => {
 			['panel.hidden', false],
 			['auxiliaryBar.hidden', false],
 		]);
-		const initialization = new Map<string, unknown>([['sideBar.size', 250], ['auxiliaryBar.size', 260], ['panel.size', 200]]);
+		const initialization = new Map<string, unknown>([['sideBar.size', configuration.widths?.sideBar ?? 250], ['auxiliaryBar.size', configuration.widths?.auxiliaryBar ?? 260], ['panel.size', 200]]);
 		const anchor = { location: configuration.anchor ?? null, registered: configuration.anchorRegistered ?? true };
 		const viewEvents = { location: store.add(new Emitter<void>()), container: store.add(new Emitter<void>()), containerLocation: store.add(new Emitter<void>()), containers: store.add(new Emitter<void>()) };
 		let stored = saved ? saved.stored : configuration.chat && configuration.chat !== 'noLayout' ? JSON.stringify({ version: 1, ...configuration.chat }) : undefined;
@@ -213,7 +215,7 @@ suite('Workbench layout chat part', () => {
 		}(mainWindow.document.body));
 		Object.assign(layout, {
 			...parts,
-			_mainContainerDimension: { width: 1600, height: 900 },
+			_mainContainerDimension: { width: configuration.widths?.window ?? 1600, height: 900 },
 			telemetryService: NullTelemetryService,
 			// No view containers: the side bar and the panel show and hide empty
 			paneCompositeService: { getActivePaneComposite: () => undefined, getLastActivePaneCompositeId: () => undefined },
@@ -321,7 +323,7 @@ suite('Workbench layout chat part', () => {
 		const { layout, views, descriptor, save, anchor, focus, viewEvents } = createLayout(configuration, saved);
 		const grid = store.add(SerializableGrid.deserialize(descriptor, { fromJSON: ({ type }: { type: Parts }) => views.get(type)! }, { proportionalLayout: false }));
 		append(layout.mainContainer, grid.element);
-		grid.layout(1600, 900);
+		grid.layout(configuration.widths?.window ?? 1600, 900);
 		Object.assign(layout, { workbenchGrid: grid });
 		const middle = () => shape((grid.serialize().root.data as ISerializedNode[])[2]);
 		return { layout, grid, middle, save, anchor, views, focus, viewEvents };
@@ -599,5 +601,39 @@ suite('Workbench layout chat part', () => {
 			focusedAfter: true,
 			defaultFocus: [],
 		});
+	});
+
+	/** The widths across the window, of the parts the editor's row has, and whether those fit the window without overflowing. */
+	function widthsAcross(layout: Layout, grid: SerializableGrid<ISerializableView>, views: Map<Parts, Part>, window: number) {
+		const width = (part: Parts) => layout.isVisible(part) ? grid.getViewSize(views.get(part)!).width : 0;
+		const chat = width(Parts.CHAT_PART);
+		const editor = width(Parts.EDITOR_PART);
+		const total = width(Parts.ACTIVITYBAR_PART) + width(Parts.SIDEBAR_PART) + editor + chat + width(Parts.AUXILIARYBAR_PART);
+		return { fits: total === window, chatAtLeastItsMinimum: chat >= 280, editorAtLeastItsMinimum: editor >= 220 };
+	}
+
+	test('the chat part shown beside a wide secondary side bar takes room from it, rather than overflow the editor\'s column', () => {
+		const { layout, grid, views } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: false, size: 400 }, anchor: ViewContainerLocation.AuxiliaryBar, widths: { window: 1200, auxiliaryBar: 590 } });
+		const auxiliaryBarBefore = grid.getViewSize(views.get(Parts.AUXILIARYBAR_PART)!).width;
+		layout.setPartHidden(false, Parts.CHAT_PART);
+
+		assert.deepStrictEqual({ ...widthsAcross(layout, grid, views, 1200), auxiliaryBarShrank: grid.getViewSize(views.get(Parts.AUXILIARYBAR_PART)!).width < auxiliaryBarBefore }, {
+			fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true, auxiliaryBarShrank: true,
+		});
+	});
+
+	test('the chat part shown beside a wide primary side bar takes room from it', () => {
+		const { layout, grid, views } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: false, size: 400 }, anchor: ViewContainerLocation.Sidebar, widths: { window: 1200, sideBar: 600 } });
+		layout.setPartHidden(false, Parts.CHAT_PART);
+
+		assert.deepStrictEqual(widthsAcross(layout, grid, views, 1200), { fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true });
+	});
+
+	test('the chat part that follows its anchor view to a wide secondary side bar takes room from it', () => {
+		const { layout, grid, views, anchor } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor: ViewContainerLocation.Sidebar, widths: { window: 1200, auxiliaryBar: 590 } });
+		anchor.location = ViewContainerLocation.AuxiliaryBar;
+		(Reflect.get(layout, 'updateChatPartPosition') as () => void).call(layout);
+
+		assert.deepStrictEqual(widthsAcross(layout, grid, views, 1200), { fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true });
 	});
 });
