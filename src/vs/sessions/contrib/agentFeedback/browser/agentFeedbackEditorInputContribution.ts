@@ -42,6 +42,7 @@ import { CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR } from '../../../../workbenc
 import { FeedbackInputWidget, IFeedbackInputWidgetAdditionalAction } from '../../../../workbench/browser/feedbackInputWidget.js';
 import { ICodeReviewService, IPRReviewCommentTarget } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { IGitHubPullRequestRef } from '../../../../workbench/services/sessions/common/session.js';
+import { AGENTS_WINDOW_EDITOR_COMMENTS_SETTING } from '../../../../workbench/contrib/comments/common/commentsConfiguration.js';
 
 const addFeedbackAtCurrentLineActionId = 'agentFeedbackEditor.action.addAtCurrentLine';
 const agentFeedbackHoverGlyphClassName = 'agent-feedback-glyph';
@@ -281,6 +282,16 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 				} else {
 					this._widget.setPlaceholder(this._getPlaceholder());
 				}
+			}
+		}));
+		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (!e.affectsConfiguration(AGENTS_WINDOW_EDITOR_COMMENTS_SETTING)) {
+				return;
+			}
+			this._clearHoverGlyph();
+			this._sessionResource = this._getSessionForModel();
+			if (!this._sessionResource) {
+				this._hide();
 			}
 		}));
 		this._getSessionForModel();
@@ -645,11 +656,14 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 	private _getSessionForModel(): URI | undefined {
 		const model = this._editor.getModel();
-		if (!model || !this._contextKeyService.contextMatchesRules(agentFeedbackEnabledForEditor)) {
+		if (!model
+			|| !this._contextKeyService.contextMatchesRules(agentFeedbackEnabledForEditor)
+			|| this._configurationService.getValue<boolean>(AGENTS_WINDOW_EDITOR_COMMENTS_SETTING)) {
 			this._hasAgentFeedbackSessionContext.set(false);
 			this._sessionResource = undefined;
 			return undefined;
 		}
+
 		const sessionResource = this._agentFeedbackService.getFeedbackSessionResource(model.uri);
 		this._hasAgentFeedbackSessionContext.set(!!sessionResource);
 		this._sessionResource = sessionResource;

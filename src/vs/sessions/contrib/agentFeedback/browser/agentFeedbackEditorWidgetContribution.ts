@@ -13,6 +13,7 @@ import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IEditorContribution, ScrollType } from '../../../../editor/common/editorCommon.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ISessionFileChange } from '../../../../workbench/services/sessions/common/session.js';
 import { ICodeReviewService, IPRReviewState } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { AgentFeedbackEditorWidget, IComposerDraft, IComposerDraftState } from './agentFeedbackEditorWidget.js';
@@ -20,6 +21,7 @@ import { shouldIncludeRawPRReviewComments } from './agentFeedbackService.js';
 import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { getSessionEditorComments, groupNearbySessionEditorComments, ISessionEditorComment } from './sessionEditorComments.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/common/chatSessionFileChange.js';
+import { AGENTS_WINDOW_EDITOR_COMMENTS_SETTING } from '../../../../workbench/contrib/comments/common/commentsConfiguration.js';
 
 /**
  * Editor contribution that manages agent feedback widgets.
@@ -49,6 +51,7 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 		@ICodeReviewService private readonly _codeReviewService: ICodeReviewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -62,6 +65,7 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 			this._agentFeedbackService.onDidChangeFeedback,
 			this._agentFeedbackService.onDidChangeFeedbackVisibility,
 			this._agentFeedbackService.onDidChangeFeedbackScope,
+			Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(AGENTS_WINDOW_EDITOR_COMMENTS_SETTING)),
 			this._editor.onDidChangeModel,
 		));
 
@@ -88,7 +92,7 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 
 	private _resolveSession(): void {
 		const model = this._editor.getModel();
-		if (!model) {
+		if (!model || this._configurationService.getValue<boolean>(AGENTS_WINDOW_EDITOR_COMMENTS_SETTING)) {
 			this._sessionResource = undefined;
 			return;
 		}
