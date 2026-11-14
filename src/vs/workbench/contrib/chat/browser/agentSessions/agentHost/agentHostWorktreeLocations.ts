@@ -7,6 +7,7 @@ import { raceCancellation } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isAbsolute } from '../../../../../../base/common/path.js';
 import { basename, dirname, extUriBiasedIgnorePathCase, joinPath, normalizePath } from '../../../../../../base/common/resources.js';
@@ -19,6 +20,7 @@ import { readFolderGitCheckout } from '../../../../../services/workspaces/common
 import { IChatSessionsService, isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
 import { IAgentSession } from '../agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
+import { IAgentHostWorktreeSessionSources } from './agentHostWorktreeSessionSources.js';
 
 /** The id of the provider of the worktrees that the local agent host's sessions work in. */
 export const AGENT_HOST_WORKTREE_LOCATIONS_PROVIDER_ID = 'agentHost.sessionWorktrees';
@@ -60,6 +62,7 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 	constructor(
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
+		@IAgentHostWorktreeSessionSources private readonly _sessionSources: IAgentHostWorktreeSessionSources,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -86,9 +89,19 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 				return [];
 			}
 		}
-		const candidates = getAgentHostSessionWorkingDirectories(model.sessions)
-			.filter(directory => !extUriBiasedIgnorePathCase.isEqual(directory, primary));
-		const locations = await Promise.all(candidates.map(async candidate => {
+		// Also where the sessions that other sources know work, such as those of the editor window's session layer: they
+		// only nominate a working directory, which is a location only once git links it to the primary below
+		await raceCancellation(this._sessionSources.whenReady(token), token);
+		if (token.isCancellationRequested) {
+			return [];
+		}
+		const candidates = new ResourceMap<URI>(uri => extUriBiasedIgnorePathCase.getComparisonKey(uri));
+		for (const directory of [...getAgentHostSessionWorkingDirectories(model.sessions), ...this._sessionSources.getWorkingDirectories()]) {
+			if (!extUriBiasedIgnorePathCase.isEqual(directory, primary)) {
+				candidates.set(directory, directory);
+			}
+		}
+		const locations = await Promise.all([...candidates.values()].map(async candidate => {
 			try {
 				return await this._resolve(worktreesDir, primary, candidate);
 			} catch (error) {
