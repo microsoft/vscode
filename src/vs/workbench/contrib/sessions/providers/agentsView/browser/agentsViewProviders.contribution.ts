@@ -16,6 +16,7 @@ import { ILifecycleService, LifecyclePhase } from '../../../../../services/lifec
 import { isEditorWindowSessionsEnabled } from '../../../../chat/common/constants.js';
 import { IDevContainerAgentHostService } from '../../../common/devContainerAgentHostService.js';
 import { SessionsViewId } from '../../../browser/views/sessionsView.js';
+import { ChatViewId } from '../../../../chat/browser/chat.js';
 import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
 import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
 import { registerLocalAgentHostSessionsProvider } from '../../agentHost/browser/localAgentHostSessionsProviderRegistration.js';
@@ -133,14 +134,15 @@ export class AgentsViewProvidersContribution extends Disposable implements IWork
 		}));
 		const shown = this._register(new MutableDisposable());
 		const update = () => {
-			if (viewsService.isViewVisible(SessionsViewId) || layoutService.isVisible(Parts.CHAT_PART)) {
+			// The Sessions view, or the Chat view that shows the sessions in its place
+			if (viewsService.isViewVisible(SessionsViewId) || viewsService.isViewVisible(ChatViewId) || layoutService.isVisible(Parts.CHAT_PART)) {
 				shown.value ??= providersService.acquire();
 			} else {
 				shown.clear();
 			}
 		};
 		this._register(viewsService.onDidChangeViewVisibility(e => {
-			if (e.id === SessionsViewId) {
+			if (e.id === SessionsViewId || e.id === ChatViewId) {
 				update();
 			}
 		}));

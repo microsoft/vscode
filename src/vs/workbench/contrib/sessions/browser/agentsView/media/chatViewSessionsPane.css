@@ -1,0 +1,42 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The Chat view with the sessions of the Agents window: as the Chat view with its sessions, see chatViewPane.css */
+.pane-body.chat-view-sessions-pane {
+
+	/* Signing in or setting up chat shows instead of the sessions and the chat */
+	&.chat-view-welcome-visible > .voice-agent-controls-wrapper {
+		display: none;
+	}
+
+	.agent-sessions-container {
+		flex-shrink: 0;
+		min-height: 0;
+	}
+
+	.agent-sessions-control-container {
+		min-height: 0;
+	}
+
+	.chat-view-sessions-back {
+		display: flex;
+		align-items: center;
+		height: 30px;
+		padding: 0 8px;
+		flex-shrink: 0;
+
+		.monaco-button {
+			width: auto;
+		}
+	}
+
+	.chat-view-sessions-chat {
+		position: relative;
+		flex: 1;
+		min-height: 0;
+		min-width: 0;
+		overflow: hidden;
+	}
+}

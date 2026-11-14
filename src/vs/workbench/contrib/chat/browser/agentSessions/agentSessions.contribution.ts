@@ -102,6 +102,8 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	group: 'navigation',
 	order: 3,
 	icon: Codicon.filter,
+	// Not for the sessions of the Agents window, which this filter does not apply to
+	when: ChatContextKeys.chatViewSessionsListActive.negate(),
 } satisfies ISubmenuItem);
 
 MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
