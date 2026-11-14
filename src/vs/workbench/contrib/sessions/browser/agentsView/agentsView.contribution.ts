@@ -34,7 +34,7 @@ import { IWorktreeSuggestionService, WorktreeSuggestionService } from '../worktr
 import { ISessionChangesService, SessionChangesService } from '../../../sessionChanges/browser/sessionChangesService.js';
 import { ChangesViewService } from '../../../sessionChanges/browser/changesViewService.js';
 import { IChangesViewService } from '../../common/changesViewService.js';
-import { AgentsViewGate } from './agentsViewGate.js';
+import { ChatViewSessionsGate } from './chatViewSessionsGate.js';
 import { EditorWindowSessionsNavigationHost } from './editorWindowSessionsNavigationHost.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -87,4 +87,4 @@ registerSingleton(IWorktreeSuggestionService, WorktreeSuggestionService, Instant
 registerSingleton(ISessionChangesService, SessionChangesService, InstantiationType.Delayed);
 registerSingleton(IChangesViewService, ChangesViewService, InstantiationType.Delayed);
 
-registerWorkbenchContribution2(AgentsViewGate.ID, AgentsViewGate, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(ChatViewSessionsGate.ID, ChatViewSessionsGate, WorkbenchPhase.BlockStartup);

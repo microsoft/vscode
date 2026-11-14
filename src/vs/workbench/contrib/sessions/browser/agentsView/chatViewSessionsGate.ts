@@ -57,9 +57,9 @@ function createChatViewSessionsView(scoped: IObservable<boolean>): typeof Sessio
  * Shows the Agents view, with the sessions of the Agents window, in place of the Chat view of an editor window while {@link isChatViewSessionsListEnabled}.
  * The setting is read once, as the window starts: with it off, this registers nothing and creates no service.
  */
-export class AgentsViewGate extends Disposable implements IWorkbenchContribution {
+export class ChatViewSessionsGate extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'workbench.contrib.agentsViewGate';
+	static readonly ID = 'workbench.contrib.chatViewSessionsGate';
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,

@@ -34,7 +34,7 @@ import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys
 import { IMultiDiffSourceResolverService } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
 import { ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, surfacesAllLocalAgentHostAgents } from '../../../../chat/common/constants.js';
-import { AgentsViewGate } from '../../../browser/agentsView/agentsViewGate.js';
+import { ChatViewSessionsGate } from '../../../browser/agentsView/chatViewSessionsGate.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionGroupToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId } from '../../../browser/views/sessionsList.js';
 import { SessionsViewId } from '../../../browser/views/sessionsView.js';
@@ -45,7 +45,7 @@ function sessionItemMenuItems(): number {
 	return MenuRegistry.getMenuItems(SessionItemContextMenuId).length;
 }
 
-suite('AgentsViewGate', () => {
+suite('ChatViewSessionsGate', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -90,7 +90,7 @@ suite('AgentsViewGate', () => {
 	/** Whether chat is installed: without it, chat needs setting up, which the Chat view offers. */
 	let chatInstalled: IContextKey<boolean>;
 
-	function createGate(enabled: boolean, remoteAuthority?: string, auxiliaryBar?: { visible: boolean; containers: string[] }, events?: { readonly partVisibility?: Event<IPartVisibilityChangeEvent>; readonly compositeClose?: Event<{ viewContainerLocation: ViewContainerLocation }>; readonly extensionsRegistered?: Promise<boolean> }, configuration?: Record<string, unknown>): AgentsViewGate {
+	function createGate(enabled: boolean, remoteAuthority?: string, auxiliaryBar?: { visible: boolean; containers: string[] }, events?: { readonly partVisibility?: Event<IPartVisibilityChangeEvent>; readonly compositeClose?: Event<{ viewContainerLocation: ViewContainerLocation }>; readonly extensionsRegistered?: Promise<boolean> }, configuration?: Record<string, unknown>): ChatViewSessionsGate {
 		createdChatParts = 0;
 		hosts = 0;
 		hiddenParts = [];
@@ -130,7 +130,7 @@ suite('AgentsViewGate', () => {
 		instantiationService.stub(IExtensionService, upcastPartial<IExtensionService>({ whenInstalledExtensionsRegistered: () => events?.extensionsRegistered ?? Promise.resolve(true) }));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({}));
 		instantiationService.stub(IMultiDiffSourceResolverService, upcastPartial<IMultiDiffSourceResolverService>({ registerResolver: () => ({ dispose: () => { } }) }));
-		return disposables.add(instantiationService.createInstance(AgentsViewGate));
+		return disposables.add(instantiationService.createInstance(ChatViewSessionsGate));
 	}
 
 	/** The view containers of its own, which it registers none of, and the Sessions view in the Chat view container. */
@@ -150,7 +150,7 @@ suite('AgentsViewGate', () => {
 			}
 		}({ [ChatConfiguration.ChatViewSessionsListEnabled]: false });
 		// Any use of the instantiation service fails: with the setting off, the gate creates and invokes nothing
-		disposables.add(new AgentsViewGate(configurationService, upcastPartial<IInstantiationService>({})));
+		disposables.add(new ChatViewSessionsGate(configurationService, upcastPartial<IInstantiationService>({})));
 
 		assert.deepStrictEqual({ ...registered(), reads }, { containers: 0, view: undefined, reads: [ChatConfiguration.ChatViewSessionsListEnabled] });
 	});
