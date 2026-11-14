@@ -33,8 +33,13 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 	private _regexpModel: RegexpModel | undefined;
 	private _regexpLoadFailed: boolean = false;
 
-	private _modelOperations: ModelOperations | undefined;
+	private _modelOperations: Promise<ModelOperations> | undefined;
 	private _loadFailed: boolean = false;
+	private _modelHasRun: boolean = false;
+	private readonly _loggedFailures = new Set<string>();
+
+	/** Pre-loaded chunks of the model bundle, keyed by the id webpack asks for. */
+	private readonly _modelChunks = new Map<string, unknown>();
 
 	private modelIdToCoreId = new Map<string, string | undefined>();
 
@@ -138,14 +143,61 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 		return detected;
 	}
 
-	private async getModelOperations(): Promise<ModelOperations> {
-		if (this._modelOperations) {
-			return this._modelOperations;
+	/**
+	 * The model bundle loads its TensorFlow backend as webpack chunks via `require`, which a module worker
+	 * lacks and Trusted Types forbids evaluating, so import the chunks as ES modules up front instead.
+	 */
+	private async preloadModelChunks(bundleUri: string): Promise<void> {
+		const globalScope = globalThis as unknown as {
+			module?: unknown;
+			exports?: unknown;
+			require?: (id: string) => unknown;
+		};
+
+		if (this._modelChunks.size === 0) {
+			// Chunk ids change between package versions, so read them from the bundle.
+			const source = await (await fetch(bundleUri)).text();
+			const chunkIds = new Set(Array.from(source.matchAll(/\.e\((?<chunkId>\d+)\)/g), match => match.groups!.chunkId));
+
+			for (const chunkId of chunkIds) {
+				const id = `./${chunkId}.js`;
+				const holder: { exports: unknown } = { exports: Object.create(null) };
+				// The chunks are CommonJS and assign to a bare `exports`.
+				globalScope.module = holder;
+				globalScope.exports = holder.exports;
+				try {
+					await import(/* webpackIgnore: true */ /* @vite-ignore */ new URL(id, bundleUri).toString());
+					this._modelChunks.set(id, holder.exports);
+				} catch {
+					// Not every match is a real chunk; skip whatever does not load.
+				} finally {
+					delete globalScope.module;
+					delete globalScope.exports;
+				}
+			}
 		}
 
+		globalScope.require ??= (id: string): unknown => {
+			const chunk = this._modelChunks.get(id);
+			if (!chunk) {
+				throw new Error(`The language detection model requested a chunk that was not pre-loaded: ${id}`);
+			}
+			return chunk;
+		};
+	}
+
+	/** Caches the promise so concurrent requests share one load, since preloading briefly mutates globals. */
+	private getModelOperations(): Promise<ModelOperations> {
+		this._modelOperations ??= this.createModelOperations();
+		return this._modelOperations;
+	}
+
+	private async createModelOperations(): Promise<ModelOperations> {
 		const uri: string = await this._host.$getIndexJsUri();
 		const { ModelOperations } = await importAMDNodeModule(uri, '') as typeof import('@vscode/vscode-languagedetection');
-		this._modelOperations = new ModelOperations({
+		// Must follow the bundle import: its UMD header would otherwise see the temporary `module`/`exports`.
+		await this.preloadModelChunks(uri);
+		return new ModelOperations({
 			modelJsonLoaderFunc: async () => {
 				const response = await fetch(await this._host.$getModelJsonUri());
 				try {
@@ -162,8 +214,6 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 				return buffer;
 			}
 		});
-
-		return this._modelOperations;
 	}
 
 	// This adjusts the language confidence scores to be more accurate based on:
@@ -219,6 +269,16 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 		return modelResult;
 	}
 
+	/** Reports a failure to the window log, once per distinct message. */
+	private logFailure(level: 'warn' | 'error', what: string, error: unknown): void {
+		const detail = error instanceof Error ? error.stack ?? error.message : String(error);
+		const message = `Language detection ${what}: ${detail}`;
+		if (!this._loggedFailures.has(message)) {
+			this._loggedFailures.add(message);
+			this._host.$logMessage(level, message);
+		}
+	}
+
 	private async * detectLanguagesImpl(content: string): AsyncGenerator<ModelResult, void, unknown> {
 		if (this._loadFailed) {
 			return;
@@ -228,8 +288,9 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 		try {
 			modelOperations = await this.getModelOperations();
 		} catch (e) {
-			console.log(e);
+			// Latch, so a broken model is not reloaded on every throttled edit.
 			this._loadFailed = true;
+			this.logFailure('error', 'failed to load the language detection model', e);
 			return;
 		}
 
@@ -237,8 +298,15 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 
 		try {
 			modelResults = await modelOperations.runModel(content);
+			this._modelHasRun = true;
 		} catch (e) {
-			console.warn(e);
+			// The model loads lazily on its first run, so a failure before any success is a load failure.
+			if (!this._modelHasRun) {
+				this._loadFailed = true;
+				this.logFailure('error', 'failed to load the language detection model', e);
+				return;
+			}
+			this.logFailure('error', 'the language detection model failed to run', e);
 		}
 
 		if (!modelResults
