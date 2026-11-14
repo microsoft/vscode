@@ -221,7 +221,7 @@ suite('AgentHostWorktreeComposerFolders', () => {
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }));
 		instantiationService.stub(IAgentHostWorktreeSessionSources, store.add(new AgentHostWorktreeSessionSources()));
-		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, getAllSessions: () => [], getSessionForChatResource: () => undefined }));
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ onDidChangeSession: Event.None, getAllSessions: () => [], getSessionForChatResource: () => undefined }));
 		// No chat part: the service of the window's composers only
 		instantiationService.stub(IEditorWindowComposerFoldersService, upcastPartial<IEditorWindowComposerFoldersService>({
 			setComposerFolderOptions: provider => { calls.push('options'); options = provider; return toDisposable(() => { calls.push('options cleared'); options = undefined; }); },
@@ -264,7 +264,7 @@ suite('AgentHostWorktreeComposerFolders', () => {
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }));
 		instantiationService.stub(IAgentHostWorktreeSessionSources, store.add(new AgentHostWorktreeSessionSources()));
-		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, getAllSessions: () => [], getSessionForChatResource: () => undefined }));
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ onDidChangeSession: Event.None, getAllSessions: () => [], getSessionForChatResource: () => undefined }));
 		const service = instantiationService.createInstance(EditorWindowComposerFoldersService);
 		instantiationService.stub(IEditorWindowComposerFoldersService, service);
 		const retargeted: string[] = [];
@@ -293,10 +293,10 @@ suite('AgentHostWorktreeComposerFolders', () => {
 			session(LOCAL_AGENT_HOST_PROVIDER_ID, '/work/vscode.worktrees/archived', [chat('/archived')], true),
 			session('remote-agent-host', '/work/vscode.worktrees/remote', [chat('/remote')]),
 		];
-		const onDidChangeSessions = store.add(new Emitter<never>());
+		const onDidChangeSession = store.add(new Emitter<never>());
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
-			onDidChangeSessions: onDidChangeSessions.event,
+			onDidChangeSession: onDidChangeSession.event,
 			getAllSessions: () => sessions,
 			getSessionForChatResource: (resource: URI) => {
 				for (const candidate of sessions) {
@@ -320,6 +320,42 @@ suite('AgentHostWorktreeComposerFolders', () => {
 			before: { a: '/work/vscode.worktrees/a', archived: undefined, remote: undefined, all: ['/work/vscode.worktrees/a'] },
 			created: '/work/vscode.worktrees/created',
 			changes: 1,
+		});
+	});
+
+	test('the session layer\'s source learns of a session outside the listed ones, such as one of another folder, as the providers report it, and of where its chats work', () => {
+		const workspace = (path: string) => upcastPartial<ISessionWorkspace>({ folders: [{ root: URI.file('/work/vscode'), workingDirectory: URI.file(path), name: 'vscode', description: undefined }] });
+		const chatWorkspace = observableValue<ISessionWorkspace | undefined>('workspace', undefined);
+		const chat = upcastPartial<IChat>({ resource: URI.from({ scheme: 'ahp-chat', path: '/hidden' }), workspace: chatWorkspace });
+		const hidden = upcastPartial<ISession>({
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			isArchived: observableValue('archived', false),
+			workspace: observableValue('workspace', workspace('/work/vscode')),
+			chats: observableValue('chats', [chat]),
+		});
+		const sessions: ISession[] = [];
+		// Only every session's changes, not the listed ones', report it
+		const onDidChangeSession = store.add(new Emitter<never>());
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			onDidChangeSessions: Event.None,
+			onDidChangeSession: onDidChangeSession.event,
+			getAllSessions: () => sessions,
+			getSessionForChatResource: (resource: URI) => sessions.length && resource.toString() === chat.resource.toString() ? { session: hidden, chat } : undefined,
+		}));
+		const source = store.add(instantiationService.createInstance(AgentHostWorktreeSessionLayerSource));
+		let changes = 0;
+		store.add(source.onDidChange(() => changes++));
+		sessions.push(hidden);
+		onDidChangeSession.fire(undefined as never);
+		const added = changes;
+		chatWorkspace.set(workspace('/work/vscode.worktrees/hidden'), undefined);
+
+		assert.deepStrictEqual({ added, changes, workingDirectory: source.getWorkingDirectory(chat.resource)?.path, all: source.getWorkingDirectories().map(uri => uri.path) }, {
+			added: 1,
+			changes: 2,
+			workingDirectory: '/work/vscode.worktrees/hidden',
+			all: ['/work/vscode', '/work/vscode.worktrees/hidden'],
 		});
 	});
 });
