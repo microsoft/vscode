@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, addStandardDisposableListener, append, clearNode, Dimension, EventHelper, EventType, isAncestorOfActiveElement } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, addStandardDisposableListener, append, clearNode, Dimension, EventHelper, EventType, getWindow, isAncestorOfActiveElement } from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { ButtonBar, IButton } from '../../../../base/browser/ui/button/button.js';
 import { IMessage, InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
@@ -173,6 +173,50 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 			}
 		}));
 
+		let isPointerDown = false;
+		const resetPointerDown = () => {
+			isPointerDown = false;
+		};
+
+		this._register(addDisposableListener(this.table.getHTMLElement(), EventType.POINTER_DOWN, () => {
+			isPointerDown = true;
+			queueMicrotask(resetPointerDown);
+		}, true));
+		this._register(addDisposableListener(this.table.getHTMLElement(), EventType.MOUSE_DOWN, () => {
+			isPointerDown = true;
+			queueMicrotask(resetPointerDown);
+		}, true));
+
+		this._register(addDisposableListener(this.table.getHTMLElement(), EventType.POINTER_DOWN, resetPointerDown, false));
+		this._register(addDisposableListener(this.table.getHTMLElement(), EventType.MOUSE_DOWN, resetPointerDown, false));
+
+		const tableWindow = getWindow(this.table.getHTMLElement());
+		this._register(addDisposableListener(tableWindow, EventType.POINTER_UP, resetPointerDown, true));
+		this._register(addDisposableListener(tableWindow, EventType.MOUSE_UP, resetPointerDown, true));
+
+		this._register(this.table.onDidChangeFocus(e => {
+			if (e.indexes.length > 0 && isAncestorOfActiveElement(this.table.getHTMLElement())) {
+				this.revealInScrollableElement(e.indexes[0]);
+			}
+		}));
+
+		this._register(this.table.onDidFocus(() => {
+			if (isPointerDown) {
+				return;
+			}
+			const focus = this.table.getFocus();
+			if (focus.length > 0) {
+				this.revealInScrollableElement(focus[0]);
+			}
+		}));
+
+		this._register(this.table.onPointer(e => {
+			resetPointerDown();
+			if (typeof e.index === 'number') {
+				this.revealInScrollableElement(e.index);
+			}
+		}));
+
 		const buttonBar = this._register(new ButtonBar(addButtonBarElement));
 		const addButton = this._register(buttonBar.addButton({ title: localize('addButton', "Add Folder"), ...defaultButtonStyles }));
 		addButton.label = localize('addButton', "Add Folder");
@@ -253,8 +297,9 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 		this.scrollableElement.scanDomNode();
 		const viewportTop = this.scrollableElement.getDomNode().getBoundingClientRect().top;
 		const viewportHeight = this.scrollableElement.getScrollDimensions().height;
+		const headerHeight = TrustedUriTableVirtualDelegate.HEADER_ROW_HEIGHT + 1; // Includes 1px table header border
 		const rowTop = this.table.getHTMLElement().getBoundingClientRect().top - viewportTop
-			+ TrustedUriTableVirtualDelegate.HEADER_ROW_HEIGHT + index * TrustedUriTableVirtualDelegate.ROW_HEIGHT;
+			+ headerHeight + index * TrustedUriTableVirtualDelegate.ROW_HEIGHT;
 		const rowBottom = rowTop + TrustedUriTableVirtualDelegate.ROW_HEIGHT;
 		const { scrollTop } = this.scrollableElement.getScrollPosition();
 

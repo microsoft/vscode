@@ -401,6 +401,150 @@ suite('WorkspaceTrustedUrisTable', () => {
 		}, { scrolledUp: true, rowVisible: true, focused: ['a-first'] });
 	});
 
+	test('reveals focused rows during keyboard navigation in the surrounding scrollable element', async () => {
+		const content = mainWindow.document.createElement('div');
+		const scrollableElement = store.add(new DomScrollableElement(content, { vertical: ScrollbarVisibility.Auto }));
+		const viewport = scrollableElement.getDomNode();
+		viewport.style.maxHeight = '200px';
+		content.style.maxHeight = '200px';
+		content.appendChild(container);
+		mainWindow.document.body.appendChild(viewport);
+		store.add(toDisposable(() => viewport.remove()));
+
+		createTable(Array.from({ length: 20 }, (_, i) => `n-${String(i).padStart(2, '0')}`), scrollableElement);
+		scrollableElement.scanDomNode();
+		scrollableElement.setScrollPosition({ scrollTop: 0 });
+
+		const list = container.querySelector<HTMLElement>('.monaco-list')!;
+		selectRow('n-00');
+		list.focus();
+
+		const initialScrollTop = scrollableElement.getScrollPosition().scrollTop;
+
+		// Navigate down past the visible area
+		for (let i = 0; i < 15; i++) {
+			(table as unknown as { readonly table: { focusNext(n?: number): void } }).table.focusNext(1);
+		}
+
+		const row = Array.from(container.querySelectorAll('.monaco-list-row')).find(row => label(row) === 'n-15')!;
+		const rowRect = row.getBoundingClientRect();
+		const viewportRect = viewport.getBoundingClientRect();
+
+		assert.deepStrictEqual({
+			scrolledDown: scrollableElement.getScrollPosition().scrollTop > initialScrollTop,
+			rowVisible: rowRect.top >= viewportRect.top && rowRect.bottom <= viewportRect.bottom,
+			focused: getState().focused,
+		}, { scrolledDown: true, rowVisible: true, focused: ['n-15'] });
+	});
+
+	test('does not scroll on external refresh when focus is outside the table', () => {
+		const content = mainWindow.document.createElement('div');
+		const scrollableElement = store.add(new DomScrollableElement(content, { vertical: ScrollbarVisibility.Auto }));
+		const viewport = scrollableElement.getDomNode();
+		viewport.style.maxHeight = '200px';
+		content.style.maxHeight = '200px';
+		content.appendChild(container);
+		mainWindow.document.body.appendChild(viewport);
+		store.add(toDisposable(() => viewport.remove()));
+
+		createTable(Array.from({ length: 20 }, (_, i) => `n-${String(i).padStart(2, '0')}`), scrollableElement);
+		scrollableElement.scanDomNode();
+
+		selectRow('n-15');
+		assert.deepStrictEqual(getState().focused, ['n-15']);
+
+		getAddButton().focus();
+		assert.strictEqual(getState().tableHasDomFocus, false);
+		scrollableElement.setScrollPosition({ scrollTop: 0 });
+		const scrollTopBefore = scrollableElement.getScrollPosition().scrollTop;
+		assert.strictEqual(scrollTopBefore, 0);
+
+		trustService.addExternally(folder('m-new'));
+
+		assert.strictEqual(scrollableElement.getScrollPosition().scrollTop, scrollTopBefore);
+		assert.strictEqual(mainWindow.document.activeElement, getAddButton());
+	});
+
+	test('does not reveal a stale row when clicking into the table', () => {
+		const content = mainWindow.document.createElement('div');
+		const scrollableElement = store.add(new DomScrollableElement(content, { vertical: ScrollbarVisibility.Auto }));
+		const viewport = scrollableElement.getDomNode();
+		viewport.style.maxHeight = '200px';
+		content.style.maxHeight = '200px';
+		content.appendChild(container);
+		mainWindow.document.body.appendChild(viewport);
+		store.add(toDisposable(() => viewport.remove()));
+
+		createTable(Array.from({ length: 20 }, (_, i) => `n-${String(i).padStart(2, '0')}`), scrollableElement);
+		scrollableElement.scanDomNode();
+
+		// Leave logical focus on row 19 (at the bottom)
+		selectRow('n-19');
+		assert.deepStrictEqual(getState().focused, ['n-19']);
+
+		// Move DOM focus outside the table (e.g. Add Folder button)
+		getAddButton().focus();
+		assert.strictEqual(getState().tableHasDomFocus, false);
+
+		// Scroll row 0 into view so the target row (n-00) is visible while n-19 is offscreen
+		scrollableElement.setScrollPosition({ scrollTop: 0 });
+		const scrollTopBefore = scrollableElement.getScrollPosition().scrollTop;
+		assert.strictEqual(scrollTopBefore, 0);
+
+		// Find target row n-00 and perform mouse down/up interaction
+		const row = Array.from(container.querySelectorAll('.monaco-list-row')).find(r => label(r) === 'n-00')!;
+		const target = row.querySelector('.path') ?? row;
+
+		// Mousedown focuses the table before click updates row focus
+		target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+		// Stale row n-19 should NOT be revealed on mousedown, scroll position stays unchanged
+		assert.strictEqual(scrollableElement.getScrollPosition().scrollTop, scrollTopBefore);
+
+		// Mouseup and click complete the pointer interaction
+		target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+		target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+
+		// Target row remains in place and is selected
+		assert.strictEqual(scrollableElement.getScrollPosition().scrollTop, scrollTopBefore);
+		assert.deepStrictEqual(getState().selected, ['n-00']);
+		assert.deepStrictEqual(getState().focused, ['n-00']);
+	});
+
+	test('reveals the focused row when table gains DOM focus via keyboard', () => {
+		const content = mainWindow.document.createElement('div');
+		const scrollableElement = store.add(new DomScrollableElement(content, { vertical: ScrollbarVisibility.Auto }));
+		const viewport = scrollableElement.getDomNode();
+		viewport.style.maxHeight = '200px';
+		content.style.maxHeight = '200px';
+		content.appendChild(container);
+		mainWindow.document.body.appendChild(viewport);
+		store.add(toDisposable(() => viewport.remove()));
+
+		createTable(Array.from({ length: 20 }, (_, i) => `n-${String(i).padStart(2, '0')}`), scrollableElement);
+		scrollableElement.scanDomNode();
+
+		selectRow('n-15');
+
+		getAddButton().focus();
+		scrollableElement.setScrollPosition({ scrollTop: 0 });
+		const scrollTopBefore = scrollableElement.getScrollPosition().scrollTop;
+		assert.strictEqual(scrollTopBefore, 0);
+
+		// Focus the table directly (simulating Tab entry without pointer)
+		const list = container.querySelector<HTMLElement>('.monaco-list')!;
+		list.dispatchEvent(new FocusEvent('focus'));
+
+		const row = Array.from(container.querySelectorAll('.monaco-list-row')).find(r => label(r) === 'n-15')!;
+		const rowRect = row.getBoundingClientRect();
+		const viewportRect = viewport.getBoundingClientRect();
+
+		assert.deepStrictEqual({
+			scrolledDown: scrollableElement.getScrollPosition().scrollTop > scrollTopBefore,
+			rowVisible: rowRect.top >= viewportRect.top && rowRect.bottom <= viewportRect.bottom,
+			focused: getState().focused,
+		}, { scrolledDown: true, rowVisible: true, focused: ['n-15'] });
+	});
+
 	test('moves focus only after the addition completes', async () => {
 		createTable(['c-two', 'z-last']);
 		selectRow('z-last');
