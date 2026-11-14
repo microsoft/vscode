@@ -1309,8 +1309,7 @@
           },
           {
             "name": "review",
-            "description": "%copilot.workspace.review.description%",
-            "when": "github.copilot.advanced.review.intent"
+            "description": "%copilot.workspace.review.description%"
           },
           {
             "name": "tests",
@@ -1422,8 +1421,7 @@
           },
           {
             "name": "review",
-            "description": "%copilot.workspace.review.description%",
-            "when": "github.copilot.advanced.review.intent"
+            "description": "%copilot.workspace.review.description%"
           },
           {
             "name": "tests",
