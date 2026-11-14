@@ -10,7 +10,7 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IConfigurationOverrides, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
@@ -37,7 +37,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { EditorWindowMainSessionHost } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
-import { ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, surfacesAllLocalAgentHostAgents } from '../../../../chat/common/constants.js';
+import { ChatConfiguration, observeChatViewSessionsListEnabled, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, surfacesAllLocalAgentHostAgents } from '../../../../chat/common/constants.js';
 import { ChatViewSessionsGate } from '../../../browser/chatView/chatViewSessionsList.contribution.js';
 import { IChatViewSessionsListService } from '../../../../chat/browser/widgetHosts/viewPane/chatViewSessionsList.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
@@ -99,6 +99,8 @@ suite('ChatViewSessionsGate', () => {
 	let contextKeyService: MockContextKeyService;
 	let viewVisibility: Emitter<{ id: string; visible: boolean }>;
 
+	let configurationService: TestConfigurationService;
+
 	function createGate(enabled: boolean, remoteAuthority?: string, configuration?: Record<string, unknown>, stub?: (instantiationService: TestInstantiationService) => void): ChatViewSessionsGate {
 		providers = 0;
 		runtimeHolds = 0;
@@ -106,7 +108,8 @@ suite('ChatViewSessionsGate', () => {
 		replaced = observableValue('replaced', false);
 		chatViewHosts = observableValue('chatViewHosts', true);
 		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsListEnabled]: enabled, ...configuration }));
+		configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsListEnabled]: enabled, ...configuration });
+		instantiationService.stub(IConfigurationService, configurationService);
 		viewVisibility = disposables.add(new Emitter<{ id: string; visible: boolean }>());
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: viewVisibility.event, isViewVisible: () => false }));
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority }));
@@ -126,6 +129,12 @@ suite('ChatViewSessionsGate', () => {
 		return disposables.add(instantiationService.createInstance(ChatViewSessionsGate));
 	}
 
+	/** Changes `key` to `value` in the configuration service of the gate created last, as a user would. */
+	function change(key: string, value: boolean): void {
+		configurationService.setUserConfiguration(key, value);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (affected: string) => affected === key, affectedKeys: new Set([key]) }));
+	}
+
 	/** The views of the Chat view container, which it keeps, the view containers of its own, which it registers none of, and whether local chats are on by default. */
 	function registered() {
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
@@ -137,7 +146,7 @@ suite('ChatViewSessionsGate', () => {
 		};
 	}
 
-	test('reads only its setting and registers nothing while the setting is off', () => {
+	test('reads only its settings and registers nothing while the setting is off', () => {
 		const reads: string[] = [];
 		const configurationService = new class extends TestConfigurationService {
 			override getValue<T>(arg1?: string | IConfigurationOverrides, arg2?: IConfigurationOverrides): T | undefined {
@@ -147,9 +156,9 @@ suite('ChatViewSessionsGate', () => {
 		}({ [ChatConfiguration.ChatViewSessionsListEnabled]: false });
 		const before = registered();
 		// Any use of the instantiation service fails: with the setting off, the gate creates and invokes nothing
-		disposables.add(new ChatViewSessionsGate(configurationService, upcastPartial<IInstantiationService>({})));
+		disposables.add(new ChatViewSessionsGate(configurationService, upcastPartial<IInstantiationService>({}), upcastPartial<IWorkbenchEnvironmentService>({})));
 
-		assert.deepStrictEqual({ ...registered(), reads }, { ...before, reads: [ChatConfiguration.ChatViewSessionsListEnabled] });
+		assert.deepStrictEqual({ ...registered(), reads }, { ...before, reads: ['chat.sessionsView.enabled', ChatConfiguration.ChatViewSessionsListEnabled] });
 	});
 
 	test('gives the Chat view its sessions list, without local chats by default, holding the sessions providers, and the actions of the list only once it shows, while the setting is on', () => {
@@ -163,6 +172,24 @@ suite('ChatViewSessionsGate', () => {
 			whileOn: { ...before, localChatDefault: false, providers: 1, runtimeHolds: 1, listActionsBeforeShown: 0 },
 			afterDispose: { ...before, providers: 0, runtimeHolds: 0 },
 		});
+	});
+
+	test('follows the setting live: turning it on registers the sessions list, and turning it off registers none of it again, without a reload', () => {
+		const before = registered();
+		createGate(false);
+		const toggle = (enabled: boolean) => {
+			change(ChatConfiguration.ChatViewSessionsListEnabled, enabled);
+			return { ...registered(), providers, runtimeHolds, sessionsOnlyKey: contextKeyService.getContextKeyValue('chatViewSessionsOnly') };
+		};
+		const off = { ...registered(), providers, runtimeHolds, sessionsOnlyKey: contextKeyService.getContextKeyValue('chatViewSessionsOnly') };
+		const on = toggle(true);
+		const offAgain = toggle(false);
+		const onAgain = toggle(true);
+
+		const offState = { ...before, providers: 0, runtimeHolds: 0 };
+		const onState = { ...before, localChatDefault: false, providers: 1, runtimeHolds: 1, sessionsOnlyKey: false };
+		// The context key, never set before it first turns on, is reset to its default as it turns off
+		assert.deepStrictEqual({ off, on, offAgain, onAgain }, { off: { ...offState, sessionsOnlyKey: undefined }, on: onState, offAgain: { ...offState, sessionsOnlyKey: false }, onAgain: onState });
 	});
 
 	test('the Chat view shows only its sessions while a host, such as the chat part, replaces it, but a chat that the host leaves to it', () => {
@@ -183,10 +210,40 @@ suite('ChatViewSessionsGate', () => {
 		assert.deepStrictEqual(steps, [false, true, false, true, false]);
 	});
 
-	test('registers nothing while the Agents view of #347688 is on too, which takes precedence', () => {
+	test('registers nothing while the Agents view of #347688 is on too, which takes precedence; as it takes effect on restart, a change of it does not change the Chat view until then', () => {
 		createGate(true, undefined, { 'chat.sessionsView.enabled': true });
+		const whileAgentsView = [{ providers, runtimeHolds }];
+		change('chat.sessionsView.enabled', false);
+		whileAgentsView.push({ providers, runtimeHolds });
+		createGate(true);
+		const withoutAgentsView = [{ providers, runtimeHolds }];
+		change('chat.sessionsView.enabled', true);
+		withoutAgentsView.push({ providers, runtimeHolds });
 
-		assert.deepStrictEqual({ providers, runtimeHolds }, { providers: 0, runtimeHolds: 0 });
+		assert.deepStrictEqual({ whileAgentsView, withoutAgentsView }, {
+			whileAgentsView: [{ providers: 0, runtimeHolds: 0 }, { providers: 0, runtimeHolds: 0 }],
+			withoutAgentsView: [{ providers: 1, runtimeHolds: 1 }, { providers: 1, runtimeHolds: 1 }],
+		});
+	});
+
+	test('the Agents view counts as it was when the window started, also once it changes before the Chat view\'s setting first turns on, and for observers created later', () => {
+		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsListEnabled]: false, 'chat.sessionsView.enabled': false });
+		const environment = { isSessionsWindow: false };
+		// The gate's observer, created and read as the window starts with both off
+		const enabled = observeChatViewSessionsListEnabled(configurationService);
+		const atStartup = enabled.get();
+		// The Agents view turns on, which takes effect on restart: an observer created later still sees it off
+		configurationService.setUserConfiguration('chat.sessionsView.enabled', true);
+		const laterSurfacesAll = surfacesAllLocalAgentHostAgents(environment, configurationService);
+		// Then the Chat view's sessions list turns on, which takes effect live
+		configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsListEnabled, true);
+
+		assert.deepStrictEqual({ atStartup, laterSurfacesAll, enabled: enabled.get(), laterEnabled: observeChatViewSessionsListEnabled(configurationService).get() }, {
+			atStartup: false,
+			laterSurfacesAll: false,
+			enabled: true,
+			laterEnabled: true,
+		});
 	});
 
 	test('registers the actions of the list once the Chat view first shows', () => {
@@ -200,16 +257,17 @@ suite('ChatViewSessionsGate', () => {
 		assert.deepStrictEqual({ afterShown, afterDispose: sessionItemMenuItems() - before }, { afterShown: true, afterDispose: 0 });
 	});
 
-	test('surfaces every local agent host agent in a local editor window with the setting on, as the Agents window does, but not in a remote one', () => {
-		const surfaces = (enabled: boolean, remoteAuthority?: string, isSessionsWindow = false) =>
-			surfacesAllLocalAgentHostAgents({ isSessionsWindow, remoteAuthority }, new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsListEnabled]: enabled }));
+	test('surfaces every local agent host agent in a local editor window with the setting or the Agents view on, as the Agents window does, but not in a remote one', () => {
+		const surfaces = (enabled: boolean, remoteAuthority?: string, isSessionsWindow = false, sessionsViewEnabled = false) =>
+			surfacesAllLocalAgentHostAgents({ isSessionsWindow, remoteAuthority }, new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsListEnabled]: enabled, 'chat.sessionsView.enabled': sessionsViewEnabled }));
 
 		assert.deepStrictEqual({
 			local: surfaces(true),
 			remote: surfaces(true, 'ssh-remote+host'),
 			off: surfaces(false),
 			agentsWindow: surfaces(false, undefined, true),
-		}, { local: true, remote: false, off: false, agentsWindow: true });
+			agentsView: surfaces(false, undefined, false, true),
+		}, { local: true, remote: false, off: false, agentsWindow: true, agentsView: true });
 	});
 
 	test('leaves the Chat view as it is in a remote window, with local chats on by default', () => {
