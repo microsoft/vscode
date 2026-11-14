@@ -182,7 +182,8 @@ export class AgentsChatViewHost implements IChatViewHost {
 					return false;
 				}
 				const given = !isUntitledChatSession(sessionResource);
-				const shown = (sent || given || !isEqual(resource, sessionResource)) && !!await this.openSession(resource);
+				// The session its first request made shows as committed, as the Chat view shows it; a given session as opened
+				const shown = (sent || given || !isEqual(resource, sessionResource)) && !!await this.openSession(resource, given ? undefined : { commit: true });
 				if (!shown && generation !== this._generation) {
 					// Deactivated while it looked the session up: no composer either
 					return false;
