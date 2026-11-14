@@ -75,6 +75,7 @@ export class OpenAgentHostFolderPickerAction extends Action2 {
 				order: 1.1,
 				// With worktree support, a window with a single local folder offers New Worktree, the folder and its worktrees
 				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
 					ChatContextKeyExprs.isAgentHostSession,
 					ContextKeyExpr.equals(`config.${ChatConfiguration.EditorWindowEnableWorktree}`, true),
 					WorkbenchStateContext.isEqualTo('folder'),
