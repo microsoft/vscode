@@ -10,6 +10,8 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { SESSIONS_CHAT_TABS_SETTING } from '../../../common/sessionConfig.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { SESSIONS_LIST_MARK_READ_COMMAND_ID } from '../../../../../common/chatSessionCommands.js';
@@ -115,6 +117,23 @@ suite('Agents chat part actions', () => {
 			submenuWhen: 'chatIsEnabled && inAgentsChatPart',
 			choices: [['workbench.action.agentsView.showMultipleChatTabs', 'chatIsEnabled'], ['workbench.action.agentsView.showSingleChat', 'chatIsEnabled']],
 		});
+	});
+
+	test('choosing Multiple or Single in the chat part sets sessions.showChatTabs', async () => {
+		store.add(registerAgentsChatPartActions());
+		const updates: [string, unknown][] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, upcastPartial<IConfigurationService>({
+			updateValue: async (key: string, value: unknown) => { updates.push([key, value]); },
+		}));
+		const choose = async (id: string) => {
+			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
+			return updates[updates.length - 1];
+		};
+
+		assert.deepStrictEqual(
+			[await choose('workbench.action.agentsView.showMultipleChatTabs'), await choose('workbench.action.agentsView.showSingleChat')],
+			[[SESSIONS_CHAT_TABS_SETTING, 'multiple'], [SESSIONS_CHAT_TABS_SETTING, 'single']]);
 	});
 
 	test('the context menu of a session offers its customizations, with AI features enabled, for a single session, which it names', async () => {
