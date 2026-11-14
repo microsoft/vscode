@@ -28,13 +28,17 @@ found_required_glibc=0
 found_required_glibcxx=0
 MIN_GLIBCXX_VERSION="3.4.25"
 
-# Extract the ID value from /etc/os-release
+# Extract the ID value from /etc/os-release or /usr/lib/os-release
+OS_ID=""
 if [ -f /etc/os-release ]; then
-    OS_ID="$(cat /etc/os-release | grep -Eo 'ID=([^"]+)' | sed -n '1s/ID=//p')"
-    if [ "$OS_ID" = "nixos" ]; then
-        echo "Warning: NixOS detected, skipping GLIBC check"
-        exit 0
-    fi
+    OS_ID="$(. /etc/os-release 2>/dev/null && echo "$ID")"
+elif [ -f /usr/lib/os-release ]; then
+    OS_ID="$(. /usr/lib/os-release 2>/dev/null && echo "$ID")"
+fi
+
+if [ "$OS_ID" = "nixos" ]; then
+    echo "Warning: NixOS detected, skipping GLIBC check"
+    exit 0
 fi
 
 # Based on https://github.com/bminor/glibc/blob/520b1df08de68a3de328b65a25b86300a7ddf512/elf/cache.c#L162-L245
