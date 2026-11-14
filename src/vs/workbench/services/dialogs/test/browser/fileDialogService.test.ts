@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { FileFilter } from '../../../../../platform/dialogs/common/dialogs.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -16,12 +18,16 @@ import { FileDialogService } from '../../browser/fileDialogService.js';
 suite('Browser FileDialogService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let pickerWindow: Window & typeof globalThis;
-	let dialog: FileDialogService;
+	let dialog: TestFileDialogService;
 	let handles: FileSystemFileHandle[];
 	let pickerOptions: OpenFilePickerOptions | undefined;
 	let pickerError: Error | undefined;
 
 	class TestFileDialogService extends FileDialogService {
+		public getSaveOptions(resource: URI, filters?: FileFilter[]) {
+			return this.getPickFileToSaveDialogOptions(resource, [Schemas.file], filters);
+		}
+
 		protected override getFilePickerWindow(): Window & typeof globalThis {
 			return pickerWindow;
 		}
@@ -60,6 +66,25 @@ suite('Browser FileDialogService', () => {
 				override readonly name = 'folder';
 			}(),
 		});
+	});
+
+	test('custom Save As filters replace the list of registered language types', () => {
+		const resource = URI.file('/workspace/image.png');
+		const filters = [{ name: 'Images', extensions: ['png', 'jpg'] }];
+		assert.deepStrictEqual(dialog.getSaveOptions(resource, filters), {
+			defaultUri: resource,
+			title: 'Save As',
+			availableFileSystems: [Schemas.file],
+			filters
+		});
+	});
+
+	test('omitted and empty Save As filters preserve the default file types', () => {
+		const resource = URI.file('/workspace/image.png');
+		const options = dialog.getSaveOptions(resource);
+		assert.deepStrictEqual(options.filters?.[0], { name: 'All Files', extensions: ['*'] });
+		assert.ok(options.filters?.some(filter => filter.name === 'PNG' && filter.extensions[0] === 'png'));
+		assert.deepStrictEqual(dialog.getSaveOptions(resource, []), options);
 	});
 
 	test('enables multiple selection and registers every selected file', async () => {
