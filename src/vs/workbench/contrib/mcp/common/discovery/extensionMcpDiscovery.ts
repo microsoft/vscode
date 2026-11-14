@@ -114,9 +114,12 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 		collections: extensionsRegistry.IExtensionPointUser<IMcpCollectionContribution[]>,
 		extensionCollections: DisposableMap<string>
 	) {
-		const serverDefs = this.cachedServers.hasOwnProperty(id) ? this.cachedServers[id].servers : undefined;
+		const extAuthority = collections.description.extensionLocation?.authority || '';
+		const uniqueId = extAuthority ? `${id}.${extAuthority}` : id;
+
+		const serverDefs = this.cachedServers.hasOwnProperty(uniqueId) ? this.cachedServers[uniqueId].servers : undefined;
 		const dispo = this._mcpRegistry.registerCollection({
-			id,
+			id: uniqueId,
 			provenance: McpCollectionProvenance.Extension,
 			label: coll.label,
 			remoteAuthority: null,
@@ -129,17 +132,17 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 				isCached: !!serverDefs,
 				load: () => this._activateExtensionServers(coll.id).then(() => {
 					// persist (an empty collection) in case the extension doesn't end up publishing one
-					this._extensionCollectionIdsToPersist.set(id, PersistWhen.Always);
+					this._extensionCollectionIdsToPersist.set(uniqueId, PersistWhen.Always);
 				}),
 				removed: () => {
-					extensionCollections.deleteAndDispose(id);
-					this._conditionalCollections.deleteAndDispose(id);
+					extensionCollections.deleteAndDispose(uniqueId);
+					this._conditionalCollections.deleteAndDispose(uniqueId);
 				},
 			},
 			source: collections.description.identifier
 		});
 
-		extensionCollections.set(id, dispo);
+		extensionCollections.set(uniqueId, dispo);
 	}
 
 	private _registerConditionalCollection(
