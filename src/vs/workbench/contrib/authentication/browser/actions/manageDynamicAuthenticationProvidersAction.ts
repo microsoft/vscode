@@ -15,6 +15,27 @@ interface IDynamicProviderQuickPickItem extends IQuickPickItem {
 	provider: DynamicAuthenticationProviderInfo;
 }
 
+export function getResourceFromProviderId(providerId: string, authorizationServer: string): string | undefined {
+	if (authorizationServer && providerId.startsWith(authorizationServer + ' ')) {
+		return providerId.slice(authorizationServer.length + 1).trim();
+	}
+	const spaceIndex = providerId.indexOf(' ');
+	if (spaceIndex !== -1) {
+		return providerId.slice(spaceIndex + 1).trim();
+	}
+	return undefined;
+}
+
+export function getDynamicAuthProviderQuickPickItem(provider: DynamicAuthenticationProviderInfo): IDynamicProviderQuickPickItem {
+	const resource = getResourceFromProviderId(provider.providerId, provider.authorizationServer);
+	return {
+		label: provider.label,
+		description: resource ?? localize('clientId', 'Client ID: {0}', provider.clientId),
+		detail: resource ? localize('clientId', 'Client ID: {0}', provider.clientId) : undefined,
+		provider
+	};
+}
+
 export class RemoveDynamicAuthenticationProvidersAction extends Action2 {
 
 	static readonly ID = 'workbench.action.removeDynamicAuthenticationProviders';
@@ -44,11 +65,7 @@ export class RemoveDynamicAuthenticationProvidersAction extends Action2 {
 			return;
 		}
 
-		const items: IDynamicProviderQuickPickItem[] = interactedProviders.map(provider => ({
-			label: provider.label,
-			description: localize('clientId', 'Client ID: {0}', provider.clientId),
-			provider
-		}));
+		const items: IDynamicProviderQuickPickItem[] = interactedProviders.map(getDynamicAuthProviderQuickPickItem);
 
 		const selected = await quickInputService.pick(items, {
 			placeHolder: localize('selectProviderToRemove', 'Select a dynamic authentication provider to remove'),
@@ -60,7 +77,10 @@ export class RemoveDynamicAuthenticationProvidersAction extends Action2 {
 		}
 
 		// Confirm deletion
-		const providerNames = selected.map(item => item.provider.label).join(', ');
+		const providerNames = selected.map(item => {
+			const resource = getResourceFromProviderId(item.provider.providerId, item.provider.authorizationServer);
+			return resource ? `${item.provider.label} (${resource})` : item.provider.label;
+		}).join(', ');
 		const message = selected.length === 1
 			? localize('confirmDeleteSingleProvider', 'Are you sure you want to remove the dynamic authentication provider "{0}"?', providerNames)
 			: localize('confirmDeleteMultipleProviders', 'Are you sure you want to remove {0} dynamic authentication providers: {1}?', selected.length, providerNames);
