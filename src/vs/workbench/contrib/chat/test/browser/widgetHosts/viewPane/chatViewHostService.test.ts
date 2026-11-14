@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -60,7 +60,7 @@ suite('ChatViewHostService', () => {
 			withProgress: (async (_options: unknown, task: () => Promise<void>) => { calls.push('progress'); await task(); calls.push('progress done'); }) as IProgressService['withProgress'],
 		}));
 		const showView = () => { viewCreated = true; viewVisibility.fire({ id: ChatViewId, visible: true }); };
-		return { service: instantiationService.createInstance(ChatViewHostService), widget, view, created, calls, accesses: () => accesses, shownSession, showView };
+		return { service: disposables.add(instantiationService.createInstance(ChatViewHostService)), widget, view, created, calls, accesses: () => accesses, shownSession, showView };
 	}
 
 	test('without a host that replaces it, the Chat view shows the chats as before', async () => {
@@ -215,5 +215,114 @@ suite('ChatViewHostService', () => {
 			hostWithoutOne: undefined,
 			backToTheView: '/chat',
 		});
+	});
+
+	test('the shown chat is the one of the host that shows the chat: the Chat view\'s for the chats a registered host leaves to it, until a host restores another', async () => {
+		const { service, widget, shownSession, showView } = createService();
+		const shown = () => { const value = service.shownSession.get(); return value && `${value.resource.scheme} ${value.reason}`; };
+		const agentHostChat = URI.parse('agent-host-copilot:/session');
+		const localChat = URI.parse('vscode-chat-session://local/session');
+		Object.assign(widget, { viewModel: { sessionResource: localChat } });
+		shownSession.set({ resource: localChat, reason: 'open' }, undefined);
+		showView();
+		const hostShown = observableValue<IChatViewHostShownSession | undefined>('hostShown', { resource: agentHostChat, reason: 'open' });
+		const registration = service.registerHost({
+			...upcastPartial<IChatViewHost>({}),
+			shownSession: hostShown,
+			canShow: resource => resource.scheme !== localChat.scheme,
+			openSession: async () => undefined,
+		});
+		const steps: Record<string, string | undefined> = {};
+		steps.registered = shown();
+		await service.openSession(localChat);
+		steps.openLeft = shown();
+		await service.openSession(agentHostChat);
+		steps.openShown = shown();
+		(await service.startSession(localChat, { local: false, importingConversation: false })).dispose();
+		steps.startLeft = shown();
+		await service.openSession(agentHostChat);
+		await service.revealIfShowing(localChat, { preserveFocus: true });
+		steps.revealLeft = shown();
+		hostShown.set({ resource: agentHostChat, reason: 'restore' }, undefined);
+		steps.hostRestores = shown();
+		shownSession.set({ resource: localChat, reason: 'restore' }, undefined);
+		steps.chatViewRestores = shown();
+		registration.dispose();
+
+		assert.deepStrictEqual(steps, {
+			registered: 'agent-host-copilot open',
+			openLeft: 'vscode-chat-session open',
+			openShown: 'agent-host-copilot open',
+			startLeft: 'vscode-chat-session open',
+			revealLeft: 'vscode-chat-session open',
+			hostRestores: 'agent-host-copilot restore',
+			chatViewRestores: 'vscode-chat-session restore',
+		});
+	});
+
+	test('revealing a host, or New Chat that it takes, makes it the host whose shown chat the service reports, none while it shows a new chat', async () => {
+		const { service, shownSession, showView } = createService();
+		const shown = () => service.shownSession.get()?.resource.scheme ?? 'none';
+		const agentHostChat = URI.parse('agent-host-copilot:/session');
+		const localChat = URI.parse('vscode-chat-session://local/session');
+		shownSession.set({ resource: localChat, reason: 'open' }, undefined);
+		showView();
+		const hostShown = observableValue<IChatViewHostShownSession | undefined>('hostShown', { resource: agentHostChat, reason: 'open' });
+		let takesNewChat = false;
+		const registration = service.registerHost({
+			...upcastPartial<IChatViewHost>({}),
+			shownSession: hostShown,
+			canShow: resource => resource.scheme !== localChat.scheme,
+			openSession: async () => undefined,
+			reveal: async () => undefined,
+			newChat: () => takesNewChat,
+		});
+		const steps: string[] = [];
+		await service.openSession(localChat);
+		steps.push(shown());
+		// The host shows again, also with the chat it showed before
+		await service.reveal();
+		steps.push(shown());
+		await service.openSession(localChat);
+		// New Chat that the host does not take changes nothing
+		service.newChat();
+		steps.push(shown());
+		takesNewChat = true;
+		service.newChat();
+		steps.push(shown());
+		// The new chat starts a session
+		hostShown.set({ resource: agentHostChat.with({ path: '/started' }), reason: 'open' }, undefined);
+		steps.push(shown());
+		registration.dispose();
+
+		assert.deepStrictEqual(steps, ['vscode-chat-session', 'agent-host-copilot', 'vscode-chat-session', 'none', 'agent-host-copilot']);
+	});
+
+	test('the host that showed a chat last reports it until it is no longer registered, also as other hosts are removed', async () => {
+		const { service, shownSession, showView } = createService();
+		const shown = () => service.shownSession.get()?.resource.path ?? 'none';
+		const localChat = URI.parse('vscode-chat-session://local/chat-view');
+		shownSession.set({ resource: localChat, reason: 'open' }, undefined);
+		showView();
+		const createHost = (name: string) => ({
+			...upcastPartial<IChatViewHost>({}),
+			shownSession: constObservable({ resource: URI.parse(`agent-host-copilot:/${name}`), reason: 'open' as const }),
+			canShow: (resource: URI) => resource.scheme !== localChat.scheme,
+			openSession: async () => undefined,
+		});
+		const a = service.registerHost(createHost('a'));
+		const b = service.registerHost(createHost('b'));
+		const steps: string[] = [];
+		// The Chat view shows a chat that B leaves to it
+		await service.openSession(localChat);
+		steps.push(shown());
+		a.dispose();
+		steps.push(shown());
+		await service.openSession(URI.parse('agent-host-copilot:/b'));
+		steps.push(shown());
+		b.dispose();
+		steps.push(shown());
+
+		assert.deepStrictEqual(steps, ['/chat-view', '/chat-view', '/b', '/chat-view']);
 	});
 });

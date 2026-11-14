@@ -901,6 +901,22 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
+	/**
+	 * New Chat of the Chat view: the provided composer starts over, and takes New Chat while it shows in place of the chat.
+	 * Returns whether it took it; otherwise New Chat clears the chat, in whose place the composer then shows.
+	 */
+	newChat(): boolean {
+		if (!this.providedComposer) {
+			return false;
+		}
+		this.providedComposer.newChat();
+		if (!this.composerShown) {
+			return false;
+		}
+		this.providedComposer.focus();
+		return true;
+	}
+
 	get agentSessionsControl(): AgentSessionsControl | undefined { return this.sessionsControl instanceof AgentSessionsControl ? this.sessionsControl : undefined; }
 	private sessionsListRevealCount = 0;
 
@@ -969,6 +985,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
 		const provided = this.providedSessionsList = this.sessionsListService.provider?.create(this.sessionsControlContainer, this.instantiationService, { overrideStyles: this.getLocationBasedColors().listOverrideStyles });
 		if (provided) {
+			this._register(this.sessionsListService.setActiveList(provided));
 			// A list of its own header and actions, in place of those of the Chat view's list
 			setVisibility(!provided.hasHeader, sessionsTitleContainer);
 			setVisibility(false, newSessionButtonContainer);

@@ -127,6 +127,18 @@ suite('ChatViewPane sessions refresh', () => {
 		assert.deepStrictEqual({ states, withoutComposer: withoutComposer.composerShown }, { states: [true, false, true], withoutComposer: false });
 	});
 
+	test('New Chat starts the provided composer over, and is the composer\'s while it shows in place of the chat', () => {
+		const calls: string[] = [];
+		const composer = { newChat: () => calls.push('newChat'), focus: () => calls.push('focus') };
+		const newChat = Reflect.get(ChatViewPane.prototype, 'newChat') as (this: { providedComposer: typeof composer | undefined; composerShown: boolean }) => boolean;
+		const results = {
+			shown: newChat.call({ providedComposer: composer, composerShown: true }),
+			hidden: newChat.call({ providedComposer: composer, composerShown: false }),
+			withoutComposer: newChat.call({ providedComposer: undefined, composerShown: false }),
+		};
+		assert.deepStrictEqual({ results, calls }, { results: { shown: true, hidden: false, withoutComposer: false }, calls: ['newChat', 'focus', 'newChat'] });
+	});
+
 	test('the Chat view takes the sessions list of the provider registered last, and its own once none is', () => {
 		const service = new ChatViewSessionsListService();
 		const provider = (name: string) => upcastPartial<IChatViewSessionsListProvider>({ create: () => { throw new Error(name); } });

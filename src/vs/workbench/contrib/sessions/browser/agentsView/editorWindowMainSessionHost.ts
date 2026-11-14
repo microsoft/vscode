@@ -25,36 +25,43 @@ export interface IEditorWindowShownChat {
 export class EditorWindowMainSessionHost extends SessionHost {
 
 	private readonly _shown: ISettableObservable<IObservable<IEditorWindowShownChat | undefined> | undefined>;
-	private readonly _draft: ISettableObservable<IObservable<ISession | undefined> | undefined>;
+	private readonly _override: ISettableObservable<IObservable<IEditorWindowShownChat | undefined> | undefined>;
 
 	constructor(@IContextKeyService contextKeyService: IContextKeyService) {
 		const source = observableValue<IObservable<IEditorWindowShownChat | undefined> | undefined>('editorWindowShownChat', undefined);
-		const draftSource = observableValue<IObservable<ISession | undefined> | undefined>('editorWindowDraft', undefined);
-		const shown = derived(reader => source.read(reader)?.read(reader));
+		const override = observableValue<IObservable<IEditorWindowShownChat | undefined> | undefined>('editorWindowShownChatOverride', undefined);
+		const shown = derived(reader => (override.read(reader) ?? source.read(reader))?.read(reader));
 		super({
 			kind: SessionHostKind.MainWindow,
 			parent: undefined,
-			// The session of the chat it shows, else the draft of the new-session composer it shows
-			session: derived(reader => shown.read(reader)?.session ?? draftSource.read(reader)?.read(reader)),
+			session: derived(reader => shown.read(reader)?.session),
 			chat: derived(reader => shown.read(reader)?.chat),
 			contextKeyService,
 			windowId: constObservable(mainWindow.vscodeWindowId),
 		});
 		this._shown = source;
-		this._draft = draftSource;
+		this._override = override;
 	}
 
 	/**
-	 * Shows the chat `shown` names, and while it names none, the session `draft` names, such as the draft of a new-session
-	 * composer, until the returned disposable is disposed.
+	 * Shows the chat `shown` names in place of the one bound with {@link bindShownChat}, until the returned disposable is
+	 * disposed: such as the chat of the Chat view while the chats open there, and not in the chat part.
 	 */
-	bindShownChat(shown: IObservable<IEditorWindowShownChat | undefined>, draft?: IObservable<ISession | undefined>): IDisposable {
+	overrideShownChat(shown: IObservable<IEditorWindowShownChat | undefined>): IDisposable {
+		this._override.set(shown, undefined);
+		return toDisposable(() => {
+			if (this._override.get() === shown) {
+				this._override.set(undefined, undefined);
+			}
+		});
+	}
+
+	/** Shows the chat `shown` names, until the returned disposable is disposed. */
+	bindShownChat(shown: IObservable<IEditorWindowShownChat | undefined>): IDisposable {
 		this._shown.set(shown, undefined);
-		this._draft.set(draft, undefined);
 		return toDisposable(() => {
 			if (this._shown.get() === shown) {
 				this._shown.set(undefined, undefined);
-				this._draft.set(undefined, undefined);
 			}
 		});
 	}
