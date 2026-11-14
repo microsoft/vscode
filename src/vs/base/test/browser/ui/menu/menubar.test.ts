@@ -98,6 +98,67 @@ suite('Menubar', () => {
 		});
 	});
 
+	test('opens title bar menus below the title on whole device pixels, including when counter-zoomed (#347796)', async () => {
+		const result: Record<string, unknown> = {};
+		for (const [name, titleZoom] of [['plain', 1], ['counterZoomed', 1 / 1.25]] as const) {
+			const titlebar = mainWindow.document.body.appendChild($('.titlebar'));
+			// Mirrors the menubar layout in menubar.css and the title bar's counter-zoom in titlebarpart.css, whose selectors
+			// need a `.menubar` inside the workbench title bar, which this fixture does not build. The counter-zoomed holder
+			// renders at zoom 1, like menus in a counter-zoomed title bar.
+			titlebar.appendChild($('style')).textContent = `
+				.titlebar .menubar-container { display: flex; }
+				.titlebar .menubar-menu-title { height: 30px; padding: 0 8px; }
+				.titlebar .menubar-menu-items-holder { position: fixed; zoom: ${1 / titleZoom}; }`;
+			titlebar.style.position = 'fixed';
+			titlebar.style.width = '400px';
+			titlebar.style.zoom = `${titleZoom}`;
+			// The 30px title ends at y.125, where rounding away from the title would leave a device pixel gap below at DPR 1
+			// and 2. Whole 1/64 pixels keep it at least an eighth of a device pixel from a rounding tie at common DPRs.
+			titlebar.style.left = '10.125px';
+			titlebar.style.top = '20.125px';
+			const menubarContainer = titlebar.appendChild($('.menubar-container'));
+			const menubar = new MenuBar(menubarContainer, { enableMnemonics: true, visibility: 'visible' }, unthemedMenuStyles);
+			try {
+				// A single menu would only be shown in the overflow menu
+				menubar.push([
+					{ label: '&File', actions: [toAction({ id: 'save', label: 'Save', run: () => { } })] },
+					{ label: '&View', actions: [toAction({ id: 'zoomIn', label: 'Zoom In', run: () => { } })] }
+				]);
+				menubar.update();
+				await new Promise<void>(resolve => getWindow(titlebar).requestAnimationFrame(() => resolve()));
+
+				const button = getButtonElementByAriaLabel(menubarContainer, 'View');
+				assert.ok(button);
+				button.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+				const holder = button.querySelector<HTMLElement>('.menubar-menu-items-holder');
+				assert.ok(holder);
+				const dpr = getWindow(holder).devicePixelRatio;
+				const misalignment = (value: number) => Math.abs(value * dpr - Math.round(value * dpr));
+				const rect = holder.getBoundingClientRect();
+				// Where the menubar placed the holder before alignment: the title's rendered bottom.
+				// Aligning must keep the holder's top at the device pixel the title's bottom is painted at, neither covering the title nor leaving a gap.
+				const unalignedTop = getTitleDivFromButtonDiv(button)!.getBoundingClientRect().bottom;
+				// Chromium lays out in 1/64 device pixels, so an aligned edge is only on a device pixel to within that
+				const precision = Math.max(dpr, 1) / 64 * 1.05;
+				result[name] = {
+					aligned: misalignment(rect.left) <= precision && misalignment(rect.top) <= precision,
+					horizontalInset: holder.style.left.endsWith('px') ? 'left' : 'right',
+					meetsTitle: Math.round(rect.top * dpr) === Math.round(unalignedTop * dpr)
+				};
+				menubar.blur();
+			} finally {
+				menubar.dispose();
+				titlebar.remove();
+				ModifierKeyEmitter.disposeInstance();
+			}
+		}
+
+		assert.deepStrictEqual(result, {
+			plain: { aligned: true, horizontalInset: 'left', meetsTitle: true },
+			counterZoomed: { aligned: true, horizontalInset: 'left', meetsTitle: true }
+		});
+	});
+
 	suite('compact mode', () => {
 		let compactContainer: HTMLElement;
 
@@ -188,6 +249,78 @@ suite('Menubar', () => {
 			]);
 		});
 
+		test('opens menus on whole device pixels from a fractional title position (#347796)', async () => {
+			// Mirrors menubar.css, whose holder rules need a `.menubar` container, which this fixture does not use. The fractional
+			// padding gives the menu a fractional height, so where its far edge is painted depends on which edge is rounded. With the
+			// title's fractional top, rounding the top edge of a menu opening upwards would move its bottom edge at DPR 1 and 2.
+			const style = compactContainer.appendChild($('style'));
+			style.textContent = '.compact-container .menubar-menu-items-holder { position: fixed; padding-bottom: 0.6875px; }';
+			compactContainer.style.position = 'fixed';
+			// Rounding away from the menu button would leave a device pixel gap from it at DPR 1 and 2. Whole 1/64 pixels keep
+			// both edges of the 16px button at least an eighth of a device pixel from a rounding tie at common DPRs.
+			compactContainer.style.left = '10.6875px';
+			compactContainer.style.top = '20.7px';
+			const dpr = getWindow(compactContainer).devicePixelRatio;
+			const misalignment = (value: number) => Math.abs(value * dpr - Math.round(value * dpr));
+			// Chromium lays out in 1/64 device pixels, so an aligned edge is only on a device pixel to within that
+			const precision = Math.max(dpr, 1) / 64 * 1.05;
+			const result: Record<string, unknown> = {};
+			for (const [name, horizontal, vertical] of [
+				['expandsRight', HorizontalDirection.Right, VerticalDirection.Below],
+				['expandsLeft', HorizontalDirection.Left, VerticalDirection.Below],
+				['expandsAbove', HorizontalDirection.Right, VerticalDirection.Above]
+			] as const) {
+				const menubar = new MenuBar(compactContainer, {
+					enableMnemonics: true,
+					visibility: 'classic',
+					compactMode: { horizontal, vertical },
+					getCompactMenuActions: () => [toAction({ id: 'web.nav', label: 'Go Home', run: () => { } })]
+				}, unthemedMenuStyles);
+				menubar.push([{ label: '&File', actions: [toAction({ id: 'undo', label: 'Undo', run: () => { } })] }]);
+				menubar.update();
+				await nextAnimationFrame();
+
+				const overflowButton = compactContainer.querySelector<HTMLElement>('.menubar-menu-button[aria-label="Application Menu"]');
+				assert.ok(overflowButton);
+				dispatchKeyUp(overflowButton);
+				const holder = overflowButton.querySelector<HTMLElement>('.menubar-menu-items-holder');
+				assert.ok(holder);
+				const rect = holder.getBoundingClientRect();
+				const button = compactContainer.getBoundingClientRect();
+				// Where the menubar placed the holder's edge facing the title before alignment. Left-expanding menus use the
+				// integer innerWidth, which at fractional DPRs can already overlap the title by less than a pixel. Aligning must
+				// keep that edge at the device pixel it was painted at, neither covering the title further nor leaving a gap.
+				const unaligned = horizontal === HorizontalDirection.Right
+					? button.left + compactContainer.clientWidth
+					: getWindow(holder).visualViewport!.width - getWindow(holder).innerWidth + button.left;
+				const paintedFacingEdge = horizontal === HorizontalDirection.Right ? Math.round(rect.left * dpr) : Math.round(rect.left * dpr) + Math.round(rect.width * dpr);
+				let upward = {};
+				if (vertical === VerticalDirection.Above) {
+					// Menus opening upwards line their bottom edge up with the title, so it must stay where it was painted before alignment
+					const title = overflowButton.querySelector<HTMLElement>('.menubar-menu-title');
+					assert.ok(title);
+					// The menubar places an upward menu's top `menus.length * 30` pixels above the title's top plus the menubar's
+					// height, and this menubar has one menu
+					const unalignedBottom = title.getBoundingClientRect().top - 30 + compactContainer.getBoundingClientRect().height + rect.height;
+					upward = { bottomKept: Math.round(rect.top * dpr) + Math.round(rect.height * dpr) === Math.round(unalignedBottom * dpr) };
+				}
+				result[name] = {
+					aligned: misalignment(rect.left) <= precision && misalignment(rect.top) <= precision,
+					horizontalInset: holder.style.left.endsWith('px') ? 'left' : 'right',
+					meetsTitle: paintedFacingEdge === Math.round(unaligned * dpr),
+					...upward
+				};
+				menubar.blur();
+				menubar.dispose();
+			}
+
+			assert.deepStrictEqual(result, {
+				expandsRight: { aligned: true, horizontalInset: 'left', meetsTitle: true },
+				expandsLeft: { aligned: true, horizontalInset: 'right', meetsTitle: true },
+				expandsAbove: { aligned: true, horizontalInset: 'left', meetsTitle: true, bottomKept: true }
+			});
+		});
+
 		test('aligns classic and compact menus inside a counter-zoomed container', async () => {
 			const style = mainWindow.document.head.appendChild($('style'));
 			store.add(toDisposable(() => style.remove()));
@@ -235,11 +368,13 @@ suite('Menubar', () => {
 			const compactHostRect = compactHost.getBoundingClientRect();
 			compact.blur();
 
+			// Aligning menus to device pixels can move them by up to half a device pixel
+			const tolerance = Math.max(0.5, 0.5 / mainWindow.devicePixelRatio) + 0.01;
 			assert.deepStrictEqual({
-				classicAlignedLeft: Math.abs(classicHolderRect.left - classicTitleRect.left) < 0.5,
-				classicAlignedTop: Math.abs(classicHolderRect.top - classicTitleRect.bottom) < 0.5,
-				compactAlignedLeft: Math.abs(compactHolderRect.left - (compactTitleRect.left + compactHostRect.width)) < 0.5,
-				compactAlignedTop: Math.abs(compactHolderRect.top - compactTitleRect.top) < 0.5,
+				classicAlignedLeft: Math.abs(classicHolderRect.left - classicTitleRect.left) < tolerance,
+				classicAlignedTop: Math.abs(classicHolderRect.top - classicTitleRect.bottom) < tolerance,
+				compactAlignedLeft: Math.abs(compactHolderRect.left - (compactTitleRect.left + compactHostRect.width)) < tolerance,
+				compactAlignedTop: Math.abs(compactHolderRect.top - compactTitleRect.top) < tolerance,
 			}, {
 				classicAlignedLeft: true,
 				classicAlignedTop: true,

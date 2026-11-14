@@ -61,6 +61,7 @@ src/vs/sessions/contrib/canvases/** @ulugbekna @jruales
 build/azure-pipelines/** @lszomoru
 build/azure-pipelines/common/sanity-tests.yml @dmitrivMS
 build/lib/i18n.ts @TylerLeonhardt
+build/next/mobilePolicy.json @osortega
 resources/linux/debian/** @rzhao271
 resources/linux/rpm/** @rzhao271
 
