@@ -2609,11 +2609,12 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
-	test('synthetic user messages do not start a new turn', async () => {
+	test('synthetic messages, including Autopilot continuations with caller IDs, stay in the original turn', async () => {
 		const events: ISessionEvent[] = [
-			{ type: 'user.message', id: 'user-event-1', data: { interactionId: 'interaction-1', content: 'Use the skill' } },
+			{ type: 'user.message', id: 'user-event-1', data: { interactionId: 'interaction-1', content: 'Use the skill', clientTurnId: 'turn-1' } },
 			{ type: 'assistant.message', data: { interactionId: 'interaction-1', content: 'I will use it.', toolRequests: [] } },
 			{ type: 'user.message', id: 'synthetic-event', data: { interactionId: 'interaction-2', content: 'Injected skill content', source: 'skill' } },
+			{ type: 'user.message', id: 'autopilot-event', data: { interactionId: 'interaction-2', content: '', source: 'autopilot', clientTurnId: 'turn-1' } },
 			{ type: 'assistant.message', data: { interactionId: 'interaction-2', content: 'The skill is complete.', toolRequests: [] } },
 			{ type: 'user.message', id: 'user-event-2', data: { interactionId: 'interaction-3', content: 'Thanks' } },
 			{ type: 'assistant.message', data: { interactionId: 'interaction-3', content: 'You are welcome.', toolRequests: [] } },
