@@ -47,7 +47,7 @@ import { ISessionChange, ISessionsManagementService } from '../../../common/sess
 import { EditorWindowSessionsPresenterService, IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { EditorWindowSessionsService } from '../../../browser/agentsView/editorWindowSessionsService.js';
 import { EditorWindowComposerFoldersService } from '../../../browser/editorWindow/editorWindowComposerFolders.js';
-import { createChatViewComposerModel } from '../../../browser/agentsView/chatViewSessionsList.js';
+import { createChatViewComposerHolder, createChatViewComposerModel } from '../../../browser/agentsView/chatViewSessionsList.js';
 import { ChatWindowComposerModel, IChatWindowComposerInit } from '../../../browser/chatEditor/chatWindowComposer.js';
 import { IEditorWindowSessionsRuntime } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
 
@@ -338,6 +338,23 @@ suite('ChatViewSessionsGate', () => {
 			allowedFolders: ['/repo', '/repo.worktrees/feature'],
 			retargeted: ['/repo -> /repo.worktrees/feature'],
 		});
+	});
+
+	test('the Chat view\'s composer holds the window\'s sessions providers while it has a draft, and goes as they are released only once nothing is typed', async () => {
+		const presenterService = disposables.add(new EditorWindowSessionsPresenterService(upcastPartial<IChatViewHostService>({}), upcastPartial<ICommandService>({})));
+		let pristine = false;
+		let model: { isPristine(): boolean } | undefined = { isPristine: () => pristine };
+		const holder = disposables.add(presenterService.registerComposerHolder(createChatViewComposerHolder(() => model, () => { model = undefined; })));
+		const steps: boolean[] = [];
+		// As the providers are released, such as a while after the Chat view hid: a draft with text stays
+		await presenterService.closeIdleComposers();
+		steps.push(presenterService.hasComposer());
+		pristine = true;
+		await presenterService.closeIdleComposers();
+		steps.push(presenterService.hasComposer());
+		holder.dispose();
+
+		assert.deepStrictEqual(steps, [true, false]);
 	});
 });
 
