@@ -318,6 +318,8 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 		const retargeted = { ...target, folderUri };
 		this._hostFolder = folderUri;
 		this._requestedTarget.set(retargeted, undefined);
+		// As a target the user picks: a background send that fails then offers its prompt back, not into another folder silently
+		this._targetGeneration++;
 		this._onDidRetarget.fire(retargeted);
 		return true;
 	}
