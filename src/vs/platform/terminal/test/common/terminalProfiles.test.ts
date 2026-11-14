@@ -6,7 +6,7 @@
 import { deepStrictEqual } from 'assert';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ITerminalProfile } from '../../common/terminal.js';
+import { IExtensionTerminalProfile, ITerminalProfile } from '../../common/terminal.js';
 import { createProfileSchemaEnums } from '../../common/terminalProfiles.js';
 
 suite('terminalProfiles', () => {
@@ -86,6 +86,31 @@ suite('terminalProfiles', () => {
 					'Automatically detect the default',
 					'$(terminal) name\n- path: path',
 					'$(terminal) foo\n- path: bar'
+				]
+			});
+		});
+		test('should not wrap an extension profile icon that already uses the $() syntax', () => {
+			const extensionProfiles: IExtensionTerminalProfile[] = [{
+				extensionIdentifier: 'ms-vscode.js-debug',
+				id: 'extension.js-debug.debugTerminal',
+				title: 'JavaScript Debug Terminal',
+				icon: '$(debug)'
+			}, {
+				extensionIdentifier: 'publisher.extension',
+				id: 'extension.terminal',
+				title: 'Extension Terminal',
+				icon: 'zap'
+			}];
+			deepStrictEqual(createProfileSchemaEnums([], extensionProfiles), {
+				values: [
+					null,
+					'JavaScript Debug Terminal',
+					'Extension Terminal'
+				],
+				markdownDescriptions: [
+					'Automatically detect the default',
+					'$(debug) JavaScript Debug Terminal\n- extensionIdentifier: ms-vscode.js-debug',
+					'$(zap) Extension Terminal\n- extensionIdentifier: publisher.extension'
 				]
 			});
 		});
