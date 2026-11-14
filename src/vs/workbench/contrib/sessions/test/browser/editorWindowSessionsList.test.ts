@@ -36,6 +36,14 @@ suite('EditorWindowSessionsList', () => {
 		});
 	});
 
+	test('only the header presentation differs between title and section', () => {
+		const scoped = observableValue('scoped', true);
+		const title = createEditorWindowSessionsViewOptions({ id: SessionsViewId } as IViewletViewOptions, scoped, 'title');
+		const section = createEditorWindowSessionsViewOptions({ id: SessionsViewId } as IViewletViewOptions, scoped, 'section');
+		assert.deepStrictEqual({ ...section, headerInTitle: true }, title);
+		assert.deepStrictEqual([title.headerInTitle, section.headerInTitle], [true, false]);
+	});
+
 	test('registers the Sessions view and the setup view in the container', () => {
 		const container = { id: 'test.editorWindowSessionsList', title: localize2Value('Chat'), icon: undefined } as unknown as IViewContainerDescriptor;
 		store.add(registerEditorWindowSessionsViews(container, observableValue('scoped', false)));
