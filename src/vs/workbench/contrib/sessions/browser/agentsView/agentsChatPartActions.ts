@@ -32,9 +32,13 @@ import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHos
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { RENAME_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 
 /** Closes the chat of a header of the chat part (see `registerAgentsChatPartActions`). */
 export const AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID = 'workbench.action.agentsView.closeChat';
+
+/** Closes all the chats of the chat part, which closes it (see `registerAgentsChatPartActions`). */
+export const AGENTS_CHAT_PART_CLOSE_ALL_CHATS_COMMAND_ID = 'workbench.action.agentsView.closeAllChats';
 
 /** Whether the chat part of the editor window shows. */
 export const AgentsChatPartVisibleContext = new RawContextKey<boolean>('agentsChatPartVisible', false, localize('agentsChatPartVisible', "Whether the chat part beside the editor area shows."));
@@ -151,6 +155,22 @@ export function registerAgentsChatPartActions(): IDisposable {
 		}
 	}));
 
+	// Closes all the chats of the chat part, which closes it: right after Close in the More Actions of a header of a chat it shows,
+	// while it shows them as tabs; in Single, it shows one at a time
+	store.add(registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: AGENTS_CHAT_PART_CLOSE_ALL_CHATS_COMMAND_ID,
+				title: localize2('agentsView.closeAllChats', "Close All"),
+				precondition: ChatContextKeys.enabled,
+				menu: SessionHeaderMenus.map(id => ({ id, group: 'secondary/0_pane', order: 20, when: ContextKeyExpr.and(inChatPart, ContextKeyExpr.equals(`config.${SESSIONS_CHAT_TABS_SETTING}`, SessionsChatTabsMode.Multiple)) })),
+			});
+		}
+		async run(accessor: ServicesAccessor): Promise<void> {
+			await accessor.get(IAgentsChatPartService).closeAllChats();
+		}
+	}));
+
 	// Of the Agents window's More Actions of a session header, those an editor window has: renaming the session, which its
 	// sessions list registers, and how chats show their progress
 	for (const id of SessionHeaderMenus) {
@@ -177,12 +197,9 @@ export function registerAgentsChatPartActions(): IDisposable {
 				category: CHAT_CATEGORY,
 				f1: true,
 				precondition: AgentsChatPartVisibleContext,
-				// Last in the More Actions of the chat it shows, in a group of its own: of its session header, or of its group's
-				// tabs while it shows them
-				menu: [
-					...SessionHeaderMenus.map(id => ({ id, group: 'secondary/z_close', order: 1, when: ContextKeyExpr.and(ChatContextKeys.enabled, AgentsChatPartVisibleContext) })),
-					{ id: MenuId.EditorTitle, group: 'z_close', order: 1, when: ContextKeyExpr.and(ChatContextKeys.enabled, AgentsChatPartVisibleContext, InAgentsChatPartContext) },
-				],
+				// Last in the More Actions of its group's tabs while it shows them, in a group of its own: the session header of a
+				// chat it shows offers Close All instead
+				menu: [{ id: MenuId.EditorTitle, group: 'z_close', order: 1, when: ContextKeyExpr.and(ChatContextKeys.enabled, AgentsChatPartVisibleContext, InAgentsChatPartContext) }],
 			});
 		}
 		run(accessor: ServicesAccessor): void {

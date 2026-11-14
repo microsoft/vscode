@@ -61,7 +61,9 @@ class FakeGroup {
 	activeEditor: EditorInput | null = null;
 	readonly onDidActiveEditorChangeEmitter = new Emitter<void>();
 	readonly onDidActiveEditorChange = this.onDidActiveEditorChangeEmitter.event;
-	readonly onDidCloseEditorEmitter = new Emitter<void>();
+	readonly onWillCloseEditorEmitter = new Emitter<{ readonly editor: EditorInput }>();
+	readonly onWillCloseEditor = this.onWillCloseEditorEmitter.event;
+	readonly onDidCloseEditorEmitter = new Emitter<{ readonly editor: EditorInput }>();
 	readonly onDidCloseEditor = this.onDidCloseEditorEmitter.event;
 	get isEmpty() { return this.editors.length === 0; }
 	contains(editor: EditorInput) { return this.editors.includes(editor); }
@@ -75,19 +77,28 @@ class FakeGroup {
 			this.onDidActiveEditorChangeEmitter.fire();
 		}
 	}
+	/** Closes `editor`, which disposes before the group tells it closed, as in a real group. */
 	async closeEditor(editor: EditorInput): Promise<boolean> {
+		this.onWillCloseEditorEmitter.fire({ editor });
 		this.editors = this.editors.filter(candidate => candidate !== editor);
 		if (this.activeEditor === editor) {
 			this.activeEditor = this.editors.at(-1) ?? null;
 		}
-		this.onDidCloseEditorEmitter.fire();
-		this.onDidActiveEditorChangeEmitter.fire();
 		editor.dispose();
+		this.onDidCloseEditorEmitter.fire({ editor });
+		this.onDidActiveEditorChangeEmitter.fire();
+		return true;
+	}
+	async closeAllEditors(): Promise<boolean> {
+		for (const editor of [...this.editors]) {
+			await this.closeEditor(editor);
+		}
 		return true;
 	}
 	focus(): void { }
 	dispose(): void {
 		this.onDidActiveEditorChangeEmitter.dispose();
+		this.onWillCloseEditorEmitter.dispose();
 		this.onDidCloseEditorEmitter.dispose();
 	}
 }
@@ -158,7 +169,7 @@ suite('AgentsChatPartService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(options?: { readonly stored?: string; readonly visible?: boolean; readonly chatEnabled?: boolean; readonly sessions?: () => readonly ISession[]; readonly newSession?: IObservable<ISession | undefined>; readonly holdOpen?: () => Promise<void>; readonly delayed?: boolean }) {
+	function createService(options?: { readonly stored?: string; readonly visible?: boolean; readonly chatEnabled?: boolean; readonly sessions?: () => readonly ISession[]; readonly newSession?: IObservable<ISession | undefined>; readonly holdOpen?: () => Promise<void>; readonly delayed?: boolean; readonly chatTabs?: SessionsChatTabsMode | null }) {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const contextKeyService = store.add(new ChangingContextKeyService());
@@ -171,6 +182,10 @@ suite('AgentsChatPartService', () => {
 			storageService.store(CHAT_PART_EDITORS_STORAGE_KEY, options.stored, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		// Its chats as tabs, unless a test asks for Single, or for the default (null)
+		if (options?.chatTabs !== null) {
+			configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, options?.chatTabs ?? SessionsChatTabsMode.Multiple);
+		}
 
 		// The chat part, and whether the layout shows it
 		const part = new FakePart();
@@ -737,6 +752,65 @@ suite('AgentsChatPartService', () => {
 		});
 	});
 
+	test('closing all its chats closes every tab, in each of its groups, which closes the chat part', async () => {
+		const { service, layout } = createService();
+		await service.openChat(session, chatA);
+		await service.openChat(session, chatB, { sideBySide: true });
+		await service.openChat(session, chatC);
+		const open = layout();
+
+		await service.closeAllChats();
+		const closed = layout();
+
+		assert.deepStrictEqual({ open, closed: { tabs: closed.groups.flatMap(group => group.tabs), visible: closed.visible } }, {
+			open: { groups: [{ tabs: ['/a'], active: '/a' }, { tabs: ['/b', '/c'], active: '/c' }], activeGroup: 1, visible: true },
+			closed: { tabs: [], visible: false },
+		});
+	});
+
+	test('in Single, it shows one chat at a time, as a preview: a chat it opens replaces the one it showed, also an untouched composer, without tabs left behind', async () => {
+		const { service, layout } = createService({ chatTabs: SessionsChatTabsMode.Single });
+		await service.openChat(session, chatA);
+		await service.openChat(session, chatB);
+		const replaced = layout();
+		await service.openComposer(undefined, { newComposer: true });
+		const composer = layout();
+		await service.openChat(session, chatC);
+
+		assert.deepStrictEqual({ replaced, composer, untouchedComposerReplaced: layout() }, {
+			replaced: { groups: [{ tabs: ['/b'], active: '/b' }], activeGroup: 0, visible: true },
+			composer: { groups: [{ tabs: ['composer'], active: 'composer' }], activeGroup: 0, visible: true },
+			untouchedComposerReplaced: { groups: [{ tabs: ['/c'], active: '/c' }], activeGroup: 0, visible: true },
+		});
+	});
+
+	test('in Single, closing the chat it shows shows a new-session composer, and closing that closes the chat part; closing all its chats closes it at once', async () => {
+		const { service, part, layout } = createService({ chatTabs: SessionsChatTabsMode.Single });
+		await service.openChat(session, chatA);
+		await service.closeChat(chatA);
+		await timeout(0);
+		const afterChat = layout();
+		await part.activeGroup.closeEditor(part.activeGroup.activeEditor!);
+		const afterComposer = layout();
+		await service.openChat(session, chatB);
+		await service.closeAllChats();
+		await timeout(0);
+
+		assert.deepStrictEqual({ afterChat, afterComposer, afterCloseAll: layout() }, {
+			afterChat: { groups: [{ tabs: ['composer'], active: 'composer' }], activeGroup: 0, visible: true },
+			afterComposer: { groups: [{ tabs: [], active: null }], activeGroup: 0, visible: false },
+			afterCloseAll: { groups: [{ tabs: [], active: null }], activeGroup: 0, visible: false },
+		});
+	});
+
+	test('in Single, restoring shows only the chat it showed, not the others it stored', async () => {
+		const { service, layout } = createService({ chatTabs: SessionsChatTabsMode.Single, visible: true, stored: JSON.stringify({ chats: [chatA.toString(), chatB.toString(), chatC.toString()], active: 1 }) });
+
+		await service.restore();
+
+		assert.deepStrictEqual(layout(), { groups: [{ tabs: ['/b'], active: '/b' }], activeGroup: 0, visible: true });
+	});
+
 	test('the chat part stores its chats and the active one as the window saves, and shows them again in that order once restored', async () => {
 		const first = createService();
 		await first.service.openChat(session, chatA);
@@ -851,7 +925,7 @@ suite('AgentsChatPartService', () => {
 	});
 
 	test('its tabs follow sessions.showChatTabs as it changes, by default one tab of the active chat, not workbench.editor.showTabs', async () => {
-		const { service, part, setSetting } = createService();
+		const { service, part, setSetting } = createService({ chatTabs: null });
 		await service.openChat(session, chatA);
 		const showTabs = () => (part.options as { readonly showTabs?: string }).showTabs;
 		const shown: Record<string, string | undefined> = { default: showTabs() };
