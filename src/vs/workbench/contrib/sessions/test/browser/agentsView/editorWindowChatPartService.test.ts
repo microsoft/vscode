@@ -7,9 +7,10 @@ import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ContextKeyValue, IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
@@ -29,6 +30,7 @@ suite('EditorWindowChatPartService', () => {
 	/** The service, as the window starts with the chat part shown or not, recording what it does. */
 	function createService(state: { visible: boolean }) {
 		const events: string[] = [];
+		const ownsNewChat: IObservable<boolean>[] = [];
 		const layoutService = upcastPartial<IWorkbenchLayoutService>({
 			setChatPartAnchor: anchor => events.push(`anchor ${anchor?.viewId}`),
 			onDidChangePartVisibility: Event.None,
@@ -46,9 +48,13 @@ suite('EditorWindowChatPartService', () => {
 		});
 		const chatPart = upcastPartial<IAgentsChatPartService>({ restore: async () => { events.push('restore'); } });
 		const instantiationService = upcastPartial<IInstantiationService>({
-			createInstance: (ctor: unknown) => ctor === AgentsChatViewHost
-				? upcastPartial<AgentsChatViewHost>({ deactivate: () => events.push('deactivate host') })
-				: toDisposable(() => { }),
+			createInstance: (ctor: unknown, ...args: unknown[]) => {
+				if (ctor === AgentsChatViewHost) {
+					ownsNewChat.push(args[0] as IObservable<boolean>);
+					return upcastPartial<AgentsChatViewHost>({ deactivate: () => events.push('deactivate host') });
+				}
+				return toDisposable(() => { });
+			},
 			invokeFunction: <R, TS extends unknown[] = []>(fn: (accessor: ServicesAccessor, ...args: TS) => R, ...args: TS): R => fn(upcastPartial<ServicesAccessor>({ get: <T>(): T => chatPart as T }), ...args),
 		});
 		const service = disposables.add(new EditorWindowChatPartService(
@@ -64,7 +70,7 @@ suite('EditorWindowChatPartService', () => {
 			upcastPartial<IEditorWindowSessionsRuntime>({ enable: () => { events.push('hold providers'); return toDisposable(() => events.push('release providers')); } }),
 			upcastPartial<IAgentsChatPartFrame>({ get part() { events.push('create part'); return undefined!; }, contentCreated: constObservable(false) }),
 		));
-		return { service, events };
+		return { service, events, ownsNewChat };
 	}
 
 	test('does nothing until a feature enables it; features share the chat part, which docks beside the anchor of the highest priority', async () => {
@@ -133,6 +139,38 @@ suite('EditorWindowChatPartService', () => {
 			afterFirst: { enabled: true, events: ['create part', 'hold providers', 'register composer holder', 'register host', 'register presenter', 'anchor list', 'anchor list', 'anchor list'] },
 			afterBoth: false,
 		});
+	});
+
+	test('registers its actions only while chats open in it', async () => {
+		const enabled = observableValue('enabled', false);
+		const { service } = createService({ visible: false });
+		const registered = () => !!CommandsRegistry.getCommand('workbench.action.agentsView.focusChatPart');
+
+		const registration = service.enable({ anchorViewId: 'chat', anchorPriority: 1, enabled });
+		const whileNot = registered();
+		enabled.set(true, undefined);
+		const whileEnabled = registered();
+		registration.dispose();
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileNot, whileEnabled, afterDispose: registered() }, { whileNot: false, whileEnabled: true, afterDispose: false });
+	});
+
+	test('takes New Chat of the Chat view while a feature that has chats open in it takes it, by default; not for a feature that leaves it to the Chat view', async () => {
+		const { service, ownsNewChat } = createService({ visible: false });
+		const listEnabled = observableValue('listEnabled', true);
+
+		const plain = service.enable({ anchorViewId: 'chat', anchorPriority: 1, enabled: constObservable(true), ownsNewChat: false });
+		const onlyPlain = ownsNewChat.at(-1)!.get();
+		const viewlet = service.enable({ anchorViewId: 'list', anchorPriority: 2, enabled: listEnabled });
+		const withViewlet = ownsNewChat.at(-1)!.get();
+		listEnabled.set(false, undefined);
+		const viewletOff = ownsNewChat.at(-1)!.get();
+		viewlet.dispose();
+		plain.dispose();
+		await timeout(0);
+
+		assert.deepStrictEqual({ onlyPlain, withViewlet, viewletOff }, { onlyPlain: false, withViewlet: true, viewletOff: false });
 	});
 
 	test('restores the chats it showed as the window last closed, while chats open in it', async () => {
