@@ -169,13 +169,16 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		const selected = this._selectedFolder();
 		const folder = selected && this._workspaceContextService.getWorkspace().folders.find(f => f.uri.toString() === selected.toString());
-		const label = selected && this._worktree?.isActive() ? this._worktree.getLabel(selected) : folder ? folder.name : (selected ? basename(selected) : localize('agentHost.selectFolder', "Folder"));
+		// With worktree support, by its icon only, a folder or a worktree, but New Worktree by its name
+		const chip = selected && this._worktree?.isActive() ? this._worktree.getChip(selected) : undefined;
+		const label = chip ? chip.description : folder ? folder.name : (selected ? basename(selected) : localize('agentHost.selectFolder', "Folder"));
+		const shownLabel = chip ? chip.label : label;
 		const compact = this.pickerOptions.compact.get();
-		element.classList.toggle('icon-only', compact);
+		element.classList.toggle('icon-only', compact || !shownLabel);
 		dom.reset(
 			element,
-			...renderLabelWithIcons(`$(folder-compact)`),
-			...(!compact ? [dom.$('span.chat-input-picker-label', undefined, label)] : []),
+			...renderLabelWithIcons(chip?.icon === Codicon.worktree ? `$(${Codicon.worktree.id})` : `$(folder-compact)`),
+			...(!compact && shownLabel ? [dom.$('span.chat-input-picker-label', undefined, shownLabel)] : []),
 		);
 		// Set the aria label after the visible text is in place: the base class
 		// derives it from `element.textContent`, so labeling first would lag one
@@ -218,7 +221,14 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		const md = new MarkdownString('', { supportThemeIcons: true });
 		const fallbackLines: string[] = [];
 
-		md.appendMarkdown(`$(${Codicon.folder.id}) `);
+		// What the chip shows by its icon only, by name
+		const chip = this._worktree.isActive() ? this._worktree.getChip(selected) : undefined;
+		if (chip) {
+			md.appendText(chip.description);
+			md.appendMarkdown('\n\n');
+			fallbackLines.push(chip.description);
+		}
+		md.appendMarkdown(`$(${(chip?.icon ?? Codicon.folder).id}) `);
 		md.appendText(selected.fsPath);
 		fallbackLines.push(selected.fsPath);
 

@@ -82,8 +82,9 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		// A worktree that no session lists any more, such as one whose sessions are archived
 		const atUnlisted = await createChoices({ enabled: true, at: other, listed: [feature] });
 
-		assert.deepStrictEqual({ atWorktree: atWorktree.items(other), atUnlisted: atUnlisted.items(other), atFolder: atFolder.items(primary) }, {
+		assert.deepStrictEqual({ atWorktree: atWorktree.items(other), icons: atWorktree.actions(other).map(action => action.icon?.id), atUnlisted: atUnlisted.items(other), atFolder: atFolder.items(primary) }, {
 			atWorktree: ['New Worktree', '[Folder] vscode', '[Worktrees] other (Current) *', '[Worktrees] feature'],
+			icons: ['worktree', 'folder', 'worktree', 'worktree'],
 			atUnlisted: ['New Worktree', '[Folder] vscode', '[Worktrees] other (Current) *', '[Worktrees] feature'],
 			atFolder: ['New Worktree', '[Folder] vscode (Current) *', '[Worktrees] feature', '[Worktrees] other'],
 		});
@@ -91,14 +92,18 @@ suite('AgentHostWorktreeFolderChoices', () => {
 
 	test('New Worktree has the session work in a new worktree, which the label shows, and picking a folder again works in it', async () => {
 		const { choices, actions, items, changes } = await createChoices({ enabled: true, at: primary });
+		const chip = (folder: URI) => { const { icon, label, description } = choices.getChip(folder); return { icon: icon.id, label: label ?? null, description }; };
+		const folderChip = chip(primary);
 		await actions(primary).find(action => action.label === 'New Worktree')!.run();
-		const inNewWorktree = { items: items(primary), label: choices.getLabel(primary) };
+		const inNewWorktree = { items: items(primary), chip: chip(primary) };
 		await actions(primary).find(action => action.label === 'feature')!.run();
 
-		assert.deepStrictEqual({ inNewWorktree, changes, label: choices.getLabel(feature) }, {
-			inNewWorktree: { items: ['New Worktree *', '[Folder] vscode (Current)', '[Worktrees] feature', '[Worktrees] other'], label: 'vscode - New Worktree' },
+		// By its icon only, but New Worktree by its name; what it is, by name, for screen readers and on hover
+		assert.deepStrictEqual({ inNewWorktree, changes, folderChip, worktreeChip: chip(feature) }, {
+			inNewWorktree: { items: ['New Worktree *', '[Folder] vscode (Current)', '[Worktrees] feature', '[Worktrees] other'], chip: { icon: 'worktree', label: 'Worktree', description: 'New worktree of vscode' } },
 			changes: ['isolation worktree', 'folder /work/vscode.worktrees/feature', 'isolation folder'],
-			label: 'feature',
+			folderChip: { icon: 'folder', label: null, description: 'Folder: vscode' },
+			worktreeChip: { icon: 'worktree', label: null, description: 'Worktree: feature' },
 		});
 	});
 

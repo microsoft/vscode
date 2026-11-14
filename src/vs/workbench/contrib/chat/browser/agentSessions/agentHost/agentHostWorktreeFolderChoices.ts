@@ -10,6 +10,7 @@ import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { basename, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { getSessionIsolationProperty } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
@@ -27,6 +28,9 @@ import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 
 /** What the folder chip shows for a folder, and which one it is. */
+/** The icon of a worktree in the folder chip: New Worktree, the window's folder's worktrees, and the chip at one. */
+const WORKTREE_ICON = Codicon.worktree;
+
 interface IFolderChoice {
 	readonly uri: URI;
 	readonly label: string;
@@ -106,10 +110,23 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 		return !!isolation && isolation.values[isolation.key] === 'worktree';
 	}
 
-	/** The label of the chip for the selected `folder`: by its name, or as a new worktree of it. */
-	getLabel(folder: URI): string {
-		const name = this._choices().find(choice => extUriBiasedIgnorePathCase.isEqual(choice.uri, folder))?.label ?? basename(folder);
-		return this.isNewWorktreeSelected() ? localize('agentHost.folderPicker.newWorktree', "{0} - New Worktree", name) : name;
+	/**
+	 * The chip for the selected `folder`: by its icon only, a folder or a worktree, but New Worktree by its name, with what it
+	 * is for screen readers and on hover.
+	 */
+	getChip(folder: URI): { readonly icon: ThemeIcon; readonly label: string | undefined; readonly description: string } {
+		const choices = this._choices();
+		const choice = choices.find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate.uri, folder));
+		const primary = choices.find(candidate => candidate.kind === 'folder');
+		if (this.isNewWorktreeSelected()) {
+			return { icon: WORKTREE_ICON, label: localize('agentHost.folderPicker.newWorktreeChip', "Worktree"), description: localize('agentHost.folderPicker.newWorktreeChipDescription', "New worktree of {0}", primary?.label ?? basename(folder)) };
+		}
+		const name = choice?.label ?? basename(folder);
+		// A folder that is not the window's own, such as the worktree a started session works in, is a worktree of it
+		const worktree = choice ? choice.kind === 'worktree' : !!primary && !extUriBiasedIgnorePathCase.isEqual(primary.uri, folder);
+		return worktree
+			? { icon: WORKTREE_ICON, label: undefined, description: localize('agentHost.folderPicker.worktreeChipDescription', "Worktree: {0}", name) }
+			: { icon: Codicon.folder, label: undefined, description: localize('agentHost.folderPicker.folderChipDescription', "Folder: {0}", name) };
 	}
 
 	/** The chip's choices, `selected` checked, unless the session is to work in a new worktree. */
@@ -123,7 +140,7 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 				label: getNewWorktreeLabel(),
 				tooltip: localize('agentHost.folderPicker.newWorktreeDescription', "Start the session in a new worktree of the selected folder."),
 				checked: newWorktreeSelected,
-				icon: Codicon.gitBranchCheckout,
+				icon: WORKTREE_ICON,
 				enabled: true,
 				category: { label: '', order: 0 },
 				run: async () => {
@@ -141,7 +158,7 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 					label: choice.label,
 					description: choice.current ? getCurrentFolderLocationDescription() : undefined,
 					checked: !newWorktreeSelected && !!selected && extUriBiasedIgnorePathCase.isEqual(selected, choice.uri),
-					icon: choice.kind === 'worktree' ? Codicon.gitBranchCheckout : Codicon.folder,
+					icon: choice.kind === 'worktree' ? WORKTREE_ICON : Codicon.folder,
 					enabled: true,
 					tooltip: choice.uri.fsPath,
 					category: { label: section.title, order: index + 1, showHeader: true },
