@@ -293,6 +293,7 @@ export class BrowserView extends Disposable {
 		this._reportedFocus = new BrowserViewReportedFocus(this._view.webContents.isFocused(), !!this._hostWindow?.isFocused(), focused => this._onDidChangeFocus.fire({ focused }));
 		this._trackHostWindowFocus();
 		this.setupEventListeners();
+		this._register(this.session.acquireNetworkFilter());
 	}
 
 	/** Follows whether the window that hosts the view has focus, which the view's page does not tell when another window is activated. */
@@ -451,9 +452,10 @@ export class BrowserView extends Disposable {
 
 		webContents.on('login', (event, _details, authInfo, callback) => {
 			// Automatically supply proxy auth credentials for the tunnel proxy.
-			if (this.session.remote.proxy) {
-				const { username, password } = this.session.remote.proxy.credentials;
-				const proxyPort = this.session.remote.proxy.port;
+			const proxy = this.session.networkFilterProxy ?? this.session.remote.proxy;
+			if (proxy) {
+				const { username, password } = proxy.credentials;
+				const proxyPort = proxy.port;
 				if (authInfo.isProxy && authInfo.host === '127.0.0.1' && authInfo.port === proxyPort) {
 					event.preventDefault();
 					callback(username, password);

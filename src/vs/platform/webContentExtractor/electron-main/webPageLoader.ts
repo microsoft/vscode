@@ -14,6 +14,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
+import { AgentNetworkFilterSession, IAgentNetworkFilterSessionOptions } from '../../networkFilter/electron-main/networkFilterSession.js';
 import { IWebContentExtractorOptions, WebContentExtractResult } from '../common/webContentExtractor.js';
 import { AXNode, convertAXTreeToMarkdown } from './cdpAccessibilityDomain.js';
 
@@ -48,6 +49,7 @@ export class WebPageLoader extends Disposable {
 
 	private readonly _window: BrowserWindow;
 	private readonly _debugger: Electron.Debugger;
+	private readonly _networkFilter: AgentNetworkFilterSession;
 	private readonly _requests = new Set<string>();
 	private readonly _queue = this._register(new Queue());
 	private readonly _timeout = this._register(new TimeoutTimer());
@@ -63,6 +65,7 @@ export class WebPageLoader extends Disposable {
 		private readonly _options: IWebContentExtractorOptions | undefined,
 		private readonly _isTrustedDomain: (uri: URI) => boolean,
 		private readonly _agentNetworkFilterService: IAgentNetworkFilterService,
+		networkFilterOptions?: IAgentNetworkFilterSessionOptions,
 	) {
 		super();
 
@@ -80,6 +83,20 @@ export class WebPageLoader extends Disposable {
 		});
 
 		this._register(toDisposable(() => this._window.destroy()));
+		this._networkFilter = this._register(new AgentNetworkFilterSession(
+			this._window.webContents.session, networkFilterOptions ?? {}, this._agentNetworkFilterService, this._logger,
+		));
+		this._window.webContents.session.setCertificateVerifyProc((request, callback) => {
+			const proxy = this._networkFilter.proxy;
+			callback(proxy && request.hostname === proxy.host && request.certificate.fingerprint === proxy.certFingerprint ? 0 : -3);
+		});
+		this._window.webContents.on('login', (event, _details, authInfo, callback) => {
+			const proxy = this._networkFilter.proxy;
+			if (proxy && authInfo.isProxy && authInfo.host === proxy.host && authInfo.port === proxy.port) {
+				event.preventDefault();
+				callback(proxy.credentials.username, proxy.credentials.password);
+			}
+		});
 
 		this._window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
@@ -189,6 +206,15 @@ export class WebPageLoader extends Disposable {
 		const error = this.getUriPolicyError(details.url);
 		if (error) {
 			this.trace(`Blocking request to ${details.url}: ${error}`);
+		} else if (this._networkFilter.isActive) {
+			void this._networkFilter.checkRequest(URI.parse(details.url, true)).then(() => callback({ cancel: false }), error => {
+				this._logger.warn('[WebPageLoader] Blocking request by network address policy', error);
+				callback({ cancel: true });
+				if (details.resourceType === 'mainFrame') {
+					this._onResult({ status: 'error', error: error instanceof Error ? error.message : String(error) });
+				}
+			});
+			return;
 		}
 		callback({ cancel: !!error });
 	}
