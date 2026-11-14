@@ -20,7 +20,7 @@ import { MarkAgentSessionReadAction, MarkAgentSessionUnreadAction } from '../../
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { getEditorWindowComposerTarget } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { IAgentsChatPartOpenOptions, IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
-import { registerAgentsChatPartActions, registerAgentsViewNewSessionActions } from '../../../browser/agentsView/agentsChatPartActions.js';
+import { AgentsChatPartChatTabsMenu, registerAgentsChatPartActions, registerAgentsViewNewSessionActions } from '../../../browser/agentsView/agentsChatPartActions.js';
 import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Menus, SessionHeaderMenus } from '../../../browser/menus.js';
 import { INewSessionTarget } from '../../../browser/parts/chatView.js';
@@ -104,12 +104,17 @@ suite('Agents chat part actions', () => {
 		});
 	});
 
-	test('the header of a chat in the chat part does not offer Show Chat Tabs, which governs only the peer chats of a session', async () => {
+	test('the header of a chat in the chat part offers how it shows its chats, Multiple or Single, only with AI features enabled', async () => {
 		store.add(registerAgentsChatPartActions());
+		const submenuWhen = MenuRegistry.getMenuItems(Menus.SessionBarToolbar).find(item => !isIMenuItem(item) && item.submenu === AgentsChatPartChatTabsMenu)?.when?.serialize();
 
-		assert.deepStrictEqual(
-			SessionHeaderMenus.flatMap(menu => MenuRegistry.getMenuItems(menu)).filter(item => !isIMenuItem(item) && item.submenu.id === 'AgentsChatPartChatTabs').length,
-			0);
+		assert.deepStrictEqual({
+			submenuWhen,
+			choices: MenuRegistry.getMenuItems(AgentsChatPartChatTabsMenu).filter(isIMenuItem).map(item => [item.command.id, item.command.precondition?.serialize()]),
+		}, {
+			submenuWhen: 'chatIsEnabled && inAgentsChatPart',
+			choices: [['workbench.action.agentsView.showMultipleChatTabs', 'chatIsEnabled'], ['workbench.action.agentsView.showSingleChat', 'chatIsEnabled']],
+		});
 	});
 
 	test('the context menu of a session offers its customizations, with AI features enabled, for a single session, which it names', async () => {
