@@ -28,7 +28,7 @@ suite('AgentHostWorktreeLocations', () => {
 	 * A provider over git entries: `true` is a `.git` directory, and a string the content of a file, such as a worktree's
 	 * `.git` file or its entry's `gitdir` file in the repository.
 	 */
-	function createProvider(entries: Record<string, string | boolean>, sessions: readonly IAgentSession[]) {
+	function createProvider(entries: Record<string, string | boolean>, sessions: readonly IAgentSession[], uncached: readonly IAgentSession[] = [], links: Record<string, string> = {}) {
 		const fileService = upcastPartial<IFileService>({
 			stat: async (resource: URI) => {
 				const entry = entries[resource.path];
@@ -36,6 +36,11 @@ suite('AgentHostWorktreeLocations', () => {
 					throw new FileOperationError('not found', FileOperationResult.FILE_NOT_FOUND);
 				}
 				return upcastPartial<IFileStatWithMetadata>({ isDirectory: entry === true });
+			},
+			// A path through a symbolic link, such as `links['/link/vscode'] = '/work/vscode'`, is the path it links to
+			realpath: async (resource: URI) => {
+				const link = Object.keys(links).find(path => resource.path === path || resource.path.startsWith(`${path}/`));
+				return link ? URI.file(links[link] + resource.path.slice(link.length)) : resource;
 			},
 			readFile: async (resource: URI) => {
 				const entry = entries[resource.path];
@@ -48,7 +53,9 @@ suite('AgentHostWorktreeLocations', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>({ sessions: [...sessions] }) }));
+		// The sessions it cached, and those the list has only once it resolved
+		const model = { sessions: [...sessions], resolved: !uncached.length, resolve: async () => { model.sessions.push(...uncached); model.resolved = true; } };
+		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>(model) }));
 		return instantiationService.createInstance(AgentHostWorktreeLocationProvider);
 	}
 
@@ -57,6 +64,11 @@ suite('AgentHostWorktreeLocations', () => {
 		// A worktree whose repository entry names it back
 		'/work/vscode.worktrees/feature/.git': 'gitdir: /work/vscode/.git/worktrees/feature\n',
 		'/work/vscode/.git/worktrees/feature/gitdir': '/work/vscode.worktrees/feature/.git\n',
+		'/work/vscode/.git/worktrees/feature/HEAD': 'ref: refs/heads/agents/feature\n',
+		// A worktree at a detached commit
+		'/work/vscode.worktrees/detached/.git': 'gitdir: /work/vscode/.git/worktrees/detached\n',
+		'/work/vscode/.git/worktrees/detached/gitdir': '/work/vscode.worktrees/detached/.git\n',
+		'/work/vscode/.git/worktrees/detached/HEAD': '0123456789abcdef0123456789abcdef01234567\n',
 		// One with a relative link back
 		'/work/vscode.worktrees/relative/.git': 'gitdir: /work/vscode/.git/worktrees/relative',
 		'/work/vscode/.git/worktrees/relative/gitdir': '../../../../vscode.worktrees/relative/.git',
@@ -109,5 +121,28 @@ suite('AgentHostWorktreeLocations', () => {
 			otherRepository: undefined,
 			primary: undefined,
 		});
+	});
+
+	test('waits for the sessions list to resolve before reading the working directories of sessions it did not cache', async () => {
+		const provider = createProvider(repository, [session(SessionType.AgentHostCopilot, '/work/vscode.worktrees/feature')], [session(SessionType.AgentHostCopilot, '/work/vscode.worktrees/relative')]);
+		const locations = await provider.provideLocations(URI.file('/work/vscode'), CancellationToken.None);
+		assert.deepStrictEqual(locations.map(location => location.label), ['feature', 'relative']);
+	});
+
+	test('a worktree is described by its branch, the short commit of a detached HEAD, or nothing without HEAD', async () => {
+		const provider = createProvider(repository, []);
+		const describe = async (path: string) => (await provider.resolveLocation(URI.file('/work/vscode'), URI.file(path), CancellationToken.None))?.description;
+		assert.deepStrictEqual({ branch: await describe('/work/vscode.worktrees/feature'), detached: await describe('/work/vscode.worktrees/detached'), withoutHead: await describe('/work/vscode.worktrees/relative') }, { branch: 'agents/feature', detached: '0123456', withoutHead: undefined });
+	});
+
+	test('compares the folder and its worktrees by their real paths, such as through a symbolic link', async () => {
+		const provider = createProvider(repository, [session(SessionType.AgentHostCopilot, '/alias/feature')], [], { '/link/vscode': '/work/vscode', '/alias/feature': '/work/vscode.worktrees/feature' });
+		const resolve = async (primary: string, location: string) => (await provider.resolveLocation(URI.file(primary), URI.file(location), CancellationToken.None))?.label ?? 'none';
+		assert.deepStrictEqual({
+			throughLinkedPrimary: await resolve('/link/vscode', '/work/vscode.worktrees/feature'),
+			linkedWorktree: await resolve('/work/vscode', '/alias/feature'),
+			primaryItself: await resolve('/link/vscode', '/work/vscode'),
+			offered: (await provider.provideLocations(URI.file('/link/vscode'), CancellationToken.None)).map(location => location.uri.path),
+		}, { throughLinkedPrimary: 'feature', linkedWorktree: 'feature', primaryItself: 'none', offered: ['/alias/feature'] });
 	});
 });

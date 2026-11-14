@@ -13,7 +13,8 @@ import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { requestSessionWorkspaceTrust } from '../../../../services/sessions/browser/worktreeTrust.js';
 import { ISessionGridPane } from '../../../../services/sessions/browser/sessionGridPane.js';
 import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
@@ -48,6 +49,7 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly _logService: ILogService,
 		@ISessionOpenTelemetryService private readonly _sessionOpenTelemetryService: ISessionOpenTelemetryService,
@@ -127,7 +129,9 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 		// Its session is known only while the providers are held: until it shows, such as in the chat part, which holds them then
 		const hold = this._providers.acquire();
 		try {
-			const session = await waitForAgentsViewSession(this._sessionsManagementService, sessionResource, () => this._sessionsManagementService.getSession(sessionResource));
+			// Providers redirect superseded resources, such as of a session they adopted, and leave unfamiliar ones unchanged
+			const resolved = await this._sessionsManagementService.resolveSessionResource(sessionResource, 'open');
+			const session = await waitForAgentsViewSession(this._sessionsManagementService, resolved, () => this._sessionsManagementService.getSession(resolved));
 			if (session) {
 				await this._openSession(session, options);
 			}
@@ -168,8 +172,10 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 		await this._presenter.openChat(session, chatResource, { preserveFocus: options?.preserveFocus, sideBySide: true });
 	}
 
-	async canOpenSession(): Promise<boolean> {
-		return true;
+	/** Whether the user trusts every folder the session works in, as the Agents window asks before it opens a session. */
+	async canOpenSession(session: ISession): Promise<boolean> {
+		const workspace = session.workspace.get();
+		return requestSessionWorkspaceTrust(workspace, () => workspace && this._sessionsManagementService.getRemoteHostLabel(workspace, session.providerId), this._workspaceTrustManagementService, this._workspaceTrustRequestService);
 	}
 
 	async openChat(session: ISession, chatUri: URI, options?: IOpenChatOptions): Promise<void> {
@@ -233,7 +239,7 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 		const draftSlot = options?.draftSlot && options.draftSlot !== this._sessionsManagementService.defaultNewSessionSlot ? options.draftSlot : undefined;
 		if (!draftSlot) {
 			const target = options?.folderUri
-				? { folderUri: options.folderUri, providerId: options.providerId, sessionTypeId: options.sessionTypeId }
+				? { folderUri: options.folderUri, providerId: options.providerId, sessionTypeId: options.sessionTypeId, modelId: options.modelId, modeId: options.modeId, requireDevContainer: options.requireDevContainer }
 				: getEditorWindowComposerTarget(this._workspaceContextService, this._editorService);
 			await this._presenter.openComposer(target, { sideBySide: options?.toSide });
 			return { session: undefined, trustDeclined: false };
