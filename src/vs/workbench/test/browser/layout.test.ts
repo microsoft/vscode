@@ -15,7 +15,9 @@ import { Layout } from '../../browser/layout.js';
 import { Part, updateSashEndpoints } from '../../browser/part.js';
 import { PanelAlignment, Parts, Position } from '../../services/layout/browser/layoutService.js';
 import { NullTelemetryService } from '../../../platform/telemetry/common/telemetryUtils.js';
-import { ViewContainerLocation } from '../../common/views.js';
+import { Extensions as ViewExtensions, IViewContainersRegistry, IViewsRegistry, ViewContainerLocation } from '../../common/views.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
 
 suite('Workbench layout sash endpoints', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -443,6 +445,25 @@ suite('Workbench layout chat part', () => {
 			bottomPanel: ['auxiliarybar', [['editor', 'chat'], 'panel'], 'sidebar', 'activitybar'],
 			unknownView: ['activitybar', 'sidebar', [['chat', 'editor'], 'panel'], 'auxiliarybar'],
 		});
+	});
+
+	test('the chat part goes back to the primary side bar\'s side as its anchor view is deregistered', () => {
+		const { layout, anchor } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor: ViewContainerLocation.AuxiliaryBar });
+		Object.assign(layout, { viewDescriptorService: { ...Reflect.get(layout, 'viewDescriptorService'), onDidChangeContainerLocation: Event.None, onDidChangeContainer: Event.None, onDidChangeLocation: Event.None, onDidChangeViewContainers: Event.None } });
+		const listener = (Reflect.get(layout, 'onDidChangeChatPartAnchorLocation') as () => Event<unknown>).call(layout)(() => (Reflect.get(layout, 'updateChatPartPosition') as () => void).call(layout));
+		const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({ id: 'layoutTest.anchorContainer', title: { value: 'Anchor', original: 'Anchor' }, ctorDescriptor: new SyncDescriptor(class { }) }, ViewContainerLocation.AuxiliaryBar);
+		const views = [{ id: 'sessions', name: { value: 'Sessions', original: 'Sessions' }, ctorDescriptor: new SyncDescriptor(class { }) }];
+		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+		viewsRegistry.registerViews(views, viewContainer);
+		const registered = layout.getChatPartPosition();
+		// Gone, the view has no location
+		anchor.location = null;
+		viewsRegistry.deregisterViews(views, viewContainer);
+		const deregistered = layout.getChatPartPosition();
+		listener.dispose();
+		Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).deregisterViewContainer(viewContainer);
+
+		assert.deepStrictEqual({ registered, deregistered }, { registered: Position.RIGHT, deregistered: Position.LEFT });
 	});
 
 	test('the chat part follows its anchor view as the view moves, the side bar flips and the panel moves', () => {

@@ -43,6 +43,7 @@ suite('AgentSessionSettingsFileSystemProvider', () => {
 		readonly session: ISession;
 		readonly uri: URI;
 		readonly sessionProvider: IMockAgentHostSessionsProvider;
+		readonly removeProvider: () => void;
 	}
 
 	interface IMockAgentHostSessionsProvider extends IAgentHostSessionsProvider {
@@ -56,6 +57,7 @@ suite('AgentSessionSettingsFileSystemProvider', () => {
 		initialConfig: ResolveSessionConfigResult | undefined,
 		registerProvider = true,
 		sessionScoped = false,
+		outOfScope = false,
 	): ITestHarness {
 		const session = createSession();
 
@@ -71,7 +73,9 @@ suite('AgentSessionSettingsFileSystemProvider', () => {
 			replaceCalls,
 			onDidChangeSessionConfig: onDidChangeSessionConfigEmitter.event,
 			onDidChangeSessions: onDidChangeSessionsEmitter.event,
-			getSessions: () => [session],
+			// A session outside the provider's listing scope, such as of another folder, is not among its listed sessions
+			getSessions: () => outOfScope ? [] : [session],
+			getAllSessions: () => [session],
 			getSessionOwnConfig: (_sessionId: string) => sessionProvider.config,
 			replaceSessionConfig: async (sessionId: string, values: Record<string, unknown>) => {
 				replaceCalls.push({ sessionId, values });
@@ -105,7 +109,11 @@ suite('AgentSessionSettingsFileSystemProvider', () => {
 		const schemaRegistrar = store.add(instantiationService.createInstance(AgentSessionSettingsSchemaRegistrar));
 		const fs = store.add(instantiationService.createInstance(AgentSessionSettingsFileSystemProvider, schemaRegistrar));
 
-		return { fs, session, uri: agentSessionSettingsUri(session), sessionProvider };
+		const removeProvider = () => {
+			registerProvider = false;
+			onDidChangeProvidersEmitter.fire({ added: [], removed: [sessionProvider as unknown as ISessionsProvider] });
+		};
+		return { fs, session, uri: agentSessionSettingsUri(session), sessionProvider, removeProvider };
 	}
 
 	test('reads, watches and writes through the session-scoped runtime rather than the catalog', async () => {
@@ -330,6 +338,25 @@ suite('AgentSessionSettingsFileSystemProvider', () => {
 
 			assert.strictEqual(schemaRegistry.hasSchemaContent(schemaId), false);
 			assert.strictEqual(schemaRegistry.getSchemaAssociations()[schemaId], undefined);
+		});
+
+		test('the schema of a session outside its provider\'s listing scope is disposed as the provider goes', async () => {
+			const { fs, uri, session, removeProvider } = createHarness({
+				schema: {
+					type: 'object',
+					properties: {
+						autoApprove: { type: 'string', title: 'Auto Approve', sessionMutable: true, enum: ['default'] },
+					},
+				},
+				values: { autoApprove: 'default' },
+			}, true, false, true);
+			const schemaId = expectedSchemaId(session);
+
+			await fs.readFile(uri);
+			const registered = schemaRegistry.hasSchemaContent(schemaId);
+			removeProvider();
+
+			assert.deepStrictEqual({ registered, afterProviderGone: schemaRegistry.hasSchemaContent(schemaId), association: schemaRegistry.getSchemaAssociations()[schemaId] }, { registered: true, afterProviderGone: false, association: undefined });
 		});
 	});
 });

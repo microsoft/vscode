@@ -6,7 +6,7 @@
 import { getWindow } from '../../../../../../base/browser/dom.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { isAuxiliaryWindow } from '../../../../../../base/browser/window.js';
-import { toAction } from '../../../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../../../base/common/actions.js';
 import { distinct } from '../../../../../../base/common/arrays.js';
 import { disposableTimeout, raceTimeout, SequencerByKey } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -575,6 +575,8 @@ export class AgentHostSessionInputPills extends Disposable {
 
 	/** Whether the session's changes show as the input's working set, or will once its host advertises them, in place of the Changes pill. */
 	readonly changesPillHidden: IObservable<boolean>;
+	/** The actions of the context menu of the Changes pill, such as to show the session's changes as the working set again. */
+	readonly getChangesPillContextMenuActions: () => IAction[];
 
 	constructor(
 		private readonly _widget: ChatWidget,
@@ -717,7 +719,6 @@ export class AgentHostSessionInputPills extends Disposable {
 			const catalogue = creationCatalogue.read(reader);
 			return !!catalogue && expiredCreationCatalogue.read(reader) !== catalogue && !workingSetEnabled.read(reader);
 		});
-		const changesPillHidden = this.changesPillHidden = derived(this, reader => workingSetEnabled.read(reader) || workingSetPending.read(reader));
 		const changesetTarget = derivedOpts({ owner: this, equalsFn: changesetTargetEquals }, reader => {
 			const currentResolution = resolution.read(reader);
 			const chat = chatResource.read(reader);
@@ -824,6 +825,11 @@ export class AgentHostSessionInputPills extends Disposable {
 			const diffs = changes.read(reader);
 			return channel && review ? review.project(channel, diffs.map(diff => ({ diff, nonce: this._fileChangeNonces.get(diff) })), reader).map(file => file.diff) : diffs;
 		});
+		// The Changes pill hides while the working set shows the changes, and while a new session's catalogue is pending. An
+		// input that shows only the working set, whose Changes pill is the session's, shows the pill again once the working set
+		// shows no files, such as after Keep, so the session's other changes stay reachable.
+		const changesPillHidden = this.changesPillHidden = derived(this, reader => workingSetPending.read(reader)
+			|| (workingSetEnabled.read(reader) && (!this.workingSetOnly || (workingSetChanges.read(reader)?.length ?? 0) > 0)));
 		// Undo reverts a file's changes with the host's file-level Discard Changes operation, when the host offers it.
 		const workingSetDiscard = derived<ChangesetOperation | undefined>(this, reader => {
 			const kind = changesetTarget.read(reader)?.changeset.changeKind;
@@ -878,6 +884,12 @@ export class AgentHostSessionInputPills extends Disposable {
 				reader.store.add(this._widget.inputPart.registerSessionFileChanges(workingSetChanges, undo, workingSetKeep));
 			}
 		}));
+		// The Changes pill, also the one an input that shows only the working set shows, offers to show the working set again
+		this.getChangesPillContextMenuActions = () => workingSetAvailable.get() && !workingSetConfigured.get() ? [toAction({
+			id: 'chat.sessionWorkingSet.showWorkingSet',
+			label: localize('agentHostSessionPills.showWorkingSet', "Show Working Set"),
+			run: () => this._configurationService.updateValue(ChatConfiguration.EditorWorkingSetEnabled, true),
+		})] : [];
 		if (this.workingSetOnly) {
 			return;
 		}
@@ -1112,11 +1124,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				stats: changeStats,
 				label: derived(this, reader => changesetTarget.read(reader)?.changeset.label ?? localize('agentHostSessionPills.changes', "Changes")),
 				open: () => this._openChanges(changesetTarget.get()?.changeset, changes.get()),
-				getContextMenuPrimaryActions: () => workingSetAvailable.get() ? [toAction({
-					id: 'chat.sessionWorkingSet.showWorkingSet',
-					label: localize('agentHostSessionPills.showWorkingSet', "Show Working Set"),
-					run: () => this._configurationService.updateValue(ChatConfiguration.EditorWorkingSetEnabled, true),
-				})] : [],
+				getContextMenuPrimaryActions: () => this.getChangesPillContextMenuActions(),
 			},
 			pullRequests: createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestIcon),
 			issues: { sections: issueSections, icon: issueIcon },

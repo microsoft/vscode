@@ -36,7 +36,7 @@ import { ChatWindowLayoutMode } from '../../../chatWindow/common/chatWindowLayou
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { IChatEditorWindow, registerSessionChatViewEditor, SESSION_CHAT_VIEW_WORKING_SET_HOST_OPTIONS } from '../chatEditor/chatEditor.js';
 import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerResource, isChatWindowComposerResource } from '../chatEditor/chatWindowComposer.js';
-import { IChatViewHostShownSession } from '../../../chat/browser/chatViewHost.js';
+import { getChatViewHostOpenReason, IChatViewHostShownSession } from '../../../chat/browser/chatViewHost.js';
 import { IEditorWindowComposerFolderOptions, IEditorWindowComposerFoldersService } from '../editorWindow/editorWindowComposerFolders.js';
 import { SessionChatEditorEntry, waitForSessionChat } from '../chatEditor/sessionChatEditorHost.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
@@ -71,6 +71,8 @@ export interface IAgentsChatPartOpenOptions {
 	readonly newComposer?: boolean;
 	/** Shows the chat as one the chat part restores, not one the user opens (see `IChatViewHostOpenOptions.restore`). */
 	readonly restore?: boolean;
+	/** Shows the chat as the session that its first send created, not one the user opens (see `IChatViewHostOpenOptions.commit`). */
+	readonly commit?: boolean;
 }
 
 export const IAgentsChatPartService = createDecorator<IAgentsChatPartService>('agentsChatPartService');
@@ -210,6 +212,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	private readonly _explicitOpens = observableValue(this, 0);
 	/** The tabs that {@link restore} shows, while it does: a chat the user opens meanwhile is opened, not restored. */
 	private readonly _restoringTabs = new Set<EditorInput>();
+	/** Why each tab that an open shows is to show, until it activates as it opens: the latest open of a tab supersedes earlier ones. */
+	private readonly _pendingOpens = new Map<EditorInput, { readonly reason: IChatViewHostShownSession['reason'] }>();
 	/**
 	 * The tabs of new-session composers, until the user opens or picks one once it shows the session its first send created:
 	 * that session shows as committed, not opened.
@@ -490,12 +494,24 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			?? (options?.sideBySide && !part.activeGroup.isEmpty ? part.addGroup(part.activeGroup, GroupDirection.RIGHT) : part.activeGroup);
 		// An explicit open of a tab that the chat part still restores is the user's: it is opened, not restored
 		this._restoringTabs.delete(chat.input);
-		await this._editorService.openEditor(chat.input, { pinned: true, preserveFocus: options?.preserveFocus }, group);
+		// Why it shows, from before the tab can activate as it opens, which reports it as it does
+		const request = { reason: getChatViewHostOpenReason(options) };
+		this._pendingOpens.set(chat.input, request);
+		let unconsumed = false;
+		try {
+			await this._editorService.openEditor(chat.input, { pinned: true, preserveFocus: options?.preserveFocus }, group);
+		} finally {
+			// Not taken as the tab activated: it was the active tab already, unless a later open of it supersedes this one
+			unconsumed = this._pendingOpens.get(chat.input) === request;
+			if (unconsumed) {
+				this._pendingOpens.delete(chat.input);
+			}
+		}
 		this.composers.didOpen([chat.chat.get()]);
-		// Opened, also a tab it restored and shows already, such as one the user picks in a sessions list, unless shown as restored
-		if (this._activeInput.get() === chat.input) {
+		// Opened again while it is the active tab, such as a tab the user picks in a sessions list: reported again
+		if (unconsumed && this._activeInput.get() === chat.input) {
 			transaction(tx => {
-				this._activeReason.set(options?.restore ? 'restore' : 'open', tx);
+				this._activeReason.set(request.reason, tx);
 				this._settleComposerTab(chat.input, tx);
 				this._explicitOpens.set(this._explicitOpens.get() + 1, tx);
 			});
@@ -598,8 +614,13 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		const updateActive = () => {
 			const active = part.activeGroup.activeEditor ?? undefined;
 			if (active !== this._activeInput.get()) {
+				// As an open asks it to show, or else restored while the chat part restores it, and opened otherwise
+				const pending = active && this._pendingOpens.get(active);
+				if (active && pending) {
+					this._pendingOpens.delete(active);
+				}
 				transaction(tx => {
-					this._activeReason.set(active && this._restoringTabs.has(active) ? 'restore' : 'open', tx);
+					this._activeReason.set(pending ? pending.reason : active && this._restoringTabs.has(active) ? 'restore' : 'open', tx);
 					this._activeInput.set(active, tx);
 					if (active) {
 						this._settleComposerTab(active, tx);
