@@ -29,6 +29,8 @@ import { RemoteRecommendations } from './remoteRecommendations.js';
 import { IRemoteExtensionsScannerService } from '../../../../platform/remote/common/remoteExtensionsScanner.js';
 import { IUserDataInitializationService } from '../../../services/userData/browser/userDataInit.js';
 import { isString } from '../../../../base/common/types.js';
+import { EnablementState } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 
 export class ExtensionRecommendationsService extends Disposable implements IExtensionRecommendationsService {
 
@@ -47,6 +49,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 	public readonly activationPromise: Promise<void>;
 	private sessionSeed: number;
 	private hasRequestedWorkspaceRecommendations = false;
+	private isPromptingWorkspaceRecommendations = false;
 
 	private _onDidChangeRecommendations = this._register(new Emitter<void>());
 	readonly onDidChangeRecommendations = this._onDidChangeRecommendations.event;
@@ -63,6 +66,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IRemoteExtensionsScannerService private readonly remoteExtensionsScannerService: IRemoteExtensionsScannerService,
 		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -261,22 +265,29 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 	}
 
 	private async promptWorkspaceRecommendations(): Promise<void> {
-		if (this.hasRequestedWorkspaceRecommendations) {
+		if (this.hasRequestedWorkspaceRecommendations || this.isPromptingWorkspaceRecommendations) {
 			return;
 		}
-		const installed = await this.extensionsWorkbenchService.queryLocal();
-		const allowedRecommendations = [
-			...this.workspaceRecommendations.recommendations,
-			...this.configBasedRecommendations.importantRecommendations.filter(
-				recommendation => !recommendation.whenNotInstalled || recommendation.whenNotInstalled.every(id => installed.every(local => !areSameExtensions(local.identifier, { id }))))
-		]
-			.map(({ extension }) => extension)
-			.filter(extension => !isString(extension) || this.isExtensionAllowedToBeRecommended(extension));
-
-		if (allowedRecommendations.length && !this.hasRequestedWorkspaceRecommendations) {
-			this.hasRequestedWorkspaceRecommendations = true;
+		this.isPromptingWorkspaceRecommendations = true;
+		try {
 			await this._registerP(timeout(5000));
-			await this.extensionRecommendationNotificationService.promptWorkspaceRecommendations(allowedRecommendations);
+			const installed = await this.extensionsWorkbenchService.queryLocal();
+			const allowedRecommendations = [
+				...this.workspaceRecommendations.recommendations,
+				...this.configBasedRecommendations.importantRecommendations.filter(
+					recommendation => !recommendation.whenNotInstalled || recommendation.whenNotInstalled.every(id => installed.every(local => !areSameExtensions(local.identifier, { id }))))
+			]
+				.map(({ extension }) => extension)
+				.filter(extension => !isString(extension) || this.isExtensionAllowedToBeRecommended(extension))
+				.filter(extension => installed.every(local => local.enablementState === EnablementState.DisabledByExtensionKind ||
+					(isString(extension) ? !areSameExtensions(local.identifier, { id: extension }) : !local.local || !this.uriIdentityService.extUri.isEqual(extension, local.local.location))));
+
+			if (allowedRecommendations.length) {
+				this.hasRequestedWorkspaceRecommendations = true;
+				await this.extensionRecommendationNotificationService.promptWorkspaceRecommendations(allowedRecommendations);
+			}
+		} finally {
+			this.isPromptingWorkspaceRecommendations = false;
 		}
 	}
 

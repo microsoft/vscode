@@ -9,7 +9,7 @@ import * as uuid from '../../../../../base/common/uuid.js';
 import {
 	IExtensionGalleryService, IGalleryExtensionAssets, IGalleryExtension, IExtensionManagementService, IExtensionTipsService, getTargetPlatform,
 } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
-import { IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
+import { EnablementState, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { ExtensionGalleryService } from '../../../../../platform/extensionManagement/common/extensionGalleryService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -199,6 +199,7 @@ suite('ExtensionRecommendationsService Test', () => {
 	let onModelAddedEvent: Emitter<ITextModel>;
 
 	teardown(async () => {
+		sinon.restore();
 		disposableStore.dispose();
 		await timeout(0); // allow for async disposables to complete
 	});
@@ -425,6 +426,47 @@ suite('ExtensionRecommendationsService Test', () => {
 			assert.strictEqual(prompted, true);
 		}));
 	}
+
+	for (const changeDuringDelay of [false, true]) {
+		test(`ExtensionRecommendationsService: Prompt after installed recommendations ${changeDuringDelay ? 'during the delay' : 'after the delay'}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			instantiationService.stubPromise(IExtensionsWorkbenchService, instantiationService.get(IExtensionsWorkbenchService), 'queryLocal', [{ identifier: mockExtensionLocal[0].identifier, enablementState: EnablementState.EnabledGlobally, local: mockExtensionLocal[0] }]);
+			instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [mockExtensionLocal[0]]);
+			await setUpFolderWorkspace('myFolder', [mockTestData.validRecommendedExtensions[0]]);
+			testObject = disposableStore.add(instantiationService.createInstance(ExtensionRecommendationsService));
+			await testObject.activationPromise;
+			await timeout(changeDuringDelay ? 1000 : 10000);
+			await instantiationService.get(IFileService).writeFile(joinPath(ROOT, 'myFolder', '.vscode', 'extensions.json'), VSBuffer.fromString(JSON.stringify({ recommendations: mockTestData.validRecommendedExtensions })));
+			await timeout(10000);
+			assert.strictEqual(prompted, true);
+		}));
+	}
+
+	test('ExtensionRecommendationsService: Prompt with latest recommendations after the delay', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await setUpFolderWorkspace('myFolder', [mockTestData.validRecommendedExtensions[0]]);
+		const prompt = sinon.stub(instantiationService.get(IExtensionRecommendationNotificationService), 'promptWorkspaceRecommendations').resolves();
+		testObject = disposableStore.add(instantiationService.createInstance(ExtensionRecommendationsService));
+		await testObject.activationPromise;
+		await timeout(1000);
+		await instantiationService.get(IFileService).writeFile(joinPath(ROOT, 'myFolder', '.vscode', 'extensions.json'), VSBuffer.fromString(JSON.stringify({ recommendations: [mockTestData.validRecommendedExtensions[1]] })));
+		await timeout(10000);
+		assert.deepStrictEqual(prompt.args, [[[mockTestData.validRecommendedExtensions[1].toLowerCase()]]]);
+	}));
+
+	test('ExtensionRecommendationsService: Removed recommendations do not consume the prompt', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions);
+		const prompt = sinon.stub(instantiationService.get(IExtensionRecommendationNotificationService), 'promptWorkspaceRecommendations').resolves();
+		const fileService = instantiationService.get(IFileService);
+		const configPath = joinPath(ROOT, 'myFolder', '.vscode', 'extensions.json');
+		testObject = disposableStore.add(instantiationService.createInstance(ExtensionRecommendationsService));
+		await testObject.activationPromise;
+		await timeout(1000);
+		await fileService.writeFile(configPath, VSBuffer.fromString(JSON.stringify({ recommendations: [] })));
+		await timeout(10000);
+		assert.strictEqual(prompt.callCount, 0);
+		await fileService.writeFile(configPath, VSBuffer.fromString(JSON.stringify({ recommendations: mockTestData.validRecommendedExtensions })));
+		await timeout(10000);
+		assert.deepStrictEqual(prompt.args, [[mockTestData.validRecommendedExtensions.map(id => id.toLowerCase())]]);
+	}));
 
 	test('ExtensionRecommendationsService: Saving recommendations again does not repeat the workspace prompt', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await setUpFolderWorkspace('myFolder', []);
