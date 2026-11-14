@@ -3,17 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AgentsViewLocationSessions } from './agentsViewLocationSessions.js';
-import { IAgentsViewFolderLocationService } from './agentsViewFolderLocation.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { localize } from '../../../../../nls.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
-import { AgentsChatPartChangesEditorHeader } from './agentsChatPartChangesEditorHeader.js';
 import { ChangesMultiDiffSourceResolver } from '../../../sessionChanges/browser/changesMultiDiffSourceResolver.js';
 import { SessionChangesEditor } from '../../../sessionChanges/browser/sessionChangesEditor.js';
 import { SessionChangesEditorInput, SessionChangesEditorSerializer } from '../../../sessionChanges/browser/sessionChangesEditorInput.js';
@@ -40,19 +38,33 @@ export class AgentsChatPartContribution extends Disposable {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IChatViewHostService chatViewHostService: IChatViewHostService,
-		@IAgentsViewFolderLocationService folderLocationService: IAgentsViewFolderLocationService,
 	) {
 		super();
 
-		// It replaces the Chat view: what would show the Chat view shows the chat part instead. The host, with the chat part
-		// and the sessions it shows, is created as the first request comes, not as the window starts
+		// It replaces the Chat view while the Sessions view does (`ChatContextKeys.agentsViewActive`): what would show the Chat
+		// view shows the chat part instead. The host, with the chat part and the sessions it shows, is created as the first
+		// request comes, not as the window starts
 		const host = new Lazy(() => instantiationService.createInstance(AgentsChatViewHost));
-		this._register(chatViewHostService.registerHost({
-			reveal: preserveFocus => host.value.reveal(preserveFocus),
-			revealIfShowing: (sessionResource, options) => host.value.revealIfShowing(sessionResource, options),
-			openSession: (sessionResource, options) => host.value.openSession(sessionResource, options),
-			toggle: () => host.value.toggle(),
-			startSession: (sessionResource, options) => host.value.startSession(sessionResource, options),
+		const hostRegistration = this._register(new MutableDisposable());
+		const updateHostRegistration = () => {
+			if (!contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.agentsViewActive.key)) {
+				hostRegistration.clear();
+			} else if (!hostRegistration.value) {
+				hostRegistration.value = chatViewHostService.registerHost({
+					reveal: preserveFocus => host.value.reveal(preserveFocus),
+					revealIfShowing: (sessionResource, options) => host.value.revealIfShowing(sessionResource, options),
+					openSession: (sessionResource, options) => host.value.openSession(sessionResource, options),
+					toggle: () => host.value.toggle(),
+					startSession: (sessionResource, options) => host.value.startSession(sessionResource, options),
+				});
+			}
+		};
+		updateHostRegistration();
+		const activeKeys = new Set([ChatContextKeys.agentsViewActive.key]);
+		this._register(contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(activeKeys)) {
+				updateHostRegistration();
+			}
 		}));
 
 		// The part, before the workbench creates its grid: reading it creates the delayed frame
@@ -68,8 +80,6 @@ export class AgentsChatPartContribution extends Disposable {
 		this._register(Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(SessionChangesEditorInput.ID, SessionChangesEditorSerializer));
 		// Its diffs, also of a Changes editor that the window restores
 		this._register(instantiationService.createInstance(ChangesMultiDiffSourceResolver));
-		// The picker of its changesets, in the header row it shows itself in an editor window
-		this._register(instantiationService.createInstance(AgentsChatPartChangesEditorHeader));
 
 		const visible = AgentsChatPartVisibleContext.bindTo(contextKeyService);
 		this._register(layoutService.onDidChangePartVisibility(({ partId }) => {
@@ -84,10 +94,6 @@ export class AgentsChatPartContribution extends Disposable {
 			}
 			const restored = restoreAgentsChatPart(layoutService, contextKeyService, () => instantiationService.invokeFunction(accessor => accessor.get(IAgentsChatPartService)));
 			visible.set(layoutService.isVisible(Parts.CHAT_PART));
-			// Its folder location provider, and the return from a session's location as AI features are disabled
-			folderLocationService.start();
-			// The session last picked at a location the user picks shows in the chat part
-			this._register(instantiationService.createInstance(AgentsViewLocationSessions));
 			return restored;
 		}).catch(onUnexpectedError);
 	}

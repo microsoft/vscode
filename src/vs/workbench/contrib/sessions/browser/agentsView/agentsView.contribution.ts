@@ -36,6 +36,7 @@ import { ISessionChangesService, SessionChangesService } from '../../../sessionC
 import { ChangesViewService } from '../../../sessionChanges/browser/changesViewService.js';
 import { IChangesViewService } from '../../common/changesViewService.js';
 import { AgentsViewGate } from './agentsViewGate.js';
+import { ChatViewSessionsGate } from './chatViewSessionsGate.js';
 import { EditorWindowSessionsNavigationHost } from './editorWindowSessionsNavigationHost.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -49,6 +50,20 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 			markdownDescription: localize('chat.sessionsView.enabled', "Controls whether the Sessions view of the Agents window shows in the Primary Side Bar of editor windows. Requires a reload to take effect."),
+		},
+		[ChatConfiguration.ChatViewSessionsListEnabled]: {
+			type: 'boolean',
+			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+			markdownDescription: localize('chat.viewSessions.sessionsList.enabled', "Controls whether the Chat view of editor windows shows the sessions of the Agents window, with their chats, in place of its own chats. Local chats are not available while it is on. Requires a reload to take effect."),
+		},
+		[ChatConfiguration.ChatViewSessionsOpenInChatPart]: {
+			type: 'boolean',
+			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+			markdownDescription: localize('chat.viewSessions.openInChatPart', "Controls whether sessions opened from the Sessions view show in the chat part beside the editor area by default, rather than in the view itself. Show Chat in Chat Part and Show Chat in View change it for a window. Applies when {0} is on.", '`#chat.viewSessions.sessionsList.enabled#`'),
 		},
 	},
 });
@@ -83,3 +98,4 @@ registerSingleton(ISessionChangesService, SessionChangesService, InstantiationTy
 registerSingleton(IChangesViewService, ChangesViewService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(AgentsViewGate.ID, AgentsViewGate, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(ChatViewSessionsGate.ID, ChatViewSessionsGate, WorkbenchPhase.BlockStartup);

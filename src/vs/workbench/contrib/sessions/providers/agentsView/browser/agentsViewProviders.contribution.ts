@@ -13,7 +13,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
-import { ChatConfiguration } from '../../../../chat/common/constants.js';
+import { isEditorWindowSessionsEnabled } from '../../../../chat/common/constants.js';
 import { IDevContainerAgentHostService } from '../../../common/devContainerAgentHostService.js';
 import { SessionsViewId } from '../../../browser/views/sessionsView.js';
 import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
@@ -108,7 +108,7 @@ export class AgentsViewProvidersService extends Disposable implements IAgentsVie
 
 /**
  * Holds the sessions providers of the Sessions view of an editor window while that view or the chat part, which shows
- * sessions too, shows, while {@link ChatConfiguration.SessionsViewEnabled} is on. The setting is read once, as the window
+ * sessions too, shows, while {@link isEditorWindowSessionsEnabled}. The setting is read once, as the window
  * starts: with it off, this does nothing else.
  */
 export class AgentsViewProvidersContribution extends Disposable implements IWorkbenchContribution {
@@ -121,7 +121,7 @@ export class AgentsViewProvidersContribution extends Disposable implements IWork
 	) {
 		super();
 
-		if (configurationService.getValue<boolean>(ChatConfiguration.SessionsViewEnabled) !== true) {
+		if (!isEditorWindowSessionsEnabled(configurationService)) {
 			return;
 		}
 
