@@ -16,7 +16,7 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
-import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionType } from '../../../../../services/sessions/common/session.js';
 import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { IChatModelReference, IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
@@ -54,7 +54,7 @@ suite('AgentsChatViewHost', () => {
 		});
 		const host = new AgentsChatViewHost(
 			chatPart,
-			upcastPartial<ISessionsManagementService>({ getSessionForChatResource: () => undefined, getSession: () => undefined, getSessions: () => [], onDidChangeSession: () => toDisposable(() => { }), ...options.sessionsManagementService }),
+			upcastPartial<ISessionsManagementService>({ getSessionForChatResource: () => undefined, getSession: () => undefined, getAllSessionTypes: () => [], getSessions: () => [], onDidChangeSession: () => toDisposable(() => { }), ...options.sessionsManagementService }),
 			upcastPartial<IChatWidgetService>({ getAllWidgets: () => options.widgets ?? [] }),
 			upcastPartial<IWorkbenchLayoutService>({ isVisible: () => false }),
 			upcastPartial<IWorkspaceContextService>({ getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) }),
@@ -218,16 +218,25 @@ suite('AgentsChatViewHost', () => {
 		assert.deepStrictEqual({ opened: await opening, calls }, { opened: undefined, calls: ['acquire', 'release'] });
 	});
 
-	test('shows the chats of agent host sessions and of the window\'s sessions, and leaves other chats, such as local chat, to the Chat view', () => {
-		const known = URI.parse('copilot-cloud-agent:/known');
-		const { host } = createHost({ sessionsManagementService: { getSessionForChatResource: resource => resource.toString() === known.toString() ? sessionOf(known).owner : undefined } });
+	test('shows the chats of the window\'s sessions and of the types its providers offer, and leaves other chats, such as local chat, to the Chat view', () => {
+		const knownChat = URI.parse('known-chat:/chat-1');
+		const knownSession = URI.parse('known-session:/session-1');
+		const { host } = createHost({
+			sessionsManagementService: {
+				getSessionForChatResource: resource => resource.toString() === knownChat.toString() ? sessionOf(knownChat).owner : undefined,
+				getSession: resource => resource.toString() === knownSession.toString() ? sessionOf(knownSession).owner.session : undefined,
+				getAllSessionTypes: () => [upcastPartial<ISessionType>({ id: 'copilot-cloud', chatSessionType: 'copilot-cloud-agent' }), upcastPartial<ISessionType>({ id: 'local' })],
+			},
+		});
 
 		assert.deepStrictEqual({
 			agentHost: host.canShow(URI.parse('agent-host-copilot:/session-1')),
-			known: host.canShow(known),
+			knownChat: host.canShow(knownChat),
+			knownSession: host.canShow(knownSession),
+			untitledOfOfferedType: host.canShow(URI.parse('copilot-cloud-agent:/untitled-1')),
 			local: host.canShow(LocalChatSessionUri.forSession('local-1')),
 			extension: host.canShow(URI.parse('some-extension-chat:/session-1')),
-		}, { agentHost: true, known: true, local: false, extension: false });
+		}, { agentHost: true, knownChat: true, knownSession: true, untitledOfOfferedType: true, local: false, extension: false });
 	});
 
 	test('New Chat opens a new-session composer in the chat part, unless chat is hidden or disabled', () => {

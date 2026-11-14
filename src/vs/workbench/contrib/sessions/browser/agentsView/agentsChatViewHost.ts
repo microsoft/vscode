@@ -18,9 +18,9 @@ import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/brow
 import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatViewHost, IChatViewHostOpenOptions, IChatViewHostSessionStart, IChatViewHostSessionStartOptions, IChatViewHostShownSession } from '../../../chat/browser/chatViewHost.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
-import { isAgentHostSessionResource } from '../../../chat/common/chatSessionsService.js';
+import { isAgentHostSessionResource, localChatSessionType } from '../../../chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
-import { isUntitledChatSession } from '../../../chat/common/model/chatUri.js';
+import { getChatSessionType, isUntitledChatSession } from '../../../chat/common/model/chatUri.js';
 import { INewSessionTarget } from '../parts/chatView.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { IAgentsChatPartService } from './agentsChatPart.js';
@@ -71,9 +71,19 @@ export class AgentsChatViewHost implements IChatViewHost {
 		this._generation++;
 	}
 
-	/** The chats of sessions of the agent host, and those of the window's sessions; not local chat, nor chats of other kinds. */
+	/**
+	 * The chats of the window's sessions: a chat that a sessions provider resolves, or of a type a provider offers, such as an
+	 * untitled new session's, and the chats of the agent host also while its providers are not registered. Not local chat,
+	 * nor chats of other kinds, which the Chat view shows.
+	 */
 	canShow(sessionResource: URI): boolean {
-		return isAgentHostSessionResource(sessionResource) || !!this._sessionsManagementService.getSessionForChatResource(sessionResource);
+		if (isAgentHostSessionResource(sessionResource)
+			|| this._sessionsManagementService.getSessionForChatResource(sessionResource)
+			|| this._sessionsManagementService.getSession(sessionResource)) {
+			return true;
+		}
+		const type = getChatSessionType(sessionResource);
+		return type !== localChatSessionType && this._sessionsManagementService.getAllSessionTypes().some(sessionType => (sessionType.chatSessionType ?? sessionType.id) === type);
 	}
 
 	/** New Chat, such as + in the title of the Chat view, opens a new-session composer in the chat part. */
