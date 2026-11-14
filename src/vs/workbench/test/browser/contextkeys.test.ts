@@ -73,7 +73,7 @@ suite('Workbench Context Keys - Editor Area Hidden For Chat', () => {
 	test('the Customize Layout picker offers the editor area only with the chat part visible, outside the Agents window', () => {
 		const visibilityItems = (context: Record<string, boolean>) => getCustomizeLayoutVisibilityItems({ getValue: <T>(key: string) => context[key] as T | undefined })
 			.filter(item => item.label === 'Editor Area' || item.label === 'Chat');
-		const editorArea = (active: boolean) => ({ id: 'workbench.action.toggleEditorAreaForChat', label: 'Editor Area', active });
+		const editorArea = (active: boolean) => ({ id: 'workbench.action.toggleEditorVisibility', label: 'Editor Area', active });
 		const chat = (active: boolean) => ({ id: 'workbench.action.toggleChatPartVisibility', label: 'Chat', active });
 
 		assert.deepStrictEqual({
@@ -91,22 +91,33 @@ suite('Workbench Context Keys - Editor Area Hidden For Chat', () => {
 		});
 	});
 
-	test('the toggle commands show and hide the chat part, and toggle the editor area', async () => {
+	test('the toggle commands show and hide the chat part, and the editor area toggle follows the layout', async () => {
 		const calls: string[] = [];
-		const state = { chatVisible: false };
+		const state = { chatVisible: false, editorHidden: false };
 		const layoutService = new class extends TestLayoutService {
 			override isVisible(part: Parts): boolean { return part === Parts.CHAT_PART ? state.chatVisible : true; }
 			override async setPartHidden(hidden: boolean, part: Parts): Promise<void> { calls.push(`setPartHidden(${hidden}, ${part})`); state.chatVisible = !hidden; }
-			override isEditorHiddenByChat(): boolean { return true; }
+			override isEditorHiddenByChat(): boolean { return state.editorHidden; }
 			override setEditorHiddenByChat(hidden: boolean): void { calls.push(`setEditorHiddenByChat(${hidden})`); }
+			override toggleMaximizedPanel(): void { calls.push('toggleMaximizedPanel'); }
 		};
 		const accessor = { get: () => layoutService } as unknown as ServicesAccessor;
 		const run = (id: string) => CommandsRegistry.getCommand(id)!.handler(accessor);
 
 		await run('workbench.action.toggleChatPartVisibility');
 		await run('workbench.action.toggleChatPartVisibility');
-		await run('workbench.action.toggleEditorAreaForChat');
+		await run('workbench.action.toggleEditorVisibility');
+		state.chatVisible = true;
+		await run('workbench.action.toggleEditorVisibility');
+		state.editorHidden = true;
+		await run('workbench.action.toggleEditorVisibility');
 
-		assert.deepStrictEqual(calls, [`setPartHidden(false, ${Parts.CHAT_PART})`, `setPartHidden(true, ${Parts.CHAT_PART})`, 'setEditorHiddenByChat(false)']);
+		assert.deepStrictEqual(calls, [
+			`setPartHidden(false, ${Parts.CHAT_PART})`,
+			`setPartHidden(true, ${Parts.CHAT_PART})`,
+			'toggleMaximizedPanel',
+			'setEditorHiddenByChat(true)',
+			'setEditorHiddenByChat(false)',
+		]);
 	});
 });
