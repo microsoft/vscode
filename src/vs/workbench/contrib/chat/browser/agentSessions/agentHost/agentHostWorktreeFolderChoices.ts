@@ -171,10 +171,13 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 	getActions(action: MenuItemAction, selected: URI | undefined, onDidPick: () => void): IActionWidgetDropdownAction[] {
 		const noWorkspaceSelected = this.isNoWorkspaceSelected();
 		const newWorktreeSelected = !noWorkspaceSelected && this.isNewWorktreeSelected();
-		const actions: IActionWidgetDropdownAction[] = [];
+		// The folder, and what has none, first; then the worktrees, a new one first
+		const workspaceGroup = { label: '', order: 0 };
+		const worktreesGroup = { label: localize('agentHost.folderPicker.worktrees', "Worktrees"), order: 1, showHeader: true };
+		let newWorktree: IActionWidgetDropdownAction | undefined;
 		// A new worktree is of the selected folder, which No Workspace does not have
 		if (!noWorkspaceSelected && this._isolation()?.worktree) {
-			actions.push({
+			newWorktree = {
 				...action,
 				id: 'agentHostFolder.newWorktree',
 				label: getNewWorktreeLabel(),
@@ -182,17 +185,18 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 				checked: newWorktreeSelected,
 				icon: WORKTREE_ICON,
 				enabled: true,
-				category: { label: '', order: 0 },
+				category: worktreesGroup,
 				run: async () => {
 					await this._setIsolation(true);
 					onDidPick();
 				},
-			});
+			};
 		}
-		const sections = groupFolderLocations(this._choices().map(choice => ({ item: choice, kind: choice.kind, current: choice.current })));
-		sections.forEach((section, index) => {
+		const folders: IActionWidgetDropdownAction[] = [];
+		const worktrees: IActionWidgetDropdownAction[] = [];
+		for (const section of groupFolderLocations(this._choices().map(choice => ({ item: choice, kind: choice.kind, current: choice.current })))) {
 			for (const choice of section.items) {
-				actions.push({
+				(section.kind === 'worktree' ? worktrees : folders).push({
 					...action,
 					id: `agentHostFolder.${choice.uri.toString()}`,
 					label: choice.label,
@@ -201,7 +205,7 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 					icon: choice.kind === 'worktree' ? WORKTREE_ICON : Codicon.folder,
 					enabled: true,
 					tooltip: choice.uri.fsPath,
-					category: { label: section.title, order: index + 1, showHeader: true },
+					category: section.kind === 'worktree' ? worktreesGroup : workspaceGroup,
 					run: async () => {
 						const sessionResource = this._sessionResource();
 						// Read before the folder changes, which resets the session's configuration
@@ -214,9 +218,10 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 					},
 				});
 			}
-		});
+		}
+		let noWorkspace: IActionWidgetDropdownAction | undefined;
 		if (this.isNoWorkspaceAvailable() || noWorkspaceSelected) {
-			actions.push({
+			noWorkspace = {
 				...action,
 				id: 'agentHostFolder.noWorkspace',
 				label: getNoWorkspaceLabel(),
@@ -224,7 +229,7 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 				checked: noWorkspaceSelected,
 				icon: NO_WORKSPACE_ICON,
 				enabled: true,
-				category: { label: '', order: sections.length + 1 },
+				category: workspaceGroup,
 				run: () => {
 					const sessionResource = this._sessionResource();
 					const provider = sessionResource && getLocalAgentHostSessionProvider(sessionResource);
@@ -241,8 +246,9 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 					}
 					onDidPick();
 				},
-			});
+			};
 		}
+		const actions = [...(noWorkspace ? [noWorkspace] : []), ...folders, ...(newWorktree ? [newWorktree] : []), ...worktrees];
 		return actions;
 	}
 

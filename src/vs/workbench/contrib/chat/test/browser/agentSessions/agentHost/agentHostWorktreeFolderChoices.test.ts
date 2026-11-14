@@ -84,17 +84,17 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		return { choices, actions, items, changes, configDirectories, listed, onDidChangeSessions };
 	}
 
-	test('offers New Worktree first, then the folder and its worktrees, each section with where the folder is now first', async () => {
+	test('offers the folder, then under Worktrees New Worktree first and the worktrees, each with where the folder is now first', async () => {
 		const atWorktree = await createChoices({ enabled: true, at: other });
 		const atFolder = await createChoices({ enabled: true, at: primary });
 		// A worktree that no session lists any more, such as one whose sessions are archived
 		const atUnlisted = await createChoices({ enabled: true, at: other, listed: [feature] });
 
 		assert.deepStrictEqual({ atWorktree: atWorktree.items(other), icons: atWorktree.actions(other).map(action => action.icon?.id), atUnlisted: atUnlisted.items(other), atFolder: atFolder.items(primary) }, {
-			atWorktree: ['New Worktree', '[Folder] vscode', '[Worktrees] other (Current) *', '[Worktrees] feature'],
-			icons: ['worktree', 'folder', 'worktree', 'worktree'],
-			atUnlisted: ['New Worktree', '[Folder] vscode', '[Worktrees] other (Current) *', '[Worktrees] feature'],
-			atFolder: ['New Worktree', '[Folder] vscode (Current) *', '[Worktrees] feature', '[Worktrees] other'],
+			atWorktree: ['vscode', '[Worktrees] New Worktree', '[Worktrees] other (Current) *', '[Worktrees] feature'],
+			icons: ['folder', 'worktree', 'worktree', 'worktree'],
+			atUnlisted: ['vscode', '[Worktrees] New Worktree', '[Worktrees] other (Current) *', '[Worktrees] feature'],
+			atFolder: ['vscode (Current) *', '[Worktrees] New Worktree', '[Worktrees] feature', '[Worktrees] other'],
 		});
 	});
 
@@ -116,7 +116,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		chip(unlisted.primaryAlias);
 		await new Promise<void>(resolve => setTimeout(resolve, 0));
 		assert.deepStrictEqual({ inNewWorktree, changes, folderChip, worktreeChip: chip(feature), beforeRead, unlistedWorktreeChip: chip(unlisted.worktree), elsewhereChip: chip(unlisted.elsewhere), otherRepositoryChip: chip(unlisted.otherRepository), primaryAliasChip: chip(unlisted.primaryAlias) }, {
-			inNewWorktree: { items: ['New Worktree *', '[Folder] vscode (Current)', '[Worktrees] feature', '[Worktrees] other'], chip: { icon: 'worktree', label: 'New Worktree', description: 'New worktree of vscode' } },
+			inNewWorktree: { items: ['vscode (Current)', '[Worktrees] New Worktree *', '[Worktrees] feature', '[Worktrees] other'], chip: { icon: 'worktree', label: 'New Worktree', description: 'New worktree of vscode' } },
 			changes: ['isolation worktree', 'folder /work/vscode.worktrees/feature', 'isolation folder'],
 			folderChip: { icon: 'folder', label: 'vscode', description: 'Folder: vscode' },
 			worktreeChip: { icon: 'worktree', label: 'feature', description: 'Worktree: feature' },
@@ -128,25 +128,26 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		});
 	});
 
-	test('offers No Workspace last while the Chat view lists sessions, which the chip then shows by name, and picking a folder again works in it', async () => {
+	test('offers No Workspace first, before the folder, while the Chat view lists sessions, which the chip then shows by name, and picking a folder again works in it', async () => {
 		const withoutSessionsList = await createChoices({ enabled: true, at: primary });
 		const { choices, actions, items, changes } = await createChoices({ enabled: true, at: primary, sessionsList: true });
 		const chip = () => { const { icon, label, description } = choices.getChip(primary); return { icon: icon.id, label, description }; };
 		await actions(primary).find(action => action.label === 'New Worktree')!.run();
 		await actions(primary).find(action => action.label === 'No Workspace')!.run();
-		const noWorkspace = { items: items(primary), chip: chip(), icon: actions(primary).at(-1)?.icon?.id, separate: actions(primary).at(-1)?.category?.label === '' };
+		const noWorkspace = { items: items(primary), chip: chip(), icon: actions(primary)[0]?.icon?.id, groups: actions(primary).map(action => action.category?.order) };
 		await actions(primary).find(action => action.label === 'vscode')!.run();
 
 		assert.deepStrictEqual({ withoutSessionsList: withoutSessionsList.items(primary), noWorkspace, folderAgain: { items: items(primary), chip: chip() }, changes }, {
-			withoutSessionsList: ['New Worktree', '[Folder] vscode (Current) *', '[Worktrees] feature', '[Worktrees] other'],
+			withoutSessionsList: ['vscode (Current) *', '[Worktrees] New Worktree', '[Worktrees] feature', '[Worktrees] other'],
 			noWorkspace: {
 				// Without a folder, no new worktree of it
-				items: ['[Folder] vscode (Current)', '[Worktrees] feature', '[Worktrees] other', 'No Workspace *'],
+				items: ['No Workspace *', 'vscode (Current)', '[Worktrees] feature', '[Worktrees] other'],
 				chip: { icon: 'comment', label: 'No Workspace', description: 'No workspace: start the session in a temporary directory' },
 				icon: 'comment',
-				separate: true,
+				// No Workspace and the folder, then the worktrees
+				groups: [0, 0, 1, 1],
 			},
-			folderAgain: { items: ['[Folder] vscode (Current) *', '[Worktrees] feature', '[Worktrees] other', 'No Workspace'], chip: { icon: 'folder', label: 'vscode', description: 'Folder: vscode' } },
+			folderAgain: { items: ['No Workspace', 'vscode (Current) *', '[Worktrees] feature', '[Worktrees] other'], chip: { icon: 'folder', label: 'vscode', description: 'Folder: vscode' } },
 			// No longer in a new worktree of the folder it no longer has
 			changes: ['isolation worktree', 'no workspace', 'isolation folder', 'folder /work/vscode'],
 		});
@@ -246,8 +247,8 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		await new Promise<void>(resolve => setTimeout(resolve, 1000));
 
 		assert.deepStrictEqual({ before, after: items(primary) }, {
-			before: ['New Worktree', '[Folder] vscode (Current) *', '[Worktrees] feature'],
-			after: ['New Worktree', '[Folder] vscode (Current) *', '[Worktrees] feature', '[Worktrees] other'],
+			before: ['vscode (Current) *', '[Worktrees] New Worktree', '[Worktrees] feature'],
+			after: ['vscode (Current) *', '[Worktrees] New Worktree', '[Worktrees] feature', '[Worktrees] other'],
 		});
 	}));
 });
