@@ -1448,6 +1448,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	private readonly _timestamp: number;
 	private _completionTimestamp: number | undefined;
 	private _firstTokenTimestamp: number | undefined;
+	/** A restored snapshot already contains generated content, so later live chunks are not the first token. */
+	private _replayedContent = false;
 	private _timeSpentWaitingAccumulator: number;
 	private _elapsedMs: number | undefined;
 	private readonly _timingChanged = observableSignal(this);
@@ -1798,9 +1800,15 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	updateContent(responsePart: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatExternalToolInvocationUpdate, quiet?: boolean, restored?: boolean) {
 		this._response.updateContent(responsePart, quiet, restored);
 		// Measure time to first token on the first visible content of every live
-		// response, whichever provider or session surface delivered it.
-		if (!restored && (responsePart.kind === 'markdownContent' || responsePart.kind === 'thinking')) {
-			this.setFirstTokenTimestamp(Date.now());
+		// response, whichever provider or session surface delivered it. A restored
+		// snapshot already holds generated content, so a later live chunk after a
+		// reconnect would not be the first token.
+		if (responsePart.kind === 'markdownContent' || responsePart.kind === 'thinking') {
+			if (restored) {
+				this._replayedContent = true;
+			} else if (!this._replayedContent) {
+				this.setFirstTokenTimestamp(Date.now());
+			}
 		}
 	}
 
@@ -1990,7 +1998,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			this._timingChanged.trigger(undefined);
 		}
 		this._completionTimestamp = undefined;
-		this._firstTokenTimestamp = undefined;
+		// A reopened response keeps its original first-token timing: it is the
+		// same turn resuming, not a new first token.
 		this._elapsedMs = undefined;
 		this._modelState.set({ value: ResponseModelState.Pending }, undefined);
 		this._onDidChange.fire(defaultChatResponseModelChangeReason);

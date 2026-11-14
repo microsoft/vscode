@@ -980,6 +980,7 @@ suite('ChatListRenderer', () => {
 				fromLatestCall,
 				fromTurn,
 				measured: getResponseGenerationStats({ kind: 'usage', promptTokens: 10, completionTokens: 2 }, 5_000, 2, true, 750),
+				mixed: getResponseGenerationStats({ kind: 'usage', promptTokens: 100, completionTokens: 50, latestModelCall: {} }, 20_000, 500, true),
 				nothing: getResponseGenerationStats(undefined, undefined, undefined, true),
 			}, {
 				fromLatestCall: {
@@ -1001,6 +1002,12 @@ suite('ChatListRenderer', () => {
 					tokensPerSecond: 0.4,
 					promptTokens: 10,
 					completionTokens: 2,
+				},
+				mixed: {
+					elapsedMs: 20_000,
+					tokensPerSecond: 25,
+					promptTokens: 100,
+					completionTokens: 500,
 				},
 				nothing: undefined,
 			});
@@ -1053,7 +1060,7 @@ suite('ChatListRenderer', () => {
 			}, {
 				withStats: {
 					details: 'GPT-5.5 • 2 credits',
-					detailsTitle: 'GPT-5.5 • 2 credits',
+					detailsTitle: null,
 					stats: `${formatElapsedTime(83_000)} \u2022 9.9 tok/s`,
 					separators: ['true'],
 					aria: `Elapsed time ${formatElapsedTime(83_000)}, GPT-5.5 • 2 credits, Generation speed 9.9 tok/s`,

@@ -441,18 +441,16 @@ export function getVisibleCompletedResponseItemCount(nodes: ReadonlyArray<Node>)
  */
 export function getResponseGenerationStats(usage: IChatUsage | undefined, elapsedMs: number | undefined, completionTokenCount: number | undefined, lastCallCompletionTokensKnown: boolean, measuredTimeToFirstTokenMs?: number): IChatResponseGenerationStats | undefined {
 	const latest = usage?.latestModelCall;
-	const lastCallTokens = lastCallCompletionTokensKnown ? usage?.completionTokens : completionTokenCount;
-	// A restored response can know its whole-turn total without the latest
-	// call's counts, so both the latest call and the turn may supply the tokens.
-	const speedTokens = typeof lastCallTokens === 'number' && lastCallTokens > 0 ? lastCallTokens : completionTokenCount;
+	// Only a known latest-call count pairs with the latest call's duration; when
+	// the count is unknown (legacy restores, cumulative provider snapshots) the
+	// turn's own total must pair with its elapsed time instead.
+	const lastCallTokens = lastCallCompletionTokensKnown ? usage?.completionTokens : undefined;
 	const callDurationMs = latest?.duration;
-	const tokensPerSecond = typeof speedTokens === 'number' && speedTokens > 0
-		? typeof callDurationMs === 'number' && callDurationMs > 0
-			? speedTokens / (callDurationMs / 1000)
-			: typeof elapsedMs === 'number' && elapsedMs > 0
-				? speedTokens / (elapsedMs / 1000)
-				: undefined
-		: undefined;
+	const tokensPerSecond = typeof lastCallTokens === 'number' && lastCallTokens > 0 && typeof callDurationMs === 'number' && callDurationMs > 0
+		? lastCallTokens / (callDurationMs / 1000)
+		: typeof completionTokenCount === 'number' && completionTokenCount > 0 && typeof elapsedMs === 'number' && elapsedMs > 0
+			? completionTokenCount / (elapsedMs / 1000)
+			: undefined;
 	// The provider's own call timing is authoritative; otherwise fall back to the
 	// client-measured arrival of the first streamed content.
 	const timeToFirstTokenMs = typeof latest?.timeToFirstTokenMs === 'number' && Number.isFinite(latest.timeToFirstTokenMs) && latest.timeToFirstTokenMs >= 0
@@ -722,7 +720,7 @@ export function renderChatResponseDetails(container: HTMLElement, details: strin
 		dom.append(container, $('span.chat-response-details-separator', { 'aria-hidden': 'true' }, '\u2022'));
 	}
 	if (details) {
-		dom.append(container, $('span.chat-response-model-details', { title: details }, details));
+		dom.append(container, $('span.chat-response-model-details', undefined, details));
 	}
 	if (details && generationStats) {
 		dom.append(container, $('span.chat-response-details-separator', { 'aria-hidden': 'true' }, '\u2022'));
