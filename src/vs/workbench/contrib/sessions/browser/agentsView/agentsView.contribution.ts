@@ -18,6 +18,8 @@ import { ISessionsListModelService, SessionsListModelService } from '../sessions
 import { ISessionsNavigationService } from '../sessionsNavigationService.js';
 import { ISessionDraftsService, SessionDraftsService } from '../sessionDraftsService.js';
 import { IScheduledChatsService, ScheduledChatsService } from '../scheduledChatsService.js';
+import { IChatWindowService } from '../../../chatWindow/browser/chatWindow.js';
+import { NullChatWindowService } from '../../../chatWindow/browser/nullChatWindowService.js';
 import { AgentsChatPartService, IAgentsChatPartService } from './agentsChatPart.js';
 import { AgentsChatPartFrame, IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 import { EditorWindowSessionsService } from './editorWindowSessionsService.js';
@@ -60,6 +62,8 @@ registerSingleton(ISessionWorktreeCleanupService, SessionWorktreeCleanupService,
 // The drafts and scheduled requests of the composers, which the Sessions view and the chats inject, as in the Agents window
 registerSingleton(ISessionDraftsService, SessionDraftsService, InstantiationType.Delayed);
 registerSingleton(IScheduledChatsService, ScheduledChatsService, InstantiationType.Delayed);
+// Editor windows open no separate chat windows: the chats' input toolbars, which inject it, find none
+registerSingleton(IChatWindowService, NullChatWindowService, InstantiationType.Delayed);
 
 // The chat part, and the chats it shows
 registerSingleton(IAgentsChatPartFrame, AgentsChatPartFrame, InstantiationType.Delayed);

@@ -76,6 +76,24 @@ suite('SettingsChangeRelauncher', () => {
 		assert.strictEqual(restartCount, 1, 'should restart when confirmed');
 	});
 
+	test('prompts to restart when chat.sessionsView.enabled is turned on or off', async () => {
+		confirmResult = true;
+		await changeSetting(
+			'chat.sessionsView.enabled',
+			() => ({ chat: { sessionsView: { enabled: false } } }),
+			c => c.chat.sessionsView.enabled = true);
+		const turnedOn = { confirmCount, restartCount };
+		await changeSetting(
+			'chat.sessionsView.enabled',
+			() => ({ chat: { sessionsView: { enabled: true } } }),
+			c => c.chat.sessionsView.enabled = false);
+
+		assert.deepStrictEqual({ turnedOn, turnedOff: { confirmCount: confirmCount - turnedOn.confirmCount, restartCount: restartCount - turnedOn.restartCount } }, {
+			turnedOn: { confirmCount: 1, restartCount: 1 },
+			turnedOff: { confirmCount: 1, restartCount: 1 },
+		});
+	});
+
 	test('prompts to restart when chat.agentHost.computerUse.enabled changes', async () => {
 		confirmResult = true;
 		await changeSetting(
