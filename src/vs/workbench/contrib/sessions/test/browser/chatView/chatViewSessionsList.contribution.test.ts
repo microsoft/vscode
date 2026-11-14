@@ -37,7 +37,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { EditorWindowMainSessionHost } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
-import { ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, surfacesAllLocalAgentHostAgents } from '../../../../chat/common/constants.js';
+import { ChatConfiguration, observeChatViewSessionsListEnabled, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, surfacesAllLocalAgentHostAgents } from '../../../../chat/common/constants.js';
 import { ChatViewSessionsGate } from '../../../browser/chatView/chatViewSessionsList.contribution.js';
 import { IChatViewSessionsListService } from '../../../../chat/browser/widgetHosts/viewPane/chatViewSessionsList.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
@@ -158,7 +158,7 @@ suite('ChatViewSessionsGate', () => {
 		// Any use of the instantiation service fails: with the setting off, the gate creates and invokes nothing
 		disposables.add(new ChatViewSessionsGate(configurationService, upcastPartial<IInstantiationService>({}), upcastPartial<IWorkbenchEnvironmentService>({})));
 
-		assert.deepStrictEqual({ ...registered(), reads }, { ...before, reads: [ChatConfiguration.ChatViewSessionsListEnabled] });
+		assert.deepStrictEqual({ ...registered(), reads }, { ...before, reads: ['chat.sessionsView.enabled', ChatConfiguration.ChatViewSessionsListEnabled] });
 	});
 
 	test('gives the Chat view its sessions list, without local chats by default, holding the sessions providers, and the actions of the list only once it shows, while the setting is on', () => {
@@ -223,6 +223,26 @@ suite('ChatViewSessionsGate', () => {
 		assert.deepStrictEqual({ whileAgentsView, withoutAgentsView }, {
 			whileAgentsView: [{ providers: 0, runtimeHolds: 0 }, { providers: 0, runtimeHolds: 0 }],
 			withoutAgentsView: [{ providers: 1, runtimeHolds: 1 }, { providers: 1, runtimeHolds: 1 }],
+		});
+	});
+
+	test('the Agents view counts as it was when the window started, also once it changes before the Chat view\'s setting first turns on, and for observers created later', () => {
+		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsListEnabled]: false, 'chat.sessionsView.enabled': false });
+		const environment = { isSessionsWindow: false };
+		// The gate's observer, created and read as the window starts with both off
+		const enabled = observeChatViewSessionsListEnabled(configurationService);
+		const atStartup = enabled.get();
+		// The Agents view turns on, which takes effect on restart: an observer created later still sees it off
+		configurationService.setUserConfiguration('chat.sessionsView.enabled', true);
+		const laterSurfacesAll = surfacesAllLocalAgentHostAgents(environment, configurationService);
+		// Then the Chat view's sessions list turns on, which takes effect live
+		configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsListEnabled, true);
+
+		assert.deepStrictEqual({ atStartup, laterSurfacesAll, enabled: enabled.get(), laterEnabled: observeChatViewSessionsListEnabled(configurationService).get() }, {
+			atStartup: false,
+			laterSurfacesAll: false,
+			enabled: true,
+			laterEnabled: true,
 		});
 	});
 

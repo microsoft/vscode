@@ -245,8 +245,10 @@ export const enum OpenInAgentsTitleBarHoverVariant {
  * view of its own and takes precedence: that setting takes effect on restart, so its value as the window started counts.
  */
 export function observeChatViewSessionsListEnabled(configurationService: IConfigurationService): IObservable<boolean> {
+	// Read as the observer is created, which a window does as it starts, not first as the setting turns on
+	const sessionsViewEnabled = isSessionsViewEnabledAtStartup(configurationService);
 	const sessionsListEnabled = observableConfigValue<boolean>(ChatConfiguration.ChatViewSessionsListEnabled, false, configurationService);
-	return derived(reader => sessionsListEnabled.read(reader) === true && !isSessionsViewEnabledAtStartup(configurationService));
+	return derived(reader => sessionsListEnabled.read(reader) === true && !sessionsViewEnabled);
 }
 
 /** The first value read of `chat.sessionsView.enabled`, per configuration service, which a window has one of. */
@@ -275,8 +277,9 @@ export function observeSurfacesAllLocalAgentHostAgents(environment: { readonly i
 	if (environment.remoteAuthority) {
 		return constObservable(false);
 	}
+	const sessionsViewEnabled = isSessionsViewEnabledAtStartup(configurationService);
 	const sessionsListEnabled = observableConfigValue<boolean>(ChatConfiguration.ChatViewSessionsListEnabled, false, configurationService);
-	return derived(reader => isSessionsViewEnabledAtStartup(configurationService) || sessionsListEnabled.read(reader) === true);
+	return derived(reader => sessionsViewEnabled || sessionsListEnabled.read(reader) === true);
 }
 
 /** {@link observeSurfacesAllLocalAgentHostAgents} as it is now. */
