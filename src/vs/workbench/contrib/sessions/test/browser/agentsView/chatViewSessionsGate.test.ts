@@ -9,11 +9,12 @@ import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
 import { IAgentsViewFolderLocationService } from '../../../browser/agentsView/agentsViewFolderLocation.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IConfigurationOverrides, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
@@ -29,7 +30,7 @@ import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor,
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
@@ -40,6 +41,7 @@ import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys
 import { ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, surfacesAllLocalAgentHostAgents } from '../../../../chat/common/constants.js';
 import { IMultiDiffSourceResolverService } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
+import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
 import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
 import { ChatViewSessionsGate } from '../../../browser/agentsView/chatViewSessionsGate.js';
 import { ChatViewSessionsPane } from '../../../browser/agentsView/chatViewSessionsPane.js';
@@ -87,24 +89,39 @@ suite('ChatViewSessionsGate', () => {
 	let hosts: number;
 	let chatPartAnchor: string | undefined;
 	let contextKeyService: MockContextKeyService;
+	/** Whether the chat part shows, as the window restored it. */
+	let chatPartVisible: boolean;
+	let configurationService: TestConfigurationService;
 	let viewVisibility: Emitter<{ id: string; visible: boolean }>;
 
 	function createGate(enabled: boolean, remoteAuthority?: string, configuration?: Record<string, unknown>): ChatViewSessionsGate {
 		createdChatParts = 0;
 		hosts = 0;
 		chatPartAnchor = undefined;
+		chatPartVisible ??= false;
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([IAgentsChatPartFrame, new SyncDescriptor(class {
 			constructor() {
 				createdChatParts++;
 			}
 		})])));
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsListEnabled]: enabled, ...configuration }));
+		configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsListEnabled]: enabled, ...configuration });
+		instantiationService.stub(IConfigurationService, configurationService);
 		viewVisibility = disposables.add(new Emitter<{ id: string; visible: boolean }>());
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: viewVisibility.event, isViewVisible: () => false }));
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority }));
-		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ onDidChangePartVisibility: Event.None, isVisible: () => false, setChatPartAnchor: anchor => chatPartAnchor = anchor?.viewId }));
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({
+			onDidChangePartVisibility: Event.None,
+			isVisible: part => part === Parts.CHAT_PART && chatPartVisible,
+			setPartHidden: (hidden, part) => {
+				if (part === Parts.CHAT_PART) {
+					chatPartVisible = !hidden;
+				}
+			},
+			setChatPartAnchor: anchor => chatPartAnchor = anchor?.viewId,
+		}));
 		instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({ when: () => Promise.resolve() }));
-		contextKeyService = new MockContextKeyService();
+		// Where the chat part can show, such as with chat set up
+		contextKeyService = new class extends MockContextKeyService { override contextMatchesRules(): boolean { return true; } }();
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		// What the chat part contribution starts as the window restores: its Changes editor header and folder location
 		instantiationService.stub(IActionViewItemService, upcastPartial<IActionViewItemService>({ register: () => toDisposable(() => { }) }));
@@ -121,6 +138,7 @@ suite('ChatViewSessionsGate', () => {
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({}));
 		instantiationService.stub(IChatService, upcastPartial<IChatService>({}));
 		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({}));
+		instantiationService.stub(IAgentsChatPartService, upcastPartial<IAgentsChatPartService>({ restore: async () => { } }));
 		instantiationService.stub(IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({}));
 		return disposables.add(instantiationService.createInstance(ChatViewSessionsGate));
 	}
@@ -164,6 +182,25 @@ suite('ChatViewSessionsGate', () => {
 			whileOn: { ...before, chatViewPane: 'sessions', hosts: 1, chatPartAnchor: ChatViewId, listActive: true, createdChatParts: 1, listActionsBeforeShown: 0 },
 			afterDispose: { ...before, chatViewPane: 'chat', hosts: 0, chatPartAnchor: undefined, listActive: false },
 		});
+	});
+
+	test('hides the chat part, also as the window restores it shown, while the chats open in the Chat view, and as they stop opening in the chat part', async () => {
+		const shown = async (openInChatPart: boolean) => {
+			chatPartVisible = true;
+			const gate = createGate(true, undefined, { [ChatConfiguration.ChatViewSessionsOpenInChatPart]: openInChatPart });
+			// As the window is ready and restored
+			await timeout(0);
+			return { gate, visible: chatPartVisible };
+		};
+		const inViewGate = await shown(false);
+		inViewGate.gate.dispose();
+		const inView = inViewGate.visible;
+		const inChatPart = (await shown(true)).visible;
+		// The chats open in the Chat view again
+		configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, false);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
+
+		assert.deepStrictEqual({ inView, inChatPart, afterSwitchingToView: chatPartVisible }, { inView: false, inChatPart: true, afterSwitchingToView: false });
 	});
 
 	test('registers nothing while the Agents view of #347688 is on too, which takes precedence', () => {
