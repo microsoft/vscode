@@ -620,6 +620,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	}());
 	instantiationService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 		override readonly onDidChangeWorkspaceFolders = workspaceFoldersChanged.event;
+		override readonly onDidChangeWorkbenchState = Event.None;
 		override getWorkspace() {
 			return testIWorkspace({ id: 'editor-workspace', folders: state.workspaceFolders });
 		}
