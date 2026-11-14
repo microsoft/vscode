@@ -194,7 +194,11 @@ suite('ChatViewPane session transitions', () => {
 			restoreViewState: () => { },
 			getInput: () => input,
 			setInput: (value: string) => { input = value; },
+			// Like ChatWidget: the chat it shows already is not set again, and its view model does not change
 			setModel: (model: IChatModel | undefined) => {
+				if (model && shown && model.sessionResource.toString() === shown.sessionResource.toString()) {
+					return;
+				}
 				shown = model;
 				input = '';
 				bindings.push(model?.sessionResource);
@@ -222,6 +226,7 @@ suite('ChatViewPane session transitions', () => {
 		} = Object.assign(Object.create(ChatViewPane.prototype), {
 			_store: paneStore,
 			_showReason: 'open',
+			_shownReports: 0,
 			_shownSession: shownSession,
 			shownSession,
 			modelRef,
@@ -402,6 +407,46 @@ suite('ChatViewPane session transitions', () => {
 		});
 	});
 
+	test('through the Chat view host, an open of the chat it shows already that supersedes a restore of it under way reports the open, not the restore', async () => {
+		const rig = createPane();
+		rig.nextRef.dispose();
+		const chat = nextResource.with({ path: '/chat' });
+		const reference = () => Object.assign(toDisposable(() => { }), { object: upcastPartial<IChatModel>({ sessionResource: chat }) });
+		// The restore's load and the explicit open's each wait, so that the superseded restore ends first
+		const restoring = new DeferredPromise<void>();
+		const opening = new DeferredPromise<void>();
+		const loads = [async () => reference(), async () => { await restoring.p; return reference(); }, async () => { await opening.p; return reference(); }];
+		Object.assign(rig.pane, { chatService: { acquireOrLoadSession: () => loads.shift()!() } });
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
+			openView: (async () => rig.pane) as IViewsService['openView'],
+			onDidChangeViewVisibility: Event.None,
+			getViewWithId: (<T>() => rig.pane as T) as IViewsService['getViewWithId'],
+		}));
+		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({}));
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({}));
+		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({}));
+		const host = instantiationService.createInstance(ChatViewHostService);
+		await host.openSession(chat, { preserveFocus: true });
+		const stream: string[] = [];
+		store.add(autorun(reader => {
+			const shown = rig.pane.shownSession.read(reader);
+			stream.push(shown ? `${shown.resource.path} ${shown.reason}` : 'none');
+		}));
+		stream.length = 0;
+
+		const restore = host.openSession(chat, { preserveFocus: true, restore: true });
+		await timeout(0);
+		const open = host.openSession(chat, { preserveFocus: true });
+		await timeout(0);
+		await restoring.complete();
+		await restore;
+		await opening.complete();
+		await open;
+
+		assert.deepStrictEqual({ stream, shown: rig.pane.shownSession.get()?.reason }, { stream: ['/chat open'], shown: 'open' });
+	});
+
 	test('cancelling a replacement releases its pending reference before provider activation completes', async () => {
 		const resolving = new DeferredPromise<void>();
 		const rig = createPane(resolving.p);
@@ -580,6 +625,8 @@ suite('ChatViewPane chat open diagnostics', () => {
 			notificationService: { error: () => { } },
 			progressService: { withProgress: (_: unknown, task: () => Promise<unknown>) => task() },
 			loadSessionCts: { value: undefined, },
+			_shownSession: observableValue<IChatViewHostShownSession | undefined>('shownSession', undefined),
+			_shownReports: 0,
 			_applyModelCts: { value: undefined },
 			element: { ownerDocument: { hidden: false } },
 			_widget: { viewModel: options.shown ? { sessionResource: options.shown } : undefined, visible: true, getInput: () => '' },
