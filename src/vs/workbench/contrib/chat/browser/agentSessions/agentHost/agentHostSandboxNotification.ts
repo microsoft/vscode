@@ -283,9 +283,10 @@ export class AgentHostSandboxNotification extends Disposable {
 							: localize({
 								key: 'agentHost.sandboxCertificateMissingDetail',
 								comment: ['{0} is a Markdown link labeled "Learn more" that opens certificate trust documentation.'],
-							}, "Install the sandbox certificate authority (CA) so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. {0}.", learnMore.value));
+							}, "Install the sandbox certificate authority (CA) so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. You can install it later from the Command Palette with Sandbox: Manage Trusted CA. {0}.", learnMore.value));
 		this._notificationService.setNotification({
 			id: this._certificateId,
+			placement: !hasError && !this._certificateOperation && !this._certificateRefreshing ? 'transcript' : undefined,
 			inputUri,
 			severity: ChatInputNotificationSeverity.Info,
 			message: this._certificateRefreshing
@@ -310,6 +311,7 @@ export class AgentHostSandboxNotification extends Disposable {
 				label: localize('agentHost.installSandboxCertificate', "Install"),
 				tooltip: localize('agentHost.installSandboxCertificateTooltip', "Install the sandbox certificate on this chat's agent host"),
 				commandId: this._installCommandId,
+				primary: true,
 				keepOpen: true,
 			}] : [],
 			...(this._certificateOperation || this._certificateRefreshing ? { progress: {} } : {}),
