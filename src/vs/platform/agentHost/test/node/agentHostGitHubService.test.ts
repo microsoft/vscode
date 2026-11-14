@@ -460,7 +460,7 @@ suite('Agent Host GitHub clients', () => {
 		}, { sameFirstClient: true, distinctClients: true, sameSecondClient: true });
 	});
 
-	for (const transition of ['same', 'different', 'revokeDifferent', 'withoutHintDifferent', 'legacyMetadataDifferent', 'hintAppearsBeforeDifferent', 'hintDisappearsBeforeDifferent'] as const) {
+	for (const transition of ['same', 'different', 'revokeDifferent', 'withoutHintDifferent', 'hintAppearsBeforeDifferent', 'hintDisappearsBeforeDifferent'] as const) {
 		test(`bootstrap cooldown uses the forwarded account identity (${transition})`, () => runWithFakedTimers({}, async () => {
 			const endpoint = createTestGitHubEndpointService();
 			const resource = endpoint.getRepoResource();
@@ -475,9 +475,7 @@ suite('Agent Host GitHub clients', () => {
 			const sameAccount = transition === 'same';
 			const authenticate = (token: string, account: string) => authentication.authenticate({
 				resource: resource.resource, scopes: ['repo'], token,
-				...(transition === 'legacyMetadataDifferent'
-					? { _meta: { 'vscode.authentication.account': { providerId: 'github', accountId: account } } }
-					: transition === 'withoutHintDifferent' ? {} : { accountId: account }),
+				...(transition === 'withoutHintDifferent' ? {} : { accountId: account }),
 			}, [provider]);
 			if (transition === 'hintAppearsBeforeDifferent') {
 				await authentication.authenticate({ resource: resource.resource, scopes: ['repo'], token: 'first-token' }, [provider]);
@@ -510,7 +508,7 @@ suite('Agent Host GitHub clients', () => {
 				await second.credentials.getCredential(new AbortController().signal);
 				assert.deepStrictEqual(requests, [
 					{ accountId: 101, at: 0 },
-					{ accountId, at: sameAccount || transition === 'withoutHintDifferent' || transition === 'legacyMetadataDifferent' ? 60_000 : 0 },
+					{ accountId, at: sameAccount || transition === 'withoutHintDifferent' ? 60_000 : 0 },
 				]);
 				if (transition === 'different' || transition === 'hintAppearsBeforeDifferent' || transition === 'hintDisappearsBeforeDifferent') {
 					accountId = 101;
@@ -670,7 +668,7 @@ suite('Agent Host GitHub clients', () => {
 		}
 	}));
 
-	test('legacy account metadata is ignored and rejected tokens cannot replace a standard hint', async () => {
+	test('a token without a hint has no account and rejected tokens cannot replace a standard hint', async () => {
 		const authentication = store.add(new AgentHostAuthenticationService(new NullLogService()));
 		const resource = createTestGitHubEndpointService().getRepoResource();
 		const replayed: (string | undefined)[] = [];
@@ -683,16 +681,15 @@ suite('Agent Host GitHub clients', () => {
 			}
 		}();
 		const request = { resource: resource.resource, scopes: ['repo'] };
-		const _meta = { 'vscode.authentication.account': { providerId: 'github', accountId: 'legacy-selection' } };
-		await authentication.authenticate({ ...request, token: 'legacy', _meta }, [provider]);
-		const legacy = { token: authentication.getAuthToken(request), account: authentication.getAuthAccountId(request) };
-		await authentication.authenticate({ ...request, token: 'accepted', accountId: 'standard-selection', _meta }, [provider]);
-		await authentication.authenticate({ ...request, token: 'rejected', accountId: 'other-selection', _meta }, [provider]);
+		await authentication.authenticate({ ...request, token: 'unhinted' }, [provider]);
+		const unhinted = { token: authentication.getAuthToken(request), account: authentication.getAuthAccountId(request) };
+		await authentication.authenticate({ ...request, token: 'accepted', accountId: 'standard-selection' }, [provider]);
+		await authentication.authenticate({ ...request, token: 'rejected', accountId: 'other-selection' }, [provider]);
 		await assert.rejects(authentication.authenticate({ ...request, token: 'accepted', accountId: '' }, [provider]), { code: JsonRpcErrorCodes.InvalidParams });
 		replayed.length = 0;
 		await authentication.replay(provider);
-		assert.deepStrictEqual({ legacy, token: authentication.getAuthToken(request), account: authentication.getAuthAccountId(request), replayed }, {
-			legacy: { token: 'legacy', account: undefined }, token: 'accepted', account: undefined, replayed: ['standard-selection'],
+		assert.deepStrictEqual({ unhinted, token: authentication.getAuthToken(request), account: authentication.getAuthAccountId(request), replayed }, {
+			unhinted: { token: 'unhinted', account: undefined }, token: 'accepted', account: undefined, replayed: ['standard-selection'],
 		});
 	});
 

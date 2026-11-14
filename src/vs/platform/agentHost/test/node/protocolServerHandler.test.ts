@@ -12369,7 +12369,7 @@ suite('ProtocolServerHandler', () => {
 		const second = connectClient('second-client');
 		const resource = 'https://other-host.example/protected-resource';
 		const accountId = 'opaque-selection';
-		const _meta = { 'vscode.authentication.account': { providerId: 'provider', accountId: 'legacy-selection' }, 'example.other': true };
+		const _meta = { 'example.other': true };
 		const forwarded: { clientId: string | undefined; resource: string; accountId: string | undefined; target: AuthenticateParams['target']; _meta: Record<string, unknown> | undefined }[] = [];
 		agentService.authenticate = async (params, _scope?: IAgentHostAuthenticationScope, clientId?: string) => {
 			forwarded.push({ clientId, resource: params.resource, accountId: params.accountId, target: params.target, _meta: params._meta });

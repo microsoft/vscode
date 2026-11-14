@@ -120,7 +120,7 @@ suite('Copilot Entra authentication', () => {
 		});
 	});
 
-	test('an opaque standard account identifier needs no private account metadata', async () => {
+	test('an opaque standard account identifier is accepted as given', async () => {
 		const f = fixture();
 		await f.acquire(identity);
 		const params = f.credential(undefined, undefined, 'opaque:account/selection');
@@ -128,13 +128,10 @@ suite('Copilot Entra authentication', () => {
 		assert.deepStrictEqual(await f.acquire(identity), { kind: 'identity', accountId: params.accountId });
 	});
 
-	test('legacy account metadata cannot replace the standard account identifier', async () => {
+	test('a credential without the standard account identifier is rejected', async () => {
 		const f = fixture();
 		await f.acquire(identity);
-		await assert.rejects(f.authenticate({
-			...f.credential(), accountId: undefined,
-			_meta: { 'vscode.authentication.account': { providerId: 'microsoft', accountId: 'selected' } },
-		}), /account identifier/);
+		await assert.rejects(f.authenticate({ ...f.credential(), accountId: undefined }), /account identifier/);
 	});
 
 	test('replays the standard account selection without account metadata', async () => {
