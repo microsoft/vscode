@@ -226,6 +226,18 @@ export interface IAgentSessionsControl {
 	collapseAllSections(): void;
 }
 
+/**
+ * The sessions of the Chat view, which the actions of its sessions toolbar act on: those of the Chat view, or of a view that
+ * shows in its place.
+ */
+export interface IChatViewSessionsControl {
+	readonly agentSessionsControl: IAgentSessionsControl | undefined;
+	getSessionsViewerOrientation(): AgentSessionsViewerOrientation;
+	updateConfiguredSessionsViewerOrientation(orientation: 'stacked' | 'sideBySide' | unknown): void;
+	getLastDimensions(orientation: AgentSessionsViewerOrientation): { height: number; width: number } | undefined;
+	focusSessions(): boolean;
+}
+
 export const agentSessionReadIndicatorForeground = registerColor(
 	'agentSessionReadIndicator.foreground',
 	{ dark: transparent(foreground, 0.2), light: transparent(foreground, 0.2), hcDark: null, hcLight: null },

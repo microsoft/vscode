@@ -171,4 +171,8 @@ export class ChatViewHostService implements IChatViewHostService {
 	startSession(sessionResource: URI, options: IChatViewHostSessionStartOptions): Promise<IChatViewHostSessionStart> {
 		return this.host.startSession(sessionResource, options);
 	}
+
+	newChat(): boolean {
+		return this.host.newChat?.() ?? false;
+	}
 }

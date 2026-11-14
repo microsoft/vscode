@@ -70,6 +70,11 @@ export interface IChatViewHost {
 	toggle(): Promise<boolean>;
 	/** Starts showing the session of `sessionResource`, which its caller may send a first request to. */
 	startSession(sessionResource: URI, options: IChatViewHostSessionStartOptions): Promise<IChatViewHostSessionStart>;
+	/**
+	 * Starts a new chat in the host, as New Chat of the Chat view does, and returns whether it takes it. A host that does not
+	 * implement it leaves New Chat to the chat widget it acts on.
+	 */
+	newChat?(): boolean;
 }
 
 /**
@@ -80,6 +85,8 @@ export interface IChatViewHostService extends IChatViewHost {
 	readonly _serviceBrand: undefined;
 
 	revealIfShowing(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined>;
+
+	newChat(): boolean;
 
 	/**
 	 * Replaces the Chat view with `host` until the returned disposable is disposed. The host registered last is the one in
