@@ -573,6 +573,9 @@ export class AgentHostSessionInputPills extends Disposable {
 	/** Runs the file operations on each working set channel one after another, so a Keep staged with Git waits for one in progress. */
 	private readonly _fileOperations = new SequencerByKey<string>();
 
+	/** Whether the session's changes show as the input's working set, or will once its host advertises them, in place of the Changes pill. */
+	readonly changesPillHidden: IObservable<boolean>;
+
 	constructor(
 		private readonly _widget: ChatWidget,
 		compact: ChatPillsCompactMode,
@@ -714,7 +717,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			const catalogue = creationCatalogue.read(reader);
 			return !!catalogue && expiredCreationCatalogue.read(reader) !== catalogue && !workingSetEnabled.read(reader);
 		});
-		const changesPillHidden = derived(this, reader => workingSetEnabled.read(reader) || workingSetPending.read(reader));
+		const changesPillHidden = this.changesPillHidden = derived(this, reader => workingSetEnabled.read(reader) || workingSetPending.read(reader));
 		const changesetTarget = derivedOpts({ owner: this, equalsFn: changesetTargetEquals }, reader => {
 			const currentResolution = resolution.read(reader);
 			const chat = chatResource.read(reader);
@@ -875,6 +878,9 @@ export class AgentHostSessionInputPills extends Disposable {
 				reader.store.add(this._widget.inputPart.registerSessionFileChanges(workingSetChanges, undo, workingSetKeep));
 			}
 		}));
+		if (this.workingSetOnly) {
+			return;
+		}
 		const changeStats = derivedOpts<IChatChangesStats>({ owner: this, equalsFn: chatChangesStatsEqual }, reader => {
 			const diffs = changes.read(reader);
 			return diffs.length === 0
@@ -1171,6 +1177,11 @@ export class AgentHostSessionInputPills extends Disposable {
 	 * buttons, until it ships; overridable so tests can turn it on.
 	 */
 	protected get workingSetUndoEnabled(): boolean {
+		return false;
+	}
+
+	/** Whether it binds only the session's working set, for an input that shows the session's pills itself. */
+	protected get workingSetOnly(): boolean {
 		return false;
 	}
 
@@ -1701,5 +1712,15 @@ export class AgentHostSessionInputPills extends Disposable {
 			store.add(input.onDidChangeLabel(() => this._browserChanged.trigger(undefined)));
 		}
 		this._browserChanged.trigger(undefined);
+	}
+}
+
+/**
+ * Shows an Agent Host session's changes as the working set of a chat input that shows the session's pills itself, such as
+ * a session's chat outside the Agents window: its Changes pill hides while {@link changesPillHidden}.
+ */
+export class AgentHostSessionWorkingSet extends AgentHostSessionInputPills {
+	protected override get workingSetOnly(): boolean {
+		return true;
 	}
 }
