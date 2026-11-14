@@ -16,7 +16,7 @@ import { readSessionMatchesByProjectRoot, readSessionMultiRootMetadata, SessionS
 import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { IObservable } from '../../../../../../base/common/observable.js';
+import { IObservable, runOnChange } from '../../../../../../base/common/observable.js';
 import { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatIsArchivedChangedAction, ChatIsReadChangedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { isActionKnownToVersion } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
@@ -115,6 +115,11 @@ export class AgentHostSessionListStore extends Disposable {
 			readonly retainUnlistedProvider?: (provider: string) => boolean;
 			/** Retain unlisted sessions whose existence is owned by another inventory. */
 			readonly retainSession?: (session: URI) => boolean;
+			/**
+			 * Also lists a session whose project (repository root) is a folder of the window, such as one working in a
+			 * worktree of it, while true.
+			 */
+			readonly matchProjectRoot?: IObservable<boolean>;
 		} = {},
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly _logService: ILogService,
@@ -123,6 +128,18 @@ export class AgentHostSessionListStore extends Disposable {
 		super();
 
 		this._register(this._connection.onDidNotification(n => this._onNotification(n)));
+
+		// Matching by project narrows the list as it turns off, and widens it as it turns on, which only the host's list supplies
+		if (this._options.matchProjectRoot) {
+			this._register(runOnChange(this._options.matchProjectRoot, () => {
+				if (this._options.filterToWorkspace === false) {
+					return;
+				}
+				this._cacheValid = false;
+				this._filterEntriesToWorkspace();
+				void this.refresh(CancellationToken.None);
+			}));
+		}
 
 		// Sessions may have changed on the host while the connection was down.
 		if (this._connection.onDidReconnect) {
@@ -519,7 +536,7 @@ export class AgentHostSessionListStore extends Disposable {
 		if (this._options.filterToWorkspace === false) {
 			return true;
 		}
-		const inWorkspace = this._computeSessionInWorkspace(entry);
+		const inWorkspace = this._computeSessionInWorkspace(entry) || this._matchesProjectRoot(entry.summary);
 		// A legacy session is matched by its repository root, which must be a local
 		// path; a remote project (e.g. an `https://` repo URL) silently matches
 		// nothing. Excluding one is legitimate, so only report the broken input, and
@@ -529,6 +546,21 @@ export class AgentHostSessionListStore extends Disposable {
 			this._logService.warn(`[AgentHost] legacy session ${entry.summary.resource} has a non-local project '${entry.summary.project.uri}' and cannot be matched to a workspace folder`);
 		}
 		return inWorkspace;
+	}
+
+	/**
+	 * Whether the session's project is a folder of the window, while matching by project (`matchProjectRoot`). Not a session
+	 * of a multi-root workspace, which only the windows of its workspace file list.
+	 */
+	private _matchesProjectRoot(summary: SessionSummary): boolean {
+		if (!summary.project?.uri || !this._options.matchProjectRoot?.get() || readSessionMultiRootMetadata(summary._meta)) {
+			return false;
+		}
+		const project = URI.parse(summary.project.uri);
+		const workspace = this._workspaceContextService.getWorkspace();
+		// Also the folder's own location while it is at another, such as a worktree of it: the window's workspace
+		return workspace.folders.some(folder => extUriBiasedIgnorePathCase.isEqual(project, folder.uri))
+			|| (!workspace.configuration && !!workspace.uri && extUriBiasedIgnorePathCase.isEqual(project, workspace.uri));
 	}
 
 	private _computeSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {

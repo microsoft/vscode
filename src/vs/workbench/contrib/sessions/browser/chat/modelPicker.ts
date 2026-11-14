@@ -311,7 +311,7 @@ export function registerModelPickerAction(): IDisposable {
 					order: 1,
 					// Hidden on phone when the active provider supplies a combined
 					// mode + model picker instead (see MobileChatInputConfigPicker).
-					when: ContextKeyExpr.or(IsPhoneLayoutContext.negate(), SessionUsesCombinedConfigPickerContext.negate()),
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(IsPhoneLayoutContext.negate(), SessionUsesCombinedConfigPickerContext.negate())),
 				}],
 			});
 		}

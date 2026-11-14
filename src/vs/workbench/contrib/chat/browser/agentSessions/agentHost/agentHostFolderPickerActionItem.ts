@@ -19,6 +19,7 @@ import { IActionWidgetService } from '../../../../../../platform/actionWidget/br
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -29,6 +30,7 @@ import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from '../../wi
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { createFolderPickerTip } from './agentHostFolderPickerTip.js';
+import { AgentHostWorktreeFolderChoices } from './agentHostWorktreeFolderChoices.js';
 
 /**
  * Folder picker for agent-host sessions in multi-root windows. An agent-host
@@ -43,6 +45,8 @@ import { createFolderPickerTip } from './agentHostFolderPickerTip.js';
 export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewItem {
 
 	private _hoverSetup = false;
+	/** The choices in a window with a single local folder while worktree support is on: New Worktree, the folder and its worktrees. */
+	private readonly _worktree: AgentHostWorktreeFolderChoices;
 
 	constructor(
 		action: MenuItemAction,
@@ -58,10 +62,18 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		@ISCMService private readonly _scmService: ISCMService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IStorageService storageService: IStorageService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				const selected = this._selectedFolder();
+				if (this._worktree.isActive()) {
+					return this._worktree.getActions(action, selected, () => {
+						if (this.element) {
+							this.renderLabel(this.element);
+						}
+					});
+				}
 				return this._workspaceContextService.getWorkspace().folders.map(folder => ({
 					...action,
 					id: `agentHostFolder.${folder.uri.toString()}`,
@@ -97,6 +109,13 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 
 		super(action, folderPickerOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
+		this._worktree = this._register(instantiationService.createInstance(AgentHostWorktreeFolderChoices, () => this._sessionResource()));
+		this._register(this._worktree.onDidChange(() => {
+			if (this.element) {
+				this.renderLabel(this.element);
+			}
+		}));
+
 		this._register(this._newSessionFolderService.onDidChangeFolder(() => {
 			if (this.element) {
 				this.renderLabel(this.element);
@@ -108,6 +127,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 			}
 		}));
 		this._register(this._widget.onDidChangeViewModel(() => {
+			this._worktree.refresh();
 			if (this.element) {
 				this.renderLabel(this.element);
 			}
@@ -149,13 +169,16 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		const selected = this._selectedFolder();
 		const folder = selected && this._workspaceContextService.getWorkspace().folders.find(f => f.uri.toString() === selected.toString());
-		const label = folder ? folder.name : (selected ? basename(selected) : localize('agentHost.selectFolder', "Folder"));
+		// With worktree support, by its icon only, a folder or a worktree, but New Worktree by its name
+		const chip = selected && this._worktree?.isActive() ? this._worktree.getChip(selected) : undefined;
+		const label = chip ? chip.description : folder ? folder.name : (selected ? basename(selected) : localize('agentHost.selectFolder', "Folder"));
+		const shownLabel = chip ? chip.label : label;
 		const compact = this.pickerOptions.compact.get();
-		element.classList.toggle('icon-only', compact);
+		element.classList.toggle('icon-only', compact || !shownLabel);
 		dom.reset(
 			element,
-			...renderLabelWithIcons(`$(folder-compact)`),
-			...(!compact ? [dom.$('span.chat-input-picker-label', undefined, label)] : []),
+			...renderLabelWithIcons(chip?.icon === Codicon.worktree ? `$(${Codicon.worktree.id})` : `$(folder-compact)`),
+			...(!compact && shownLabel ? [dom.$('span.chat-input-picker-label', undefined, shownLabel)] : []),
 		);
 		// Set the aria label after the visible text is in place: the base class
 		// derives it from `element.textContent`, so labeling first would lag one
@@ -198,7 +221,14 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		const md = new MarkdownString('', { supportThemeIcons: true });
 		const fallbackLines: string[] = [];
 
-		md.appendMarkdown(`$(${Codicon.folder.id}) `);
+		// What the chip shows by its icon only, by name
+		const chip = this._worktree.isActive() ? this._worktree.getChip(selected) : undefined;
+		if (chip) {
+			md.appendText(chip.description);
+			md.appendMarkdown('\n\n');
+			fallbackLines.push(chip.description);
+		}
+		md.appendMarkdown(`$(${(chip?.icon ?? Codicon.folder).id}) `);
 		md.appendText(selected.fsPath);
 		fallbackLines.push(selected.fsPath);
 

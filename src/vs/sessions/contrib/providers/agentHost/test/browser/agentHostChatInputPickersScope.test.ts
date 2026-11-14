@@ -57,6 +57,7 @@ suite('Agent Host chat input pickers: session host scopes', () => {
 	function setUpScopes() {
 		const root = store.add(new ContextKeyService(new TestConfigurationService()));
 		// Everything else the pickers need holds: only the scope tells them apart.
+		ChatContextKeys.enabled.bindTo(root).set(true);
 		ChatContextKeys.chatIsAgentHostSession.bindTo(root).set(true);
 		IsSessionsWindowContext.bindTo(root).set(true);
 		const gridHost = hostOf(SessionHostKind.MainWindow, root);

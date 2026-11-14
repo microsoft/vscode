@@ -1118,6 +1118,47 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
+	test('hides the Changes pill while its input shows the session\'s changes as its working set', () => {
+		const { instantiationService } = createServices();
+		const root = URI.file('/repo');
+		const workspace = constObservable(upcastPartial<ISessionWorkspace>({
+			folders: [{ root, name: 'repo', description: undefined, workingDirectory: root, gitRepository: undefined }],
+		}));
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('chat:main'),
+			workspace,
+			changesets: constObservable([]),
+			changes: constObservable([{ modifiedUri: URI.file('/chat-change.ts'), insertions: 10, deletions: 4 }]),
+		});
+		const session = upcastPartial<ITestSessionWithChat>({
+			loading: constObservable(false),
+			sessionId: 'provider:session',
+			capabilities: constObservable({ supportsMultipleChats: true }),
+			resource: URI.parse('session:1'),
+			chats: constObservable([chat]),
+			mainChat: constObservable(chat),
+			workspace,
+		});
+		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({ kind: SessionHostKind.MainWindow, parent: undefined }));
+		instantiationService.stub(ISessionsService, 'getPaneOfHost', () => undefined);
+		instantiationService.stub(ISessionsService, 'panes', constObservable([]));
+		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
+			getContainer: window => window.document.body,
+			revealEditorPartExplicitly: () => { },
+		}));
+		stubSessionsHostLayout(instantiationService);
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+		toolbar.setSession(session, chat);
+		const hasChangesPill = () => !!toolbar.element.querySelector('.chat-changes-pill-button');
+		const before = hasChangesPill();
+		const workingSetShown = observableValue('workingSetShown', true);
+		toolbar.setChangesHidden(workingSetShown);
+		const whileShown = hasChangesPill();
+		workingSetShown.set(false, undefined);
+
+		assert.deepStrictEqual({ before, whileShown, after: hasChangesPill() }, { before: true, whileShown: false, after: true });
+	});
+
 	test('opens the Changes editor of its own chat from a pill in a chat window', () => {
 		const { instantiationService } = createServices();
 		const createWorkspace = (folder: string) => constObservable(upcastPartial<ISessionWorkspace>({

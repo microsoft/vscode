@@ -4,12 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ContextKeyValue, IContext } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
-import { NewChatAction } from '../../../browser/actions/chatNewActions.js';
+import { NEW_CHAT_ICON_VARIANTS, NewChatAction, newChatIconVariantAction } from '../../../browser/actions/chatNewActions.js';
+import { IChatViewHostService } from '../../../browser/chatViewHost.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 
 function context(values: Record<string, ContextKeyValue>): IContext {
 	return { getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined };
@@ -46,5 +50,36 @@ suite('Chat new actions', () => {
 			newChatInView: true,
 			newChatInEditor: false,
 		});
+	});
+
+	test('New Chat of every icon lets the host that replaces the Chat view start the new chat', async () => {
+		let started = 0;
+		const accessor = upcastPartial<ServicesAccessor>({
+			get: (<T>(id: unknown) => {
+				assert.ok(id === IChatViewHostService || id === IInstantiationService);
+				return { newChat: async () => { started++; return true; } } as T;
+			}) as ServicesAccessor['get'],
+		});
+		for (const action of [new NewChatAction(), ...NEW_CHAT_ICON_VARIANTS.map(variant => new (newChatIconVariantAction(variant))())]) {
+			await action.run(accessor);
+		}
+
+		assert.strictEqual(started, 1 + NEW_CHAT_ICON_VARIANTS.length);
+	});
+
+	test('New Chat completes only once the host that replaces the Chat view shows its new chat, so that a prompt that follows goes to it', async () => {
+		const shows = new DeferredPromise<boolean>();
+		const steps: string[] = [];
+		const accessor = upcastPartial<ServicesAccessor>({
+			get: (<T>() => ({ newChat: () => shows.p }) as T) as ServicesAccessor['get'],
+		});
+
+		const run = new NewChatAction().run(accessor).then(() => steps.push('New Chat completes'));
+		await timeout(0);
+		steps.push('host shows its new chat');
+		shows.complete(true);
+		await run;
+
+		assert.deepStrictEqual(steps, ['host shows its new chat', 'New Chat completes']);
 	});
 });
