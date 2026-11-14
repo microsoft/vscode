@@ -589,6 +589,75 @@ suite('AgentHostAutomationService', () => {
 		});
 	});
 
+	test('checkpoints retained history deletion in batches', async () => {
+		const automation = createAction().resource;
+		const runs: AutomationRunState[] = Array.from({ length: 100 }, (_, index) => ({
+			resource: `ahp-automation-run:/checkpoint-${index}`, automation,
+			origin: { kind: AutomationRunOriginKind.Manual },
+			lifecycle: { status: AutomationRunStatus.Completed, createdAt: new Date(index).toISOString(), startedAt: new Date(index).toISOString(), completedAt: new Date(index).toISOString() },
+			sessions: [`ahp-session:/checkpoint-${index}`],
+			primarySession: `ahp-session:/checkpoint-${index}`,
+		}));
+		storageService.set('automations', {
+			catalog: { automations: [{ resource: automation, definition: definition(), runs: [], operations: [], createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() }] },
+			runs, runProviders: Object.fromEntries(runs.map(run => [run.resource, 'codex'])),
+		});
+		await storageService.whenIdle();
+		let deleted = 0;
+		const service = createService({
+			getRecoverableSessionProvider: async (_session, provider) => provider,
+			deleteSession: async () => { deleted++; },
+		});
+		await service.handleConfigurationChanged();
+		const writesBeforeDeletion = writeAttempts;
+		await service.deleteAutomation(automation, true);
+		assert.deepStrictEqual({
+			deleted,
+			storageWrites: writeAttempts - writesBeforeDeletion,
+		}, {
+			deleted: 100,
+			storageWrites: 4,
+		});
+	});
+
+	test('retries retained history checkpointing after a storage failure', async () => {
+		const automation = createAction().resource;
+		const runs: AutomationRunState[] = Array.from({ length: 52 }, (_, index) => ({
+			resource: `ahp-automation-run:/checkpoint-retry-${index}`, automation,
+			origin: { kind: AutomationRunOriginKind.Manual },
+			lifecycle: { status: AutomationRunStatus.Completed, createdAt: new Date(index).toISOString(), startedAt: new Date(index).toISOString(), completedAt: new Date(index).toISOString() },
+			sessions: [`ahp-session:/checkpoint-retry-${index}`],
+			primarySession: `ahp-session:/checkpoint-retry-${index}`,
+		}));
+		storageService.set('automations', {
+			catalog: { automations: [{ resource: automation, definition: definition(), runs: [], operations: [], createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() }] },
+			runs, runProviders: Object.fromEntries(runs.map(run => [run.resource, 'codex'])),
+		});
+		await storageService.whenIdle();
+		const reachedNextDeletion = new DeferredPromise<void>();
+		const continueDeletion = new DeferredPromise<void>();
+		let deleted = 0;
+		const service = createService({
+			getRecoverableSessionProvider: async (_session, provider) => provider,
+			deleteSession: async () => {
+				deleted++;
+				if (deleted === 50) {
+					writeFailures = 1;
+				} else if (deleted === 52) {
+					reachedNextDeletion.complete();
+					await continueDeletion.p;
+				}
+			},
+		});
+		await service.handleConfigurationChanged();
+		const deletion = service.deleteAutomation(automation, true);
+		await reachedNextDeletion.p;
+		const remaining = storageService.get<{ historyDeletions: { sessions: object[] }[] }>('automations')?.historyDeletions[0].sessions.length;
+		continueDeletion.complete();
+		await assert.rejects(deletion, /storage unavailable/);
+		assert.deepStrictEqual({ deleted, remaining }, { deleted: 52, remaining: 1 });
+	});
+
 	test('receipts completed history deletion until the client acknowledges it', async () => {
 		const automation = createAction().resource;
 		const session = URI.parse('ahp-session:/receipted');
