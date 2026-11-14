@@ -499,12 +499,15 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 			});
 	}
 
-	/** `resource` with its symbolic links resolved, or itself where that fails. */
+	/** `resource` with its symbolic links resolved, or itself where its file system has no real paths or it is not there; any other failure throws. */
 	private async _real(resource: URI): Promise<URI> {
 		try {
 			return await this._fileService.realpath(resource) ?? resource;
-		} catch {
-			return resource;
+		} catch (error) {
+			if (error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
+				return resource;
+			}
+			throw error;
 		}
 	}
 
