@@ -6,13 +6,16 @@
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-// eslint-disable-next-line local/code-translation-remind -- Experimental entry is excluded from production translation resources.
 import { localize } from '../../../../nls.js';
-import { IChatWindow, IChatWindowNewChatOptions, IChatWindowOpenOptions, IChatWindowProvider, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { IChatWindow, IChatWindowNewChatOptions, IChatWindowOpenOptions, IChatWindowProvider, IChatWindowService } from './chatWindow.js';
 
-const unavailableMessage = localize('mobile.chatWindowsUnavailable', "Separate chat windows are not available on this device.");
+const unavailableMessage = localize('chatWindowsUnavailable', "Separate chat windows are not available here.");
 
-export class MobileNullChatWindowService implements IChatWindowService {
+/**
+ * The chat windows of where separate chat windows are not available, such as an editor window or a phone: there are none,
+ * and none open.
+ */
+export class NullChatWindowService implements IChatWindowService {
 	declare readonly _serviceBrand: undefined;
 
 	readonly windows = constObservable<readonly IChatWindow[]>([]);

@@ -23,7 +23,7 @@ import { MobileContextMenuService } from './mobileContextMenuService.js';
 import { MobileKeybindingService } from './mobileKeybindingService.js';
 import { MobileNullAgentHostTerminalService } from './mobileNullAgentHostTerminalService.js';
 import { MobileNullAquariumService } from './mobileNullAquariumService.js';
-import { MobileNullChatWindowService } from './mobileNullChatWindowService.js';
+import { NullChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/nullChatWindowService.js';
 import { MobileNullScreenshotToolService } from './mobileNullScreenshotToolService.js';
 import { MobileNullWorktreeSuggestionService } from './mobileNullWorktreeSuggestionService.js';
 import { MobileQuickInputService } from './mobileQuickInputService.js';
@@ -73,7 +73,7 @@ registerSingleton(IAgentHostTerminalService, MobileNullAgentHostTerminalService,
 
 // The aquarium easter egg does not exist on the phone. See MobileNullAquariumService.
 registerSingleton(IAquariumService, MobileNullAquariumService, InstantiationType.Delayed);
-registerSingleton(IChatWindowService, MobileNullChatWindowService, InstantiationType.Delayed);
+registerSingleton(IChatWindowService, NullChatWindowService, InstantiationType.Delayed);
 registerSingleton(IScreenshotToolService, MobileNullScreenshotToolService, InstantiationType.Delayed);
 registerSingleton(IWorktreeSuggestionService, MobileNullWorktreeSuggestionService, InstantiationType.Delayed);
 registerSingleton(IWindowCanvasService, WindowCanvasService, InstantiationType.Delayed);

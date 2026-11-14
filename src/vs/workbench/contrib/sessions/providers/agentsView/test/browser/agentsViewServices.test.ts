@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { getSingletonServiceDescriptors } from '../../../../../../../platform/instantiation/common/extensions.js';
 import { _util, ServiceIdentifier } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { ChatView } from '../../../../browser/chat/chatView.js';
+import { ChatView, NewChatView } from '../../../../browser/chat/chatView.js';
 import { NewChatInSessionWidget } from '../../../../browser/chat/newChatInSessionWidget.js';
 import { NewChatWidget } from '../../../../browser/chat/newChatWidget.js';
 import { SharedChatInputComposer } from '../../../../browser/chat/sharedChatInputComposer.js';
@@ -18,6 +18,22 @@ import { SessionsList } from '../../../../browser/views/sessionsList.js';
 import { SessionsView } from '../../../../browser/views/sessionsView.js';
 import { AgentsChatViewHost } from '../../../../browser/agentsView/agentsChatViewHost.js';
 import { AgentsChatPartContribution } from '../../../../browser/agentsView/agentsChatPartContribution.js';
+import { SessionArchiveNudge } from '../../../../browser/chat/sessionArchiveNudge.js';
+import { SessionChatInputToolbar } from '../../../../browser/chat/sessionChatInputToolbar.js';
+import { SessionInputBanners } from '../../../../browser/sessionInputBanners/sessionInputBanners.js';
+import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
+import { ChatCompositeBar } from '../../../../browser/parts/chatCompositeBar.js';
+import { ChatHeader } from '../../../../browser/parts/chatHeader.js';
+import { RemoteHostUnavailableEmptyState } from '../../../../browser/parts/remoteHostUnavailableEmptyState.js';
+import { ChatViewSessionActivityBar } from '../../../../browser/parts/sessionActivityBar.js';
+import { SessionHeader } from '../../../../browser/parts/sessionHeader.js';
+import { SessionReadOnlyBanner } from '../../../../browser/parts/sessionReadOnlyBanner.js';
+import { SessionRemoteConnection } from '../../../../browser/parts/sessionRemoteConnection.js';
+import { SessionsInboxScope } from '../../../../browser/views/sessionsInboxScope.js';
+import { SessionsListFilters } from '../../../../browser/views/sessionsListFilters.js';
+import { SessionsListNotification } from '../../../../browser/views/sessionsListNotification.js';
+import { SessionStorageCleanupNotice } from '../../../../browser/views/sessionStorageCleanupNotice.js';
+import { ResponseSelectionSideChatController } from '../../../../../chat/browser/responseSelectionSideChatController.js';
 // What an editor window registers for its sessions: the shared editor-window services and the Agents view's
 import '../../../../browser/editorWindow/editorWindowSessions.contribution.js';
 import '../../../../browser/agentsView/agentsView.contribution.js';
@@ -30,15 +46,15 @@ import '../../browser/agentsViewProviders.contribution.js';
 const CORE_SERVICES = new Set([
 	'accessibilityService', 'accessibilitySignalService', 'accountPolicyGateService', 'actionViewItemService', 'agentHostConnectionsService',
 	'agentHostEnablementService', 'agentHostService', 'agentPluginService', 'agentSessions', 'chatAgentNameService', 'chatAgentService', 'chatAttachmentResolveService',
-	'chatEditingService', 'chatEntitlementService', 'chatModeService', 'chatPetService', 'chatService', 'chatSessionsService',
+	'chatEditingService', 'chatEntitlementService', 'chatModeService', 'chatPetService', 'chatService', 'chatSessionsService', 'chatSideChatService',
 	'chatSlashCommandService', 'chatSubmitRequestHandlerService', 'chatTipService', 'chatViewHostService', 'chatWidgetHistoryService',
 	'chatWidgetService', 'clipboardService', 'commandService', 'configurationService', 'contextKeyService', 'contextMenuService', 'contextService',
-	'contextViewService', 'defaultAccountService', 'dialogService', 'editorGroupsService', 'editorService', 'environmentService', 'extensionService',
-	'fileDialogService', 'fileService', 'hostService', 'hoverService', 'IAuthenticationService', 'IChatService', 'IChatWidgetHistoryService',
+	'contextViewService', 'defaultAccountService', 'dialogService', 'editorGroupsService', 'editorService', 'environmentService', 'extensionService', 'externalUriOpenerService',
+	'fileDialogService', 'fileService', 'IFileDecorationsService', 'hostService', 'hoverService', 'IAuthenticationService', 'IChatService', 'IChatWidgetHistoryService',
 	'ILanguageModelsService', 'ILanguageModelToolsService', 'instantiationService', 'IPromptsService', 'IUriIdentityService', 'IUserDataProfileService', 'IUserDataProfilesService', 'keybindingService',
 	'labelService', 'languageModelsService', 'languageModelToolsService', 'layoutService', 'lifecycleService', 'listService', 'loggerService', 'logService',
-	'managedSettingsService', 'menuService', 'modelService', 'notificationService', 'openerService', 'paneCompositePartService', 'pathService', 'productService', 'progressService',
-	'quickInputService', 'remoteAgentHostService', 'remoteAgentService', 'requestService', 'speechService', 'storageService', 'telemetryService', 'textModelService',
+	'managedSettingsService', 'menuService', 'modelService', 'notificationService', 'onboardingScenarioService', 'openerService', 'paneCompositePartService', 'pathService', 'productService', 'progressService',
+	'quickInputService', 'remoteAgentHostService', 'remoteAgentService', 'requestService', 'sessionChatPillVisibilityService', 'speechService', 'storageService', 'telemetryService', 'textModelService',
 	'themeService', 'uriIdentityService', 'viewDescriptorService', 'viewsService', 'voiceClientService', 'workingCopyService',
 	'workspaceContextService', 'workspacesService', 'workspaceTrustManagementService', 'workspaceTrustRequestService',
 ]);
@@ -66,7 +82,15 @@ suite('Agents view services', () => {
 				}
 			}
 		};
-		for (const root of [SessionsView, SessionsList, ChatView, ChatGroupView, ChatEditorView, ChatEditorContent, NewChatWidget, NewChatInSessionWidget, SharedChatInputComposer, AgentsChatViewHost, AgentsChatPartContribution]) {
+		// The views, and what they create as they show a session, such as a chat's input toolbar: their services are checked
+		// as they are created, not as the views that create them are
+		const roots = [
+			SessionsView, SessionsList, ChatView, ChatGroupView, ChatEditorView, ChatEditorContent, NewChatWidget, NewChatInSessionWidget, SharedChatInputComposer, AgentsChatViewHost, AgentsChatPartContribution,
+			NewChatView, SessionChatInputToolbar, SessionInputBanners, SessionArchiveNudge, SessionStatusIcon, ResponseSelectionSideChatController,
+			SessionHeader, ChatCompositeBar, ChatHeader, ChatViewSessionActivityBar, RemoteHostUnavailableEmptyState, SessionReadOnlyBanner, SessionRemoteConnection,
+			SessionsListNotification, SessionsInboxScope, SessionStorageCleanupNotice, SessionsListFilters,
+		];
+		for (const root of roots) {
 			visit(root);
 		}
 
