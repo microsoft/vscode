@@ -206,7 +206,8 @@ export class AgentSessionSettingsSchemaRegistrar extends AbstractMultiProviderAg
 	}
 
 	protected _targetsForProvider(provider: IAgentHostSessionsProvider): readonly ISession[] {
-		return provider.getSessions();
+		// Also the sessions outside its listing scope, whose schemas are registered as they are read
+		return provider.getAllSessions?.() ?? provider.getSessions();
 	}
 
 	protected _observeProvider(

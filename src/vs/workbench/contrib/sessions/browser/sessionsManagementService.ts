@@ -410,6 +410,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	/** Every session, also those outside a provider's listing scope, for looking sessions up. */
+	getAllSessions(): readonly ISession[] {
+		return this._getAllSessions();
+	}
+
 	private _getAllSessions(): ISession[] {
 		const sessions: ISession[] = [];
 		for (const provider of this.sessionsProvidersService.getProviders({ includeSessionBackends: true })) {

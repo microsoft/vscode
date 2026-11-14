@@ -131,7 +131,7 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 		try {
 			// Providers redirect superseded resources, such as of a session they adopted, and leave unfamiliar ones unchanged
 			const resolved = await this._sessionsManagementService.resolveSessionResource(sessionResource, 'open');
-			const session = await waitForAgentsViewSession(this._sessionsManagementService, resolved, () => this._sessionsManagementService.getSession(resolved));
+			const session = await waitForAgentsViewSession(this._sessionsManagementService, () => this._sessionsManagementService.getSession(resolved));
 			if (session) {
 				await this._openSession(session, options);
 			}
@@ -172,7 +172,11 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 		await this._presenter.openChat(session, chatResource, { preserveFocus: options?.preserveFocus, sideBySide: true });
 	}
 
-	/** Whether the user trusts every folder the session works in, as the Agents window asks before it opens a session. */
+	/**
+	 * Whether the user trusts every folder the session works in, as the Agents window asks before it opens a session. Asking
+	 * is the caller's, as in the Agents window: {@link openSession}, {@link openSessionToSide}, {@link openChat} and
+	 * {@link openChatToSide} open without asking, and the sessions list asks with this before it opens a session.
+	 */
 	async canOpenSession(session: ISession): Promise<boolean> {
 		const workspace = session.workspace.get();
 		return requestSessionWorkspaceTrust(workspace, () => workspace && this._sessionsManagementService.getRemoteHostLabel(workspace, session.providerId), this._workspaceTrustManagementService, this._workspaceTrustRequestService);

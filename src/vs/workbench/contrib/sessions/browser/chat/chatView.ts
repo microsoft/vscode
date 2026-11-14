@@ -707,6 +707,7 @@ export class ChatView extends AbstractChatView {
 		if (options.input?.workingSet) {
 			const workingSet = this._register(scopedInstantiationService.createInstance(AgentHostSessionWorkingSet, this._widget, 'auto'));
 			this._chatPills.setChangesHidden(workingSet.changesPillHidden);
+			this._chatPills.setChangesContextMenuActions(workingSet.getChangesPillContextMenuActions);
 		}
 		this._register(this._widget.registerBackgroundActivityPillSections(this._chatPills.backgroundActivityPillSections));
 		this._register(this._widget.inputEditor.onKeyDown(event => {

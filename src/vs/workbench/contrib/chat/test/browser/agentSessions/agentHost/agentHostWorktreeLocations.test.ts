@@ -8,13 +8,16 @@ import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
+import { extUri } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { FileOperationError, FileOperationResult, IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { AgentHostWorktreeLocationProvider, getAgentHostSessionWorkingDirectories } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeLocations.js';
+import { WorkbenchState } from '../../../../../../../platform/workspace/common/workspace.js';
+import { BrowserWorkspaceEditingService } from '../../../../../../services/workspaces/browser/workspaceEditingService.js';
+import { AGENT_HOST_WORKTREE_LOCATIONS_PROVIDER_ID, AgentHostWorktreeLocationProvider, getAgentHostSessionWorkingDirectories } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeLocations.js';
 import { IAgentSession } from '../../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../browser/agentSessions/agentSessionsService.js';
 import { IChatSessionsService, SessionType } from '../../../../common/chatSessionsService.js';
@@ -35,21 +38,22 @@ suite('AgentHostWorktreeLocations', () => {
 	 * which `loading` holds, while another provider, `remote`, has resolved.
 	 */
 	function createProvider(entries: Record<string, string | boolean>, sessions: readonly IAgentSession[], uncached: readonly IAgentSession[] = [], links: Record<string, string> = {}, loading?: Promise<void>) {
+		// A path through a symbolic link, such as `links['/link/vscode'] = '/work/vscode'`, is the path it links to
+		const real = (path: string) => {
+			const link = Object.keys(links).find(candidate => path === candidate || path.startsWith(`${candidate}/`));
+			return link ? links[link] + path.slice(link.length) : path;
+		};
 		const fileService = upcastPartial<IFileService>({
 			stat: async (resource: URI) => {
-				const entry = entries[resource.path];
+				const entry = entries[real(resource.path)];
 				if (entry === undefined) {
 					throw new FileOperationError('not found', FileOperationResult.FILE_NOT_FOUND);
 				}
 				return upcastPartial<IFileStatWithMetadata>({ isDirectory: entry === true });
 			},
-			// A path through a symbolic link, such as `links['/link/vscode'] = '/work/vscode'`, is the path it links to
-			realpath: async (resource: URI) => {
-				const link = Object.keys(links).find(path => resource.path === path || resource.path.startsWith(`${path}/`));
-				return link ? URI.file(links[link] + resource.path.slice(link.length)) : resource;
-			},
+			realpath: async (resource: URI) => URI.file(real(resource.path)),
 			readFile: async (resource: URI) => {
-				const entry = entries[resource.path];
+				const entry = entries[real(resource.path)];
 				if (typeof entry !== 'string') {
 					throw new FileOperationError('not found', FileOperationResult.FILE_NOT_FOUND);
 				}
@@ -183,5 +187,62 @@ suite('AgentHostWorktreeLocations', () => {
 			primaryItself: await resolve('/link/vscode', '/work/vscode'),
 			offered: (await provider.provideLocations(URI.file('/link/vscode'), CancellationToken.None)).map(location => location.uri.path),
 		}, { throughLinkedPrimary: 'feature', linkedWorktree: 'feature', primaryItself: 'none', offered: ['/alias/feature'] });
+	});
+
+	test('follows symbolic links of the repository\'s worktrees folder and of a worktree\'s .git file, and grants the primary\'s trust only to the checkout git links back, not to another folder whose .git links to the same file', async () => {
+		// The repository's `.git/worktrees` is a link to another folder, and the worktree's `.git` file a link to another
+		// file; git names the worktree's own `.git` back. The impostor's `.git` links to the same file.
+		const linked = {
+			'/work/vscode/.git': true,
+			'/store/worktrees/feature/gitdir': '/work/vscode.worktrees/feature/.git\n',
+			'/store/feature.git': 'gitdir: /work/vscode/.git/worktrees/feature\n',
+		};
+		const provider = createProvider(linked, [], [], {
+			'/work/vscode/.git/worktrees': '/store/worktrees',
+			'/work/vscode.worktrees/feature/.git': '/store/feature.git',
+			'/work/impostor/.git': '/store/feature.git',
+		});
+		const resolve = async (path: string) => (await provider.resolveLocation(URI.file('/work/vscode'), URI.file(path), CancellationToken.None))?.uri.path ?? 'none';
+
+		// The workspace grants a location of a built-in provider the trust of the primary location
+		const primary = URI.file('/work/vscode');
+		const trusted: string[] = [];
+		let current = primary;
+		const workspaceEditingService = store.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
+			undefined,
+			{
+				getWorkbenchState: () => WorkbenchState.FOLDER,
+				getWorkspace: () => ({ folders: [{ uri: current }], uri: primary }),
+				setFolderLocation: async (location: URI, o?: { onApplied?: () => void }) => { current = location; o?.onApplied?.(); return true; },
+			},
+			undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+			{ confirm: async () => ({ confirmed: false }) },
+			undefined,
+			{ extUri },
+			{ isWorkspaceTrusted: () => true, getUriTrustInfo: async (uri: URI) => ({ trusted: extUri.isEqual(uri, primary) }), setUrisTrust: async (uris: URI[]) => { trusted.push(...uris.map(uri => uri.path)); } },
+			undefined, undefined, undefined,
+			{
+				canSetLocation: () => true,
+				resolveLocation: async (folder: URI, location: URI) => {
+					const resolved = await provider.resolveLocation(folder, location, CancellationToken.None);
+					return resolved && { ...resolved, providerId: AGENT_HOST_WORKTREE_LOCATIONS_PROVIDER_ID, builtIn: true };
+				},
+				setLocation: () => { },
+			},
+			{ isWorkspaceTrustEnabled: () => true }
+		));
+		// No provider knows the impostor: the workspace refuses to move there, and trusts nothing
+		const impostorMove = await workspaceEditingService.setFolderLocation(URI.file('/work/impostor')).then(() => 'moved', () => 'refused');
+		const impostorTrusted = [...trusted];
+		await workspaceEditingService.setFolderLocation(primary);
+		await workspaceEditingService.setFolderLocation(URI.file('/work/vscode.worktrees/feature'));
+
+		assert.deepStrictEqual({ linked: await resolve('/work/vscode.worktrees/feature'), impostor: await resolve('/work/impostor'), impostorMove, impostorTrusted, trusted }, {
+			linked: '/work/vscode.worktrees/feature',
+			impostor: 'none',
+			impostorMove: 'refused',
+			impostorTrusted: [],
+			trusted: ['/work/vscode.worktrees/feature'],
+		});
 	});
 });

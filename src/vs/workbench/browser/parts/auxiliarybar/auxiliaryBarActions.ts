@@ -277,7 +277,8 @@ class ToggleMaximizedAuxiliaryBar extends Action2 {
 				id: MenuId.AuxiliaryBarTitle,
 				group: 'navigation',
 				order: 1,
-				when: AuxiliaryBarMaximizeHiddenContext.negate(),
+				// Restore stays while it is maximized, also where its view container does not offer to maximize it
+				when: ContextKeyExpr.or(AuxiliaryBarMaximizeHiddenContext.negate(), AuxiliaryBarMaximizedContext),
 			}
 		});
 	}

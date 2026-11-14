@@ -114,7 +114,8 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 		}
 		try {
 			const checkout = await readFolderGitCheckout(this._fileService, await this._real(primary));
-			return checkout && joinPath(await this._real(checkout.repository), '.git', 'worktrees');
+			// Its real path also where `.git` or `.git/worktrees` is a symbolic link
+			return checkout && await this._real(joinPath(await this._real(checkout.repository), '.git', 'worktrees'));
 		} catch (error) {
 			this._logService.warn(`[AgentHostWorktreeLocations] Could not read the git repository of ${primary.toString()}`, error);
 			return undefined;
@@ -123,8 +124,8 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 
 	/**
 	 * `location` as a location of the folder at `primary`, when git links it both ways with an entry of `worktreesDir`: its
-	 * `.git` file names the entry, and the entry's `gitdir` file names its `.git` back, by their real paths, such as of a
-	 * folder reached through a symbolic link.
+	 * `.git` file names the entry, and the entry's `gitdir` file names the location's `.git` back, by their real paths, such
+	 * as of a folder reached through a symbolic link.
 	 */
 	private async _resolve(worktreesDir: URI, primary: URI, location: URI): Promise<IFolderLocation | undefined> {
 		if (location.scheme !== Schemas.file) {
@@ -135,12 +136,17 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 			return undefined;
 		}
 		const locationGitFile = joinPath(realLocation, '.git');
-		const entry = await this._readLink(locationGitFile, dirname(locationGitFile), /^gitdir:\s*(?<path>.+?)\s*$/m);
+		const entry = await this._readLink(locationGitFile, realLocation, /^gitdir:\s*(?<path>.+?)\s*$/m);
 		if (!entry || !extUriBiasedIgnorePathCase.isEqual(dirname(await this._real(entry)), worktreesDir)) {
 			return undefined;
 		}
 		const backlink = await this._readLink(joinPath(entry, 'gitdir'), entry);
-		if (!backlink || !extUriBiasedIgnorePathCase.isEqual(await this._real(backlink), locationGitFile)) {
+		// The entry names the checkout itself: the folder of the `.git` file it names is the location, by their real paths,
+		// and that file is the location's `.git`, also where it is a symbolic link. Another folder whose `.git` links to the
+		// same file is no checkout of the entry, and must not inherit the primary's trust.
+		if (!backlink
+			|| !extUriBiasedIgnorePathCase.isEqual(await this._real(dirname(backlink)), realLocation)
+			|| !extUriBiasedIgnorePathCase.isEqual(await this._real(backlink), await this._real(locationGitFile))) {
 			return undefined;
 		}
 		// Its branch, from the entry's HEAD: read again each time the location is resolved
