@@ -40,7 +40,8 @@ export class EditorWindowSessionsRuntime extends Disposable implements IEditorWi
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _owners = observableValue<readonly IEditorWindowSessionsRuntimeOptions[]>(this, []);
+	/** One per call of {@link enable}, also of the same options: each is removed by its own disposal only. */
+	private readonly _owners = observableValue<readonly { readonly options: IEditorWindowSessionsRuntimeOptions }[]>(this, []);
 	readonly enabled: IObservable<boolean> = derived(this, reader => this._owners.read(reader).length > 0);
 
 	private readonly _hold = this._register(new MutableDisposable());
@@ -57,11 +58,12 @@ export class EditorWindowSessionsRuntime extends Disposable implements IEditorWi
 	}
 
 	enable(options: IEditorWindowSessionsRuntimeOptions): IDisposable {
-		this._owners.set([...this._owners.get(), options], undefined);
+		const owner = { options };
+		this._owners.set([...this._owners.get(), owner], undefined);
 		this._listen();
 		this._update();
 		return toDisposable(() => {
-			this._owners.set(this._owners.get().filter(candidate => candidate !== options), undefined);
+			this._owners.set(this._owners.get().filter(candidate => candidate !== owner), undefined);
 			if (!this._owners.get().length) {
 				this._listeners.clear();
 			}
@@ -75,7 +77,7 @@ export class EditorWindowSessionsRuntime extends Disposable implements IEditorWi
 		}
 		const listeners = this._listeners.value = new DisposableStore();
 		listeners.add(this._viewsService.onDidChangeViewVisibility(e => {
-			if (this._owners.get().some(owner => owner.viewIds.includes(e.id))) {
+			if (this._owners.get().some(owner => owner.options.viewIds.includes(e.id))) {
 				this._update();
 			}
 		}));
@@ -97,7 +99,7 @@ export class EditorWindowSessionsRuntime extends Disposable implements IEditorWi
 			return;
 		}
 		const owners = this._owners.get();
-		const shown = owners.length > 0 && (this._layoutService.isVisible(Parts.CHAT_PART) || owners.some(owner => owner.viewIds.some(id => this._viewsService.isViewVisible(id))));
+		const shown = owners.length > 0 && (this._layoutService.isVisible(Parts.CHAT_PART) || owners.some(owner => owner.options.viewIds.some(id => this._viewsService.isViewVisible(id))));
 		if (shown) {
 			this._hold.value ??= this._providers.acquire();
 		} else {
