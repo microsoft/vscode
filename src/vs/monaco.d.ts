@@ -4062,6 +4062,11 @@ declare namespace monaco.editor {
 		*/
 		compactMode?: boolean;
 		/**
+		 * If set, the original editor's line numbers are hidden in the inline view.
+		 * Defaults to `false`.
+		*/
+		hideOriginalLineNumbers?: boolean;
+		/**
 		 * Timeout in milliseconds after which diff computation is cancelled.
 		 * Defaults to 5000.
 		 */
