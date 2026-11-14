@@ -3133,8 +3133,7 @@ export class Repository {
 		try {
 			if (!this.dotGit.isBare) {
 				// Add main worktree for a non-bare repository
-				const headPath = path.join(mainRepositoryPath, 'HEAD');
-				const headContent = (await fs.readFile(headPath, 'utf8')).trim();
+				const headContent = await this.getWorktreeHEAD(mainRepositoryPath);
 
 				const mainRepositoryWorktreeName = path.basename(path.dirname(mainRepositoryPath));
 
@@ -3157,8 +3156,7 @@ export class Repository {
 				}
 
 				try {
-					const headPath = path.join(worktreesPath, dirent.name, 'HEAD');
-					const headContent = (await fs.readFile(headPath, 'utf8')).trim();
+					const headContent = await this.getWorktreeHEAD(path.join(worktreesPath, dirent.name));
 
 					const gitdirPath = path.join(worktreesPath, dirent.name, 'gitdir');
 					const gitdirContent = (await fs.readFile(gitdirPath, 'utf8')).trim();
@@ -3190,6 +3188,26 @@ export class Repository {
 
 			throw err;
 		}
+	}
+
+	private async getWorktreeHEAD(dotGitPath: string): Promise<string> {
+		const head = (await fs.readFile(path.join(dotGitPath, 'HEAD'), 'utf8')).trim();
+		// Reftable repositories store a placeholder in HEAD instead of the current ref.
+		if (head !== 'ref: refs/heads/.invalid') {
+			return head;
+		}
+
+		try {
+			const { stdout } = await this.exec(['--git-dir', dotGitPath, 'symbolic-ref', '--quiet', 'HEAD']);
+			return `ref: ${stdout.trim()}`;
+		} catch (err) {
+			if (!(err instanceof GitError) || err.exitCode !== 1) {
+				throw err;
+			}
+		}
+
+		const { stdout } = await this.exec(['--git-dir', dotGitPath, 'rev-parse', 'HEAD']);
+		return stdout.trim();
 	}
 
 	async getRemotes(): Promise<Remote[]> {

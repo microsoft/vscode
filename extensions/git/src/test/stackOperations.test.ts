@@ -179,6 +179,76 @@ suite('git stack operations', () => {
 			}
 		});
 
+		suite('worktree references', () => {
+			for (const refFormat of ['files', 'reftable']) {
+				suite(refFormat, () => {
+					setup(async function () {
+						if (refFormat === 'reftable') {
+							if (git.compareGitVersionTo('2.48.0') === -1) {
+								this.skip();
+							}
+							await closeRepository(repository);
+							await git.exec(root, ['refs', 'migrate', '--ref-format=reftable']);
+							const opened = await api.openRepository(Uri.file(root));
+							assert.ok(opened);
+							repository = opened;
+						}
+					});
+
+					test('reports an unborn main worktree branch through the public API', async () => {
+						await git.exec(root, ['checkout', '--orphan', 'unborn']);
+						await repository.status();
+
+						assert.deepStrictEqual(repository.state.worktrees.map(({ ref, detached, main }) => ({ ref, detached, main })), [
+							{ ref: 'refs/heads/unborn', detached: false, main: true }
+						]);
+					});
+
+					test('reports main and linked worktree branches through the public API', async () => {
+						const worktreePath = path.join(directory, 'linked-worktree');
+						await repository.createWorktree({ path: worktreePath, branch: 'feature' });
+						let linkedRepository: Repository | null = null;
+
+						try {
+							linkedRepository = await api.openRepository(Uri.file(worktreePath));
+							assert.ok(linkedRepository);
+							await repository.status();
+							await linkedRepository.status();
+
+							const expected = [
+								{ name: 'repository', ref: 'refs/heads/main', detached: false, main: true },
+								{ name: 'linked-worktree', ref: 'refs/heads/feature', detached: false, main: false }
+							];
+							assert.deepStrictEqual({
+								main: repository.state.worktrees.map(({ name, ref, detached, main }) => ({ name, ref, detached, main })),
+								linked: linkedRepository.state.worktrees.map(({ name, ref, detached, main }) => ({ name, ref, detached, main }))
+							}, { main: expected, linked: expected });
+						} finally {
+							await closeRepository(linkedRepository);
+							await repository.deleteWorktree(worktreePath, { force: true });
+						}
+					});
+
+					test('reports detached main and linked worktree commits through the public API', async () => {
+						const commit = (await repository.getCommit('HEAD')).hash;
+						await repository.checkout(commit);
+						const worktreePath = path.join(directory, 'detached-worktree');
+						await repository.createWorktree({ path: worktreePath, commitish: commit });
+
+						try {
+							await repository.status();
+							assert.deepStrictEqual(repository.state.worktrees.map(({ name, ref, detached, main }) => ({ name, ref, detached, main })), [
+								{ name: 'repository', ref: commit, detached: true, main: true },
+								{ name: 'detached-worktree', ref: commit, detached: true, main: false }
+							]);
+						} finally {
+							await repository.deleteWorktree(worktreePath, { force: true });
+						}
+					});
+				});
+			}
+		});
+
 		test('rebases onto a new base and aborts a conflicting rebase', async () => {
 			const oldBase = (await repository.getCommit('HEAD')).hash;
 			await repository.createBranch('feature', true);
