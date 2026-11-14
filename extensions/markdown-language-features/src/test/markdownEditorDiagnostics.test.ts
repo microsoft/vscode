@@ -12,11 +12,15 @@ suite('Markdown editor pull diagnostics', () => {
 		this.timeout(30000);
 		const folder = vscode.workspace.workspaceFolders?.[0];
 		assert.ok(folder, 'The integration test requires a workspace folder');
-		const uri = vscode.Uri.joinPath(folder.uri, `markdown-rich-diagnostics-${Date.now()}.md`);
+		// Use a committed fixture instead of creating the file here. A file created just before it is
+		// opened makes the language client forward the file watcher event 250 ms later, and over a
+		// remote connection that event can reach the server after the edit below. The server then
+		// replaces its in-memory copy with the stale on-disk text and keeps reporting the old warning.
+		const uri = vscode.Uri.joinPath(folder.uri, 'markdown-rich-diagnostics.md');
 		const config = vscode.workspace.getConfiguration('markdown', uri);
 		const previousEnabled = config.inspect<boolean>('validate.enabled')?.workspaceValue;
 		const previousFragments = config.inspect<string>('validate.fragmentLinks.enabled')?.workspaceValue;
-		await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode('# Heading\n\n[broken](#missing)\n'));
+		const originalText = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
 		try {
 			await config.update('validate.enabled', true, vscode.ConfigurationTarget.Workspace);
 			await config.update('validate.fragmentLinks.enabled', 'warning', vscode.ConfigurationTarget.Workspace);
@@ -40,12 +44,14 @@ suite('Markdown editor pull diagnostics', () => {
 		} finally {
 			const document = vscode.workspace.textDocuments.find(document => document.uri.toString() === uri.toString());
 			if (document?.isDirty) {
+				const restore = new vscode.WorkspaceEdit();
+				restore.replace(uri, new vscode.Range(0, 0, document.lineCount, 0), originalText);
+				await vscode.workspace.applyEdit(restore);
 				await document.save();
 			}
 			const tabs = vscode.window.tabGroups.all.flatMap(group => group.tabs)
 				.filter(tab => tab.input instanceof vscode.TabInputCustom && tab.input.uri.toString() === uri.toString());
 			await vscode.window.tabGroups.close(tabs);
-			await vscode.workspace.fs.delete(uri);
 			await config.update('validate.enabled', previousEnabled, vscode.ConfigurationTarget.Workspace);
 			await config.update('validate.fragmentLinks.enabled', previousFragments, vscode.ConfigurationTarget.Workspace);
 		}
