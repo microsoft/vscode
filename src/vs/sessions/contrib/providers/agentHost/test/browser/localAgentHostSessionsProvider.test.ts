@@ -12850,12 +12850,23 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}));
 			const recordedByEach = readIcons();
 
+			// A chat that only references a pull request another chat created does not show its icon.
+			agentHost.setSessionState('multi-pr-icon', 'copilotcli', makeState(chats, {
+				defaultChat,
+				meta: withSessionArtifacts(discovered, [
+					{ id: 'main-pr', chat: defaultChat, type: SessionArtifactType.PullRequest, label: 'Main PR', isArtifact: true, isGitHub: true, link: 'https://github.com/microsoft/vscode/pull/2' },
+					{ id: 'peer-ref', chat: peerChat, type: SessionArtifactType.PullRequest, label: 'Peer reference', isArtifact: false, isGitHub: true, link: 'https://github.com/microsoft/vscode/pull/2' },
+				]),
+			}));
+			const referencedByPeer = readIcons();
+
 			const openIcon = computePullRequestIcon(GitHubPullRequestState.Open).id;
-			assert.deepStrictEqual({ discoveredOnly, recordedByPeer, recordedByUnknownChat, recordedByEach }, {
+			assert.deepStrictEqual({ discoveredOnly, recordedByPeer, recordedByUnknownChat, recordedByEach, referencedByPeer }, {
 				discoveredOnly: { session: openIcon, main: openIcon, peer: undefined },
 				recordedByPeer: { session: undefined, main: undefined, peer: openIcon },
 				recordedByUnknownChat: { session: undefined, main: undefined, peer: undefined },
 				recordedByEach: { session: openIcon, main: openIcon, peer: openIcon },
+				referencedByPeer: { session: openIcon, main: openIcon, peer: undefined },
 			});
 		});
 
