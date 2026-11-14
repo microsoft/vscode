@@ -109,6 +109,7 @@ suite('ChatViewSessionsGate', () => {
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({
 			onDidChangePartVisibility: events?.partVisibility ?? Event.None,
 			isVisible: (part: Parts) => part === Parts.AUXILIARYBAR_PART && !!auxiliaryBar?.visible,
+			setChatPartAnchor: () => { },
 			setPartHidden: (hidden: boolean, part: Parts) => {
 				if (hidden) {
 					hiddenParts.push(part);
