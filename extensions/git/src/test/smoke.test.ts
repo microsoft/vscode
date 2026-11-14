@@ -5,7 +5,7 @@
 
 import 'mocha';
 import assert from 'assert';
-import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions, TabInputTextDiff, TabInputNotebook, TabInputNotebookDiff } from 'vscode';
+import { workspace, commands, window, Uri, ConfigurationTarget, WorkspaceEdit, Range, TextDocument, extensions, TabInputTextDiff, TabInputNotebook, TabInputNotebookDiff } from 'vscode';
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -294,4 +294,54 @@ suite('git smoke test', function () {
 		assert.strictEqual(repository.state.workingTreeChanges.length, 0);
 		assert.strictEqual(repository.state.indexChanges.length, 0);
 	});
+
+	for (const enableSmartCommit of [false, true]) {
+		test(`commits a merge whose resolution matches HEAD without staging unrelated changes (enableSmartCommit: ${enableSmartCommit})`, async function () {
+			const conflictFile = `conflict-${enableSmartCommit}.txt`;
+			const branch = `merge-feature-${enableSmartCommit}`;
+			const config = workspace.getConfiguration('git');
+			await config.update('enableSmartCommit', enableSmartCommit, ConfigurationTarget.Global);
+
+			try {
+				fs.writeFileSync(file(conflictFile), 'base\n', 'utf8');
+				cp.execSync(`git add ${conflictFile}`, { cwd });
+				cp.execSync(`git commit -m "add ${conflictFile}" -- ${conflictFile}`, { cwd });
+
+				cp.execSync(`git checkout -b ${branch}`, { cwd });
+				fs.writeFileSync(file(conflictFile), 'feature\n', 'utf8');
+				cp.execSync(`git commit -m "feature" -- ${conflictFile}`, { cwd });
+
+				cp.execSync('git checkout main', { cwd });
+				fs.writeFileSync(file(conflictFile), 'main\n', 'utf8');
+				cp.execSync(`git commit -m "main" -- ${conflictFile}`, { cwd });
+
+				assert.throws(() => cp.execSync(`git merge ${branch}`, { cwd, stdio: 'ignore' }));
+
+				// Resolve the conflict with the HEAD version and modify an unrelated tracked file
+				fs.writeFileSync(file(conflictFile), 'main\n', 'utf8');
+				cp.execSync(`git add ${conflictFile}`, { cwd });
+				fs.writeFileSync(file('app.js'), 'unrelated change', 'utf8');
+				await repository.status();
+
+				repository.inputBox.value = `Merge branch '${branch}'`;
+				await commands.executeCommand('git.commit');
+				await repository.status();
+
+				const parents = cp.execSync('git rev-list --parents -n 1 HEAD', { cwd }).toString().trim().split(' ').length - 1;
+				assert.deepStrictEqual({
+					parents,
+					indexChanges: repository.state.indexChanges.length,
+					workingTreeChanges: repository.state.workingTreeChanges.map(change => [path.basename(change.uri.fsPath), change.status])
+				}, {
+					parents: 2,
+					indexChanges: 0,
+					workingTreeChanges: [['app.js', Status.MODIFIED]]
+				});
+			} finally {
+				await config.update('enableSmartCommit', undefined, ConfigurationTarget.Global);
+				cp.execSync('git checkout -- app.js', { cwd });
+				await repository.status();
+			}
+		});
+	}
 });
