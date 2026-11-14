@@ -27,8 +27,8 @@ suite('ChatViewOpenInChatPartContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(options: { remote?: boolean; sessionsWindow?: boolean; setting?: boolean; chatEnabled?: boolean } = {}) {
-		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOpenInChatPart]: options.setting ?? false });
+	function setup(options: { remote?: boolean; sessionsWindow?: boolean; setting?: boolean; chatEnabled?: boolean; agentEnabled?: boolean } = {}) {
+		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOpenInChatPart]: options.setting ?? false, [ChatConfiguration.AgentEnabled]: options.agentEnabled ?? true });
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(options.chatEnabled ?? true);
 		const chatPartOptions: IEditorWindowChatPartOptions[] = [];
@@ -71,6 +71,10 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			off: { anchors: [{ anchorViewId: ChatViewId, anchorPriority: 1, enabled: false }], runtime: [], runtimeHeld: 0 },
 			on: { anchors: [{ anchorViewId: ChatViewId, anchorPriority: 1, enabled: true }], runtime: [[ChatViewId]], runtimeHeld: 1 },
 		});
+	});
+
+	test('is off while agents are disabled, as the chat part\'s host cannot show chats then', () => {
+		assert.strictEqual(setup({ setting: true, agentEnabled: false }).chatPartOptions[0].enabled.get(), false);
 	});
 
 	test('follows the setting and AI features', async () => {

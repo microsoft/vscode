@@ -9,7 +9,7 @@ import { autorun, derived, observableFromEvent } from '../../../../../base/commo
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
@@ -21,6 +21,7 @@ import { IChatViewSessionsListService } from '../../../chat/browser/widgetHosts/
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessionsRuntime.js';
+import { AgentsViewAvailable } from '../agentsView/agentsChatPartContext.js';
 import { IEditorWindowChatPartService } from '../agentsView/agentsChatPartContribution.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -64,10 +65,11 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		}
 
 		const setting = observableConfigValue(ChatConfiguration.ChatViewSessionsOpenInChatPart, false, configurationService);
-		const chatKeys = new Set([ChatContextKeys.enabled.key]);
-		const chatEnabled = observableFromEvent(this, Event.filter(_contextKeyService.onDidChangeContext, e => e.affectsSome(chatKeys)), () => !!ChatContextKeys.enabled.getValue(_contextKeyService));
-		// Not with AI features disabled
-		const enabled = derived(this, reader => setting.read(reader) && chatEnabled.read(reader));
+		// What the chat part's host needs to show chats: not with AI features disabled, nor with agents disabled
+		const available = ContextKeyExpr.and(ChatContextKeys.enabled, AgentsViewAvailable)!;
+		const availableKeys = new Set(available.keys());
+		const chatAvailable = observableFromEvent(this, Event.filter(_contextKeyService.onDidChangeContext, e => e.affectsSome(availableKeys)), () => _contextKeyService.contextMatchesRules(available));
+		const enabled = derived(this, reader => setting.read(reader) && chatAvailable.read(reader));
 		this._register(chatPartService.enable({ anchorViewId: ChatViewId, anchorPriority: CHAT_VIEW_ANCHOR_PRIORITY, enabled }));
 		// The sessions that the chat part shows are known while the Chat view lists them
 		this._register(autorun(reader => {
