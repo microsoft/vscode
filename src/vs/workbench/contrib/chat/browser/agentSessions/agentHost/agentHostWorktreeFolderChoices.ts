@@ -156,11 +156,15 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 			return [];
 		}
 		const isCurrent = (uri: URI) => extUriBiasedIgnorePathCase.isEqual(uri, folder.uri);
+		const locations: IFolderLocation[] = this._locations.filter(location => !extUriBiasedIgnorePathCase.isEqual(location.uri, primary));
+		// Where the folder is now, also a worktree that no session works in any more
+		const current = this._folderLocationService.getLocation(folder);
+		if (current && !isCurrent(primary) && !locations.some(location => isCurrent(location.uri))) {
+			locations.push(current);
+		}
 		return [
 			{ uri: primary, label: basename(primary), kind: 'folder', current: isCurrent(primary) },
-			...this._locations
-				.filter(location => !extUriBiasedIgnorePathCase.isEqual(location.uri, primary))
-				.map(location => ({ uri: location.uri, label: location.label, kind: 'worktree' as const, current: isCurrent(location.uri) })),
+			...locations.map(location => ({ uri: location.uri, label: location.label, kind: 'worktree' as const, current: isCurrent(location.uri) })),
 		];
 	}
 

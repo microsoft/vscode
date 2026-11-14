@@ -12,7 +12,7 @@ import { MenuItemAction } from '../../../../../../../platform/actions/common/act
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../../../../platform/workspace/common/folderLocations.js';
+import { IFolderLocation, IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostNewSessionFolderService } from '../../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
@@ -29,7 +29,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 	const session = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-1' });
 
 	/** The choices in a window whose folder is at `at`, recording the folders and isolation it sets for the session. */
-	async function createChoices(options: { readonly enabled: boolean; readonly at: URI; readonly isolation?: string; readonly state?: WorkbenchState }) {
+	async function createChoices(options: { readonly enabled: boolean; readonly at: URI; readonly isolation?: string; readonly state?: WorkbenchState; readonly listed?: readonly URI[] }) {
 		const config = { values: { isolation: options.isolation ?? 'folder' } as Record<string, unknown> };
 		const changes: string[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
@@ -42,7 +42,8 @@ suite('AgentHostWorktreeFolderChoices', () => {
 			onDidChangeProviders: Event.None,
 			onDidChangeLocation: Event.None,
 			canSetLocation: () => true,
-			getLocations: async () => [feature, other].map(uri => upcastPartial<IFolderLocation>({ uri, label: uri.path.split('/').pop() })),
+			getLocations: async () => (options.listed ?? [feature, other]).map(uri => upcastPartial<IFolderLocation>({ uri, label: uri.path.split('/').pop() })),
+			getLocation: () => options.at.path === primary.path ? undefined : upcastPartial<IResolvedFolderLocation>({ uri: options.at, label: options.at.path.split('/').pop() }),
 		}));
 		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({
 			getFolder: () => undefined,
@@ -68,9 +69,12 @@ suite('AgentHostWorktreeFolderChoices', () => {
 	test('offers New Worktree first, then the folder and its worktrees, each section with where the folder is now first', async () => {
 		const atWorktree = await createChoices({ enabled: true, at: other });
 		const atFolder = await createChoices({ enabled: true, at: primary });
+		// A worktree that no session lists any more, such as one whose sessions are archived
+		const atUnlisted = await createChoices({ enabled: true, at: other, listed: [feature] });
 
-		assert.deepStrictEqual({ atWorktree: atWorktree.items(other), atFolder: atFolder.items(primary) }, {
+		assert.deepStrictEqual({ atWorktree: atWorktree.items(other), atUnlisted: atUnlisted.items(other), atFolder: atFolder.items(primary) }, {
 			atWorktree: ['New Worktree', '[Folder] vscode', '[Worktrees] other (Current) *', '[Worktrees] feature'],
+			atUnlisted: ['New Worktree', '[Folder] vscode', '[Worktrees] other (Current) *', '[Worktrees] feature'],
 			atFolder: ['New Worktree', '[Folder] vscode (Current) *', '[Worktrees] feature', '[Worktrees] other'],
 		});
 	});
