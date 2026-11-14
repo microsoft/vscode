@@ -3052,8 +3052,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}));
 		disposables.add(chatSub.onDidChange(refreshHistory));
+		// The host replaces a chat's turns by clearing them and loading the new list, for example after it
+		// reloads the chat from storage or takes it over from another process. Reloaded turns can have other
+		// ids than the ones this window sent, so finished requests the new list lacks are removed rather than
+		// shown beside their reloaded copies.
+		let replacingTurns = false;
 		disposables.add(chatSub.onDidApplyAction(envelope => {
-			if (envelope.action.type === ActionType.ChatTurnsLoaded) {
+			const action = envelope.action;
+			const replaced = replacingTurns;
+			replacingTurns = !envelope.origin && action.type === ActionType.ChatTruncated && action.turnId === undefined;
+			if (action.type === ActionType.ChatTurnsLoaded) {
+				if (replaced) {
+					this._removeRequestsMissingFromHost(sessionResource, this._getSessionState(sessionStr, chatURI));
+				}
 				historyRefreshPending = true;
 				refreshHistory();
 			}
@@ -3184,6 +3195,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		store.add(reference);
 		disposableTimeout(() => holder.clear(), AgentHostSessionHandler.QUEUED_TURN_HANDOFF_MS, store);
 		holder.value = store;
+	}
+
+	/**
+	 * Removes the chat's finished requests that the host's replaced turns no longer have. A request that is
+	 * still running is kept: the host keeps its turn too.
+	 */
+	private _removeRequestsMissingFromHost(sessionResource: URI, state: ISessionWithDefaultChat | undefined): void {
+		const model = this._chatService.getSession(sessionResource);
+		if (!model || !state) {
+			return;
+		}
+		const turnIds = new Set(state.turns.map(turn => turn.id));
+		for (const request of model.getRequests()) {
+			if (!turnIds.has(request.id) && request.response?.isComplete) {
+				void this._chatService.removeRequest(sessionResource, request.id);
+			}
+		}
 	}
 
 	private _watchForMcpAuthentication(backendSession: URI, sessionResource: URI, chatURI: string): void {
