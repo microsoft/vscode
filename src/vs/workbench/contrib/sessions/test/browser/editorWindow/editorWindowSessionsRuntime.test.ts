@@ -125,16 +125,16 @@ suite('EditorWindowSessionsPresenterService', () => {
 		const calls: string[] = [];
 		const service = disposables.add(new EditorWindowSessionsPresenterService(
 			upcastPartial<IChatViewHostService>({
-				newChat: async (target, options) => { calls.push(`newChat ${target?.folder?.path} provider=${target?.providerId} type=${target?.sessionType} ownChat=${options?.ownChat} preserveFocus=${options?.preserveFocus}`); return true; },
+				newChat: async (target, options) => { calls.push(`newChat ${target?.folder?.path} provider=${target?.providerId} type=${target?.sessionType} model=${target?.modelId} mode=${target?.modeId} devContainer=${target?.requireDevContainer} ownChat=${options?.ownChat} preserveFocus=${options?.preserveFocus}`); return true; },
 			}),
 		));
 
 		await service.presenter.get().openComposer(undefined, { preserveFocus: true });
-		await service.presenter.get().openComposer({ folderUri: URI.file('/repo.worktrees/a'), providerId: 'local-agent-host', sessionTypeId: 'copilotcli' });
+		await service.presenter.get().openComposer({ folderUri: URI.file('/repo.worktrees/a'), providerId: 'local-agent-host', sessionTypeId: 'copilotcli', modelId: 'model', modeId: 'mode', requireDevContainer: true });
 
 		assert.deepStrictEqual(calls, [
-			'newChat undefined provider=undefined type=undefined ownChat=true preserveFocus=true',
-			'newChat /repo.worktrees/a provider=local-agent-host type=copilotcli ownChat=true preserveFocus=undefined',
+			'newChat undefined provider=undefined type=undefined model=undefined mode=undefined devContainer=undefined ownChat=true preserveFocus=true',
+			'newChat /repo.worktrees/a provider=local-agent-host type=copilotcli model=model mode=mode devContainer=true ownChat=true preserveFocus=undefined',
 		]);
 	});
 

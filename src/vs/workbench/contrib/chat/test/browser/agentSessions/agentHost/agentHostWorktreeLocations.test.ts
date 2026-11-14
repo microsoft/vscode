@@ -21,6 +21,7 @@ import { AGENT_HOST_WORKTREE_LOCATIONS_PROVIDER_ID, AgentHostWorktreeLocationPro
 import { IAgentSession } from '../../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../browser/agentSessions/agentSessionsService.js';
 import { IChatSessionsService, SessionType } from '../../../../common/chatSessionsService.js';
+import { AgentHostWorktreeSessionSources, IAgentHostWorktreeSessionSources } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSessionSources.js';
 
 suite('AgentHostWorktreeLocations', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -80,11 +81,13 @@ suite('AgentHostWorktreeLocations', () => {
 		};
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>(model) }));
 		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ getRegisteredChatSessionItemProviders: () => ['remote', SessionType.AgentHostCopilot] }));
+		const sources = store.add(new AgentHostWorktreeSessionSources());
+		instantiationService.stub(IAgentHostWorktreeSessionSources, sources);
 		const provider = store.add(instantiationService.createInstance(AgentHostWorktreeLocationProvider));
 		// Another provider resolved first
 		model.resolved = true;
 		onDidResolve.fire('remote');
-		return Object.assign(provider, { resolving });
+		return Object.assign(provider, { resolving, sources });
 	}
 
 	const repository = {
@@ -243,6 +246,30 @@ suite('AgentHostWorktreeLocations', () => {
 			impostorMove: 'refused',
 			impostorTrusted: [],
 			trusted: ['/work/vscode.worktrees/feature'],
+		});
+	});
+
+	test('also offers the worktrees that sessions of another source work in, such as the editor window\'s session layer, but only those git links back', async () => {
+		const provider = createProvider(repository, [session(SessionType.AgentHostCopilot, '/work/vscode.worktrees/feature')]);
+		const ready = new DeferredPromise<void>();
+		const onDidChange = store.add(new Emitter<void>());
+		const nominated = ['/work/vscode.worktrees/relative', '/work/vscode.worktrees/feature', '/work/impostor', '/work/tools.worktrees/fix', '/work/vscode'];
+		store.add(provider.sources.registerSource({
+			getWorkingDirectory: () => undefined,
+			getWorkingDirectories: () => nominated.map(path => URI.file(path)),
+			whenReady: () => ready.p,
+			onDidChange: onDidChange.event,
+		}));
+		let offered: string[] | undefined;
+		const providing = provider.provideLocations(URI.file('/work/vscode'), CancellationToken.None).then(locations => offered = locations.map(location => location.uri.path));
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+		const beforeReady = offered;
+		await ready.complete();
+		await providing;
+
+		assert.deepStrictEqual({ beforeReady, offered }, {
+			beforeReady: undefined,
+			offered: ['/work/vscode.worktrees/feature', '/work/vscode.worktrees/relative'],
 		});
 	});
 });
