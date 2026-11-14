@@ -15,7 +15,7 @@ import { IConfigurationService } from '../../../../../../../platform/configurati
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IFileService, IFileStatWithMetadata } from '../../../../../../../platform/files/common/files.js';
+import { createFileSystemProviderError, FileSystemProviderErrorCode, IFileService, IFileStatWithMetadata } from '../../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
@@ -48,7 +48,7 @@ suite('AgentHostWorktree', () => {
 	const created = URI.file('/work/vscode.worktrees/created');
 
 	/** The feature in a window whose folder is at `at`, recording the moves it asks for, the chats it opens and its experiment triggers. */
-	function createWorktree(options: { readonly enabled: boolean; readonly at?: URI; readonly canSetLocation?: boolean; readonly worktrees?: readonly URI[]; readonly resolving?: Promise<void>; readonly terminalCwd?: URI; readonly setting?: Promise<void>; readonly resolvingFor?: Record<string, Promise<void>>; readonly realPaths?: Record<string, string> }) {
+	function createWorktree(options: { readonly enabled: boolean; readonly at?: URI; readonly canSetLocation?: boolean; readonly worktrees?: readonly URI[]; readonly resolving?: Promise<void>; readonly terminalCwd?: URI; readonly setting?: Promise<void>; readonly resolvingFor?: Record<string, Promise<void>>; readonly realPaths?: Record<string, string>; readonly realPathError?: Error }) {
 		const worktrees = options.worktrees ?? [worktree, created];
 		const marks: string[] = [];
 		const terminal = upcastPartial<ITerminalInstance>({
@@ -152,10 +152,16 @@ suite('AgentHostWorktree', () => {
 		instantiationService.stub(IWorkspaceEditingService, upcastPartial<IWorkspaceEditingService>({ setFolderLocation }));
 		instantiationService.stub(IFileService, upcastPartial<IFileService>({
 			stat: async () => upcastPartial<IFileStatWithMetadata>({}),
-			realpath: async (resource: URI) => { const real = options.realPaths?.[resource.path]; return real ? URI.file(real) : resource; },
+			realpath: async (resource: URI) => { if (options.realPathError) { throw options.realPathError; } const real = options.realPaths?.[resource.path]; return real ? URI.file(real) : resource; },
 		}));
 		instantiationService.stub(ILabelService, upcastPartial<ILabelService>({ getUriLabel: (uri: URI) => uri.path }));
-		instantiationService.stub(INotificationService, new TestNotificationService());
+		// The kinds of the notifications it shows, such as of a move that failed
+		const notices: string[] = [];
+		const notificationService = new TestNotificationService();
+		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({
+			info: () => { notices.push('info'); return notificationService.info(''); },
+			error: () => { notices.push('error'); return notificationService.error(''); },
+		}));
 		instantiationService.stub(ITerminalService, upcastPartial<ITerminalService>({ instances: options.terminalCwd ? [terminal] : [], onDidCreateInstance: Event.None }));
 		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
 		instantiationService.stub(ITelemetryService, telemetryService);
@@ -176,7 +182,7 @@ suite('AgentHostWorktree', () => {
 		/** The user moves the folder in the window's title, which the workspace makes like any other move. */
 		const userStartsMoveTo = (location: URI) => setFolderLocation(location, { reason: 'user' });
 		const commit = (original: URI, committed: URI) => onDidCommitSession.fire({ original, committed });
-		return { show, workingDirectories, onDidChangeSessions, sessionLayerDirectories, onDidChangeSessionLayer, moves, applied, opened, providers, triggers: telemetryService.triggers, setEnabled, userMovesTo, userStartsMoveTo, commit, contribution, marks };
+		return { show, workingDirectories, onDidChangeSessions, sessionLayerDirectories, onDidChangeSessionLayer, moves, applied, opened, providers, triggers: telemetryService.triggers, setEnabled, userMovesTo, userStartsMoveTo, commit, contribution, marks, notices };
 	}
 
 	const settle = () => new Promise<void>(resolve => setTimeout(resolve, 0));
@@ -227,6 +233,15 @@ suite('AgentHostWorktree', () => {
 		await settle();
 
 		assert.deepStrictEqual(feature.moves, ['/work/vscode']);
+	});
+
+	test('a chat whose folder\'s real path cannot be read, other than as missing, fails to move the folder with an error rather than staying silent', async () => {
+		const feature = createWorktree({ enabled: true, at: worktree, realPathError: createFileSystemProviderError('EACCES', FileSystemProviderErrorCode.NoPermissions) });
+		feature.workingDirectories.set(agentSession('a').toString(), '/private/work/vscode/src');
+		feature.show(agentSession('a'));
+		await settle();
+
+		assert.deepStrictEqual({ moves: feature.moves, notices: feature.notices }, { moves: [], notices: ['error'] });
 	});
 
 	test('opens the last chat of a location the user moves the folder to themselves', async () => {
