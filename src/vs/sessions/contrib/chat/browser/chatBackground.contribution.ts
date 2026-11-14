@@ -8,13 +8,15 @@ import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurati
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import '../../../../workbench/contrib/sessions/browser/chatBackgroundActions.js';
+import { registerChatBackgroundConfiguration } from '../../../../workbench/contrib/sessions/browser/chatBackgroundActions.js';
 import { ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
 import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { GetThemeColorsToolContribution } from './getThemeColorsTool.js';
 
 registerWorkbenchContribution2(GetThemeColorsToolContribution.ID, GetThemeColorsToolContribution, WorkbenchPhase.Eventually);
 registerSingleton(ISessionsChatBackgroundService, SessionsChatBackgroundService, InstantiationType.Delayed);
+// The Agents window shows its chats over the chat background, always
+registerChatBackgroundConfiguration();
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	properties: {

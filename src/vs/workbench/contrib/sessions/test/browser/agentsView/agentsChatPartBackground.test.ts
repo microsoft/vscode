@@ -19,7 +19,7 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '.
 import { ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { DefaultChatViewFactory } from '../../../browser/chat/defaultChatViewFactory.js';
-import '../../../browser/chatBackgroundActions.js';
+import { registerChatBackgroundConfiguration } from '../../../browser/chatBackgroundActions.js';
 import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../browser/chatBackgroundService.js';
 
 suite('Agents Chat Part - chat background', () => {
@@ -78,7 +78,7 @@ suite('Agents Chat Part - chat background', () => {
 		});
 	});
 
-	test('an editor window offers the chat background\'s commands while its chat part shows, as the Agents window does, and registers its settings', () => {
+	test('an editor window offers the chat background\'s commands while its chat part shows, as the Agents window does, and its settings while something holds them, such as its chat area while enabled', () => {
 		const commands = ['workbench.action.chat.changeAgentSessionsBackground', 'workbench.action.chat.changeAgentSessionsBackgroundLayout', 'workbench.action.chat.toggleAgentSessionsBackgroundTint'];
 		const palette = MenuRegistry.getMenuItems(MenuId.CommandPalette).filter(isIMenuItem);
 		const shown = (values: Record<string, ContextKeyValue>) => commands.map(id => {
@@ -88,20 +88,31 @@ suite('Agents Chat Part - chat background', () => {
 			return !!when?.evaluate({ getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T });
 		});
 		const background = { 'chatIsEnabled': true, 'sessionsChatBackgroundAvailable': true, 'sessionsChatBackgroundImageConfigured': true };
-		const settings = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+		const settingKeys = ['chat.agentSessions.preferredDarkBackgroundImage', 'chat.agentSessions.preferredLightBackgroundImage', 'chat.agentSessions.preferredDarkBackgroundImageLayout', 'chat.agentSessions.preferredLightBackgroundImageLayout', 'chat.agentSessions.backgroundImageTint'];
+		const registered = () => {
+			const properties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+			return settingKeys.every(key => !!properties[key]);
+		};
+		// Once, however many hold them, until the last lets go; the Agents window, as another suite loads it, holds them for good
+		const unheld = registered();
+		const first = registerChatBackgroundConfiguration();
+		const second = registerChatBackgroundConfiguration();
+		first.dispose();
+		const stillHeld = registered();
+		second.dispose();
 
 		assert.deepStrictEqual({
 			chatPart: shown({ ...background, agentsChatPartVisible: true }),
 			agentsWindow: shown({ ...background, isSessionsWindow: true }),
 			editorWindowWithoutChatPart: shown(background),
 			highContrast: shown({ ...background, sessionsChatBackgroundAvailable: false, agentsChatPartVisible: true }),
-			settings: ['chat.agentSessions.preferredDarkBackgroundImage', 'chat.agentSessions.preferredLightBackgroundImage', 'chat.agentSessions.preferredDarkBackgroundImageLayout', 'chat.agentSessions.preferredLightBackgroundImageLayout', 'chat.agentSessions.backgroundImageTint'].map(key => !!settings[key]),
+			settings: { held: stillHeld, released: registered() === unheld },
 		}, {
 			chatPart: [true, true, true],
 			agentsWindow: [true, true, true],
 			editorWindowWithoutChatPart: [false, false, false],
 			highContrast: [false, false, false],
-			settings: [true, true, true, true, true],
+			settings: { held: true, released: true },
 		});
 	});
 });
