@@ -102,8 +102,9 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 		instantiationService.invokeFunction(accessor => {
 			// The chat part, where sessions open: not in remote windows, where the Sessions view does not show
 			if (!accessor.get(IWorkbenchEnvironmentService).remoteAuthority) {
-				this._register(instantiationService.createInstance(AgentsChatPartContribution));
+				// Before the chat part contribution, which registers its host only while the chat part replaces the Chat view
 				this.replaceChatView(accessor.get(IContextKeyService), accessor.get(IWorkbenchLayoutService), accessor.get(IPaneCompositePartService), accessor.get(ILifecycleService), accessor.get(IExtensionService));
+				this._register(instantiationService.createInstance(AgentsChatPartContribution));
 			}
 		});
 	}
