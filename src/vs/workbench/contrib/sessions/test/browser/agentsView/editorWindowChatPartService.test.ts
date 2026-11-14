@@ -28,6 +28,16 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../../../common/
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { SessionChangesEditorInput } from '../../../../sessionChanges/browser/sessionChangesEditorInput.js';
 
+/**
+ * The instantiation service of the editor factory as the window's editors start, which the factory keeps for the editor
+ * serializers registered later, also of other tests: shared, and never disposed, as editor tests have it.
+ */
+let editorFactoryServices: TestInstantiationService | undefined;
+function editorFactoryInstantiationService(): TestInstantiationService {
+	editorFactoryServices ??= new TestInstantiationService();
+	return editorFactoryServices;
+}
+
 suite('EditorWindowChatPartService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -153,7 +163,7 @@ suite('EditorWindowChatPartService', () => {
 
 		// The window restores a Changes editor that it saved, as its editors start
 		const editorFactory = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
-		disposables.add(new TestInstantiationService()).invokeFunction(accessor => editorFactory.start(accessor));
+		editorFactoryInstantiationService().invokeFunction(accessor => editorFactory.start(accessor));
 		const serializer = editorFactory.getEditorSerializer(SessionChangesEditorInput.ID);
 		const restored = serializer?.deserialize(upcastPartial<IInstantiationService>({ createInstance: () => upcastPartial<EditorInput>({}) }), JSON.stringify({ multiDiffSourceUri: 'session-changes:/session' }));
 
