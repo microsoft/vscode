@@ -250,10 +250,18 @@ suite('GitHubTransport', () => {
 			}
 		};
 		const page = 'https://github.example.test/orgs/octo/sso?authorization_request=abc';
+		const enterprisePage = 'https://github.example.test/enterprises/octo/sso?authorization_request=abc';
 
 		assert.deepStrictEqual({
 			apiHost: await refuse(`required; url=${page}`),
 			sameHost: await refuse(`required; url=https://ghe.example.test/orgs/octo/sso?authorization_request=abc`, 'https://ghe.example.test/api/v3/repos/o/r'),
+			enterpriseApiHost: await refuse(`required; url=${enterprisePage}`),
+			enterpriseSameHost: await refuse('required; url=https://ghe.example.test/enterprises/octo/sso?authorization_request=abc', 'https://ghe.example.test/api/v3/repos/o/r'),
+			enterpriseOtherHost: await refuse(`required; url=${enterprisePage.replace('github.example.test', 'evil.example.test')}`),
+			enterpriseInsecure: await refuse(`required; url=${enterprisePage.replace('https:', 'http:')}`),
+			enterpriseCredentials: await refuse(`required; url=${enterprisePage.replace('https://', 'https://user:password@')}`),
+			enterpriseMissingName: await refuse('required; url=https://github.example.test/enterprises//sso'),
+			enterpriseExtraPath: await refuse('required; url=https://github.example.test/enterprises/octo/sso/extra'),
 			otherHost: await refuse('required; url=https://evil.example.test/orgs/octo/sso?authorization_request=abc'),
 			insecure: await refuse(`required; url=${page.replace('https:', 'http:')}`),
 			otherPage: await refuse('required; url=https://github.example.test/login'),
@@ -262,6 +270,13 @@ suite('GitHubTransport', () => {
 		}, {
 			apiHost: ['authorization', page],
 			sameHost: ['authorization', 'https://ghe.example.test/orgs/octo/sso?authorization_request=abc'],
+			enterpriseApiHost: ['authorization', enterprisePage],
+			enterpriseSameHost: ['authorization', 'https://ghe.example.test/enterprises/octo/sso?authorization_request=abc'],
+			enterpriseOtherHost: ['authorization', undefined],
+			enterpriseInsecure: ['authorization', undefined],
+			enterpriseCredentials: ['authorization', undefined],
+			enterpriseMissingName: ['authorization', undefined],
+			enterpriseExtraPath: ['authorization', undefined],
 			otherHost: ['authorization', undefined],
 			insecure: ['authorization', undefined],
 			otherPage: ['authorization', undefined],

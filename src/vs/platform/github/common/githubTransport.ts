@@ -1206,7 +1206,7 @@ function classifyHttpError(response: Response, body: string): RequestErrorKind {
 
 /**
  * Reads where GitHub lets the user authorize the credential of a refused
- * request for an organization's SAML single sign-on, from an
+ * request for an organization's or enterprise's SAML single sign-on, from an
  * `X-GitHub-SSO: required; url=<page>` header. Only a secure single sign-on
  * page of the host the request went to, or of the web host its `api.` host
  * serves, is accepted.
@@ -1231,7 +1231,7 @@ function parseSsoAuthorizationUrl(header: string | null, requestUrl: string): st
 	const requestHost = request.host.toLowerCase();
 	return url.protocol === 'https:' && !url.username && !url.password
 		&& (host === requestHost || `api.${host}` === requestHost)
-		&& /^\/orgs\/[^/]+\/sso$/.test(url.pathname)
+		&& /^\/(?:orgs|enterprises)\/[^/]+\/sso$/.test(url.pathname)
 		? url.href : undefined;
 }
 
