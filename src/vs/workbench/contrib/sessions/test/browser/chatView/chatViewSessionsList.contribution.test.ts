@@ -129,6 +129,12 @@ suite('ChatViewSessionsGate', () => {
 		return disposables.add(instantiationService.createInstance(ChatViewSessionsGate));
 	}
 
+	/** Changes `key` to `value` in the configuration service of the gate created last, as a user would. */
+	function change(key: string, value: boolean): void {
+		configurationService.setUserConfiguration(key, value);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (affected: string) => affected === key, affectedKeys: new Set([key]) }));
+	}
+
 	/** The views of the Chat view container, which it keeps, the view containers of its own, which it registers none of, and whether local chats are on by default. */
 	function registered() {
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
@@ -152,7 +158,7 @@ suite('ChatViewSessionsGate', () => {
 		// Any use of the instantiation service fails: with the setting off, the gate creates and invokes nothing
 		disposables.add(new ChatViewSessionsGate(configurationService, upcastPartial<IInstantiationService>({}), upcastPartial<IWorkbenchEnvironmentService>({})));
 
-		assert.deepStrictEqual({ ...registered(), reads }, { ...before, reads: ['chat.sessionsView.enabled', ChatConfiguration.ChatViewSessionsListEnabled] });
+		assert.deepStrictEqual({ ...registered(), reads }, { ...before, reads: [ChatConfiguration.ChatViewSessionsListEnabled] });
 	});
 
 	test('gives the Chat view its sessions list, without local chats by default, holding the sessions providers, and the actions of the list only once it shows, while the setting is on', () => {
@@ -172,8 +178,7 @@ suite('ChatViewSessionsGate', () => {
 		const before = registered();
 		createGate(false);
 		const toggle = (enabled: boolean) => {
-			configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsListEnabled, enabled);
-			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === ChatConfiguration.ChatViewSessionsListEnabled, affectedKeys: new Set([ChatConfiguration.ChatViewSessionsListEnabled]) }));
+			change(ChatConfiguration.ChatViewSessionsListEnabled, enabled);
 			return { ...registered(), providers, runtimeHolds, sessionsOnlyKey: contextKeyService.getContextKeyValue('chatViewSessionsOnly') };
 		};
 		const off = { ...registered(), providers, runtimeHolds, sessionsOnlyKey: contextKeyService.getContextKeyValue('chatViewSessionsOnly') };
@@ -205,10 +210,15 @@ suite('ChatViewSessionsGate', () => {
 		assert.deepStrictEqual(steps, [false, true, false, true, false]);
 	});
 
-	test('registers nothing while the Agents view of #347688 is on too, which takes precedence', () => {
+	test('registers nothing while the Agents view of #347688 is on too, which takes precedence, also as it turns on and off live', () => {
 		createGate(true, undefined, { 'chat.sessionsView.enabled': true });
+		const steps = [{ providers, runtimeHolds }];
+		change('chat.sessionsView.enabled', false);
+		steps.push({ providers, runtimeHolds });
+		change('chat.sessionsView.enabled', true);
+		steps.push({ providers, runtimeHolds });
 
-		assert.deepStrictEqual({ providers, runtimeHolds }, { providers: 0, runtimeHolds: 0 });
+		assert.deepStrictEqual(steps, [{ providers: 0, runtimeHolds: 0 }, { providers: 1, runtimeHolds: 1 }, { providers: 0, runtimeHolds: 0 }]);
 	});
 
 	test('registers the actions of the list once the Chat view first shows', () => {
@@ -222,16 +232,17 @@ suite('ChatViewSessionsGate', () => {
 		assert.deepStrictEqual({ afterShown, afterDispose: sessionItemMenuItems() - before }, { afterShown: true, afterDispose: 0 });
 	});
 
-	test('surfaces every local agent host agent in a local editor window with the setting on, as the Agents window does, but not in a remote one', () => {
-		const surfaces = (enabled: boolean, remoteAuthority?: string, isSessionsWindow = false) =>
-			surfacesAllLocalAgentHostAgents({ isSessionsWindow, remoteAuthority }, new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsListEnabled]: enabled }));
+	test('surfaces every local agent host agent in a local editor window with the setting or the Agents view on, as the Agents window does, but not in a remote one', () => {
+		const surfaces = (enabled: boolean, remoteAuthority?: string, isSessionsWindow = false, sessionsViewEnabled = false) =>
+			surfacesAllLocalAgentHostAgents({ isSessionsWindow, remoteAuthority }, new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsListEnabled]: enabled, 'chat.sessionsView.enabled': sessionsViewEnabled }));
 
 		assert.deepStrictEqual({
 			local: surfaces(true),
 			remote: surfaces(true, 'ssh-remote+host'),
 			off: surfaces(false),
 			agentsWindow: surfaces(false, undefined, true),
-		}, { local: true, remote: false, off: false, agentsWindow: true });
+			agentsView: surfaces(false, undefined, false, true),
+		}, { local: true, remote: false, off: false, agentsWindow: true, agentsView: true });
 	});
 
 	test('leaves the Chat view as it is in a remote window, with local chats on by default', () => {

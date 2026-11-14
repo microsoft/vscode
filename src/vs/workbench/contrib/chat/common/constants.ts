@@ -241,25 +241,31 @@ export const enum OpenInAgentsTitleBarHoverVariant {
 
 /**
  * Whether a window shows the sessions of the Agents window in its Chat view ({@link ChatConfiguration.ChatViewSessionsListEnabled}),
- * as the setting changes. Not while the Agents view of an editor window (`chat.sessionsView.enabled`) is on, which shows them in
- * a view of its own and takes precedence: that setting is read once, as the window starts, as the Agents view reads it.
+ * as the settings change. Not while the Agents view of an editor window (`chat.sessionsView.enabled`) is on, which shows them in a
+ * view of its own and takes precedence.
  */
 export function observeChatViewSessionsListEnabled(configurationService: IConfigurationService): IObservable<boolean> {
-	const sessionsViewEnabled = configurationService.getValue<boolean>('chat.sessionsView.enabled') === true;
-	const setting = observableConfigValue<boolean>(ChatConfiguration.ChatViewSessionsListEnabled, false, configurationService);
-	return derived(reader => setting.read(reader) === true && !sessionsViewEnabled);
+	const sessionsListEnabled = observableConfigValue<boolean>(ChatConfiguration.ChatViewSessionsListEnabled, false, configurationService);
+	const sessionsViewEnabled = observableConfigValue<boolean>('chat.sessionsView.enabled', false, configurationService);
+	return derived(reader => sessionsListEnabled.read(reader) === true && sessionsViewEnabled.read(reader) !== true);
 }
 
 /**
- * Whether a window surfaces every local agent host agent, as the Agents window does: also a local editor window that shows
- * the sessions in its Chat view ({@link observeChatViewSessionsListEnabled}), so that its list and chats are those of the
- * Agents window, as long as it does. A remote window never shows them.
+ * Whether a window surfaces every local agent host agent, as the Agents window does, as the settings change: also a local editor
+ * window that shows the sessions of the Agents window, in its Agents view (`chat.sessionsView.enabled`) or in its Chat view
+ * ({@link ChatConfiguration.ChatViewSessionsListEnabled}), so that its list and chats are those of the Agents window. A remote
+ * window never shows them.
  */
 export function observeSurfacesAllLocalAgentHostAgents(environment: { readonly isSessionsWindow: boolean; readonly remoteAuthority?: string }, configurationService: IConfigurationService): IObservable<boolean> {
 	if (environment.isSessionsWindow) {
 		return constObservable(true);
 	}
-	return environment.remoteAuthority ? constObservable(false) : observeChatViewSessionsListEnabled(configurationService);
+	if (environment.remoteAuthority) {
+		return constObservable(false);
+	}
+	const sessionsListEnabled = observableConfigValue<boolean>(ChatConfiguration.ChatViewSessionsListEnabled, false, configurationService);
+	const sessionsViewEnabled = observableConfigValue<boolean>('chat.sessionsView.enabled', false, configurationService);
+	return derived(reader => sessionsViewEnabled.read(reader) === true || sessionsListEnabled.read(reader) === true);
 }
 
 /** {@link observeSurfacesAllLocalAgentHostAgents} as it is now. */

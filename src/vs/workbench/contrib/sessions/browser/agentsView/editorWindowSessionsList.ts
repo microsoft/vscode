@@ -7,7 +7,6 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
-import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -24,7 +23,7 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { CHAT_OPEN_ACTION_ID } from '../../../chat/browser/actions/chatActions.js';
 import { ChatViewOpenKeybindings } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
-import { sessionsListConfigurationProperties } from '../sessionsConfiguration.js';
+import { registerSessionsListConfiguration } from '../sessionsConfiguration.js';
 import { SessionsGrouping } from '../views/sessionsList.js';
 import { registerSessionsListActions, registerSessionsListReadStateMenus, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
 import { EditorWindowSessionsContext, ISessionsViewOptions, SessionsView, SessionsViewId } from '../views/sessionsView.js';
@@ -35,12 +34,6 @@ import { AgentsViewSetupPane } from './agentsViewSetupPane.js';
 export const EDITOR_WINDOW_SESSIONS_GROUPINGS = { offered: [SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Worktree], default: SessionsGrouping.Date };
 
 const SESSIONS_VIEW_TITLE = localize('editorWindowSessionsList.title', "Sessions");
-
-/** The settings of the sessions list and of the sessions it opens, as the Agents window registers them. */
-const sessionsListConfiguration: IConfigurationNode = {
-	id: 'sessionsList',
-	properties: sessionsListConfigurationProperties,
-};
 
 /** The services of the Sessions view, which its constructor takes after its options. */
 type SessionsViewServices = ConstructorParameters<typeof SessionsView> extends [ISessionsViewOptions, ...infer Services] ? Services : never;
@@ -112,9 +105,7 @@ export function registerEditorWindowSessionsList(instantiationService: IInstanti
 	const contextKeyService = instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
 	EditorWindowSessionsContext.bindTo(contextKeyService).set(true);
 	store.add(toDisposable(() => EditorWindowSessionsContext.bindTo(contextKeyService).reset()));
-	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-	configurationRegistry.registerConfiguration(sessionsListConfiguration);
-	store.add(toDisposable(() => configurationRegistry.deregisterConfigurations([sessionsListConfiguration])));
+	store.add(registerSessionsListConfiguration());
 	store.add(registerOnFirstShown(instantiationService, viewId, () => {
 		store.add(registerSessionsListActions());
 		store.add(registerSessionsListReadStateMenus());
