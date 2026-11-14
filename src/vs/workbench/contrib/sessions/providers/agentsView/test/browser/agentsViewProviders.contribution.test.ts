@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable } from '../../../../../../../base/common/observable.js';
 import { IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { AGENTS_VIEW_PROVIDERS_RELEASE_DELAY, AgentsViewProvidersService } from '../../browser/agentsViewProviders.contribution.js';
-import { IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../../../../browser/editorWindow/editorWindowSessionsPresenter.js';
+import { IEditorWindowComposerHolder, IEditorWindowSessionsPresenterService } from '../../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { timeout } from '../../../../../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/virtualScheduling/index.js';
 
@@ -32,7 +31,7 @@ suite('AgentsViewProvidersService', () => {
 		const instantiationService = upcastPartial<IInstantiationService>({
 			invokeFunction: <R, TS extends unknown[] = []>(fn: (accessor: ServicesAccessor, ...args: TS) => R, ...args: TS): R => fn(upcastPartial<ServicesAccessor>({ get: <T>(): T => providersInstantiationService as T }), ...args),
 		});
-		const presenter = upcastPartial<IEditorWindowSessionsPresenter>({
+		const holder = upcastPartial<IEditorWindowComposerHolder>({
 			hasComposer: () => composer.open,
 			// Closing an editor is asynchronous, as its group confirms it first
 			closeIdleComposers: async () => {
@@ -43,7 +42,7 @@ suite('AgentsViewProvidersService', () => {
 				}
 			},
 		});
-		return disposables.add(new AgentsViewProvidersService(instantiationService, upcastPartial<IEditorWindowSessionsPresenterService>({ presenter: constObservable(presenter) })));
+		return disposables.add(new AgentsViewProvidersService(instantiationService, upcastPartial<IEditorWindowSessionsPresenterService>({ hasComposer: () => holder.hasComposer(), closeIdleComposers: () => holder.closeIdleComposers() })));
 	}
 
 	test('registers the providers while held, and releases them a while after nothing holds them', () => runWithFakedTimers({}, async () => {

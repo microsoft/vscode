@@ -13,6 +13,8 @@ import { ISessionsNavigationService } from '../sessionsNavigationService.js';
 import type { IOpenChatOptions, IOpenSessionOptions } from '../sessionsService.js';
 import { IEditorWindowSessionsPresenterService } from '../editorWindow/editorWindowSessionsPresenter.js';
 import { IAgentsViewProvidersService, waitForAgentsViewSession } from './agentsViewProviders.js';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { requestSessionWorkspaceTrust } from '../../../../services/sessions/browser/worktreeTrust.js';
 
 /**
  * The navigation of an editor window: sessions and chats open where its presenter shows them (see
@@ -30,6 +32,8 @@ export class EditorWindowSessionsNavigationHost implements ISessionsNavigationSe
 		@ISessionHost private readonly _mainWindowHost: ISessionHost,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IAgentsViewProvidersService private readonly _providers: IAgentsViewProvidersService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) { }
 
 	/** What shows the chats of sessions: the chat part, while a feature shows them there, or the Chat view. */
@@ -45,7 +49,9 @@ export class EditorWindowSessionsNavigationHost implements ISessionsNavigationSe
 		// Its session is known only while the providers are held: until it shows, such as in the chat part, which holds them then
 		const hold = this._providers.acquire();
 		try {
-			const session = await waitForAgentsViewSession(this._sessionsManagementService, sessionResource, () => this._sessionsManagementService.getSession(sessionResource));
+			// Providers redirect superseded resources, such as of a session they adopted, and leave unfamiliar ones unchanged
+			const resolved = await this._sessionsManagementService.resolveSessionResource(sessionResource, 'open');
+			const session = await waitForAgentsViewSession(this._sessionsManagementService, resolved, () => this._sessionsManagementService.getSession(resolved));
 			if (session) {
 				await this._presenter.openChat(session, undefined, { preserveFocus: options?.preserveFocus });
 			}
@@ -66,8 +72,10 @@ export class EditorWindowSessionsNavigationHost implements ISessionsNavigationSe
 		await this._presenter.openChat(session, chatResource, { preserveFocus: options?.preserveFocus, sideBySide: true });
 	}
 
-	async canOpenSession(_session: ISession): Promise<boolean> {
-		return true;
+	/** Whether the user trusts every folder the session works in, as the Agents window asks before it opens a session. */
+	async canOpenSession(session: ISession): Promise<boolean> {
+		const workspace = session.workspace.get();
+		return requestSessionWorkspaceTrust(workspace, () => workspace && this._sessionsManagementService.getRemoteHostLabel(workspace, session.providerId), this._workspaceTrustManagementService, this._workspaceTrustRequestService);
 	}
 
 	focusActiveSession(): void {

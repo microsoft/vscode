@@ -87,11 +87,11 @@ export class AgentsViewProvidersService extends Disposable implements IAgentsVie
 			return;
 		}
 		// A composer the user left without typing anything goes, so the providers can go too
-		await this._presenterService.presenter.get().closeIdleComposers();
+		await this._presenterService.closeIdleComposers();
 		if (this._store.isDisposed || this._holds > 0 || this._release.value) {
 			return;
 		}
-		if (this._presenterService.presenter.get().hasComposer()) {
+		if (this._presenterService.hasComposer()) {
 			this._releaseLater();
 		} else {
 			this._registration.clear();

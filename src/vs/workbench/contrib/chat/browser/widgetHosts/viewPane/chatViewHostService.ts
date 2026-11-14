@@ -53,9 +53,7 @@ export class ChatViewPaneHost implements IChatViewHost {
 		if (view && !options?.preserveFocus) {
 			view.focus();
 		}
-		if (options?.restore) {
-			view?.reportRestored(sessionResource);
-		} else {
+		if (!options?.restore) {
 			view?.reportOpened(sessionResource);
 		}
 		return view?.widget;
@@ -66,9 +64,7 @@ export class ChatViewPaneHost implements IChatViewHost {
 		if (chatView) {
 			await chatView.loadSession(sessionResource, options?.sessionTypeSelectionReason, options?.restore ? 'restore' : 'open');
 			// Also a chat it showed already, which loading does not set again
-			if (options?.restore) {
-				chatView.reportRestored(sessionResource);
-			} else {
+			if (!options?.restore) {
 				chatView.reportOpened(sessionResource);
 			}
 			if (!options?.preserveFocus) {
@@ -196,7 +192,6 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 	registerHost(host: IChatViewHost): IDisposable {
 		const registration = { host };
 		this.registrations.push(registration);
-		this._replaced.set(true, undefined);
 		this.updateHostInUse();
 		const tracking = this.trackShownSession(host);
 		return toDisposable(() => {
@@ -204,7 +199,6 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 			const index = this.registrations.indexOf(registration);
 			if (index >= 0) {
 				this.registrations.splice(index, 1);
-				this._replaced.set(this.registrations.length > 0, undefined);
 				this.updateHostInUse();
 			}
 		});

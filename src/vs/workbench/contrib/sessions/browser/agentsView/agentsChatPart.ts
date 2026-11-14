@@ -8,7 +8,7 @@ import { raceTimeout } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, observableFromEvent, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, ITransaction, observableFromEvent, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -69,6 +69,8 @@ export interface IAgentsChatPartOpenOptions {
 	readonly sideBySide?: boolean;
 	/** Opens a new composer, also while the active tab is one that has not sent its session yet. */
 	readonly newComposer?: boolean;
+	/** Shows the chat as one the chat part restores, not one the user opens (see `IChatViewHostOpenOptions.restore`). */
+	readonly restore?: boolean;
 }
 
 export const IAgentsChatPartService = createDecorator<IAgentsChatPartService>('agentsChatPartService');
@@ -200,8 +202,11 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	private readonly _activeReason = observableValue<IChatViewHostShownSession['reason']>(this, 'open');
 	/** The tabs that {@link restore} shows, while it does: a chat the user opens meanwhile is opened, not restored. */
 	private readonly _restoringTabs = new Set<EditorInput>();
-	/** The tabs that are, or were, new-session composers: the session such a tab shows is the one its first send created. */
-	private readonly _composerTabs = new WeakSet<EditorInput>();
+	/**
+	 * The tabs of new-session composers, until the user opens or picks one once it shows the session its first send created:
+	 * that session shows as committed, not opened.
+	 */
+	private readonly _composerTabs = observableValue<ReadonlySet<EditorInput>>(this, new Set());
 	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 	private readonly _composerFolderProviders: (() => IAgentsChatPartComposerFolderOptions)[] = [];
 	readonly activeChat: IObservable<IAgentsChatPartChat | undefined>;
@@ -244,8 +249,9 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			if (!input || !active) {
 				return undefined;
 			}
-			// A composer shows a session only from its first send on, which the user did, also in a tab the chat part restored
-			const reason = this._composerTabs.has(input) ? 'open' : this._activeReason.read(reader);
+			// A composer shows a session only from its first send on, which made it that session, also in a tab the chat part
+			// restored
+			const reason = this._composerTabs.read(reader).has(input) ? 'commit' : this._activeReason.read(reader);
 			return { resource: active.chat.resource, reason };
 		});
 		// The window's host, as its service, shows the active tab's chat
@@ -473,8 +479,25 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		this._layoutService.setPartHidden(false, Parts.CHAT_PART);
 		const group = this._groupOf(chat.input)
 			?? (options?.sideBySide && !part.activeGroup.isEmpty ? part.addGroup(part.activeGroup, GroupDirection.RIGHT) : part.activeGroup);
+		// An explicit open of a tab that the chat part still restores is the user's: it is opened, not restored
+		this._restoringTabs.delete(chat.input);
 		await this._editorService.openEditor(chat.input, { pinned: true, preserveFocus: options?.preserveFocus }, group);
 		this.composers.didOpen([chat.chat.get()]);
+		// Opened, also a tab it restored and shows already, such as one the user picks in a sessions list, unless shown as restored
+		if (this._activeInput.get() === chat.input) {
+			transaction(tx => {
+				this._activeReason.set(options?.restore ? 'restore' : 'open', tx);
+				this._settleComposerTab(chat.input, tx);
+			});
+		}
+	}
+
+	/** A composer's tab that the user opens or picks once it shows its session is a chat's: it shows as opened, not committed. */
+	private _settleComposerTab(input: EditorInput, tx: ITransaction): void {
+		const tabs = this._composerTabs.get();
+		if (tabs.has(input) && this._chats.get(input)?.shown.get()) {
+			this._composerTabs.set(new Set([...tabs].filter(tab => tab !== input)), tx);
+		}
 	}
 
 	private _findChat(resource: URI): AgentsChatPartChat | undefined {
@@ -494,7 +517,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		const chat = this._instantiationService.createInstance(AgentsChatPartChat, resource, composer, constObservable(this._window), this._activeInput, (chat: AgentsChatPartChat) => this._closeChat(chat));
 		this._chats.set(chat.input, chat);
 		if (composer) {
-			this._composerTabs.add(chat.input);
+			this._composerTabs.set(new Set([...this._composerTabs.get(), chat.input]), undefined);
 		}
 		// It stays in the chat part: its editor shows there
 		chat.input.setMoveRestriction({
@@ -504,6 +527,9 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		// Its chat goes with its editor, once the editor's dispose is done: disposing the chat disposes the editor, and what
 		// it shows, which would otherwise happen within the editor's own dispose, such as as its session is removed meanwhile
 		Event.once(chat.input.onWillDispose)(() => {
+			if (this._composerTabs.get().has(chat.input)) {
+				this._composerTabs.set(new Set([...this._composerTabs.get()].filter(tab => tab !== chat.input)), undefined);
+			}
 			const ending = this._chats.deleteAndLeak(chat.input);
 			if (ending) {
 				queueMicrotask(() => ending.dispose());
@@ -560,6 +586,9 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 				transaction(tx => {
 					this._activeReason.set(active && this._restoringTabs.has(active) ? 'restore' : 'open', tx);
 					this._activeInput.set(active, tx);
+					if (active) {
+						this._settleComposerTab(active, tx);
+					}
 				});
 			}
 		};
@@ -619,4 +648,3 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	}
 
 }
-
