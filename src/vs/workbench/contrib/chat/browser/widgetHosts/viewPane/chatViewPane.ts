@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatViewPane.css';
-import { $, addDisposableListener, append, EventHelper, EventType, getWindow, setVisibility } from '../../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventHelper, EventType, getWindow, isAncestorOfActiveElement, setVisibility } from '../../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
@@ -891,13 +891,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private providedComposer: IChatViewSessionsComposer | undefined;
 	private composerShown = false;
 
-	/** Shows the provided composer in place of the chat while the chat is a new chat: empty, without a title. */
+	/**
+	 * Shows the provided composer in place of the chat while the chat is a new chat (empty, without a title), unless the
+	 * Chat view shows only the sessions. As New Chat clears a chat with focus in the Chat view, focus moves to the composer.
+	 */
 	private updateComposerVisibility(): void {
-		const shown = !!this.providedComposer && (!this._widget?.viewModel || (this._widget.isEmpty() && !this._widget.viewModel.model.title));
+		const shown = !!this.providedComposer && !this.providedSessionsList?.sessionsOnly.get() && (!this._widget?.viewModel || (this._widget.isEmpty() && !this._widget.viewModel.model.title));
 		if (shown !== this.composerShown) {
 			this.composerShown = shown;
 			this.viewPaneContainer?.classList.toggle('shows-composer', shown);
 			this.relayout();
+			if (shown && this.element && isAncestorOfActiveElement(this.element)) {
+				this.providedComposer?.focus();
+			}
 		}
 	}
 
@@ -918,8 +924,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.providedComposer.newChat(target);
 			return false;
 		}
-		// A chat still loading, which cleared the chat and so shows the composer, no longer replaces it
+		// A chat still loading or restoring, which cleared the chat and so shows the composer, no longer replaces it
 		this.loadSessionCts.value?.cancel();
+		this._applyModelCts.value?.cancel();
 		this.providedComposer?.newChat(target);
 		if (!options?.preserveFocus) {
 			if (this.providedComposer) {
@@ -1006,6 +1013,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this._register(autorun(reader => {
 				const sessionsOnly = provided.sessionsOnly.read(reader);
 				this.viewPaneContainer?.classList.toggle('sessions-only', sessionsOnly);
+				this.updateComposerVisibility();
 				this.relayout();
 			}));
 		}
