@@ -2,7 +2,7 @@
   "name": "code-oss-dev",
   "version": "1.147.0",
   "packageManager": "pnpm@12.16.0",
-  "distro": "6bd04838efcabcaa1e3ebabe21a3ace8404875e9",
+  "distro": "ef42c7f0c6cfb514d4f66c0d32a10174d65e686d",
   "nativeBuild": {
     "runtime": "electron",
     "target": "43.8.9",
@@ -55,6 +55,7 @@
     "bundle-dev-tunnels-web": "node build/next/devTunnelsWeb.ts",
     "bundle-mobile": "node build/next/index.ts bundle-mobile",
     "test-mobile": "node --test build/next/test/mobile.test.ts",
+    "check-mobile-boundary": "node build/next/checkMobileBoundary.ts",
     "watch-client-transpile": "node build/next/index.ts transpile --watch",
     "watch-client-transpiled": "deemon pnpm run watch-client-transpile",
     "kill-watch-client-transpiled": "deemon --kill pnpm run watch-client-transpile",

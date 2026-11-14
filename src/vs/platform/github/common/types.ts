@@ -99,6 +99,14 @@ export class RequestError extends Error {
 	public static isForbidden(error: unknown): boolean {
 		return error instanceof RequestError && error.statusCode === 403;
 	}
+
+	public static isResponseTooLarge(error: unknown): boolean {
+		return error instanceof RequestError && error.kind === 'responseTooLarge';
+	}
+
+	public static isRateLimited(error: unknown): boolean {
+		return error instanceof RequestError && error.kind === 'rateLimit';
+	}
 }
 
 /** Deadline failure that records whether a physical request may have been dispatched. */
