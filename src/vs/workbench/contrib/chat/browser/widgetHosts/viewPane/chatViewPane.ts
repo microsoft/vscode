@@ -893,15 +893,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	/**
 	 * Shows the provided composer in place of the chat while the chat is a new chat (empty, without a title), unless the
-	 * Chat view shows only the sessions. As New Chat clears a chat with focus in the Chat view, focus moves to the composer.
+	 * Chat view shows only the sessions. As the chat it replaces had focus, such as New Chat clearing it, focus moves to the
+	 * composer; focus elsewhere, such as in the sessions, stays.
 	 */
 	private updateComposerVisibility(): void {
 		const shown = !!this.providedComposer && !this.providedSessionsList?.sessionsOnly.get() && (!this._widget?.viewModel || (this._widget.isEmpty() && !this._widget.viewModel.model.title));
 		if (shown !== this.composerShown) {
+			const chatHadFocus = shown && !!this._widget?.domNode && isAncestorOfActiveElement(this._widget.domNode);
 			this.composerShown = shown;
 			this.viewPaneContainer?.classList.toggle('shows-composer', shown);
 			this.relayout();
-			if (shown && this.element && isAncestorOfActiveElement(this.element)) {
+			if (chatHadFocus) {
 				this.providedComposer?.focus();
 			}
 		}
