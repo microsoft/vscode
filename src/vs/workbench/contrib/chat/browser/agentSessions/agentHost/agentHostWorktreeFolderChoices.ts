@@ -21,7 +21,7 @@ import { IActionWidgetDropdownAction } from '../../../../../../platform/actionWi
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
-import { getCurrentFolderLocationDescription, getNewWorktreeLabel, groupFolderLocations } from '../../../../../services/workspaces/common/folderLocationSections.js';
+import { getCurrentFolderLocationDescription, getFolderLocationDetail, getNewWorktreeDetail, getNewWorktreeLabel, groupFolderLocations } from '../../../../../services/workspaces/common/folderLocationSections.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
@@ -171,7 +171,7 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 	getActions(action: MenuItemAction, selected: URI | undefined, onDidPick: () => void): IActionWidgetDropdownAction[] {
 		const noWorkspaceSelected = this.isNoWorkspaceSelected();
 		const newWorktreeSelected = !noWorkspaceSelected && this.isNewWorktreeSelected();
-		// The folder, and what has none, first; then the worktrees, a new one first
+		// What has no folder, the folder and a new worktree of it first, each with what it does below its name; then the worktrees
 		const workspaceGroup = { label: '', order: 0 };
 		const worktreesGroup = { label: localize('agentHost.folderPicker.worktrees', "Worktrees"), order: 1, showHeader: true };
 		let newWorktree: IActionWidgetDropdownAction | undefined;
@@ -181,11 +181,12 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 				...action,
 				id: 'agentHostFolder.newWorktree',
 				label: getNewWorktreeLabel(),
+				detail: getNewWorktreeDetail(),
 				tooltip: localize('agentHost.folderPicker.newWorktreeDescription', "Start the session in a new worktree of the selected folder."),
 				checked: newWorktreeSelected,
 				icon: WORKTREE_ICON,
 				enabled: true,
-				category: worktreesGroup,
+				category: workspaceGroup,
 				run: async () => {
 					await this._setIsolation(true);
 					onDidPick();
@@ -200,6 +201,7 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 					...action,
 					id: `agentHostFolder.${choice.uri.toString()}`,
 					label: choice.label,
+					detail: section.kind === 'worktree' ? undefined : getFolderLocationDetail(),
 					description: choice.current ? getCurrentFolderLocationDescription() : undefined,
 					checked: !noWorkspaceSelected && !newWorktreeSelected && !!selected && extUriBiasedIgnorePathCase.isEqual(selected, choice.uri),
 					icon: choice.kind === 'worktree' ? WORKTREE_ICON : Codicon.folder,
@@ -225,6 +227,7 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 				...action,
 				id: 'agentHostFolder.noWorkspace',
 				label: getNoWorkspaceLabel(),
+				detail: localize('agentHost.folderPicker.noWorkspaceDescription', "Start without a backing workspace"),
 				tooltip: localize('agentHost.folderPicker.noWorkspaceDescription', "Start without a backing workspace"),
 				checked: noWorkspaceSelected,
 				icon: NO_WORKSPACE_ICON,
