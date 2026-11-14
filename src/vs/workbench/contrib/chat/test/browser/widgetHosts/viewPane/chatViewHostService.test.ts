@@ -5,7 +5,9 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
+import { Emitter } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -16,7 +18,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../../../services/layou
 import { IViewsService } from '../../../../../../services/views/common/viewsService.js';
 import { ChatViewId } from '../../../../browser/chat.js';
 import { ChatWidget } from '../../../../browser/widget/chatWidget.js';
-import { IChatViewHost } from '../../../../browser/chatViewHost.js';
+import { IChatViewHost, IChatViewHostShownSession } from '../../../../browser/chatViewHost.js';
 import { ChatViewHostService } from '../../../../browser/widgetHosts/viewPane/chatViewHostService.js';
 import { ChatViewPane } from '../../../../browser/widgetHosts/viewPane/chatViewPane.js';
 
@@ -30,7 +32,11 @@ suite('ChatViewHostService', () => {
 		const widget = upcastPartial<ChatWidget>({});
 		const created = new DeferredPromise<ChatWidget>();
 		let accesses = 0;
+		const shownSession = observableValue<IChatViewHostShownSession | undefined>('shownSession', undefined);
+		const viewVisibility = disposables.add(new Emitter<{ id: string; visible: boolean }>());
+		let viewCreated = false;
 		const view = upcastPartial<ChatViewPane>({
+			shownSession,
 			widget: options.widgetCreatedLater ? undefined : widget,
 			get whenWidget() { accesses++; return created.p; },
 			loadSession: async (resource: URI, reason?: string) => { calls.push(`loadSession ${resource.toString()} reason=${reason}`); return undefined; },
@@ -43,13 +49,16 @@ suite('ChatViewHostService', () => {
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
 			openView: (async (id: string, focus?: boolean) => { calls.push(`openView ${id} focus=${focus}`); return view; }) as IViewsService['openView'],
 			isViewVisible: () => !!options.chatVisible,
+			onDidChangeViewVisibility: viewVisibility.event,
+			getViewWithId: (<T>() => (viewCreated ? view : undefined) as T | null) as IViewsService['getViewWithId'],
 		}));
 		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({ getViewLocationById: () => ViewContainerLocation.AuxiliaryBar }));
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ setPartHidden: (hidden, part) => { calls.push(`setPartHidden ${hidden} ${part}`); } }));
 		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({
 			withProgress: (async (_options: unknown, task: () => Promise<void>) => { calls.push('progress'); await task(); calls.push('progress done'); }) as IProgressService['withProgress'],
 		}));
-		return { service: instantiationService.createInstance(ChatViewHostService), widget, view, created, calls, accesses: () => accesses };
+		const showView = () => { viewCreated = true; viewVisibility.fire({ id: ChatViewId, visible: true }); };
+		return { service: instantiationService.createInstance(ChatViewHostService), widget, view, created, calls, accesses: () => accesses, shownSession, showView };
 	}
 
 	test('without a host that replaces it, the Chat view shows the chats as before', async () => {
@@ -172,5 +181,34 @@ suite('ChatViewHostService', () => {
 		Object.assign(view, { widget });
 		created.complete(widget);
 		assert.deepStrictEqual({ unchanged, waiting, revealed: await pending === widget }, { unchanged: undefined, waiting: { accesses: 1, settled: false }, revealed: true });
+	});
+
+	test('the shown chat is the one of the host in use: the Chat view\'s once it exists, a registered host\'s while it is registered, if it reports one', () => {
+		const { service, shownSession, showView } = createService();
+		const shown = () => service.shownSession.get()?.resource.path ?? service.shownSession.get();
+		const steps: Record<string, unknown> = {};
+		const chat = URI.parse('test:/chat');
+		const other = URI.parse('test:/other');
+
+		shownSession.set({ resource: chat, reason: 'restore' }, undefined);
+		steps.beforeTheViewExists = shown();
+		showView();
+		steps.view = service.shownSession.get();
+		const hostShown = observableValue<IChatViewHostShownSession | undefined>('hostShown', { resource: other, reason: 'open' });
+		const registration = service.registerHost({ ...upcastPartial<IChatViewHost>({}), shownSession: hostShown });
+		steps.registeredHost = shown();
+		const silentRegistration = service.registerHost(upcastPartial<IChatViewHost>({}));
+		steps.hostWithoutOne = shown();
+		silentRegistration.dispose();
+		registration.dispose();
+		steps.backToTheView = shown();
+
+		assert.deepStrictEqual(steps, {
+			beforeTheViewExists: undefined,
+			view: { resource: chat, reason: 'restore' },
+			registeredHost: '/other',
+			hostWithoutOne: undefined,
+			backToTheView: '/chat',
+		});
 	});
 });
