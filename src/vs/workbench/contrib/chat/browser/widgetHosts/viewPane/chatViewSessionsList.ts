@@ -92,8 +92,12 @@ export class ChatViewSessionsListService extends Disposable implements IChatView
 
 	registerProvider(provider: IChatViewSessionsListProvider): IDisposable {
 		const registration = { provider };
+		const previous = this.provider;
 		this._providers.push(registration);
-		this._onDidChangeProvider.fire();
+		// The same provider registering again, such as a feature that holds it more than once, changes nothing
+		if (this.provider !== previous) {
+			this._onDidChangeProvider.fire();
+		}
 		return toDisposable(() => {
 			const index = this._providers.indexOf(registration);
 			if (index >= 0) {
