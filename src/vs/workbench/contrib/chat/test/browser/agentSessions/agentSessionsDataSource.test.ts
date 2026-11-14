@@ -404,6 +404,28 @@ suite('AgentSessionsDataSource', () => {
 			assert.strictEqual(sections.filter(s => s.section === AgentSessionSection.Archived).length, 1);
 		});
 
+		test('labels the archived section with the provided archived label', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: '1', status: ChatSessionStatus.Completed, startTime: now, endTime: now }),
+				createMockSession({ id: '2', status: ChatSessionStatus.Completed, isArchived: true, startTime: now - ONE_DAY, endTime: now - ONE_DAY }),
+			];
+			const archivedLabels = (groupBy: AgentSessionsGrouping) => {
+				const dataSource = disposables.add(new AgentSessionsDataSource(createMockFilter({ groupBy }), createMockSorter(), undefined, undefined, () => 'Done'));
+				return getSectionsFromResult(Array.from(dataSource.getChildren(createMockModel(sessions))))
+					.filter(section => section.section === AgentSessionSection.Archived)
+					.map(section => section.label);
+			};
+
+			assert.deepStrictEqual({
+				date: archivedLabels(AgentSessionsGrouping.Date),
+				repository: archivedLabels(AgentSessionsGrouping.Repository),
+			}, {
+				date: ['Done'],
+				repository: ['Done'],
+			});
+		});
+
 		test('archived sessions come after older sessions', () => {
 			const now = Date.now();
 			const sessions = [
@@ -1616,5 +1638,17 @@ suite('groupAgentSessionsByDate with sortBy', () => {
 		assert.deepStrictEqual(pinnedSessions.length, 1);
 		assert.deepStrictEqual(archivedSessions.length, 1);
 		assert.deepStrictEqual(todaySessions.length, 0);
+	});
+
+	test('uses the provided archived label', () => {
+		const archived = createSession({ id: 'archived', isArchived: true });
+
+		assert.deepStrictEqual({
+			default: groupAgentSessionsByDate([archived]).get(AgentSessionSection.Archived)!.label,
+			done: groupAgentSessionsByDate([archived], undefined, 'Done').get(AgentSessionSection.Archived)!.label,
+		}, {
+			default: 'Archived',
+			done: 'Done',
+		});
 	});
 });

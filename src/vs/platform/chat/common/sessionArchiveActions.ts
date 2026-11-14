@@ -86,3 +86,13 @@ export function getChatSessionArchivedSectionLabel(wording: ChatSessionArchiveAc
 		? localize('chatSession.section.done', "Done")
 		: localize('chatSession.section.archived', "Archived");
 }
+
+/**
+ * The message shown on an archived session, which is read-only, following the
+ * configured archive action wording.
+ */
+export function getChatSessionArchivedReadOnlyMessage(wording: ChatSessionArchiveActionWording): string {
+	return wording === ChatSessionArchiveActionWording.MarkAsDone
+		? localize('chatSession.readOnly.done', "Done sessions are read-only.")
+		: localize('chatSession.readOnly.archived', "Archived sessions are read-only.");
+}

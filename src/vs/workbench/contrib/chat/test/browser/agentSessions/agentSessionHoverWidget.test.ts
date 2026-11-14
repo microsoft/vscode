@@ -10,6 +10,9 @@ import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../../platform/chat/common/sessionArchiveActions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AgentSessionHoverWidget } from '../../../browser/agentSessions/agentSessionHoverWidget.js';
 import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
@@ -55,4 +58,35 @@ suite('AgentSessionHoverWidget', () => {
 			});
 		});
 	}
+	test('labels an archived session with the configured archive wording', async () => {
+		const render = (wording: ChatSessionArchiveActionWording) => {
+			const session = upcastPartial<IAgentSession>({
+				providerType: AgentSessionProviders.Local, providerLabel: 'Local', icon: Codicon.vm,
+				resource: URI.parse(`${AgentSessionProviders.Local}:/session-${wording}`), label: 'Conversation',
+				status: AgentSessionStatus.Completed, timing: { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined },
+				isArchived: () => true,
+			});
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatSessionArchiveActionWordingSettingId]: wording }));
+			instantiationService.stub(IAgentSessionsService, {
+				model: upcastPartial<IAgentSessionsModel>({ observeSession: () => constObservable(session) }),
+			});
+			instantiationService.stub(IChatService, { acquireOrLoadSession: async () => undefined });
+			const widget = store.add(instantiationService.createInstance(AgentSessionHoverWidget, session));
+			const details = widget.domNode.querySelector('.agent-session-hover-details');
+			const spans = Array.from(details?.querySelectorAll('span:not(.codicon):not(.separator)') ?? []).map(span => span.textContent);
+			return {
+				label: spans[spans.length - 1],
+				icon: details?.querySelector('.codicon-check') ? 'check' : details?.querySelector('.codicon-archive') ? 'archive' : undefined,
+			};
+		};
+
+		assert.deepStrictEqual({
+			done: render(ChatSessionArchiveActionWording.MarkAsDone),
+			archive: render(ChatSessionArchiveActionWording.Archive),
+		}, {
+			done: { label: 'Done', icon: 'check' },
+			archive: { label: 'Archived', icon: 'archive' },
+		});
+	});
 });

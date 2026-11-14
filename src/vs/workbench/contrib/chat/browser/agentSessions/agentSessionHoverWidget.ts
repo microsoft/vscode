@@ -15,6 +15,8 @@ import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording, getChatSessionArchivedSectionLabel } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { SESSION_META_EHCLI_ADOPTABLE_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
@@ -47,6 +49,7 @@ export class AgentSessionHoverWidget extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -247,8 +250,9 @@ export class AgentSessionHoverWidget extends Disposable {
 		// Archived indicator
 		if (session.isArchived()) {
 			dom.append(detailsRow, dom.$('span.separator', undefined, '•'));
-			dom.append(detailsRow, renderIcon(Codicon.archive));
-			dom.append(detailsRow, dom.$('span', undefined, localize('tooltip.archived', "Archived")));
+			const archived = this.getArchivedPresentation();
+			dom.append(detailsRow, renderIcon(archived.icon));
+			dom.append(detailsRow, dom.$('span', undefined, archived.label));
 		}
 	}
 
@@ -321,10 +325,19 @@ export class AgentSessionHoverWidget extends Disposable {
 
 		// Archived status
 		if (session.isArchived()) {
-			lines.push(`$(archive) ${localize('tooltip.archived', "Archived")}`);
+			const archived = this.getArchivedPresentation();
+			lines.push(`$(${archived.icon.id}) ${archived.label}`);
 		}
 
 		return new MarkdownString(lines.join('\n\n'), { supportThemeIcons: true });
+	}
+
+	private getArchivedPresentation(): { icon: ThemeIcon; label: string } {
+		const wording = getChatSessionArchiveActionWording(this.configurationService);
+		return {
+			icon: getChatSessionArchiveActionPresentation(wording).archive.icon,
+			label: getChatSessionArchivedSectionLabel(wording),
+		};
 	}
 
 	private toDuration(startTime: number, endTime: number, useFullTimeWords: boolean): string | undefined {

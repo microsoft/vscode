@@ -6,6 +6,9 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../../platform/chat/common/sessionArchiveActions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -15,12 +18,23 @@ import { ChatReadOnlyBanner } from '../../../browser/widget/chatReadOnlyBanner.j
 suite('ChatReadOnlyBanner', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createBanner() {
+	function createBanner(wording = ChatSessionArchiveActionWording.MarkAsDone) {
 		const instantiation = store.add(new TestInstantiationService());
+		instantiation.stub(IConfigurationService, new TestConfigurationService({ [ChatSessionArchiveActionWordingSettingId]: wording }));
 		instantiation.stub(IHoverService, NullHoverService);
 		instantiation.stub(IOpenerService, { open: async () => true });
 		return store.add(instantiation.createInstance(ChatReadOnlyBanner, undefined));
 	}
+
+	test('the default message follows the archive action wording', () => {
+		assert.deepStrictEqual({
+			done: createBanner(ChatSessionArchiveActionWording.MarkAsDone).domNode.textContent,
+			archive: createBanner(ChatSessionArchiveActionWording.Archive).domNode.textContent,
+		}, {
+			done: 'Done sessions are read-only.',
+			archive: 'Archived sessions are read-only.',
+		});
+	});
 
 	test('a pending refresh cannot block or re-enable another action after switching chats', async () => {
 		const banner = createBanner();

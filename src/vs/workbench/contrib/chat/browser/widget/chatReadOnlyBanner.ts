@@ -9,7 +9,8 @@ import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, MutableDisposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
-import { localize } from '../../../../../nls.js';
+import { getChatSessionArchiveActionWording, getChatSessionArchivedReadOnlyMessage } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Link } from '../../../../../platform/opener/browser/link.js';
@@ -29,9 +30,10 @@ export class ChatReadOnlyBanner extends Disposable {
 	private runningAction: typeof this.action;
 
 	constructor(
-		private readonly defaultMessage: string = localize('chatReadOnlyBanner.archivedMessage', "Archived sessions are read-only."),
+		private readonly defaultMessage: string | undefined,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -59,7 +61,7 @@ export class ChatReadOnlyBanner extends Disposable {
 		return this._visible;
 	}
 
-	setMessage(message = this.defaultMessage): void {
+	setMessage(message = this.defaultMessage ?? getChatSessionArchivedReadOnlyMessage(getChatSessionArchiveActionWording(this.configurationService))): void {
 		if (this.text.textContent !== message) {
 			this.text.textContent = message;
 			this.hover.value = this.hoverService.setupDelayedHover(this.text, { content: message });

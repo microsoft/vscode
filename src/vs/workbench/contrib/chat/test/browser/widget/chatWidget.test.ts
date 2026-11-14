@@ -27,7 +27,7 @@ import { withAsyncTestCodeEditor } from '../../../../../../editor/test/browser/t
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
-import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -128,6 +128,7 @@ suite('ChatWidget', () => {
 		let activeHovers = 0;
 		let createdHovers = 0;
 		const instantiation = store.add(new TestInstantiationService());
+		instantiation.stub(IConfigurationService, new TestConfigurationService());
 		instantiation.stub(IOpenerService, { open: async () => true });
 		instantiation.stub(IHoverService, upcastPartial<IHoverService>({
 			setupDelayedHover: () => {
@@ -1962,6 +1963,7 @@ suite('ChatWidget', () => {
 		test(`policy read-only banner follows history switches and does not relabel other read-only states (${mode})`, () => {
 			const offered: object[] = [];
 			const instantiation = store.add(new TestInstantiationService());
+			instantiation.stub(IConfigurationService, new TestConfigurationService());
 			instantiation.stub(IHoverService, NullHoverService);
 			instantiation.stub(IOpenerService, { open: async () => true });
 			const banner = store.add(instantiation.createInstance(ChatReadOnlyBanner, 'This chat is read-only'));
@@ -2072,6 +2074,7 @@ suite('ChatWidget', () => {
 
 	test('read-only banner disables its action while it is running', async () => {
 		const instantiation = store.add(new TestInstantiationService());
+		instantiation.stub(IConfigurationService, new TestConfigurationService());
 		instantiation.stub(IHoverService, NullHoverService);
 		instantiation.stub(IOpenerService, { open: async () => true });
 		const banner = store.add(instantiation.createInstance(ChatReadOnlyBanner, undefined));
@@ -2097,6 +2100,7 @@ suite('ChatWidget', () => {
 
 	function createAutomaticMigrationFixture(options: { location?: ChatAgentLocation; resource?: URI; hasRequests?: boolean; isSessionsWindow?: boolean; providerDisabled?: boolean; supportsConversationImport?: boolean } = {}) {
 		const instantiation = store.add(new TestInstantiationService());
+		instantiation.stub(IConfigurationService, new TestConfigurationService());
 		instantiation.stub(IHoverService, NullHoverService);
 		instantiation.stub(IOpenerService, { open: async () => true });
 		const banner = store.add(instantiation.createInstance(ChatReadOnlyBanner, 'Original chat'));

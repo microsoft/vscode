@@ -12,7 +12,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IReader } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
-import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation, getChatSessionArchivedReadOnlyMessage } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Link } from '../../../../../platform/opener/browser/link.js';
@@ -49,7 +49,7 @@ export function getArchivedChatBannerContent(session: ISession, chat: IChat, wor
 		return undefined;
 	}
 	return {
-		message: localize('sessionReadOnlyBanner.archived', "Archived sessions are read-only."),
+		message: getChatSessionArchivedReadOnlyMessage(wording),
 		action: {
 			label: getChatSessionArchiveActionPresentation(wording).unarchive.title.value,
 			run: () => sessionArchived

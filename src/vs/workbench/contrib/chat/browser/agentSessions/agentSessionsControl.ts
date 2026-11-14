@@ -43,6 +43,7 @@ import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { getChatSessionArchiveActionWording, getChatSessionArchivedSectionLabel } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 
@@ -336,7 +337,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			return session.visibleChildIndex === this.sessionsList.getNode(parent).visibleChildrenCount - 1;
 		});
 		const compact = this.options.compactShowMore;
-		const sessionDataSource = this.sessionsDataSource = this._register(new AgentSessionsDataSource(this.options.filter, sorter, this.options.repositoryGroupLimit, () => this.chatSessionsService.archivedSessionItems.get().available));
+		const sessionDataSource = this.sessionsDataSource = this._register(new AgentSessionsDataSource(this.options.filter, sorter, this.options.repositoryGroupLimit, () => this.chatSessionsService.archivedSessionItems.get().available, () => getChatSessionArchivedSectionLabel(getChatSessionArchiveActionWording(this.configurationService))));
 		const listDelegate = new AgentSessionsListDelegate(
 			approvalModel,
 			this.options.compactShowMore,
