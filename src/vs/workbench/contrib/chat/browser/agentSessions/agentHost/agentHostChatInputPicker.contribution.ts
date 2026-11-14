@@ -78,10 +78,12 @@ export class OpenAgentHostFolderPickerAction extends Action2 {
 				group: 'navigation',
 				// First, before the session type, as the new-session composer leads with its workspace
 				order: -1,
-				// With worktree support, a window with a single local folder offers New Worktree, the folder and its worktrees
+				// With worktree support, a window with a single local folder offers New Worktree, the folder and its worktrees.
+				// Only for a new chat: a started session's folder is fixed, so it does not show it rather than disable it.
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
 					ChatContextKeyExprs.isAgentHostSession,
+					ChatContextKeys.chatSessionIsEmpty,
 					ContextKeyExpr.equals(`config.${ChatConfiguration.EditorWindowEnableWorktree}`, true),
 					WorkbenchStateContext.isEqualTo('folder'),
 					RemoteNameContext.isEqualTo(''),
