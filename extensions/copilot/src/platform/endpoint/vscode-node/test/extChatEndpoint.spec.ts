@@ -9,9 +9,11 @@ import * as vscode from 'vscode';
 import type { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatFetchResponseType, ChatLocation } from '../../../chat/common/commonTypes';
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
-import { NoopOTelService, resolveOTelConfig } from '../../../otel/common/index';
+import { GenAiAttr, GenAiOperationName, NoopOTelService, resolveOTelConfig } from '../../../otel/common/index';
+import { IOTelService, SpanStatusCode, type ISpanHandle } from '../../../otel/common/otelService';
 import { CustomDataPartMimeTypes } from '../../common/endpointTypes';
 import { decodeStatefulMarker } from '../../common/statefulMarkerContainer';
+import { isCopilotBuiltinByokVendor } from '../builtinByokVendors';
 import { convertToApiChatMessage, ExtensionContributedChatEndpoint } from '../extChatEndpoint';
 
 describe('ExtensionContributedChatEndpoint', () => {
@@ -218,7 +220,108 @@ describe('ExtensionContributedChatEndpoint', () => {
 			ollama: { text: 'the tool output', cacheControl: false },
 		});
 	});
+
+	it('creates a fallback OTel chat span for third-party vendors', async () => {
+		const spans: MockSpan[] = [];
+		const languageModel = createLanguageModel(() => { }, undefined, 'xiaomi-mimo');
+		const endpoint = new ExtensionContributedChatEndpoint(
+			languageModel,
+			createInstantiationService(),
+			createCapturingOTelService(spans),
+			new DefaultsOnlyConfigurationService(),
+		);
+
+		await endpoint.makeChatRequest2({
+			debugName: 'panel/agent',
+			messages: [{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' }]
+			}],
+			finishedCb: undefined,
+			location: ChatLocation.Panel,
+			requestOptions: {},
+		}, new vscode.CancellationTokenSource().token);
+
+		expect(spans).toHaveLength(1);
+		expect(spans[0].ended).toBe(true);
+		expect(spans[0].statusCode).toBe(SpanStatusCode.OK);
+		expect(spans[0].attributes[GenAiAttr.OPERATION_NAME]).toBe(GenAiOperationName.CHAT);
+		expect(spans[0].attributes[GenAiAttr.PROVIDER_NAME]).toBe('xiaomi-mimo');
+		expect(spans[0].attributes[GenAiAttr.AGENT_NAME]).toBe('panel/agent');
+		expect(spans[0].attributes[GenAiAttr.INPUT_MESSAGES]).toBeDefined();
+		expect(spans[0].attributes[GenAiAttr.OUTPUT_MESSAGES]).toBeDefined();
+	});
+
+	it('does not create a fallback OTel chat span for built-in BYOK vendors', async () => {
+		const spans: MockSpan[] = [];
+		const languageModel = createLanguageModel(() => { }, undefined, 'Anthropic');
+		const endpoint = new ExtensionContributedChatEndpoint(
+			languageModel,
+			createInstantiationService(),
+			createCapturingOTelService(spans),
+			new DefaultsOnlyConfigurationService(),
+		);
+
+		await endpoint.makeChatRequest2({
+			debugName: 'test',
+			messages: [{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' }]
+			}],
+			finishedCb: undefined,
+			location: ChatLocation.Panel,
+			requestOptions: {},
+		}, new vscode.CancellationTokenSource().token);
+
+		expect(spans).toHaveLength(0);
+		expect(isCopilotBuiltinByokVendor('Anthropic')).toBe(true);
+		expect(isCopilotBuiltinByokVendor('xiaomi-mimo')).toBe(false);
+	});
 });
+
+class MockSpan implements ISpanHandle {
+	public readonly attributes: Record<string, string | number | boolean | string[]> = {};
+	public statusCode: SpanStatusCode = SpanStatusCode.UNSET;
+	public statusMessage: string | undefined;
+	public ended = false;
+	public exceptions: unknown[] = [];
+
+	setAttribute(key: string, value: string | number | boolean | string[]): void {
+		this.attributes[key] = value;
+	}
+	setAttributes(attrs: Record<string, string | number | boolean | string[] | undefined>): void {
+		for (const [k, v] of Object.entries(attrs)) {
+			if (v !== undefined) {
+				this.attributes[k] = v;
+			}
+		}
+	}
+	setStatus(code: SpanStatusCode, message?: string): void {
+		this.statusCode = code;
+		this.statusMessage = message;
+	}
+	recordException(error: unknown): void {
+		this.exceptions.push(error);
+	}
+	addEvent(): void { /* no-op */ }
+	getSpanContext() { return undefined; }
+	end(): void { this.ended = true; }
+}
+
+function createCapturingOTelService(spans: MockSpan[]): IOTelService {
+	const base = new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '1.0.0', sessionId: 'test' }));
+	return Object.assign(base, {
+		config: { ...base.config, captureContent: true },
+		startSpan: (_name: string, options?: { attributes?: Record<string, string | number | boolean | string[]> }) => {
+			const span = new MockSpan();
+			if (options?.attributes) {
+				span.setAttributes(options.attributes);
+			}
+			spans.push(span);
+			return span;
+		},
+	}) as unknown as IOTelService;
+}
 
 function describeToolResult(message: vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2): { text: string | undefined; cacheControl: boolean } {
 	const toolResult = message.content[0] as vscode.LanguageModelToolResultPart2;
