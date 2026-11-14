@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatViewPane.css';
-import { $, addDisposableListener, append, EventHelper, EventType, getWindow, setVisibility } from '../../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getWindow, setVisibility } from '../../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
@@ -463,7 +463,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private createControls(parent: HTMLElement): void {
 
 		// Sessions Control
-		const sessionsControl = this.createSessionsControl(parent);
+		this.createSessionsControl(parent);
 
 		// Welcome Control (used to show chat specific extension provided welcome views via `chatViewsWelcome` contribution point)
 		const welcomeController = this.welcomeController = this._register(this.instantiationService.createInstance(ChatViewWelcomeController, parent, this, ChatAgentLocation.Chat));
@@ -472,7 +472,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const chatWidget = this.createChatControl(parent);
 
 		// Controls Listeners
-		this.registerControlsListeners(sessionsControl, chatWidget, welcomeController);
+		this.registerControlsListeners(chatWidget, welcomeController);
 
 		// Update sessions control visibility when all controls are created
 		this.updateSessionsControlVisibility();
@@ -935,7 +935,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	/** Number of in-flight {@link loadSession} calls, during which the reported sessions layout is not settled. */
 	private _loadingSessionCount = 0;
 
-	private createSessionsControl(parent: HTMLElement): IChatViewSessionsListControl {
+	private createSessionsControl(parent: HTMLElement): void {
 		const sessionsContainer = this.sessionsContainer = parent.appendChild($('.agent-sessions-container'));
 
 		// Sessions Title
@@ -970,48 +970,66 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const createNewChat = () => this.commandService.executeCommand(ACTION_ID_NEW_CHAT, this.getActionsContext());
 		this._register(newSessionButton.onDidClick(createNewChat));
 
-		// Sessions Control
-		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
-		const provided = this.providedSessionsList = this.sessionsListService.provider?.create(this.sessionsControlContainer, this.instantiationService, { overrideStyles: this.getLocationBasedColors().listOverrideStyles });
-		if (provided) {
-			this._register(this.sessionsListService.setActiveList(provided));
+		// Sessions Control: the list a provider gives, such as the shared sessions list of editor windows, or else its own. As
+		// the provider changes, such as a feature that provides it turning on or off, the Chat view shows the other one
+		const sessionsControlContainer = this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
+		const createSessionsList = () => {
+			const store = new DisposableStore();
+			clearNode(sessionsControlContainer);
+			const provided = this.providedSessionsList = this.sessionsListService.provider?.create(sessionsControlContainer, this.instantiationService, { overrideStyles: this.getLocationBasedColors().listOverrideStyles });
+			store.add(toDisposable(() => this.providedSessionsList = undefined));
 			// A list of its own header and actions, in place of those of the Chat view's list
-			setVisibility(!provided.hasHeader, sessionsTitleContainer);
-			setVisibility(false, newSessionButtonContainer);
-			this._register(autorun(reader => {
-				const sessionsOnly = provided.sessionsOnly.read(reader);
-				this.viewPaneContainer?.classList.toggle('sessions-only', sessionsOnly);
-				this.relayout();
+			setVisibility(!provided || !provided.hasHeader, sessionsTitleContainer);
+			setVisibility(!provided, newSessionButtonContainer);
+			if (provided) {
+				store.add(this.sessionsListService.setActiveList(provided));
+				store.add(autorun(reader => {
+					const sessionsOnly = provided.sessionsOnly.read(reader);
+					this.viewPaneContainer?.classList.toggle('sessions-only', sessionsOnly);
+					this.relayout();
+				}));
+				store.add(toDisposable(() => this.viewPaneContainer?.classList.remove('sessions-only')));
+			}
+			const sessionsControl = this.sessionsControl = store.add(provided?.control ?? this.instantiationService.createInstance(AgentSessionsControl, sessionsControlContainer, {
+				initiallyVisible: false,
+				source: 'chatViewPane',
+				filter: sessionsFilter,
+				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
+				createNewChat,
+				getHoverPosition: () => this.getSessionHoverPosition(),
+				trackActiveEditorSession: () => {
+					return !this._widget || this._widget.isEmpty(); // only track and reveal if chat widget is empty
+				},
+				overrideSessionOpenOptions: openEvent => {
+					if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked && !openEvent.sideBySide) {
+						return { ...openEvent, editorOptions: { ...openEvent.editorOptions, preserveFocus: false /* focus the chat widget when opening from stacked sessions viewer since this closes the stacked viewer */ } };
+					}
+					return openEvent;
+				},
 			}));
-		}
-		const sessionsControl: IChatViewSessionsListControl = this.sessionsControl = this._register(provided?.control ?? this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
-			initiallyVisible: false,
-			source: 'chatViewPane',
-			filter: sessionsFilter,
-			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
-			createNewChat,
-			getHoverPosition: () => this.getSessionHoverPosition(),
-			trackActiveEditorSession: () => {
-				return !this._widget || this._widget.isEmpty(); // only track and reveal if chat widget is empty
-			},
-			overrideSessionOpenOptions: openEvent => {
-				if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked && !openEvent.sideBySide) {
-					return { ...openEvent, editorOptions: { ...openEvent.editorOptions, preserveFocus: false /* focus the chat widget when opening from stacked sessions viewer since this closes the stacked viewer */ } };
-				}
-				return openEvent;
-			},
+			store.add(toDisposable(() => this.sessionsControl = undefined));
+			sessionsToolbar.context = sessionsControl;
+			return { sessionsControl, store };
+		};
+		const sessionsList = this._register(new MutableDisposable<DisposableStore>());
+		sessionsList.value = createSessionsList().store;
+		this._register(this.sessionsListService.onDidChangeProvider(() => {
+			sessionsList.clear();
+			const { sessionsControl, store } = createSessionsList();
+			sessionsList.value = store;
+			sessionsControl.setVisible(this.isBodyVisible() && this.sessionsViewerVisible);
+			this.updateSessionsControlVisibility();
+			this.relayout();
 		}));
 		this._register(this.onDidChangeBodyVisibility(() => {
-			sessionsControl.setVisible(this.isBodyVisible() && this.sessionsViewerVisible);
+			this.sessionsControl?.setVisible(this.isBodyVisible() && this.sessionsViewerVisible);
 			this.sessionsLayoutScheduler?.schedule();
 		}));
-
-		sessionsToolbar.context = sessionsControl;
 
 		// Refresh sessions when window gets focus to compensate for missing events
 		this._register(this.hostService.onDidChangeFocus(hasFocus => {
 			if (hasFocus) {
-				sessionsControl.refresh('automatic');
+				this.sessionsControl?.refresh('automatic');
 			}
 		}));
 
@@ -1021,7 +1039,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.doUpdateConfiguredSessionsViewerOrientation(newSessionsViewerOrientationConfiguration, { updateConfiguration: false, layout: !!e });
 		}));
 
-		return sessionsControl;
 	}
 
 	getSessionsViewerOrientation(): AgentSessionsViewerOrientation {
@@ -1273,7 +1290,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	//#endregion
 
-	private registerControlsListeners(sessionsControl: IChatViewSessionsListControl, chatWidget: ChatWidget, welcomeController: ChatViewWelcomeController): void {
+	private registerControlsListeners(chatWidget: ChatWidget, welcomeController: ChatViewWelcomeController): void {
 
 		// Sessions control visibility is impacted by multiple things:
 		// - chat widget being in empty state or showing a chat
@@ -1288,7 +1305,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(hasByokModelsContextKeys))
 		)(() => {
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
-				sessionsControl.clearFocus(); // improve visual appearance when switching visibility by clearing focus
+				this.sessionsControl?.clearFocus(); // improve visual appearance when switching visibility by clearing focus
 			}
 			const { changed: visibilityChanged } = this.updateSessionsControlVisibility();
 			if (visibilityChanged) {
@@ -1309,11 +1326,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			const sessionResource = chatWidget.viewModel?.sessionResource;
 			if (sessionResource) {
-				const revealed = sessionsControl.reveal(sessionResource);
+				const revealed = this.sessionsControl?.reveal(sessionResource);
 				if (!revealed) {
 					// Session doesn't exist in the list yet (e.g., new untitled session),
 					// clear the selection so the list doesn't show stale selection
-					sessionsControl.clearFocus();
+					this.sessionsControl?.clearFocus();
 				}
 			}
 		}));
@@ -1325,13 +1342,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				return; // only reveal in side-by-side mode
 			}
 
-			if (sessionsControl.hasFocusOrSelection()) {
+			if (this.sessionsControl?.hasFocusOrSelection()) {
 				return; // do not reveal if user is interacting with sessions control
 			}
 
 			const sessionResource = chatWidget.viewModel?.sessionResource;
 			if (sessionResource) {
-				sessionsControl.reveal(sessionResource);
+				this.sessionsControl?.reveal(sessionResource);
 			}
 		}));
 

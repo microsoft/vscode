@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
@@ -52,6 +53,8 @@ export const IChatViewSessionsListService = createDecorator<IChatViewSessionsLis
 export interface IChatViewSessionsListService {
 	readonly _serviceBrand: undefined;
 	readonly provider: IChatViewSessionsListProvider | undefined;
+	/** Fires as {@link provider} changes, such as a feature that provides the list turning on or off. */
+	readonly onDidChangeProvider: Event<void>;
 	registerProvider(provider: IChatViewSessionsListProvider): IDisposable;
 
 	/** Whether the Chat view shows only the sessions of the list it shows, without its chat: false while it shows no provided list. */
@@ -61,9 +64,12 @@ export interface IChatViewSessionsListService {
 	setActiveList(list: IChatViewSessionsList): IDisposable;
 }
 
-export class ChatViewSessionsListService implements IChatViewSessionsListService {
+export class ChatViewSessionsListService extends Disposable implements IChatViewSessionsListService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidChangeProvider = this._register(new Emitter<void>());
+	readonly onDidChangeProvider = this._onDidChangeProvider.event;
 
 	/** One registration each, also of the same provider. */
 	private readonly _providers: { readonly provider: IChatViewSessionsListProvider }[] = [];
@@ -87,10 +93,15 @@ export class ChatViewSessionsListService implements IChatViewSessionsListService
 	registerProvider(provider: IChatViewSessionsListProvider): IDisposable {
 		const registration = { provider };
 		this._providers.push(registration);
+		this._onDidChangeProvider.fire();
 		return toDisposable(() => {
 			const index = this._providers.indexOf(registration);
 			if (index >= 0) {
+				const previous = this.provider;
 				this._providers.splice(index, 1);
+				if (this.provider !== previous) {
+					this._onDidChangeProvider.fire();
+				}
 			}
 		});
 	}
