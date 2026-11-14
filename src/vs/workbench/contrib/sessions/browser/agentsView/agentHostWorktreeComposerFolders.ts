@@ -21,8 +21,7 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { IAllowedFolderPresentation } from '../chat/sessionWorkspacePicker.js';
-import { IAgentsChatPartService } from './agentsChatPart.js';
-import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
+import { IEditorWindowComposerFoldersService } from '../editorWindow/editorWindowComposerFolders.js';
 
 /**
  * The folders the chat part's new-session composers create their sessions in: the window's folders and, for the one local
@@ -146,16 +145,16 @@ export class AgentHostWorktreeComposerFolders extends Disposable {
 }
 
 /**
- * While worktree support (`chat.editorWindow.enableWorktree`) and AI features are on, the chat part's new-session composers
- * also offer the locations of the window's folder, and follow the folder as it moves, once the chat part exists.
+ * While worktree support (`chat.editorWindow.enableWorktree`) and AI features are on, the editor window's new-session
+ * composers, such as the chat part's and the Chat view's, also offer the locations of the window's folder, and follow the
+ * folder as it moves. Neither needs nor creates the chat part.
  */
 export class AgentHostWorktreeComposerFoldersContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.agentHostWorktreeComposerFolders';
 
 	constructor(
-		@IAgentsChatPartFrame frame: IAgentsChatPartFrame,
-		@IAgentsChatPartService chatPart: IAgentsChatPartService,
+		@IEditorWindowComposerFoldersService composerFoldersService: IEditorWindowComposerFoldersService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -167,19 +166,18 @@ export class AgentHostWorktreeComposerFoldersContribution extends Disposable imp
 		}
 		const settingEnabled = observableConfigValue<boolean>(ChatConfiguration.EditorWindowEnableWorktree, false, configurationService);
 		const aiEnabled = observableContextKey<boolean>(ChatContextKeys.enabled.key, contextKeyService);
-		// Reads the chat part only once it exists, rather than creating it
-		const active = derived(reader => !!settingEnabled.read(reader) && !!aiEnabled.read(reader) && frame.contentCreated.read(reader));
+		const active = derived(reader => !!settingEnabled.read(reader) && !!aiEnabled.read(reader));
 		this._register(autorun(reader => {
 			if (!active.read(reader)) {
 				return;
 			}
 			const folders = reader.store.add(instantiationService.createInstance(AgentHostWorktreeComposerFolders));
-			reader.store.add(chatPart.setComposerFolderOptions(() => {
+			reader.store.add(composerFoldersService.setComposerFolderOptions(() => {
 				folders.refresh();
 				return { allowedFolders: folders.folders, getFolderPresentation: folderUri => folders.getPresentation(folderUri) };
 			}));
-			// Its composers aimed at where the folder was aim at where it is now
-			reader.store.add(folders.onDidMoveFolder(({ from, to }) => chatPart.retargetComposerFolders(to, from)));
+			// The composers aimed at where the folder was aim at where it is now
+			reader.store.add(folders.onDidMoveFolder(({ from, to }) => composerFoldersService.retargetComposerFolders(to, from)));
 			folders.refresh();
 		}));
 	}
