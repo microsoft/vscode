@@ -2853,7 +2853,7 @@ suite('Automation dialog creation', () => {
 		assert.deepStrictEqual({ message, result: await dialog.result }, { message: getErrorMessage(error), result: undefined });
 	});
 
-	test('refreshes selected outdated choices on edit without expanding Advanced', async () => {
+	test('preserves the collapsed customization summary when duration controls are present', async () => {
 		const existing: IAutomationDescriptor = {
 			id: 'existing', name: 'Review', prompt: 'Review changes',
 			target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' },
@@ -2865,11 +2865,19 @@ suite('Automation dialog creation', () => {
 			return [{ id: 'outdated', label: 'Outdated plugin', selected: true, outdated: true }];
 		});
 		await timeout(0);
-		const expanded = dialog.container.querySelector('.automation-advanced-disclosure')?.getAttribute('aria-expanded');
+		const disclosure = dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!;
+		const summary = dialog.container.querySelector<HTMLElement>('.automation-advanced-summary')!;
+		const collapsed = { expanded: disclosure.getAttribute('aria-expanded'), text: summary.textContent, hidden: summary.hidden };
+		disclosure.click();
+		const expandedSummaryHidden = summary.hidden;
+		disclosure.click();
+		const collapsedSummaryHidden = summary.hidden;
 		dialog.saveButton.click();
 		const result = await dialog.result;
-		assert.deepStrictEqual({ expanded, existingId, kind: result?.kind, selected: result?.value.customizationIds }, {
-			expanded: 'false', existingId: 'existing', kind: 'update', selected: ['outdated'],
+		assert.deepStrictEqual({ collapsed, expandedSummaryHidden, collapsedSummaryHidden, existingId, kind: result?.kind, selected: result?.value.customizationIds }, {
+			collapsed: { expanded: 'false', text: '1 of 1 customizations · 1 outdated', hidden: false },
+			expandedSummaryHidden: true, collapsedSummaryHidden: false,
+			existingId: 'existing', kind: 'update', selected: ['outdated'],
 		});
 	});
 
@@ -3222,6 +3230,88 @@ suite('Automation dialog creation', () => {
 			},
 			restored: { visible: true, unit: 1 }, kind: 'create', conditions: undefined,
 		});
+	});
+
+	test('preserves non-date conditions when duplicating and editing the end date', async () => {
+		const cap = { kind: AutomationDisableConditionKind.AfterRuns as const, max: 5 };
+		const endDate = '2099-01-21T17:24:37.123Z';
+		const results: IAutomationDescriptor['disableConditions'][] = [];
+		for (const { date, unitIndex } of [
+			{ date: undefined, unitIndex: undefined },
+			{ date: endDate, unitIndex: undefined },
+			{ date: endDate, unitIndex: 0 },
+			{ date: endDate, unitIndex: 3 },
+		]) {
+			const dialog = openDialog({
+				initialValues: {
+					name: 'Capped automation', prompt: 'Review changes',
+					target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' },
+					schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
+					enabled: true,
+					disableConditions: [cap, ...buildAutomationDisableConditions(date)],
+				}
+			});
+			if (unitIndex !== undefined) {
+				const amount = dialog.container.querySelector<HTMLInputElement>('#automation-duration')!;
+				amount.value = '1';
+				amount.dispatchEvent(new (DOM.getWindow(amount).Event)('input'));
+				const unit = dialog.container.querySelector<HTMLSelectElement>('[aria-label="Disables after: unit"]')!;
+				unit.selectedIndex = unitIndex;
+				unit.dispatchEvent(new (DOM.getWindow(unit).Event)('change'));
+			}
+			const earliest = getAutomationDurationEndDate(1, 'months')!;
+			dialog.saveButton.click();
+			const conditions = (await dialog.result)?.value.disableConditions;
+			if (unitIndex === 3) {
+				const date = conditions?.find(condition => condition.kind === AutomationDisableConditionKind.AfterDate)?.date;
+				assert.ok(date && date >= earliest && date <= getAutomationDurationEndDate(1, 'months')!);
+				results.push(conditions?.map(condition => condition.kind === AutomationDisableConditionKind.AfterDate ? { ...condition, date: 'updated cutoff' } : condition));
+			} else {
+				results.push(conditions);
+			}
+		}
+		assert.deepStrictEqual(results, [
+			[cap],
+			[cap, ...buildAutomationDisableConditions(endDate)],
+			[cap],
+			[cap, ...buildAutomationDisableConditions('updated cutoff')],
+		]);
+	});
+
+	test('announces new end-date errors after revealing them and does not repeat unchanged errors', async () => {
+		const dialog = openDialog();
+		dialog.setPrompt('Review changes');
+		const unit = dialog.container.querySelector<HTMLSelectElement>('[aria-label="Disables after: unit"]')!;
+		unit.selectedIndex = 1;
+		unit.dispatchEvent(new (DOM.getWindow(unit).Event)('change'));
+		const error = dialog.container.querySelector<HTMLElement>('#automation-end-date-error')!;
+		const amount = dialog.container.querySelector<HTMLInputElement>('#automation-duration')!;
+		const observer = new (DOM.getWindow(error).MutationObserver)(() => { });
+		disposables.add(toDisposable(() => observer.disconnect()));
+		observer.observe(error, { attributes: true, childList: true, characterData: true, subtree: true });
+		amount.value = '1.5';
+		amount.dispatchEvent(new (DOM.getWindow(amount).Event)('input'));
+		const mutations = observer.takeRecords();
+		const visibilityChange = mutations.findIndex(record => record.attributeName === 'aria-hidden');
+		const textChange = mutations.findIndex(record => record.type === 'childList');
+		const message = error.textContent;
+		observer.disconnect();
+		observer.observe(error, { childList: true, characterData: true, subtree: true });
+		dialog.setName('Changed name');
+		dialog.setPrompt('Updated prompt');
+		const repeatedAnnouncements = observer.takeRecords().length;
+		unit.selectedIndex = 0;
+		unit.dispatchEvent(new (DOM.getWindow(unit).Event)('change'));
+		assert.deepStrictEqual({
+			revealedBeforeText: visibilityChange >= 0 && textChange > visibilityChange,
+			message, repeatedAnnouncements, cleared: error.textContent, hidden: error.getAttribute('aria-hidden'),
+		}, {
+			revealedBeforeText: true,
+			message: 'Enter a positive whole number that produces an end date before year 10000.',
+			repeatedAnnouncements: 0, cleared: '', hidden: 'true',
+		});
+		dialog.cancelButton.click();
+		await dialog.result;
 	});
 
 	for (const editing of [false, true]) {
@@ -5110,6 +5200,8 @@ suite('Automation dialog end date', () => {
 			month: getAutomationDurationEndDate(1, 'months', january),
 			monthEnd: getAutomationDurationEndDate(1, 'months', new Date(2027, 0, 31, 14, 30).getTime()),
 			leapMonthEnd: getAutomationDurationEndDate(1, 'months', new Date(2028, 0, 31, 14, 30).getTime()),
+			destinationMonthGap: getAutomationDurationEndDate(1, 'months', new Date(2028, 8, 30, 2, 30).getTime()),
+			sourceMonthGap: getAutomationDurationEndDate(1, 'months', new Date(2028, 9, 31, 2, 30).getTime()),
 			days: getAutomationDurationEndDate(2, 'days', new Date(2027, 2, 13, 14, 30).getTime()),
 			weeks: getAutomationDurationEndDate(2, 'weeks', january),
 			invalid: [0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER].map(amount => getAutomationDurationEndDate(amount, 'months', january)),
@@ -5117,6 +5209,8 @@ suite('Automation dialog end date', () => {
 			month: new Date(2027, 1, 21, 14, 30).toISOString(),
 			monthEnd: new Date(2027, 1, 28, 14, 30).toISOString(),
 			leapMonthEnd: new Date(2028, 1, 29, 14, 30).toISOString(),
+			destinationMonthGap: new Date(2028, 9, 30, 2, 30).toISOString(),
+			sourceMonthGap: new Date(2028, 10, 30, 2, 30).toISOString(),
 			days: new Date(2027, 2, 15, 14, 30).toISOString(),
 			weeks: new Date(2027, 1, 4, 14, 30).toISOString(),
 			invalid: [undefined, undefined, undefined, undefined, undefined, undefined],

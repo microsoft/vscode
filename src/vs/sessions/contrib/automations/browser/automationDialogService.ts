@@ -28,6 +28,7 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { getAutomationAfterDate } from '../../../../platform/agentHost/common/automationDisableConditions.js';
+import { AutomationDisableConditionKind } from '../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { defaultButtonStyles, defaultDialogStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { createWorkbenchDialogOptions } from '../../../../workbench/browser/parts/dialogs/dialog.js';
 import { IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -287,6 +288,10 @@ export class AutomationDialogService implements IAutomationDialogService {
 				};
 				return { kind: 'update', id: existing.id, value: patch };
 			}
+			const createDisableConditions = [
+				...initial?.disableConditions?.filter(condition => condition.kind !== AutomationDisableConditionKind.AfterDate) ?? [],
+				...disableConditions,
+			];
 			const create: ICreateAutomationOptions = {
 				...(this.automationService.getProviderConfiguration?.(state.providerId) && state.ownership === 'repository' ? { ownership: state.ownership } : {}),
 				name: state.name.trim() ? state.name : deriveAutomationName(prompt),
@@ -302,7 +307,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						...(sessionConfiguration.permissionLevel !== undefined ? { permissionLevel: sessionConfiguration.permissionLevel } : {}),
 					} : {}),
 				enabled: state.enabled,
-				...(disableConditions.length > 0 ? { disableConditions } : {}),
+				...(createDisableConditions.length > 0 ? { disableConditions: createDisableConditions } : {}),
 				...(customizationIds !== undefined ? { customizationIds } : {}),
 			};
 			return { kind: 'create', value: create };

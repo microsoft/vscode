@@ -309,11 +309,9 @@ export function getAutomationDurationEndDate(amount: number, unit: AutomationDur
 	}
 	const date = new Date(now);
 	if (unit === 'months') {
-		const day = date.getDate();
-		date.setDate(1);
-		date.setMonth(date.getMonth() + amount);
-		const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-		date.setDate(Math.min(day, lastDay));
+		const month = date.getMonth() + amount;
+		const lastDay = new Date(date.getFullYear(), month + 1, 0).getDate();
+		date.setMonth(month, Math.min(date.getDate(), lastDay));
 	} else {
 		date.setDate(date.getDate() + amount * (unit === 'weeks' ? 7 : 1));
 	}
@@ -2096,9 +2094,12 @@ export function renderForm(
 			: state.endDate !== undefined
 				? localize('automation.form.cloudEndDate', "Cloud automations do not support end dates. Select Never before switching to the cloud.")
 				: undefined;
-		endDateError.textContent = validation.endDateError ?? '';
 		amountInput.inputElement.setAttribute('aria-invalid', String(!!validation.endDateError));
 		DOM.setVisibility(!!validation.endDateError, endDateError);
+		const errorMessage = validation.endDateError ?? '';
+		if (endDateError.textContent !== errorMessage) {
+			endDateError.textContent = errorMessage;
+		}
 		const expired = state.enabled && isAutomationAfterDateExpired(buildAutomationDisableConditions(state.endDate));
 		DOM.setVisibility(expired, conditionsWarning);
 		const message = expired
@@ -2507,7 +2508,7 @@ export class AutomationCustomizationSelection extends Disposable {
 		setAutomationControlVisible(this.section, this.additionalContentVisible || this.customizationsVisible || this.endDateContentVisible);
 		setAutomationControlVisible(this.body, this.expanded);
 		setAutomationControlVisible(this.content, this.customizationsVisible);
-		this.summary.hidden = this.expanded || !this.customizationsVisible || this.additionalContentVisible || this.endDateContentVisible;
+		this.summary.hidden = this.expanded || !this.customizationsVisible || this.additionalContentVisible;
 	}
 
 	getSelectedIds(): readonly string[] | undefined {
