@@ -60,7 +60,7 @@ export class MdLanguageClient implements IDisposable {
 		return this.#client.sendRequest(proto.getUpdatePastedLinksEdit, {
 			metadata,
 			pasteIntoDoc: pastingIntoDoc.toString(),
-			edits: edits.map(edit => lsp.TextEdit.replace(toLspRange(edit.range), edit.newText)),
+			edits: edits.map(proto.serializeTextEdit),
 		}, token);
 	}
 }
