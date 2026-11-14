@@ -680,7 +680,8 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 		res += _slash;
 	}
 	if (authority) {
-		let idx = authority.indexOf('@');
+		// the host cannot contain '@', so the userinfo ends at the last one
+		let idx = authority.lastIndexOf('@');
 		if (idx !== -1) {
 			// <user>@<auth>
 			const userinfo = authority.substr(0, idx);
