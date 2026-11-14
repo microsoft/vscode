@@ -20,7 +20,8 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
 import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
-import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
+import { createBinaryDocumentDiffItem } from '../../../../../editor/test/browser/widget/multiDiffEditorTestUtils.js';
+import { IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IWorkbenchUIElementFactory } from '../../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { InMemoryTextModelService } from '../../../../../editor/common/services/inMemoryTextModelService.js';
@@ -36,7 +37,7 @@ import { FileOperationError, FileOperationResult } from '../../../../../platform
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
-import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
+import { emptyProgressRunner, IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../platform/userInteraction/browser/userInteractionService.js';
@@ -70,7 +71,9 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 	setup(() => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
-		instantiationService.stub(IEditorProgressService, new class extends mock<IEditorProgressService>() { }());
+		instantiationService.stub(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+			override show() { return emptyProgressRunner; }
+		}());
 		instantiationService.stub(IUserInteractionService, new MockUserInteractionService(false));
 		// Disposes the synthetic documents of binary items synchronously, like the editor widget tests.
 		instantiationService.stub(ITextModelService, instantiationService.createInstance(InMemoryTextModelService));
@@ -93,10 +96,7 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 	}
 
 	function createBinaryItem(original: URI | undefined, modified: URI | undefined) {
-		return disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
-			original: original ? new DiffItemSource(original, undefined) : undefined,
-			modified: modified ? new DiffItemSource(modified, undefined) : undefined,
-		}, { dispose() { } }));
+		return disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>(createBinaryDocumentDiffItem(original, modified), { dispose() { } }));
 	}
 
 	for (const enabled of [false, true]) {
@@ -205,7 +205,7 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 		}
 	});
 
-	test('orders only resolved resources like the file list when a file replaces a folder', async () => {
+	test('orders the diffs like the file list when a file replaces a folder', async () => {
 		const missingFileError = new FileOperationError('missing', FileOperationResult.FILE_NOT_FOUND);
 		instantiationService.stub(ITextModelService, new class extends InMemoryTextModelService {
 			override createModelReference(resource: URI): Promise<never> {
@@ -240,11 +240,11 @@ suite('MultiDiffEditorWithFileListWidget', () => {
 				.map(row => row.querySelector('.monaco-icon-name-container')?.textContent);
 			assert.deepStrictEqual({
 				files,
-				diffs: editor.viewModel!.items.get().map(item => basename(item.modifiedUri!)),
+				diffs: editor.viewModel!.items.get().map(item => basename((item.modifiedUri ?? item.originalUri)!)),
 				reportedErrors,
 			}, {
-				files: ['readme.png', 'config'],
-				diffs: ['readme.png', 'config'],
+				files: ['config', 'missing.png', 'readme.png'],
+				diffs: ['config', 'missing.png', 'readme.png'],
 				reportedErrors: [missingFileError],
 			});
 		} finally {

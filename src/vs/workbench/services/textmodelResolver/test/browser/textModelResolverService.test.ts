@@ -24,7 +24,8 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
 import { TestDiffProviderFactoryService } from '../../../../../editor/test/browser/diff/testDiffProviderFactoryService.js';
 import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
-import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
+import { createTextDocumentDiffItem } from '../../../../../editor/test/browser/widget/multiDiffEditorTestUtils.js';
+import { IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { MultiDiffEditorViewModel } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -339,11 +340,10 @@ suite('Workbench - TextModelResolverService', () => {
 				[IDiffProviderFactoryService, new TestDiffProviderFactoryService()],
 			)));
 			const textModel = accessor.modelService.createModel('content', null);
-			const source = new DiffItemSource(textModel.uri, textModel);
-			const document = disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
-				original: added ? undefined : source,
-				modified: added ? source : undefined,
-			}, textModel));
+			const document = disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>(
+				createTextDocumentDiffItem(added ? undefined : textModel, added ? textModel : undefined),
+				textModel,
+			));
 			const parent = disposables.add(services.createInstance(MultiDiffEditorViewModel, { documents: ValueWithChangeEvent.const([document]) }));
 			await parent.waitForDiffOr1s();
 			const item = parent.items.get()[0];
@@ -390,7 +390,7 @@ suite('Workbench - TextModelResolverService', () => {
 					[IDiffProviderFactoryService, new TestDiffProviderFactoryService()],
 				)));
 				let sourceDisposed = false;
-				const document = disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>({ original: undefined, modified: undefined }, toDisposable(() => sourceDisposed = true)));
+				const document = disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>(createTextDocumentDiffItem(undefined, undefined), toDisposable(() => sourceDisposed = true)));
 				let documents: readonly RefCounted<IDocumentDiffItem>[] = [document];
 				const changed = disposables.add(new Emitter<void>());
 				const parent = disposables.add(services.createInstance(MultiDiffEditorViewModel, {
@@ -436,11 +436,11 @@ suite('Workbench - TextModelResolverService', () => {
 		const services = disposables.add(instantiationService.createChild(new ServiceCollection([ITextModelService, resolver])));
 		let sourceDisposed = false;
 		const document = disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>(
-			{ original: undefined, modified: undefined },
+			createTextDocumentDiffItem(undefined, undefined),
 			toDisposable(() => sourceDisposed = true),
 		));
 		const parent = disposables.add(services.createInstance(MultiDiffEditorViewModel, { documents: ValueWithChangeEvent.const([document]) }));
-		const rejected = assert.rejects(parent.waitForDiffOr1s(), /Synthetic resolution failed/);
+		const rejected = assert.rejects(parent.items.get()[0].load(), /Synthetic resolution failed/);
 		await secondRequested.p;
 		parent.dispose();
 		document.dispose();

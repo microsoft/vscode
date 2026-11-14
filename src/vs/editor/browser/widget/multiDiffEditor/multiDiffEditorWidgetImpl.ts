@@ -5,7 +5,7 @@
 
 import { Dimension, h } from '../../../../base/browser/dom.js';
 import { arrayEqualsC } from '../../../../base/common/equals.js';
-import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, IReader, ITransaction, autorun, autorunWithStore, constObservable, derived, derivedOpts, mapObservableArrayCached, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -111,6 +111,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 					getId: item => item,
 					getTemplateId: () => 'diffEditor',
 					getUnboundSize: item => derived(item, reader => {
+						item.isLoaded.read(reader);
 						const headerHeight = this._variantConfiguration.headerHeight;
 						if (item.collapsed.read(reader)) {
 							return headerHeight;
@@ -147,10 +148,12 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 							file: formatUri(binding.item.modifiedUri ?? binding.item.originalUri),
 							contentHeight: binding.size.get(),
 						});
-						binding.item.lastTemplateData.set({
-							expandedContentHeight: binding.getExpandedContentHeight(),
-							selections: binding.editor.getSelections() ?? undefined,
-						}, tx);
+						if (binding.item.isLoaded.get()) {
+							binding.item.lastTemplateData.set({
+								expandedContentHeight: binding.getExpandedContentHeight(),
+								selections: binding.editor.getSelections() ?? undefined,
+							}, tx);
+						}
 					},
 				}));
 				const adaptedItems = mapObservableArrayCached(this, manager.virtualizedItems, (item, store) => {
@@ -455,6 +458,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		}
 		const viewItem = viewItems[index];
 		this._viewModel.get()!.activeDiffItem.setCache(viewItem.viewModel, undefined);
+		if (options?.range) {
+			viewItem.viewModel.collapsed.set(false, undefined);
+		}
 
 		let scrollTop = 0;
 		for (let i = 0; i < index; i++) {
@@ -468,12 +474,20 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		});
 		this._scrollView.setLogicalScrollPosition(scrollTop);
 
-		const diffEditor = viewItem.template.get()?.editor;
-		const editor = 'original' in resource ? diffEditor?.getOriginalEditor() : diffEditor?.getModifiedEditor();
-		if (editor && options?.range) {
-			editor.revealRangeInCenter(options.range);
-			highlightRange(editor, options.range);
+		const range = options?.range;
+		if (!range) {
+			// Supersedes earlier navigation without loading a possibly collapsed target.
+			this._navigationId++;
+			return;
 		}
+		this._runWhenReady(viewItem, () => {
+			const diffEditor = viewItem.template.get()?.editor;
+			const editor = 'original' in resource ? diffEditor?.getOriginalEditor() : diffEditor?.getModifiedEditor();
+			if (editor) {
+				editor.revealRangeInCenter(range);
+				highlightRange(editor, range);
+			}
+		});
 	}
 
 	public getViewState(): IMultiDiffEditorViewState {
@@ -610,7 +624,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			|| v.viewModel.originalUri?.toString() === resource.toString()
 		);
 		const editor = item?.template.get()?.editor;
-		if (!editor || item.viewModel.isBinary) {
+		if (!editor || !item.viewModel.isLoaded.get() || item.viewModel.isBinary) {
 			return undefined;
 		}
 
@@ -629,7 +643,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this._navigateToChange('previous');
 	}
 
-	private _navigateToChange(direction: 'next' | 'previous', focusEditor: boolean = true): void {
+	private _navigateToChange(direction: 'next' | 'previous', focusEditor: boolean = true, afterLoading = false): void {
 		const viewItems = this._viewItems.get();
 		if (viewItems.length === 0) {
 			return;
@@ -652,6 +666,11 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			this._logger.log('expanding collapsed item to navigate within it', { file: currentItem.getLabel() });
 			currentItem.viewModel.collapsed.set(false, undefined);
 		}
+		if (!this._isReady(currentItem) && !currentItem.viewModel.loadError.get()) {
+			this.reveal({ original: currentItem.viewModel.originalUri, modified: currentItem.viewModel.modifiedUri });
+			this._runWhenReady(currentItem, () => this._navigateToChange(direction, focusEditor, true));
+			return;
+		}
 
 		const editor = currentItem.template.get()?.editor;
 		if (editor?.getDiffComputationResult()?.changes2?.length) {
@@ -661,6 +680,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 			if (hasNext) {
 				editor.goToDiff(direction);
+				if (focusEditor && afterLoading) {
+					currentItem.binding.get()?.focus();
+				}
 				return;
 			}
 		}
@@ -680,20 +702,50 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 		this.reveal({ original: item.viewModel.originalUri, modified: item.viewModel.modifiedUri });
 
-		const editor = item.template.get()?.editor;
-		if (editor?.getDiffComputationResult()?.changes2?.length) {
-			if (position === 'first') {
-				editor.revealFirstDiff();
-			} else {
-				const lastChange = editor.getDiffComputationResult()!.changes2!.at(-1)!;
-				const modifiedEditor = editor.getModifiedEditor();
-				modifiedEditor.setPosition({ lineNumber: lastChange.modified.startLineNumber, column: 1 });
-				modifiedEditor.revealLineInCenter(lastChange.modified.startLineNumber);
+		this._runWhenReady(item, () => {
+			const editor = item.template.get()?.editor;
+			if (editor?.getDiffComputationResult()?.changes2?.length) {
+				if (position === 'first') {
+					editor.revealFirstDiff();
+				} else {
+					const lastChange = editor.getDiffComputationResult()!.changes2!.at(-1)!;
+					const modifiedEditor = editor.getModifiedEditor();
+					modifiedEditor.setPosition({ lineNumber: lastChange.modified.startLineNumber, column: 1 });
+					modifiedEditor.revealLineInCenter(lastChange.modified.startLineNumber);
+				}
 			}
+			if (focusEditor) {
+				item.binding.get()?.focus();
+			}
+		});
+	}
+
+	private _navigationId = 0;
+
+	private _isReady(item: VirtualizedViewItem): boolean {
+		return item.viewModel.isReady.get() && item.viewModel.diffEditorViewModel.isDiffUpToDate.get();
+	}
+
+	/**
+	 * Runs the action once the item's diff is computed, or right away when it failed to load, unless another navigation
+	 * or a change of the active item superseded it.
+	 */
+	private _runWhenReady(item: VirtualizedViewItem, action: () => void): void {
+		const navigationId = ++this._navigationId;
+		if (this._isReady(item) || item.viewModel.loadError.get()) {
+			action();
+			return;
 		}
-		if (focusEditor) {
-			item.binding.get()?.focus();
-		}
+		const run = async () => {
+			await item.viewModel.waitForInitialDiffOr1s.getPromise().catch(() => { });
+			const ref = item.viewModel.isLoaded.get() ? item.viewModel.diffEditorViewModelRef : undefined;
+			await ref?.object.waitForDiff();
+			if (!this._store.isDisposed && navigationId === this._navigationId
+				&& this._viewModel.get()?.activeDiffItem.get() === item.viewModel && item.viewModel.isAlive.get()) {
+				action();
+			}
+		};
+		void run().catch(onUnexpectedError);
 	}
 
 }
@@ -889,7 +941,7 @@ class VirtualizedViewItem extends Disposable implements ILoggedDiffItem, ICompre
 
 	private _updateTemplateData(tx: ITransaction): void {
 		const binding = this.binding.get();
-		if (!binding) { return; }
+		if (!binding || !this.viewModel.isLoaded.get()) { return; }
 		this.viewModel.lastTemplateData.set({
 			expandedContentHeight: binding.getExpandedContentHeight(),
 			selections: binding.editor.getSelections() ?? undefined,
