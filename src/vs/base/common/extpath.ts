@@ -375,7 +375,7 @@ export function parseLineAndColumnAware(rawPath: string): IPathWithLineAndColumn
 
 	for (const segment of segments) {
 		const segmentAsNumber = Number(segment);
-		if (!isNumber(segmentAsNumber)) {
+		if (path === undefined || !isNumber(segmentAsNumber)) {
 			path = path ? [path, segment].join(':') : segment; // a colon can well be part of a path (e.g. C:\...)
 		} else if (line === undefined) {
 			line = segmentAsNumber;
