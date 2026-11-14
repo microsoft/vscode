@@ -41,6 +41,7 @@ import { IProgressService, ProgressLocation } from '../../../../../platform/prog
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IFolderLocation } from '../../../../../platform/workspace/common/folderLocations.js';
+import { FolderLocationKind, getCurrentFolderLocationDescription, getNewWorktreeLabel, groupFolderLocations } from '../../../../services/workspaces/common/folderLocationSections.js';
 import { SESSION_WORKTREE_ICON } from '../../common/sessionWorktreeIcon.js';
 import { IGitHubInfo, isActiveSessionStatus, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
@@ -167,7 +168,7 @@ export interface IAllowedFolderPresentation extends Partial<Omit<IFolderLocation
 	 * linked checkout of it. Once any allowed folder has one, the picker offers New Worktree first and then the two sections;
 	 * otherwise it shows the folders in their order, without sections.
 	 */
-	readonly kind?: 'folder' | 'worktree';
+	readonly kind?: FolderLocationKind;
 	/** Whether the window's folder is at this folder now: it shows first in its section, described as current. */
 	readonly current?: boolean;
 }
@@ -2317,7 +2318,7 @@ export class WorkspacePicker extends Disposable {
 		}
 		return {
 			kind: ActionListItemKind.Action,
-			label: localize('workspacePicker.newWorktree', "New Worktree"),
+			label: getNewWorktreeLabel(),
 			description: undefined,
 			ariaDescription: localize('workspacePicker.newWorktreeDescription', "Start the session in a new worktree of the selected folder."),
 			group: { title: '', icon: SESSION_WORKTREE_ICON },
@@ -2871,18 +2872,12 @@ export class WorkspacePicker extends Disposable {
 			return this._withSelectionMarks(this._withNewWorktreeItem(this._withNoWorkspaceItem(folders.map(folder => folder.item))));
 		}
 
-		// New Worktree first, then the window's folders and the worktrees, each in a section with the current one first
+		// New Worktree first, then the sections that every picker of a window's folders and their worktrees shows
 		const newWorktreeItem = this._getNewWorktreeItem();
 		const items = this._withNoWorkspaceItem(newWorktreeItem ? [newWorktreeItem] : []);
-		const section = (title: string, sectionFolders: readonly { readonly item: IActionListItem<IWorkspacePickerItem>; readonly current: boolean }[]) => {
-			if (sectionFolders.length) {
-				items.push({ kind: ActionListItemKind.Separator, label: title });
-				items.push(...sectionFolders.filter(folder => folder.current).map(folder => folder.item), ...sectionFolders.filter(folder => !folder.current).map(folder => folder.item));
-			}
-		};
-		const windowFolders = folders.filter(folder => folder.kind !== 'worktree');
-		section(windowFolders.length > 1 ? localize('workspacePicker.folders', "Folders") : localize('workspacePicker.folder', "Folder"), windowFolders);
-		section(localize('workspacePicker.worktrees', "Worktrees"), folders.filter(folder => folder.kind === 'worktree'));
+		for (const section of groupFolderLocations(folders.map(folder => ({ item: folder.item, kind: folder.kind ?? 'folder', current: folder.current })))) {
+			items.push({ kind: ActionListItemKind.Separator, label: section.title }, ...section.items);
+		}
 		return this._withSelectionMarks(items);
 	}
 
@@ -2921,7 +2916,7 @@ export class WorkspacePicker extends Disposable {
 					kind: ActionListItemKind.Action,
 					label: presentation?.label ?? resolved.workspace.label,
 					description: current
-						? localize('workspacePicker.current', "Current")
+						? getCurrentFolderLocationDescription()
 						: presentation?.label !== undefined ? presentation.description : resolved.workspace.description,
 					group: { title: '', icon: presentation?.icon ?? this._getWorkspaceIcon(resolved.workspace) },
 					disabled: this._isProviderUnavailable(resolved.providerId),
