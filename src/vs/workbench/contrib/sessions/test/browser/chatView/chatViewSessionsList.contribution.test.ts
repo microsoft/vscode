@@ -17,7 +17,7 @@ import { SyncDescriptor } from '../../../../../../platform/instantiation/common/
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { ViewPane } from '../../../../../browser/parts/views/viewPane.js';
 import { ViewPaneContainer } from '../../../../../browser/parts/views/viewPaneContainer.js';
 import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation } from '../../../../../common/views.js';
@@ -331,11 +331,14 @@ suite('ChatViewSessionsGate', () => {
 		composerFolders.retargetComposerFolders(worktree, folder);
 		folders.dispose();
 		composerFolders.retargetComposerFolders(folder, worktree);
+		const allowedFolders = init?.allowedFolders?.get().map(uri => uri.path);
 		offered.dispose();
 
-		assert.deepStrictEqual({ target: init?.target?.folderUri?.path, allowedFolders: init?.allowedFolders?.get().map(uri => uri.path), retargeted }, {
+		assert.deepStrictEqual({ target: init?.target?.folderUri?.path, allowedFolders, afterOffer: init?.allowedFolders?.get().map(uri => uri.path), retargeted }, {
 			target: '/repo',
 			allowedFolders: ['/repo', '/repo.worktrees/feature'],
+			// The window's folders, of which this window has none
+			afterOffer: [],
 			retargeted: ['/repo -> /repo.worktrees/feature'],
 		});
 	});
@@ -368,6 +371,28 @@ suite('ChatViewSessionsGate', () => {
 			aimed: { folder: '/repo.worktrees/feature', providerId: 'provider', sessionTypeId: 'claude', modelId: 'model', modeId: 'mode', requireDevContainer: true },
 			default: '/repo',
 		});
+	});
+
+	test('the Chat view\'s composer created before a feature offers other folders, such as worktrees, offers them once it does, and the window\'s folders again once it no longer does', () => {
+		const folder = URI.file('/repo');
+		const worktree = URI.file('/repo.worktrees/feature');
+		const composerFolders = new EditorWindowComposerFoldersService(upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [upcastPartial<IWorkspaceFolder>({ uri: folder })] }) }));
+		let init: IChatWindowComposerInit | undefined;
+		const { folders } = createChatViewComposerModel({
+			create: (_resource, composerInit) => {
+				init = composerInit;
+				return upcastPartial<ChatWindowComposerModel>({ retargetFolder: () => true });
+			},
+		}, composerFolders, URI.parse('vscode-agents-composer:/1'), { folderUri: folder }, async () => { });
+		const offered = () => init?.allowedFolders?.get().map(uri => uri.path);
+		const steps = [offered()];
+		const offering = composerFolders.setComposerFolderOptions(() => ({ allowedFolders: constObservable([folder, worktree]) }));
+		steps.push(offered());
+		offering.dispose();
+		steps.push(offered());
+		folders.dispose();
+
+		assert.deepStrictEqual(steps, [['/repo'], ['/repo', '/repo.worktrees/feature'], ['/repo']]);
 	});
 });
 
