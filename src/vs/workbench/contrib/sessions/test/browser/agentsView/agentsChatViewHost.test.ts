@@ -50,7 +50,7 @@ suite('AgentsChatViewHost', () => {
 			show: async (_target, showOptions) => { calls.push(`show preserveFocus=${showOptions?.preserveFocus}`); },
 			openComposer: async (target, openOptions) => { calls.push(`openComposer ${target?.providerId ? `provider=${target.providerId} ` : ''}sessionType=${target?.sessionTypeId} newComposer=${openOptions?.newComposer}`); },
 			getComposerWidget: async () => composerWidget,
-			openChat: async session => { calls.push(`openChat ${session.resource.toString()}`); },
+			openChat: async (session, _chat, openOptions) => { calls.push(`openChat ${session.resource.toString()}${openOptions?.commit ? ' commit' : ''}`); },
 			isShowing: () => false,
 			...options.chatPart,
 		});
@@ -142,7 +142,7 @@ suite('AgentsChatViewHost', () => {
 		assert.deepStrictEqual({ results, calls }, { results: [undefined, undefined, false], calls: [] });
 	});
 
-	test('a started session that runs shows in the chat part, its model held until the start ends', async () => {
+	test('a started session that runs shows in the chat part, its model held until the start ends: as committed when its first request made it, as opened when it was given', async () => {
 		const untitled = URI.parse('agent-host-copilot:/untitled-1');
 		const real = URI.parse('agent-host-copilot:/session-1');
 		const { owner, widget } = sessionOf(real);
@@ -152,10 +152,15 @@ suite('AgentsChatViewHost', () => {
 		await start.moved(real);
 		const shown = await start.complete(real, true);
 		start.dispose();
+		const made = calls.splice(0);
+		const given = await host.startSession(real, { local: false, importingConversation: false });
+		await given.complete(real, true);
+		given.dispose();
 
-		assert.deepStrictEqual({ shown, calls }, {
+		assert.deepStrictEqual({ shown, made, given: calls }, {
 			shown: true,
-			calls: ['hold agent-host-copilot:/untitled-1', 'acquire', 'openChat agent-host-copilot:/session-1', 'release', 'release agent-host-copilot:/untitled-1'],
+			made: ['hold agent-host-copilot:/untitled-1', 'acquire', 'openChat agent-host-copilot:/session-1 commit', 'release', 'release agent-host-copilot:/untitled-1'],
+			given: ['hold agent-host-copilot:/session-1', 'acquire', 'openChat agent-host-copilot:/session-1', 'release', 'release agent-host-copilot:/session-1'],
 		});
 	});
 
