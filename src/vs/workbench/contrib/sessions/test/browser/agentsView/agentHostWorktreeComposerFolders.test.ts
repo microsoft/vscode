@@ -12,6 +12,7 @@ import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
@@ -64,6 +65,11 @@ suite('AgentHostWorktreeComposerFolders', () => {
 			getLocation: folder => atAlternate(folder) && options.currentLocation ? { ...options.currentLocation, providerId: 'agentHost.sessionWorktrees', builtIn: true } : undefined,
 			getLocations: async primary => { asked.push(primary.path); return locations; },
 		}));
+		// Where the window's sessions work, which tells as a session comes to work in another worktree
+		const onDidChangeSessionSource = store.add(new Emitter<void>());
+		const sessionSources = store.add(new AgentHostWorktreeSessionSources());
+		store.add(sessionSources.registerSource({ getWorkingDirectory: () => undefined, getWorkingDirectories: () => [], onDidChange: onDidChangeSessionSource.event }));
+		instantiationService.stub(IAgentHostWorktreeSessionSources, sessionSources);
 		const composerFolders = store.add(instantiationService.createInstance(AgentHostWorktreeComposerFolders));
 		composerFolders.refresh();
 		return {
@@ -76,6 +82,7 @@ suite('AgentHostWorktreeComposerFolders', () => {
 			moveTo: (next: { uri: string; primaryUri?: string }[]) => { folders = next; onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] }); },
 			addWorktree: (location: IFolderLocation) => { locations = [...locations, location]; },
 			providersChanged: () => onDidChangeProviders.fire(),
+			sessionsChanged: () => onDidChangeSessionSource.fire(),
 		};
 	}
 
@@ -176,6 +183,7 @@ suite('AgentHostWorktreeComposerFolders', () => {
 			isAtAlternateLocation: () => false,
 			getLocations: (_primary, cancellation) => { token = cancellation; return read.p; },
 		}));
+		instantiationService.stub(IAgentHostWorktreeSessionSources, store.add(new AgentHostWorktreeSessionSources()));
 		const composerFolders = instantiationService.createInstance(AgentHostWorktreeComposerFolders);
 		composerFolders.refresh();
 		composerFolders.dispose();
@@ -194,6 +202,21 @@ suite('AgentHostWorktreeComposerFolders', () => {
 
 		assert.deepStrictEqual(asked, ['/work/vscode', '/work/vscode']);
 	});
+
+	test('offers a worktree that a session in the background comes to work in, read once as the sessions settle, while the folder stays where it is', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { asked, snapshot, addWorktree, sessionsChanged } = create({ folders: [{ uri: '/work/vscode' }] });
+		await timeout(0);
+		asked.splice(0);
+		addWorktree(worktree('/work/vscode.worktrees/c', 'feature-c'));
+		sessionsChanged();
+		sessionsChanged();
+		await timeout(500);
+
+		assert.deepStrictEqual({ folders: snapshot().folders, asked }, {
+			folders: ['/work/vscode', '/work/vscode.worktrees/a', '/work/vscode.worktrees/b', '/work/vscode.worktrees/c'],
+			asked: ['/work/vscode'],
+		});
+	}));
 
 	test('with worktree support and AI features on, the composers offer the folder\'s locations and follow the folder as it moves, without a chat part', async () => {
 		const onDidChangeWorkspaceFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
@@ -346,12 +369,16 @@ suite('AgentHostWorktreeComposerFolders', () => {
 		const source = store.add(instantiationService.createInstance(AgentHostWorktreeSessionLayerSource));
 		let changes = 0;
 		store.add(source.onDidChange(() => changes++));
+		// Any session changing otherwise, such as its status, changes nothing of where they work
+		onDidChangeSession.fire(undefined as never);
+		const unrelated = changes;
 		sessions.push(hidden);
 		onDidChangeSession.fire(undefined as never);
 		const added = changes;
 		chatWorkspace.set(workspace('/work/vscode.worktrees/hidden'), undefined);
 
-		assert.deepStrictEqual({ added, changes, workingDirectory: source.getWorkingDirectory(chat.resource)?.path, all: source.getWorkingDirectories().map(uri => uri.path) }, {
+		assert.deepStrictEqual({ unrelated, added, changes, workingDirectory: source.getWorkingDirectory(chat.resource)?.path, all: source.getWorkingDirectories().map(uri => uri.path) }, {
+			unrelated: 0,
 			added: 1,
 			changes: 2,
 			workingDirectory: '/work/vscode.worktrees/hidden',

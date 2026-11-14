@@ -175,6 +175,7 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 			this._sessionsListener.clear();
 			// A chat the user opens follows; so does one that a first request made, on its own, as the user did not pick it
 			const follows = shown?.reason === 'open' || shown?.reason === 'commit';
+			this._trace(shown ? `shown ${shown.resource.toString()} (${shown.reason})` : 'shown: none');
 			this._shown = shown && !isUntitledChatSession(shown.resource) ? { resource: shown.resource, workingDirectory: undefined, followOnceKnown: follows } : undefined;
 			if (!shown || shown.reason === 'open') {
 				// The user's latest choice: no switch asked for before applies, also where this chat moves nothing
@@ -289,6 +290,14 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		return typeof path === 'string' && path ? URI.file(path) : undefined;
 	}
 
+	/** Where {@link _workingDirectory} found the working directory of `resource`, for the trace. */
+	private _workingDirectorySource(resource: URI): string {
+		if (this._sessionSources.getWorkingDirectory(resource)) {
+			return 'session layer';
+		}
+		return isLocalAgentHostTarget(resource.scheme) && this._agentSessionsService.getSession(resource) ? 'Chat view sessions list' : 'none';
+	}
+
 	/**
 	 * Whether the chat of `resource` may work in a folder that the folder follows: any but a local chat, such as an agent
 	 * host session of any session layer, whose working directory may only become known once its first request ran.
@@ -321,6 +330,7 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		const folder = this._workspaceContextService.getWorkspace().folders[0];
 		const primary = this._workspaceContextService.getWorkspace().uri;
 		if (!folder || !primary || !this._folderLocationService.canSetLocation(folder)) {
+			this._trace(`not followed: no folder that can move (folder ${folder?.uri.toString()}, primary ${primary?.toString()})`);
 			return;
 		}
 		let target: URI | undefined;
@@ -328,14 +338,17 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 			target = primary;
 		} else if (this._isFollowable(shown.resource)) {
 			shown.workingDirectory = this._workingDirectory(shown.resource);
+			this._trace(`working directory of ${shown.resource.toString()}: ${shown.workingDirectory?.toString() ?? 'unknown'} (from ${this._workingDirectorySource(shown.resource)})`);
 			// Not listed with its working directory yet, such as a session its first request just started: it follows as it is
 			this._watchWorkingDirectory(shown);
 			target = shown.workingDirectory;
 		}
 		if (!target || target.scheme !== Schemas.file || !this._enabled) {
+			this._trace(`not followed: ${shown.resource.toString()} ${!this._isFollowable(shown.resource) ? 'is not followable' : !target ? 'has no working directory yet' : target.scheme !== Schemas.file ? `works in ${target.toString()}, not a local folder` : 'worktree support is off'}`);
 			return;
 		}
 		if (automatic && this._switching > 0) {
+			this._trace(`follows ${shown.resource.toString()} to ${target.toString()} once the switch under way settles`);
 			// Gives way to the switch under way, and follows where the chat works by then once that settles: also where that
 			// is where the folder is now, which the switch under way would leave
 			this._followWhenIdle = { shown, request: this._request };
@@ -343,9 +356,11 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		}
 		if (extUriBiasedIgnorePathCase.isEqual(target, folder.uri)) {
 			// Where the folder is: the chat is the last one of its location also without a move
+			this._trace(`not followed: the folder is at ${target.toString()} already`);
 			this._rememberSession(folder.uri, shown.resource);
 			return;
 		}
+		this._trace(`switches for ${shown.resource.toString()} from ${folder.uri.toString()} to ${target.toString()} (primary ${primary.toString()}${automatic ? ', automatic' : ''})`);
 		void this._switch(shown.resource, primary, target, automatic ? this._foreground : undefined);
 	}
 
@@ -376,11 +391,14 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 					return;
 				}
 				if (location) {
+					this._trace(`${target.toString()} is in the location ${location.uri.toString()} of ${primary.toString()}`);
 					direction = 'toAlternate';
 					target = location.uri;
-				} else if (extUriBiasedIgnorePathCase.isEqualOrParent(target, primary)) {
+				} else if (extUriBiasedIgnorePathCase.isEqualOrParent(target, primary) || (exists && extUriBiasedIgnorePathCase.isEqualOrParent(await this._real(target), await this._real(primary)))) {
+					// Also by its real path, such as /private/tmp/repo of the folder /tmp/repo
 					target = primary;
 				} else {
+					this._trace(`not switched: ${target.toString()} ${exists ? `is no location of ${primary.toString()}` : 'does not exist'}`);
 					if (!exists) {
 						if (request === this._request && !automatic) {
 							this._notificationService.info(localize('worktree.missing', "The folder {0} of this chat no longer exists.", this._labelService.getUriLabel(target, { noPrefix: true })));
@@ -393,6 +411,7 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 			}
 			if (this._isAt(target)) {
 				// Where the folder is already, such as a chat in a folder inside the worktree it is at
+				this._trace(`not switched: the folder is at ${target.toString()} already`);
 				if (request === this._request && this._enabled) {
 					this._rememberSession(target, session);
 				}
@@ -478,6 +497,19 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 					this._keepInPlace = undefined;
 				}
 			});
+	}
+
+	/** `resource` with its symbolic links resolved, or itself where that fails. */
+	private async _real(resource: URI): Promise<URI> {
+		try {
+			return await this._fileService.realpath(resource) ?? resource;
+		} catch {
+			return resource;
+		}
+	}
+
+	private _trace(message: string): void {
+		this._logService.trace(`[worktree] ${message}`);
 	}
 
 	private _isAt(location: URI): boolean {
