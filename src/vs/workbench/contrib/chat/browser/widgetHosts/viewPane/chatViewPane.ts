@@ -72,7 +72,7 @@ import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../
 import { IChatViewSessionsComposer, IChatViewSessionsList, IChatViewSessionsListControl, IChatViewSessionsListService } from './chatViewSessionsList.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT, ChatViewId, IChatWidgetService, IChatWidgetViewModelChangeEvent, IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
-import { IChatViewHostShownSession } from '../../chatViewHost.js';
+import { IChatViewHostShownSession, IChatViewNewChatTarget } from '../../chatViewHost.js';
 import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
 import { DeferredPromise, disposableTimeout, raceCancellation, RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
@@ -908,21 +908,22 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	/**
-	 * New Chat of the Chat view: the provided composer starts over, and takes New Chat while it shows in place of the chat.
-	 * Returns whether it took it; otherwise New Chat clears the chat, in whose place the composer then shows.
+	 * New Chat of the Chat view: the provided composer starts over, aimed at `target` when given, and takes New Chat while it
+	 * shows in place of the chat. Returns whether it took it; otherwise New Chat clears the chat, in whose place the composer
+	 * then shows.
 	 */
-	newChat(): boolean {
+	newChat(target?: IChatViewNewChatTarget): boolean {
 		if (!this.providedComposer) {
 			return false;
 		}
 		if (!this.composerShown) {
-			this.providedComposer.newChat();
+			this.providedComposer.newChat(target);
 			return false;
 		}
 		// A chat still loading or restoring, which cleared the chat and so shows the composer, no longer replaces it
 		this.loadSessionCts.value?.cancel();
 		this._applyModelCts.value?.cancel();
-		this.providedComposer.newChat();
+		this.providedComposer.newChat(target);
 		this.providedComposer.focus();
 		return true;
 	}
@@ -995,6 +996,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
 		const provided = this.providedSessionsList = this.sessionsListService.provider?.create(this.sessionsControlContainer, this.instantiationService, { overrideStyles: this.getLocationBasedColors().listOverrideStyles });
 		if (provided) {
+			this._register(this.sessionsListService.setActiveList(provided));
 			// A list of its own header and actions, in place of those of the Chat view's list
 			setVisibility(!provided.hasHeader, sessionsTitleContainer);
 			setVisibility(false, newSessionButtonContainer);

@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable } from '../../../../../../base/common/observable.js';
+import { derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IListStyles } from '../../../../../../base/browser/ui/list/listWidget.js';
 import { IStyleOverride } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentSessionRefreshReason, IAgentSession } from '../../agentSessions/agentSessionsModel.js';
+import { IChatViewNewChatTarget } from '../../chatViewHost.js';
 
 /** The sessions list that the Chat view shows in its sessions section: its own, or one that a provider gives it. */
 export interface IChatViewSessionsListControl extends IDisposable {
@@ -34,8 +35,11 @@ export interface IChatViewSessionsComposer extends IDisposable {
 	readonly height: IObservable<number>;
 	layout(width: number, height: number): void;
 	focus(): void;
-	/** Starts over with a new chat, as New Chat of the Chat view does: without the input, the attachments and the target it had. */
-	newChat(): void;
+	/**
+	 * Starts over with a new chat, as New Chat of the Chat view does: without the input, the attachments and the target it had,
+	 * aimed at `target` when given, such as the folder and the session type of a new session that a sessions list starts.
+	 */
+	newChat(target?: IChatViewNewChatTarget): void;
 }
 
 /** A sessions list of the Chat view, with how the Chat view shows it. */
@@ -65,6 +69,12 @@ export interface IChatViewSessionsListService {
 	readonly _serviceBrand: undefined;
 	readonly provider: IChatViewSessionsListProvider | undefined;
 	registerProvider(provider: IChatViewSessionsListProvider): IDisposable;
+
+	/** Whether the Chat view shows only the sessions of the list it shows, without its chat: false while it shows no provided list. */
+	readonly sessionsOnly: IObservable<boolean>;
+
+	/** Called by the Chat view with the provided list it shows, until the returned disposable is disposed. */
+	setActiveList(list: IChatViewSessionsList): IDisposable;
 }
 
 export class ChatViewSessionsListService implements IChatViewSessionsListService {
@@ -76,6 +86,18 @@ export class ChatViewSessionsListService implements IChatViewSessionsListService
 
 	get provider(): IChatViewSessionsListProvider | undefined {
 		return this._providers.at(-1)?.provider;
+	}
+
+	private readonly _activeList = observableValue<IChatViewSessionsList | undefined>(this, undefined);
+	readonly sessionsOnly: IObservable<boolean> = derived(this, reader => this._activeList.read(reader)?.sessionsOnly.read(reader) ?? false);
+
+	setActiveList(list: IChatViewSessionsList): IDisposable {
+		this._activeList.set(list, undefined);
+		return toDisposable(() => {
+			if (this._activeList.get() === list) {
+				this._activeList.set(undefined, undefined);
+			}
+		});
 	}
 
 	registerProvider(provider: IChatViewSessionsListProvider): IDisposable {

@@ -162,16 +162,16 @@ suite('ChatViewHostService', () => {
 		});
 	});
 
-	test('New Chat is left to the chat widget, unless the host that replaces the Chat view starts it', () => {
+	test('New Chat is left to the chat widget, unless the host that replaces the Chat view starts it', async () => {
 		const { service } = createService();
 		let started = 0;
 		const withoutNewChat = service.registerHost(upcastPartial<IChatViewHost>({}));
-		const results = [service.newChat()];
-		const withNewChat = service.registerHost(upcastPartial<IChatViewHost>({ newChat: () => { started++; return true; } }));
-		results.push(service.newChat());
+		const results = [await service.newChat()];
+		const withNewChat = service.registerHost(upcastPartial<IChatViewHost>({ newChat: async () => { started++; return true; } }));
+		results.push(await service.newChat());
 		withNewChat.dispose();
 		withoutNewChat.dispose();
-		results.push(service.newChat());
+		results.push(await service.newChat());
 
 		assert.deepStrictEqual({ results, started }, { results: [false, true, false], started: 1 });
 	});
@@ -277,7 +277,7 @@ suite('ChatViewHostService', () => {
 			canShow: resource => resource.scheme !== localChat.scheme,
 			openSession: async () => undefined,
 			reveal: async () => undefined,
-			newChat: () => takesNewChat,
+			newChat: async () => takesNewChat,
 		});
 		const steps: string[] = [];
 		await service.openSession(localChat);
@@ -287,10 +287,10 @@ suite('ChatViewHostService', () => {
 		steps.push(shown());
 		await service.openSession(localChat);
 		// New Chat that the host does not take changes nothing
-		service.newChat();
+		await service.newChat();
 		steps.push(shown());
 		takesNewChat = true;
-		service.newChat();
+		await service.newChat();
 		steps.push(shown());
 		// The new chat starts a session
 		hostShown.set({ resource: agentHostChat.with({ path: '/started' }), reason: 'open' }, undefined);
