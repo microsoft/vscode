@@ -19,6 +19,7 @@ import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
 
 export class TerminalEditorService extends Disposable implements ITerminalEditorService {
 	declare _serviceBrand: undefined;
@@ -50,7 +51,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IDecorationsService private readonly _decorationsService: IDecorationsService
 	) {
 		super();
 		this._terminalEditorActive = TerminalContextKeys.terminalEditorActive.bindTo(contextKeyService);
@@ -98,7 +100,16 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			if (e.context === EditorCloseContext.MOVE || this._editorGroupsService.groups.some(group => group.contains(e.editor, { strictEquals: true }))) {
 				return;
 			}
-			const instance = e.editor instanceof TerminalEditorInput ? e.editor.terminalInstance : undefined;
+			const editor = e.editor;
+			if (editor instanceof TerminalEditorInput) {
+				// Wait for source labels to be released, including when the terminal dies after detachment.
+				queueMicrotask(() => {
+					if (!this._store.isDisposed && editor.isTerminalDisposed) {
+						this._decorationsService.clearCachedDecorations(editor.resource);
+					}
+				});
+			}
+			const instance = editor instanceof TerminalEditorInput ? editor.terminalInstance : undefined;
 			if (instance) {
 				const instanceIndex = this.instances.findIndex(e => e === instance);
 				if (instanceIndex !== -1) {

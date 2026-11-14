@@ -91,6 +91,7 @@ export class OpenEditorsView extends ViewPane {
 	private dnd: OpenEditorsDragAndDrop | undefined;
 	private list: WorkbenchList<OpenEditor | IEditorGroup> | undefined;
 	private listLabels: ResourceLabels | undefined;
+	private editorRenderer: OpenEditorRenderer | undefined;
 	private needsRefresh = false;
 	private elements: (OpenEditor | IEditorGroup)[] = [];
 	private sortOrder: 'editorOrder' | 'alphabetical' | 'fullPath';
@@ -143,6 +144,14 @@ export class OpenEditorsView extends ViewPane {
 		const groupDisposables = this._register(new DisposableMap<number>());
 		const addGroupListener = (group: IEditorGroup) => {
 			const groupModelChangeListener = group.onDidModelChange(e => {
+				// Closed labels must stop querying decorations even while a list refresh is delayed.
+				if (e.kind === GroupModelChangeKind.EDITOR_CLOSE && e.editor) {
+					this.editorRenderer?.clearEditor(e.editor, group);
+				}
+				if (!this.isBodyVisible() || !this.list) {
+					this.needsRefresh = true;
+					return;
+				}
 				if (this.listRefreshScheduler?.isScheduled()) {
 					switch (e.kind) {
 						case GroupModelChangeKind.EDITOR_ACTIVE:
@@ -153,11 +162,6 @@ export class OpenEditorsView extends ViewPane {
 					}
 					return;
 				}
-				if (!this.isBodyVisible() || !this.list) {
-					this.needsRefresh = true;
-					return;
-				}
-
 				const index = this.getIndex(group, e.editor);
 				switch (e.kind) {
 					case GroupModelChangeKind.EDITOR_ACTIVE:
@@ -256,10 +260,19 @@ export class OpenEditorsView extends ViewPane {
 
 		this.dnd = new OpenEditorsDragAndDrop(this.sortOrder, this.instantiationService, this.editorGroupService);
 
+		// Release stale rows before ResourceLabels redraws them on becoming visible.
+		this._register(this.onDidChangeBodyVisibility(visible => {
+			if (visible && this.needsRefresh) {
+				this.list?.splice(0, this.list.length);
+				this.scheduleListRefresh(false, 0);
+			}
+		}));
+
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
+		this.editorRenderer = new OpenEditorRenderer(this.listLabels, this.instantiationService, this.keybindingService, this.configurationService);
 		this.list = this.instantiationService.createInstance(WorkbenchList, 'OpenEditors', container, delegate, [
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService),
-			new OpenEditorRenderer(this.listLabels, this.instantiationService, this.keybindingService, this.configurationService)
+			this.editorRenderer
 		], {
 			identityProvider: { getId: (element: OpenEditor | IEditorGroup) => this.getElementId(element) },
 			dnd: this.dnd,
@@ -281,7 +294,8 @@ export class OpenEditorsView extends ViewPane {
 				return;
 			}
 			labelChangeListeners = dispose(labelChangeListeners);
-			const previousLength = this.list.length;
+			// Visibility cleanup may already have released the rows, but not updated pane sizing.
+			const previousLength = this.elements.length;
 			const elements = this.getElements();
 			this.list.splice(0, this.list.length, elements);
 			this.focusActiveEditor(preserveSelection);
@@ -338,12 +352,6 @@ export class OpenEditorsView extends ViewPane {
 		}));
 
 		this.scheduleListRefresh(false, 0);
-
-		this._register(this.onDidChangeBodyVisibility(visible => {
-			if (visible && this.needsRefresh) {
-				this.scheduleListRefresh(false, 0);
-			}
-		}));
 
 		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!);
 		this._register(containerModel.onDidChangeAllViewDescriptors(() => {
@@ -730,6 +738,7 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 
 	private readonly closeEditorAction;
 	private readonly unpinEditorAction;
+	private readonly renderedTemplates = new Set<IOpenEditorTemplateData>();
 
 	constructor(
 		private labels: ResourceLabels,
@@ -758,6 +767,11 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 
 	renderElement(openedEditor: OpenEditor, _index: number, templateData: IOpenEditorTemplateData): void {
 		const editor = openedEditor.editor;
+		if (!openedEditor.group.contains(editor)) {
+			this.clearTemplate(templateData);
+			return;
+		}
+		this.renderedTemplates.add(templateData);
 		templateData.actionRunner.editor = openedEditor;
 		templateData.container.classList.toggle('dirty', editor.isDirty() && !editor.isSaving());
 		templateData.container.classList.toggle('sticky', openedEditor.isSticky());
@@ -781,7 +795,27 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 		}
 	}
 
+	clearEditor(editor: EditorInput, group: IEditorGroup): void {
+		for (const templateData of this.renderedTemplates) {
+			const openedEditor = templateData.actionRunner.editor;
+			if (openedEditor?.editor === editor && openedEditor.groupId === group.id) {
+				this.clearTemplate(templateData);
+			}
+		}
+	}
+
+	disposeElement(_element: OpenEditor, _index: number, templateData: IOpenEditorTemplateData): void {
+		this.clearTemplate(templateData);
+	}
+
+	private clearTemplate(templateData: IOpenEditorTemplateData): void {
+		this.renderedTemplates.delete(templateData);
+		templateData.root.clear();
+		templateData.actionRunner.editor = undefined;
+	}
+
 	disposeTemplate(templateData: IOpenEditorTemplateData): void {
+		this.renderedTemplates.delete(templateData);
 		templateData.actionBar.dispose();
 		templateData.root.dispose();
 		templateData.actionRunner.dispose();

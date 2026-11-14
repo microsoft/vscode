@@ -39,6 +39,7 @@ import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalP
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { columnToEditorGroup } from '../../../services/editor/common/editorGroupColumn.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP, AUX_WINDOW_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -187,7 +188,8 @@ export class TerminalService extends Disposable implements ITerminalService {
 		@ICommandService private readonly _commandService: ICommandService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ITimerService private readonly _timerService: ITimerService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@IDecorationsService private readonly _decorationsService: IDecorationsService
 	) {
 		super();
 
@@ -873,6 +875,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		const disposeListener = this._register(instance.onDisposed(() => {
 			instanceDisposables.dispose();
 			this._store.delete(disposeListener);
+			this._decorationsService.clearCachedDecorations(instance.resource);
 		}));
 	}
 

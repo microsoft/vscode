@@ -90,12 +90,14 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IHoverService private readonly _hoverService: IHoverService,
 	) {
+		const labels = instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER);
+		const dnd = instantiationService.createInstance(TerminalTabsDragAndDrop);
 		super('TerminalTabsList', container,
 			{
 				getHeight: () => TerminalTabsListSizes.TabHeight,
 				getTemplateId: () => 'terminal.tabs'
 			},
-			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelectedElements(), {
+			[instantiationService.createInstance(TerminalTabsRenderer, container, labels, () => this.getSelectedElements(), {
 				getHasText: () => this.hasText,
 				getHasActionBar: () => this.hasActionBar
 			})],
@@ -110,7 +112,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				smoothScrolling: _configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: true,
 				paddingBottom: TerminalTabsListSizes.TabHeight,
-				dnd: instantiationService.createInstance(TerminalTabsDragAndDrop),
+				dnd,
 				openOnSingleClick: true
 			},
 			contextKeyService,
@@ -118,6 +120,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			_configurationService,
 			instantiationService,
 		);
+		this.disposables.add(labels);
+		this.disposables.add(dnd);
 
 		const instanceDisposables: IDisposable[] = [
 			this._terminalGroupService.onDidChangeInstances(() => this.refresh()),
@@ -448,6 +452,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	disposeElement(instance: ITerminalInstance, index: number, templateData: ITerminalTabEntryTemplate): void {
 		templateData.elementDisposables.clear();
 		templateData.actionBar.clear();
+		templateData.label.clear();
 	}
 
 	disposeTemplate(templateData: ITerminalTabEntryTemplate): void {
