@@ -18050,14 +18050,15 @@ suite('CopilotAgent', () => {
 		})));
 		assert.deepStrictEqual(models.map(model => ({
 			id: model.id,
+			readyForAutomation: agent.isReadyForAutomation({ id: model.id }),
 			thinkingLevel: model.configSchema?.properties.thinkingLevel && {
 				enum: model.configSchema.properties.thinkingLevel.enum,
 				default: model.configSchema.properties.thinkingLevel.default,
 			},
 		})), [
-			{ id: 'acme/fallback-default', thinkingLevel: { enum: ['minimal', 'low', 'high'], default: 'minimal' } },
-			{ id: 'acme/valid-default', thinkingLevel: { enum: ['low', 'medium', 'high'], default: 'medium' } },
-			{ id: 'acme/minimal-only', thinkingLevel: { enum: ['minimal'], default: 'minimal' } },
+			{ id: 'acme/fallback-default', readyForAutomation: true, thinkingLevel: { enum: ['minimal', 'low', 'high'], default: 'minimal' } },
+			{ id: 'acme/valid-default', readyForAutomation: true, thinkingLevel: { enum: ['low', 'medium', 'high'], default: 'medium' } },
+			{ id: 'acme/minimal-only', readyForAutomation: true, thinkingLevel: { enum: ['minimal'], default: 'minimal' } },
 		]);
 	});
 
