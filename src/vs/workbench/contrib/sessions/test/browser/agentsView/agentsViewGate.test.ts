@@ -196,6 +196,17 @@ suite('AgentsViewGate', () => {
 		assert.deepStrictEqual({ afterShown, afterDispose: sessionItemMenuItems() - before }, { afterShown: true, afterDispose: 0 });
 	});
 
+	test('disposed, it deregisters its views while their container is still registered, so the view descriptors service resets their context keys', () => {
+		const gate = createGate(true);
+		const containerRegistered = () => !!Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).get(AGENTS_VIEW_CONTAINER_ID);
+		const containerRegisteredAtViewsDeregistered: boolean[] = [];
+		disposables.add(Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).onViewsDeregistered(() => containerRegisteredAtViewsDeregistered.push(containerRegistered())));
+
+		gate.dispose();
+
+		assert.deepStrictEqual({ containerRegisteredAtViewsDeregistered, containerRegistered: containerRegistered() }, { containerRegisteredAtViewsDeregistered: [true], containerRegistered: false });
+	});
+
 	test('surfaces every local agent host agent in a local editor window with the setting on, as the Agents window does, but not in a remote one', () => {
 		const surfaces = (enabled: boolean, remoteAuthority?: string, isSessionsWindow = false) =>
 			surfacesAllLocalAgentHostAgents({ isSessionsWindow, remoteAuthority }, new TestConfigurationService({ [ChatConfiguration.SessionsViewEnabled]: enabled }));
