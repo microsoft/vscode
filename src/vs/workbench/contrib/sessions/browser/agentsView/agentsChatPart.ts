@@ -126,6 +126,7 @@ export interface IAgentsChatPartService {
 
 	/** Shows again the chats the chat part showed as the window last closed, when the layout restores it shown. */
 	restore(): Promise<void>;
+
 }
 
 /**

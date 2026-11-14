@@ -5,13 +5,12 @@
 
 import './media/chatViewSessionsPane.css';
 import '../../../chat/browser/widgetHosts/viewPane/media/chatViewPane.css';
-import { $, append, setVisibility } from '../../../../../base/browser/dom.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { $, append, DisposableResizeObserver, getWindow, setVisibility } from '../../../../../base/browser/dom.js';
 import { raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -25,7 +24,6 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ViewPane } from '../../../../browser/parts/views/viewPane.js';
@@ -40,6 +38,7 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition, IAgentSessionsControl, IChatViewSessionsControl } from '../../../chat/browser/agentSessions/agentSessions.js';
 import { ChatViewId, IChatWidget } from '../../../chat/browser/chat.js';
 import { ChatViewWelcomeController } from '../../../chat/browser/viewsWelcome/chatViewWelcomeController.js';
+import { ChatViewTitleControl } from '../../../chat/browser/widgetHosts/viewPane/chatViewTitleControl.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
@@ -109,7 +108,11 @@ export class ChatViewSessionsSurface extends Disposable implements IAgentsChatPa
 	private readonly _windowFolders: IObservable<readonly URI[]>;
 	private _view: { focus(): void } | undefined;
 
+	private readonly _shownChatBinding = this._register(new MutableDisposable());
+
 	constructor(
+		/** The chat part, whose folder options its composers take, as the chat part's own composers do. */
+		private readonly _chatPart: () => IAgentsChatPartService,
 		@ISessionHost readonly mainWindowHost: ISessionHost,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IViewsService private readonly _viewsService: IViewsService,
@@ -129,11 +132,15 @@ export class ChatViewSessionsSurface extends Disposable implements IAgentsChatPa
 			mainPart: editorGroupsService.mainPart,
 			toggleConversation: () => { },
 		};
-		// The window's host, as its service, shows the chat of the Chat view
-		if (this.mainWindowHost instanceof EditorWindowMainSessionHost) {
-			this._register(this.mainWindowHost.bindShownChat(this.activeChat));
-		}
+		this._bindShownChat();
 		this._register(toDisposable(() => this._chat.get()?.dispose()));
+	}
+
+	/** The window's host, as its service, shows the chat of the Chat view: bound again as it shows a chat, after the chat part did. */
+	private _bindShownChat(): void {
+		if (this.mainWindowHost instanceof EditorWindowMainSessionHost) {
+			this._shownChatBinding.value = this.mainWindowHost.bindShownChat(this.activeChat);
+		}
 	}
 
 	private get composers(): ChatWindowComposers {
@@ -239,7 +246,9 @@ export class ChatViewSessionsSurface extends Disposable implements IAgentsChatPa
 
 	private _setComposer(target: INewSessionTarget | undefined): void {
 		const resource = createChatWindowComposerResource();
-		const composer = this.composers.create(resource, { target, allowedFolders: this._windowFolders }, session => this.openChat(session, undefined));
+		// The folders, and their presentation, of the chat part's composers: the window's folders while it offers none
+		const folderOptions = this._chatPart().getComposerFolderOptions?.() ?? { allowedFolders: this._windowFolders };
+		const composer = this.composers.create(resource, { target, ...folderOptions }, session => this.openChat(session, undefined));
 		this._setChat(resource, composer);
 	}
 
@@ -252,6 +261,7 @@ export class ChatViewSessionsSurface extends Disposable implements IAgentsChatPa
 			}
 		});
 		this._chat.set(chat, undefined);
+		this._bindShownChat();
 		this.composers.didOpen([chat.chat.get()]);
 		// Once the Chat view let go of its view: what it shows goes with the chat
 		if (previous) {
@@ -320,7 +330,8 @@ class ChatViewSessionsListControl implements IAgentSessionsControl {
 }
 
 const SESSIONS_TITLE_HEIGHT = 22;
-const BACK_BAR_HEIGHT = 30;
+/** The space around the content of a new-session composer in the Chat view, see chatViewSessionsPane.css. */
+const COMPOSER_PADDING = 8;
 const SESSIONS_SIDEBAR_WIDTH = 300;
 const CHAT_MIN_WIDTH = 300;
 const CHAT_MIN_HEIGHT = 220;
@@ -335,8 +346,11 @@ export class ChatViewSessionsPane extends ViewPane implements IChatViewSessionsC
 	private _sessionsContainer: HTMLElement | undefined;
 	private _listContainer: HTMLElement | undefined;
 	private _chatContainer: HTMLElement | undefined;
-	private _backBar: HTMLElement | undefined;
+	private _titleControl: ChatViewTitleControl | undefined;
 	private _chatHost: HTMLElement | undefined;
+	/** The height of the new-session composer's content, its input with what shows above and below it, once rendered. */
+	private _composerHeight = 0;
+	private readonly _composerObserver = this._register(new MutableDisposable());
 	private _list: SessionsList | undefined;
 	private _listControl: ChatViewSessionsListControl | undefined;
 	private readonly _chatView = this._register(new MutableDisposable<ChatEditorView>());
@@ -424,12 +438,14 @@ export class ChatViewSessionsPane extends ViewPane implements IChatViewSessionsC
 		}));
 		this._listControl = new ChatViewSessionsListControl(list, listContainer);
 
-		// The chat, below or beside the sessions: Back returns from a session's chat to a new-session composer
+		// The chat, below or beside the sessions, with the title of a session's chat as the Chat view shows it: its Back goes
+		// to a new-session composer (New Chat, see the chat view host)
 		const chatContainer = this._chatContainer = append(wrapper, $('.chat-controls-container'));
-		const backBar = this._backBar = append(chatContainer, $('.chat-view-sessions-back'));
-		const back = this._register(new Button(backBar, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: localize('chatViewSessions.backTitle', "Back to Sessions") }));
-		back.label = `$(arrow-left) ${localize('chatViewSessions.back', "Sessions")}`;
-		this._register(back.onDidClick(() => this._surface.back()));
+		const titleControl = this._titleControl = this._register(this.instantiationService.createInstance(ChatViewTitleControl, chatContainer, {
+			focusChat: () => this._chatView.value?.focus(),
+			getInputUri: () => undefined,
+		}, undefined));
+		this._register(titleControl.onDidChangeHeight(() => this._relayout()));
 		const chatHost = this._chatHost = append(chatContainer, $('.chat-view-sessions-chat'));
 
 		this._register(this._surface.attachView({ focus: () => this.focus() }));
@@ -441,11 +457,32 @@ export class ChatViewSessionsPane extends ViewPane implements IChatViewSessionsC
 			}
 			const chat = inView ? this._surface.chat.read(reader) : undefined;
 			this._chatView.clear();
+			this._composerObserver.clear();
+			this._composerHeight = 0;
 			if (chat) {
 				const view = this._chatView.value = this.instantiationService.createInstance(ChatEditorView, chat);
+				// The title of the Chat view names the chat, not the header of the chat's own view
+				view.setProvidedTitleVisible(false);
 				chatHost.appendChild(view.element);
 			}
 			this._relayout();
+		}));
+		// The title names the session's chat that the Chat view shows, as it names the Chat view's own chat
+		this._register(autorun(reader => {
+			const chat = this._surface.chat.read(reader);
+			const isComposer = !!chat?.composer?.read(reader);
+			const view = this._chatView.value;
+			const widget = !isComposer ? view?.sessionView.primaryChatView.read(reader)?.chatWidget : undefined;
+			if (widget) {
+				reader.store.add(widget.onDidChangeViewModel(() => titleControl.update(widget.viewModel?.model)));
+			}
+			titleControl.update(widget?.viewModel?.model);
+		}));
+		// The composer sits at the bottom, below the sessions, as tall as its content: notices and its input change it
+		this._register(autorun(reader => {
+			this._surface.chat.read(reader);
+			const content = this._chatView.value?.sessionView.composerView.read(reader)?.inputContentElement;
+			this._observeComposer(content);
 		}));
 		// Whether it shows a session's chat or a composer changes as its composer sends
 		this._register(autorun(reader => {
@@ -462,7 +499,7 @@ export class ChatViewSessionsPane extends ViewPane implements IChatViewSessionsC
 
 	private _relayout(): void {
 		const dimensions = this._dimensions;
-		if (!dimensions || !this._body || !this._sessionsContainer || !this._listContainer || !this._chatContainer || !this._backBar || !this._chatHost) {
+		if (!dimensions || !this._body || !this._sessionsContainer || !this._listContainer || !this._chatContainer || !this._titleControl || !this._chatHost) {
 			return;
 		}
 		const { height, width } = dimensions;
@@ -492,24 +529,24 @@ export class ChatViewSessionsPane extends ViewPane implements IChatViewSessionsC
 			this._list?.layout(height - SESSIONS_TITLE_HEIGHT, width);
 			return;
 		}
+		const titleHeight = showingSession ? this._titleControl.getHeight() : 0;
 		if (this._sessionsOrientation === AgentSessionsViewerOrientation.SideBySide) {
 			setVisibility(true, this._sessionsContainer);
-			setVisibility(false, this._backBar);
 			this._sessionsContainer.style.width = `${SESSIONS_SIDEBAR_WIDTH}px`;
 			this._sessionsContainer.style.height = `${height}px`;
 			this._listContainer.style.height = `${height - SESSIONS_TITLE_HEIGHT}px`;
 			this._list?.layout(height - SESSIONS_TITLE_HEIGHT, SESSIONS_SIDEBAR_WIDTH);
 			chatWidth = width - SESSIONS_SIDEBAR_WIDTH - 1;
+			chatHeight = height - titleHeight;
 		} else if (showingSession) {
-			// A session's chat takes the view, with Back to its sessions
+			// A session's chat takes the view, below its title with Back to the sessions
 			setVisibility(false, this._sessionsContainer);
-			setVisibility(true, this._backBar);
-			chatHeight = height - BACK_BAR_HEIGHT;
+			chatHeight = height - titleHeight;
 		} else {
-			// The sessions above a new-session composer
+			// The sessions above a new-session composer at the bottom, as tall as its content: the sessions take the rest
 			setVisibility(true, this._sessionsContainer);
-			setVisibility(false, this._backBar);
-			const listHeight = Math.max(0, Math.min(Math.floor(height / 2), height - SESSIONS_TITLE_HEIGHT - CHAT_MIN_HEIGHT));
+			const composerHeight = Math.min(this._composerHeight || CHAT_MIN_HEIGHT, height - SESSIONS_TITLE_HEIGHT);
+			const listHeight = Math.max(0, height - SESSIONS_TITLE_HEIGHT - composerHeight);
 			this._sessionsContainer.style.width = '';
 			this._sessionsContainer.style.height = `${listHeight + SESSIONS_TITLE_HEIGHT}px`;
 			this._listContainer.style.height = `${listHeight}px`;
@@ -519,6 +556,24 @@ export class ChatViewSessionsPane extends ViewPane implements IChatViewSessionsC
 		this._chatHost.style.height = `${chatHeight}px`;
 		this._chatHost.style.width = `${chatWidth}px`;
 		this._chatView.value?.layout(chatWidth, chatHeight, 0, 0);
+	}
+
+	/** Follows the height of the new-session composer's content, docked at the bottom of its view, to lay out the sessions above it. */
+	private _observeComposer(content: HTMLElement | undefined): void {
+		this._composerObserver.clear();
+		if (!content) {
+			return;
+		}
+		const store = new DisposableStore();
+		const observer = store.add(new DisposableResizeObserver('ChatViewSessionsPane.composer', () => {
+			const height = content.offsetHeight + COMPOSER_PADDING;
+			if (height !== this._composerHeight) {
+				this._composerHeight = height;
+				this._relayout();
+			}
+		}, getWindow(content)));
+		store.add(observer.observe(content));
+		this._composerObserver.value = store;
 	}
 
 	private _sessionsPosition(): Position {

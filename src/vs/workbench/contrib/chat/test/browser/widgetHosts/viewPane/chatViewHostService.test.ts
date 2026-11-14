@@ -121,6 +121,20 @@ suite('ChatViewHostService', () => {
 		assert.deepStrictEqual(steps, ['A', 'B', 'C', 'A', 'chat view']);
 	});
 
+	test('New Chat is left to the chat widget, unless the host that replaces the Chat view starts it', () => {
+		const { service } = createService();
+		let started = 0;
+		const withoutNewChat = service.registerHost(upcastPartial<IChatViewHost>({}));
+		const results = [service.newChat()];
+		const withNewChat = service.registerHost(upcastPartial<IChatViewHost>({ newChat: () => { started++; return true; } }));
+		results.push(service.newChat());
+		withNewChat.dispose();
+		withoutNewChat.dispose();
+		results.push(service.newChat());
+
+		assert.deepStrictEqual({ results, started }, { results: [false, true, false], started: 1 });
+	});
+
 	test('reveal waits for the Chat view\'s widget, which its body creates as it first renders, only when asked to', async () => {
 		const { service, view, created, accesses } = createService({ widgetCreatedLater: true });
 		const unchanged = await service.reveal(false);

@@ -25,6 +25,8 @@ import { IVoiceSessionController } from '../voiceClient/voiceSessionController.j
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { EditingSessionAction, EditingSessionActionContext, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, clearChatSessionPreservingType, handleCurrentEditingSession } from './chatActions.js';
+import { isChatViewTitleActionContext } from '../../common/actions/chatActions.js';
+import { IChatViewHostService } from '../chatViewHost.js';
 import { clearChatEditor } from './chatClear.js';
 import { AgentSessionProviders, AgentSessionsViewerOrientation } from '../agentSessions/agentSessions.js';
 
@@ -106,6 +108,11 @@ export class NewChatAction extends Action2 {
 	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const actionContext = unwrapChatContextMenuActionContext(args[0]);
 		const executeCommandContext = isNewEditSessionActionContext(actionContext) ? actionContext : undefined;
+
+		// For the Chat view, such as from its title, a host that replaces it may start the new chat itself
+		if ((!actionContext || isChatViewTitleActionContext(actionContext)) && accessor.get(IChatViewHostService).newChat()) {
+			return;
+		}
 
 		// Context from toolbar or lastFocusedWidget
 		const context = getEditingSessionContext(accessor, [actionContext, ...args.slice(1)]);
