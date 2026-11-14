@@ -76,6 +76,175 @@ suite('KeybindingResolver', () => {
 		assert.strictEqual(r.commandArgs, commandArgs);
 	});
 
+	suite('troubleshooting', () => {
+		test('reports all candidates in priority order without changing the selected command', () => {
+			const logs: string[] = [];
+			const resolver = new KeybindingResolver([
+				kbItem(KeyCode.KeyR, 'fallback', undefined, undefined, true),
+				kbItem(KeyCode.KeyR, 'enabledCommand', undefined, ContextKeyExpr.has('enabled'), true),
+			], [
+				kbItem(KeyCode.KeyR, 'guardedCommand', undefined, ContextKeyExpr.deserialize('definition && focus && !readOnly'), false),
+			], message => logs.push(message), () => true);
+
+			const result = resolver.resolve(createContext({ definition: true, focus: false, enabled: true }), [], 'R');
+
+			assert.deepStrictEqual({ result, candidates: logs.filter(line => line.startsWith('| Candidate')) }, {
+				result: { kind: ResultKind.KbFound, commandId: 'enabledCommand', commandArgs: undefined, isBubble: false },
+				candidates: [
+					'| Candidate guardedCommand, source: user, when: [true: definition] && [false: focus] && [true: !readOnly]',
+					'| Candidate enabledCommand, source: built-in, when: [true: enabled]',
+					'| Candidate fallback, source: built-in, when: [true: no when condition]',
+				]
+			});
+		});
+
+		test('reports terms that normal AND and OR evaluation would skip', () => {
+			const logs: string[] = [];
+			const resolver = new KeybindingResolver([], [
+				kbItem(KeyCode.KeyR, 'command', undefined, ContextKeyExpr.deserialize('enabled || focus && !busy'), false),
+			], message => logs.push(message), () => true);
+
+			resolver.resolve(createContext({ enabled: true, focus: false }), [], 'R');
+
+			assert.deepStrictEqual(logs.filter(line => line.startsWith('| Candidate')), [
+				'| Candidate command, source: user, when: [true: enabled] || [false: focus] && [true: !busy]'
+			]);
+		});
+
+		for (const { expression, context, expected } of [
+			{ expression: 'missing', context: {}, expected: '[false: missing]' },
+			{ expression: '!missing', context: {}, expected: '[true: !missing]' },
+			{ expression: "language == 'typescript'", context: { language: 'typescript' }, expected: "[true: language == 'typescript']" },
+			{ expression: "language != 'typescript'", context: { language: 'typescript' }, expected: "[false: language != 'typescript']" },
+			{ expression: 'count >= 2', context: { count: 2 }, expected: '[true: count >= 2]' },
+			{ expression: 'count < 2', context: { count: 2 }, expected: '[false: count < 2]' },
+			{ expression: 'name =~ /^file/', context: { name: 'file.ts' }, expected: '[true: name =~ /^file/]' },
+			{ expression: '!(name =~ /^file/)', context: { name: 'file.ts' }, expected: '[false: !(name =~ /^file/)]' },
+			{ expression: "name in 'allowed'", context: { name: 'file.ts', allowed: ['file.ts'] }, expected: "[true: name in 'allowed']" },
+			{ expression: "name not in 'allowed'", context: { name: 'file.ts', allowed: ['file.ts'] }, expected: "[false: name not in 'allowed']" },
+		]) {
+			test(`evaluates ${expression}`, () => {
+				const logs: string[] = [];
+				const resolver = new KeybindingResolver([], [
+					kbItem(KeyCode.KeyR, 'command', undefined, ContextKeyExpr.deserialize(expression), false),
+				], message => logs.push(message), () => true);
+
+				resolver.resolve(createContext(context), [], 'R');
+
+				assert.deepStrictEqual(logs.filter(line => line.startsWith('| Candidate')), [
+					`| Candidate command, source: user, when: ${expected}`
+				]);
+			});
+		}
+
+		test('escapes condition delimiters and line breaks', () => {
+			const logs: string[] = [];
+			const value = 'a]\\b\nc';
+			const resolver = new KeybindingResolver([], [
+				kbItem(KeyCode.KeyR, 'command', undefined, ContextKeyExpr.equals('value', value), false),
+			], message => logs.push(message), () => true);
+
+			resolver.resolve(createContext({ value }), [], 'R');
+
+			assert.deepStrictEqual(logs.filter(line => line.startsWith('| Candidate')), [
+				String.raw`| Candidate command, source: user, when: [true: value == 'a\]\\b\nc']`
+			]);
+		});
+
+		test('does not evaluate skipped candidates while troubleshooting is disabled', () => {
+			let logging = false;
+			let reads = 0;
+			const logs: string[] = [];
+			const resolver = new KeybindingResolver([
+				kbItem(KeyCode.KeyR, 'guarded', undefined, ContextKeyExpr.has('enabled'), true),
+				kbItem(KeyCode.KeyR, 'winner', undefined, undefined, true),
+			], [], message => logs.push(message), () => logging);
+			const context: IContext = { getValue: () => { reads++; return undefined; } };
+
+			resolver.resolve(context, [], 'R');
+			const readsBeforeEnabling = reads;
+			logging = true;
+			resolver.resolve(context, [], 'R');
+			logging = false;
+			resolver.resolve(context, [], 'R');
+
+			assert.deepStrictEqual({ readsBeforeEnabling, reads, candidates: logs.filter(line => line.startsWith('| Candidate')) }, {
+				readsBeforeEnabling: 0,
+				reads: 1,
+				candidates: [
+					'| Candidate winner, source: built-in, when: [true: no when condition]',
+					'| Candidate guarded, source: built-in, when: [false: enabled]',
+				]
+			});
+		});
+
+		test('keeps the selected command when a skipped candidate throws during troubleshooting', () => {
+			let logging = false;
+			const logs: string[] = [];
+			const resolver = new KeybindingResolver([
+				kbItem(KeyCode.KeyR, 'fallback', undefined, undefined, true),
+				kbItem(KeyCode.KeyR, 'invalidComparison', undefined, ContextKeyExpr.greater('items', 0), true),
+				kbItem(KeyCode.KeyR, 'winner', undefined, undefined, true),
+			], [], message => logs.push(message), () => logging);
+			const context = createContext({ items: { toString: 'entry' } });
+			const expected = resolver.resolve(context, [], 'R');
+
+			logging = true;
+			const result = resolver.resolve(context, [], 'R');
+
+			assert.deepStrictEqual({ result, candidates: logs.filter(line => line.startsWith('| Candidate')) }, {
+				result: expected,
+				candidates: [
+					'| Candidate winner, source: built-in, when: [true: no when condition]',
+					'| Candidate invalidComparison, source: built-in, when: [error: items > 0]',
+					'| Candidate fallback, source: built-in, when: [true: no when condition]',
+				]
+			});
+		});
+
+		for (const { expression, expected } of [
+			{ expression: 'enabled || items > 0 && total > 0', expected: '[true: enabled] || [error: items > 0] && [true: total > 0]' },
+			{ expression: 'disabled && items > 0 && total > 0', expected: '[false: disabled] && [error: items > 0] && [true: total > 0]' },
+		]) {
+			test(`continues troubleshooting after an error in ${expression}`, () => {
+				let logging = false;
+				const logs: string[] = [];
+				const resolver = new KeybindingResolver([
+					kbItem(KeyCode.KeyR, 'fallback', undefined, undefined, true),
+				], [
+					kbItem(KeyCode.KeyR, 'conditional', undefined, ContextKeyExpr.deserialize(expression), false),
+				], message => logs.push(message), () => logging);
+				const context = createContext({ enabled: true, disabled: false, items: { toString: 'entry' }, total: 1 });
+				const expectedResult = resolver.resolve(context, [], 'R');
+
+				logging = true;
+				const result = resolver.resolve(context, [], 'R');
+
+				assert.deepStrictEqual({ result, candidates: logs.filter(line => line.startsWith('| Candidate')) }, {
+					result: expectedResult,
+					candidates: [
+						`| Candidate conditional, source: user, when: ${expected}`,
+						'| Candidate fallback, source: built-in, when: [true: no when condition]',
+					]
+				});
+			});
+		}
+
+		test('only reports candidates matching the current chord sequence', () => {
+			const logs: string[] = [];
+			const resolver = new KeybindingResolver([
+				kbItem(KeyChord(KeyCode.KeyK, KeyCode.KeyR), 'chosenChord', undefined, undefined, true),
+				kbItem(KeyChord(KeyCode.KeyK, KeyCode.KeyT), 'otherChord', undefined, undefined, true),
+			], [], message => logs.push(message), () => true);
+
+			resolver.resolve(createContext({}), ['K'], 'R');
+
+			assert.deepStrictEqual(logs.filter(line => line.startsWith('| Candidate')), [
+				'| Candidate chosenChord, source: built-in, when: [true: no when condition]'
+			]);
+		});
+	});
+
 	suite('handle keybinding removals', () => {
 
 		test('simple 1', () => {
