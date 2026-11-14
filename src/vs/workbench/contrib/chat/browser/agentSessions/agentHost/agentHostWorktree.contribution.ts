@@ -6,6 +6,7 @@
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -37,6 +38,7 @@ import { IChatSessionsService, isLocalAgentHostTarget } from '../../../common/ch
 import { ChatConfiguration } from '../../../common/constants.js';
 import { isUntitledChatSession, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatViewHostService } from '../../chatViewHost.js';
+import { IAgentHostWorktreeSessionSources } from './agentHostWorktreeSessionSources.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
 import { AGENT_HOST_WORKTREE_LOCATIONS_PROVIDER_ID, AgentHostWorktreeLocationProvider } from './agentHostWorktreeLocations.js';
 
@@ -106,6 +108,8 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 	private readonly _cts = new CancellationTokenSource();
 	/** Where it last moved the folder: that move is its own, not the user's. */
 	private _ownMove: URI | undefined;
+	/** Where it asked the workspace to keep the folder, to supersede a move under way: that is no move of someone else either. */
+	private _keepInPlace: URI | undefined;
 
 	private _shown: IShownChat | undefined;
 	/** Waits for the shown session's working directory to become known or to change. */
@@ -120,6 +124,7 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 	constructor(
 		@IChatViewHostService private readonly _chatViewHostService: IChatViewHostService,
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
+		@IAgentHostWorktreeSessionSources private readonly _sessionSources: IAgentHostWorktreeSessionSources,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -200,8 +205,14 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		}));
 		this._register(_folderLocationService.onDidChangeLocation(e => {
 			this._foreground++;
-			const own = this._ownMove && extUriBiasedIgnorePathCase.isEqual(this._ownMove, e.folder.uri);
-			this._ownMove = undefined;
+			// Keeping the folder in place supersedes only the earlier move, not a later switch still under way
+			const keptInPlace = !!this._keepInPlace && extUriBiasedIgnorePathCase.isEqual(this._keepInPlace, e.folder.uri);
+			const own = keptInPlace || (!!this._ownMove && extUriBiasedIgnorePathCase.isEqual(this._ownMove, e.folder.uri));
+			if (keptInPlace) {
+				this._keepInPlace = undefined;
+			} else {
+				this._ownMove = undefined;
+			}
 			if (!own) {
 				// Moved by someone else, such as the user in the window's title: no switch asked for before applies
 				this._request++;
@@ -266,6 +277,11 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 
 	/** The working directory of the local agent host session of `resource`, as the sessions list has it. */
 	private _workingDirectory(resource: URI): URI | undefined {
+		// A chat of another session layer, such as the editor window's, as a source has it
+		const fromSource = this._sessionSources.getWorkingDirectory(resource);
+		if (fromSource) {
+			return fromSource;
+		}
 		if (!isLocalAgentHostTarget(resource.scheme)) {
 			return undefined;
 		}
@@ -273,12 +289,20 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		return typeof path === 'string' && path ? URI.file(path) : undefined;
 	}
 
+	/**
+	 * Whether the chat of `resource` may work in a folder that the folder follows: any but a local chat, such as an agent
+	 * host session of any session layer, whose working directory may only become known once its first request ran.
+	 */
+	private _isFollowable(resource: URI): boolean {
+		return !LocalChatSessionUri.isLocalSession(resource);
+	}
+
 	/** Follows the shown agent host session on its own as its working directory becomes known or changes. */
 	private _watchWorkingDirectory(shown: IShownChat): void {
-		if (!isLocalAgentHostTarget(shown.resource.scheme)) {
+		if (!this._isFollowable(shown.resource)) {
 			return;
 		}
-		this._sessionsListener.value = this._agentSessionsService.model.onDidChangeSessions(() => {
+		this._sessionsListener.value = Event.any(this._agentSessionsService.model.onDidChangeSessions, this._sessionSources.onDidChange)(() => {
 			const workingDirectory = this._workingDirectory(shown.resource);
 			if (this._shown !== shown || !workingDirectory || extUriBiasedIgnorePathCase.isEqual(workingDirectory, shown.workingDirectory)) {
 				return;
@@ -302,7 +326,7 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		let target: URI | undefined;
 		if (LocalChatSessionUri.isLocalSession(shown.resource)) {
 			target = primary;
-		} else if (isLocalAgentHostTarget(shown.resource.scheme)) {
+		} else if (this._isFollowable(shown.resource)) {
 			shown.workingDirectory = this._workingDirectory(shown.resource);
 			// Not listed with its working directory yet, such as a session its first request just started: it follows as it is
 			this._watchWorkingDirectory(shown);
@@ -311,14 +335,15 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		if (!target || target.scheme !== Schemas.file || !this._enabled) {
 			return;
 		}
+		if (automatic && this._switching > 0) {
+			// Gives way to the switch under way, and follows where the chat works by then once that settles: also where that
+			// is where the folder is now, which the switch under way would leave
+			this._followWhenIdle = { shown, request: this._request };
+			return;
+		}
 		if (extUriBiasedIgnorePathCase.isEqual(target, folder.uri)) {
 			// Where the folder is: the chat is the last one of its location also without a move
 			this._rememberSession(folder.uri, shown.resource);
-			return;
-		}
-		if (automatic && this._switching > 0) {
-			// Gives way to the switch under way, and follows where the chat works by then once that settles
-			this._followWhenIdle = { shown, request: this._request };
 			return;
 		}
 		void this._switch(shown.resource, primary, target, automatic ? this._foreground : undefined);
@@ -445,7 +470,14 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		if (this._pendingMoves === 0 || !folder || !this._folderLocationService.canSetLocation(folder)) {
 			return;
 		}
-		this._workspaceEditingService.setFolderLocation(folder.uri).catch(error => this._logService.error('[worktree] could not keep the folder where it is', error));
+		const keepInPlace = this._keepInPlace = folder.uri;
+		this._workspaceEditingService.setFolderLocation(folder.uri)
+			.catch(error => this._logService.error('[worktree] could not keep the folder where it is', error))
+			.finally(() => {
+				if (this._keepInPlace === keepInPlace) {
+					this._keepInPlace = undefined;
+				}
+			});
 	}
 
 	private _isAt(location: URI): boolean {
@@ -472,10 +504,13 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		}
 		// The location the user picked again, and its chat, stay the most recent
 		this._rememberSession(folder.uri, last);
-		if (!extUriBiasedIgnorePathCase.isEqual(last, this._shown?.resource)) {
-			// Shown as restored, so that it keeps the folder where the user moved it, also where it works elsewhere now
-			this._chatViewHostService.openSession(last, { preserveFocus: true, restore: true }).catch(error => this._logService.trace('[worktree] could not open the last chat of the folder\'s location', error));
-		}
+		// Shown as restored, so that it keeps the folder where the user moved it, also where it works elsewhere now; the chat
+		// shown already is reported as restored without loading it again
+		const options = { preserveFocus: true, restore: true };
+		const showing = extUriBiasedIgnorePathCase.isEqual(last, this._shown?.resource)
+			? this._chatViewHostService.revealIfShowing(last, options)
+			: this._chatViewHostService.openSession(last, options);
+		showing.catch(error => this._logService.trace('[worktree] could not open the last chat of the folder\'s location', error));
 	}
 
 	private _markTerminals(): void {
@@ -578,6 +613,13 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 	}
 
 	private _storeLastSessions(): void {
+		// Only the remembered sessions are known to have been listed
+		const remembered = [...this._lastSessions.values()];
+		for (const resource of [...this._listedSessions]) {
+			if (!remembered.some(candidate => extUriBiasedIgnorePathCase.isEqual(candidate, resource))) {
+				this._listedSessions.delete(resource);
+			}
+		}
 		const entries = [...this._lastSessions].map(([known, resource]) => [known.toString(), resource.toString()]);
 		this._storageService.store(LAST_SESSIONS_STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}

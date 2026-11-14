@@ -36,6 +36,7 @@ import { IAgentSessionsService } from '../../../../browser/agentSessions/agentSe
 import { IChatViewHostService, IChatViewHostShownSession } from '../../../../browser/chatViewHost.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { IChatSessionCommitEvent, IChatSessionsService, SessionType } from '../../../../common/chatSessionsService.js';
+import { AgentHostWorktreeSessionSources, IAgentHostWorktreeSessionSources } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSessionSources.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 
@@ -47,7 +48,7 @@ suite('AgentHostWorktree', () => {
 	const created = URI.file('/work/vscode.worktrees/created');
 
 	/** The feature in a window whose folder is at `at`, recording the moves it asks for, the chats it opens and its experiment triggers. */
-	function createWorktree(options: { readonly enabled: boolean; readonly at?: URI; readonly canSetLocation?: boolean; readonly worktrees?: readonly URI[]; readonly resolving?: Promise<void>; readonly terminalCwd?: URI; readonly setting?: Promise<void> }) {
+	function createWorktree(options: { readonly enabled: boolean; readonly at?: URI; readonly canSetLocation?: boolean; readonly worktrees?: readonly URI[]; readonly resolving?: Promise<void>; readonly terminalCwd?: URI; readonly setting?: Promise<void>; readonly resolvingFor?: Record<string, Promise<void>> }) {
 		const worktrees = options.worktrees ?? [worktree, created];
 		const marks: string[] = [];
 		const terminal = upcastPartial<ITerminalInstance>({
@@ -81,8 +82,24 @@ suite('AgentHostWorktree', () => {
 				shownSession.set({ resource, reason: openOptions?.restore ? 'restore' : 'open' }, undefined);
 				return undefined;
 			},
+			// Reports the chat it shows already as asked, without loading it again
+			revealIfShowing: async (resource: URI, openOptions?: { readonly restore?: boolean }) => {
+				opened.push(`${resource.path} (shown already${openOptions?.restore ? ', restore' : ''})`);
+				shownSession.set({ resource, reason: openOptions?.restore ? 'restore' : 'open' }, undefined);
+				return undefined;
+			},
 		}));
 		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ onDidCommitSession: onDidCommitSession.event }));
+		// Where the chats of the editor window's session layer work, which the Chat view's sessions list does not list
+		const sessionLayerDirectories = new Map<string, string>();
+		const onDidChangeSessionLayer = store.add(new Emitter<void>());
+		const sessionSources = store.add(new AgentHostWorktreeSessionSources());
+		store.add(sessionSources.registerSource({
+			getWorkingDirectory: (chat: URI) => { const path = sessionLayerDirectories.get(chat.toString()); return path ? URI.file(path) : undefined; },
+			getWorkingDirectories: () => [...sessionLayerDirectories.values()].map(path => URI.file(path)),
+			onDidChange: onDidChangeSessionLayer.event,
+		}));
+		instantiationService.stub(IAgentHostWorktreeSessionSources, sessionSources);
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({
 			getSession: (resource: URI) => {
 				const path = workingDirectories.get(resource.toString());
@@ -103,6 +120,7 @@ suite('AgentHostWorktree', () => {
 			getLocation: () => workspace.at.path === primary.path ? undefined : upcastPartial<IResolvedFolderLocation>({ providerId: 'agentHost.sessionWorktrees' }),
 			resolveLocation: async (_primary: URI, location: URI) => {
 				await options.resolving;
+				await options.resolvingFor?.[location.path];
 				return worktrees.some(known => known.path === location.path) ? upcastPartial<IResolvedFolderLocation>({ uri: location }) : undefined;
 			},
 			registerProvider: () => { providers.push('registered'); return toDisposable(() => providers.push('unregistered')); },
@@ -155,7 +173,7 @@ suite('AgentHostWorktree', () => {
 		/** The user moves the folder in the window's title, which the workspace makes like any other move. */
 		const userStartsMoveTo = (location: URI) => setFolderLocation(location, { reason: 'user' });
 		const commit = (original: URI, committed: URI) => onDidCommitSession.fire({ original, committed });
-		return { show, workingDirectories, onDidChangeSessions, moves, applied, opened, providers, triggers: telemetryService.triggers, setEnabled, userMovesTo, userStartsMoveTo, commit, contribution, marks };
+		return { show, workingDirectories, onDidChangeSessions, sessionLayerDirectories, onDidChangeSessionLayer, moves, applied, opened, providers, triggers: telemetryService.triggers, setEnabled, userMovesTo, userStartsMoveTo, commit, contribution, marks };
 	}
 
 	const settle = () => new Promise<void>(resolve => setTimeout(resolve, 0));
@@ -450,5 +468,101 @@ suite('AgentHostWorktree', () => {
 		feature.userMovesTo(primary);
 
 		assert.deepStrictEqual(feature.marks.at(-1), 'marked');
+	});
+
+	test('the last chat of where the user moves the folder, shown already before its working directory is known, keeps the folder there as that becomes known', async () => {
+		const feature = createWorktree({ enabled: true });
+		feature.workingDirectories.set(agentSession('r').toString(), worktree.fsPath);
+		feature.show(agentSession('r'));
+		await settle();
+		feature.show(localChat);
+		await settle();
+		// Shown again before the sessions list knows where it works, such as after a reload
+		feature.workingDirectories.delete(agentSession('r').toString());
+		feature.show(agentSession('r'));
+		await settle();
+		feature.userMovesTo(worktree);
+		await settle();
+		feature.workingDirectories.set(agentSession('r').toString(), created.fsPath);
+		feature.onDidChangeSessions.fire();
+		await settle();
+
+		assert.deepStrictEqual({ moves: feature.moves, opened: feature.opened }, {
+			moves: ['/work/vscode.worktrees/feature', '/work/vscode'],
+			opened: ['/r (shown already, restore)'],
+		});
+	});
+
+	test('keeps track only of the sessions it remembers', async () => {
+		const feature = createWorktree({ enabled: true, at: worktree });
+		for (let i = 0; i < 25; i++) {
+			feature.workingDirectories.set(agentSession(`s${i}`).toString(), worktree.fsPath);
+			feature.show(agentSession(`s${i}`));
+			await settle();
+		}
+		const listed = Reflect.get(feature.contribution, '_listedSessions') as { readonly size: number };
+
+		assert.deepStrictEqual({ listed: listed.size, last: feature.contribution.getLastSession(worktree)?.path }, { listed: 1, last: '/s24' });
+	});
+
+	test('keeping the folder in place for a later chat supersedes only the earlier move, not that chat\'s switch still under way', async () => {
+		const setting = new DeferredPromise<void>();
+		const resolvingCreated = new DeferredPromise<void>();
+		const feature = createWorktree({ enabled: true, setting: setting.p, resolvingFor: { [created.path]: resolvingCreated.p } });
+		feature.workingDirectories.set(agentSession('a').toString(), worktree.fsPath);
+		feature.workingDirectories.set(agentSession('b').toString(), created.fsPath);
+		feature.show(agentSession('a'));
+		await settle();
+		feature.show(agentSession('b'));
+		await settle();
+		setting.complete();
+		await settle();
+		resolvingCreated.complete();
+		await settle();
+		await settle();
+
+		assert.deepStrictEqual(feature.applied, ['/work/vscode', '/work/vscode.worktrees/created']);
+	});
+
+	test('follows a chat of the editor window\'s session layer, which the Chat view\'s sessions list does not list: as the user opens it, and on its own as its session comes to work in a worktree', async () => {
+		// Chats as the editor window's session layer names them
+		const chat = (id: string) => URI.from({ scheme: 'ahp-chat', path: `/${id}` });
+		const feature = createWorktree({ enabled: true });
+		feature.sessionLayerDirectories.set(chat('existing').toString(), worktree.fsPath);
+		feature.show(chat('existing'));
+		await settle();
+		const opened = [...feature.moves];
+		feature.show(localChat);
+		await settle();
+		// A new chat whose first request created a worktree for its session
+		feature.show(chat('new'));
+		await settle();
+		feature.sessionLayerDirectories.set(chat('new').toString(), created.fsPath);
+		feature.onDidChangeSessionLayer.fire();
+		await settle();
+
+		assert.deepStrictEqual({ opened, moves: feature.moves }, {
+			opened: ['/work/vscode.worktrees/feature'],
+			moves: ['/work/vscode.worktrees/feature', '/work/vscode', '/work/vscode.worktrees/created (automatic)'],
+		});
+	});
+
+	test('a working directory that changes back to where the folder is while it follows the previous one is followed once that settles', async () => {
+		const setting = new DeferredPromise<void>();
+		const feature = createWorktree({ enabled: true, setting: setting.p });
+		feature.show(agentSession('r'));
+		await settle();
+		feature.workingDirectories.set(agentSession('r').toString(), worktree.fsPath);
+		feature.onDidChangeSessions.fire();
+		await settle();
+		// The move to the worktree is under way, as the session comes to work where the folder still is
+		feature.workingDirectories.set(agentSession('r').toString(), primary.fsPath);
+		feature.onDidChangeSessions.fire();
+		await settle();
+		setting.complete();
+		await settle();
+		await settle();
+
+		assert.deepStrictEqual(feature.applied, ['/work/vscode.worktrees/feature', '/work/vscode']);
 	});
 });
