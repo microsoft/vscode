@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellation } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -63,7 +64,15 @@ export class AgentHostWorktreeLocationProvider implements IWorkspaceFolderLocati
 		if (!repository || token.isCancellationRequested) {
 			return [];
 		}
-		const candidates = getAgentHostSessionWorkingDirectories(this._agentSessionsService.model.sessions)
+		// Before the sessions list first resolves, it has only the sessions it cached: wait for the ones it has not
+		const model = this._agentSessionsService.model;
+		if (!model.resolved) {
+			await raceCancellation(model.resolve(undefined, undefined, 'automatic'), token);
+			if (token.isCancellationRequested) {
+				return [];
+			}
+		}
+		const candidates = getAgentHostSessionWorkingDirectories(model.sessions)
 			.filter(directory => !extUriBiasedIgnorePathCase.isEqual(directory, primary));
 		const locations = await Promise.all(candidates.map(candidate => this._resolve(repository, candidate)));
 		return token.isCancellationRequested ? [] : locations.filter(isDefined);

@@ -1544,6 +1544,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			&& sessionType === localChatSessionType;
 	}
 
+	/**
+	 * Reports the chat of `sessionResource` as one that the user brought up, also where the view shows it already, such as
+	 * one it restored that the user picks in a sessions list.
+	 */
+	reportOpened(sessionResource: URI): void {
+		const shown = this._shownSession.get();
+		if (shown?.reason === 'restore' && isEqual(shown.resource, sessionResource)) {
+			this._shownSession.set({ resource: sessionResource, reason: 'open' }, undefined);
+		}
+	}
+
 	/** Reports the chat that the view shows now ({@link shownSession}), as its widget's chat changes. */
 	private updateShownSession(): void {
 		const shownResource = this._widget.viewModel?.sessionResource;
