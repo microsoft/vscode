@@ -1,0 +1,755 @@
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+{
+	"meta": {
+		"version": 3,
+		"note": "Source-informed VS Code previews. Production source is canonical. See DESIGN.md for supported interactions and pixel-parity limitations."
+	},
+	"components": [
+		{
+			"name": "ButtonPreview",
+			"note": "Colophon gallery framing only: 240px maximum, shrinking with the available space. Not a production sizing rule.",
+			"root": {
+				"id": "button-preview", "el": "div", "attrs": { "style": "width:100%;max-width:240px" },
+				"children": [{ "id": "control", "component": "Button" }]
+			}
+		},
+		{
+			"name": "SecondaryButtonPreview",
+			"note": "Colophon gallery framing only: 240px maximum. The shared control and composed windows retain their original sizing.",
+			"root": {
+				"id": "secondary-button-preview", "el": "div", "attrs": { "style": "width:100%;max-width:240px" },
+				"children": [{ "id": "control", "component": "SecondaryButton" }]
+			}
+		},
+		{
+			"name": "DisabledButtonPreview",
+			"note": "Colophon gallery framing only: 240px maximum. Native disabled behavior is unchanged.",
+			"root": {
+				"id": "disabled-button-preview", "el": "div", "attrs": { "style": "width:100%;max-width:240px" },
+				"children": [{ "id": "control", "component": "DisabledButton" }]
+			}
+		},
+		{
+			"name": "TextInputPreview",
+			"note": "Colophon gallery framing only: 400px maximum, shrinking with the available space. Not a production sizing rule.",
+			"root": {
+				"id": "text-input-preview", "el": "div", "attrs": { "style": "width:100%;max-width:400px" },
+				"children": [{ "id": "control", "component": "TextInput" }]
+			}
+		},
+		{
+			"name": "SearchFieldPreview",
+			"note": "Colophon gallery framing only: 400px maximum. The shared field and composed windows retain their original sizing.",
+			"root": {
+				"id": "search-field-preview", "el": "div", "attrs": { "style": "width:100%;max-width:400px" },
+				"children": [{ "id": "control", "component": "SearchField" }]
+			}
+		},
+		{
+			"name": "Typography",
+			"note": "src/vs/platform/theme/common/sizes/baseSizes.ts. Windows font preview; no starter classes.",
+			"root": {
+				"id": "type", "el": "section",
+				"layout": { "mode": "vertical", "gap": "12", "padding": "16", "width": "fill" },
+				"appearance": { "background": "editor", "color": "foreground", "textStyle": "body1" },
+				"children": [
+					{ "id": "h1", "el": "span", "appearance": { "textStyle": "heading1" }, "children": ["Heading 1"] },
+					{ "id": "h2", "el": "span", "appearance": { "textStyle": "heading2" }, "children": ["Heading 2"] },
+					{ "id": "h3", "el": "span", "appearance": { "textStyle": "heading3" }, "children": ["Heading 3"] },
+					{ "id": "body1", "el": "span", "children": ["Body 1 · primary content"] },
+					{ "id": "body2", "el": "span", "appearance": { "textStyle": "body2", "color": "description" }, "children": ["Body 2 · supporting content"] },
+					{ "id": "label1", "el": "span", "appearance": { "textStyle": "label1" }, "children": ["Label 1 · section labels"] },
+					{ "id": "label2", "el": "span", "appearance": { "textStyle": "label2" }, "children": ["Label 2 · metadata"] },
+					{ "id": "label3", "el": "span", "appearance": { "textStyle": "label3" }, "children": ["Label 3 · badge"] }
+				]
+			}
+		},
+		{
+			"name": "Separator",
+			"note": "One-stroke primitive. Production consumers bind their own semantic border resource.",
+			"root": { "id": "separator", "el": "div", "attrs": { "role": "separator" }, "layout": { "width": "fill", "height": 1 }, "appearance": { "background": "border" } }
+		},
+		{
+			"name": "CountBadge",
+			"note": "src/vs/base/browser/ui/countBadge. Token-bound badge composition; geometry is not pixel-validated.",
+			"props": { "count": "3" },
+			"root": {
+				"id": "badge", "el": "span",
+				"layout": { "mode": "horizontal", "align": "center", "justify": "center", "padding": { "x": "6", "y": "2" }, "width": "hug" },
+				"appearance": { "background": "badge", "color": "badgeText", "textStyle": "label2", "radius": "circle" },
+				"children": ["{count}"]
+			}
+		},
+		{
+			"name": "KeybindingLabel",
+			"note": "src/vs/base/browser/ui/keybindingLabel. Static shortcut label, not a registered keybinding.",
+			"props": { "keys": "Ctrl+Shift+P" },
+			"root": {
+				"id": "keybinding", "el": "kbd",
+				"layout": { "padding": { "x": "4", "y": "2" }, "width": "hug" },
+				"appearance": { "textStyle": "label2", "color": "description", "borderColor": "inputBorder", "borderWidth": 1, "radius": "xSmall" },
+				"children": ["{keys}"]
+			}
+		},
+		{
+			"name": "Button",
+			"note": "src/vs/base/browser/ui/button/button.css: 4px 8px padding, 12px/16px text, 4px radius. Hover/press/focus work; no product command is executed.",
+			"props": { "label": "Open Folder" },
+			"root": {
+				"id": "button", "el": "button", "attrs": { "type": "button" },
+				"layout": { "mode": "horizontal", "align": "center", "justify": "center", "padding": { "x": "8", "y": "4" }, "width": "fill" },
+				"appearance": { "textStyle": "button", "background": "button", "color": "buttonText", "radius": "control", "borderWidth": 1, "borderColor": "buttonBorder" },
+				"control": { "chrome": "none", "focus": { "kind": "outline", "color": "focus" } },
+				"states": { "hover": { "background": "buttonHover" }, "pressed": { "background": "buttonHover" }, "disabled": { "background": "secondary", "color": "description" } },
+				"transitions": [],
+				"children": ["{label}"]
+			}
+		},
+		{
+			"name": "SecondaryButton",
+			"note": "Secondary button theme roles from src/vs/base/browser/ui/button/button.ts, including its own neutral border. Keyboard focus retains the shared focus indicator.",
+			"props": { "label": "Cancel" },
+			"root": {
+				"id": "secondary", "component": "Button", "props": { "label": "{label}" },
+				"appearance": { "background": "secondary", "color": "secondaryText", "borderColor": "secondaryBorder" },
+				"states": { "hover": { "background": "secondaryHover" }, "pressed": { "background": "secondaryHover" } }
+			}
+		},
+		{
+			"name": "DisabledButton",
+			"note": "Native disabled behavior requires an element root: Colophon component instances do not forward attrs. The preview uses a neutral secondary border, not the primary accent. Production uses opacity 0.4; the graph cannot represent that compositing.",
+			"root": {
+				"id": "disabled", "el": "button", "attrs": { "type": "button", "disabled": true },
+				"layout": { "mode": "horizontal", "align": "center", "justify": "center", "padding": { "x": "8", "y": "4" }, "width": "fill" },
+				"appearance": { "textStyle": "button", "background": "secondary", "color": "description", "radius": "control", "borderWidth": 1, "borderColor": "secondaryBorder" },
+				"control": { "chrome": "none", "focus": { "kind": "outline", "color": "focus" } },
+				"children": ["Unavailable"]
+			}
+		},
+		{
+			"name": "TextInput",
+			"note": "src/vs/base/browser/ui/inputbox/inputBox.css. Shared native field and inset focus stroke for text, search, and command-palette inputs. The focus token follows the 2026 themes.",
+			"props": { "label": "File name", "placeholder": "Enter a file name" },
+			"root": {
+				"id": "input-container", "el": "div",
+				"layout": { "width": "fill" },
+				"children": [
+					{ "id": "input-styles", "el": "style", "children": [
+						".vscode-catalog-text-input[data-ds-focus=outline]:focus { outline: 1px solid var(--color-focus); outline-offset: -1px; }\n",
+						"@media (forced-colors: active) { .vscode-catalog-text-input[data-ds-focus=outline]:focus { outline-color: Highlight; } }\n"
+					] },
+					{
+						"id": "input", "el": "input", "class": "vscode-catalog-text-input",
+						"attrs": { "type": "text", "aria-label": "{label}", "placeholder": "{placeholder}" },
+						"layout": { "padding": { "x": "6", "y": "4" }, "width": "fill" },
+						"appearance": { "textStyle": "body1", "background": "input", "color": "inputText", "borderColor": "inputBorder", "borderWidth": 1, "radius": "control" },
+						"control": { "chrome": "none", "focus": { "kind": "outline", "color": "focus" } }
+					}
+				]
+			}
+		},
+		{
+			"name": "SearchField",
+			"note": "Editable search affordance only. No filtering is implied by typing.",
+			"root": { "id": "search", "component": "TextInput", "props": { "label": "Search", "placeholder": "Search" } }
+		},
+		{
+			"name": "Checkbox",
+			"note": "Native checkbox with a visible, associated label. Browser-native glyph is not VS Code's custom Toggle widget.",
+			"props": { "label": "Match Case" },
+			"root": {
+				"id": "checkbox-label", "el": "label",
+				"layout": { "mode": "horizontal", "gap": "6", "align": "center", "width": "hug" },
+				"appearance": { "textStyle": "body1", "color": "foreground" },
+				"children": [
+					{ "id": "checkbox", "el": "input", "attrs": { "type": "checkbox" } },
+					"{label}"
+				]
+			}
+		},
+		{
+			"name": "ToggleSwitch",
+			"note": "Instance-local boolean and keyboard behavior. 28x16 track from src/vs/base/browser/ui/toggle/switch.css; container-relative thumb sizing and animation remain production-only.",
+			"props": { "label": "Enable Word Wrap" },
+			"root": {
+				"id": "switch", "el": "button",
+				"attrs": { "type": "button", "role": "switch", "aria-label": "{label}" },
+				"state": { "checked": false }, "on": { "click": { "toggle": "checked" } },
+				"layout": { "mode": "freeform", "width": 28, "height": 16, "padding": "0" },
+				"appearance": { "background": "switchTrack", "borderColor": "$none", "borderWidth": 1, "radius": "circle" },
+				"control": { "chrome": "none", "focus": { "kind": "outline", "color": "focus" } },
+				"states": { "hover": { "borderColor": "focus" } },
+				"when": [{ "state": { "checked": true }, "style": { "background": "button", "borderColor": "button" } }],
+				"transitions": [],
+				"children": [{
+					"id": "thumb", "el": "span", "attrs": { "aria-hidden": "true" },
+					"position": { "mode": "absolute", "x": 1, "y": 1 },
+					"layout": { "width": 12, "height": 12 },
+					"appearance": { "background": "buttonText", "radius": "circle" },
+					"when": [{ "state": { "checked": true }, "style": { "geometry": { "translateX": 12 } } }]
+				}]
+			}
+		},
+		{
+			"name": "SelectBox",
+			"note": "src/vs/base/browser/ui/selectBox has native and custom variants. This uses a working native select, not a replica of the custom popup.",
+			"root": {
+				"id": "select", "el": "select", "attrs": { "aria-label": "Line Ending" },
+				"layout": { "padding": { "x": "6", "y": "4" }, "width": "fill" },
+				"appearance": { "textStyle": "body1", "background": "input", "color": "inputText", "borderColor": "inputBorder", "borderWidth": 1, "radius": "control" },
+				"children": [
+					{ "id": "lf", "el": "option", "attrs": { "value": "lf" }, "children": ["LF"] },
+					{ "id": "crlf", "el": "option", "attrs": { "value": "crlf" }, "children": ["CRLF"] }
+				]
+			}
+		},
+		{
+			"name": "Picker",
+			"note": "Opens PickerOptions. Escape dismisses and restores focus. Selection is transient and does not change this label.",
+			"props": { "label": "Mode" },
+			"root": {
+				"id": "picker", "component": "SecondaryButton", "props": { "label": "{label}" },
+				"layout": { "width": "hug" },
+				"on": { "click": { "open": "PickerOptions" } }
+			}
+		},
+		{
+			"name": "PickerOptions",
+			"note": "Isolated radio group in a dismissible flyout. Options are sample data, not a provider capability list.",
+			"root": {
+				"id": "options", "el": "div", "attrs": { "role": "group", "aria-label": "Mode" },
+				"layout": { "mode": "vertical", "gap": "8", "padding": "8", "width": 200 },
+				"appearance": { "background": "quickInput", "color": "foreground", "textStyle": "body1", "radius": "outer", "borderColor": "border", "borderWidth": 1 },
+				"children": [
+					{ "id": "ask", "el": "label", "layout": { "mode": "horizontal", "gap": "6", "align": "center" }, "children": [{ "id": "ask-input", "el": "input", "attrs": { "type": "radio", "name": "mode", "value": "ask", "checked": true } }, "Ask"] },
+					{ "id": "edit", "el": "label", "layout": { "mode": "horizontal", "gap": "6", "align": "center" }, "children": [{ "id": "edit-input", "el": "input", "attrs": { "type": "radio", "name": "mode", "value": "edit" } }, "Edit"] },
+					{ "id": "agent", "el": "label", "layout": { "mode": "horizontal", "gap": "6", "align": "center" }, "children": [{ "id": "agent-input", "el": "input", "attrs": { "type": "radio", "name": "mode", "value": "agent" } }, "Agent"] }
+				]
+			}
+		},
+		{
+			"name": "Toolbar",
+			"note": "src/vs/base/browser/ui/toolbar. Composition study; buttons demonstrate focus and picker activation, not ActionBar roving focus.",
+			"root": {
+				"id": "toolbar", "el": "div", "attrs": { "role": "group", "aria-label": "Editor Actions" },
+				"layout": { "mode": "horizontal", "gap": "4", "align": "center", "width": "hug" },
+				"children": [
+					{ "id": "mode", "component": "Picker" },
+					{ "id": "more", "component": "Picker", "props": { "label": "More Actions" } }
+				]
+			}
+		},
+		{
+			"name": "FindWidget",
+			"note": "src/vs/base/browser/ui/findinput. Editable query and native toggles; no editor search or match count computation.",
+			"root": {
+				"id": "find", "el": "section", "attrs": { "aria-label": "Find Preview" },
+				"layout": { "mode": "vertical", "gap": "8", "padding": "8", "width": "fill" },
+				"appearance": { "background": "editor", "color": "foreground", "radius": "outer", "borderColor": "border", "borderWidth": 1 },
+				"children": [
+					{ "id": "query", "component": "TextInput", "props": { "label": "Find", "placeholder": "Find" } },
+					{ "id": "flags", "el": "div", "layout": { "mode": "horizontal", "gap": "12", "wrap": true }, "children": [
+						{ "id": "case", "component": "Checkbox" },
+						{ "id": "word", "component": "Checkbox", "props": { "label": "Match Whole Word" } },
+						{ "id": "regex", "component": "Checkbox", "props": { "label": "Use Regular Expression" } }
+					] }
+				]
+			}
+		},
+		{
+			"name": "CommandCenter",
+			"note": "src/vs/workbench/browser/parts/titlebar. Opens a command-palette preview; does not execute a product command.",
+			"root": {
+				"id": "command-center", "component": "SecondaryButton", "props": { "label": "vscode" },
+				"layout": { "width": 320, "height": 28 },
+				"on": { "click": { "open": "CommandPalette" } }
+			}
+		},
+		{
+			"name": "CommandRow",
+			"note": "Preview-only command selection with native radio arrow keys. The palette overrides generic row selection with quickInputList focus colors. Choosing a result in the command-center flyout dismisses it; no product command runs.",
+			"props": { "label": "View: Toggle Terminal" },
+			"root": {
+				"id": "command-row", "el": "label", "attrs": { "class": "vscode-catalog-selectable-row vscode-catalog-command-row" },
+				"layout": { "mode": "horizontal", "align": "center", "padding": "6", "width": "fill" },
+				"appearance": { "textStyle": "body1", "radius": "control" },
+				"children": [
+					{ "id": "styles", "component": "SelectableRowStyles" },
+					{ "id": "selection", "el": "input", "attrs": { "type": "radio", "class": "vscode-catalog-row-input", "name": "command-result-preview", "value": "{label}", "aria-label": "{label}" } },
+					{ "id": "label", "el": "span", "children": ["{label}"] }
+				]
+			}
+		},
+		{
+			"name": "CommandPalette",
+			"note": "src/vs/platform/quickinput/browser. Editable field and exclusively selectable sample results with pointer/arrow-key interaction. Flyout selection or Escape dismisses and restores trigger focus. No filtering, command execution, or modal focus trap.",
+			"root": {
+				"id": "palette", "el": "section", "attrs": { "class": "vscode-catalog-command-palette", "aria-label": "Command Palette Preview" },
+				"layout": { "mode": "vertical", "gap": "8", "padding": "8", "width": 440 },
+				"appearance": { "background": "quickInput", "color": "foreground", "textStyle": "body1", "radius": "outer", "borderColor": "border", "borderWidth": 1 },
+				"children": [
+					{ "id": "palette-styles", "el": "style", "children": [
+						".vscode-catalog-command-palette .vscode-catalog-command-row.vscode-catalog-selectable-row:has(.vscode-catalog-row-input:checked) { background: var(--color-quickInputSelection); color: var(--color-quickInputSelectionText); }\n",
+						"@media (forced-colors: active) { .vscode-catalog-command-palette .vscode-catalog-command-row:has(.vscode-catalog-row-input:checked) { outline: 1px solid Highlight; outline-offset: -1px; } }\n"
+					] },
+					{ "id": "command-input", "component": "TextInput", "props": { "label": "Command", "placeholder": "Type the name of a command to run" } },
+					{ "id": "results", "el": "div", "attrs": { "role": "radiogroup", "aria-label": "Sample Commands" }, "layout": { "mode": "vertical", "gap": "4" }, "children": [
+						{ "id": "terminal", "component": "CommandRow", "props": { "label": "View: Toggle Terminal" } },
+						{ "id": "theme", "component": "CommandRow", "props": { "label": "Preferences: Color Theme" } },
+						{ "id": "folder", "component": "CommandRow", "props": { "label": "File: Open Folder..." } }
+					] },
+					{ "id": "limit", "el": "span", "appearance": { "textStyle": "body2", "color": "description" }, "children": ["Select a sample command · no command runs · Escape closes the flyout"] }
+				]
+			}
+		},
+		{
+			"name": "WorkbenchPreviewStyles",
+			"note": "Colophon-only styles for the classic Explorer and connected modern editor tabs. Seti WOFF is embedded verbatim from extensions/theme-seti/icons/seti.woff; see DESIGN.md for asset attribution. Never port these preview selectors into production.",
+			"root": {
+				"id": "workbench-preview-styles", "el": "style",
+				"children": [
+					"/* Microsoft Codicons 0.0.46-49: https://github.com/microsoft/vscode-codicons, CC BY 4.0, https://creativecommons.org/licenses/by/4.0/. Chevron-down and close vectors are unmodified. Seti UI: Copyright (c) 2014 Jesse Weed. Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the Software), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED AS IS, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. */\n",
+					"@font-face { font-family: vscode-catalog-seti; src: url(data:font/woff;base64,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) format('woff'); font-weight: normal; font-style: normal; font-display: block; }\n",
+					".vscode-catalog-explorer, .vscode-catalog-tabs { font-family: var(--text-body1-family); font-size: var(--text-body1-size); font-weight: 400; }\n",
+					".vscode-catalog-explorer { width: 220px; height: 100%; flex-shrink: 0; background: var(--color-chrome); color: var(--color-foreground); border-right: 1px solid var(--color-border); box-sizing: border-box; }\n",
+					".vscode-catalog-explorer-title { display: flex; align-items: center; height: 35px; padding: 0 20px; font-size: 11px; font-weight: 400; }\n",
+					".vscode-catalog-explorer details { margin: 0; padding: 0; }\n",
+					".vscode-catalog-explorer summary, .vscode-catalog-folder > summary { list-style: none; display: flex; align-items: center; white-space: nowrap; cursor: pointer; }\n",
+					".vscode-catalog-explorer summary::-webkit-details-marker, .vscode-catalog-folder > summary::-webkit-details-marker { display: none; }\n",
+					".vscode-catalog-section > summary { height: 22px; line-height: 22px; font-size: 11px; font-weight: 700; background: var(--color-sectionHeader); color: var(--color-sectionHeaderText); }\n",
+					".vscode-catalog-section + .vscode-catalog-section > summary { border-top: 1px solid var(--color-sectionHeaderBorder); box-sizing: border-box; }\n",
+					".vscode-catalog-section > summary > svg { flex: 0 0 16px; margin: 0 2px; transform: rotate(-90deg); }\n",
+					".vscode-catalog-section[open] > summary > svg { transform: translateY(1px); }\n",
+					".vscode-catalog-folder > summary, .vscode-catalog-file-row { height: 22px; line-height: 22px; font-size: 13px; font-weight: 400; }\n",
+					"body[data-ds-theme=highContrast] .vscode-catalog-folder > summary, body[data-ds-theme=highContrast] .vscode-catalog-file-row { line-height: 20px; }\n",
+					".vscode-catalog-folder > summary { padding-left: 8px; }\n",
+					".vscode-catalog-folder > summary > svg { flex: 0 0 16px; width: 16px; height: 16px; padding: 0; margin-right: 6px; transform-origin: center; transform: translateX(3px) rotate(-90deg); }\n",
+					".vscode-catalog-folder[open] > summary > svg { transform: translateX(3px); }\n",
+					".vscode-catalog-folder-label { display: flex; align-items: center; align-self: stretch; flex: 1; min-width: 0; cursor: pointer; }\n",
+					".vscode-catalog-file-row { display: flex; align-items: center; padding-left: 30px; white-space: nowrap; }\n",
+					".vscode-catalog-folder > .vscode-catalog-file-row { padding-left: 38px; }\n",
+					".vscode-catalog-folder > summary:hover, .vscode-catalog-file-row:hover { background: var(--color-listHover); }\n",
+					".vscode-catalog-explorer summary:focus-visible { outline: 1px solid var(--color-focus); outline-offset: -1px; }\n",
+					".vscode-catalog-file-icon { display: inline-block; flex: 0 0 22px; width: 22px; height: 22px; line-height: inherit; font-family: vscode-catalog-seti; font-size: 150%; font-weight: normal; font-style: normal; color: var(--color-setiBlue); -webkit-font-smoothing: antialiased; }\n",
+					".vscode-catalog-file-icon[data-icon=typescript]::before { content: '\\e099'; }\n",
+					".vscode-catalog-file-icon[data-icon=readme]::before { content: '\\e04d'; }\n",
+					".vscode-catalog-file-icon[data-icon=json]::before { content: '\\e055'; color: var(--color-setiYellow); }\n",
+					".vscode-catalog-file-icon[data-icon=javascript]::before { content: '\\e051'; color: var(--color-setiYellow); }\n",
+					".vscode-catalog-tabs { display: flex; align-items: flex-end; height: 32px; flex-shrink: 0; overflow-x: auto; background: var(--color-tabStrip); box-shadow: inset 0 -1px var(--color-tabStripBorder); }\n",
+					".vscode-catalog-tab { position: relative; flex-shrink: 0; cursor: pointer; }\n",
+					".vscode-catalog-tab-input { position: absolute; width: 1px; height: 1px; margin: 0; clip-path: inset(50%); overflow: hidden; }\n",
+					".vscode-catalog-tab-face { position: relative; display: flex; align-items: center; box-sizing: border-box; min-width: 120px; height: 28px; padding-left: var(--space-6); white-space: nowrap; background: transparent; color: var(--color-tabText); border: 1px solid transparent; border-bottom: 0; border-radius: var(--radius-control); }\n",
+					".vscode-catalog-tab-face > .vscode-catalog-file-icon { position: relative; z-index: 1; height: 27px; line-height: 27px; }\n",
+					".vscode-catalog-tab-name { position: relative; z-index: 1; flex: 1; }\n",
+					".vscode-catalog-tab-preview .vscode-catalog-tab-name { font-style: italic; padding-right: 1px; }\n",
+					".vscode-catalog-tab-close { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; width: 28px; flex: 0 0 28px; opacity: 0; }\n",
+					".vscode-catalog-tab-edge { display: none; position: absolute; inset: -1px -1px 0; border: 1px solid var(--color-tabStripBorder); border-bottom: 0; border-radius: calc(var(--radius-inner) + 1px) calc(var(--radius-inner) + 1px) 0 0; clip-path: inset(0 0 calc(var(--radius-inner) + 1px)); pointer-events: none; }\n",
+					".vscode-catalog-tab:hover > .vscode-catalog-tab-face { background: color-mix(in srgb, var(--color-foreground) 6%, var(--color-tabStrip)); }\n",
+					".vscode-catalog-tab-input:checked + .vscode-catalog-tab-face { z-index: 1; background: var(--color-editor); color: var(--color-tabActiveText); border-radius: calc(var(--radius-inner) + 1px) calc(var(--radius-inner) + 1px) 0 0; }\n",
+					".vscode-catalog-tab-input:checked + .vscode-catalog-tab-face > .vscode-catalog-tab-edge { display: block; }\n",
+					".vscode-catalog-tab-input:checked + .vscode-catalog-tab-face::before, .vscode-catalog-tab-input:checked + .vscode-catalog-tab-face::after { content: ''; position: absolute; bottom: 0; width: calc(var(--radius-inner) + 1px); height: calc(var(--radius-inner) + 1px); box-sizing: border-box; border-bottom: 1px solid var(--color-tabStripBorder); clip-path: inset(0); pointer-events: none; }\n",
+					".vscode-catalog-tab-input:checked + .vscode-catalog-tab-face::before { right: 100%; border-right: 1px solid var(--color-tabStripBorder); border-bottom-right-radius: calc(var(--radius-inner) + 1px); box-shadow: calc((var(--radius-inner) + 1px) / 2) calc((var(--radius-inner) + 1px) / 2) 0 calc((var(--radius-inner) + 1px) / 2) var(--color-editor); }\n",
+					".vscode-catalog-tab-input:checked + .vscode-catalog-tab-face::after { left: 100%; border-left: 1px solid var(--color-tabStripBorder); border-bottom-left-radius: calc(var(--radius-inner) + 1px); box-shadow: calc((var(--radius-inner) + 1px) / -2) calc((var(--radius-inner) + 1px) / 2) 0 calc((var(--radius-inner) + 1px) / 2) var(--color-editor); }\n",
+					".vscode-catalog-tab:first-of-type > .vscode-catalog-tab-input:checked + .vscode-catalog-tab-face::before { content: none; }\n",
+					".vscode-catalog-tab:hover .vscode-catalog-tab-close, .vscode-catalog-tab-input:checked + .vscode-catalog-tab-face .vscode-catalog-tab-close, .vscode-catalog-tab-input:focus-visible + .vscode-catalog-tab-face .vscode-catalog-tab-close { opacity: 1; }\n",
+					".vscode-catalog-tab-input:focus-visible + .vscode-catalog-tab-face { outline: 1px solid var(--color-focus); outline-offset: -2px; }\n",
+					"body[data-ds-theme=highContrast] .vscode-catalog-tab-input:checked + .vscode-catalog-tab-face { outline: 1px solid var(--color-activeContrast); outline-offset: -5px; }\n",
+					"body[data-ds-theme=highContrast] .vscode-catalog-tab:hover > .vscode-catalog-tab-input:not(:checked) + .vscode-catalog-tab-face, body[data-ds-theme=highContrast] .vscode-catalog-tab-input:checked:focus-visible + .vscode-catalog-tab-face { outline: 1px dashed var(--color-activeContrast); outline-offset: -5px; }\n"
+				]
+			}
+		},
+		{
+			"name": "SelectableRowStyles",
+			"note": "Preview-only shared radio selection, hover, and keyboard focus. Selection uses listColors.ts resources, including transparent high-contrast fills with explicit outlines.",
+			"root": {
+				"id": "row-styles", "el": "style",
+				"children": [
+					".vscode-catalog-row-input { position: absolute; width: 1px; height: 1px; margin: 0; clip-path: inset(50%); overflow: hidden; }\n",
+					".vscode-catalog-selectable-row { position: relative; cursor: pointer; color: var(--color-foreground); }\n",
+					".vscode-catalog-selectable-row:hover { background: var(--color-listHover); }\n",
+					".vscode-catalog-selectable-row:has(.vscode-catalog-row-input:checked) { background: var(--color-listSelectionInactive); color: var(--color-foreground); }\n",
+					".vscode-catalog-selectable-row:has(.vscode-catalog-row-input:checked):focus-within { background: var(--color-listSelection); color: var(--color-listSelectionText); }\n",
+					"body[data-ds-theme=highContrast] .vscode-catalog-selectable-row:has(.vscode-catalog-row-input:checked) { outline: 1px solid var(--color-activeContrast); outline-offset: -1px; }\n",
+					".vscode-catalog-selectable-row:has(.vscode-catalog-row-input:focus-visible) { outline: 1px solid var(--color-focus); outline-offset: -1px; }\n",
+					".vscode-catalog-session-detail { color: var(--color-description); }\n",
+					".vscode-catalog-selectable-row:has(.vscode-catalog-row-input:checked):focus-within .vscode-catalog-session-detail { color: inherit; }\n",
+					".vscode-catalog-sessions-group { margin: 0; padding: 0; }\n",
+					".vscode-catalog-sessions-group > summary { display: flex; align-items: center; gap: var(--space-4); list-style: none; cursor: pointer; }\n",
+					".vscode-catalog-sessions-group > summary::-webkit-details-marker { display: none; }\n",
+					".vscode-catalog-sessions-group > summary > svg { transform: rotate(-90deg); }\n",
+					".vscode-catalog-sessions-group[open] > summary > svg { transform: none; }\n",
+					".vscode-catalog-sessions-group > summary:focus-visible { outline: 1px solid var(--color-focus); outline-offset: -1px; }\n"
+				]
+			}
+		},
+		{
+			"name": "ExplorerChevron",
+			"note": "Unmodified chevron-down SVG from @vscode/codicons 0.0.46-49. The classic tree rotates this same glyph when collapsed; no Unicode or browser marker substitution.",
+			"root": {
+				"id": "chevron", "el": "svg",
+				"attrs": { "width": 16, "height": 16, "viewBox": "0 0 16 16", "fill": "currentColor", "aria-hidden": "true", "focusable": "false" },
+				"children": [{ "id": "path", "el": "path", "attrs": { "d": "M3.14598 5.85423L7.64598 10.3542C7.84098 10.5492 8.15798 10.5492 8.35298 10.3542L12.853 5.85423C13.048 5.65923 13.048 5.34223 12.853 5.14723C12.658 4.95223 12.341 4.95223 12.146 5.14723L7.99998 9.29323L3.85398 5.14723C3.65898 4.95223 3.34198 4.95223 3.14698 5.14723C2.95198 5.34223 2.95098 5.65923 3.14598 5.85423Z" } }]
+			}
+		},
+		{
+			"name": "EditorCloseIcon",
+			"note": "Unmodified close SVG from @vscode/codicons 0.0.46-49. Decorative in this tab-appearance preview; it does not pretend to close a real editor.",
+			"root": {
+				"id": "close", "el": "svg",
+				"attrs": { "width": 16, "height": 16, "viewBox": "0 0 16 16", "fill": "currentColor", "aria-hidden": "true", "focusable": "false" },
+				"children": [{ "id": "path", "el": "path", "attrs": { "d": "M13.85 13.1502C14.05 13.3502 14.05 13.6602 13.85 13.8602C13.75 13.9602 13.62 14.0102 13.5 14.0102C13.38 14.0102 13.24 13.9602 13.15 13.8602L8 8.71023L2.85 13.8602C2.75 13.9602 2.62 14.0102 2.5 14.0102C2.38 14.0102 2.24 13.9602 2.15 13.8602C1.95 13.6602 1.95 13.3502 2.15 13.1502L7.3 8.00023L2.15 2.85023C1.95 2.65023 1.95 2.34023 2.15 2.14023C2.35 1.94023 2.66 1.94023 2.86 2.14023L8.01 7.29023L13.16 2.14023C13.36 1.94023 13.67 1.94023 13.87 2.14023C14.07 2.34023 14.07 2.65023 13.87 2.85023L8.72 8.00023L13.87 13.1502H13.85Z" } }]
+			}
+		},
+		{
+			"name": "SetiFileIcon",
+			"note": "The bundled Seti font, glyphs, 150% font sizing, and light/dark palette. README.md uses the filename-specific info glyph, not the generic Markdown glyph.",
+			"props": { "kind": "typescript" },
+			"root": { "id": "file-icon", "el": "span", "class": "vscode-catalog-file-icon", "attrs": { "data-icon": "{kind}", "aria-hidden": "true" } }
+		},
+		{
+			"name": "ExplorerFileRow",
+			"props": { "label": "index.ts", "kind": "typescript" },
+			"root": {
+				"id": "file-row", "el": "label", "class": "vscode-catalog-file-row vscode-catalog-selectable-row",
+				"children": [
+					{ "id": "selection-styles", "component": "SelectableRowStyles" },
+					{ "id": "selection", "el": "input", "class": "vscode-catalog-row-input", "attrs": { "type": "radio", "name": "explorer-row-preview", "value": "{label}", "aria-label": "{label}" } },
+					{ "id": "icon", "component": "SetiFileIcon", "props": { "kind": "{kind}" } },
+					{ "id": "name", "el": "span", "children": ["{label}"] }
+				]
+			}
+		},
+		{
+			"name": "ExplorerRow",
+			"note": "Reusable selectable Explorer folder row. Click the chevron or focus its summary and press Enter/Space to disclose the sample child. Click the text or use native radio arrow keys to select. Not WorkbenchAsyncDataTree or real file navigation.",
+			"props": { "label": "src", "childLabel": "bootstrap-window.ts", "kind": "typescript" },
+			"root": {
+				"id": "folder", "el": "details", "class": "vscode-catalog-folder",
+				"appearance": { "textStyle": "body1", "color": "foreground" },
+				"children": [
+					{ "id": "label", "el": "summary", "class": "vscode-catalog-selectable-row", "children": [
+						{ "id": "twistie", "component": "ExplorerChevron" },
+						{ "id": "selection-label", "el": "label", "class": "vscode-catalog-folder-label", "children": [
+							{ "id": "selection", "el": "input", "class": "vscode-catalog-row-input", "attrs": { "type": "radio", "name": "explorer-row-preview", "value": "{label}", "aria-label": "{label}" } },
+							{ "id": "name", "el": "span", "children": ["{label}"] }
+						] }
+					] },
+					{ "id": "styles", "component": "WorkbenchPreviewStyles" },
+					{ "id": "selection-styles", "component": "SelectableRowStyles" },
+					{ "id": "child", "component": "ExplorerFileRow", "props": { "label": "{childLabel}", "kind": "{kind}" } }
+				]
+			}
+		},
+		{
+			"name": "EditorTabs",
+			"note": "Connected modern tabs: modernUI/browser/media/tabs.css and connectedEditorTabs.css. A 32px strip, rounded cap and shoulders connect the active tab to the editor without a blue top stripe. Seti JSON/JavaScript icons and preview-file italics match the supplied reference. Native radio selection supports arrow keys; close glyphs remain decorative.",
+			"root": {
+				"id": "tabs", "el": "div", "class": "vscode-catalog-tabs",
+				"attrs": { "role": "group", "aria-label": "Editor Tab Appearance Preview" },
+				"children": [
+					{ "id": "styles", "component": "WorkbenchPreviewStyles" },
+					{ "id": "json-tab", "el": "label", "class": "vscode-catalog-tab", "children": [
+						{ "id": "json-radio", "el": "input", "class": "vscode-catalog-tab-input", "attrs": { "type": "radio", "name": "editor-tab-preview", "value": "json", "aria-label": ".lsifrc.json" } },
+						{ "id": "json-face", "el": "span", "class": "vscode-catalog-tab-face", "children": [
+							{ "id": "json-edge", "el": "span", "class": "vscode-catalog-tab-edge", "attrs": { "aria-hidden": "true" } },
+							{ "id": "json-icon", "component": "SetiFileIcon", "props": { "kind": "json" } },
+							{ "id": "json-name", "el": "span", "class": "vscode-catalog-tab-name", "children": [".lsifrc.json"] },
+							{ "id": "json-close", "el": "span", "class": "vscode-catalog-tab-close", "attrs": { "aria-hidden": "true" }, "children": [{ "id": "json-close-icon", "component": "EditorCloseIcon" }] }
+						] }
+					] },
+					{ "id": "javascript-tab", "el": "label", "class": "vscode-catalog-tab vscode-catalog-tab-preview", "children": [
+						{ "id": "javascript-radio", "el": "input", "class": "vscode-catalog-tab-input", "attrs": { "type": "radio", "name": "editor-tab-preview", "value": "javascript", "checked": true, "aria-label": ".npmprofile.mjs (Preview)" } },
+						{ "id": "javascript-face", "el": "span", "class": "vscode-catalog-tab-face", "children": [
+							{ "id": "javascript-edge", "el": "span", "class": "vscode-catalog-tab-edge", "attrs": { "aria-hidden": "true" } },
+							{ "id": "javascript-icon", "component": "SetiFileIcon", "props": { "kind": "javascript" } },
+							{ "id": "javascript-name", "el": "span", "class": "vscode-catalog-tab-name", "children": [".npmprofile.mjs"] },
+							{ "id": "javascript-close", "el": "span", "class": "vscode-catalog-tab-close", "attrs": { "aria-hidden": "true" }, "children": [{ "id": "javascript-close-icon", "component": "EditorCloseIcon" }] }
+						] }
+					] }
+				]
+			}
+		},
+		{
+			"name": "Explorer",
+			"note": "Classic Explorer: paneview.css, tree.css, explorerviewlet.css, and iconlabel.css. Native section/folder disclosures and exclusive radio row selection, not full tree navigation or file activation.",
+			"root": {
+				"id": "explorer", "el": "aside", "class": "vscode-catalog-explorer", "attrs": { "aria-label": "Explorer Preview" },
+				"children": [
+					{ "id": "styles", "component": "WorkbenchPreviewStyles" },
+					{ "id": "title", "el": "div", "class": "vscode-catalog-explorer-title", "children": ["EXPLORER"] },
+					{ "id": "open-editors", "el": "details", "class": "vscode-catalog-section", "children": [
+						{ "id": "open-editors-label", "el": "summary", "children": [{ "id": "open-editors-twistie", "component": "ExplorerChevron" }, { "id": "open-editors-name", "el": "span", "children": ["OPEN EDITORS"] }] },
+						{ "id": "index", "component": "ExplorerFileRow" },
+						{ "id": "open-readme", "component": "ExplorerFileRow", "props": { "label": "README.md", "kind": "readme" } }
+					] },
+					{ "id": "project", "el": "details", "class": "vscode-catalog-section", "attrs": { "open": true }, "children": [
+						{ "id": "project-label", "el": "summary", "children": [{ "id": "twistie", "component": "ExplorerChevron" }, { "id": "name", "el": "span", "children": ["VSCODE"] }] },
+						{ "id": "files", "el": "div", "children": [
+							{ "id": "src", "component": "ExplorerRow" },
+							{ "id": "extensions", "component": "ExplorerRow", "props": { "label": "extensions", "childLabel": "theme-defaults", "kind": "none" } },
+							{ "id": "resources", "component": "ExplorerRow", "props": { "label": "resources", "childLabel": "README.md", "kind": "readme" } },
+							{ "id": "package", "component": "ExplorerFileRow", "props": { "label": "package.json", "kind": "json" } },
+							{ "id": "readme", "component": "ExplorerFileRow", "props": { "label": "README.md", "kind": "readme" } }
+						] }
+					] }
+				]
+			}
+		},
+		{
+			"name": "StatusBar",
+			"note": "src/vs/workbench/browser/parts/statusbar. Static standard-workbench status, intentionally absent from the production Agents Window.",
+			"root": {
+				"id": "status", "el": "footer",
+				"layout": { "mode": "horizontal", "align": "center", "justify": "space-between", "padding": { "x": "12" }, "height": 22, "width": "fill" },
+				"appearance": { "background": "chrome", "color": "foreground", "textStyle": "label1" },
+				"children": [
+					{ "id": "branch", "el": "span", "children": ["main"] },
+					{ "id": "position", "el": "span", "children": ["Ln 1, Col 1    Spaces: 4    UTF-8    LF    TypeScript"] }
+				]
+			}
+		},
+		{
+			"name": "SessionRow",
+			"note": "Native radio row with exclusive selection per rendered preview, hover, and visible keyboard focus. Selection is local appearance only; it does not load a session or change the sample conversation.",
+			"props": { "title": "Review changes", "detail": "vscode · Local" },
+			"root": {
+				"id": "session-row", "el": "label", "class": "vscode-catalog-selectable-row",
+				"layout": { "mode": "vertical", "gap": "4", "padding": "8", "width": "fill" },
+				"appearance": { "textStyle": "body1", "radius": "control" },
+				"children": [
+					{ "id": "styles", "component": "SelectableRowStyles" },
+					{ "id": "selection", "el": "input", "class": "vscode-catalog-row-input", "attrs": { "type": "radio", "name": "session-row-preview", "value": "{title}", "aria-label": "{title}, {detail}" } },
+					{ "id": "title", "el": "span", "children": ["{title}"] },
+					{ "id": "detail", "el": "span", "class": "vscode-catalog-session-detail", "appearance": { "textStyle": "label2" }, "children": ["{detail}"] }
+				]
+			}
+		},
+		{
+			"name": "SessionsSidebar",
+			"note": "Source-informed sidebar with selectable sample sessions and a keyboard-operable Today disclosure. Search accepts text but does not filter; selection does not load sessions.",
+			"root": {
+				"id": "sessions-sidebar", "el": "aside", "attrs": { "aria-label": "Sessions Preview" },
+				"layout": { "mode": "vertical", "gap": "12", "padding": "12", "width": 240, "height": "fill" },
+				"appearance": { "background": "agentsShell", "color": "foreground", "textStyle": "body1" },
+				"children": [
+					{ "id": "heading", "el": "span", "appearance": { "textStyle": "heading3" }, "children": ["Sessions"] },
+					{ "id": "search", "component": "TextInput", "props": { "label": "Search Sessions", "placeholder": "Search sessions" } },
+					{ "id": "styles", "component": "SelectableRowStyles" },
+					{ "id": "today", "el": "details", "class": "vscode-catalog-sessions-group", "attrs": { "open": true }, "children": [
+						{ "id": "today-label", "el": "summary", "appearance": { "textStyle": "label2", "color": "description" }, "children": [
+							{ "id": "twistie", "component": "ExplorerChevron" },
+							{ "id": "today-name", "el": "span", "children": ["Today"] }
+						] },
+						{ "id": "rows", "el": "div", "attrs": { "role": "group", "aria-label": "Today's Sessions" }, "layout": { "mode": "vertical", "gap": "12" }, "children": [
+							{ "id": "first", "component": "SessionRow", "props": { "title": "Review changes" } },
+							{ "id": "second", "component": "SessionRow", "props": { "title": "Explore the codebase" } }
+						] }
+					] }
+				]
+			}
+		},
+		{
+			"name": "ComposerIcon",
+			"note": "Microsoft Codicons 0.0.46-49, CC BY 4.0; attribution in DESIGN.md. Native 12px compact or 16px base vectors, not scaled substitutes.",
+			"props": { "icon": "add", "size": "16", "path": "M8 1.5C8 1.22386 7.77614 1 7.5 1C7.22386 1 7 1.22386 7 1.5V7H1.5C1.22386 7 1 7.22386 1 7.5C1 7.77614 1.22386 8 1.5 8H7V13.5C7 13.7761 7.22386 14 7.5 14C7.77614 14 8 13.7761 8 13.5V8H13.5C13.7761 8 14 7.77614 14 7.5C14 7.22386 13.7761 7 13.5 7H8V1.5Z" },
+			"root": {
+				"id": "composer-icon", "el": "svg",
+				"attrs": { "data-codicon": "{icon}", "width": "{size}", "height": "{size}", "viewBox": "0 0 {size} {size}", "fill": "currentColor", "aria-hidden": "true", "focusable": "false" },
+				"children": [{ "id": "path", "el": "path", "attrs": { "d": "{path}" } }]
+			}
+		},
+		{
+			"name": "ComposerAction",
+			"note": "Borderless chat-toolbar control with native button activation and visible keyboard focus. Consumers provide a preview-only flyout action.",
+			"props": { "label": "Add Context", "text": "", "variant": "", "icon": "add", "size": "16", "path": "M8 1.5C8 1.22386 7.77614 1 7.5 1C7.22386 1 7 1.22386 7 1.5V7H1.5C1.22386 7 1 7.22386 1 7.5C1 7.77614 1.22386 8 1.5 8H7V13.5C7 13.7761 7.22386 14 7.5 14C7.77614 14 8 13.7761 8 13.5V8H13.5C13.7761 8 14 7.77614 14 7.5C14 7.22386 13.7761 7 13.5 7H8V1.5Z" },
+			"root": {
+				"id": "composer-action", "el": "button", "class": "vscode-catalog-composer-action {variant}",
+				"attrs": { "type": "button", "aria-label": "{label}" },
+				"layout": { "mode": "horizontal", "align": "center", "justify": "center", "gap": "6", "padding": { "x": "4", "y": "0" }, "height": 22, "width": "hug" },
+				"appearance": { "textStyle": "body2", "color": "description", "background": "$none", "borderWidth": 0, "radius": "control" },
+				"control": { "chrome": "none", "focus": { "kind": "outline", "color": "focus" } },
+				"states": { "hover": { "background": "listHover", "color": "foreground" }, "pressed": { "background": "secondaryHover" } },
+				"children": [
+					{ "id": "icon", "component": "ComposerIcon", "props": { "icon": "{icon}", "size": "{size}", "path": "{path}" } },
+					{ "id": "text", "el": "span", "children": ["{text}"] }
+				]
+			}
+		},
+		{
+			"name": "ComposerOptions",
+			"note": "Sample choices only. Native radio selection dismisses the flyout; no provider, permission, or attachment state changes.",
+			"props": { "title": "Sample Options", "first": "First Option", "second": "Second Option", "third": "Third Option" },
+			"root": {
+				"id": "composer-options", "el": "section", "attrs": { "aria-label": "{title}" },
+				"layout": { "mode": "vertical", "gap": "8", "padding": "12", "width": 240 },
+				"appearance": { "background": "quickInput", "color": "foreground", "textStyle": "body1", "radius": "outer", "borderColor": "border", "borderWidth": 1 },
+				"children": [
+					{ "id": "title", "el": "span", "appearance": { "textStyle": "heading3" }, "children": ["{title}"] },
+					{ "id": "options", "el": "div", "attrs": { "role": "radiogroup", "aria-label": "{title}" }, "layout": { "mode": "vertical", "gap": "8" }, "children": [
+						{ "id": "first", "el": "label", "layout": { "mode": "horizontal", "gap": "6", "align": "center" }, "children": [{ "id": "first-input", "el": "input", "attrs": { "type": "radio", "name": "{title}", "value": "{first}" } }, "{first}"] },
+						{ "id": "second", "el": "label", "layout": { "mode": "horizontal", "gap": "6", "align": "center" }, "children": [{ "id": "second-input", "el": "input", "attrs": { "type": "radio", "name": "{title}", "value": "{second}" } }, "{second}"] },
+						{ "id": "third", "el": "label", "layout": { "mode": "horizontal", "gap": "6", "align": "center" }, "children": [{ "id": "third-input", "el": "input", "attrs": { "type": "radio", "name": "{title}", "value": "{third}" } }, "{third}"] }
+					] },
+					{ "id": "limit", "el": "span", "appearance": { "textStyle": "body2", "color": "description" }, "children": ["Preview only - selection does not change settings or add context. Escape returns to the composer."] }
+				]
+			}
+		},
+		{
+			"name": "ComposerAttachmentOptions",
+			"root": { "id": "attachments", "component": "ComposerOptions", "props": { "title": "Add Context Preview", "first": "Files...", "second": "Editor Selection", "third": "Screenshot" } }
+		},
+		{
+			"name": "ComposerModelOptions",
+			"root": { "id": "models", "component": "ComposerOptions", "props": { "title": "Sample Models", "first": "Auto (Sample)", "second": "Model A (Sample)", "third": "Model B (Sample)" } }
+		},
+		{
+			"name": "ComposerInteractionOptions",
+			"root": { "id": "interaction", "component": "ComposerOptions", "props": { "title": "Interaction Preview", "first": "Interactive", "second": "Plan", "third": "Autopilot" } }
+		},
+		{
+			"name": "ComposerPermissionOptions",
+			"root": { "id": "permissions", "component": "ComposerOptions", "props": { "title": "Sample Permissions", "first": "Manual Permissions", "second": "Ask Before Actions", "third": "Read Only" } }
+		},
+		{
+			"name": "ComposerActionNotice",
+			"props": { "title": "Composer Preview", "message": "No action is performed." },
+			"root": {
+				"id": "composer-notice", "el": "section", "attrs": { "aria-label": "{title}" },
+				"layout": { "mode": "vertical", "gap": "8", "padding": "12", "width": 260 },
+				"appearance": { "background": "quickInput", "color": "foreground", "textStyle": "body1", "radius": "outer", "borderColor": "border", "borderWidth": 1 },
+				"children": [
+					{ "id": "title", "el": "span", "appearance": { "textStyle": "heading3" }, "children": ["{title}"] },
+					{ "id": "message", "el": "span", "children": ["{message}"] },
+					{ "id": "close-hint", "el": "span", "appearance": { "textStyle": "body2", "color": "description" }, "children": ["Escape closes this preview and returns focus."] }
+				]
+			}
+		},
+		{
+			"name": "ComposerFilePreview",
+			"root": { "id": "file", "component": "ComposerActionNotice", "props": { "title": "npmprofile.mjs", "message": "Sample file context only. No local file is read or attached." } }
+		},
+		{
+			"name": "ComposerDictationPreview",
+			"root": { "id": "dictation", "component": "ComposerActionNotice", "props": { "title": "Dictation Preview", "message": "The microphone button is a local interaction preview. It does not record audio or request microphone access." } }
+		},
+		{
+			"name": "ComposerVoicePreview",
+			"root": { "id": "voice", "component": "ComposerActionNotice", "props": { "title": "Voice Mode Preview", "message": "Voice mode is a local interaction preview. No audio is recorded, played, or sent." } }
+		},
+		{
+			"name": "ComposerSendPreview",
+			"root": { "id": "send", "component": "ComposerActionNotice", "props": { "title": "Send Preview", "message": "Nothing was sent. Your draft stays in the composer; this catalog does not contact an agent or execute a command." } }
+		},
+		{
+			"name": "ComposerConnectionPreview",
+			"root": { "id": "connection", "component": "ComposerActionNotice", "props": { "title": "Connection Preview", "message": "Local preview only. No remote connection is opened." } }
+		},
+		{
+			"name": "Composer",
+			"note": "Source-informed chat input matching the supplied toolbar reference. Blue focused container, borderless Agent picker, sample file context, attachment/model/mode/permission flyouts, and microphone/voice/send/connection notices. All actions are local previews; no recording, sending, file access, or settings changes.",
+			"root": {
+				"id": "composer", "el": "section", "class": "vscode-catalog-composer", "attrs": { "aria-label": "Chat Composer Preview" },
+				"layout": { "mode": "vertical", "gap": "4", "width": "fill" },
+				"appearance": { "color": "inputText", "textStyle": "body1" },
+				"children": [
+					{ "id": "file-icon-styles", "component": "WorkbenchPreviewStyles" },
+					{ "id": "styles", "el": "style", "children": [
+						".vscode-catalog-composer { min-width: 0; }\n",
+						".vscode-catalog-composer-input:focus-within { border-color: var(--color-focus) !important; }\n",
+						".vscode-catalog-composer textarea { display: block; min-width: 0; resize: vertical; outline: none; box-shadow: none; border: 0; }\n",
+						".vscode-catalog-composer-action { min-width: 22px; white-space: nowrap; cursor: pointer; }\n",
+						".vscode-catalog-composer-action > svg { flex-shrink: 0; }\n",
+						".vscode-catalog-composer-action > span:empty, .vscode-catalog-composer-action > svg:has(path[d='']) { display: none; }\n",
+						".vscode-catalog-composer-action[aria-expanded=true] { background: var(--color-listHover) !important; }\n",
+						".vscode-catalog-composer-action:focus-visible { outline: 1px solid var(--color-focus); outline-offset: -1px; }\n",
+						".vscode-catalog-composer-attachment { font-style: italic; border: 1px dashed var(--color-inputBorder) !important; }\n",
+						"@media (forced-colors: active) { .vscode-catalog-composer-input:focus-within { border-color: Highlight !important; } .vscode-catalog-composer-action:focus-visible { outline-color: Highlight; } }\n"
+					] },
+					{ "id": "input", "el": "div", "class": "vscode-catalog-composer-input", "layout": { "mode": "vertical", "gap": "8", "padding": "6", "width": "fill" }, "appearance": { "background": "input", "color": "inputText", "borderColor": "inputBorder", "borderWidth": 1, "radius": "outer" }, "children": [
+						{ "id": "context", "el": "button", "class": "vscode-catalog-composer-action vscode-catalog-composer-attachment", "attrs": { "type": "button", "aria-label": "Preview Attached File npmprofile.mjs" },
+							"layout": { "mode": "horizontal", "gap": "4", "align": "center", "padding": { "x": "4", "y": "0" }, "height": 22, "width": "hug" },
+							"appearance": { "textStyle": "body2", "color": "description", "background": "$none", "borderWidth": 0, "radius": "control" },
+							"control": { "chrome": "none", "focus": { "kind": "outline", "color": "focus" } },
+							"on": { "click": { "open": "ComposerFilePreview" } },
+							"children": [{ "id": "icon", "component": "SetiFileIcon", "props": { "kind": "javascript" } }, "npmprofile.mjs"]
+						},
+						{ "id": "draft", "el": "textarea", "attrs": { "aria-label": "Message Draft", "placeholder": "Chat with Copilot", "rows": 3 }, "layout": { "padding": "4", "width": "fill" }, "appearance": { "textStyle": "body1", "background": "input", "color": "inputText" } },
+						{ "id": "actions", "el": "div", "layout": { "mode": "horizontal", "gap": "4", "align": "center", "justify": "space-between", "wrap": true }, "children": [
+							{ "id": "left", "el": "div", "layout": { "mode": "horizontal", "gap": "2", "align": "center" }, "children": [
+								{ "id": "add", "component": "ComposerAction", "on": { "click": { "open": "ComposerAttachmentOptions" } } },
+								{ "id": "agent", "component": "ComposerAction", "props": { "label": "Choose Agent Mode", "text": "Agent", "icon": "agent-compact", "size": "12", "path": "M8.02002 11H7.00002C6.72002 11 6.50002 10.78 6.50002 10.5C6.50002 10.22 6.72002 10 7.00002 10H8.02002C8.20002 10 8.36002 9.9 8.45002 9.75L10.47 6.25C10.56 6.1 10.56 5.9 10.47 5.75L8.45002 2.25C8.24002 1.89 7.61002 1.99 7.50002 2.4L5.46002 9.87C5.28002 10.54 4.67002 11 3.98002 11C3.45002 11 2.95002 10.71 2.68002 10.25L0.66002 6.75C0.39002 6.29 0.39002 5.71 0.66002 5.25L2.68002 1.75C2.95002 1.29 3.44002 1 3.98002 1H5.00002C5.28002 1 5.50002 1.22 5.50002 1.5C5.50002 1.78 5.28002 2 5.00002 2H3.98002C3.80002 2 3.64002 2.1 3.55002 2.25L1.53002 5.75C1.44002 5.9 1.44002 6.1 1.53002 6.25L3.55002 9.75C3.76002 10.11 4.39002 10.01 4.50002 9.6L6.54002 2.13C6.72002 1.46 7.33002 1 8.02002 1C8.55002 1 9.05002 1.29 9.32002 1.75L11.34 5.25C11.61 5.71 11.61 6.29 11.34 6.75L9.32002 10.25C9.05002 10.71 8.56002 11 8.02002 11Z" }, "on": { "click": { "open": "PickerOptions" } } },
+								{ "id": "models", "component": "ComposerAction", "props": { "label": "Choose Model", "text": "Models", "path": "" }, "on": { "click": { "open": "ComposerModelOptions" } } }
+							] },
+							{ "id": "right", "el": "div", "layout": { "mode": "horizontal", "gap": "4", "align": "center" }, "children": [
+								{ "id": "voice-controls", "el": "div", "attrs": { "role": "group", "aria-label": "Voice Input Previews" }, "layout": { "mode": "horizontal", "align": "center", "padding": { "x": "2", "y": "0" } }, "appearance": { "borderColor": "inputBorder", "borderWidth": 1, "radius": "circle" }, "children": [
+									{ "id": "dictation", "component": "ComposerAction", "props": { "label": "Dictation Preview", "icon": "mic-compact", "size": "12", "path": "M6 8C7.1 8 8 7.1 8 6V2C8 0.9 7.1 0 6 0C4.9 0 4 0.9 4 2V6C4 7.1 4.9 8 6 8ZM5 2C5 1.45 5.45 1 6 1C6.55 1 7 1.45 7 2V6C7 6.55 6.55 7 6 7C5.45 7 5 6.55 5 6V2Z M10 6C10 5.72 9.78 5.5 9.5 5.5C9.22 5.5 9 5.72 9 6C9 7.65 7.65 9 6 9C4.35 9 3 7.65 3 6C3 5.72 2.78 5.5 2.5 5.5C2.22 5.5 2 5.72 2 6C2 8.04 3.53 9.72 5.5 9.97V11.5C5.5 11.78 5.72 12 6 12C6.28 12 6.5 11.78 6.5 11.5V9.97C8.47 9.72 10 8.04 10 6Z" }, "on": { "click": { "open": "ComposerDictationPreview" } } },
+									{ "id": "voice", "component": "ComposerAction", "props": { "label": "Voice Mode Preview", "icon": "voice-mode-compact", "size": "12", "path": "M5 0.5V11.5C5 11.78 4.78 12 4.5 12C4.22 12 4 11.78 4 11.5V0.5C4 0.22 4.22 0 4.5 0C4.78 0 5 0.22 5 0.5ZM7.5 2C7.22 2 7 2.22 7 2.5V9.5C7 9.78 7.22 10 7.5 10C7.78 10 8 9.78 8 9.5V2.5C8 2.22 7.78 2 7.5 2ZM10.5 4C10.22 4 10 4.22 10 4.5V7.5C10 7.78 10.22 8 10.5 8C10.78 8 11 7.78 11 7.5V4.5C11 4.22 10.78 4 10.5 4ZM1.5 3C1.22 3 1 3.22 1 3.5V8.5C1 8.78 1.22 9 1.5 9C1.78 9 2 8.78 2 8.5V3.5C2 3.22 1.78 3 1.5 3Z" }, "on": { "click": { "open": "ComposerVoicePreview" } } }
+								] },
+								{ "id": "send", "component": "ComposerAction", "props": { "label": "Send Preview - Nothing Is Sent", "icon": "arrow-up-compact", "size": "12", "path": "M10.8502 4.65L6.35019 0.15C6.15019 -0.05 5.84019 -0.05 5.64019 0.15L1.5 4.30025C1.3 4.50025 1.3 4.81025 1.5 5.01025C1.7 5.21025 2.01 5.21025 2.21 5.01025L5.51019 1.71L5.51008 10.5101C5.51008 10.7901 5.73008 11.0101 6.01008 11.0101C6.29008 11.0101 6.51008 10.7901 6.51008 10.5101L6.51019 1.71L10.1602 5.36C10.2602 5.46 10.3902 5.51 10.5102 5.51C10.6302 5.51 10.7702 5.46 10.8602 5.36C11.0602 5.16 11.0602 4.85 10.8602 4.65H10.8502Z" }, "on": { "click": { "open": "ComposerSendPreview" } } }
+							] }
+						] }
+					] },
+					{ "id": "footer", "el": "div", "layout": { "mode": "horizontal", "gap": "4", "align": "center", "wrap": true }, "children": [
+						{ "id": "interaction", "component": "ComposerAction", "props": { "label": "Choose Interaction Mode", "text": "Interactive", "icon": "comment", "path": "M1 4.5C1 3.11929 2.11929 2 3.5 2H12.5C13.8807 2 15 3.11929 15 4.5V9.5C15 10.8807 13.8807 12 12.5 12H8.68787L5.62533 14.6797C4.99168 15.2342 4 14.7842 4 13.9422V12H3.5C2.11929 12 1 10.8807 1 9.5V4.5ZM3.5 3C2.67157 3 2 3.67157 2 4.5V9.5C2 10.3284 2.67157 11 3.5 11H5V13.8981L8.31213 11H12.5C13.3284 11 14 10.3284 14 9.5V4.5C14 3.67157 13.3284 3 12.5 3H3.5Z" }, "on": { "click": { "open": "ComposerInteractionOptions" } } },
+						{ "id": "separator", "el": "span", "attrs": { "aria-hidden": "true" }, "layout": { "width": 1, "height": 12 }, "appearance": { "background": "inputBorder" } },
+						{ "id": "permissions", "component": "ComposerAction", "props": { "label": "Choose Permissions Preview", "text": "Manual permissions", "path": "" }, "on": { "click": { "open": "ComposerPermissionOptions" } } },
+						{ "id": "connection", "component": "ComposerAction", "props": { "label": "Connection Preview", "icon": "radio-tower", "path": "M3.6 9.67987C3.46 9.67987 3.32 9.61987 3.22 9.50987C2.27 8.40987 1.75 6.97987 1.75 5.49987C1.75 3.82987 2.4 2.25987 3.59 1.07987C3.79 0.879868 4.1 0.889868 4.3 1.07987C4.49 1.27987 4.49 1.58987 4.3 1.78987C3.31 2.77987 2.76 4.08987 2.76 5.49987C2.76 6.75987 3.19 7.91987 3.99 8.84987C4.17 9.05987 4.15 9.37987 3.94 9.55987C3.85 9.63987 3.73 9.67987 3.61 9.67987H3.6ZM4.5 7.89987C4.6 8.03987 4.75 8.10987 4.91 8.10987C5.01 8.10987 5.11 8.07987 5.2 8.01987C5.43 7.85987 5.48 7.54987 5.32 7.31987C4.95 6.78987 4.75 6.15987 4.75 5.49987C4.75 4.62987 5.09 3.81987 5.7 3.19987C5.9 3.00987 5.9 2.68987 5.7 2.48987C5.5 2.28987 5.19 2.28987 4.99 2.48987C4.19 3.28987 3.74 4.35987 3.74 5.48987C3.74 6.35987 4 7.17987 4.49 7.88987L4.5 7.89987ZM12.41 1.07987C12.21 0.879868 11.9 0.889868 11.7 1.07987C11.51 1.27987 11.51 1.58987 11.7 1.78987C12.69 2.77987 13.24 4.08987 13.24 5.49987C13.24 6.75987 12.81 7.91987 12.01 8.84987C11.83 9.05987 11.85 9.37987 12.06 9.55987C12.15 9.63987 12.27 9.67987 12.39 9.67987C12.53 9.67987 12.67 9.61987 12.77 9.50987C13.72 8.40987 14.24 6.97987 14.24 5.49987C14.24 3.82987 13.59 2.25987 12.4 1.07987H12.41ZM11.25 5.49987C11.25 6.15987 11.05 6.78987 10.68 7.31987C10.52 7.54987 10.58 7.85987 10.8 8.01987C10.89 8.07987 10.99 8.10987 11.09 8.10987C11.25 8.10987 11.4 8.03987 11.5 7.89987C11.99 7.19987 12.25 6.36987 12.25 5.49987C12.25 4.36987 11.81 3.29987 11 2.49987C10.8 2.29987 10.49 2.29987 10.29 2.49987C10.09 2.69987 10.09 3.00987 10.29 3.20987C10.9 3.81987 11.24 4.63987 11.24 5.50987L11.25 5.49987ZM12.46 14.2999C12.57 14.5499 12.46 14.8499 12.2 14.9599C12.14 14.9899 12.07 14.9999 12 14.9999C11.81 14.9999 11.62 14.8899 11.54 14.6999L10.8 12.9999H5.2L4.46 14.6999C4.38 14.8899 4.19 14.9999 4 14.9999C3.93 14.9999 3.87 14.9899 3.8 14.9599C3.55 14.8499 3.43 14.5499 3.54 14.2999L6.93 6.54987C6.66 6.27987 6.5 5.90987 6.5 5.49987C6.5 4.66987 7.17 3.99987 8 3.99987C8.83 3.99987 9.5 4.66987 9.5 5.49987C9.5 5.90987 9.33 6.27987 9.07 6.54987L12.46 14.2999ZM7.5 5.49987C7.5 5.77987 7.72 5.99987 8 5.99987C8.28 5.99987 8.5 5.77987 8.5 5.49987C8.5 5.21987 8.28 4.99987 8 4.99987C7.72 4.99987 7.5 5.21987 7.5 5.49987ZM10.36 11.9999L8.17 6.97987C8.11 6.97987 8.06 6.99987 8 6.99987C7.94 6.99987 7.89 6.98987 7.83 6.97987L5.64 11.9999H10.36Z" }, "on": { "click": { "open": "ComposerConnectionPreview" } } }
+					] },
+					{ "id": "hint", "el": "span", "appearance": { "textStyle": "body2", "color": "description" }, "children": ["Preview only - nothing is recorded, sent, or changed"] }
+				]
+			}
+		},
+		{
+			"name": "Conversation",
+			"note": "src/vs/workbench/contrib/chat. Static trusted sample text; no model-authored markdown, streaming, or tool execution.",
+			"root": {
+				"id": "conversation", "el": "section", "attrs": { "aria-label": "Conversation Preview" },
+				"layout": { "mode": "vertical", "gap": "20", "padding": "20", "width": "fill", "height": "fill", "justify": "space-between" },
+				"appearance": { "background": "agentsPanel", "color": "foreground", "textStyle": "body1", "radius": "outer" },
+				"children": [
+					{ "id": "content", "el": "div", "layout": { "mode": "vertical", "gap": "16" }, "children": [
+						{ "id": "title", "el": "span", "appearance": { "textStyle": "heading3" }, "children": ["Review changes"] },
+						{ "id": "request", "el": "span", "children": ["Explain the component hierarchy."] },
+						{ "id": "response", "el": "span", "children": ["Shared controls compose into workbench parts. The Agents Window uses a separate sessions layout with a conversation and details side pane."] },
+						{ "id": "disclaimer", "el": "span", "appearance": { "textStyle": "body2", "color": "description" }, "children": ["Static sample conversation"] }
+					] },
+					{ "id": "composer", "component": "Composer" }
+				]
+			}
+		},
+		{
+			"name": "ChangedFileRow",
+			"note": "Preview-only file selection with native radio arrow keys and shared themed selection/focus styling. Does not open a diff or modify files.",
+			"props": { "label": "DESIGN.md" },
+			"root": {
+				"id": "changed-file", "el": "label", "class": "vscode-catalog-selectable-row",
+				"layout": { "mode": "horizontal", "align": "center", "padding": "8", "width": "fill" },
+				"appearance": { "textStyle": "body1", "radius": "control" },
+				"children": [
+					{ "id": "styles", "component": "SelectableRowStyles" },
+					{ "id": "selection", "el": "input", "class": "vscode-catalog-row-input", "attrs": { "type": "radio", "name": "changes-file-preview", "value": "{label}", "aria-label": "{label}" } },
+					{ "id": "name", "el": "span", "children": ["{label}"] }
+				]
+			}
+		},
+		{
+			"name": "ChangesPanel",
+			"note": "src/vs/sessions/contrib/changes. Exclusive sample file selection with pointer and native radio arrow keys. Selection does not open a diff or modify files.",
+			"root": {
+				"id": "changes", "el": "aside", "attrs": { "aria-label": "Changes Preview" },
+				"layout": { "mode": "vertical", "gap": "12", "padding": "12", "width": 220, "height": "fill" },
+				"appearance": { "background": "agentsPanel", "color": "foreground", "textStyle": "body1", "radius": "outer" },
+				"children": [
+					{ "id": "title", "el": "div", "layout": { "mode": "horizontal", "justify": "space-between", "align": "center" }, "children": ["Changes", { "id": "count", "component": "CountBadge", "props": { "count": "2" } }] },
+					{ "id": "separator", "component": "Separator" },
+					{ "id": "files", "el": "div", "attrs": { "role": "group", "aria-label": "Changed Files" }, "layout": { "mode": "vertical", "gap": "4" }, "children": [
+						{ "id": "design-file", "component": "ChangedFileRow" },
+						{ "id": "components-file", "component": "ChangedFileRow", "props": { "label": "components.jsonc" } }
+					] },
+					{ "id": "note", "el": "span", "appearance": { "textStyle": "body2", "color": "description" }, "children": ["Select a sample file · no diff is opened"] }
+				]
+			}
+		}
+	]
+}
