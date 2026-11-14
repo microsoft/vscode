@@ -71,7 +71,7 @@ import { getCompactCodicon } from '../../../browser/chatIcons.js';
 import { IChatToolRiskAssessmentService } from '../../../browser/tools/chatToolRiskAssessmentService.js';
 import { completedToolCallToSerialized, finalizeToolInvocation, toolCallStateToInvocation, toolCallStateToPreparedInvocation, updateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfirmationActionId } from '../../../browser/actions/chatToolActions.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentActivityLabel, getPersistentBackgroundActivity, getPersistentProgressState, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentActivityLabel, getPersistentBackgroundActivity, getPersistentProgressState, getResponseGenerationStats, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
@@ -91,7 +91,7 @@ import { ChatSystemNotificationContentPart } from '../../../browser/widget/chatC
 import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { IChatMarkdownAnchorService } from '../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatConfirmation, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatSubagentToolInvocationData, IChatTask, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
-import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
+import { formatChatRequestTimestamp, formatChatResponseDetails, formatChatResponseElapsedTime, formatElapsedTime, formatTimeToFirstToken, formatTokensPerSecond } from '../../../common/chatProgressFormatting.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
@@ -914,7 +914,7 @@ suite('ChatListRenderer', () => {
 
 		test('summarizes per-model token usage for the footer stat hover', () => {
 			const completedAt = Date.UTC(2026, 7, 17, 19, 39);
-			const completedAtText = formatChatRequestTimestamp(completedAt)?.fullText;
+			const completedAtText = formatChatRequestTimestamp(completedAt, true)?.fullText;
 			const stats = formatResponseTokenStats([
 				{ model: 'Claude Opus 4.8', inputTokens: 12_400, cachedTokens: 9_000, outputTokens: 830 },
 				{ model: 'gpt-5.5', inputTokens: 40, cachedTokens: 0, outputTokens: 12 },
@@ -944,7 +944,7 @@ suite('ChatListRenderer', () => {
 		test('folds the token usage summary into the footer accessible name without duplicating the completion time', () => {
 			const container = document.createElement('div');
 			const completedAt = Date.UTC(2026, 7, 17, 19, 39);
-			const completedAtText = formatChatRequestTimestamp(completedAt)?.fullText;
+			const completedAtText = formatChatRequestTimestamp(completedAt, true)?.fullText;
 			const stats = formatResponseTokenStats([
 				{ model: 'gpt-5.5', inputTokens: 40, cachedTokens: 0, outputTokens: 12 },
 			], completedAt);
@@ -962,13 +962,198 @@ suite('ChatListRenderer', () => {
 				omitted: 'GPT-5.5 • 2 credits',
 			});
 		});
+
+		test('formats generation speed without trailing decimals for fast models', () => {
+			assert.deepStrictEqual([
+				formatTokensPerSecond(9.94),
+				formatTokensPerSecond(42.4),
+				formatTokensPerSecond(0),
+				formatTokensPerSecond(undefined),
+			], [
+				'9.9 tok/s',
+				'42 tok/s',
+				undefined,
+				undefined,
+			]);
+		});
+
+		test('formats hours, days, and sub-second durations', () => {
+			assert.deepStrictEqual([
+				formatElapsedTime(2 * 3_600_000 + 5 * 60_000),
+				formatElapsedTime(3 * 86_400_000 + 4 * 3_600_000),
+				formatElapsedTime(2 * 86_400_000),
+				formatChatResponseElapsedTime(800, true),
+				formatChatResponseElapsedTime(40, true),
+				formatChatResponseElapsedTime(-5, true),
+				formatTimeToFirstToken(5_298),
+				formatTimeToFirstToken(750),
+				formatTimeToFirstToken(undefined),
+			], [
+				'2h 5m',
+				'3d 4h',
+				'2d',
+				'0.8s',
+				'0.1s',
+				undefined,
+				'5.3s',
+				'750ms',
+				undefined,
+			]);
+		});
+
+		test('derives generation figures from the latest model call, falling back to the turn', () => {
+			const fromLatestCall = getResponseGenerationStats({
+				kind: 'usage',
+				promptTokens: 1_200,
+				completionTokens: 50,
+				latestModelCall: { duration: 5_000, timeToFirstTokenMs: 750 },
+			}, 20_000, 50, true);
+			const fromTurn = getResponseGenerationStats({
+				kind: 'usage',
+				promptTokens: 1_200,
+				completionTokens: 0,
+			}, 10_000, 40, false);
+
+			assert.deepStrictEqual({
+				fromLatestCall,
+				fromTurn,
+				measured: getResponseGenerationStats({ kind: 'usage', promptTokens: 10, completionTokens: 2 }, 5_000, 2, true, 750),
+				nothing: getResponseGenerationStats(undefined, undefined, undefined, true),
+			}, {
+				fromLatestCall: {
+					elapsedMs: 20_000,
+					timeToFirstTokenMs: 750,
+					tokensPerSecond: 10,
+					promptTokens: 1_200,
+					completionTokens: 50,
+				},
+				fromTurn: {
+					elapsedMs: 10_000,
+					tokensPerSecond: 4,
+					promptTokens: 1_200,
+					completionTokens: 40,
+				},
+				measured: {
+					elapsedMs: 5_000,
+					timeToFirstTokenMs: 750,
+					tokensPerSecond: 0.4,
+					promptTokens: 10,
+					completionTokens: 2,
+				},
+				nothing: undefined,
+			});
+		});
+
+		test('renders elapsed time and generation speed beside the model details', () => {
+			const container = document.createElement('div');
+			renderChatResponseDetails(container, 'GPT-5.5 • 2 credits', undefined, 83_000, false, undefined, { elapsedMs: 83_000, tokensPerSecond: 9.9 });
+			const withStats = {
+				details: container.querySelector('.chat-response-model-details')?.textContent,
+				detailsTitle: container.querySelector('.chat-response-model-details')?.getAttribute('title'),
+				stats: container.querySelector('.chat-response-stats')?.textContent,
+				separators: Array.from(container.querySelectorAll('.chat-response-details-separator')).map(element => element.getAttribute('aria-hidden')),
+				aria: container.ariaLabel,
+				hidden: container.classList.contains('hidden'),
+			};
+
+			renderChatResponseDetails(container, 'GPT-5.5 • 2 credits', undefined, 83_000, false);
+			const withoutStats = container.querySelector('.chat-response-stats');
+
+			renderChatResponseDetails(container, undefined, undefined, 5_000, false, undefined, { elapsedMs: 5_000 });
+			const statsOnly = {
+				text: container.querySelector('.chat-response-stats')?.textContent,
+				hidden: container.classList.contains('hidden'),
+				tabIndex: container.tabIndex,
+			};
+
+			renderChatResponseDetails(container, 'GPT-5.5', undefined, 83_000, false, undefined, { elapsedMs: 83_000, tokensPerSecond: 9.9 }, 'hover');
+			const hoverOnly = {
+				stats: container.querySelector('.chat-response-stats')?.textContent,
+				icon: !!container.querySelector('.chat-response-stats-icon'),
+				text: container.querySelector('.chat-response-model-details')?.textContent,
+				aria: container.ariaLabel,
+				hidden: container.classList.contains('hidden'),
+			};
+
+			renderChatResponseDetails(container, 'GPT-5.5', undefined, 83_000, false, undefined, { elapsedMs: 83_000, tokensPerSecond: 9.9 }, 'off');
+			const off = {
+				stats: container.querySelector('.chat-response-stats'),
+				aria: container.ariaLabel,
+				hidden: container.classList.contains('hidden'),
+			};
+
+			assert.deepStrictEqual({
+				withStats,
+				withoutStats,
+				statsOnly,
+				hoverOnly,
+				off,
+			}, {
+				withStats: {
+					details: 'GPT-5.5 • 2 credits',
+					detailsTitle: 'GPT-5.5 • 2 credits',
+					stats: `${formatElapsedTime(83_000)} \u2022 9.9 tok/s`,
+					separators: ['true'],
+					aria: `Elapsed time ${formatElapsedTime(83_000)}, GPT-5.5 • 2 credits, Generation speed 9.9 tok/s`,
+					hidden: false,
+				},
+				withoutStats: null,
+				statsOnly: {
+					text: '5s',
+					hidden: false,
+					tabIndex: 0,
+				},
+				hoverOnly: {
+					stats: `${formatElapsedTime(83_000)} \u2022 9.9 tok/s`,
+					icon: false,
+					text: 'GPT-5.5',
+					aria: `Elapsed time ${formatElapsedTime(83_000)}, GPT-5.5, Generation speed 9.9 tok/s`,
+					hidden: false,
+				},
+				off: {
+					stats: null,
+					aria: '',
+					hidden: true,
+				},
+			});
+		});
+
+		test('adds generation figures to the footer hover, including when no per-model totals were reported', () => {
+			const withTotals = formatResponseTokenStats(
+				[{ model: 'gpt-5.5', inputTokens: 40, cachedTokens: 0, outputTokens: 12 }],
+				undefined,
+				{ elapsedMs: 83_000, timeToFirstTokenMs: 750, tokensPerSecond: 9.9 },
+			);
+			const generationOnly = formatResponseTokenStats(undefined, undefined, {
+				elapsedMs: 5_000,
+				timeToFirstTokenMs: 500,
+				tokensPerSecond: 10,
+				promptTokens: 40,
+				completionTokens: 20,
+				reasoningTokens: 8,
+				cacheWriteTokens: 12,
+				outputBuffer: 3,
+				contextTokens: 5_000,
+				contextTokenLimit: 200_000,
+			});
+
+			assert.deepStrictEqual({
+				withTotals: withTotals?.markdown.value,
+				generationOnly: generationOnly?.markdown.value,
+			}, {
+				withTotals: `**Response details**\n\nElapsed: 1m 23s\n\nTime to first token: 750ms\n\nGeneration speed: 9.9 tok/s\n\nModel: gpt-5.5\n\n- Input tokens: 40\n- Output tokens: 12\n\n`,
+				generationOnly: `**Response details**\n\nElapsed: 5s\n\nTime to first token: 500ms\n\nGeneration speed: 10 tok/s\n\nReasoning tokens: 8\n\nCache write tokens: 12\n\nPending output tokens: 3\n\nContext: 5K / 200K tokens\n\n- Input tokens: 40\n- Output tokens: 20\n\n`,
+			});
+		});
 	});
 
 	suite('formatChatRequestTimestamp', () => {
 		test('keeps regional timestamps consistent across request and response hovers and accessible labels', () => {
 			const timestamp = Date.now() - 60 * 60 * 1000;
 			const text = safeIntl.DateTimeFormat(regionalLocale, { hour: 'numeric', minute: '2-digit' }).value.format(timestamp);
+			const responseText = safeIntl.DateTimeFormat(regionalLocale, { hour: 'numeric', minute: '2-digit', second: '2-digit' }).value.format(timestamp);
 			const fullText = safeIntl.DateTimeFormat(regionalLocale, { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }).value.format(timestamp);
+			const responseFullText = safeIntl.DateTimeFormat(regionalLocale, { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit', second: '2-digit' }).value.format(timestamp);
 			const dateTime = new Date(timestamp).toISOString();
 			const requestContainer = document.createElement('div');
 			const responseContainer = document.createElement('div');
@@ -993,9 +1178,9 @@ suite('ChatListRenderer', () => {
 				hoverFallback: stats?.markdownNotSupportedFallback,
 			}, {
 				request: { text, dateTime, label: `Sent ${fullText}`, hover: fullText },
-				response: { text, dateTime, label: `Completed ${fullText}, Elapsed time 1m 23s, Test model` },
-				hover: `**Response details**\n\nCompleted: ${fullText}\n\nModel: Test model\n\n- Input tokens: 40\n- Output tokens: 12\n\n`,
-				hoverFallback: `Response details. Completed: ${fullText}. Model: Test model. Input tokens: 40. Output tokens: 12`,
+				response: { text: responseText, dateTime, label: `Completed ${responseFullText}, Elapsed time 1m 23s, Test model` },
+				hover: `**Response details**\n\nCompleted: ${responseFullText}\n\nModel: Test model\n\n- Input tokens: 40\n- Output tokens: 12\n\n`,
+				hoverFallback: `Response details. Completed: ${responseFullText}. Model: Test model. Input tokens: 40. Output tokens: 12`,
 			});
 		});
 
@@ -1006,7 +1191,7 @@ suite('ChatListRenderer', () => {
 				hasText: !!formatted?.text,
 				hasFullText: !!formatted?.fullText,
 				dateTime: formatted?.dateTime,
-				invalid: [undefined, 0, -1, NaN, Infinity, -Infinity].map(formatChatRequestTimestamp),
+				invalid: [undefined, 0, -1, NaN, Infinity, -Infinity].map(timestamp => formatChatRequestTimestamp(timestamp)),
 			}, {
 				hasText: true,
 				hasFullText: true,

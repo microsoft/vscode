@@ -62,7 +62,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatProgressResponseContent, IChatTextEditGroup } from '../../common/model/chatModel.js';
 import { chatSubcommandLeader, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
 import { TerminalToolId } from '../../common/tools/terminalToolIds.js';
-import { ChatAgentVoteDirection, ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatConfirmation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatExternalEdit, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPlanReview, IChatPlanReviewResult, IChatPullRequestContent, IChatQuestionAnswerValue, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsageModelTotal, isChatFollowup } from '../../common/chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatConfirmation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatExternalEdit, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPlanReview, IChatPlanReviewResult, IChatPullRequestContent, IChatQuestionAnswerValue, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsageModelTotal, isChatFollowup } from '../../common/chatService/chatService.js';
 import { ChatPlanReviewData } from '../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData, maskPasswordAnswers } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
@@ -72,7 +72,7 @@ import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations,
 import { getNWords } from '../../common/model/chatWordCounter.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
 import { getConfiguredProgressAnimation } from './chatWorkingLogo.js';
-import { formatChatRequestTimestamp, formatChatResponseDetails, formatChatResponseElapsedTime } from '../../common/chatProgressFormatting.js';
+import { ChatResponseStatsDisplay, formatChatRequestTimestamp, formatChatResponseDetails, formatChatResponseElapsedTime, formatChatResponseGenerationStats, formatTimeToFirstToken, formatTokensPerSecond, IChatResponseGenerationStats } from '../../common/chatProgressFormatting.js';
 import { ClickAnimation } from '../../../../../base/browser/ui/animations/animations.js';
 import { ForkConversationActionId } from '../actions/chatForkActions.js';
 import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
@@ -471,17 +471,70 @@ export function getVisibleCompletedResponseItemCount(nodes: ReadonlyArray<Node>)
 }
 
 /**
+ * Derives the footer's generation figures from a response's reported usage.
+ *
+ * Speed prefers the provider's latest model call, which is the only report that
+ * measures pure generation time. Providers that report no call timing fall back
+ * to the turn's busy time, which also covers tool calls and other waiting, so
+ * that figure is a lower bound on the decode rate rather than the rate itself.
+ */
+export function getResponseGenerationStats(usage: IChatUsage | undefined, elapsedMs: number | undefined, completionTokenCount: number | undefined, lastCallCompletionTokensKnown: boolean, measuredTimeToFirstTokenMs?: number): IChatResponseGenerationStats | undefined {
+	const latest = usage?.latestModelCall;
+	const lastCallTokens = lastCallCompletionTokensKnown ? usage?.completionTokens : completionTokenCount;
+	// A restored response can know its whole-turn total without the latest
+	// call's counts, so both the latest call and the turn may supply the tokens.
+	const speedTokens = typeof lastCallTokens === 'number' && lastCallTokens > 0 ? lastCallTokens : completionTokenCount;
+	const callDurationMs = latest?.duration;
+	const tokensPerSecond = typeof speedTokens === 'number' && speedTokens > 0
+		? typeof callDurationMs === 'number' && callDurationMs > 0
+			? speedTokens / (callDurationMs / 1000)
+			: typeof elapsedMs === 'number' && elapsedMs > 0
+				? speedTokens / (elapsedMs / 1000)
+				: undefined
+		: undefined;
+	// The provider's own call timing is authoritative; otherwise fall back to the
+	// client-measured arrival of the first streamed content.
+	const timeToFirstTokenMs = typeof latest?.timeToFirstTokenMs === 'number' && Number.isFinite(latest.timeToFirstTokenMs) && latest.timeToFirstTokenMs >= 0
+		? latest.timeToFirstTokenMs
+		: typeof measuredTimeToFirstTokenMs === 'number' && Number.isFinite(measuredTimeToFirstTokenMs) && measuredTimeToFirstTokenMs >= 0
+			? measuredTimeToFirstTokenMs
+			: undefined;
+	const stats: IChatResponseGenerationStats = {
+		...(typeof elapsedMs === 'number' && Number.isFinite(elapsedMs) && elapsedMs > 0 ? { elapsedMs } : {}),
+		...(timeToFirstTokenMs !== undefined ? { timeToFirstTokenMs } : {}),
+		...(tokensPerSecond !== undefined && Number.isFinite(tokensPerSecond) ? { tokensPerSecond } : {}),
+		...(typeof usage?.promptTokens === 'number' && usage.promptTokens > 0 ? { promptTokens: usage.promptTokens } : {}),
+		...(typeof completionTokenCount === 'number' && completionTokenCount > 0 ? { completionTokens: completionTokenCount } : {}),
+		...(typeof latest?.reasoningTokens === 'number' && latest.reasoningTokens > 0 ? { reasoningTokens: latest.reasoningTokens } : {}),
+		...(typeof latest?.cacheWriteTokens === 'number' && latest.cacheWriteTokens > 0 ? { cacheWriteTokens: latest.cacheWriteTokens } : {}),
+		...(typeof usage?.outputBuffer === 'number' && usage.outputBuffer > 0 ? { outputBuffer: usage.outputBuffer } : {}),
+		...(typeof usage?.contextUsage?.currentTokens === 'number' && usage.contextUsage.currentTokens > 0 ? { contextTokens: usage.contextUsage.currentTokens } : {}),
+		...(typeof usage?.contextUsage?.tokenLimit === 'number' && usage.contextUsage.tokenLimit > 0 ? { contextTokenLimit: usage.contextUsage.tokenLimit } : {}),
+	};
+	return Object.keys(stats).length ? stats : undefined;
+}
+
+/**
  * Response details shown when hovering the response footer's model and credits
  * stat. Provider call-level token reports are aggregated by model for the whole
  * turn.
  *
- * Returns `undefined` when the provider reported no totals, in which case no
- * hover should be shown at all. The result doubles as managed-hover content and
- * carries a footer label with exact counts but no completion time, since the
- * verbose footer already includes it in its accessible name.
+ * Returns `undefined` when the provider reported no totals and no generation
+ * figures, in which case no hover should be shown at all. The result doubles as
+ * managed-hover content and carries a footer label with exact counts but no
+ * completion time, since the verbose footer already includes it in its
+ * accessible name.
  */
-export function formatResponseTokenStats(modelTotals: readonly IChatUsageModelTotal[] | undefined, completedAt?: number): { readonly markdown: MarkdownString; readonly markdownNotSupportedFallback: string; readonly footerAriaLabel: string } | undefined {
-	if (!modelTotals?.length) {
+export function formatResponseTokenStats(modelTotals: readonly IChatUsageModelTotal[] | undefined, completedAt?: number, generationStats?: IChatResponseGenerationStats, details?: string): { readonly markdown: MarkdownString; readonly markdownNotSupportedFallback: string; readonly footerAriaLabel: string } | undefined {
+	const elapsed = formatChatResponseElapsedTime(generationStats?.elapsedMs);
+	const formattedTtft = formatTimeToFirstToken(generationStats?.timeToFirstTokenMs);
+	const timeToFirstToken = formattedTtft
+		? localize('chat.responseTokenStats.ttft', "Time to first token: {0}", formattedTtft)
+		: undefined;
+	const speed = formatTokensPerSecond(generationStats?.tokensPerSecond);
+	const generationSpeed = speed ? localize('chat.responseTokenStats.speed', "Generation speed: {0}", speed) : undefined;
+	const reportsGeneration = !!elapsed || !!timeToFirstToken || !!generationSpeed;
+	if (!modelTotals?.length && !reportsGeneration) {
 		return undefined;
 	}
 
@@ -493,14 +546,46 @@ export function formatResponseTokenStats(modelTotals: readonly IChatUsageModelTo
 	const formatOutputTokens = (count: number | string) => localize('chat.responseTokenStats.output', "Output tokens: {0}", count);
 	const formatCachedInputTokens = (count: number | string) => localize('chat.responseTokenStats.cachedInput', "Cached input tokens: {0}", count);
 	const tokenDetailsAriaParts: string[] = [];
-	const completion = formatChatRequestTimestamp(completedAt);
+	const completion = formatChatRequestTimestamp(completedAt, true);
 	let completed: string | undefined;
 	if (completion) {
 		completed = localize('chat.responseTokenStats.completed', "Completed: {0}", completion.fullText);
 		markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(completed)}\n\n`);
 	}
 
-	for (const total of modelTotals) {
+	const generationLines: string[] = [];
+	if (elapsed) {
+		const line = localize('chat.responseTokenStats.elapsed', "Elapsed: {0}", elapsed);
+		markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(line)}\n\n`);
+		generationLines.push(line);
+	}
+	if (timeToFirstToken) {
+		markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(timeToFirstToken)}\n\n`);
+		generationLines.push(timeToFirstToken);
+	}
+	if (generationSpeed) {
+		markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(generationSpeed)}\n\n`);
+		generationLines.push(generationSpeed);
+	}
+	const addGenerationDetail = (label: string, count: number | undefined) => {
+		if (typeof count !== 'number' || !Number.isFinite(count) || count <= 0) {
+			return;
+		}
+		const line = localize('chat.responseTokenStats.detail', "{0}: {1}", label, formatTokenCount(count));
+		markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(line)}\n\n`);
+		generationLines.push(line);
+	};
+	addGenerationDetail(localize('chat.responseTokenStats.reasoningTokens', "Reasoning tokens"), generationStats?.reasoningTokens);
+	addGenerationDetail(localize('chat.responseTokenStats.cacheWriteTokens', "Cache write tokens"), generationStats?.cacheWriteTokens);
+	addGenerationDetail(localize('chat.responseTokenStats.outputBuffer', "Pending output tokens"), generationStats?.outputBuffer);
+	if (typeof generationStats?.contextTokens === 'number' && typeof generationStats.contextTokenLimit === 'number'
+		&& generationStats.contextTokens > 0 && generationStats.contextTokenLimit > 0) {
+		const line = localize('chat.responseTokenStats.context', "Context: {0} / {1} tokens", formatTokenCount(generationStats.contextTokens), formatTokenCount(generationStats.contextTokenLimit));
+		markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(line)}\n\n`);
+		generationLines.push(line);
+	}
+
+	for (const total of modelTotals ?? []) {
 		const model = localize('chat.responseTokenStats.model', "Model: {0}", total.model);
 		const input = formatInputTokens(formatTokenCount(total.inputTokens));
 		markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(model)}\n\n`);
@@ -521,8 +606,29 @@ export function formatResponseTokenStats(modelTotals: readonly IChatUsageModelTo
 		markdown.appendMarkdown('\n');
 	}
 
+	// Without per-model totals the turn's own counts still describe what the
+	// response consumed, so offer them rather than an empty hover.
+	if (!modelTotals?.length && typeof generationStats?.promptTokens === 'number' && generationStats.promptTokens > 0) {
+		const input = formatInputTokens(formatTokenCount(generationStats.promptTokens));
+		markdown.appendMarkdown(`- ${escapeMarkdownSyntaxTokens(input)}\n`);
+		tokenDetailsAriaParts.push(formatInputTokens(generationStats.promptTokens));
+	}
+	if (!modelTotals?.length && typeof generationStats?.completionTokens === 'number' && generationStats.completionTokens > 0) {
+		const output = formatOutputTokens(formatTokenCount(generationStats.completionTokens));
+		markdown.appendMarkdown(`- ${escapeMarkdownSyntaxTokens(output)}\n`);
+		tokenDetailsAriaParts.push(formatOutputTokens(generationStats.completionTokens));
+	}
+	if (!modelTotals?.length && details) {
+		const model = localize('chat.responseTokenStats.model', "Model: {0}", details);
+		markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(model)}\n\n`);
+		tokenDetailsAriaParts.push(model);
+	}
+	if (!modelTotals?.length && tokenDetailsAriaParts.length) {
+		markdown.appendMarkdown('\n');
+	}
+
 	const footerAriaLabel = [title, ...tokenDetailsAriaParts].join('. ');
-	const markdownNotSupportedFallback = [title, completed, ...tokenDetailsAriaParts].filter(value => value !== undefined).join('. ');
+	const markdownNotSupportedFallback = [title, completed, ...generationLines, ...tokenDetailsAriaParts].filter(value => value !== undefined).join('. ');
 	return { markdown, markdownNotSupportedFallback, footerAriaLabel };
 }
 
@@ -618,20 +724,29 @@ export function reconcileChatItemHeight(
 }
 
 /**
- * Renders the response footer: completion timestamp and the model/credits stat.
+ * Renders the response footer: completion timestamp, the model/credits stat,
+ * and the generation figures (duration and, when known, speed).
  * `tokenStatsAriaLabel` is folded into the container's accessible name so the
- * token breakdown offered on hover is also available to screen readers.
+ * breakdown offered on hover is also available to screen readers.
  */
-export function renderChatResponseDetails(container: HTMLElement, details: string | undefined, completedAt: number | undefined, elapsedMs: number | undefined, verbose: boolean, tokenStatsAriaLabel?: string): HTMLElement | undefined {
+export function renderChatResponseDetails(container: HTMLElement, details: string | undefined, completedAt: number | undefined, elapsedMs: number | undefined, verbose: boolean, tokenStatsAriaLabel?: string, stats?: IChatResponseGenerationStats, display: ChatResponseStatsDisplay = 'always'): HTMLElement | undefined {
 	dom.clearNode(container);
 	container.classList.remove('chat-response-flip-active', 'chat-response-flip-down', 'chat-response-flip-reset');
 
-	const completion = verbose ? formatChatRequestTimestamp(completedAt) : undefined;
+	const completion = verbose ? formatChatRequestTimestamp(completedAt, true) : undefined;
 	const elapsed = completion ? formatChatResponseElapsedTime(elapsedMs) : undefined;
 	const alternate = completion?.isRelative
 		? formatChatResponseDetails(elapsed, completion.fullText)
 		: elapsed;
 	const responseDetails = formatChatResponseDetails(details, completion?.text);
+	const generationStats = display !== 'off' ? formatChatResponseGenerationStats(stats) : undefined;
+
+	if (display === 'off') {
+		container.ariaLabel = '';
+		container.classList.add('hidden');
+		container.tabIndex = -1;
+		return undefined;
+	}
 
 	let completedAtElement: HTMLElement | undefined;
 	if (completion) {
@@ -642,22 +757,36 @@ export function renderChatResponseDetails(container: HTMLElement, details: strin
 		}
 		timing.classList.toggle('has-alternate', !!alternate);
 	}
-	if (completion && details) {
+	if (completion && (details || generationStats)) {
 		dom.append(container, $('span.chat-response-details-separator', { 'aria-hidden': 'true' }, '\u2022'));
 	}
 	if (details) {
-		dom.append(container, $('span.chat-response-model-details', undefined, details));
+		dom.append(container, $('span.chat-response-model-details', { title: details }, details));
+	}
+	if (details && generationStats) {
+		dom.append(container, $('span.chat-response-details-separator', { 'aria-hidden': 'true' }, '\u2022'));
+	}
+	if (generationStats) {
+		dom.append(container, $('span.chat-response-stats', undefined, generationStats));
 	}
 
 	const accessibleTiming = completion
 		? localize('chatResponseCompletedAt', "Completed {0}", completion.fullText)
 		: undefined;
+	const statsElapsed = formatChatResponseElapsedTime(stats?.elapsedMs, true);
 	const accessibleElapsed = elapsed
 		? localize('chatResponseElapsed', "Elapsed time {0}", elapsed)
+		: statsElapsed
+			? localize('chatResponseElapsed', "Elapsed time {0}", statsElapsed)
+			: undefined;
+	const speed = formatTokensPerSecond(stats?.tokensPerSecond);
+	const accessibleSpeed = speed
+		? localize('chatResponseGenerationSpeed', "Generation speed {0}", speed)
 		: undefined;
-	container.ariaLabel = [accessibleTiming, accessibleElapsed, details, tokenStatsAriaLabel].filter(Boolean).join(', ');
-	container.classList.toggle('hidden', !responseDetails);
-	container.tabIndex = responseDetails ? 0 : -1;
+	container.ariaLabel = [accessibleTiming, accessibleElapsed, details, accessibleSpeed, tokenStatsAriaLabel].filter(Boolean).join(', ');
+	const hasContent = !!responseDetails || !!generationStats;
+	container.classList.toggle('hidden', !hasContent);
+	container.tabIndex = hasContent ? 0 : -1;
 	return completedAtElement;
 }
 
@@ -2066,6 +2195,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			&& element.response.value.length > 0
 			&& element.response.value.every(part => part.kind === 'systemNotification' && part.renderInlineTiming);
 		const responseTimingListeners = templateData.elementDisposables.add(new MutableDisposable());
+		// The class drives visibility, so a setting change takes effect even for a
+		// footer that a later render has not rebuilt yet.
+		const updateResponseStatsDisplay = (): ChatResponseStatsDisplay => {
+			const configured = this.configService.getValue<string>(ChatConfiguration.ResponseStatsDisplay);
+			const display: ChatResponseStatsDisplay = configured === 'hover' || configured === 'off' ? configured : 'always';
+			templateData.rowContainer.classList.toggle('show-response-stats', display === 'always');
+			templateData.rowContainer.classList.toggle('hide-response-stats', display === 'off');
+			return display;
+		};
 		const updateResponseDetails = () => {
 			const inlineTimingContainer = rendersInlineSystemNotificationTiming
 				? templateData.renderedParts?.findLast(part => part instanceof ChatSystemNotificationContentPart)?.inlineTimingContainer
@@ -2078,9 +2216,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// Providers report usage asynchronously, often after the footer has already
 			// rendered, so the breakdown is recomputed on every render pass. Sessions
 			// whose provider reports no totals get no hover rather than an empty one.
-			const tokenStats = isResponseVM(element)
+			const responseStatsDisplay = updateResponseStatsDisplay();
+			const generationStats = isResponseVM(element)
 				&& !rendersInlineSystemNotificationTiming
-				? formatResponseTokenStats(element.model.usage?.modelTotals, element.model.completionTimestamp)
+				&& element.isComplete
+				&& responseStatsDisplay !== 'off'
+				? getResponseGenerationStats(
+					element.model.usage,
+					element.model.elapsedMs,
+					element.model.completionTokenCount,
+					element.model.lastCallCompletionTokensKnown,
+					typeof element.model.firstTokenTimestamp === 'number' ? Math.max(0, element.model.firstTokenTimestamp - element.model.timestamp) : undefined,
+				)
+				: undefined;
+			const tokenStats = isResponseVM(element) && !rendersInlineSystemNotificationTiming && responseStatsDisplay !== 'off'
+				? formatResponseTokenStats(element.model.usage?.modelTotals, element.model.completionTimestamp, generationStats, details)
 				: undefined;
 			const completedAtElement = renderChatResponseDetails(
 				responseDetailsContainer,
@@ -2089,6 +2239,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				isResponseVM(element) && !rendersInlineSystemNotificationTiming ? element.model.elapsedMs : undefined,
 				isResponseVM(element) && this.configService.getValue<boolean>(ChatConfiguration.Verbose),
 				tokenStats?.footerAriaLabel,
+				generationStats,
+				responseStatsDisplay,
 			);
 			// The container (rather than the stat span) is the hover target because it
 			// is the focusable element, which keeps the breakdown reachable by keyboard
@@ -2165,6 +2317,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 			if (e.affectsConfiguration(ChatConfiguration.Verbose)) {
 				updateVerboseDetails();
+				updateResponseDetails();
+			}
+			if (e.affectsConfiguration(ChatConfiguration.ResponseStatsDisplay)) {
+				updateResponseStatsDisplay();
 				updateResponseDetails();
 			}
 			if (e.affectsConfiguration(ChatConfiguration.CollapseCompletedResponses) && isResponseVM(element)) {

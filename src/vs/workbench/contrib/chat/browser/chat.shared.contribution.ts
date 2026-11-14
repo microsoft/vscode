@@ -1139,6 +1139,17 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('chat.verbose', "Show request and completion timestamps. Hover over a completion timestamp to show the elapsed response time."),
 		},
+		[ChatConfiguration.ResponseStatsDisplay]: {
+			type: 'string',
+			enum: ['always', 'hover', 'off'],
+			default: 'hover',
+			markdownDescription: nls.localize('chat.responseStats.display', "Controls whether each chat response shows its model, generation time, and tokens per second in the footer, only when hovering the footer, or never."),
+			enumDescriptions: [
+				nls.localize('chat.responseStats.display.always', "Always show the response details in the footer."),
+				nls.localize('chat.responseStats.display.hover', "Show the response details only while hovering the response."),
+				nls.localize('chat.responseStats.display.off', "Hide the response details everywhere, including hover."),
+			],
+		},
 		...chatProgressConfigurationProperties,
 		[ChatConfiguration.SessionStateIndicatorEnabled]: {
 			type: 'boolean',

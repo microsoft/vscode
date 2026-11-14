@@ -1955,6 +1955,11 @@ export class ChatService extends Disposable implements IChatService {
 
 					if (request) {
 						model.acceptResponseProgress(request, progressItem, !isLast);
+						// Measure time to first token in the client so the footer can
+						// report it for providers that send no timing of their own.
+						if (progressItem.kind === 'markdownContent' || progressItem.kind === 'thinking') {
+							request.response?.setFirstTokenTimestamp(Date.now());
+						}
 					}
 				}
 				completeResponseCreated();
