@@ -137,7 +137,7 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
-		this._provider = instantiationService.createInstance(AgentHostWorktreeLocationProvider);
+		this._provider = this._register(instantiationService.createInstance(AgentHostWorktreeLocationProvider));
 		this._lastSessions = this._readLastSessions();
 		if (environmentService.isSessionsWindow) {
 			return;
