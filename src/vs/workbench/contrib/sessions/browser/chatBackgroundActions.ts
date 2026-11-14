@@ -11,7 +11,8 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
@@ -302,7 +303,7 @@ registerAction2(ChangeChatBackgroundLayoutAction);
 registerAction2(ToggleChatBackgroundTintAction);
 registerWorkbenchContribution2(SessionsChatBackgroundTint.ID, SessionsChatBackgroundTint, WorkbenchPhase.AfterRestored);
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+const chatBackgroundConfiguration: IConfigurationNode = {
 	properties: {
 		[AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING]: {
 			type: 'boolean',
@@ -348,4 +349,22 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			ignoreSync: true,
 		},
 	},
-});
+};
+
+let chatBackgroundConfigurationHolds = 0;
+
+/**
+ * Registers the settings of the chat background, and of its tint, for as long as anything shows chats over it: the Agents
+ * window, and an editor window while its chat area is enabled. They register once, however many hold them.
+ */
+export function registerChatBackgroundConfiguration(): IDisposable {
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	if (chatBackgroundConfigurationHolds++ === 0) {
+		configurationRegistry.registerConfiguration(chatBackgroundConfiguration);
+	}
+	return toDisposable(() => {
+		if (--chatBackgroundConfigurationHolds === 0) {
+			configurationRegistry.deregisterConfigurations([chatBackgroundConfiguration]);
+		}
+	});
+}

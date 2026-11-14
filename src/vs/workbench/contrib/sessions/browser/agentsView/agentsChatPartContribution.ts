@@ -28,6 +28,7 @@ import { AgentsChatPartVisibleContext, registerAgentsChatPartActions } from './a
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 import { AgentsChatViewHost } from './agentsChatViewHost.js';
 import { AgentsChatPartChangesEditorHeader } from './agentsChatPartChangesEditorHeader.js';
+import { registerChatBackgroundConfiguration } from '../chatBackgroundActions.js';
 
 /** How a feature shows chats in the chat part of an editor window (see {@link IEditorWindowChatPartService.enable}). */
 export interface IEditorWindowChatPartOptions {
@@ -92,6 +93,12 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 		@IAgentsChatPartFrame private readonly _frame: IAgentsChatPartFrame,
 	) {
 		super();
+		// Its chats show over the chat background, whose settings an editor window has while it is enabled
+		this._register(autorun(reader => {
+			if (this.enabled.read(reader)) {
+				reader.store.add(registerChatBackgroundConfiguration());
+			}
+		}));
 	}
 
 	enable(options: IEditorWindowChatPartOptions): IDisposable {
