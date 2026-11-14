@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../../base/common/linkedList.js';
@@ -207,7 +208,9 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 			try {
 				return { opener, priority: await opener.canOpen(sourceUri, token) };
 			} catch (e) {
-				this.logService.error(e);
+				if (!isCancellationError(e)) {
+					this.logService.error(e);
+				}
 				return undefined;
 			}
 		}));
