@@ -8925,7 +8925,7 @@ suite('WorkspacePicker - Allowed folders', () => {
 		});
 	});
 
-	test('with sections for the window\'s folder and its worktrees, offers New Worktree first and each section\'s current folder first, described as current', async () => {
+	test('offers No Workspace and the window\'s folder first, then under Worktrees New Worktree first and the worktrees, with the current one first, described as current', async () => {
 		const noWorkspace = { selected: false };
 		let current = '/local/vscode.worktrees/b';
 		const { picker } = createPicker(['/local/vscode.worktrees/b', '/local/vscode', '/local/vscode.worktrees/a'], noWorkspace, {
@@ -8946,10 +8946,10 @@ suite('WorkspacePicker - Allowed folders', () => {
 		const atFolder = items();
 
 		assert.deepStrictEqual({ atWorktree, ariaLabels, atFolder }, {
-			atWorktree: ['No Workspace', '---', 'New Worktree', '--- Folder', 'local/vscode', '--- Worktrees', 'b (Current) *', 'a (feature-a)'],
+			atWorktree: ['No Workspace', 'local/vscode', '--- Worktrees', 'New Worktree', 'b (Current) *', 'a (feature-a)'],
 			// Screen readers hear where the window's folder is now, apart from the checked choice
 			ariaLabels: [null, 'b, Current', null],
-			atFolder: ['No Workspace', '---', 'New Worktree', '--- Folder', 'local/vscode (Current) *', '--- Worktrees', 'b (feature-b)', 'a (feature-a)'],
+			atFolder: ['No Workspace', 'local/vscode (Current) *', '--- Worktrees', 'New Worktree', 'b (feature-b)', 'a (feature-a)'],
 		});
 	});
 
@@ -9032,12 +9032,12 @@ suite('WorkspacePicker - Allowed folders', () => {
 
 		assert.deepStrictEqual({ atFolder, inNewWorktree, atWorktree, fromWorktree: { chip: chip(), selected: newWorktree.selected } }, {
 			atFolder: {
-				items: ['worktree New Worktree', 'folder local/vscode *', 'worktree a'],
+				items: ['folder local/vscode *', 'worktree New Worktree', 'worktree a'],
 				chip: { icon: 'folder', label: 'local/vscode', ariaLabel: 'Folder: local/vscode', hover: 'Folder: local/vscode' },
 			},
 			inNewWorktree: { icon: 'worktree', label: 'New Worktree', ariaLabel: 'New worktree of local/vscode', hover: 'New worktree of local/vscode' },
 			atWorktree: {
-				items: ['worktree New Worktree', 'folder local/vscode', 'worktree a *'],
+				items: ['folder local/vscode', 'worktree New Worktree', 'worktree a *'],
 				chip: { icon: 'worktree', label: 'a', ariaLabel: 'Worktree: a', hover: 'Worktree: a' },
 			},
 			fromWorktree: { chip: { icon: 'worktree', label: 'New Worktree', ariaLabel: 'New worktree of local/vscode', hover: 'New worktree of local/vscode' }, selected: true },
