@@ -5,22 +5,53 @@
 
 import './decorations.css';
 import { DynamicViewOverlay } from '../../view/dynamicViewOverlay.js';
-import { HorizontalRange, RenderingContext } from '../../view/renderingContext.js';
+import { HorizontalRange, LineVisibleRanges, RenderingContext } from '../../view/renderingContext.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Range } from '../../../common/core/range.js';
 import * as viewEvents from '../../../common/viewEvents.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { ViewModelDecoration } from '../../../common/viewModel/viewModelDecoration.js';
 
+export interface IContentDecorationRangeRequest {
+	readonly range: Range;
+	readonly includeNewLines: boolean;
+}
+
+export interface IContentDecorationLineRange {
+	readonly lineNumber: number;
+	readonly left: number;
+	readonly width: number;
+	readonly continuesOnNextLine: boolean;
+}
+
+type ContentDecorationRangeProvider = (requests: readonly IContentDecorationRangeRequest[]) => readonly (readonly IContentDecorationLineRange[])[];
+
+interface INormalDecoration {
+	readonly range: Range;
+	readonly className: string;
+	readonly shouldFillLineOnLineBreak: boolean;
+	readonly showIfCollapsed: boolean;
+}
+
 export class DecorationsOverlay extends DynamicViewOverlay {
 
 	private readonly _context: ViewContext;
+	private readonly _shouldRenderDecoration: (decoration: ViewModelDecoration) => boolean;
+	private readonly _hasSelectiveOwnership: boolean;
+	private readonly _rangeProvider: ContentDecorationRangeProvider | undefined;
 	private _typicalHalfwidthCharacterWidth: number;
 	private _renderResult: string[] | null;
 
-	constructor(context: ViewContext) {
+	constructor(
+		context: ViewContext,
+		shouldRenderDecoration?: (decoration: ViewModelDecoration) => boolean,
+		rangeProvider?: ContentDecorationRangeProvider,
+	) {
 		super();
 		this._context = context;
+		this._hasSelectiveOwnership = shouldRenderDecoration !== undefined;
+		this._shouldRenderDecoration = shouldRenderDecoration ?? (() => true);
+		this._rangeProvider = rangeProvider;
 		const options = this._context.configuration.options;
 		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		this._renderResult = null;
@@ -65,14 +96,16 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 	// --- end event handlers
 
 	public prepareRender(ctx: RenderingContext): void {
-		const _decorations = ctx.getDecorationsInViewport();
+		const _decorations = this._hasSelectiveOwnership
+			? this._context.viewModel.getDecorationsInViewport(ctx.visibleRange)
+			: ctx.getDecorationsInViewport();
 
 		// Keep only decorations with `className`
 		let decorations: ViewModelDecoration[] = [];
 		let decorationsLen = 0;
 		for (let i = 0, len = _decorations.length; i < len; i++) {
 			const d = _decorations[i];
-			if (d.options.className) {
+			if (d.options.className && this._shouldRenderDecoration(d)) {
 				decorations[decorationsLen++] = d;
 			}
 		}
@@ -145,6 +178,17 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		let prevShowIfCollapsed: boolean = false;
 		let prevRange: Range | null = null;
 		let prevShouldFillLineOnLineBreak: boolean = false;
+		const normalDecorations: INormalDecoration[] = [];
+		const flush = () => {
+			if (prevClassName !== null) {
+				normalDecorations.push({
+					range: prevRange!,
+					className: prevClassName,
+					shouldFillLineOnLineBreak: prevShouldFillLineOnLineBreak,
+					showIfCollapsed: prevShowIfCollapsed,
+				});
+			}
+		};
 
 		for (let i = 0, lenI = decorations.length; i < lenI; i++) {
 			const d = decorations[i];
@@ -169,7 +213,7 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 
 			// flush previous decoration
 			if (prevClassName !== null) {
-				this._renderNormalDecoration(ctx, prevRange!, prevClassName, prevShouldFillLineOnLineBreak, prevShowIfCollapsed, visibleStartLineNumber, output);
+				flush();
 			}
 
 			prevClassName = className;
@@ -179,12 +223,37 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		}
 
 		if (prevClassName !== null) {
-			this._renderNormalDecoration(ctx, prevRange!, prevClassName, prevShouldFillLineOnLineBreak, prevShowIfCollapsed, visibleStartLineNumber, output);
+			flush();
+		}
+
+		const measured = this._rangeProvider?.(normalDecorations.map(decoration => ({
+			range: decoration.range,
+			includeNewLines: decoration.className === 'findMatch',
+		})));
+		for (let i = 0; i < normalDecorations.length; i++) {
+			const decoration = normalDecorations[i];
+			this._renderNormalDecoration(
+				ctx,
+				decoration.range,
+				decoration.className,
+				decoration.shouldFillLineOnLineBreak,
+				decoration.showIfCollapsed,
+				visibleStartLineNumber,
+				output,
+				measured?.[i],
+			);
 		}
 	}
 
-	private _renderNormalDecoration(ctx: RenderingContext, range: Range, className: string, shouldFillLineOnLineBreak: boolean, showIfCollapsed: boolean, visibleStartLineNumber: number, output: string[]): void {
-		const linesVisibleRanges = ctx.linesVisibleRangesForRange(range, /*TODO@Alex*/className === 'findMatch');
+	private _renderNormalDecoration(ctx: RenderingContext, range: Range, className: string, shouldFillLineOnLineBreak: boolean, showIfCollapsed: boolean, visibleStartLineNumber: number, output: string[], measured?: readonly IContentDecorationLineRange[]): void {
+		const linesVisibleRanges = measured
+			? measured.map(line => new LineVisibleRanges(
+				false,
+				line.lineNumber,
+				[new HorizontalRange(line.left, line.width)],
+				line.continuesOnNextLine,
+			))
+			: ctx.linesVisibleRangesForRange(range, /*TODO@Alex*/className === 'findMatch');
 		if (!linesVisibleRanges) {
 			return;
 		}

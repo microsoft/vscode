@@ -49,3 +49,12 @@
 .monaco-editor .cldr.codicon.codicon-folding-manual-collapsed {
 	color: var(--vscode-editorGutter-foldingControlForeground) !important;
 }
+
+/* The GPU renderer paints folding controls; retain transparent DOM controls as
+ * pointer/tooltip targets until gutter input is GPU-owned. */
+.monaco-editor.editor-view-gpu-folding-controls .margin-view-overlays .codicon-folding-expanded,
+.monaco-editor.editor-view-gpu-folding-controls .margin-view-overlays .codicon-folding-collapsed,
+.monaco-editor.editor-view-gpu-folding-controls .margin-view-overlays .codicon-folding-manual-expanded,
+.monaco-editor.editor-view-gpu-folding-controls .margin-view-overlays .codicon-folding-manual-collapsed {
+	color: transparent !important;
+}
