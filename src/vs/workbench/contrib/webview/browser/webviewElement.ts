@@ -9,7 +9,7 @@ import { parentOriginHash } from '../../../../base/browser/iframe.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { promiseWithResolvers, ThrottledDelayer } from '../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -711,6 +711,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		};
 	}
 
+	protected get localResourceRoots(): readonly URI[] {
+		return this._content.options.localResourceRoots ?? [];
+	}
+
 	public set state(state: string | undefined) {
 		this._content = { ...this._content, state };
 	}
@@ -845,6 +849,17 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}
 	}
 
+	protected async loadLocalResource(uri: URI, options: { ifNoneMatch: string | undefined; range?: { readonly start: number; readonly end?: number } }, token: CancellationToken): Promise<WebviewResourceResponse.StreamResponse> {
+		const remoteOS = uri.scheme === Schemas.vscodeRemote && isEqualAuthority(this._remoteAgentService.getConnection()?.remoteAuthority, uri.authority)
+			? (await this._remoteAgentService.getEnvironment())?.os
+			: undefined;
+		return this._instantiationService.invokeFunction(loadLocalResource, uri, {
+			...options,
+			roots: this.localResourceRoots,
+			remoteOS,
+		}, token);
+	}
+
 	private async loadResource(id: number, uri: URI, options: { ifNoneMatch: string | undefined; range?: { readonly start: number; readonly end?: number } }) {
 		if (this._disposed) {
 			return;
@@ -861,15 +876,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		const token = cts.token;
 
 		try {
-			const remoteOS = uri.scheme === Schemas.vscodeRemote && isEqualAuthority(this._remoteAgentService.getConnection()?.remoteAuthority, uri.authority)
-				? (await this._remoteAgentService.getEnvironment())?.os
-				: undefined;
-			const result = await this._instantiationService.invokeFunction(loadLocalResource, uri, {
-				ifNoneMatch: options.ifNoneMatch,
-				roots: this._content.options.localResourceRoots || [],
-				range: options.range,
-				remoteOS,
-			}, token);
+			const result = await this.loadLocalResource(uri, options, token);
 
 			if (this._disposed) {
 				if (result.type === WebviewResourceResponse.Type.Success) {
