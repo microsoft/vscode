@@ -103,7 +103,8 @@ pub(crate) fn native_clear_terminal() -> io::Result<()> {
 				cells,
 				origin,
 				&mut written,
-			) == 0 || SetConsoleCursorPosition(handle, origin) == 0
+			) == 0
+			|| SetConsoleCursorPosition(handle, origin) == 0
 		{
 			return Err(io::Error::last_os_error());
 		}

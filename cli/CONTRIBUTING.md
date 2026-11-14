@@ -4,6 +4,17 @@
 1. Get the extensions: [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer) and [CodeLLDB](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb)
 2. Ensure your workspace is set to the `launcher` folder being the root.
 
+## Rust toolchain
+
+Production CLI builds and Linux CLI checks use Rust 1.100.0. To use the same toolchain locally without changing your default, install it and select it explicitly when running Cargo from this directory:
+
+```shell
+rustup toolchain install 1.100.0 --profile minimal
+cargo +1.100.0 build --release --locked
+```
+
+On Windows, follow the native dependency setup below before building. Keep the toolchain version in the POSIX and Windows Rust installer templates under `build/azure-pipelines` and the Linux Rust test input in `.github/workflows/pr.yml` in sync.
+
 ## Building the CLI on Windows
 
 For the moment, we require OpenSSL on Windows, where it is not usually installed by default. To install it:

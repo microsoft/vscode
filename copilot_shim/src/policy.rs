@@ -15,7 +15,8 @@ fn linux_policy_disabled(contents: &str) -> bool {
 			object
 				.get("CopilotCliCommand")
 				.and_then(serde_json::Value::as_bool)
-		}) == Some(false)
+		})
+		== Some(false)
 }
 
 #[cfg(any(target_os = "linux", test))]

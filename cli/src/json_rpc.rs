@@ -73,7 +73,7 @@ pub async fn start_json_rpc<C: Send + Sync + 'static, S: Clone>(
 					Err(e) => return Err(e)
 				};
 
-				read_buf.truncate(0);
+				read_buf.clear();
 
 				match r {
 					MaybeSync::Sync(Some(v)) => {

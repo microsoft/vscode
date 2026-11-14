@@ -616,7 +616,7 @@ jobs:
     if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-linux-cli-test.yml
     with:
-      rustup_toolchain: 1.88
+      rustup_toolchain: '1.100.0'
       cli_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.cli == 'true' }}
       copilot_shim_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.copilot-shim == 'true' }}
       runner: *linux-runner
