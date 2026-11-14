@@ -30,7 +30,7 @@ import { type IAgentSubscription } from '../../../../../../platform/agentHost/co
 import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement, type McpServerState, type PluginCustomization, type RootConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { AgentCustomization, DEFAULT_CHAT_ID, ROOT_STATE_URI, StateComponents, getSessionChatResource, readSessionFolderPickerDecision, type ISessionFolderPickerDecision } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCustomization, DEFAULT_CHAT_ID, ROOT_STATE_URI, StateComponents, getSessionChatResource, readSessionFolderPickerDecision, readSessionWorkspaceless, type ISessionFolderPickerDecision } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -93,6 +93,9 @@ export interface IAgentHostCustomizationService {
 
 	/** The ordered roots in the client's URI space for filesystem access. */
 	getClientWorkingDirectoryUris(sessionResource: URI): readonly URI[];
+
+	/** Whether the started session has no workspace, working in a scratch folder the agent host created for it. */
+	isWorkspaceless?(sessionResource: URI): boolean;
 
 	/** Returns the host-advertised chat URI for the selected client chat resource. */
 	getBackendChatResource?(sessionResource: URI): URI | undefined;
@@ -215,6 +218,8 @@ export interface IAgentHostCustomizationTarget {
 	readonly workingDirectories?: readonly string[];
 	/** Client-space roots, including provisional roots. */
 	readonly clientWorkingDirectories?: readonly URI[];
+	/** Whether the session has no workspace, so that its working directory is a scratch folder. */
+	readonly workspaceless?: boolean;
 	readonly rootConfig?: RootConfigState;
 	isBundledMcpServer(pluginUri: string, serverName: string): boolean;
 	authenticate(request: IAgentHostAuthenticateRequest): Promise<unknown>;
@@ -329,6 +334,10 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			return target.clientWorkingDirectories;
 		}
 		return target.workingDirectories?.map(root => target.resourceUris.fromAgentHost(URI.parse(root))) ?? [];
+	}
+
+	isWorkspaceless(sessionResource: URI): boolean {
+		return this._resolveTarget(sessionResource)?.workspaceless === true;
 	}
 
 	getClientPluginUri(sessionResource: URI, plugin: Pick<PluginCustomization, 'uri' | 'clientId'>): URI | undefined {
@@ -1150,6 +1159,7 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 			workingDirectory: workingDirectories[0],
 			workingDirectories,
 			clientWorkingDirectories,
+			workspaceless: readSessionWorkspaceless(sessionState?._meta),
 			rootConfig: rootState && !(rootState instanceof Error) ? rootState.config : undefined,
 			isBundledMcpServer: (pluginUri, serverName) => this._activeClientService.isBundledMcpServer(pluginUri, serverName),
 			authenticate: request => target.connection.authenticate(request),
