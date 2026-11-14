@@ -55,6 +55,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private isMainEditorCenteredLayoutContext: IContextKey<boolean>;
 	private sideBarVisibleContext: IContextKey<boolean>;
 	private mainEditorAreaVisibleContext: IContextKey<boolean>;
+	private chatPartEnabledContext: IContextKey<boolean>;
 	private chatPartVisibleContext: IContextKey<boolean>;
 	private editorAreaHiddenByChatContext: IContextKey<boolean>;
 	private panelPositionContext: IContextKey<string>;
@@ -178,8 +179,9 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		// Editor Area
 		this.mainEditorAreaVisibleContext = MainEditorAreaVisibleContext.bindTo(this.contextKeyService);
-		// A chat part is registered as the window starts and stays for its lifetime
-		ChatPartEnabledContext.bindTo(this.contextKeyService).set(this.layoutService.hasChatPart());
+		// The chat part joins the layout when the window is created, which can happen after this handler
+		this.chatPartEnabledContext = ChatPartEnabledContext.bindTo(this.contextKeyService);
+		this.chatPartEnabledContext.set(this.layoutService.hasChatPart());
 		this.chatPartVisibleContext = ChatPartVisibleContext.bindTo(this.contextKeyService);
 		this.editorAreaHiddenByChatContext = EditorAreaHiddenByChatContext.bindTo(this.contextKeyService);
 		this.mainEditorAreaVisibleContext.set(this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
@@ -257,7 +259,10 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		this._register(this.layoutService.onDidChangePanelAlignment(alignment => this.panelAlignmentContext.set(alignment)));
 
+		this.layoutService.whenRestored.then(() => this.chatPartEnabledContext.set(this.layoutService.hasChatPart()));
+
 		this._register(this.layoutService.onDidChangePartVisibility(() => {
+			this.chatPartEnabledContext.set(this.layoutService.hasChatPart());
 			this.mainEditorAreaVisibleContext.set(this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
 			this.chatPartVisibleContext.set(this.layoutService.isVisible(Parts.CHAT_PART));
 			this.editorAreaHiddenByChatContext.set(this.layoutService.isEditorHiddenByChat());
