@@ -88,7 +88,7 @@ suite('AgentHostWorktree', () => {
 				const path = workingDirectories.get(resource.toString());
 				return path ? upcastPartial<IAgentSession>({ metadata: { workingDirectoryPath: path } }) : undefined;
 			},
-			model: upcastPartial<IAgentSessionsService['model']>({ onDidChangeSessions: onDidChangeSessions.event }),
+			model: upcastPartial<IAgentSessionsService['model']>({ onDidChangeSessions: onDidChangeSessions.event, onDidResolve: Event.None }),
 		}));
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IContextKeyService, contextKeyService);
@@ -412,5 +412,43 @@ suite('AgentHostWorktree', () => {
 			plain: ['/work/vscode.worktrees/created (automatic)'],
 			held: { moves: ['/work/vscode.worktrees/feature', '/work/vscode.worktrees/created (gave way)'], applied: ['/work/vscode.worktrees/feature'] },
 		});
+	});
+
+	test('logs the trigger as a window with a folder that can move starts, in both arms, before any chat shows', async () => {
+		const on = createWorktree({ enabled: true });
+		const off = createWorktree({ enabled: false });
+		const notMovable = createWorktree({ enabled: true, canSetLocation: false });
+
+		assert.deepStrictEqual({ on: on.triggers, off: off.triggers, notMovable: notMovable.triggers }, {
+			on: [`config.${ChatConfiguration.EditorWindowEnableWorktree}`],
+			off: [`config.${ChatConfiguration.EditorWindowEnableWorktree}`],
+			notMovable: [],
+		});
+	});
+
+	test('a working directory that changes while it follows the previous one is followed once that settles', async () => {
+		const setting = new DeferredPromise<void>();
+		const feature = createWorktree({ enabled: true, setting: setting.p });
+		feature.show(agentSession('new'));
+		await settle();
+		feature.workingDirectories.set(agentSession('new').toString(), worktree.fsPath);
+		feature.onDidChangeSessions.fire();
+		await settle();
+		feature.workingDirectories.set(agentSession('new').toString(), created.fsPath);
+		feature.onDidChangeSessions.fire();
+		await settle();
+		setting.complete();
+		await settle();
+		await settle();
+
+		assert.deepStrictEqual(feature.applied, ['/work/vscode.worktrees/feature', '/work/vscode.worktrees/created']);
+	});
+
+	test('marks a terminal that started in a worktree inside the folder once the folder returns to its own location', async () => {
+		const nested = URI.file('/work/vscode/.worktrees/nested');
+		const feature = createWorktree({ enabled: true, at: nested, worktrees: [nested], terminalCwd: URI.file('/work/vscode/.worktrees/nested/src') });
+		feature.userMovesTo(primary);
+
+		assert.deepStrictEqual(feature.marks.at(-1), 'marked');
 	});
 });

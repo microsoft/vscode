@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
@@ -19,6 +20,7 @@ import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../..
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { getCurrentFolderLocationDescription, getNewWorktreeLabel, groupFolderLocations } from '../../../../../services/workspaces/common/folderLocationSections.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+import { IAgentSessionsService } from '../agentSessionsService.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
@@ -54,10 +56,18 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 		@IWorkspaceFolderLocationService private readonly _folderLocationService: IWorkspaceFolderLocationService,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
+		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
 	) {
 		super();
 		this._register(_folderLocationService.onDidChangeProviders(() => this.refresh()));
 		this._register(_folderLocationService.onDidChangeLocation(() => this.refresh()));
+		// A session can come to work in a new worktree meanwhile, such as one in the background
+		const refreshForSessions = this._register(new RunOnceScheduler(() => this.refresh(), 500));
+		this._register(agentSessionsService.model.onDidChangeSessions(() => {
+			if (this.isActive()) {
+				refreshForSessions.schedule();
+			}
+		}));
 		this._register(_provisional.onDidChange(() => this._onDidChange.fire()));
 		this.refresh();
 	}
@@ -135,10 +145,12 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 					category: { label: section.title, order: index + 1, showHeader: true },
 					run: async () => {
 						const sessionResource = this._sessionResource();
+						// Read before the folder changes, which resets the session's configuration
+						const isolation = this._isolation();
 						if (sessionResource) {
 							this._newSessionFolderService.setFolder(sessionResource, choice.uri);
 						}
-						await this._setIsolation(false);
+						await this._setIsolation(false, isolation, choice.uri);
 						onDidPick();
 					},
 				});
@@ -181,15 +193,14 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 	}
 
 	/** Has the session work in a new worktree of its folder, or in the folder itself. */
-	private async _setIsolation(worktree: boolean): Promise<void> {
+	private async _setIsolation(worktree: boolean, isolation = this._isolation(), folder?: URI): Promise<void> {
 		const sessionResource = this._sessionResource();
 		const provider = sessionResource && getLocalAgentHostSessionProvider(sessionResource);
-		const isolation = this._isolation();
 		const value = worktree ? (isolation?.worktree ? 'worktree' : undefined) : isolation?.inPlace;
 		if (!sessionResource || !provider || !isolation || !value || isolation.values[isolation.key] === value) {
 			return;
 		}
-		const workingDirectory = this._newSessionFolderService.getFolder(sessionResource) ?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
+		const workingDirectory = folder ?? this._newSessionFolderService.getFolder(sessionResource) ?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 		await this._provisional.applyConfigChange(sessionResource, provider, workingDirectory, { [isolation.key]: value });
 		this._onDidChange.fire();
 	}
