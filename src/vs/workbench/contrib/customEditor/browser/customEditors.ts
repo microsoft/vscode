@@ -16,7 +16,7 @@ import { RedoCommand, UndoCommand } from '../../../../editor/browser/editorExten
 import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { IResourceEditorInput } from '../../../../platform/editor/common/editor.js';
 import { FileOperation, IFileService } from '../../../../platform/files/common/files.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -34,6 +34,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { ContributedCustomEditors } from '../common/contributedCustomEditors.js';
 import { CustomEditorDiffInput, CustomEditorSideBySideDiffInput } from './customEditorDiffInput.js';
 import { CustomEditorInput } from './customEditorInput.js';
+import { IWebview, IWebviewService } from '../../webview/browser/webview.js';
 
 interface CustomEditorDiffInputInfo {
 	readonly viewType: string;
@@ -128,22 +129,39 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		}));
 
 		const PRIORITY = 105;
-		this._register(UndoCommand.addImplementation(PRIORITY, 'custom-editor', () => {
-			return this.withActiveCustomEditor(editor => editor.undo());
+		this._register(UndoCommand.addImplementation(PRIORITY, 'custom-editor', accessor => {
+			return this.withActiveCustomEditor(accessor, editor => editor.undo());
 		}));
-		this._register(RedoCommand.addImplementation(PRIORITY, 'custom-editor', () => {
-			return this.withActiveCustomEditor(editor => editor.redo());
+		this._register(RedoCommand.addImplementation(PRIORITY, 'custom-editor', accessor => {
+			return this.withActiveCustomEditor(accessor, editor => editor.redo());
 		}));
 	}
 
-	private withActiveCustomEditor(f: (editor: CustomEditorUndoRedoInput) => void | Promise<void>): boolean | Promise<void> {
+	private withActiveCustomEditor(accessor: ServicesAccessor, f: (editor: CustomEditorUndoRedoInput) => void | Promise<void>): boolean | Promise<void> {
 		const editor = this.getActiveCustomEditorUndoRedoInput();
 		if (editor) {
+			const webviewService = accessor.get(IWebviewService);
+			const activeWebview = webviewService.activeWebview;
+			if (activeWebview?.isFocused && !this.isEditorWebview(editor, activeWebview)) {
+				return false;
+			}
+
 			const result = f(editor);
 			if (result) {
 				return result;
 			}
 			return true;
+		}
+		return false;
+	}
+
+	private isEditorWebview(editor: CustomEditorUndoRedoInput, webview: IWebview): boolean {
+		if (editor.webview === webview) {
+			return true;
+		}
+		const activeEditor = this.editorService.activeEditor;
+		if (activeEditor instanceof DiffEditorInput && activeEditor.original instanceof CustomEditorSideBySideDiffInput) {
+			return activeEditor.original.webview === webview;
 		}
 		return false;
 	}
