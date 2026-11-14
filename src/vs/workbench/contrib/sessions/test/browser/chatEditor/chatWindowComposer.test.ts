@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -548,6 +548,27 @@ suite('Chat window composer', () => {
 		composer.retargetFolder(URI.file('/repo.worktrees/a'), URI.file('/repo'));
 
 		assert.deepStrictEqual({ before, after: allowed() }, { before: ['/repo'], after: ['/repo', '/repo.worktrees/a'] });
+	});
+
+	test('a composer retargeted between two folders outside the window\'s folders keeps the new folder: an observer of its allowed folders, as its picker, sees it only once the picker shows it', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createServices(store);
+		const composers = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const composer = store.add(composers.create(URI.parse('vscode-agents-composer:/between'), { target: { folderUri: URI.file('/repo.worktrees/a') }, allowedFolders: constObservable([URI.file('/repo')]) }, async () => { }));
+		// The picker: shows what onDidRetarget aims it at, and falls back to an allowed folder when what it shows is no longer allowed
+		let shown = '/repo.worktrees/a';
+		store.add(composer.onDidRetarget(target => shown = target.folderUri!.path));
+		store.add(autorun(reader => {
+			const allowed = composer.allowedFolders!.read(reader).map(folder => folder.path);
+			if (!allowed.includes(shown)) {
+				shown = allowed[0];
+				composer.setRequestedTarget({ folderUri: URI.file(shown) });
+			}
+		}));
+
+		composer.retargetFolder(URI.file('/repo.worktrees/b'), URI.file('/repo.worktrees/a'));
+
+		assert.deepStrictEqual({ shown, aimsAt: composer.requestedTarget.get()?.folderUri?.path }, { shown: '/repo.worktrees/b', aimsAt: '/repo.worktrees/b' });
 	});
 
 	test('a composer does not follow its host to another folder while it sends: from the user\'s submit, before its request is accepted, until the request ends', () => {

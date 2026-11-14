@@ -827,9 +827,9 @@ export class AgentHostSessionInputPills extends Disposable {
 		});
 		// The Changes pill hides while the working set shows the changes, and while a new session's catalogue is pending. An
 		// input that shows only the working set, whose Changes pill is the session's, shows the pill again once the working set
-		// shows no files, such as after Keep, so the session's other changes stay reachable.
+		// shows no files, such as after Keep, also files the input kept itself, so the session's other changes stay reachable.
 		const changesPillHidden = this.changesPillHidden = derived(this, reader => workingSetPending.read(reader)
-			|| (workingSetEnabled.read(reader) && (!this.workingSetOnly || (workingSetChanges.read(reader)?.length ?? 0) > 0)));
+			|| (workingSetEnabled.read(reader) && (!this.workingSetOnly || this._widget.inputPart.sessionWorkingSetDiffs.read(reader).length > 0)));
 		// Undo reverts a file's changes with the host's file-level Discard Changes operation, when the host offers it.
 		const workingSetDiscard = derived<ChangesetOperation | undefined>(this, reader => {
 			const kind = changesetTarget.read(reader)?.changeset.changeKind;
