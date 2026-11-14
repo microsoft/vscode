@@ -3530,7 +3530,7 @@ registerAction2(class DisableAutomationAction extends Action2 {
 	}
 });
 
-registerAction2(class RemoveAutomationLimitsAction extends Action2 {
+registerAction2(class RemoveAutomationEndDateAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessions.automations.removeLimits',
