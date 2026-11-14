@@ -85,7 +85,11 @@ export class WelcomeName extends Disposable {
 
 		let profileName = githubProfileNames.get(accountKey);
 		if (!profileName) {
-			profileName = this._fetchGitHubProfileName(account.authenticationProvider.id, account.authenticationProvider.enterprise, account.sessionId);
+			profileName = this._fetchGitHubProfileName(account.authenticationProvider.id, account.authenticationProvider.enterprise, account.sessionId).catch(() => {
+				githubProfileNames.delete(accountKey);
+				this.logService.warn('Failed to fetch GitHub profile name.');
+				return undefined;
+			});
 			githubProfileNames.set(accountKey, profileName);
 		}
 		const resolvedProfileName = await profileName;
@@ -119,9 +123,6 @@ export class WelcomeName extends Disposable {
 			const client = lifetime.add(await this.gitHubService.acquireAccountApiClient(providerId, session, signal));
 			const profile = await client.users.getAuthenticated(signal, { caller: 'welcomeName.fetchGitHubProfileName', priority: 'background' });
 			return profile.name?.trim() || undefined;
-		} catch {
-			this.logService.warn('Failed to fetch GitHub profile name.');
-			return undefined;
 		} finally {
 			lifetime.dispose();
 		}
