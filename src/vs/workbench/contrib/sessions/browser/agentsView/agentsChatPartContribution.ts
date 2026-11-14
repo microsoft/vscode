@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
-import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { localize } from '../../../../../nls.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -50,13 +50,19 @@ export class AgentsChatPartContribution extends Disposable {
 			if (!contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.agentsViewActive.key)) {
 				hostRegistration.clear();
 			} else if (!hostRegistration.value) {
-				hostRegistration.value = chatViewHostService.registerHost({
+				const registration = chatViewHostService.registerHost({
 					reveal: preserveFocus => host.value.reveal(preserveFocus),
 					revealIfShowing: (sessionResource, options) => host.value.revealIfShowing(sessionResource, options),
 					openSession: (sessionResource, options) => host.value.openSession(sessionResource, options),
 					toggle: () => host.value.toggle(),
 					startSession: (sessionResource, options) => host.value.startSession(sessionResource, options),
 				});
+				// Unregistered, what the host is still doing does not open the chat part
+				hostRegistration.value = combinedDisposable(registration, toDisposable(() => {
+					if (host.hasValue) {
+						host.value.deactivate();
+					}
+				}));
 			}
 		};
 		updateHostRegistration();

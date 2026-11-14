@@ -49,6 +49,17 @@ export class AgentsChatViewHost implements IChatViewHost {
 		@INotificationService private readonly _notificationService: INotificationService,
 	) { }
 
+	/** Increases as the host is deactivated: what started before then does not open the chat part once it continues. */
+	private _generation = 0;
+
+	/**
+	 * It no longer replaces the Chat view, such as once chat needs setting up: what it is still doing, such as looking up a
+	 * session or starting one, does not open the chat part.
+	 */
+	deactivate(): void {
+		this._generation++;
+	}
+
 	/** Whether it shows anything: not while chat is hidden or disabled, such as with AI features off. */
 	private get _available(): boolean {
 		return this._contextKeyService.contextMatchesRules(AgentsViewAvailable);
@@ -71,11 +82,12 @@ export class AgentsChatViewHost implements IChatViewHost {
 		if (!this._available) {
 			return undefined;
 		}
+		const generation = this._generation;
 		// Its session is known only while the providers are held: until it shows in the chat part, which holds them then
 		const hold = this._providers.acquire();
 		try {
 			const owner = await waitForAgentsViewSession(this._sessionsManagementService, sessionResource, () => this._sessionsManagementService.getSessionForChatResource(sessionResource));
-			if (!owner) {
+			if (!owner || generation !== this._generation) {
 				return undefined;
 			}
 			await this._chatPart.openChat(owner.session, owner.chat.resource, { preserveFocus: options?.preserveFocus });
@@ -108,6 +120,7 @@ export class AgentsChatViewHost implements IChatViewHost {
 			this._notificationService.info(localize('agentsChatViewHost.localChatUnavailable', "Local chat sessions are not available while the Agents view is enabled."));
 			throw new CancellationError();
 		}
+		const generation = this._generation;
 		const model = await this._chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, 'AgentsChatViewHost#startSession', 'explicitOverride');
 		if (!model) {
 			throw new Error(`Unable to load the chat session ${sessionResource.toString()}`);
@@ -117,6 +130,10 @@ export class AgentsChatViewHost implements IChatViewHost {
 		return {
 			moved: async () => { },
 			complete: async (resource, sent) => {
+				if (generation !== this._generation) {
+					// Deactivated meanwhile: it shows nothing, neither the session nor a composer
+					return false;
+				}
 				const given = !isUntitledChatSession(sessionResource);
 				const shown = (sent || given || !isEqual(resource, sessionResource)) && !!await this.openSession(resource);
 				if (!shown) {
@@ -126,7 +143,7 @@ export class AgentsChatViewHost implements IChatViewHost {
 				}
 				return shown;
 			},
-			createComposer: () => composer ?? this._openComposer(sessionType),
+			createComposer: () => composer ?? (generation === this._generation ? this._openComposer(sessionType) : Promise.resolve(undefined)),
 			dispose: () => model.dispose(),
 		};
 	}
