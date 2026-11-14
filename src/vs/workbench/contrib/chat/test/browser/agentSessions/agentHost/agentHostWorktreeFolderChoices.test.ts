@@ -52,7 +52,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 			getLocations: async () => listed.locations.map(uri => upcastPartial<IFolderLocation>({ uri, label: uri.path.split('/').pop() })),
 			getLocation: () => options.at.path === primary.path ? undefined : upcastPartial<IResolvedFolderLocation>({ uri: options.at, label: options.at.path.split('/').pop() }),
 			// As git links them: only the worktrees of the window's folder resolve, not another repository or the folder itself
-			resolveLocation: async (_primary: URI, location: URI) => options.resolveLocation ? options.resolveLocation(location) : location.path.startsWith('/work/vscode.worktrees/') ? upcastPartial<IResolvedFolderLocation>({ uri: location }) : undefined,
+			resolveLocation: async (_primary: URI, location: URI) => options.resolveLocation ? options.resolveLocation(location) : location.path.startsWith('/work/vscode.worktrees/') || location.path.startsWith('/work/checkouts/') ? upcastPartial<IResolvedFolderLocation>({ uri: location }) : undefined,
 		}));
 		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({
 			getFolder: () => undefined,
@@ -103,25 +103,27 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		// By its icon only, but New Worktree by its name; what it is, by name, for screen readers and on hover
 		// An existing chat, whose started session works in a folder that the chip does not list: a worktree once git proves it
 		// one; another repository, or the window's folder by another path, is a folder
-		const unlisted = { worktree: URI.file('/work/vscode.worktrees/small-random-change-addition'), otherRepository: URI.file('/work/another-repo'), primaryAlias: URI.file('/private/work/vscode') };
-		const unlistedBeforeProven = chip(unlisted.worktree).icon;
+		// A worktree VS Code created for the folder is one at once, as after a reload; one elsewhere once git proves it
+		const unlisted = { worktree: URI.file('/work/vscode.worktrees/small-random-change-addition'), elsewhere: URI.file('/work/checkouts/fix'), otherRepository: URI.file('/work/another-repo'), primaryAlias: URI.file('/private/work/vscode') };
+		const beforeRead = { worktree: chip(unlisted.worktree).icon, elsewhere: chip(unlisted.elsewhere).icon };
 		chip(unlisted.otherRepository);
 		chip(unlisted.primaryAlias);
 		await new Promise<void>(resolve => setTimeout(resolve, 0));
-		assert.deepStrictEqual({ inNewWorktree, changes, folderChip, worktreeChip: chip(feature), unlistedBeforeProven, unlistedWorktreeChip: chip(unlisted.worktree), otherRepositoryChip: chip(unlisted.otherRepository), primaryAliasChip: chip(unlisted.primaryAlias) }, {
+		assert.deepStrictEqual({ inNewWorktree, changes, folderChip, worktreeChip: chip(feature), beforeRead, unlistedWorktreeChip: chip(unlisted.worktree), elsewhereChip: chip(unlisted.elsewhere), otherRepositoryChip: chip(unlisted.otherRepository), primaryAliasChip: chip(unlisted.primaryAlias) }, {
 			inNewWorktree: { items: ['New Worktree *', '[Folder] vscode (Current)', '[Worktrees] feature', '[Worktrees] other'], chip: { icon: 'worktree', label: 'New Worktree', description: 'New worktree of vscode' } },
 			changes: ['isolation worktree', 'folder /work/vscode.worktrees/feature', 'isolation folder'],
 			folderChip: { icon: 'folder', label: null, description: 'Folder: vscode' },
 			worktreeChip: { icon: 'worktree', label: null, description: 'Worktree: feature' },
-			unlistedBeforeProven: 'folder',
+			beforeRead: { worktree: 'worktree', elsewhere: 'folder' },
 			unlistedWorktreeChip: { icon: 'worktree', label: null, description: 'Worktree: small-random-change-addition' },
+			elsewhereChip: { icon: 'worktree', label: null, description: 'Worktree: fix' },
 			otherRepositoryChip: { icon: 'folder', label: null, description: 'Folder: another-repo' },
 			primaryAliasChip: { icon: 'folder', label: null, description: 'Folder: vscode' },
 		});
 	});
 
 	test('a folder it does not list, which a failed read does not prove a worktree, is read again as it reads the worktrees again, and shows as a worktree once proven', async () => {
-		const unlisted = URI.file('/work/vscode.worktrees/small-random-change-addition');
+		const unlisted = URI.file('/work/checkouts/fix');
 		let reads = 0;
 		let readable = false;
 		const { choices } = await createChoices({
