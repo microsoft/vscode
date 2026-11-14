@@ -564,7 +564,7 @@ suite('ChatViewPane session transitions', () => {
 		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({}));
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({}));
 		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({}));
-		const host = instantiationService.createInstance(ChatViewHostService);
+		const host = store.add(instantiationService.createInstance(ChatViewHostService));
 		await host.openSession(chat, { preserveFocus: true });
 		const stream: string[] = [];
 		store.add(autorun(reader => {
