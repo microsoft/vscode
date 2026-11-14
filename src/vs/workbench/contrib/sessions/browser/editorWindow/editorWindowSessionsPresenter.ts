@@ -104,7 +104,7 @@ class ChatViewSessionsPresenter implements IEditorWindowSessionsPresenter {
 	 * such as the one of its sessions list, is aimed at `target`.
 	 */
 	async openComposer(target: INewSessionTarget | undefined, options?: IEditorWindowPresenterOpenOptions): Promise<void> {
-		const aimed = target && { folder: target.folderUri, providerId: target.providerId, sessionType: target.sessionTypeId };
+		const aimed = target && { folder: target.folderUri, providerId: target.providerId, sessionType: target.sessionTypeId, modelId: target.modelId, modeId: target.modeId, requireDevContainer: target.requireDevContainer };
 		await this._chatViewHostService.newChat(aimed, { ownChat: true, preserveFocus: options?.preserveFocus });
 	}
 
