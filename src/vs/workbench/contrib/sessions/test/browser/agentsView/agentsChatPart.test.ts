@@ -266,6 +266,8 @@ suite('AgentsChatPartService', () => {
 		return {
 			service,
 			part,
+			/** The window's session host, which the chat part binds. */
+			host,
 			instantiationService,
 			/** What the editor window creates with the delayed chat part, which it gets as such. */
 			scoped,
@@ -355,6 +357,39 @@ suite('AgentsChatPartService', () => {
 		part.activeGroup.open(composerTab);
 
 		assert.deepStrictEqual({ draft, committed, picked: shown() }, { draft: 'none', committed: '/a commit', picked: '/a open' });
+	});
+
+	test('the window\'s host shows the draft of the active composer until it sends, as the Agents window\'s do, while the chat part shows no chat for it; it follows tab switches, the first send and close', async () => {
+		const status = observableValue<SessionStatus>('status', SessionStatus.Untitled);
+		const draftChat = upcastPartial<IChat>({ resource: URI.parse('test:/draft') });
+		const draft = upcastPartial<ISession>({ resource: URI.parse('test:/draftSession'), status, mainChat: constObservable(draftChat) });
+		const newSession = observableValue<ISession | undefined>('newSession', undefined);
+		const other = buildTestSession({ id: 'other', title: 'Other' });
+		const { service, part, host } = createService({ newSession, sessions: () => [other.session] });
+		const hostShows = () => ({ session: host.session.get()?.resource.path ?? 'none', chat: host.chat.get()?.resource.path ?? 'none', active: service.activeChat.get() ? 'chat' : 'none' });
+
+		await service.openComposer(undefined);
+		const composerTab = part.activeGroup.activeEditor!;
+		const noDraftYet = hostShows();
+		newSession.set(draft, undefined);
+		const composing = hostShows();
+		await service.openChat(other.session, other.mainChat.chat.resource);
+		const otherTab = hostShows();
+		part.activeGroup.open(composerTab);
+		const backToComposer = hostShows();
+		status.set(SessionStatus.InProgress, undefined);
+		const sent = hostShows();
+		await part.activeGroup.closeEditor(part.activeGroup.activeEditor!);
+		await service.closeChat(other.mainChat.chat.resource);
+
+		assert.deepStrictEqual({ noDraftYet, composing, otherTab, backToComposer, sent, closed: hostShows() }, {
+			noDraftYet: { session: 'none', chat: 'none', active: 'none' },
+			composing: { session: '/draftSession', chat: '/draft', active: 'none' },
+			otherTab: { session: other.session.resource.path, chat: other.mainChat.chat.resource.path, active: 'chat' },
+			backToComposer: { session: '/draftSession', chat: '/draft', active: 'none' },
+			sent: { session: '/draftSession', chat: '/draft', active: 'chat' },
+			closed: { session: 'none', chat: 'none', active: 'none' },
+		});
 	});
 
 	test('each explicit open of the active chat reports it again, as where its session works may matter again', async () => {
