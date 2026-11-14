@@ -244,6 +244,42 @@ suite('View Editors', () => {
 		});
 	});
 
+	test('with a single tab, a group of a part that asks for it shows the title of its active view that provides it instead of its own title area, also beside other editors; not while another editor is active, nor in a part that does not ask, such as the main editor area; tabs bring its title area back, as they change', async () => {
+		const { parts, part } = await createServices();
+		const group = groupViewOf(parts, part.activeGroup);
+		const options = disposables.add(new DisposableStore());
+		const setShowTabs = (showTabs: 'single' | 'multiple', singleTabTitleProvidedByEditor = true) => {
+			options.clear();
+			options.add(part.enforcePartOptions({ showTabs, singleTabTitleProvidedByEditor }));
+		};
+		const state = () => ({
+			groupTitle: group.element.querySelector<HTMLElement>(':scope > .title')!.style.display !== 'none' && !group.element.classList.contains('title-provided-by-editor'),
+			viewTitle: views[0].providedTitleVisible,
+		});
+
+		setShowTabs('single');
+		const titled = createViewInput('test.titled', '/chat/a');
+		await part.activeGroup.openEditor(titled, { pinned: true });
+		const file = disposables.add(new TestFileEditorInput(URI.file('/beside.txt'), TEST_EDITOR_INPUT_ID));
+		await part.activeGroup.openEditor(file, { pinned: true });
+		const fileActive = state().groupTitle;
+		await part.activeGroup.openEditor(titled);
+		const singleTab = state();
+		setShowTabs('multiple');
+		const tabs = state();
+		setShowTabs('single');
+		const singleTabAgain = state();
+		setShowTabs('single', false);
+
+		assert.deepStrictEqual({ fileActive, singleTab, tabs, singleTabAgain, notAsked: state() }, {
+			fileActive: true,
+			singleTab: { groupTitle: false, viewTitle: true },
+			tabs: { groupTitle: true, viewTitle: false },
+			singleTabAgain: { groupTitle: false, viewTitle: true },
+			notAsked: { groupTitle: true, viewTitle: false },
+		});
+	});
+
 	test('a view that provides its title shows it while alone in its group, and not while the group shows its title, also a view created or shown again then; a view without a title is not told', async () => {
 		const { part } = await createServices();
 		const titled = createViewInput('test.titled', '/chat/a');

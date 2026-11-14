@@ -1353,6 +1353,12 @@ interface IEditorPartConfiguration {
 export interface IEditorPartOptions extends DeepRequiredNonNullable<IEditorPartConfiguration> {
 	hasIcons: boolean;
 	showBreadcrumbs?: boolean;
+	/**
+	 * Whether a group with a single tab shows the title of its active editor, where the editor's pane provides it (see
+	 * `IEditorPane.providesTitle`), instead of its own title area, also beside other editors. Only a part that asks for it,
+	 * such as the chat area of an editor window; otherwise only a group with no other editor does.
+	 */
+	singleTabTitleProvidedByEditor?: boolean;
 }
 
 export interface IEditorPartOptionsChangeEvent {
