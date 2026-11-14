@@ -73,3 +73,15 @@
 .monaco-workbench .codicon-colored.codicon.codicon-symbol-unit { color: var(--vscode-symbolIcon-unitForeground); }
 .monaco-editor .codicon.codicon-symbol-variable,
 .monaco-workbench .codicon-colored.codicon.codicon-symbol-variable { color: var(--vscode-symbolIcon-variableForeground); }
+.monaco-editor .codicon.codicon-symbol-header-one,
+.monaco-workbench .codicon-colored.codicon.codicon-symbol-header-one { color: var(--vscode-symbolIcon-headerOneForeground); }
+.monaco-editor .codicon.codicon-symbol-header-two,
+.monaco-workbench .codicon-colored.codicon.codicon-symbol-header-two { color: var(--vscode-symbolIcon-headerTwoForeground); }
+.monaco-editor .codicon.codicon-symbol-header-three,
+.monaco-workbench .codicon-colored.codicon.codicon-symbol-header-three { color: var(--vscode-symbolIcon-headerThreeForeground); }
+.monaco-editor .codicon.codicon-symbol-header-four,
+.monaco-workbench .codicon-colored.codicon.codicon-symbol-header-four { color: var(--vscode-symbolIcon-headerFourForeground); }
+.monaco-editor .codicon.codicon-symbol-header-five,
+.monaco-workbench .codicon-colored.codicon.codicon-symbol-header-five { color: var(--vscode-symbolIcon-headerFiveForeground); }
+.monaco-editor .codicon.codicon-symbol-header-six,
+.monaco-workbench .codicon-colored.codicon.codicon-symbol-header-six { color: var(--vscode-symbolIcon-headerSixForeground); }
