@@ -1,6 +1,6 @@
 ---
 name: launch
-description: "Launch Code OSS (VS Code from sources) into an isolated throwaway profile with unique debug ports so you can drive it with @playwright/cli AND attach a Node debugger via dap-cli in the same session. Use when working on VS Code itself and you want to interact with the running workbench, automate chat or UI flows, test UI features, take screenshots, set breakpoints in the renderer / extension host / main process, or combine UI driving with debugging."
+description: "Launch Code OSS (VS Code from sources) into an isolated throwaway profile with unique debug ports so you can drive it with @playwright/cli AND attach a Node debugger via dap-cli in the same session. Use when working on VS Code itself and you want to interact with the running workbench, automate chat or UI flows, test UI features, take screenshots, record a demo or before/after video of a change, set breakpoints in the renderer / extension host / main process, or combine UI driving with debugging."
 ---
 
 # Code OSS Dev - Launch + Debug
@@ -81,7 +81,7 @@ If the local execution policy blocks scripts, invoke it with `powershell -Execut
 
 ### Handle a missing sign-in
 
-If the source profile is missing or has no stored GitHub session, **do not stop and do not ask before launching**. Continue until the isolated Code OSS window reaches the normal GitHub/Copilot sign-in UI. Don't give up when Code OSS needs a sign-in.
+If the source profile is missing or has no usable stored GitHub session (the launcher prints a `WARNING` on stderr), **do not stop and do not ask before launching**. Continue until the isolated Code OSS window reaches the normal GitHub/Copilot sign-in UI. Don't give up when Code OSS needs a sign-in.
 
 At that point, use the questions tool with these choices:
 
@@ -114,6 +114,17 @@ After the user acknowledges, wait for the bootstrap process tree to release the 
 & $bootstrap -WaitForExit -ExitMarker <exitMarker-from-bootstrap-json>
 ```
 
+If the wait times out, Code OSS is still running. On macOS, ask the user to quit it with Cmd+Q. On Windows, the bootstrap window is usually still open: close it gracefully rather than killing it, so pending sign-in data is written, then wait again. The `processId` in the bootstrap JSON is the `cmd.exe` wrapper, so find the window by its profile:
+
+```powershell
+. (Join-Path $skillDir 'scripts\cleanup\windows-process-arguments.ps1')
+Get-CimInstance Win32_Process -Filter "Name = 'Code - OSS.exe'" |
+	Where-Object { $_.CommandLine -and (Test-CommandLineHasPathArgument $_.CommandLine '--user-data-dir' '<userDataDir-from-bootstrap-json>') } |
+	ForEach-Object { Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue } |
+	Where-Object { $_.MainWindowHandle -ne 0 } |
+	ForEach-Object { [void]$_.CloseMainWindow() }
+```
+
 Use the same profile path that bootstrap reported; omit the explicit path only when using the default profile. Once the wait succeeds, run the normal launcher again. Its isolated copy will inherit the stored authentication without racing files still held by the bootstrap window.
 
 Do not bootstrap without the user's explicit choice. The bootstrap window uses persistent profile and shared-authentication storage, unlike normal isolated launches.
@@ -131,7 +142,7 @@ Windows has no shared per-app keychain for these secrets, so they live in files 
 | Encrypted GitHub session blob | `<shared-data-dir>/sharedStorage/state.vscdb` |
 | DPAPI-wrapped decryption key (`os_crypt.encrypted_key`) | `<user-data-dir>/Local State` |
 
-The launcher therefore seeds **both**: it copies the source profile *and* copies the source shared-data-dir into the run's throwaway `shared-data` dir. The source resolves the same way `IEnvironmentService.appSharedDataHome` does - `$env:CODE_OSS_DEV_AUTHED_SHARED_DATA_DIR` if set, else `$env:VSCODE_PORTABLE\shared-data` when running portable, else `~/<product.sharedDataFolderName>` (i.e. `%USERPROFILE%\.vscode-oss-shared`). It also verifies `Local State`, `machineid`, and `Network` survived the profile copy, and warns on stderr if neither database holds a GitHub session.
+The launcher therefore seeds **both**: it copies the source profile *and* copies the source shared-data-dir into the run's throwaway `shared-data` dir. The source resolves the same way `IEnvironmentService.appSharedDataHome` does - `$env:CODE_OSS_DEV_AUTHED_SHARED_DATA_DIR` if set, else `$env:VSCODE_PORTABLE\shared-data` when running portable, else `~/<product.sharedDataFolderName>` (i.e. `%USERPROFILE%\.vscode-oss-shared`). It also verifies `Local State`, `machineid`, and `Network` survived the profile copy, and warns on stderr if neither database holds a GitHub session. When the source profile itself lacks those files, a stored session cannot be decrypted (its key lives in `Local State`), so the launcher warns and continues to the sign-in UI instead of failing; this is the usual state of `%USERPROFILE%\.vscode-oss-dev` before a bootstrap.
 
 > This asymmetry is invisible on macOS/Linux, where the same token lands inside the profile. A Windows-only "always signed out" symptom is a shared-data-dir problem, **not** a profile problem: signing in against the source profile writes a perfectly good session, but before this seeding existed every launch handed Code OSS an empty shared dir and threw it away.
 
@@ -414,9 +425,26 @@ On macOS, a screenshot "Permission denied" failure usually means the terminal la
 
 ### Recording a video
 
-To record a demo video, use the attached session as the Playwright `page` for a general `page.screencast` recording workflow:
+To record a demo video, use the attached session as the Playwright `page` for a general `page.screencast` recording workflow. **Read the `record-video` skill for the full workflow when it is available**; it covers dry-running, single-call recording, and the hand-off. The notes below are specific to Code OSS:
 
 - Write the whole scenario, including `page.screencast.start()` and `stop()`, as a bare `async page => { ... }` function in a file and run it with a single `npx @playwright/cli -s=$PW_SESSION run-code --filename=<file>` call. `page` is the attached workbench window.
+- The workbench enforces Trusted Types, so `page.screencast.showChapter()` and `showOverlay()` are silently blocked (the console reports `This document requires 'TrustedHTML' assignment`). `showActions()` works. For captions, add a banner with `document.createElement` and `textContent` (never `innerHTML`), set `pointer-events:none`, and remove it before `stop()`.
+- Put `showActions` titles at a corner that does not cover the control you click, for example `position: 'top-left'`; the default can intercept the click.
+- Reset to a known start state before recording. A leftover editor tab changes where views open, for example the Settings editor opens as a modal over a blank layout but as a side pane when an editor is already open. Clear tabs, toasts, and modals first, in a separate call so the pause is not recorded.
+- The Monaco-based search inputs, such as the Settings editor search box, have no accessible name. Click `.settings-editor .suggest-input-container` and use `page.keyboard.type` instead of a role locator.
+- For a before/after comparison of a change, record the same script twice, switching one `MODE` constant, and build the "before" from the merge base. Do not revert files with `git checkout <base> -- <files>`: it discards uncommitted edits, which may be the change you are demoing. Commit the change first so that `git status --short` is empty; otherwise uncommitted edits either block the switch or leak into the "before" build:
+
+  ```bash
+  git switch --detach "$(git merge-base HEAD origin/main)"   # "before"; works in bash and PowerShell
+  npm run build-fast -- --client-only                        # drop `-- --client-only` if the change touches extensions/
+  # relaunch, record the "before", close the window
+  git switch -                                               # back to the change
+  npm run build-fast -- --client-only
+  # relaunch and record the "after"
+  ```
+
+  Overlay a banner naming the build ("Before (main)" / "After (this PR)"), and assert the expected outcome in the script (for example, no toast before and a toast after) so the recording cannot misrepresent it.
+- To join two recordings into one, play them back to back in a Chromium page and record that page; Playwright's bundled ffmpeg has no concat demuxer.
 - Keep typed text short. Typing into Monaco key by key is visible but slow: about 400 characters produced a nearly four-minute video. Paste long setup text before recording starts.
 - To run a command, press `F1`, fill the `Type the name of a command to run.` textbox with `>Command Name`, and click the exact matching option. The list updates asynchronously, so pressing `Enter` right after filling can run a stale result.
 
