@@ -8,7 +8,7 @@ import * as paths from '../../../../base/common/path.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { ResourceLabels, IResourceLabel } from '../../../browser/labels.js';
 import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
-import { IMarker, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { getMarkerMessageText, IMarker, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { ResourceMarkers, Marker, RelatedInformation, MarkerElement, MarkerTableItem } from './markersModel.js';
 import Messages from './messages.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -366,7 +366,7 @@ class MarkerWidget extends Disposable {
 		const viewState = this.markersViewModel.getViewModel(element);
 		const multiline = !viewState || viewState.multiline;
 		const lineMatches = filterData && filterData.lineMatches || [];
-		this.messageAndDetailsContainerHover.update(element.marker.message);
+		this.messageAndDetailsContainerHover.update(getMarkerMessageText(element.marker.message));
 
 		const lineElements: HTMLElement[] = [];
 		for (let index = 0; index < (multiline ? lines.length : 1); index++) {
