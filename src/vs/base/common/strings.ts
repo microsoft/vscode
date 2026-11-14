@@ -856,7 +856,7 @@ export function rcut(text: string, n: number, suffix = ''): string {
 // Defacto standard: https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
 const CSI_SEQUENCE = /(?:\x1b\[|\x9b)[=?>!]?[\d;:]*["$#'* ]?[a-zA-Z@^`{}|~]/;
 const OSC_SEQUENCE = /(?:\x1b\]|\x9d).*?(?:\x1b\\|\x07|\x9c)/;
-const ESC_SEQUENCE = /\x1b(?:[ #%\(\)\*\+\-\.\/]?[a-zA-Z0-9\|}~@])/;
+const ESC_SEQUENCE = /\x1b(?:[ #%\(\)\*\+\-\.\/]?[a-zA-Z0-9\|}~@=>])/;
 const CONTROL_SEQUENCES = new RegExp('(?:' + [
 	CSI_SEQUENCE.source,
 	OSC_SEQUENCE.source,
