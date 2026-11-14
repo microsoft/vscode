@@ -628,6 +628,11 @@ export interface IChatSession extends IDisposable {
 		 * model instead of falling back to the request history's.
 		 */
 		readonly selectedModelId?: string;
+		/**
+		 * The configuration (e.g. thinking effort) that the transferred draft
+		 * gives {@link selectedModelId}, kept for the same cold restore.
+		 */
+		readonly selectedModelConfiguration?: IStringDictionary<unknown>;
 	};
 
 	requestHandler?: (

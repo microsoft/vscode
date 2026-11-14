@@ -5878,12 +5878,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/**
 	 * The "Context Size" picker value that {@link getCopilotContextTier} maps back to `tier`: the
-	 * largest window for `long_context`, the smallest otherwise. `undefined` when the model offers
-	 * no such picker, which leaves the runtime's tier alone.
+	 * largest window for `long_context`, the smallest otherwise, including when no tier is set, which
+	 * the runtime runs as the default tier. `undefined` when the model offers no such picker or the
+	 * model list isn't loaded, which leaves the runtime's tier alone.
 	 */
 	private _contextSizeForTier(modelId: string, tier: string | undefined): number | undefined {
 		const windows = this._contextSizeWindows(modelId);
-		if (!tier || !windows) {
+		if (!windows) {
 			return undefined;
 		}
 		return tier === 'long_context' ? Math.max(...windows) : Math.min(...windows);

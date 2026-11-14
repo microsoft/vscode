@@ -33068,11 +33068,11 @@ suite('CopilotAgent', () => {
 			);
 		});
 
-		function createImportedChat(inUse: boolean, runtimeSelection?: Awaited<ReturnType<NonNullable<IFakeAgentSession['readRuntimeSelection']>>>, lastClientName?: string) {
+		function createImportedChat(inUse: boolean, runtimeSelection?: Awaited<ReturnType<NonNullable<IFakeAgentSession['readRuntimeSelection']>>>, lastClientName?: string, models?: readonly ITestCopilotModelInfo[]) {
 			const sessionId = 'cli-import';
 			const session = AgentSession.uri('copilotcli', sessionId);
 			const chat = defaultChatUri(session);
-			const client = new TestCopilotClient([sdkSession(sessionId, '/workspace', { clientName: 'github/cli', lastClientName, modifiedTime: new Date() })]);
+			const client = new TestCopilotClient([sdkSession(sessionId, '/workspace', { clientName: 'github/cli', lastClientName, modifiedTime: new Date() })], models);
 			if (inUse) {
 				client.inUseSessionIds.add(sessionId);
 			}
@@ -33110,6 +33110,30 @@ suite('CopilotAgent', () => {
 			} finally {
 				await disposeAgent(agent);
 			}
+		});
+
+		test('importing a chat continues with the context size of its runtime tier, including an unset one', async () => {
+			const model: ITestCopilotModelInfo = {
+				id: 'claude-sonnet', name: 'Claude Sonnet',
+				capabilities: { limits: { max_context_window_tokens: 200_000 } },
+				billing: { multiplier: 1, tokenPrices: { contextMax: 200_000, longContext: { contextMax: 1_000_000 } } },
+			};
+			const imported = [];
+			for (const contextTier of [undefined, 'long_context']) {
+				const { agent, chat, context } = createImportedChat(false, { model: { modelId: 'claude-sonnet', reasoningEffort: 'high', contextTier }, agentName: undefined }, undefined, [model]);
+				try {
+					await agent.authenticate('https://api.github.com', 'token');
+					await waitForState(agent.models, models => models.length > 0);
+					await agent.materializeChat(chat, context, undefined);
+					imported.push(await agent.importChat(chat, context));
+				} finally {
+					await disposeAgent(agent);
+				}
+			}
+			assert.deepStrictEqual(imported, [
+				{ model: { id: 'claude-sonnet', config: { thinkingLevel: 'high', contextSize: 200_000 } }, agent: undefined },
+				{ model: { id: 'claude-sonnet', config: { thinkingLevel: 'high', contextSize: 1_000_000 } }, agent: undefined },
+			]);
 		});
 
 		test('importing a chat with a custom agent this host does not offer continues without one', async () => {
