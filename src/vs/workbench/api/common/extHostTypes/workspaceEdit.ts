@@ -20,6 +20,9 @@ export interface IFileOperationOptions {
 	readonly ignoreIfExists?: boolean;
 	readonly ignoreIfNotExists?: boolean;
 	readonly recursive?: boolean;
+	readonly folder?: boolean;
+	readonly copy?: boolean;
+	readonly skipTrashBin?: boolean;
 	readonly contents?: Uint8Array | vscode.DataTransferFile;
 }
 
@@ -88,11 +91,15 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		this._edits.push({ _type: FileEditType.File, from, to, options, metadata });
 	}
 
-	createFile(uri: vscode.Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean; readonly contents?: Uint8Array | vscode.DataTransferFile }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	copyFile(from: vscode.Uri, to: vscode.Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._edits.push({ _type: FileEditType.File, from, to, options: { ...options, copy: true }, metadata });
+	}
+
+	createFile(uri: vscode.Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean; readonly folder?: boolean; readonly contents?: Uint8Array | vscode.DataTransferFile }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from: undefined, to: uri, options, metadata });
 	}
 
-	deleteFile(uri: vscode.Uri, options?: { readonly recursive?: boolean; readonly ignoreIfNotExists?: boolean }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	deleteFile(uri: vscode.Uri, options?: { readonly recursive?: boolean; readonly ignoreIfNotExists?: boolean; readonly skipTrashBin?: boolean }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from: uri, to: undefined, options, metadata });
 	}
 
