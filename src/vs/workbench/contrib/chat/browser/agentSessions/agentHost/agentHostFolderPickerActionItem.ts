@@ -31,6 +31,7 @@ import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderSe
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { createFolderPickerTip } from './agentHostFolderPickerTip.js';
 import { AgentHostWorktreeFolderChoices } from './agentHostWorktreeFolderChoices.js';
+import './media/agentHostChatInputPicker.css';
 
 /**
  * Folder picker for agent-host sessions in multi-root windows. An agent-host
@@ -45,6 +46,9 @@ import { AgentHostWorktreeFolderChoices } from './agentHostWorktreeFolderChoices
 export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewItem {
 
 	private _hoverSetup = false;
+	private _container: HTMLElement | undefined;
+	/** Its width as last rendered with its name, which it keeps while hidden in the toolbar's overflow. */
+	private _labelledWidth: number | undefined;
 	/** The choices in a window with a single local folder while worktree support is on: New Worktree, the folder and its worktrees. */
 	private readonly _worktree: AgentHostWorktreeFolderChoices;
 
@@ -178,6 +182,9 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		const label = chip ? chip.description : folder ? folder.name : (selected ? basename(selected) : localize('agentHost.selectFolder', "Folder"));
 		const shownLabel = chip ? chip.label : label;
 		const compact = !chip && this.pickerOptions.compact.get();
+		// Never compact by its name, which a long one shows ellipsized
+		element.classList.toggle('compact', compact);
+		element.classList.toggle('agent-host-folder-chip', !!chip);
 		element.classList.toggle('icon-only', compact || !shownLabel);
 		dom.reset(
 			element,
@@ -193,6 +200,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	}
 
 	override render(container: HTMLElement): void {
+		this._container = container;
 		super.render(container);
 
 		// The chip often shows a disabled folder name — the working directory is
@@ -209,6 +217,22 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 				() => this._buildHoverContent(),
 			));
 		}
+	}
+
+	/**
+	 * The width the chip needs while it always shows its name, which it does not give up to fit the toolbar as compact
+	 * pickers do: for the toolbar's responsive budget, so that its neighbors overflow instead. `undefined` while it can be
+	 * compact.
+	 */
+	getMinimumWidth(): number | undefined {
+		if (!this._worktree.isActive()) {
+			return undefined;
+		}
+		const width = this._container?.getBoundingClientRect().width;
+		if (width) {
+			this._labelledWidth = width;
+		}
+		return this._labelledWidth;
 	}
 
 	/**

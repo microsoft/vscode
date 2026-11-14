@@ -175,3 +175,10 @@
 	opacity: 0.6;
 	cursor: default;
 }
+
+/* The Chat view's folder chip always shows its name: a long one is ellipsized rather than clipping its neighbors */
+.interactive-session .chat-secondary-toolbar .chat-secondary-input-toolbar .chat-input-picker-item .action-label.agent-host-folder-chip .chat-input-picker-label {
+	max-width: 160px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
