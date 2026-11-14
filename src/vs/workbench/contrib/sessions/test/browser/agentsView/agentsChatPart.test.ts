@@ -367,8 +367,11 @@ suite('AgentsChatPartService', () => {
 		await service.openChat(restoredSession.session, main, { commit: true });
 		const committed = await shown();
 		await service.openChat(restoredSession.session, main);
+		const opened = await shown();
+		// The chat it shows already, opened to restore, such as where the user moved the window's folder: restored, not opened
+		await service.openChat(restoredSession.session, main, { restore: true });
 
-		assert.deepStrictEqual({ restored, committed, opened: await shown() }, { restored: 'main restore', committed: 'main commit', opened: 'main open' });
+		assert.deepStrictEqual({ restored, committed, opened, restoredAgain: await shown() }, { restored: 'main restore', committed: 'main commit', opened: 'main open', restoredAgain: 'main restore' });
 	});
 
 	test('a tab recalled as restored that activates before its open completes shows as restored, never as opened in between', async () => {
