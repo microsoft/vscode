@@ -160,7 +160,7 @@ export class AgentsChatViewHost implements IChatViewHost {
 		const generation = this._generation;
 		if (options.local) {
 			// It shows sessions, not local chat
-			this._notificationService.info(localize('agentsChatViewHost.localChatUnavailable', "Local chat sessions are not available while chats open in the chat part."));
+			this._notificationService.info(localize('agentsChatViewHost.localChatUnavailable', "Local chat sessions are not available while chats open in the chat area."));
 			throw new CancellationError();
 		}
 		const model = await this._chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, 'AgentsChatViewHost#startSession', 'explicitOverride');

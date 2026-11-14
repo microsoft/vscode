@@ -38,7 +38,7 @@ export const AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID = 'workbench.action.agentsVi
 export const AGENTS_CHAT_PART_CLOSE_ALL_CHATS_COMMAND_ID = 'workbench.action.agentsView.closeAllChats';
 
 /** Whether the chat part of the editor window shows. */
-export const AgentsChatPartVisibleContext = new RawContextKey<boolean>('agentsChatPartVisible', false, localize('agentsChatPartVisible', "Whether the chat part beside the editor area shows."));
+export const AgentsChatPartVisibleContext = new RawContextKey<boolean>('agentsChatPartVisible', false, localize('agentsChatPartVisible', "Whether the chat area beside the editor area shows."));
 
 /**
  * Registers the actions of the chat part of an editor window with the Sessions view, until the returned disposable is
@@ -97,7 +97,7 @@ export function registerAgentsChatPartActions(): IDisposable {
 		constructor() {
 			super({
 				id: 'workbench.action.agentsView.focusChatPart',
-				title: localize2('agentsView.focusChatPart', "Focus Chat Part"),
+				title: localize2('agentsView.focusChatPart', "Focus Chat Area"),
 				category: CHAT_CATEGORY,
 				f1: true,
 				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, AgentsChatPartVisibleContext),
@@ -179,7 +179,7 @@ export function registerAgentsChatPartActions(): IDisposable {
 		constructor() {
 			super({
 				id: 'workbench.action.agentsView.closeChatPart',
-				title: localize2('agentsView.closeChatPart', "Close Chat Part"),
+				title: localize2('agentsView.closeChatPart', "Close Chat Area"),
 				category: CHAT_CATEGORY,
 				f1: true,
 				precondition: AgentsChatPartVisibleContext,
@@ -198,8 +198,8 @@ export function registerAgentsChatPartActions(): IDisposable {
 			super({
 				id: 'workbench.action.agentsView.toggleChatPart',
 				title: {
-					...localize2('agentsView.toggleChatPart', "Toggle Chat Part Visibility"),
-					mnemonicTitle: localize({ key: 'miAgentsViewChatPart', comment: ['&& denotes a mnemonic'] }, "C&&hat Part"),
+					...localize2('agentsView.toggleChatPart', "Toggle Chat Area Visibility"),
+					mnemonicTitle: localize({ key: 'miAgentsViewChatPart', comment: ['&& denotes a mnemonic'] }, "C&&hat Area"),
 				},
 				category: CHAT_CATEGORY,
 				f1: true,
