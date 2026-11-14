@@ -13,10 +13,11 @@ Production behavior reads the `sessions.list.rearrage` treatment directly from t
 - Treatment: `"experiments.override.sessions.list.rearrage": true`
 - Control: `"experiments.override.sessions.list.rearrage": false`
 - Customizations at the bottom (with the treatment): `"experiments.override.config.sessions.sidebar.customizationsAtBottom": true`
+- All customization categories in the expandable Customizations pane (in the control, or with `customizationsAtBottom`): `"experiments.override.config.sessions.sidebar.customizationsCategories": "all"`
 
 The Agents sidebar updates reactively when the override changes. Remove the override to use the automatically assigned experiment variant.
 
-In the treatment, Automations and Customizations are the first rows in the Sessions tree and scroll with its content. The Sessions header follows them and remains sticky while session rows scroll beneath it. The control keeps the expandable Customizations pane above the Sessions list. The `customizationsAtBottom` variant shows the treatment's navigation rows without Customizations, and keeps the control's expandable Customizations pane. It has no effect in the control.
+In the treatment, Automations and Customizations are the first rows in the Sessions tree and scroll with its content. The Sessions header follows them and remains sticky while session rows scroll beneath it. The control keeps the expandable Customizations pane above the Sessions list. The `customizationsAtBottom` variant shows the treatment's navigation rows without Customizations, and keeps the control's expandable Customizations pane. It has no effect in the control. By default, the expandable Customizations pane shows Overview, Plugins, MCP Servers, Skills, and Instructions, and a More row that counts the customizations of the other available categories. More shows them in place, followed by a Less row that hides them again. The pane remembers across restarts which of the two was used last. With all categories, the pane shows every available category without More or Less.
 
 ## SCENARIOS
 

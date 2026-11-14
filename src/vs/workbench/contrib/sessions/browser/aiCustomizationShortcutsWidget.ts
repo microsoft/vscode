@@ -204,8 +204,47 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		}));
 		this._toolbar = toolbar;
 
+		// Updating the items replaces them, including the focused one. To keep keyboard focus at its position, e.g. on
+		// the first item that More shows or on More after Less hides them, remember the focused item until focus leaves.
+		let focusedItem: { readonly element: HTMLElement; readonly index: number } | undefined;
+		this._renderDisposables.add(DOM.addDisposableListener(toolbarContainer, DOM.EventType.FOCUS_IN, e => {
+			const target = e.target;
+			for (let index = 0; DOM.isHTMLElement(target) && index < toolbar.getItemsLength(); index++) {
+				if (toolbar.getItemElement(index)?.contains(target)) {
+					focusedItem = { element: target, index };
+					return;
+				}
+			}
+		}));
+		this._renderDisposables.add(DOM.addDisposableListener(toolbarContainer, DOM.EventType.FOCUS_OUT, e => {
+			const element = e.target;
+			if (!DOM.isHTMLElement(element)) {
+				return;
+			}
+			if (e.relatedTarget) {
+				if (!(DOM.isHTMLElement(e.relatedTarget) && toolbarContainer.contains(e.relatedTarget))) {
+					focusedItem = undefined;
+				}
+				return;
+			}
+			// Removing the focused item also moves focus to no element, but leaves it disconnected after the update.
+			queueMicrotask(() => {
+				if (focusedItem?.element === element && element.isConnected) {
+					focusedItem = undefined;
+				}
+			});
+		}));
+
 		// Re-layout when toolbar items change (e.g., Plugins item appearing after extension activation)
 		this._renderDisposables.add(toolbar.onDidChangeMenuItems(() => {
+			if (focusedItem && !focusedItem.element.isConnected) {
+				const index = focusedItem.index;
+				focusedItem = undefined;
+				const active = DOM.getActiveElement();
+				if ((!active || active === DOM.getWindow(container).document.body) && toolbar.getItemsLength() > 0) {
+					toolbar.focus(Math.min(index, toolbar.getItemsLength() - 1));
+				}
+			}
 			this._scrollableElement?.scanDomNode();
 			this._onDidChangeHeight.fire();
 			options?.onDidChangeLayout?.();

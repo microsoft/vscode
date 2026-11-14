@@ -38,11 +38,11 @@ export function observeVisibleSectionBadge(accessor: ServicesAccessor, section: 
 }
 
 /**
- * Observes the badge of the first section with a badge that the active harness shows in the editor, otherwise
- * `undefined`. Entry points to the editor show it as a single badge.
+ * Observes the badge of the first section with a badge, of `sections` if given, that the active harness shows in the
+ * editor, otherwise `undefined`. Entry points to the editor show it as a single badge.
  */
-export function observeVisibleSectionsBadge(accessor: ServicesAccessor): IObservable<string | undefined> {
-	const badges = observeVisibleSectionBadges(getSectionBadgeServices(accessor));
+export function observeVisibleSectionsBadge(accessor: ServicesAccessor, sections?: ReadonlySet<AICustomizationManagementSection>): IObservable<string | undefined> {
+	const badges = observeVisibleSectionBadges(getSectionBadgeServices(accessor), sections && (managementSections => managementSections.filter(section => sections.has(section))));
 	return derived(reader => badges.read(reader)[0]?.badge);
 }
 
