@@ -724,6 +724,7 @@ export class ChatView extends AbstractChatView {
 			this._retryUnresolvedChatLoad(added);
 			this._reloadChatForReplacedProvider(added);
 		}));
+		this._register(this.chatSessionsService.onDidChangeSessionItems(({ removed }) => this._reloadChatForRemovedSessionItems(removed ?? [])));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING)) {
@@ -1019,9 +1020,35 @@ export class ChatView extends AbstractChatView {
 		}
 
 		this._chatWithUnregisteredProvider = undefined;
+		this.logService.trace(`[ChatView] reloading chat after its content provider was replaced uri=${resource.toString()}`);
+		this._reloadBoundChat(resource);
+	}
+
+	/**
+	 * Reload a bound chat that its content provider's list no longer reports, while its session still lists it. Removing
+	 * a chat from that list disposes the content it was loaded from, which leaves the model on screen read-only; a list
+	 * can drop a chat only for a while, such as while it is fetched again, and the chat then shows again without input.
+	 */
+	private _reloadChatForRemovedSessionItems(removedResources: readonly URI[]): void {
+		const resource = this._currentChatResource;
+		if (!resource || !this._modelRef.value || this._providerReloadCts || !removedResources.some(removed => isEqual(removed, resource))) {
+			return;
+		}
+		// A chat its session no longer lists, such as one deleted, ends with its session: there is nothing to reload
+		if (!this.sessionsManagementService.getSessionForChatResource(resource)) {
+			return;
+		}
+		this.logService.trace(`[ChatView] reloading chat after its content was disposed uri=${resource.toString()}`);
+		this._reloadBoundChat(resource);
+	}
+
+	/** Releases the bound model of `resource` and loads the chat again once it is gone, keeping its composer draft. */
+	private _reloadBoundChat(resource: URI): void {
+		if (!this._modelRef.value) {
+			return;
+		}
 		const session = this._currentSessionObs.get();
 		const inputModelToPreserve = this._modelRef.value.object.inputModel;
-		this.logService.trace(`[ChatView] reloading chat after its content provider was replaced uri=${resource.toString()}`);
 		this._saveCurrentViewState();
 
 		this._loadCts.value?.cancel();
