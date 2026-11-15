@@ -405,6 +405,17 @@ export class SCMViewService implements ISCMViewService {
 					this.didSelectRepository = true;
 				}
 			}
+		} else if (this.previousState && this.didSelectRepository && this.visibleRepositories.length > 0) {
+			// Repositories (ex: submodules) can be discovered after the repositories
+			// finished loading. Keep the repository hidden if it was explicitly hidden
+			// in the previous state.
+			const index = this.previousState.all.indexOf(getProviderStorageKey(repository.provider));
+
+			if (index !== -1 && this.previousState.visible.indexOf(index) === -1) {
+				this.insertRepositoryView(this._repositories, repositoryView);
+				this._onDidChangeRepositories.fire({ added: Iterable.empty(), removed: Iterable.empty() });
+				return;
+			}
 		}
 
 		if (this.selectionModeConfig.get() === ISCMRepositorySelectionMode.Multiple || !this._repositories.find(r => r.selectionIndex !== -1)) {
