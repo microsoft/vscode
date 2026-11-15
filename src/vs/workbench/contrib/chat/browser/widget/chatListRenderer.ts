@@ -993,6 +993,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	/** Track pending question carousels by session resource for auto-skip on chat submission */
 	private readonly pendingQuestionCarousels = new ResourceMap<Set<ChatQuestionCarouselPart>>();
 	private readonly _notifiedQuestionCarousels = new Set<string>();
+	/** The questions and plan reviews shown in the input that it removes as they are settled, by session, kind and key. */
+	private readonly inputRequestSettlements = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly workingProgressConfirmationEndListeners = new WeakSet<IChatToolInvocation>();
 
 	private readonly chatContentMarkdownRenderer: IMarkdownRenderer;
@@ -5191,6 +5193,34 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	/**
+	 * Calls `remove` once `request`, which this renderer shows in its widget's input, is settled anywhere: each widget that
+	 * shows the chat shows a copy of it, and settling one, such as by answering it, settles all. Its completion tells, also
+	 * when it is dismissed, and so does the chat service as an extension's question is answered. Once per request.
+	 */
+	private removeInputRequestOnSettle(element: IChatResponseViewModel, request: IChatQuestionCarousel | IChatPlanReview, key: string, remove: () => void): void {
+		const id = `${element.sessionResource.toString()}|${request.kind}|${key}`;
+		if (request.isUsed || this.inputRequestSettlements.has(id)) {
+			return;
+		}
+		const store = new DisposableStore();
+		const settle = () => {
+			if (this.inputRequestSettlements.get(id) === store) {
+				this.inputRequestSettlements.deleteAndDispose(id);
+				remove();
+			}
+		};
+		if (request instanceof ChatQuestionCarouselData || request instanceof ChatPlanReviewData) {
+			const completion = request.completion.p;
+			void completion.then(settle, settle);
+		}
+		if (request.kind === 'questionCarousel' && request.resolveId) {
+			const resolveId = request.resolveId;
+			store.add(Event.filter(this.chatService.onDidReceiveQuestionCarouselAnswer, e => e.requestId === element.requestId && e.resolveId === resolveId)(settle));
+		}
+		this.inputRequestSettlements.set(id, store);
+	}
+
+	/**
 	 * The widget that shows the input requests of the chat of `sessionResource`, such as its questions and tool approvals: the
 	 * widget whose list this renders, where it shows that chat and can show them, else any widget that shows the chat. Other
 	 * widgets can show the same chat, such as one that is hidden, whose input the user would not see.
@@ -6000,6 +6030,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			onSubmit: async (answers, byUser) => handleSubmit(answers, part!, byUser)
 		});
 
+		// Settled through another widget that shows the chat, its copy here goes too
+		if (part && isResponseVM(context.element)) {
+			this.removeInputRequestOnSettle(context.element, carousel, carouselKey, () => {
+				this.removeCarouselFromTracking(context, part);
+				widget?.input.clearQuestionCarousel(undefined, carouselKey);
+				this.refreshProgressAfterInteraction(context, templateData);
+			});
+		}
+
 		// If we couldn't render in the input part, fall back to inline rendering
 		if (!part) {
 			const fallbackPart = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
@@ -6096,6 +6135,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.finalizeCurrentThinkingPart(context, templateData);
 
 		const handleSubmit = (result: IChatPlanReviewResult) => {
+			// Another widget that shows the chat may have settled it already: its result stands
+			if (review.isUsed) {
+				return;
+			}
 			review.data = result;
 			review.isUsed = true;
 			if (review instanceof ChatPlanReviewData) {
@@ -6189,6 +6232,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const dockedPart = isEditing ? undefined : widget?.input.renderPlanReview(review, context, {
 			onSubmit: handleSubmit,
 		});
+
+		// Settled through another widget that shows the chat, its copy here goes too
+		if (dockedPart && isResponseVM(context.element)) {
+			this.removeInputRequestOnSettle(context.element, review, reviewKey, () => {
+				widget?.input.clearPlanReview(undefined, reviewKey);
+				this.refreshProgressAfterInteraction(context, templateData);
+			});
+		}
 
 		// If we couldn't dock (no widget, editing, etc.), fall back to inline rendering.
 		if (!dockedPart) {

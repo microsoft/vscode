@@ -150,7 +150,7 @@ import { IChatEditingService, IChatEditingSession } from '../../../common/editin
 import { IPlanReviewFeedbackService, PlanReviewFeedbackService } from '../../../browser/planReviewFeedback/planReviewFeedbackService.js';
 import { AgentEditorCommentsBridge, IAgentEditorCommentsBridge } from '../../../../../services/agentEditorComments/common/agentEditorComments.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { ChatPlanReviewPart } from '../../../browser/widget/chatContentParts/chatPlanReviewPart.js';
+import { ChatPlanReviewPart, IChatPlanReviewPartOptions } from '../../../browser/widget/chatContentParts/chatPlanReviewPart.js';
 import { ITerminalChatService, ITerminalConfigurationService, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
@@ -2530,27 +2530,32 @@ suite('ChatListRenderer', () => {
 				};
 			}
 		}();
-		const renderer = disposables.add(instantiationService.createInstance(
-			ChatListItemRenderer,
-			editorOptions,
-			{ progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask, ...options.rendererOptions },
-			{
-				getListLength: () => 1,
-				onDidScroll: () => toDisposable(() => { }),
-				container,
-				currentChatMode: () => options.chatMode ?? ChatModeKind.Ask,
-				isStickyScrollEnabled: () => false,
-				refreshStickyScroll: () => { },
-				stickyScrollTopPadding: 0,
-				getWidget: options.getWidget,
-			},
-			undefined,
-			viewModel,
-		));
-		const template = renderer.renderTemplate(container);
-		disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+		/** A renderer of the chat's list, of the widget `getWidget` gives, such as another widget's that shows the same chat. */
+		const createRenderer = (getWidget: (() => IChatWidget | undefined) | undefined, rendererContainer = container) => {
+			const renderer = disposables.add(instantiationService.createInstance(
+				ChatListItemRenderer,
+				editorOptions,
+				{ progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask, ...options.rendererOptions },
+				{
+					getListLength: () => 1,
+					onDidScroll: () => toDisposable(() => { }),
+					container: rendererContainer,
+					currentChatMode: () => options.chatMode ?? ChatModeKind.Ask,
+					isStickyScrollEnabled: () => false,
+					refreshStickyScroll: () => { },
+					stickyScrollTopPadding: 0,
+					getWidget,
+				},
+				undefined,
+				viewModel,
+			));
+			const template = renderer.renderTemplate(rendererContainer);
+			disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+			return { renderer, template };
+		};
+		const { renderer, template } = createRenderer(options.getWidget);
 		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
-		return { disposables, instantiationService, configurationService, model, viewModel, request, response, container, renderer, template, node };
+		return { disposables, instantiationService, configurationService, model, viewModel, request, response, container, renderer, template, node, createRenderer };
 	}
 
 	suite('deferred row height updates', () => {
@@ -6834,57 +6839,141 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
-	test('a question shows in the input of the widget whose list renders it, also while another widget registered first shows the same chat', async () => {
-		const session = URI.from({ scheme: 'vscode-chat-session', path: '/questions' });
-		const rendered: string[] = [];
-		const cleared: string[] = [];
-		let submit: IChatQuestionCarouselOptions['onSubmit'] | undefined;
-		const widget = (name: string) => new class extends mock<IChatWidget>() {
-			override readonly viewModel = upcastPartial<IChatViewModel>({ sessionResource: session });
-			override readonly supportsInputRequests = true;
-			override readonly domNode = dom.$('div');
-			override readonly location = ChatAgentLocation.Chat;
-			override readonly onDidFocus = Event.None;
-			override readonly onDidShow = Event.None;
-			override readonly onDidHide = Event.None;
-			override readonly onDidChangeViewModel = Event.None;
-			override getInput() { return ''; }
-			override get inputPart() { return this.input; }
-			override readonly input = new class extends mock<ChatInputPart>() {
+	/**
+	 * Widgets that show the chat of `session`, registered in this order with a real chat widget service, whose inputs keep the
+	 * questions and plan reviews docked in them by their key, as the chat input does.
+	 */
+	function createInputRequestWidgets(session: URI, names: readonly string[]) {
+		const questions = new Map<string, Map<string, IChatQuestionCarouselOptions['onSubmit']>>();
+		const plans = new Map<string, Map<string, IChatPlanReviewPartOptions['onSubmit']>>();
+		const widgets = new Map<string, IChatWidget>();
+		for (const name of names) {
+			const dockedQuestions = new Map<string, IChatQuestionCarouselOptions['onSubmit']>();
+			const dockedPlans = new Map<string, IChatPlanReviewPartOptions['onSubmit']>();
+			questions.set(name, dockedQuestions);
+			plans.set(name, dockedPlans);
+			const input = new class extends mock<ChatInputPart>() {
 				override get questionCarousel() { return undefined; }
 				override get hasActiveToolConfirmationCarousel() { return false; }
-				override clearQuestionCarousel() { cleared.push(name); }
-				override renderQuestionCarousel(...[, , options]: Parameters<ChatInputPart['renderQuestionCarousel']>) {
-					rendered.push(name);
-					submit = options.onSubmit;
+				override renderQuestionCarousel(...[carousel, context, options]: Parameters<ChatInputPart['renderQuestionCarousel']>) {
+					dockedQuestions.set(carousel.resolveId ?? `${context && isResponseVM(context.element) ? context.element.requestId : ''}_${context?.contentIndex}`, options.onSubmit);
 					return new class extends mock<ChatQuestionCarouselPart>() {
 						override readonly domNode = dom.$('div');
 						override addDisposable() { }
 					}();
 				}
+				override clearQuestionCarousel(_responseId?: string, resolveId?: string) { if (resolveId) { dockedQuestions.delete(resolveId); } }
+				override renderPlanReview(...[review, , options]: Parameters<ChatInputPart['renderPlanReview']>) {
+					dockedPlans.set(review.resolveId!, options.onSubmit);
+					return upcastPartial<ChatPlanReviewPart>({ domNode: dom.$('div') });
+				}
+				override clearPlanReview(_responseId?: string, resolveId?: string) { if (resolveId) { dockedPlans.delete(resolveId); } }
 			}();
-		}();
-		// Another widget shows the chat too, registered first, such as the Chat view's while the chat area shows the chat
-		const other = widget('other');
-		const own = widget('own');
+			widgets.set(name, new class extends mock<IChatWidget>() {
+				override readonly viewModel = upcastPartial<IChatViewModel>({ sessionResource: session });
+				override readonly supportsInputRequests = true;
+				override readonly domNode = dom.$('div');
+				override readonly location = ChatAgentLocation.Chat;
+				override readonly onDidFocus = Event.None;
+				override readonly onDidShow = Event.None;
+				override readonly onDidHide = Event.None;
+				override readonly onDidChangeViewModel = Event.None;
+				override getInput() { return ''; }
+				override get inputPart() { return input; }
+				override readonly input = input;
+			}());
+		}
 		const widgetServices = workbenchInstantiationService(undefined, store);
 		widgetServices.stub(IQuickChatService, new class extends mock<IQuickChatService>() { }());
 		widgetServices.stub(IChatViewHostService, new class extends mock<IChatViewHostService>() { }());
 		const chatWidgetService = store.add(widgetServices.createInstance(ChatWidgetService));
-		store.add(chatWidgetService.register(other));
-		store.add(chatWidgetService.register(own));
-		const { instantiationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ sessionResource: session, chatWidgetService, getWidget: () => own });
+		for (const widget of widgets.values()) {
+			store.add(chatWidgetService.register(widget));
+		}
+		/** Which widgets dock the question or plan review of `key` in their input now. */
+		const dockedIn = (key: string) => names.filter(name => questions.get(name)!.has(key) || plans.get(name)!.has(key));
+		/** How the copy docked in `name`'s input submits the question or plan review of `key`, kept also once that copy goes. */
+		const questionIn = (name: string, key: string) => questions.get(name)!.get(key)!;
+		const planIn = (name: string, key: string) => plans.get(name)!.get(key)!;
+		return { chatWidgetService, widgets, dockedIn, questionIn, planIn };
+	}
+
+	test('a question shows in the input of the widget whose list renders it, also while another widget registered first shows the same chat', async () => {
+		const session = URI.from({ scheme: 'vscode-chat-session', path: '/questions' });
+		// Another widget shows the chat too, registered first, such as the Chat view's while the chat area shows the chat
+		const { chatWidgetService, widgets, dockedIn, questionIn } = createInputRequestWidgets(session, ['other', 'own']);
+		const { instantiationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ sessionResource: session, chatWidgetService, getWidget: () => widgets.get('own') });
 		const answered = sinon.stub(instantiationService.get(IChatService), 'notifyQuestionCarouselAnswer');
 		const question = new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction' }], true, 'resolve-1');
 		model.acceptResponseProgress(request, question);
 
 		renderer.renderElement(node, 0, template);
-		await submit?.(new Map([['q1', 'Weave']]), true);
+		const shown = dockedIn('resolve-1');
+		await questionIn('own', 'resolve-1')(new Map([['q1', 'Weave']]), true);
 
-		assert.deepStrictEqual({ rendered, cleared, answered: answered.args.map(([requestId, resolveId, answers]) => ({ request: requestId === request.id, resolveId, answers })), used: question.isUsed }, {
-			rendered: ['own'],
-			cleared: ['own'],
+		assert.deepStrictEqual({ shown, after: dockedIn('resolve-1'), answered: answered.args.map(([requestId, resolveId, answers]) => ({ request: requestId === request.id, resolveId, answers })), used: question.isUsed }, {
+			shown: ['own'],
+			after: [],
 			answered: [{ request: true, resolveId: 'resolve-1', answers: { q1: 'Weave' } }],
+			used: true,
+		});
+	});
+
+	test('a question that two widgets show is answered once: answering it in one removes it from the other, whose late answer changes nothing, and a later question shows in both', async () => {
+		const session = URI.from({ scheme: 'vscode-chat-session', path: '/two-widgets' });
+		const { chatWidgetService, widgets, dockedIn, questionIn } = createInputRequestWidgets(session, ['a', 'b']);
+		const { instantiationService, model, request, renderer, template, node, createRenderer } = createPersistentProgressRenderer({ sessionResource: session, chatWidgetService, getWidget: () => widgets.get('a') });
+		const other = createRenderer(() => widgets.get('b'), dom.append(mainWindow.document.body, dom.$('.interactive-session')));
+		const answered = sinon.stub(instantiationService.get(IChatService), 'notifyQuestionCarouselAnswer');
+		const question = new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction' }], true, 'first');
+		model.acceptResponseProgress(request, question);
+		renderer.renderElement(node, 0, template);
+		other.renderer.renderElement(node, 0, other.template);
+		const shown = dockedIn('first');
+		const lateInB = questionIn('b', 'first');
+
+		await questionIn('a', 'first')(new Map([['q1', 'Weave']]), true);
+		const removed = dockedIn('first');
+		await lateInB(new Map([['q1', 'Knit']]), true);
+		const result = await question.completion.p;
+
+		const next = new ChatQuestionCarouselData([{ id: 'q2', type: 'text', title: 'And then?' }], true, 'second');
+		model.acceptResponseProgress(request, next);
+		renderer.renderElement(node, 0, template);
+		other.renderer.renderElement(node, 0, other.template);
+
+		assert.deepStrictEqual({ shown, removed, answers: question.data, result, notified: answered.callCount, next: dockedIn('second') }, {
+			shown: ['a', 'b'],
+			removed: [],
+			answers: { q1: 'Weave' },
+			result: { answers: { q1: 'Weave' } },
+			notified: 1,
+			next: ['a', 'b'],
+		});
+	});
+
+	test('a plan review that two widgets show is settled once: approving it in one removes it from the other, whose late choice changes neither the result nor what the agent got', async () => {
+		const session = URI.from({ scheme: 'vscode-chat-session', path: '/two-widgets-plan' });
+		const { chatWidgetService, widgets, dockedIn, planIn } = createInputRequestWidgets(session, ['a', 'b']);
+		const { model, request, renderer, template, node, createRenderer } = createPersistentProgressRenderer({ sessionResource: session, chatWidgetService, getWidget: () => widgets.get('a') });
+		const other = createRenderer(() => widgets.get('b'), dom.append(mainWindow.document.body, dom.$('.interactive-session')));
+		const review = new ChatPlanReviewData('Review plan', 'Approve this plan.', [{ label: 'Implement' }], true, undefined, 'plan-1');
+		model.acceptResponseProgress(request, review);
+		renderer.renderElement(node, 0, template);
+		other.renderer.renderElement(node, 0, other.template);
+		const shown = dockedIn('plan-1');
+		const lateInB = planIn('b', 'plan-1');
+
+		planIn('a', 'plan-1')({ action: 'Implement', rejected: false });
+		const got = await review.completion.p;
+		const removed = dockedIn('plan-1');
+		lateInB({ rejected: true });
+
+		assert.deepStrictEqual({ shown, removed, got, data: review.data, used: review.isUsed }, {
+			shown: ['a', 'b'],
+			removed: [],
+			got: { action: 'Implement', rejected: false },
+			data: { action: 'Implement', rejected: false },
 			used: true,
 		});
 	});
