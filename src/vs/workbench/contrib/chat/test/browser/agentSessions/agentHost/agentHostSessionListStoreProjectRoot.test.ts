@@ -179,7 +179,8 @@ suite('AgentHostSessionListStore - project root', () => {
 		await settle();
 		const log = [shown().join(',')];
 		const resource = (id: string) => URI.from({ scheme: 'copilot', path: `/${id}` }).toString();
-		notify({ type: 'root/sessionAdded', channel: ROOT_STATE_URI, summary: { resource: resource('added'), provider: 'copilot', title: 'Added', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), workingDirectories: [aph, vscode] } });
+		// Started in another repository, with a later folder in the window's folder itself
+		notify({ type: 'root/sessionAdded', channel: ROOT_STATE_URI, summary: { resource: resource('added'), provider: 'copilot', title: 'Added', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), workingDirectories: [aph, URI.file('/work/vscode/src').toString()] } });
 		log.push(shown().join(','));
 		// Nested chats add folders: of the window's repository to one of another, of another repository to one of the window's
 		for (const id of ['listed', 'added']) {
