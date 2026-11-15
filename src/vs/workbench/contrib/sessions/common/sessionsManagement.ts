@@ -749,7 +749,7 @@ export interface ISessionsManagementService {
 	listCanvases(session: ISession, chat: IChat): Promise<SessionCanvasDefinitionSnapshot>;
 
 	/** Open or focus one stable instance of a registered canvas type. */
-	openCanvas(session: ISession, chat: IChat, canvas: ISessionCanvasDefinition, instanceId: string, options?: ICanvasOpenOptions): Promise<void>;
+	openCanvas(session: ISession, chat: IChat, canvas: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>, instanceId: string, options?: ICanvasOpenOptions): Promise<void>;
 
 	/** Close one live canvas of a chat through its owning provider, notifying the extension that provides it. */
 	closeCanvas(session: ISession, chat: IChat, canvas: ISessionCanvas): Promise<void>;

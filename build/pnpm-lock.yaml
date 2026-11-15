@@ -283,9 +283,6 @@ importers:
       '@vscode/iconv-lite-umd':
         specifier: 0.7.1
         version: 0.7.1
-      '@vscode/ripgrep-universal':
-        specifier: ^1.18.0
-        version: 1.18.0
       '@vscode/vsce':
         specifier: 3.6.1
         version: 3.6.1
@@ -337,9 +334,6 @@ importers:
       through2:
         specifier: ^4.0.2
         version: 4.0.2
-      tree-sitter:
-        specifier: ^0.25.1
-        version: 0.25.1
       vinyl:
         specifier: ^2.2.1
         version: 2.2.1
@@ -353,9 +347,6 @@ importers:
         specifier: ^8.8.5
         version: 8.8.5
     optionalDependencies:
-      tree-sitter-typescript:
-        specifier: ^0.23.2
-        version: 0.23.2(tree-sitter@0.25.1)
       vscode-gulp-watch:
         specifier: ^5.0.3
         version: 5.0.3
@@ -1287,9 +1278,6 @@ packages:
 
   '@vscode/iconv-lite-umd@0.7.1':
     resolution: {integrity: sha512-tK6k0DXFHW7q5+GGuGZO+phpAqpxO4WXl+BLc/8/uOk3RsM2ssAL3CQUQDb1TGfwltjsauhN6S4ghYZzs4sPFw==}
-
-  '@vscode/ripgrep-universal@1.18.0':
-    resolution: {integrity: sha512-kgrAVy1L/v/8erAjo+I720ifTf7o4rvYUwgsuEu97XAEBtPT9sk3HhcSgFpxMydvNmwdJtXo9/AVee7JjocTrg==}
 
   '@vscode/rollup-plugin-esm-url@1.0.1-1':
     resolution: {integrity: sha512-vNmIR3ZyiwACUi8qnXhKNukoXaFkOM9skiqVOVHNKJTBb7kJS+evtyadrBc/fMm1y303WQWBNA90E7fCCsE2Sw==}
@@ -2328,14 +2316,6 @@ packages:
   node-addon-api@4.3.0:
     resolution: {integrity: sha512-73sE9+3UaLYYFmDsFZnqCInzPyh3MqIwZO9cw58yIqAZhONrrabrYyYe3TuIqtIiOuTXVhsGau8hcrhhwSsDIQ==}
 
-  node-addon-api@8.9.2:
-    resolution: {integrity: sha512-VijLXbi3UACN69I0JVXJsX4tjACjNoQDgv2gTF6sx2wWEi8tkSg2eX8p5gSIFi8z2+DL3oHmY6OyKce38SDolg==}
-    engines: {node: ^18 || ^20 || >= 21}
-
-  node-gyp-build@4.8.4:
-    resolution: {integrity: sha512-LA4ZjwlnUblHVgq0oBF3Jl/6h/Nvs5fzBLwdEF4nuxnFdsfajde4WfxtJr3CaiH+F6ewcIB/q4jQ4UzPyid+CQ==}
-    hasBin: true
-
   node-sarif-builder@3.2.0:
     resolution: {integrity: sha512-kVIOdynrF2CRodHZeP/97Rh1syTUHBNiw17hUCIVhlhEsWlfJm19MuO56s4MdKbr22xWx6mzMnNAgXzVlIYM9Q==}
     engines: {node: '>=18'}
@@ -2843,25 +2823,6 @@ packages:
   to-regex-range@5.0.1:
     resolution: {integrity: sha512-65P7iz6X5yEr1cwcgvQxbbIw7Uk3gOy5dIdtZ4rDveLqhrdJP+Li/Hx6tyK0NEb+2GCyneCMJiGqrADCSNk8sQ==}
     engines: {node: '>=8.0'}
-
-  tree-sitter-javascript@0.23.1:
-    resolution: {integrity: sha512-/bnhbrTD9frUYHQTiYnPcxyHORIw157ERBa6dqzaKxvR/x3PC4Yzd+D1pZIMS6zNg2v3a8BZ0oK7jHqsQo9fWA==}
-    peerDependencies:
-      tree-sitter: ^0.21.1
-    peerDependenciesMeta:
-      tree-sitter:
-        optional: true
-
-  tree-sitter-typescript@0.23.2:
-    resolution: {integrity: sha512-e04JUUKxTT53/x3Uq1zIL45DoYKVfHH4CZqwgZhPg5qYROl5nQjV+85ruFzFGZxu+QeFVbRTPDRnqL9UbU4VeA==}
-    peerDependencies:
-      tree-sitter: ^0.21.0
-    peerDependenciesMeta:
-      tree-sitter:
-        optional: true
-
-  tree-sitter@0.25.1:
-    resolution: {integrity: sha512-mrcEdkYtHfrK1A6fs3O6FxkBo0Qig5XUXqHhxUOQu0bmPo00QF4XaSx4edpazdHwxnSCjlGKGgIqWdaN4dvTLA==}
 
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
@@ -3895,8 +3856,6 @@ snapshots:
       zod: 4.4.3
 
   '@vscode/iconv-lite-umd@0.7.1': {}
-
-  '@vscode/ripgrep-universal@1.18.0': {}
 
   '@vscode/rollup-plugin-esm-url@1.0.1-1(rollup@4.59.0)':
     dependencies:
@@ -4982,10 +4941,6 @@ snapshots:
   node-addon-api@4.3.0:
     optional: true
 
-  node-addon-api@8.9.2: {}
-
-  node-gyp-build@4.8.4: {}
-
   node-sarif-builder@3.2.0:
     dependencies:
       '@types/sarif': 2.1.7
@@ -5559,28 +5514,6 @@ snapshots:
   to-regex-range@5.0.1:
     dependencies:
       is-number: 7.0.0
-
-  tree-sitter-javascript@0.23.1(tree-sitter@0.25.1):
-    dependencies:
-      node-addon-api: 8.9.2
-      node-gyp-build: 4.8.4
-    optionalDependencies:
-      tree-sitter: 0.25.1
-    optional: true
-
-  tree-sitter-typescript@0.23.2(tree-sitter@0.25.1):
-    dependencies:
-      node-addon-api: 8.9.2
-      node-gyp-build: 4.8.4
-      tree-sitter-javascript: 0.23.1(tree-sitter@0.25.1)
-    optionalDependencies:
-      tree-sitter: 0.25.1
-    optional: true
-
-  tree-sitter@0.25.1:
-    dependencies:
-      node-addon-api: 8.9.2
-      node-gyp-build: 4.8.4
 
   tslib@2.8.1: {}
 

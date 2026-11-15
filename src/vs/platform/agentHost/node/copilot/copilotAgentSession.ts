@@ -1578,6 +1578,8 @@ export class CopilotAgentSession extends Disposable {
 	/** Whether this session has started root work. Until then it can be replaced without losing anything. */
 	get hasStartedRootWork(): boolean { return this._rootWorkStarted; }
 	get isEphemeral(): boolean { return this._launchPlan.isEphemeral === true; }
+	/** Whether this session's runtime was launched with canvases, which only a relaunch changes. */
+	get canvasRuntimeEnabled(): boolean { return this._wrapper?.canvasRuntimeEnabled === true; }
 	/** The model router agent plan this session was launched with, compared by identity. */
 	get modelRouterGuidance(): IModelRouterGuidance | undefined { return this._launchPlan.isEphemeral ? undefined : this._launchPlan.modelRouterGuidance; }
 
