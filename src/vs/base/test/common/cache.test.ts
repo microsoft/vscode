@@ -76,4 +76,22 @@ suite('Cache', () => {
 		assert.strictEqual(cached.get(undefined), 'default');
 		assert.strictEqual(callCount, 1);
 	});
+
+	test('LRUCachedFunction with custom getCacheKey returning undefined', () => {
+		let callCount = 0;
+		const cached = new LRUCachedFunction(
+			{ getCacheKey: (item: { id?: string }) => item.id },
+			(item: { id?: string; data: number }) => {
+				callCount++;
+				return item.data * 2;
+			}
+		);
+
+		assert.strictEqual(cached.get({ id: undefined, data: 5 }), 10);
+		assert.strictEqual(callCount, 1);
+
+		// Same undefined key should return cached result
+		assert.strictEqual(cached.get({ id: undefined, data: 99 }), 10);
+		assert.strictEqual(callCount, 1);
+	});
 });
