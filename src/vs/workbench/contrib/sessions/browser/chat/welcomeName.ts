@@ -3,16 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { deriveGitHubEndpoints } from '../../../../../platform/github/common/githubEndpoints.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { asJson, IRequestService, isSuccess } from '../../../../../platform/request/common/request.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
 import { NEW_SESSION_WELCOME_NAME_SETTING } from '../../common/chatConstants.js';
 
 const githubProfileNames = new Map<string, Promise<string | undefined>>();
@@ -33,7 +31,7 @@ export class WelcomeName extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
-		@IRequestService private readonly requestService: IRequestService,
+		@IWorkbenchGitHubService private readonly gitHubService: IWorkbenchGitHubService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -87,7 +85,11 @@ export class WelcomeName extends Disposable {
 
 		let profileName = githubProfileNames.get(accountKey);
 		if (!profileName) {
-			profileName = this._fetchGitHubProfileName(account.authenticationProvider.id, account.authenticationProvider.enterprise, account.sessionId);
+			profileName = this._fetchGitHubProfileName(account.authenticationProvider.id, account.authenticationProvider.enterprise, account.sessionId).catch(() => {
+				githubProfileNames.delete(accountKey);
+				this.logService.warn('Failed to fetch GitHub profile name.');
+				return undefined;
+			});
 			githubProfileNames.set(accountKey, profileName);
 		}
 		const resolvedProfileName = await profileName;
@@ -105,6 +107,7 @@ export class WelcomeName extends Disposable {
 	}
 
 	private async _fetchGitHubProfileName(providerId: string, enterprise: boolean, sessionId: string): Promise<string | undefined> {
+		const lifetime = new DisposableStore();
 		try {
 			const enterpriseUri = enterprise ? this.defaultAccountService.resolveGitHubUrl('') : undefined;
 			if (enterprise && !enterpriseUri) {
@@ -116,26 +119,12 @@ export class WelcomeName extends Disposable {
 			if (!session) {
 				return undefined;
 			}
-			const response = await this.requestService.request({
-				type: 'GET',
-				url: `${deriveGitHubEndpoints(enterpriseUri).apiBaseUri}/user`,
-				disableCache: true,
-				callSite: 'welcomeName.fetchGitHubProfileName',
-				headers: {
-					'Authorization': `token ${session.accessToken}`,
-					'Accept': 'application/vnd.github.v3+json',
-					'User-Agent': 'VSCode-Sessions',
-				},
-			}, CancellationToken.None);
-			if (!isSuccess(response)) {
-				this.logService.warn(`Failed to fetch GitHub profile name: ${response.res.statusCode ?? 'unknown status'}`);
-				return undefined;
-			}
-			const profile = await asJson<{ readonly name?: string | null }>(response);
-			return profile?.name?.trim() || undefined;
-		} catch (error) {
-			this.logService.warn('Failed to fetch GitHub profile name:', error);
-			return undefined;
+			const signal = new AbortController().signal;
+			const client = lifetime.add(await this.gitHubService.acquireAccountApiClient(providerId, session, signal));
+			const profile = await client.users.getAuthenticated(signal, { caller: 'welcomeName.fetchGitHubProfileName', priority: 'background' });
+			return profile.name?.trim() || undefined;
+		} finally {
+			lifetime.dispose();
 		}
 	}
 }
