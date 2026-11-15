@@ -99,13 +99,7 @@ export class MainThreadGitHub extends Disposable implements MainThreadGitHubShap
 			const session = await this._resolveSession(extensionId, sessionId, signal);
 			signal.throwIfAborted();
 			entry.accountLabel = session.account.label;
-			return this._gitHubService.acquireAccountApiClient({
-				providerId: gitHubProviderId,
-				sessionId: session.id,
-				accountId: session.account.id,
-				scopes: [...session.scopes],
-				authorizationServer: session.authorizationServer?.toString(),
-			}, signal);
+			return this._gitHubService.acquireAccountApiClient(gitHubProviderId, session, signal);
 		});
 	}
 
