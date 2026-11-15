@@ -307,9 +307,11 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 	}
 
 	async openNewChatInSession(session: ISession, options?: IOpenNewChatInSessionOptions): Promise<void> {
+		// A later open supersedes this one while its provider creates the chat, and it supersedes an earlier one, as the Agents window's does
+		const open = ++this._openGeneration;
 		const { from: _from, ...createOptions } = options ?? {};
 		const chat = await this._sessionsManagementService.createNewChatInSession(session, Object.keys(createOptions).length ? createOptions : undefined);
-		if (chat) {
+		if (chat && open === this._openGeneration) {
 			await this._presenter.openChat(session, chat.resource);
 		}
 	}
