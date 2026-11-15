@@ -7092,25 +7092,31 @@ suite('ChatListRenderer', () => {
 		assert.deepStrictEqual({ whilePending, called, afterSettled: kept.attached }, { whilePending: { kept: true, released: false }, called: ['kept'], afterSettled: false });
 	});
 
-	test('approving a tool in the carousel of one of two widgets that show the chat focuses that widget\'s input, not the other\'s', async () => {
-		const session = URI.from({ scheme: 'vscode-chat-session', path: '/approve' });
-		const { chatWidgetService, widgets, focused, toolCarousels } = createInputRequestWidgets(session, ['other', 'own']);
-		const { disposables, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ sessionResource: session, chatMode: ChatModeKind.Agent, chatWidgetService, getWidget: () => widgets.get('own') });
-		configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
-		const tool = new ChatToolInvocation(
-			{ invocationMessage: 'Run the build', confirmationMessages: { title: 'Run build?', message: 'Runs npm run build.' } },
-			{ id: 'run_in_terminal', displayName: 'Run in terminal', modelDescription: 'Run', source: ToolDataSource.Internal },
-			'approve-build', undefined, {},
-		);
-		model.acceptResponseProgress(request, tool);
-		renderer.renderElement(node, 0, template);
-		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
-		const factory = toolCarousels.get('own')?.[0];
-		const carouselPart = factory && disposables.add(factory(tool));
-		carouselPart?.domNode.querySelector<HTMLElement>('.chat-buttons .monaco-button')?.click();
+	for (const [kind, toolSpecificData] of [['base', undefined], ['agent feedback review', { kind: 'agentFeedbackReviewConfirmation', options: ['Reveal Selected'] }]] as const) {
+		test(`answering a tool approval (${kind}) in the carousel of one of two widgets that show the chat focuses that widget's input, not the other's`, async () => {
+			const session = URI.from({ scheme: 'vscode-chat-session', path: '/approve' });
+			const { chatWidgetService, widgets, focused, toolCarousels } = createInputRequestWidgets(session, ['other', 'own']);
+			const { disposables, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ sessionResource: session, chatMode: ChatModeKind.Agent, chatWidgetService, getWidget: () => widgets.get('own') });
+			configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
+			const tool = new ChatToolInvocation(
+				{ invocationMessage: 'Run the build', confirmationMessages: { title: 'Run build?', message: 'Runs npm run build.' } },
+				{ id: 'run_in_terminal', displayName: 'Run in terminal', modelDescription: 'Run', source: ToolDataSource.Internal },
+				'approve-build', undefined, {},
+			);
+			tool.toolSpecificData = toolSpecificData;
+			model.acceptResponseProgress(request, tool);
+			renderer.renderElement(node, 0, template);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const factory = toolCarousels.get('own')?.[0];
+			const carouselPart = factory && disposables.add(factory(tool));
+			// The last button, Skip or the feedback review's own Cancel, is enabled in every kind
+			const last = [...carouselPart?.domNode.querySelectorAll<HTMLElement>('.chat-buttons .monaco-button') ?? []].at(-1);
+			const specialized = last?.textContent === 'Cancel';
+			last?.click();
 
-		assert.deepStrictEqual({ carousels: [...toolCarousels.keys()], focused }, { carousels: ['own'], focused: ['own'] });
-	});
+			assert.deepStrictEqual({ carousels: [...toolCarousels.keys()], specialized, focused }, { carousels: ['own'], specialized: kind !== 'base', focused: ['own'] });
+		});
+	}
 
 	test('previews can omit input requests without resolving them or docking them in another widget', async () => {
 		const { model, request, renderer, template, node, container } = createPersistentProgressRenderer({
