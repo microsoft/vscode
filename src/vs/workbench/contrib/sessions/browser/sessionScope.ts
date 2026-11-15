@@ -91,8 +91,7 @@ export class SessionsListingScopeFilter extends Disposable {
 	 * The `sessions` in the scope of `scopeFolders`, such as the folders of an editor window: the sessions whose main chat's
 	 * folder works in a scope folder, or whose root or git repository, its project, is a scope folder, such as a session in a
 	 * worktree of a scope folder's repository; not one whose project is only inside a scope folder. A session belongs where
-	 * its main chat works: the main chat's first folder, which is the session's first one unless the main chat reports its
-	 * own; the folders its other chats add count only while the main chat has no folder. `scopeGitHubRepositories`, as lowercase `owner/repo`, are the GitHub repositories of the scope folders'
+	 * its main chat works (see `_getScopingFolders`): the folders its other chats add count only while the main chat has none. `scopeGitHubRepositories`, as lowercase `owner/repo`, are the GitHub repositories of the scope folders'
 	 * `origin`: a session working in one of them on GitHub, on any branch, such as a Copilot Cloud session, is in the scope
 	 * too. Only the metadata the providers report is read, comparing whole URIs, so a session of another host never matches a
 	 * local folder. A workspace-less quick chat, by its own `isQuickChat` flag, is in every scope: a session whose workspace
@@ -113,10 +112,18 @@ export class SessionsListingScopeFilter extends Disposable {
 		return included;
 	}
 
-	/** The folders by which `session` is in a scope: its main chat's first folder, or every folder of the session while the main chat has none. */
+	/**
+	 * The folders by which `session` is in a scope: those of its main chat's workspace. A main chat that sets no folders of
+	 * its own has the session's workspace, the very object, whose folders after the first are those its other chats added:
+	 * only its first, the session's primary, counts then. Every folder of the session counts while the main chat has none.
+	 */
 	private _getScopingFolders(session: ISession, reader: IReader): readonly ISessionFolder[] {
-		const mainFolder = session.mainChat.read(reader).workspace.read(reader)?.folders[0];
-		return mainFolder ? [mainFolder] : session.workspace.read(reader)?.folders ?? [];
+		const sessionWorkspace = session.workspace.read(reader);
+		const mainChatWorkspace = session.mainChat.read(reader).workspace.read(reader);
+		if (!mainChatWorkspace) {
+			return sessionWorkspace?.folders ?? [];
+		}
+		return mainChatWorkspace === sessionWorkspace ? mainChatWorkspace.folders.slice(0, 1) : mainChatWorkspace.folders;
 	}
 
 	/** The sessions the scope lists. */
