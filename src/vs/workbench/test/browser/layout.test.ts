@@ -722,8 +722,8 @@ suite('Workbench layout chat part', () => {
 		const auxiliaryBarBefore = grid.getViewSize(views.get(Parts.AUXILIARYBAR_PART)!).width;
 		layout.setPartHidden(false, Parts.CHAT_PART);
 
-		assert.deepStrictEqual({ ...widthsAcross(layout, grid, views, 1200), auxiliaryBarShrank: grid.getViewSize(views.get(Parts.AUXILIARYBAR_PART)!).width < auxiliaryBarBefore }, {
-			fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true, auxiliaryBarShrank: true,
+		assert.deepStrictEqual({ ...widthsAcross(layout, grid, views, 1200), auxiliaryBarShrank: grid.getViewSize(views.get(Parts.AUXILIARYBAR_PART)!).width < auxiliaryBarBefore, chatAtItsSavedWidth: grid.getViewSize(views.get(Parts.CHAT_PART)!).width === 400 }, {
+			fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true, auxiliaryBarShrank: true, chatAtItsSavedWidth: true,
 		});
 	});
 
@@ -752,6 +752,16 @@ suite('Workbench layout chat part', () => {
 		assert.deepStrictEqual({ shown: widthsAcross(shown.layout, shown.grid, shown.views, 1200), moved: widthsAcross(moved.layout, moved.grid, moved.views, 1200) }, {
 			shown: { fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true },
 			moved: { fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true },
+		});
+	});
+
+	test('the chat part shown beside a secondary side bar at its minimum takes the room it still needs from the wide side bar on the other side', () => {
+		const { layout, grid, views } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: false, size: 162 }, anchor: ViewContainerLocation.AuxiliaryBar, widths: { window: 1200, sideBar: 600, auxiliaryBar: 170 } });
+		const sideBarBefore = grid.getViewSize(views.get(Parts.SIDEBAR_PART)!).width;
+		layout.setPartHidden(false, Parts.CHAT_PART);
+
+		assert.deepStrictEqual({ ...widthsAcross(layout, grid, views, 1200), sideBarShrank: grid.getViewSize(views.get(Parts.SIDEBAR_PART)!).width < sideBarBefore }, {
+			fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true, sideBarShrank: true,
 		});
 	});
 

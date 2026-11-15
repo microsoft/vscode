@@ -26,6 +26,20 @@ import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPart
 import { AgentsChatViewHost } from '../../../browser/agentsView/agentsChatViewHost.js';
 import { IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { IEditorWindowSessionsRuntime } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { EditorExtensions, IEditorFactoryRegistry } from '../../../../../common/editor.js';
+import { EditorInput } from '../../../../../common/editor/editorInput.js';
+import { SessionChangesEditorInput } from '../../../../sessionChanges/browser/sessionChangesEditorInput.js';
+
+/**
+ * The instantiation service of the editor factory as the window's editors start, which the factory keeps for the editor
+ * serializers registered later, also of other tests: shared, and never disposed, as editor tests have it.
+ */
+let editorFactoryServices: TestInstantiationService | undefined;
+function editorFactoryInstantiationService(): TestInstantiationService {
+	editorFactoryServices ??= new TestInstantiationService();
+	return editorFactoryServices;
+}
 
 suite('EditorWindowChatPartService', () => {
 
@@ -104,7 +118,7 @@ suite('EditorWindowChatPartService', () => {
 		]);
 	});
 
-	test('while chats do not open in it, it neither restores nor shows, and the Chat view keeps its chats; once they do, it replaces the Chat view; its composers hold the providers throughout', async () => {
+	test('while chats do not open in it, it neither restores nor shows, and the Chat view keeps its chats, and until they first do, the window has only its empty part; once they do, it replaces the Chat view, and its composers hold the providers from then on', async () => {
 		const enabled = observableValue('enabled', false);
 		const { service, events } = createService({ visible: true });
 		const step = (label: string) => events.push(`-- ${label}`);
@@ -119,10 +133,10 @@ suite('EditorWindowChatPartService', () => {
 		registration.dispose();
 
 		assert.deepStrictEqual(events, [
-			'create part', 'hold providers', 'register composer holder', 'anchor chat',
+			'create part', 'anchor chat',
 			'hide',
 			'-- chats open in the chat part',
-			'register host', 'register presenter',
+			'hold providers', 'register composer holder', 'register host', 'register presenter',
 			'-- they no longer do',
 			'unregister host', 'deactivate host', 'unregister presenter',
 			'anchor undefined', 'release providers', 'unregister composer holder',
@@ -178,6 +192,24 @@ suite('EditorWindowChatPartService', () => {
 		assert.deepStrictEqual({ afterFirst, afterBoth: service.enabled.get() }, {
 			afterFirst: { enabled: true, events: ['create part', 'hold providers', 'register composer holder', 'register host', 'register presenter', 'anchor list', 'anchor list', 'anchor list'] },
 			afterBoth: false,
+		});
+	});
+
+	test('restores a Changes editor saved as the window closed also while chats do not open in it, and provisions the sessions of its changes as it does', async () => {
+		const { service, events } = createService({ visible: false });
+		disposables.add(service.enable({ anchorViewId: 'chat', anchorPriority: 1, enabled: constObservable(false) }));
+		const beforeRestore = [...events];
+
+		// The window restores a Changes editor that it saved, as its editors start
+		const editorFactory = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
+		editorFactoryInstantiationService().invokeFunction(accessor => editorFactory.start(accessor));
+		const serializer = editorFactory.getEditorSerializer(SessionChangesEditorInput.ID);
+		const restored = serializer?.deserialize(upcastPartial<IInstantiationService>({ createInstance: () => upcastPartial<EditorInput>({}) }), JSON.stringify({ multiDiffSourceUri: 'session-changes:/session' }));
+
+		assert.deepStrictEqual({ beforeRestore, restored: !!restored, afterRestore: events.slice(beforeRestore.length) }, {
+			beforeRestore: ['create part', 'anchor chat'],
+			restored: true,
+			afterRestore: ['hold providers', 'register composer holder'],
 		});
 	});
 

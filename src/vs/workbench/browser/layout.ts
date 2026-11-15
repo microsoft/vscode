@@ -2662,7 +2662,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	 * Makes room for a visible chat part where the editor's column is too narrow for the editor and the chat part at
 	 * `width` (its own width by default), so that neither overflows the column: the parts beyond the column on the chat
 	 * part's side, closest first, such as the secondary side bar that holds its anchor, give up width down to their
-	 * minimum. The chat part then takes its width, leaving the editor its minimum.
+	 * minimum, and then those on the other side. The chat part then takes its width, leaving the editor its minimum.
 	 */
 	private ensureChatPartFits(width?: number): void {
 		const grid = this.workbenchGrid;
@@ -2674,7 +2674,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const editorWidth = this.isEditorHiddenByChat() ? 0 : this.editorPartView.minimumWidth;
 		const target = this.isEditorHiddenByChat() ? columnWidth() : Math.max(this.chatPartView.minimumWidth, width ?? grid.getViewSize(this.chatPartView).width);
 		let missing = editorWidth + target - columnWidth();
-		for (const neighbour of this.getChatPartSideNeighbours()) {
+		// Closest first on the chat part's side, then on the other side, where those on its side are at their minimum
+		const side = this.getChatPartPosition();
+		const otherSide = side === Position.LEFT ? Position.RIGHT : Position.LEFT;
+		for (const neighbour of [...this.getChatPartSideNeighbours(side), ...this.getChatPartSideNeighbours(otherSide)]) {
 			if (missing <= 0) {
 				break;
 			}
@@ -2721,9 +2724,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return branch.box.width - others;
 	}
 
-	/** The visible parts beyond the editor's column on the chat part's side, closest first. */
-	private getChatPartSideNeighbours(): ISerializableView[] {
-		const side = this.getChatPartPosition();
+	/** The visible parts beyond the editor's column on `side`, closest first. */
+	private getChatPartSideNeighbours(side: Position): ISerializableView[] {
 		const sideBarSide = this.getSideBarPosition();
 		const panelPosition = this.getPanelPosition();
 		const neighbours: ISerializableView[] = [];

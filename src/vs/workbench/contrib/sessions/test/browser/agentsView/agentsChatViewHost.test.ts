@@ -209,7 +209,7 @@ suite('AgentsChatViewHost', () => {
 
 		assert.deepStrictEqual({ cancelled: isCancellationError(error), calls }, {
 			cancelled: true,
-			calls: ['info Local chat sessions are not available while chats open in the chat part.'],
+			calls: ['info Local chat sessions are not available while chats open in the chat area.'],
 		});
 	});
 
