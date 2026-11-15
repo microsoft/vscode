@@ -22,8 +22,9 @@ import { IEditorWindowChatPartService } from './agentsChatPartContribution.js';
 import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessionsRuntime.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
+import { AgentsViewAvailable } from './agentsChatPartContext.js';
 import { registerAgentsViewNewSessionActions } from './agentsChatPartActions.js';
-import { AGENTS_VIEW_CONTAINER_ID, AgentsViewAvailable } from './agentsView.js';
+import { AGENTS_VIEW_CONTAINER_ID } from './agentsView.js';
 import { SessionsViewId } from '../views/sessionsView.js';
 import { createEditorWindowSessionsScope, registerEditorWindowChatViewReplacement, registerEditorWindowSessionsList, registerEditorWindowSessionsViews } from './editorWindowSessionsList.js';
 
