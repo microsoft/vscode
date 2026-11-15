@@ -58,7 +58,6 @@ export class NativeEditContext extends AbstractEditContext {
 	private readonly _editContext: EditContext;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
 	private _previousEditContextSelection: OffsetRange = new OffsetRange(0, 0);
-	private _previousEditContextText: string = '';
 	private _editContextPrimarySelection: Selection = new Selection(1, 1, 1, 1);
 
 	// Overflow guard container
@@ -430,9 +429,14 @@ export class NativeEditContext extends AbstractEditContext {
 			return;
 		}
 		const newText = editContextState.text ?? ' ';
-		if (newText !== this._previousEditContextText) {
-			this._editContext.updateText(0, this._previousEditContextText.length, newText);
-			this._previousEditContextText = newText;
+		// The browser modifies the text of the edit context on its own before firing `textupdate`,
+		// and that change is only reflected in the model when the triggered `type` command applies
+		// a text edit. An extension can consume the `type` command without applying an edit, so the
+		// text previously written by this method is not a reliable mirror of the edit context.
+		// Comparing against the actual text detects such a desynchronization and heals it.
+		const currentText = this._editContext.text;
+		if (newText !== currentText) {
+			this._editContext.updateText(0, currentText.length, newText);
 		}
 		if (editContextState.selectionStartOffset !== this._previousEditContextSelection.start ||
 			editContextState.selectionEndOffset !== this._previousEditContextSelection.endExclusive) {
