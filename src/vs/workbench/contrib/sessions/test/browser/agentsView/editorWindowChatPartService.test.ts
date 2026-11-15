@@ -22,7 +22,11 @@ import { ILifecycleService } from '../../../../../services/lifecycle/common/life
 import { IChatViewHostService } from '../../../../chat/browser/chatViewHost.js';
 import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
 import { EditorWindowChatPartService } from '../../../browser/agentsView/agentsChatPartContribution.js';
-import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
+import { AgentsChatPartFrame, IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { AgentsChatViewHost } from '../../../browser/agentsView/agentsChatViewHost.js';
 import { IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { IEditorWindowSessionsRuntime } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
@@ -46,7 +50,7 @@ suite('EditorWindowChatPartService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** The service, as the window starts with the chat part shown or not, recording what it does. */
-	function createService(state: { visible: boolean }) {
+	function createService(state: { visible: boolean }, frame?: IAgentsChatPartFrame) {
 		const events: string[] = [];
 		const ownsNewChat: IObservable<boolean>[] = [];
 		const keys: Record<string, unknown> = {};
@@ -87,7 +91,7 @@ suite('EditorWindowChatPartService', () => {
 				registerComposerHolder: () => { events.push('register composer holder'); return toDisposable(() => events.push('unregister composer holder')); },
 			}),
 			upcastPartial<IEditorWindowSessionsRuntime>({ enable: () => { events.push('hold providers'); return toDisposable(() => events.push('release providers')); } }),
-			upcastPartial<IAgentsChatPartFrame>({ get part() { events.push('create part'); return undefined!; }, contentCreated: constObservable(false) }),
+			frame ?? upcastPartial<IAgentsChatPartFrame>({ get part() { events.push('create part'); return undefined!; }, contentCreated: constObservable(false) }),
 		));
 		return { service, events, ownsNewChat, keys };
 	}
@@ -176,6 +180,24 @@ suite('EditorWindowChatPartService', () => {
 		steps.push(registered());
 
 		assert.deepStrictEqual(steps, [false, true, true, false]);
+	});
+
+	test('resolving it creates no part, also once its delayed frame is created, as at idle, after the workbench created its grid: enabling it does, as the window starts', async () => {
+		const registered: string[] = [];
+		const frameServices = disposables.add(new TestInstantiationService());
+		frameServices.stub(IThemeService, new TestThemeService());
+		frameServices.stub(IStorageService, disposables.add(new TestStorageService()));
+		frameServices.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ registerPart: part => { registered.push(part.getId()); return toDisposable(() => { }); } }));
+		const frame = disposables.add(frameServices.createInstance(AgentsChatPartFrame));
+		const { service } = createService({ visible: false }, frame);
+		const beforeEnable = registered.splice(0);
+
+		const enabled = service.enable({ anchorViewId: 'view', anchorPriority: 1, enabled: constObservable(false) });
+		const onEnable = registered.splice(0);
+		enabled.dispose();
+		await timeout(0);
+
+		assert.deepStrictEqual({ beforeEnable, onEnable }, { beforeEnable: [], onEnable: [Parts.CHAT_PART] });
 	});
 
 	test('a feature that enables it twice with the same options keeps it until it disposes both', async () => {

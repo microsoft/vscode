@@ -119,7 +119,7 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 		const store = new DisposableStore();
 		store.add(toDisposable(() => this._layoutService.setChatPartAnchor(undefined)));
 
-		// The part, before the workbench creates its grid: reading it creates the delayed frame
+		// The part, before the workbench creates its grid: the frame creates it as it is first read
 		void this._frame.part;
 
 		// What shows chats is provisioned as it is first needed, and stays, also once chats no longer open in it: before then,
