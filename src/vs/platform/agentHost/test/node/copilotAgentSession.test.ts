@@ -1448,7 +1448,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	builtinPluginDirectories?: readonly URI[];
 	activeClientToolSet?: ActiveClientToolSet;
 	connectedClientIds?: ReadonlySet<string>;
-	environmentServiceRegistration?: 'native' | 'none';
+	omitCopilotHomeService?: boolean;
 	logService?: ILogService;
 	telemetryService?: ITelemetryService;
 	captureRuntime?: { current?: ICopilotSessionRuntime };
@@ -1959,8 +1959,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		tmpDir: URI.file('/mock-tmp'),
 		userDataPath: '/mock-userdata',
 	} as INativeEnvironmentService;
-	if (options?.environmentServiceRegistration !== 'none') {
-		services.set(INativeEnvironmentService, environmentService);
+	services.set(INativeEnvironmentService, environmentService);
+	if (!options?.omitCopilotHomeService) {
 		services.set(ICopilotHomeService, new TestCopilotHomeService(URI.file('/mock-home'), options?.copilotHome ? URI.file(options.copilotHome) : undefined));
 	}
 	services.set(IAgentHostFileEditCoordinator, options?.fileEditCoordinator ?? disposables.add(new AgentHostFileEditCoordinator()));
@@ -13589,7 +13589,7 @@ suite('CopilotAgentSession', () => {
 		test('logs and rethrows permission failures', async () => {
 			const logService = new CapturingLogService();
 			const { runtime } = await createAgentSession(disposables, {
-				environmentServiceRegistration: 'none',
+				omitCopilotHomeService: true,
 				logService,
 			});
 
