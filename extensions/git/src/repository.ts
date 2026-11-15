@@ -1930,7 +1930,11 @@ export class Repository implements Disposable {
 	}
 
 	async merge(ref: string): Promise<void> {
-		await this.run(Operation.Merge, () => this.repository.merge(ref));
+		// Only pass `-S` when the setting is enabled so that git's own config applies otherwise
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const signCommit = config.get<boolean>('enableCommitSigning') === true;
+
+		await this.run(Operation.Merge, () => this.repository.merge(ref, { signCommit }));
 	}
 
 	async mergeAbort(): Promise<void> {
