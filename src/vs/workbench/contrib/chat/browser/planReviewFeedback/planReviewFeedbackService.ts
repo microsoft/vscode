@@ -28,6 +28,11 @@ export interface IPlanReviewFeedbackRegistration {
 	readonly submitFeedback: () => Promise<boolean>;
 	readonly submitAction: (action: IChatPlanApprovalAction) => Promise<void>;
 	readonly reject: () => Promise<void>;
+	/**
+	 * The plan review this registers, such as its model part. Copies of the same review, such as one per widget that shows
+	 * its chat, share one registration and its feedback; the copy registered last handles submission.
+	 */
+	readonly identity?: object;
 }
 
 export const IPlanReviewFeedbackService = createDecorator<IPlanReviewFeedbackService>('planReviewFeedbackService');
@@ -58,6 +63,10 @@ export interface IPlanReviewFeedbackService {
 }
 
 interface IPlanReviewRegistration {
+	readonly identity: object | undefined;
+	readonly sessionResource: URI;
+	/** The registered copies of the review, the last of which is active. */
+	readonly copies: IPlanReviewFeedbackRegistration[];
 	readonly review: IPlanReviewFeedbackRegistration;
 	readonly items: IPlanReviewFeedbackItem[];
 	readonly existingCommentIds: Set<string>;
@@ -94,12 +103,22 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 	registerPlanReview(planUri: URI, review: IPlanReviewFeedbackRegistration): IDisposable {
 		const key = planUri.toString();
 		const registrations = this._registrations.get(key) ?? [];
+		const shared = review.identity !== undefined ? registrations.find(candidate => candidate.identity === review.identity) : undefined;
+		if (shared) {
+			shared.copies.push(review);
+			this._onDidChangeRegistrations.fire();
+			return this._toCopyDisposable(planUri, registrations, shared, review);
+		}
 		const previous = registrations.at(-1);
 		if (previous) {
 			this._onDidChangePlanReviewScope.fire({ planUri, sessionResource: previous.review.sessionResource, active: false });
 		}
+		const copies = [review];
 		const registration: IPlanReviewRegistration = {
-			review,
+			identity: review.identity,
+			sessionResource: review.sessionResource,
+			copies,
+			get review() { return copies.at(-1)!; },
 			items: [],
 			existingCommentIds: new Set(),
 			navigationAnchor: undefined,
@@ -111,25 +130,43 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 			registration.existingCommentIds.add(commentId);
 		}
 		this._onDidChangeRegistrations.fire();
+		return this._toCopyDisposable(planUri, registrations, registration, review);
+	}
+
+	/** Unregisters the copy `review` of `registration`, and `registration` with its last copy. */
+	private _toCopyDisposable(planUri: URI, registrations: IPlanReviewRegistration[], registration: IPlanReviewRegistration, review: IPlanReviewFeedbackRegistration): IDisposable {
 		return toDisposable(() => {
-			const index = registrations.indexOf(registration);
+			const index = registration.copies.indexOf(review);
 			if (index === -1) {
 				return;
 			}
-			const wasActive = index === registrations.length - 1;
-			registrations.splice(index, 1);
-			if (registrations.length === 0) {
-				this._registrations.delete(key);
+			registration.copies.splice(index, 1);
+			if (registration.copies.length === 0) {
+				this._removeRegistration(planUri, registrations, registration);
+			} else {
+				this._onDidChangeRegistrations.fire();
 			}
-			if (wasActive) {
-				this._onDidChangePlanReviewScope.fire({ planUri, sessionResource: review.sessionResource, active: false });
-				const active = registrations.at(-1);
-				if (active) {
-					this._onDidChangePlanReviewScope.fire({ planUri, sessionResource: active.review.sessionResource, active: true });
-				}
-			}
-			this._onDidChangeRegistrations.fire();
 		});
+	}
+
+	private _removeRegistration(planUri: URI, registrations: IPlanReviewRegistration[], registration: IPlanReviewRegistration): void {
+		const index = registrations.indexOf(registration);
+		if (index === -1) {
+			return;
+		}
+		const wasActive = index === registrations.length - 1;
+		registrations.splice(index, 1);
+		if (registrations.length === 0) {
+			this._registrations.delete(planUri.toString());
+		}
+		if (wasActive) {
+			this._onDidChangePlanReviewScope.fire({ planUri, sessionResource: registration.sessionResource, active: false });
+			const active = registrations.at(-1);
+			if (active) {
+				this._onDidChangePlanReviewScope.fire({ planUri, sessionResource: active.review.sessionResource, active: true });
+			}
+		}
+		this._onDidChangeRegistrations.fire();
 	}
 
 	isActivePlanReview(uri: URI): boolean {

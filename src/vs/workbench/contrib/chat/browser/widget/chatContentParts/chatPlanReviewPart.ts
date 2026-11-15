@@ -137,6 +137,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 				submitFeedback: () => this.submitFeedback(),
 				submitAction: action => this.submitApproval(action),
 				reject: () => this.submitRejection(),
+				identity: review,
 			}));
 			registrationStore.add(this._planReviewFeedbackService.onDidChangeFeedback(uri => {
 				if (uri.toString() === planUriString) {
