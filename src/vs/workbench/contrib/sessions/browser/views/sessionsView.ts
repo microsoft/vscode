@@ -280,9 +280,9 @@ export interface ISessionsViewOptions extends IViewPaneOptions {
 
 	/**
 	 * The groupings it offers, and the one it shows until one of them is chosen, such as when the chosen one is not offered;
-	 * by default, {@link DEFAULT_SESSIONS_GROUPINGS}, showing Inbox or Workspace.
+	 * by default, {@link DEFAULT_SESSIONS_GROUPINGS}, and without a `default`, Inbox or Workspace as the Inbox setting says.
 	 */
-	readonly groupings?: { readonly offered: readonly SessionsGrouping[]; readonly default: SessionsGrouping };
+	readonly groupings?: { readonly offered: readonly SessionsGrouping[]; readonly default?: SessionsGrouping };
 
 	/** Whether grouping by time lists the sessions without a workspace in the "Chats" section. See the sessions list's option. */
 	readonly quickChatsInTimeGrouping?: boolean;
