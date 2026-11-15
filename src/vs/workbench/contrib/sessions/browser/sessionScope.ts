@@ -113,17 +113,15 @@ export class SessionsListingScopeFilter extends Disposable {
 	}
 
 	/**
-	 * The folders by which `session` is in a scope: those of its main chat's workspace. A main chat that sets no folders of
-	 * its own has the session's workspace, the very object, whose folders after the first are those its other chats added:
-	 * only its first, the session's primary, counts then. Every folder of the session counts while the main chat has none.
+	 * The folders by which `session` is in a scope: the first folder of its main chat's workspace, which is the main chat's
+	 * primary when it sets folders of its own, else the session's primary, as the main chat then has the session's folders,
+	 * in their order, with those its other chats added after it. Every folder of the session counts while the main chat has
+	 * none. Deliberately the first folder only, also of a main chat that sets several of its own: the main chat's workspace
+	 * does not tell its own folders from the session's it has, so its other folders would bring in those other chats added.
 	 */
 	private _getScopingFolders(session: ISession, reader: IReader): readonly ISessionFolder[] {
-		const sessionWorkspace = session.workspace.read(reader);
-		const mainChatWorkspace = session.mainChat.read(reader).workspace.read(reader);
-		if (!mainChatWorkspace) {
-			return sessionWorkspace?.folders ?? [];
-		}
-		return mainChatWorkspace === sessionWorkspace ? mainChatWorkspace.folders.slice(0, 1) : mainChatWorkspace.folders;
+		const mainFolder = session.mainChat.read(reader).workspace.read(reader)?.folders[0];
+		return mainFolder ? [mainFolder] : session.workspace.read(reader)?.folders ?? [];
 	}
 
 	/** The sessions the scope lists. */
