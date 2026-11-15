@@ -33,6 +33,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../../nls.js';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
@@ -596,6 +597,20 @@ export class SessionsView extends ViewPane {
 		})) { this._register(notice); }
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
 		this.listNotification = this._register(this.instantiationService.createInstance(SessionsListNotification, sessionsContent, () => sessionsControl.focus()));
+		// In an editor window, which has no help of the Agents window, the list tells how to open the Sessions view's
+		if (this.contextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key) !== true) {
+			const updateHelpHint = () => {
+				const keybinding = this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.SessionsView) ? this.keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel() : undefined;
+				sessionsControl.setAriaDescription(keybinding ? localize('sessionsViewHelpHint', "Press {0} for accessibility help.", keybinding) : undefined);
+			};
+			updateHelpHint();
+			this._register(this.configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(AccessibilityVerbositySettingId.SessionsView)) {
+					updateHelpHint();
+				}
+			}));
+			this._register(this.keybindingService.onDidUpdateKeybindings(() => updateHelpHint()));
+		}
 
 		// Toggle header label/actions visibility when find widget opens/closes
 		this._register(sessionsControl.onDidChangeFindOpenState(open => {

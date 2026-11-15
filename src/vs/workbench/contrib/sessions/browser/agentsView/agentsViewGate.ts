@@ -20,6 +20,9 @@ import { Extensions as ViewExtensions, IViewContainersRegistry, ViewContainerLoc
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IEditorWindowChatPartService } from './agentsChatPartContribution.js';
 import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessionsRuntime.js';
+import { registerSessionsListAccessibilityHelp } from '../views/sessionsListActions.js';
+import { SessionsViewAccessibilityHelp } from './sessionsViewAccessibilityHelp.js';
+import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { AgentsViewAvailable } from './agentsChatPartContext.js';
@@ -48,6 +51,9 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 			return;
 		}
 
+		// Accessibility help, as the window starts: help registered once the view shows would not be installed anymore
+		this._register(registerSessionsListAccessibilityHelp());
+		this._register(AccessibleViewRegistry.register(new SessionsViewAccessibilityHelp()));
 		const scoped = instantiationService.invokeFunction(accessor => createEditorWindowSessionsScope(this, accessor.get(IWorkspaceContextService)));
 		this.registerView(scoped);
 		this._register(registerEditorWindowSessionsList(instantiationService, registerAgentsViewNewSessionActions));

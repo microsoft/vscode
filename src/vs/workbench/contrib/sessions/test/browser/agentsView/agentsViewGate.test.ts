@@ -39,6 +39,7 @@ import { SessionsViewId } from '../../../browser/views/sessionsView.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
+import { AccessibleViewRegistry } from '../../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 
 /** How many items the context menu of a session has: the actions of the sessions list add theirs. */
 function sessionItemMenuItems(): number {
@@ -225,6 +226,17 @@ suite('AgentsViewGate', () => {
 		gate.dispose();
 
 		assert.deepStrictEqual({ containerRegisteredAtViewsDeregistered, containerRegistered: containerRegistered() }, { containerRegisteredAtViewsDeregistered: [true], containerRegistered: false });
+	});
+
+	test('registers the accessibility help of the Sessions view and of its Undo notice as the window starts, before the view shows, as help registered later would not be installed', () => {
+		const helps = () => AccessibleViewRegistry.getImplementations().map(help => help.name).filter(name => name === 'sessions-view' || name === 'sessions-list-notification').sort();
+		// The Agents window's list, which other tests load, holds the Undo notice's help for good
+		const before = helps();
+		const gate = createGate(true);
+		const beforeShown = helps();
+		gate.dispose();
+
+		assert.deepStrictEqual({ beforeShown, afterDispose: helps() }, { beforeShown: ['sessions-list-notification', 'sessions-view'], afterDispose: before });
 	});
 
 	test('surfaces every local agent host agent in a local editor window with the setting on, as the Agents window does, but not in a remote one', () => {

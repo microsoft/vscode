@@ -234,7 +234,13 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 		const registration = { host };
 		this.registrations.push(registration);
 		this.updateHostInUse();
-		this.claim(host);
+		// A host that shows no chat yet does not take the chat that the Chat view shows, when it leaves that chat to the Chat view:
+		// also a new chat of New Chat that the Chat view shows, such as a draft typed but not sent
+		const shown = this.latest.get();
+		const shownResource = shown.host === this.chatViewHost ? shown.host.shownSession?.get()?.resource : undefined;
+		if (!shownResource || host.shownSession?.get() || host.canShow?.(shownResource) !== false) {
+			this.claim(host);
+		}
 		const tracking = this.trackShownSession(host);
 		return toDisposable(() => {
 			tracking.dispose();
@@ -299,13 +305,19 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 		// Chat, superseded, claims nothing
 		const newChat = ++this.newChats;
 		const requestedClaims = this.requestedClaims;
+		const superseded = () => newChat !== this.newChats || requestedClaims !== this.requestedClaims;
 		let host = this.host;
 		let taken = await host.newChat?.(target, options) ?? false;
 		if (!taken && options?.ownChat && host !== this.chatViewHost) {
+			// Superseded meanwhile, it does not start a new chat in the Chat view, which would replace what a later request
+			// shows, and is handled
+			if (superseded()) {
+				return true;
+			}
 			host = this.chatViewHost;
 			taken = await host.newChat?.(target, options) ?? false;
 		}
-		if (taken && newChat === this.newChats && requestedClaims === this.requestedClaims) {
+		if (taken && !superseded()) {
 			this.claim(host, true);
 		}
 		return taken;

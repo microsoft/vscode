@@ -62,6 +62,7 @@ export const enum AccessibleViewProviderId {
 	EmptyFileEditorSearch = 'emptyFileEditorSearch',
 	SessionsListNotification = 'sessionsListNotification',
 	SessionsGetStarted = 'sessionsGetStarted',
+	SessionsView = 'sessionsView',
 	SessionCanvas = 'sessionCanvas',
 	Survey = 'survey',
 	Automations = 'automations',
