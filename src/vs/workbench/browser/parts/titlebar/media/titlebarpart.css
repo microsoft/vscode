@@ -287,6 +287,11 @@
 	order: 2;
 }
 
+/* While a menu is open, lift the menubar to the context view level (see ContextView) so the menu is above the quick input. Must not exceed the modal dialog level (2575). */
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .menubar.menu-open {
+	z-index: 2575;
+}
+
 .monaco-workbench.web .part.titlebar > .titlebar-container > .titlebar-left > .menubar {
 	margin-left: 4px;
 }
