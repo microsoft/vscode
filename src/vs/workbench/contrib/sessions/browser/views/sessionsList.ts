@@ -5936,7 +5936,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		let validUntil = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
 		for (const session of this.sessions) {
 			const updated = session.updatedAt.get().getTime();
-			for (const boundary of [updated + RECENTLY_UPDATED_SESSION_THRESHOLD_MS, updated + FOUR_DAYS_MS]) {
+			// The first moment after each threshold, as the list counts a session updated exactly at the threshold as within it
+			for (const boundary of [updated + RECENTLY_UPDATED_SESSION_THRESHOLD_MS + 1, updated + FOUR_DAYS_MS + 1]) {
 				if (boundary > now.getTime() && boundary < validUntil) {
 					validUntil = boundary;
 				}
