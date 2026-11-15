@@ -21,6 +21,9 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { IEditorWindowChatPartService } from './agentsChatPartContribution.js';
 import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessionsRuntime.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
+import { registerSessionsListAccessibilityHelp } from '../views/sessionsListActions.js';
+import { SessionsViewAccessibilityHelp } from './sessionsViewAccessibilityHelp.js';
+import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { AgentsViewAvailable } from './agentsChatPartContext.js';
 import { registerAgentsViewNewSessionActions } from './agentsChatPartActions.js';
@@ -51,6 +54,9 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 		const scoped = instantiationService.invokeFunction(accessor => createEditorWindowSessionsScope(this, accessor.get(IWorkspaceContextService)));
 		this.registerView(scoped);
 		this._register(registerEditorWindowSessionsList(instantiationService, registerAgentsViewNewSessionActions));
+		// Accessibility help, as the window starts: help registered once the view shows would not be installed anymore
+		this._register(registerSessionsListAccessibilityHelp());
+		this._register(AccessibleViewRegistry.register(new SessionsViewAccessibilityHelp()));
 
 		instantiationService.invokeFunction(accessor => {
 			// The sessions it lists are known while it or the chat part shows

@@ -854,6 +854,40 @@ export function registerSessionsListReadStateMenus(): IDisposable {
 }
 
 /**
+ * Registers the accessibility help of the sessions list's Undo notice until every returned disposable is disposed. Help
+ * registers for good before the window's accessibility help installs what is registered, after which it no longer would:
+ * a window whose list registers its actions only once it shows registers this as it starts.
+ */
+let sessionsListAccessibilityHelpRegistration: { readonly registration: IDisposable; references: number } | undefined;
+export function registerSessionsListAccessibilityHelp(): IDisposable {
+	if (!sessionsListAccessibilityHelpRegistration) {
+		sessionsListAccessibilityHelpRegistration = {
+			registration: AccessibleViewRegistry.register({
+				name: 'sessions-list-notification',
+				type: AccessibleViewType.Help,
+				priority: 110,
+				when: SessionsListNotificationFocused,
+				getProvider: accessor => getActiveSessionsView(accessor)?.listNotification?.getAccessibilityHelp(),
+			}),
+			references: 0,
+		};
+	}
+	const help = sessionsListAccessibilityHelpRegistration;
+	help.references++;
+	let disposed = false;
+	return toDisposable(() => {
+		if (disposed) {
+			return;
+		}
+		disposed = true;
+		if (--help.references === 0) {
+			help.registration.dispose();
+			sessionsListAccessibilityHelpRegistration = undefined;
+		}
+	});
+}
+
+/**
  * Registers the actions, menu items, keybindings and accessibility help of the sessions list that do not depend on the
  * window it shows in, until every returned disposable is disposed: the Agents window and the Sessions view of an editor
  * window share one registration, as its registrations are global.
@@ -884,13 +918,7 @@ function createSessionsListActions(): DisposableStore {
 	// What marks the list's targets read or unread, which the commands of either window run
 	store.add(registerSessionsListReadStateCommands());
 
-	store.add(AccessibleViewRegistry.register({
-		name: 'sessions-list-notification',
-		type: AccessibleViewType.Help,
-		priority: 110,
-		when: SessionsListNotificationFocused,
-		getProvider: accessor => getActiveSessionsView(accessor)?.listNotification?.getAccessibilityHelp(),
-	}));
+	store.add(registerSessionsListAccessibilityHelp());
 
 	store.add(CommandsRegistry.registerCommand(ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, (accessor, sessions: readonly ISession[]) => archiveSessionsWithUndo(
 		sessions,
