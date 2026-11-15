@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
@@ -13,7 +13,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { identityAgentHostResourceUriMapper } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentSessionMetadata } from '../../../../../../../platform/agentHost/common/agentService.js';
-import { withSessionMultiRootMetadata, withSessionWorkspaceless } from '../../../../../../../platform/agentHost/common/state/sessionState.js';
+import { type INotification } from '../../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ROOT_STATE_URI, SessionStatus, withSessionMultiRootMetadata, withSessionWorkspaceless } from '../../../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../../platform/workspace/common/workspace.js';
@@ -44,8 +45,9 @@ suite('AgentHostSessionListStore - project root', () => {
 			onDidChangeWorkspaceFolders: Event.None,
 			onDidChangeWorkbenchState: Event.None,
 		}));
+		const onDidNotification = store.add(new Emitter<INotification>());
 		const connection: IAgentHostSessionListConnection = {
-			onDidNotification: Event.None,
+			onDidNotification: onDidNotification.event,
 			resourceUris: identityAgentHostResourceUriMapper,
 			listSessions: async () => [...sessions],
 			disposeChat: async () => { },
@@ -55,6 +57,7 @@ suite('AgentHostSessionListStore - project root', () => {
 		const list = store.add(instantiationService.createInstance(AgentHostSessionListStore, connection, { matchProjectRoot }));
 		return {
 			matchProjectRoot,
+			notify: (notification: INotification) => onDidNotification.fire(notification),
 			shown: () => list.getSessions('copilot').map(entry => entry.rawId).sort(),
 			settle: async () => {
 				await new Promise<void>(resolve => setTimeout(resolve, 0));
@@ -137,60 +140,72 @@ suite('AgentHostSessionListStore - project root', () => {
 		assert.deepStrictEqual(shown(), ['at-worktree', 'main-checkout', 'sibling-worktree']);
 	});
 
-	test('while matching by project root, a session whose default chat works in another repository is not listed in the window of a repository that only its nested chats work in', async () => {
-		const aph = '/work/agent-host-protocol.worktrees/chat-summary-docs';
-		const shape = (id: string, defaultChatKnown: boolean): IAgentSessionMetadata => ({
-			session: URI.from({ scheme: 'copilot', path: `/${id}` }),
-			startTime: 0,
-			modifiedTime: 0,
-			// Its own folder first, then those its nested chats added: a worktree of the window's folder, and the folder itself
-			workingDirectories: [URI.file(aph), URI.file('/work/vscode.worktrees/sync-docs'), URI.file('/work/vscode/src')],
-			project: { uri: URI.file('/work/agent-host-protocol'), displayName: 'agent-host-protocol' },
-			chats: [
-				{ chat: URI.from({ scheme: 'copilot', path: `/${id}/default` }), kind: 'default', ...(defaultChatKnown ? { workingDirectories: [URI.file(aph).toString()] } : {}) },
-				{ chat: URI.from({ scheme: 'copilot', path: `/${id}/summary-docs` }), kind: 'peer', workingDirectories: [URI.file(aph).toString()] },
-				{ chat: URI.from({ scheme: 'copilot', path: `/${id}/sync-docs` }), kind: 'peer', workingDirectories: [URI.file('/work/vscode.worktrees/sync-docs').toString()] },
-			],
-		});
-		const sessions = [shape('default-chat-known', true), shape('default-chat-unknown', false)];
-		const shownIn = async (on: boolean) => {
-			const { matchProjectRoot, shown, settle } = createList(sessions);
-			matchProjectRoot.set(on, undefined);
-			await settle();
-			return shown();
-		};
-
-		assert.deepStrictEqual({ on: await shownIn(true), off: await shownIn(false) }, { on: [], off: ['default-chat-known', 'default-chat-unknown'] });
-	});
-
-	/** A session whose default chat works in `defaultChat`'s folders, if any, and with nested chats in other folders. */
-	const sessionWithChats = (id: string, workingDirectories: readonly string[], project: string, defaultChat: readonly string[] | undefined, options?: { readonly workspaceless?: boolean }): IAgentSessionMetadata => ({
+	/** A session working in `workingDirectories`, its own folder first, with a default chat and a nested chat. */
+	const sessionWithChats = (id: string, workingDirectories: readonly string[], project: string, options?: { readonly workspaceless?: boolean }): IAgentSessionMetadata => ({
 		session: URI.from({ scheme: 'copilot', path: `/${id}` }),
 		startTime: 0,
 		modifiedTime: 0,
 		workingDirectories: workingDirectories.map(directory => URI.file(directory)),
 		project: { uri: URI.file(project), displayName: project.split('/').pop()! },
 		chats: [
-			{ chat: URI.from({ scheme: 'copilot', path: `/${id}/default` }), kind: 'default', ...(defaultChat ? { workingDirectories: defaultChat.map(directory => URI.file(directory).toString()) } : {}) },
-			{ chat: URI.from({ scheme: 'copilot', path: `/${id}/nested` }), kind: 'peer', workingDirectories: [URI.file('/work/b').toString()] },
+			{ chat: URI.from({ scheme: 'copilot', path: `/${id}/default` }), kind: 'default' },
+			{ chat: URI.from({ scheme: 'copilot', path: `/${id}/nested` }), kind: 'peer' },
 		],
 		...(options?.workspaceless ? { _meta: withSessionWorkspaceless(undefined, true) } : {}),
 	});
 
-	test('while matching by project root, a session is listed in the window of its default chat\'s folder, not of a folder that only a nested chat or a later folder of it works in, and by its project only where its default chat works in its first folder', async () => {
+	test('while matching by project root, a session whose own folder is of another repository is not listed in the window of a repository that only its nested chats work in', async () => {
+		// Its default chat works in a worktree of agent-host-protocol; its nested chats added a worktree of the window's folder,
+		// and the folder itself
+		const { matchProjectRoot, shown, settle } = createList([
+			sessionWithChats('other-repository', ['/work/agent-host-protocol.worktrees/chat-summary-docs', '/work/vscode.worktrees/sync-docs', '/work/vscode/src'], '/work/agent-host-protocol'),
+		]);
+		await settle();
+		const off = shown();
+		matchProjectRoot.set(true, undefined);
+		await settle();
+
+		assert.deepStrictEqual({ off, on: shown() }, { off: ['other-repository'], on: [] });
+	});
+
+	test('while matching by project root, a session added or changed by the host is listed by its first folder as a listed one is: a folder appended later changes nothing, another first folder narrows the list', async () => {
+		const aph = URI.file('/work/agent-host-protocol.worktrees/chat-summary-docs').toString();
+		const vscode = URI.file('/work/vscode.worktrees/sync-docs').toString();
+		const { matchProjectRoot, notify, shown, settle } = createList([
+			sessionWithChats('listed', ['/work/agent-host-protocol.worktrees/chat-summary-docs'], '/work/agent-host-protocol'),
+			sessionWithChats('in-vscode', ['/work/vscode/src'], '/work/vscode'),
+		]);
+		matchProjectRoot.set(true, undefined);
+		await settle();
+		const log = [shown().join(',')];
+		const resource = (id: string) => URI.from({ scheme: 'copilot', path: `/${id}` }).toString();
+		// Started in another repository, with a later folder in the window's folder itself
+		notify({ type: 'root/sessionAdded', channel: ROOT_STATE_URI, summary: { resource: resource('added'), provider: 'copilot', title: 'Added', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), workingDirectories: [aph, URI.file('/work/vscode/src').toString()] } });
+		log.push(shown().join(','));
+		// Nested chats add folders: of the window's repository to one of another, of another repository to one of the window's
+		for (const id of ['listed', 'added']) {
+			notify({ type: 'root/sessionSummaryChanged', channel: ROOT_STATE_URI, session: resource(id), changes: { workingDirectories: [aph, vscode, URI.file('/work/vscode/src').toString()] } });
+		}
+		notify({ type: 'root/sessionSummaryChanged', channel: ROOT_STATE_URI, session: resource('in-vscode'), changes: { workingDirectories: [URI.file('/work/vscode/src').toString(), aph] } });
+		log.push(shown().join(','));
+		// Its first folder, and so its project, become of another repository
+		notify({ type: 'root/sessionSummaryChanged', channel: ROOT_STATE_URI, session: resource('in-vscode'), changes: { workingDirectories: [aph, URI.file('/work/vscode/src').toString()], project: { uri: URI.file('/work/agent-host-protocol').toString(), displayName: 'agent-host-protocol' } } });
+		log.push(shown().join(','));
+
+		assert.deepStrictEqual(log, ['in-vscode', 'in-vscode', 'in-vscode', '']);
+	});
+
+	test('while matching by project root, a session is listed in the window of its first folder or its project, not of a later folder of it, and as before without a workspace or folder', async () => {
 		const sessions = [
-			// Its default chat works in A, a nested chat in B
-			sessionWithChats('default-in-a', ['/work/a', '/work/b'], '/work/a', ['/work/a']),
-			// Its default chat sets no folders of its own: it works in the session's first folder, not its second
-			sessionWithChats('primary-a', ['/work/a', '/work/b'], '/work/a', undefined),
-			// Its default chat works in a worktree of A, which the session reports as its project
-			sessionWithChats('worktree-of-a', ['/work/a.worktrees/x'], '/work/a', undefined),
-			// Its default chat works in B, and the session's first folder and project are A's
-			sessionWithChats('default-in-b', ['/work/a', '/work/b'], '/work/a', ['/work/b']),
-			// Without a workspace of its default chat, its folders and project match as before: every window lists a session
-			// without a workspace, and one without a folder by its project
-			sessionWithChats('workspaceless', ['/work/b.worktrees/y'], '/work/b', undefined, { workspaceless: true }),
-			sessionWithChats('no-folder', [], '/work/b', undefined),
+			// Its own folder is A; a nested chat works in B
+			sessionWithChats('first-a', ['/work/a', '/work/b'], '/work/a'),
+			// Works in a worktree of A, which it reports as its project
+			sessionWithChats('worktree-of-a', ['/work/a.worktrees/x'], '/work/a'),
+			// Its own folder is B
+			sessionWithChats('first-b', ['/work/b', '/work/a'], '/work/b'),
+			// Without a workspace, every window lists it; without a folder, the window of its project does
+			sessionWithChats('workspaceless', ['/work/b.worktrees/y'], '/work/b', { workspaceless: true }),
+			sessionWithChats('no-folder', [], '/work/b'),
 		];
 		const shownIn = async (folder: string, on: boolean) => {
 			const { matchProjectRoot, shown, settle } = createList(sessions, { folders: [folder] });
@@ -205,11 +220,11 @@ suite('AgentHostSessionListStore - project root', () => {
 			offA: await shownIn('/work/a', false),
 			offB: await shownIn('/work/b', false),
 		}, {
-			a: ['default-in-a', 'primary-a', 'workspaceless', 'worktree-of-a'],
-			b: ['default-in-b', 'no-folder', 'workspaceless'],
+			a: ['first-a', 'workspaceless', 'worktree-of-a'],
+			b: ['first-b', 'no-folder', 'workspaceless'],
 			// Off, as on main: any folder of the session
-			offA: ['default-in-a', 'default-in-b', 'primary-a'],
-			offB: ['default-in-a', 'default-in-b', 'primary-a'],
+			offA: ['first-a', 'first-b'],
+			offB: ['first-a', 'first-b'],
 		});
 	});
 });

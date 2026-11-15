@@ -52,11 +52,6 @@ export interface IAgentHostSessionListEntry {
 	 * is synthesized and the session-scoped flags on it mean nothing.
 	 */
 	readonly statusKnown: boolean;
-	/**
-	 * Where the session's default chat works, as its listing knows it (`IAgentSessionChatMetadata.workingDirectories`):
-	 * session summaries do not carry where their chats work.
-	 */
-	readonly defaultChatWorkingDirectories?: readonly string[];
 }
 
 /**
@@ -468,7 +463,6 @@ export class AgentHostSessionListStore extends Disposable {
 				provider,
 				rawId: cached.rawId,
 				statusKnown: cached.statusKnown || notification.changes.status !== undefined,
-				...(cached.defaultChatWorkingDirectories ? { defaultChatWorkingDirectories: cached.defaultChatWorkingDirectories } : {}),
 				summary: {
 					...cached.summary,
 					...changes,
@@ -495,13 +489,11 @@ export class AgentHostSessionListStore extends Disposable {
 
 		const rawId = AgentSession.id(session.session);
 		this._connectionsService.registerSessionResource(session.session, this._options.connectionAuthority, provider);
-		const defaultChatWorkingDirectories = session.chats?.find(chat => chat.kind === 'default')?.workingDirectories;
 
 		return {
 			provider,
 			rawId,
 			statusKnown: session.status !== undefined,
-			...(defaultChatWorkingDirectories?.length ? { defaultChatWorkingDirectories: [...defaultChatWorkingDirectories] } : {}),
 			summary: {
 				resource: session.session.toString(),
 				provider,
@@ -557,7 +549,7 @@ export class AgentHostSessionListStore extends Disposable {
 		if (this._options.filterToWorkspace === false) {
 			return true;
 		}
-		const inWorkspace = this._computeSessionInWorkspace(entry) || this._matchesProjectRoot(entry) || this._matchesWorkspaceless(entry.summary);
+		const inWorkspace = this._computeSessionInWorkspace(entry) || this._matchesProjectRoot(entry.summary) || this._matchesWorkspaceless(entry.summary);
 		// A legacy session is matched by its repository root, which must be a local
 		// path; a remote project (e.g. an `https://` repo URL) silently matches
 		// nothing. Excluding one is legitimate, so only report the broken input, and
@@ -573,15 +565,8 @@ export class AgentHostSessionListStore extends Disposable {
 	 * Whether the session's project is a folder of the window, while matching by project (`matchProjectRoot`). Not a session
 	 * of a multi-root workspace, which only the windows of its workspace file list.
 	 */
-	private _matchesProjectRoot(entry: IAgentHostSessionListEntry): boolean {
-		const summary = entry.summary;
+	private _matchesProjectRoot(summary: SessionSummary): boolean {
 		if (!summary.project?.uri || !this._options.matchProjectRoot?.get() || readSessionMultiRootMetadata(summary._meta)) {
-			return false;
-		}
-		// The project is the repository of the session's first folder: it counts only where the default chat works there
-		const defaultFolders = this._defaultChatFolders(entry);
-		const primary = summary.workingDirectories?.[0];
-		if (defaultFolders && (!primary || !extUriBiasedIgnorePathCase.isEqual(defaultFolders[0], URI.parse(primary)))) {
 			return false;
 		}
 		const project = URI.parse(summary.project.uri);
@@ -592,21 +577,16 @@ export class AgentHostSessionListStore extends Disposable {
 	}
 
 	/**
-	 * While matching by project (`matchProjectRoot`), where the session's default chat works, which alone matches it to a
-	 * window: the folders the default chat sets, or else the session's first folder. Its nested chats can add folders of
-	 * their own, also of other repositories, which do not. `undefined` where its default chat has no workspace or folder, and
-	 * for a session of a multi-root workspace, which match by the session's folders as otherwise.
+	 * While matching by project (`matchProjectRoot`), the session's first working directory, the folder it started in, which
+	 * alone matches it to a window: the folders its nested chats add later, also of other repositories, do not. `undefined`
+	 * for a session without a workspace or folder, and of a multi-root workspace, which match by all its folders as otherwise.
 	 */
-	private _defaultChatFolders(entry: IAgentHostSessionListEntry): readonly URI[] | undefined {
-		const summary = entry.summary;
+	private _firstWorkingDirectory(summary: SessionSummary): URI | undefined {
 		if (!this._options.matchProjectRoot?.get() || readSessionMultiRootMetadata(summary._meta) || readSessionWorkspaceless(summary._meta)) {
 			return undefined;
 		}
-		if (entry.defaultChatWorkingDirectories?.length) {
-			return entry.defaultChatWorkingDirectories.map(directory => URI.parse(directory));
-		}
-		const primary = summary.workingDirectories?.[0];
-		return primary ? [URI.parse(primary)] : undefined;
+		const first = summary.workingDirectories?.[0];
+		return first ? URI.parse(first) : undefined;
 	}
 
 	/** Whether the session has no workspace, which every window lists while matching by project (`matchProjectRoot`). */
@@ -615,7 +595,7 @@ export class AgentHostSessionListStore extends Disposable {
 	}
 
 	private _computeSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {
-		const workingDirectories = this._containmentCandidates(entry);
+		const workingDirectories = this._containmentCandidates(entry.summary);
 		const workspace = this._workspaceContextService.getWorkspace();
 		const folders = workspace.folders;
 		const configuration = workspace.configuration;
@@ -691,9 +671,9 @@ export class AgentHostSessionListStore extends Disposable {
 	 * The marker has to outlive adoption: a migrated session is still a legacy
 	 * session and must not drop out of the list the moment it migrates.
 	 */
-	private _containmentCandidates(entry: IAgentHostSessionListEntry): readonly URI[] {
-		const summary = entry.summary;
-		const candidates = [...this._defaultChatFolders(entry) ?? summary.workingDirectories?.map(directory => URI.parse(directory)) ?? []];
+	private _containmentCandidates(summary: SessionSummary): readonly URI[] {
+		const first = this._firstWorkingDirectory(summary);
+		const candidates = first ? [first] : summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
 		if (summary.project?.uri && readSessionMatchesByProjectRoot(summary._meta)) {
 			const project = URI.parse(summary.project.uri);
 			// A project can be a remote (e.g. `https://github.com/owner/repo`), whose
