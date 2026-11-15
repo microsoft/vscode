@@ -16,6 +16,7 @@ import { IMarkdownString, isEmptyMarkdownString, isMarkdownString, MarkdownStrin
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { findLastIdx } from '../../../../base/common/arraysFind.js';
+import { htmlAttributeEncodeValue } from '../../../../base/common/strings.js';
 
 export const SWIMLANE_HEIGHT = 22;
 export const SWIMLANE_WIDTH = 11;
@@ -582,7 +583,10 @@ export function toHistoryItemHoverContent(markdownRendererService: IMarkdownRend
 
 			const labelBackgroundColor = reference.color ? asCssVariable(reference.color) : asCssVariable(historyItemHoverDefaultLabelBackground);
 			const labelForegroundColor = reference.color ? asCssVariable(historyItemHoverLabelForeground) : asCssVariable(historyItemHoverDefaultLabelForeground);
-			markdownString.appendMarkdown(`<span style="color:${labelForegroundColor};background-color:${labelBackgroundColor};border-radius:10px;">&nbsp;$(${labelIconId})&nbsp;`);
+			// Long names are truncated (see scm.css), so expose the full name as a title. `$` is
+			// encoded so that theme icon rendering does not rewrite `$(...)` inside the attribute
+			const labelTitle = htmlAttributeEncodeValue(reference.name).replace(/\$/g, '&#36;');
+			markdownString.appendMarkdown(`<span title="${labelTitle}" style="color:${labelForegroundColor};background-color:${labelBackgroundColor};border-radius:10px;">&nbsp;$(${labelIconId})&nbsp;`);
 			markdownString.appendText(reference.name);
 			markdownString.appendMarkdown('&nbsp;&nbsp;</span>');
 		}

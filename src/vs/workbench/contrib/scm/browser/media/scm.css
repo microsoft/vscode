@@ -714,6 +714,13 @@
 	gap: 4px;
 }
 
+.monaco-hover.history-item-hover .history-item-hover-container div:nth-of-type(3):nth-last-of-type(2) > p > span {
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .monaco-hover.history-item-hover .history-item-hover-container span:not(.codicon) {
 	margin-bottom: 0 !important;
 }
