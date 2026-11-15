@@ -21,7 +21,8 @@ import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWor
 import { AgentHostSessionListController } from './agentHostSessionListController.js';
 import { MovedChatEditorRetargeter } from './agentHostChatMoveEditors.js';
 import { AgentHostSessionListStore } from './agentHostSessionListStore.js';
-import { surfacesAllLocalAgentHostAgents } from '../../../common/constants.js';
+import { ChatConfiguration, surfacesAllLocalAgentHostAgents } from '../../../common/constants.js';
+import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 
 export class AgentHostSessionListContribution extends Disposable implements IWorkbenchContribution {
 
@@ -78,7 +79,9 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 			return;
 		}
 		this._initialized = true;
-		const sessionListStore = this._register(this._instantiationService.createInstance(AgentHostSessionListStore, this._agentHostService, { retainUnlistedProvider: provider => isLocalAgentHostProviderDisabledByPolicy(provider, this._configurationService) }));
+		// With worktree support, also the sessions whose project is a folder of the window, such as those in its worktrees
+		const matchProjectRoot = observableConfigValue<boolean>(ChatConfiguration.EditorWindowEnableWorktree, false, this._configurationService);
+		const sessionListStore = this._register(this._instantiationService.createInstance(AgentHostSessionListStore, this._agentHostService, { retainUnlistedProvider: provider => isLocalAgentHostProviderDisabledByPolicy(provider, this._configurationService), matchProjectRoot }));
 		this._sessionListStore = sessionListStore;
 
 		this._register(this._agentHostService.rootState.onDidChange(rootState => {

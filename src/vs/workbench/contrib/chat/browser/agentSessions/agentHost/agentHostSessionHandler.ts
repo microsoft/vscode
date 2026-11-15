@@ -8049,6 +8049,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (configured === null) {
 			return undefined;
 		}
+		if (configured === undefined && this._newSessionFolderService?.isNoWorkspace(sessionResource)) {
+			return undefined;
+		}
 		return configured
 			?? this._newSessionFolderService?.getFolder(sessionResource)
 			?? this._workingDirectoryResolver?.resolve(sessionResource)

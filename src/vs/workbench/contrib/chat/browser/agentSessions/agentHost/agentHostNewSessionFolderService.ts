@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { extUriBiasedIgnorePathCase, isEqual, type IExtUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -201,6 +201,19 @@ export interface IAgentHostNewSessionFolderService {
 	setFolder(sessionResource: URI, folder: URI, options?: { readonly updateDefault?: boolean }): void;
 
 	/**
+	 * Whether the user chose No Workspace for the given session resource, so that it
+	 * starts without a working directory, in a scratch folder the agent host creates.
+	 */
+	isNoWorkspace(sessionResource: URI): boolean;
+
+	/**
+	 * Record that the given session resource starts without a working directory,
+	 * replacing any folder chosen for it. Fires {@link onDidChangeFolder} when the
+	 * value actually changes. Unlike a folder, it never becomes the window's default.
+	 */
+	setNoWorkspace(sessionResource: URI): void;
+
+	/**
 	 * Forget any choice recorded for the given session resource.
 	 */
 	clear(sessionResource: URI): void;
@@ -233,6 +246,7 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _folders = new ResourceMap<URI>();
+	private readonly _noWorkspace = new ResourceSet();
 
 	/**
 	 * The most recently chosen folder in this window. Window-level "sticky"
@@ -292,15 +306,30 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 			this._defaultFolder = folder;
 		}
 		const existing = this._folders.get(sessionResource);
-		if (existing?.toString() === folder.toString()) {
+		const wasNoWorkspace = this._noWorkspace.delete(sessionResource);
+		if (existing?.toString() === folder.toString() && !wasNoWorkspace) {
 			return;
 		}
 		this._folders.set(sessionResource, folder);
 		this._onDidChangeFolder.fire(sessionResource);
 	}
 
+	isNoWorkspace(sessionResource: URI): boolean {
+		return this._noWorkspace.has(sessionResource);
+	}
+
+	setNoWorkspace(sessionResource: URI): void {
+		if (this._noWorkspace.has(sessionResource)) {
+			return;
+		}
+		this._folders.delete(sessionResource);
+		this._noWorkspace.add(sessionResource);
+		this._onDidChangeFolder.fire(sessionResource);
+	}
+
 	clear(sessionResource: URI): void {
-		if (this._folders.delete(sessionResource)) {
+		const hadFolder = this._folders.delete(sessionResource);
+		if (this._noWorkspace.delete(sessionResource) || hadFolder) {
 			this._onDidChangeFolder.fire(sessionResource);
 		}
 	}
@@ -314,6 +343,9 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 	}
 
 	resolveNewSessionPrimary(sessionResource: URI): URI | undefined {
+		if (this._noWorkspace.has(sessionResource)) {
+			return undefined;
+		}
 		const folders = this._workspaceContextService.getWorkspace().folders;
 		// An explicit choice is honored only while it is still a workspace folder;
 		// the chip records only workspace folders, so a removed one is skipped here

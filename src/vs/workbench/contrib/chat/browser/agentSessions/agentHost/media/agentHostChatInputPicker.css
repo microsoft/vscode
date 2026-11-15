@@ -175,3 +175,18 @@
 	opacity: 0.6;
 	cursor: default;
 }
+
+/* The Chat view's folder chip always shows its name: a long one is ellipsized rather than clipping its neighbors */
+.interactive-session .chat-secondary-toolbar .chat-secondary-input-toolbar .chat-input-picker-item .action-label.agent-host-folder-chip .chat-input-picker-label {
+	max-width: 160px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/*
+ * The folder picker's rows with a detail, such as the folder with Current beside its name: the list sets a row's line
+ * height to its height, so the first line keeps to its text as the title does, and the detail fits below it.
+ */
+.action-widget .agent-host-folder-picker-list .monaco-list .monaco-list-row.action.has-detail .description {
+	line-height: 14px;
+}

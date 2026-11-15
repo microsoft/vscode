@@ -13,10 +13,12 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import { localize } from '../../../../../../nls.js';
 import { MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownListOptionsProvider, IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -31,6 +33,7 @@ import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderSe
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { createFolderPickerTip } from './agentHostFolderPickerTip.js';
 import { AgentHostWorktreeFolderChoices } from './agentHostWorktreeFolderChoices.js';
+import './media/agentHostChatInputPicker.css';
 
 /**
  * Folder picker for agent-host sessions in multi-root windows. An agent-host
@@ -42,9 +45,38 @@ import { AgentHostWorktreeFolderChoices } from './agentHostWorktreeFolderChoices
  * directory is fixed, so the chip stays visible (showing the chosen folder)
  * but is disabled via the action's precondition.
  */
+/** The class of the folder picker's list, whose rows with a detail are laid out in agentHostChatInputPicker.css. */
+export const FOLDER_PICKER_LIST_CLASS = 'agent-host-folder-picker-list';
+
+function withFolderPickerListClass(provider: IActionWidgetDropdownListOptionsProvider): IActionWidgetDropdownListOptionsProvider {
+	return {
+		getListOptions: () => {
+			const options = provider.getListOptions();
+			return { ...options, className: [options?.className, FOLDER_PICKER_LIST_CLASS].filter(Boolean).join(' ') };
+		},
+	};
+}
+
+/** As `.agent-host-folder-chip .chat-input-picker-label` bounds the name in agentHostChatInputPicker.css. */
+const FOLDER_CHIP_LABEL_MAX_WIDTH = 160;
+
+let textMeasureContext: CanvasRenderingContext2D | null | undefined;
+function measureTextWidth(text: string, font: string): number {
+	textMeasureContext ??= mainWindow.document.createElement('canvas').getContext('2d');
+	if (!textMeasureContext) {
+		return 0;
+	}
+	textMeasureContext.font = font;
+	return textMeasureContext.measureText(text).width;
+}
+
 export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewItem {
 
 	private _hoverSetup = false;
+	private _container: HTMLElement | undefined;
+	private _labelElement: HTMLElement | undefined;
+	/** What the chip needs besides its name, its icon, gap and padding, and its name's font, as last rendered. */
+	private _chrome: { readonly width: number; readonly font: string } | undefined;
 	/** The choices in a window with a single local folder while worktree support is on: New Worktree, the folder and its worktrees. */
 	private readonly _worktree: AgentHostWorktreeFolderChoices;
 
@@ -104,7 +136,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 			actionBarActionProvider,
 			showItemKeybindings: false,
 			reporter: { id: 'AgentHostFolderPicker', name: 'AgentHostFolderPicker', includeOptions: false },
-			listOptionsProvider: createFolderPickerTip(storageService),
+			listOptionsProvider: withFolderPickerListClass(createFolderPickerTip(storageService)),
 		};
 
 		super(action, folderPickerOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
@@ -147,6 +179,9 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	private _selectedFolder(): URI | undefined {
 		const folders = this._workspaceContextService.getWorkspace().folders;
 		const sessionResource = this._sessionResource();
+		if (this._isNoWorkspace()) {
+			return undefined;
+		}
 		const stored = sessionResource ? this._newSessionFolderService.getFolder(sessionResource) : undefined;
 		// Stale workspace selections are cleared by the folder service; standalone selections remain valid.
 		if (stored) {
@@ -169,13 +204,19 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		const selected = this._selectedFolder();
 		const folder = selected && this._workspaceContextService.getWorkspace().folders.find(f => f.uri.toString() === selected.toString());
-		const label = selected && this._worktree?.isActive() ? this._worktree.getLabel(selected) : folder ? folder.name : (selected ? basename(selected) : localize('agentHost.selectFolder', "Folder"));
-		const compact = this.pickerOptions.compact.get();
-		element.classList.toggle('icon-only', compact);
+		const chip = this._chip(selected);
+		const label = chip ? chip.description : folder ? folder.name : (selected ? basename(selected) : localize('agentHost.selectFolder', "Folder"));
+		const shownLabel = chip ? chip.label : label;
+		const compact = !chip && this.pickerOptions.compact.get();
+		// Never compact by its name, which a long one shows ellipsized
+		element.classList.toggle('compact', compact);
+		element.classList.toggle('agent-host-folder-chip', !!chip);
+		element.classList.toggle('icon-only', compact || !shownLabel);
+		this._labelElement = !compact && shownLabel ? dom.$('span.chat-input-picker-label', undefined, shownLabel) : undefined;
 		dom.reset(
 			element,
-			...renderLabelWithIcons(`$(folder-compact)`),
-			...(!compact ? [dom.$('span.chat-input-picker-label', undefined, label)] : []),
+			...renderLabelWithIcons(chip?.icon === Codicon.worktree || chip?.icon === Codicon.comment ? `$(${chip.icon.id})` : `$(folder-compact)`),
+			...(this._labelElement ? [this._labelElement] : []),
 		);
 		// Set the aria label after the visible text is in place: the base class
 		// derives it from `element.textContent`, so labeling first would lag one
@@ -186,6 +227,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	}
 
 	override render(container: HTMLElement): void {
+		this._container = container;
 		super.render(container);
 
 		// The chip often shows a disabled folder name — the working directory is
@@ -205,11 +247,82 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	}
 
 	/**
+	 * The width the chip needs while it always shows its name, which it does not give up to fit the toolbar as compact
+	 * pickers do: for the toolbar's responsive budget, so that its neighbors overflow instead. `undefined` while it can be
+	 * compact.
+	 */
+	getMinimumWidth(): number | undefined {
+		const chip = this._chip(this._selectedFolder());
+		if (!chip) {
+			return undefined;
+		}
+		this._measureChrome();
+		// Of the name it shows now, also while in the overflow, rather than of the width the toolbar gave it
+		return this._chrome && Math.ceil(this._chrome.width + Math.min(measureTextWidth(chip.label, this._chrome.font), FOLDER_CHIP_LABEL_MAX_WIDTH));
+	}
+
+	/** With worktree support, the chip by its icon and name: a folder, a worktree, New Worktree or No Workspace, also while compact. */
+	private _chip(selected: URI | undefined): { readonly icon: ThemeIcon; readonly label: string; readonly description: string } | undefined {
+		if (!this._worktree?.isActive()) {
+			return undefined;
+		}
+		if (this._isNoWorkspace()) {
+			return this._worktree.getNoWorkspaceChip();
+		}
+		return selected && this._worktree.getChip(selected);
+	}
+
+	/**
+	 * Measures what the chip needs besides its name from what does not give way as the toolbar narrows it, its icon,
+	 * gaps, margins, paddings and borders, rather than from its width, which is less than it needs while narrowed.
+	 */
+	/**
+	 * Whether the session has no workspace: as chosen for a new chat, or as the started or restored session is, which works in
+	 * a scratch folder the agent host created for it rather than in a folder to show.
+	 */
+	private _isNoWorkspace(): boolean {
+		const sessionResource = this._sessionResource();
+		return !!sessionResource && (this._newSessionFolderService.isNoWorkspace(sessionResource) || this._customizationService.isWorkspaceless?.(sessionResource) === true);
+	}
+
+	private _measureChrome(): void {
+		const element = this.element;
+		const container = this._container;
+		const label = this._labelElement;
+		if (!element?.isConnected || !container || !label) {
+			return;
+		}
+		const window = dom.getWindow(container);
+		const px = (value: string) => Number.parseFloat(value) || 0;
+		const edges = (style: CSSStyleDeclaration) => px(style.paddingLeft) + px(style.paddingRight) + px(style.borderLeftWidth) + px(style.borderRightWidth);
+		const elementStyle = window.getComputedStyle(element);
+		const labelStyle = window.getComputedStyle(label);
+		let width = px(labelStyle.marginLeft) + px(labelStyle.marginRight) + px(elementStyle.columnGap) * Math.max(0, element.children.length - 1);
+		for (const child of element.children) {
+			if (child !== label) {
+				const childStyle = window.getComputedStyle(child);
+				width += child.getBoundingClientRect().width + px(childStyle.marginLeft) + px(childStyle.marginRight);
+			}
+		}
+		// The element and what holds it in the toolbar's item
+		for (let node: HTMLElement | null = element; node && node !== container; node = node.parentElement) {
+			const style = node === element ? elementStyle : window.getComputedStyle(node);
+			width += edges(style) + px(style.marginLeft) + px(style.marginRight);
+		}
+		width += edges(window.getComputedStyle(container));
+		this._chrome = { width, font: labelStyle.font };
+	}
+
+	/**
 	 * Builds the hover content for the folder chip: the full folder path and,
 	 * when the folder maps to a git repository, the current branch name.
 	 * Returns `undefined` when no folder is selected so no hover is shown.
 	 */
 	private _buildHoverContent(): IManagedHoverTooltipMarkdownString | undefined {
+		if (this._worktree.isActive() && this._isNoWorkspace()) {
+			const { description } = this._worktree.getNoWorkspaceChip();
+			return { markdown: new MarkdownString().appendText(description), markdownNotSupportedFallback: description };
+		}
 		const selected = this._selectedFolder();
 		if (!selected) {
 			return undefined;
@@ -218,7 +331,14 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		const md = new MarkdownString('', { supportThemeIcons: true });
 		const fallbackLines: string[] = [];
 
-		md.appendMarkdown(`$(${Codicon.folder.id}) `);
+		// What the chip shows by its icon only, by name
+		const chip = this._worktree.isActive() ? this._worktree.getChip(selected) : undefined;
+		if (chip) {
+			md.appendText(chip.description);
+			md.appendMarkdown('\n\n');
+			fallbackLines.push(chip.description);
+		}
+		md.appendMarkdown(`$(${(chip?.icon ?? Codicon.folder).id}) `);
 		md.appendText(selected.fsPath);
 		fallbackLines.push(selected.fsPath);
 

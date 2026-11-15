@@ -139,7 +139,7 @@ suite('AgentHostGenericConfigChips', () => {
 			getOrCreate: async (...args) => { provisionalRequests.push(args); return undefined; },
 		});
 		instantiation.stub(IAgentHostSessionWorkingDirectoryResolver, { resolve: () => URI.file('/workspace') });
-		instantiation.stub(IAgentHostNewSessionFolderService, { getFolder: () => folder, onDidChangeFolder: folderChanged.event });
+		instantiation.stub(IAgentHostNewSessionFolderService, { getFolder: () => folder, isNoWorkspace: () => false, onDidChangeFolder: folderChanged.event });
 		instantiation.stub(IWorkspaceContextService, { onDidChangeWorkspaceFolders: Event.None });
 		instantiation.set(IWorkspaceTrustManagementService, trustService ?? disposables.add(new TestWorkspaceTrustManagementService(true, new ResourceSet([URI.file('/workspace')]))));
 		disposables.add(configuration.onDidChangeConfigurationEmitter);
@@ -951,7 +951,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 		instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, { resolve: () => undefined });
 		instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => (testIWorkspace({ id: 'test', folders: [] })) });
 		instantiationService.set(IWorkspaceTrustManagementService, store.add(new TestWorkspaceTrustManagementService()));
-		instantiationService.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined, getDefaultFolder: () => undefined });
+		instantiationService.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined, getDefaultFolder: () => undefined, isNoWorkspace: () => false });
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
 			onDidChange: Event.None, get: () => undefined, getResolvedConfig: () => undefined,
 			refreshResolvedConfig: async (...args) => { refreshes.push(args); },
