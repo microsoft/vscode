@@ -127,7 +127,7 @@ suite('AgentHostFolderPickerActionItem', () => {
 		});
 	});
 	/** A chat input's secondary row of `availableWidth`, with two neighbors and the folder chip last, as in the chat input. */
-	function createRow(availableWidth: number, started?: { readonly workspaceless: boolean }) {
+	function createRow(availableWidth: number, started?: { readonly workspaceless: boolean }, itemCtor: typeof AgentHostFolderPickerActionItem = AgentHostFolderPickerActionItem) {
 		const primary = URI.file('/work/vscode');
 		const longName = URI.file('/work/a-worktree-with-a-name-far-too-long-to-fit-in-the-chat-input-row');
 		const shortName = URI.file('/work/fix');
@@ -187,7 +187,7 @@ suite('AgentHostFolderPickerActionItem', () => {
 				getAvailableWidth: () => availableWidth,
 			},
 			actionViewItemProvider: action => action.id === folderAction.id
-				? chip = instantiationService.createInstance(AgentHostFolderPickerActionItem, upcastPartial<MenuItemAction>(folderAction), widget, { compact: observableValue('compact', true) })
+				? chip = instantiationService.createInstance(itemCtor, upcastPartial<MenuItemAction>(folderAction), widget, { compact: observableValue('compact', true) })
 				: undefined,
 		}));
 		// Last, as in the chat input
@@ -207,6 +207,31 @@ suite('AgentHostFolderPickerActionItem', () => {
 		};
 		return { select, chip: () => chip, lane, longName, shortName };
 	}
+
+	test('measures what it needs besides its name once while it shows the same, however often it renders or the toolbar lays it out, and again as what it shows changes', () => {
+		let measurements = 0;
+		class CountingItem extends AgentHostFolderPickerActionItem {
+			protected override measureChrome() {
+				measurements++;
+				return super.measureChrome();
+			}
+		}
+		const { select, longName, shortName } = createRow(1000, undefined, CountingItem);
+		const first = select(shortName);
+		const initial = measurements;
+		// Renders again, as its session's state changes, and is laid out again, with the same name
+		const again = Array.from({ length: 10 }, () => select(shortName));
+		const unchanged = measurements - initial;
+		const long = select(longName);
+
+		assert.deepStrictEqual({
+			initial: initial > 0,
+			unchanged,
+			sameWidth: again.every(result => result.minWidth === first.minWidth),
+			remeasured: measurements - initial > 0,
+			longNeedsMore: long.minWidth > first.minWidth,
+		}, { initial: true, unchanged: 0, sameWidth: true, remeasured: true, longNeedsMore: true });
+	});
 
 	test('last in a narrow row, it needs the width of the name it shows now: a shorter name, or No Workspace, brings it back from the overflow', () => {
 		// Room for its neighbors and a chip with a short name, not a long one

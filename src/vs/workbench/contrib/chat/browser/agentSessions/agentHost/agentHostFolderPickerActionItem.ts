@@ -77,6 +77,9 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	private _labelElement: HTMLElement | undefined;
 	/** What the chip needs besides its name, its icon, gap and padding, and its name's font, as last rendered. */
 	private _chrome: { readonly width: number; readonly font: string } | undefined;
+	/** What the chip shows as it last rendered, and what it showed as {@link _chrome} was measured: it is measured again only as that changes. */
+	private _renderedKey: string | undefined;
+	private _chromeKey: string | undefined;
 	/** The choices in a window with a single local folder while worktree support is on: New Worktree, the folder and its worktrees. */
 	private readonly _worktree: AgentHostWorktreeFolderChoices;
 
@@ -213,9 +216,11 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		element.classList.toggle('agent-host-folder-chip', !!chip);
 		element.classList.toggle('icon-only', compact || !shownLabel);
 		this._labelElement = !compact && shownLabel ? dom.$('span.chat-input-picker-label', undefined, shownLabel) : undefined;
+		const icon = chip?.icon === Codicon.worktree || chip?.icon === Codicon.comment ? chip.icon.id : 'folder-compact';
+		this._renderedKey = `${icon}|${!!chip}|${compact}|${shownLabel ?? ''}`;
 		dom.reset(
 			element,
-			...renderLabelWithIcons(chip?.icon === Codicon.worktree || chip?.icon === Codicon.comment ? `$(${chip.icon.id})` : `$(folder-compact)`),
+			...renderLabelWithIcons(`$(${icon})`),
 			...(this._labelElement ? [this._labelElement] : []),
 		);
 		// Set the aria label after the visible text is in place: the base class
@@ -228,6 +233,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 
 	override render(container: HTMLElement): void {
 		this._container = container;
+		this._chromeKey = undefined;
 		super.render(container);
 
 		// The chip often shows a disabled folder name — the working directory is
@@ -256,7 +262,14 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		if (!chip) {
 			return undefined;
 		}
-		this._measureChrome();
+		// Only as what it shows changes: measuring reads the layout, which its toolbar asks for on every layout
+		if (!this._chrome || this._chromeKey !== this._renderedKey) {
+			const chrome = this.measureChrome();
+			if (chrome) {
+				this._chrome = chrome;
+				this._chromeKey = this._renderedKey;
+			}
+		}
 		// Of the name it shows now, also while in the overflow, rather than of the width the toolbar gave it
 		return this._chrome && Math.ceil(this._chrome.width + Math.min(measureTextWidth(chip.label, this._chrome.font), FOLDER_CHIP_LABEL_MAX_WIDTH));
 	}
@@ -285,12 +298,13 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		return !!sessionResource && (this._newSessionFolderService.isNoWorkspace(sessionResource) || this._customizationService.isWorkspaceless?.(sessionResource) === true);
 	}
 
-	private _measureChrome(): void {
+	/** What the chip needs besides its name, as it shows now; `undefined` while it is not in the DOM. */
+	protected measureChrome(): { readonly width: number; readonly font: string } | undefined {
 		const element = this.element;
 		const container = this._container;
 		const label = this._labelElement;
 		if (!element?.isConnected || !container || !label) {
-			return;
+			return undefined;
 		}
 		const window = dom.getWindow(container);
 		const px = (value: string) => Number.parseFloat(value) || 0;
@@ -310,7 +324,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 			width += edges(style) + px(style.marginLeft) + px(style.marginRight);
 		}
 		width += edges(window.getComputedStyle(container));
-		this._chrome = { width, font: labelStyle.font };
+		return { width, font: labelStyle.font };
 	}
 
 	/**
