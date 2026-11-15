@@ -10,7 +10,7 @@ import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover
 import { IManagedHoverTooltipMarkdownString } from '../../../../../../base/browser/ui/hover/hover.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -81,6 +81,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	/** What the chip shows as it last rendered, and what it showed as {@link _chrome} was measured: it is measured again only as that changes. */
 	private _renderedKey: string | undefined;
 	private _chromeKey: string | undefined;
+	private readonly _fontsListener = this._register(new MutableDisposable());
 	/** The choices in a window with a single local folder while worktree support is on: New Worktree, the folder and its worktrees. */
 	private readonly _worktree: AgentHostWorktreeFolderChoices;
 
@@ -238,6 +239,8 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	override render(container: HTMLElement): void {
 		this._container = container;
 		this._chromeKey = undefined;
+		// Its icon's font can load after it was measured with a fallback: measured again as it is next laid out
+		this._fontsListener.value = dom.addDisposableListener(dom.getWindow(container).document.fonts, 'loadingdone', () => this._chromeKey = undefined);
 		super.render(container);
 
 		// The chip often shows a disabled folder name — the working directory is
