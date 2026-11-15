@@ -1003,9 +1003,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			return { sessionsControl, store };
 		};
 		// Of the provided list, or of a claim, such as of a chat part that shows every chat. The active list follows the provider.
+		// The chat widget's visibility follows first, for the layout to lay out what shows
 		this._register(autorun(reader => {
 			const sessionsOnly = this.sessionsListService.sessionsOnly.read(reader);
 			this.viewPaneContainer?.classList.toggle('sessions-only', sessionsOnly);
+			if (this._widget) {
+				this.updateWidgetVisibility();
+			}
 			this.relayout();
 		}));
 		const sessionsList = this._register(new MutableDisposable<DisposableStore>());
@@ -1267,11 +1271,24 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._widgetCreated.complete(widget);
 		this._register(scopedInstantiationService.createInstance(AgentHostSessionInputPills, this._widget, 'auto'));
 
-		const updateWidgetVisibility = (reader?: IReader) => this._widget.setVisible(this.isBodyVisible() && !this.welcomeController?.isShowingWelcome.read(reader));
-		this._register(this.onDidChangeBodyVisibility(() => updateWidgetVisibility()));
-		this._register(autorun(reader => updateWidgetVisibility(reader)));
+		this.trackWidgetVisibility();
 
 		return this._widget;
+	}
+
+	/** Updates the chat widget's visibility as the view's body shows or hides, and as its welcome does. */
+	private trackWidgetVisibility(): void {
+		this._register(this.onDidChangeBodyVisibility(() => this.updateWidgetVisibility()));
+		this._register(autorun(reader => this.updateWidgetVisibility(reader)));
+	}
+
+	/**
+	 * The chat widget is visible while the view's body is, unless the view shows its welcome or only its sessions: a chat it
+	 * hides, such as one whose request completes meanwhile, is not marked read. Whether the view shows only its sessions is
+	 * followed where the sessions show, which lays out the view once the widget's visibility follows.
+	 */
+	private updateWidgetVisibility(reader?: IReader): void {
+		this._widget.setVisible(this.isBodyVisible() && !this.welcomeController?.isShowingWelcome.read(reader) && !this.sessionsListService.sessionsOnly.get());
 	}
 
 	override createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
@@ -1927,7 +1944,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private layoutingBody = false;
 
 	private relayout(): void {
-		if (!this._widget?.visible) {
+		// Showing only its sessions, the view lays them out though its chat widget is hidden
+		if (!this._widget || !(this.sessionsListService.sessionsOnly.get() ? this.isBodyVisible() : this._widget.visible)) {
 			return;
 		}
 

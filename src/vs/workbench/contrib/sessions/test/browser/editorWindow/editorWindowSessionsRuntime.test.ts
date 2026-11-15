@@ -31,7 +31,7 @@ import { ISessionsProvider } from '../../../common/sessionsProvider.js';
 import { EditorWindowSessionsNavigationHost } from '../../../browser/agentsView/editorWindowSessionsNavigationHost.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
-import { ISession, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 
 suite('EditorWindowSessionsRuntime', () => {
 
@@ -449,5 +449,56 @@ suite('EditorWindowSessionsService', () => {
 
 		const expected = { bySession: ['b'], byChat: ['b chat'], byQuickChat: ['composer'], overSessionOpen: ['b chat'], quickChatOverSessionOpen: ['composer'] };
 		assert.deepStrictEqual({ service: await run('service'), navigationHost: await run('navigation host') }, { service: expected, navigationHost: expected });
+	});
+
+	test('a new chat in a session whose provider still creates it is superseded by a later open, and supersedes an earlier one, so the user\'s latest pick shows', async () => {
+		const shown: string[] = [];
+		let creating: DeferredPromise<IChat | undefined> | undefined;
+		// Only the open of A in the second case prepares A
+		const preparingA = new DeferredPromise<void>();
+		const a: ISession = { ...buildTestSession({ id: 'a', title: 'A' }).session, loading: constObservable(false) };
+		const b: ISession = { ...buildTestSession({ id: 'b', title: 'B' }).session, loading: constObservable(false) };
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({}));
+		const presenterService = disposables.add(instantiationService.createInstance(EditorWindowSessionsPresenterService));
+		const registration = presenterService.registerPresenter(upcastPartial<IEditorWindowSessionsPresenter>({ openChat: async (session, chat) => { shown.push(`${session.sessionId}${chat ? ' chat' : ''}`); }, isShowing: () => false }));
+		instantiationService.stub(IEditorWindowSessionsPresenterService, presenterService);
+		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({}));
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			resolveSessionResource: async resource => resource,
+			getSession: resource => [a, b].find(session => isEqual(session.resource, resource)),
+			createNewChatInSession: async session => session === a && creating ? creating.p : session.mainChat.get(),
+		}));
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
+			getProvider: <T extends ISessionsProvider>(_providerId: string, sessionId?: string) => upcastPartial<ISessionsProvider>({ prepareSessionForOpen: () => sessionId === 'a' ? preparingA.p : Promise.resolve() }) as T,
+		}));
+		instantiationService.stub(IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({ acquire: () => toDisposable(() => { }) }));
+		instantiationService.stub(ISessionOpenTelemetryService, upcastPartial<ISessionOpenTelemetryService>({
+			withOpenRequest: (async (_source: string, _token: unknown, open: (attempt: unknown) => Promise<void>) => open({})) as ISessionOpenTelemetryService['withOpenRequest'],
+			sessionResolved: () => { }, sessionActivated: () => { }, sessionLoaded: () => { },
+		}));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }), getWorkspaceFolder: () => null }));
+		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({ activeEditor: undefined }));
+		const service = disposables.add(instantiationService.createInstance(EditorWindowSessionsService));
+
+		// A's provider still creates its new chat, as switching the harness of A's composer does, when the user opens B
+		creating = new DeferredPromise<IChat | undefined>();
+		const creatingInA = service.openNewChatInSession(a, { harness: 'other' });
+		await service.openSession(b.resource);
+		creating.complete(a.mainChat.get());
+		await creatingInA;
+		creating = undefined;
+		const newChatOverLaterOpen = shown.splice(0);
+
+		// A's open still prepares its session when the user starts a new chat in B
+		const openingA = service.openSession(a.resource);
+		await timeout(0);
+		await service.openNewChatInSession(b);
+		preparingA.complete();
+		await openingA;
+		const openOverLaterNewChat = shown.splice(0);
+		registration.dispose();
+
+		assert.deepStrictEqual({ newChatOverLaterOpen, openOverLaterNewChat }, { newChatOverLaterOpen: ['b'], openOverLaterNewChat: ['b chat'] });
 	});
 });

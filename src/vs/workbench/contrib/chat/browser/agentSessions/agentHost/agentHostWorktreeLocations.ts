@@ -103,14 +103,25 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 		}
 		const locations = await Promise.all([...candidates.values()].map(async candidate => {
 			try {
-				return await this._resolve(worktreesDir, primary, candidate);
+				const location = await this._resolve(worktreesDir, primary, candidate);
+				return location && { location, real: await this._real(candidate) };
 			} catch (error) {
 				// One working directory that fails to read, such as a pruned worktree, does not hide the others
 				this._logService.warn(`[AgentHostWorktreeLocations] Could not read the git checkout of ${candidate.toString()}`, error);
 				return undefined;
 			}
 		}));
-		return token.isCancellationRequested ? [] : locations.filter(isDefined);
+		if (token.isCancellationRequested) {
+			return [];
+		}
+		// A worktree that sessions work in by several paths, such as through a symbolic link, is offered once, by the first
+		const offered = new ResourceMap<IFolderLocation>(uri => extUriBiasedIgnorePathCase.getComparisonKey(uri));
+		for (const resolved of locations.filter(isDefined)) {
+			if (!offered.has(resolved.real)) {
+				offered.set(resolved.real, resolved.location);
+			}
+		}
+		return [...offered.values()];
 	}
 
 	async resolveLocation(primary: URI, location: URI, token: CancellationToken): Promise<IFolderLocation | undefined> {
