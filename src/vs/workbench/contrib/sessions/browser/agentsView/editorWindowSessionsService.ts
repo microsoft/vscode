@@ -303,6 +303,8 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 	}
 
 	openQuickChat(options?: ICreateNewSessionOptions): ISession | undefined {
+		// A quick chat supersedes an open still resolving or preparing, which would otherwise show its session in place of the composer
+		this._openGeneration++;
 		// A target without a folder is a chat without a workspace, with what is asked for; no target keeps the picker's folder
 		void this._presenter.openComposer({ providerId: options?.providerId, sessionTypeId: options?.sessionTypeId, modelId: options?.modelId, modeId: options?.modeId });
 		return undefined;
