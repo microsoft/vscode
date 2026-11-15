@@ -273,4 +273,25 @@ suite('SessionsListingScopeFilter', () => {
 
 		assert.deepStrictEqual(filter.getSessions().map(session => session.sessionId).sort(), ['mainChatInScope', 'mainChatInScopeWorktree', 'mainChatOwnSecondFolderInScope', 'mainChatWithoutFolder']);
 	});
+
+	test('a legacy Copilot CLI session, in a worktree of its repository with no folders of its main chat, is in the scope of its repository, not of the repository a chat added after it was adopted', () => {
+		// As the host lists one: its folders from its stored working directories, else its `cwd`, its project the repository of
+		// that worktree, and a main chat that sets no folders, so it has the session's workspace
+		const worktree = URI.file('/work/aph.worktrees/update-docs-471c31ad');
+		const legacyFolder = { root: URI.file('/work/aph'), workingDirectory: worktree, name: 'aph', description: undefined, gitRepository: upcastPartial<ISessionGitRepository>({ uri: URI.file('/work/aph'), workTreeUri: worktree }) };
+		const addedFolder = { root: URI.file('/work/vscode'), workingDirectory: URI.file('/work/vscode.worktrees/sync-docs'), name: 'vscode', description: undefined, gitRepository: undefined };
+		const legacyOf = (id: string, folders: ISessionWorkspace['folders']): ISession => {
+			const built = buildTestSession({ id, title: id }).session;
+			const workspace: ISessionWorkspace = { ...buildTestWorkspace(id), folders };
+			return { ...built, mainChat: constObservable({ ...built.mainChat.get(), workspace: constObservable<ISessionWorkspace | undefined>(workspace) }), workspace: constObservable<ISessionWorkspace | undefined>(workspace) };
+		};
+		const sessions = [legacyOf('legacy', [legacyFolder]), legacyOf('adoptedWithAddedFolder', [legacyFolder, addedFolder])];
+		const folders = observableValue<readonly URI[]>('folders', [URI.file('/work/aph')]);
+		const filter = disposables.add(new SessionsListingScopeFilter({ folders }, () => sessions, Event.None));
+		const listed = () => filter.getSessions().map(session => session.sessionId).sort();
+		const repositoryWindow = listed();
+		folders.set([URI.file('/work/vscode')], undefined);
+
+		assert.deepStrictEqual({ repositoryWindow, otherRepositoryWindow: listed() }, { repositoryWindow: ['adoptedWithAddedFolder', 'legacy'], otherRepositoryWindow: [] });
+	});
 });
