@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { Event } from '../../../../../base/common/event.js';
+import { IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize2 } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -18,9 +20,10 @@ import { Extensions as ViewExtensions, IViewContainersRegistry, ViewContainerLoc
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IEditorWindowChatPartService } from './agentsChatPartContribution.js';
 import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessionsRuntime.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { registerAgentsViewNewSessionActions } from './agentsChatPartActions.js';
-import { AGENTS_VIEW_CONTAINER_ID } from './agentsView.js';
+import { AGENTS_VIEW_CONTAINER_ID, AgentsViewAvailable } from './agentsView.js';
 import { SessionsViewId } from '../views/sessionsView.js';
 import { createEditorWindowSessionsScope, registerEditorWindowChatViewReplacement, registerEditorWindowSessionsList, registerEditorWindowSessionsViews } from './editorWindowSessionsList.js';
 
@@ -53,11 +56,19 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 			this._register(accessor.get(IEditorWindowSessionsRuntime).enable({ viewIds: [SessionsViewId] }));
 			// The chat part, where sessions open: not in remote windows, where the Sessions view does not show
 			if (!accessor.get(IWorkbenchEnvironmentService).remoteAuthority) {
-				// The chat part docks beside the Sessions view, wherever the user puts it, over a dock of other features
-				this._register(accessor.get(IEditorWindowChatPartService).enable({ anchorViewId: SessionsViewId, anchorPriority: 2, enabled: constObservable(true) }));
+				// The chat part docks beside the Sessions view, wherever the user puts it, over a dock of other features. Its chats
+				// open in it while chat shows, as the Sessions view does: not with AI features off, which closes it until they are on
+				this._register(accessor.get(IEditorWindowChatPartService).enable({ anchorViewId: SessionsViewId, anchorPriority: 2, enabled: this.whileChatShows(accessor.get(IContextKeyService)) }));
 				this._register(registerEditorWindowChatViewReplacement(instantiationService));
 			}
 		});
+	}
+
+	/** Whether chat shows in the window, as the Sessions view does (`AgentsViewAvailable`): with AI features on, as they change. */
+	private whileChatShows(contextKeyService: IContextKeyService): IObservable<boolean> {
+		const shows = ContextKeyExpr.and(ChatContextKeys.enabled, AgentsViewAvailable)!;
+		const keys = new Set(shows.keys());
+		return observableFromEvent(this, Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(keys)), () => contextKeyService.contextMatchesRules(shows));
 	}
 
 	private registerView(scoped: IObservable<boolean>): void {
