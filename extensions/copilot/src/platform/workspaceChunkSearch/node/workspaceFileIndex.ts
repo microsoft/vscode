@@ -283,8 +283,6 @@ export abstract class FileRepresentation implements IDisposable {
 	abstract isDirty(): boolean;
 
 	abstract getText(): Promise<string>;
-
-	protected abstract getStats(): Promise<{ size: number; mtime: number }>;
 }
 
 interface FileTruncationInfo {
@@ -311,11 +309,6 @@ class FsFileRepresentation extends FileRepresentation {
 
 	override isDirty(): boolean {
 		return false;
-	}
-
-	async getStats(): Promise<{ size: number; mtime: number }> {
-		const stat = await this._fileSystem.stat(this.uri);
-		return { size: stat.size, mtime: stat.mtime };
 	}
 
 	async getText(): Promise<string> {
@@ -353,31 +346,12 @@ class TextDocumentFileRepresentation extends FileRepresentation {
 
 	constructor(
 		private readonly _textDocument: vscode.TextDocument,
-		@IFileSystemService private readonly _fileSystem: IFileSystemService,
 	) {
 		super(_textDocument.uri);
 	}
 
-	private readonly _mtime = Date.now();
-
 	override isDirty(): boolean {
 		return this._textDocument.isDirty;
-	}
-
-	async getStats(): Promise<{ size: number; mtime: number }> {
-		if (!this.isDirty) {
-			try {
-				const stat = await this._fileSystem.stat(this.uri);
-				return { size: stat.size, mtime: stat.mtime };
-			} catch (e) {
-				// noop
-			}
-		}
-
-		return {
-			size: new TextEncoder().encode(this._textDocument.getText()).length,
-			mtime: this._mtime
-		};
 	}
 
 	private readonly _text = new Lazy((): string => {
