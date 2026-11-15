@@ -239,6 +239,22 @@ suite('ChatViewHostService', () => {
 		});
 	});
 
+	test('registering a host that shows no chat yet does not take the chat that the Chat view shows and the host leaves to it', () => {
+		const { service, shownSession, showView } = createService();
+		const localChat = URI.parse('vscode-chat-session://local/session');
+		shownSession.set({ resource: localChat, reason: 'open' }, undefined);
+		showView();
+		const steps = [service.chatViewHosts.get()];
+		const registration = service.registerHost({ ...upcastPartial<IChatViewHost>({}), canShow: resource => resource.scheme !== localChat.scheme });
+		steps.push(service.chatViewHosts.get());
+		const other = service.registerHost(upcastPartial<IChatViewHost>({}));
+		steps.push(service.chatViewHosts.get());
+		other.dispose();
+		registration.dispose();
+
+		assert.deepStrictEqual(steps, [true, true, false]);
+	});
+
 	test('the shown chat is the one of the host that shows the chat: the Chat view\'s for the chats a registered host leaves to it, until a host restores another', async () => {
 		const { service, widget, shownSession, showView } = createService();
 		const shown = () => { const value = service.shownSession.get(); return value && `${value.resource.scheme} ${value.reason}`; };
