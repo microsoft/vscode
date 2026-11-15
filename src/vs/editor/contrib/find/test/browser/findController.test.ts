@@ -174,6 +174,22 @@ suite('FindController', () => {
 		});
 	}
 
+	for (const searchString of [undefined, '', 'explicit']) {
+		test(`issue #151311: findWithArgs respects clipboard searchString ${JSON.stringify(searchString)}`, async () => {
+			const services = new ServiceCollection([IStorageService, disposables.add(new InMemoryStorageService())]);
+			await withAsyncTestCodeEditor(['needle'], { serviceCollection: services, find: { globalFindClipboard: true, seedSearchStringFromSelection: 'never' } }, async (editor, _, instantiationService) => {
+				const controller = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+				const action = new StartFindWithArgsAction();
+				const clipboardService = instantiationService.get(IClipboardService);
+				for (let i = 0; i < 3; i++) {
+					await clipboardService.writeFindText('clipboard');
+					await executeAction(instantiationService, editor, action, { searchString, isRegex: true });
+					assert.strictEqual(controller.getState().searchString, searchString ?? 'clipboard');
+				}
+			});
+		});
+	}
+
 	test('issue #1857: F3, Find Next, acts like "Find Under Cursor"', async () => {
 		await withAsyncTestCodeEditor([
 			'ABC',
