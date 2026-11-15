@@ -128,9 +128,10 @@ export interface IChatViewHost {
 	 */
 	canShow?(sessionResource: URI): boolean;
 	/**
-	 * Starts a new chat in the host, as New Chat of the Chat view does, aimed at `target` when given, and resolves to whether
-	 * it takes it once its new chat shows, so that a request that follows goes to it. A host that does not implement it leaves
-	 * New Chat to the chat widget it acts on.
+	 * Starts a new chat in the host, as New Chat of the Chat view does, and resolves to whether it takes it once its new chat
+	 * shows, so that a request that follows goes to it. A host that does not implement it leaves New Chat to the chat widget it
+	 * acts on. `target` is a hint, such as the folder and session type of a new session that a sessions list starts: a host may
+	 * aim its new chat at it or ignore it. The Chat view's own host ignores it and starts its default new chat.
 	 */
 	newChat?(target?: IChatViewNewChatTarget, options?: IChatViewHostNewChatOptions): Promise<boolean>;
 	/** The chat the host shows; a host that does not implement it reports none. */

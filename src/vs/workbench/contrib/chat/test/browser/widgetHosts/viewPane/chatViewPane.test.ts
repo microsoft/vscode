@@ -32,7 +32,7 @@ import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ChatOpenDiagnosticsService } from '../../../../common/chatOpenDiagnosticsService.js';
 import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
 import { IChatModelReference } from '../../../../common/chatService/chatService.js';
-import { getChatSessionType } from '../../../../common/model/chatUri.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import { ChatSessionRefreshReason, SessionType } from '../../../../common/chatSessionsService.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
@@ -55,6 +55,7 @@ suite('ChatViewPane sessions refresh', () => {
 			sessionsContainer: document.createElement('div'),
 			viewPaneContainer: document.createElement('div'),
 			sessionsControl: { setVisible: (visible: boolean) => visibility.push(visible) },
+			sessionsListService: { sessionsOnly: constObservable(false) },
 			configurationService: configuration,
 			sessionsViewerOrientation: AgentSessionsViewerOrientation.SideBySide,
 			lastDimensions: { width: 1000, height: 600 },
@@ -87,7 +88,7 @@ suite('ChatViewPane sessions refresh', () => {
 			sessionsContainer: document.createElement('div'),
 			viewPaneContainer: document.createElement('div'),
 			sessionsControl: { setVisible: (visible: boolean) => visibility.push(visible) },
-			providedSessionsList: { sessionsOnly },
+			sessionsListService: { sessionsOnly },
 			configurationService: new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsEnabled]: false }),
 			sessionsViewerOrientation: AgentSessionsViewerOrientation.Stacked,
 			lastDimensions: { width: 1000, height: 600 },
@@ -116,7 +117,7 @@ suite('ChatViewPane sessions refresh', () => {
 		const focused: string[] = [];
 		const focusInput = Reflect.get(ChatViewPane.prototype, 'focusInput') as (this: object) => void;
 		const host = (sessionsOnly: boolean) => ({
-			providedSessionsList: { sessionsOnly: constObservable(sessionsOnly) },
+			sessionsListService: { sessionsOnly: constObservable(sessionsOnly) },
 			sessionsControl: { focus: () => focused.push('sessions') },
 			_widget: { focusInput: () => focused.push('chat') },
 		});
@@ -137,6 +138,19 @@ suite('ChatViewPane sessions refresh', () => {
 		providers.push(service.provider === a);
 		first.dispose();
 		assert.deepStrictEqual({ providers, none: service.provider }, { providers: [true, true], none: undefined });
+	});
+
+	test('the Chat view shows only its sessions while a claim is held, also without a provided list', () => {
+		const service = store.add(new ChatViewSessionsListService());
+		const steps = [service.sessionsOnly.get()];
+		const first = service.claimSessionsOnly();
+		const second = service.claimSessionsOnly();
+		steps.push(service.sessionsOnly.get());
+		first.dispose();
+		steps.push(service.sessionsOnly.get());
+		second.dispose();
+		steps.push(service.sessionsOnly.get());
+		assert.deepStrictEqual(steps, [false, true, true, false]);
 	});
 
 	test('the sessions list follows the provider live: a provider registering replaces the Chat view\'s own list, and its own list returns as it goes, the replaced one disposed', () => {
@@ -346,11 +360,12 @@ suite('ChatViewPane sessions refresh', () => {
 				},
 			},
 			hostService: { onDidChangeFocus: focusChanged.event },
-			sessionsListService: { provider: undefined, onDidChangeProvider: Event.None },
+			sessionsListService: { provider: undefined, onDidChangeProvider: Event.None, sessionsOnly: constObservable(false) },
 			configurationService: new TestConfigurationService(),
 			onDidChangeBodyVisibility: Event.None,
 			getLocationBasedColors: () => ({ listOverrideStyles: {} }),
 			doUpdateConfiguredSessionsViewerOrientation: () => { },
+			relayout: () => { },
 		};
 		const createControl = Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => AgentSessionsControl;
 		createControl.call(host, document.createElement('div'));
@@ -437,6 +452,7 @@ suite('ChatViewPane session transitions', () => {
 			_openDiagnostics: store.add(new MutableDisposable()),
 			loadSessionCts: store.add(new MutableDisposable()),
 			_applyModelCts: store.add(new MutableDisposable()),
+			localChatCommit: store.add(new MutableDisposable()),
 			logService: new NullLogService(),
 			layoutService: { isRestored: () => false },
 			notificationService: { error: () => { } },
@@ -453,6 +469,25 @@ suite('ChatViewPane session transitions', () => {
 		didChangeViewModel = committed => (Reflect.get(pane, 'onDidChangeShownModel') as (e: IChatWidgetViewModelChangeEvent) => void).call(pane, { previousSessionResource: undefined, currentSessionResource: shown?.sessionResource, committed });
 		return { pane, paneStore, widget, modelRef, nextModel, nextRef, bindings, disposed, locks };
 	}
+
+	test('a new Local chat, whose model stays as its first request is accepted, reports its commit as that request is added, and only its first', () => {
+		const rig = createPane();
+		rig.nextRef.dispose();
+		const requests: unknown[] = [];
+		const changed = store.add(new Emitter<{ kind: string }>());
+		const local = upcastPartial<IChatModel>({ sessionResource: LocalChatSessionUri.forSession('new'), getRequests: () => requests as ReturnType<IChatModel['getRequests']>, onDidChange: changed.event as IChatModel['onDidChange'] });
+		const reason = () => rig.pane.shownSession.get()?.reason ?? 'none';
+		rig.widget.setModel(local);
+		const shownNew = reason();
+		requests.push({});
+		changed.fire({ kind: 'addRequest' });
+		const afterFirst = reason();
+		rig.pane.reportOpened(local.sessionResource);
+		requests.push({});
+		changed.fire({ kind: 'addRequest' });
+
+		assert.deepStrictEqual({ shownNew, afterFirst, afterSecond: reason() }, { shownNew: 'open', afterFirst: 'commit', afterSecond: 'open' });
+	});
 
 	test('keeps the previous session bound until its replacement is ready', async () => {
 		const resolving = new DeferredPromise<void>();
