@@ -7,6 +7,7 @@ import { IProgress, IProgressService, IProgressStep, ProgressLocation, IProgress
 import { MainThreadProgressShape, MainContext, ExtHostProgressShape, ExtHostContext, IProgressOptionsDto, IProgressStepDto } from '../common/extHost.protocol.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { MANAGE_EXTENSION_COMMAND_ID } from '../../../platform/extensions/common/extensions.js';
 import { localize } from '../../../nls.js';
 import { onUnexpectedExternalError } from '../../../base/common/errors.js';
 import { toAction } from '../../../base/common/actions.js';
@@ -53,7 +54,7 @@ export class MainThreadProgress implements MainThreadProgressShape {
 				secondaryActions: [withNotificationActionTelemetry(toAction({
 					id: extensionId,
 					label: localize('manageExtension', "Manage Extension"),
-					run: () => this._commandService.executeCommand('_extensions.manage', extensionId)
+					run: () => this._commandService.executeCommand(MANAGE_EXTENSION_COMMAND_ID, extensionId)
 				}), NotificationActionTelemetryId.ManageExtension)]
 			};
 
