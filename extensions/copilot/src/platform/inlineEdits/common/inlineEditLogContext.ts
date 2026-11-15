@@ -736,7 +736,7 @@ export class InlineEditRequestLogContext {
 
 	private _logs: string[] = [];
 	addLog(content: string): void {
-		this._logs.push(content.replace('\n', '\\n').replace('\t', '\\t').replace('`', '\`') + '\n');
+		this._logs.push(content.replaceAll('\n', '\\n').replaceAll('\t', '\\t').replaceAll('`', '\\`') + '\n');
 		this.fireDidChange();
 	}
 
