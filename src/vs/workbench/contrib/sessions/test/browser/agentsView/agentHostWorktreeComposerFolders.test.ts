@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -27,7 +27,7 @@ import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { EditorWindowComposerFoldersService, IEditorWindowComposerFolderOptions, IEditorWindowComposerFoldersService } from '../../../browser/editorWindow/editorWindowComposerFolders.js';
 import { AgentHostWorktreeComposerFolders, AgentHostWorktreeComposerFoldersContribution, AgentHostWorktreeSessionLayerSource } from '../../../browser/agentsView/agentHostWorktreeComposerFolders.js';
 import { AgentHostWorktreeSessionSources, IAgentHostWorktreeSessionSources } from '../../../../chat/browser/agentSessions/agentHost/agentHostWorktreeSessionSources.js';
-import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 
@@ -358,7 +358,7 @@ suite('AgentHostWorktreeComposerFolders', () => {
 		});
 		const sessions: ISession[] = [];
 		// Only every session's changes, not the listed ones', report it
-		const onDidChangeSession = store.add(new Emitter<never>());
+		const onDidChangeSession = store.add(new Emitter<readonly ISessionChange[]>());
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			onDidChangeSessions: Event.None,
@@ -370,10 +370,10 @@ suite('AgentHostWorktreeComposerFolders', () => {
 		let changes = 0;
 		store.add(source.onDidChange(() => changes++));
 		// Any session changing otherwise, such as its status, changes nothing of where they work
-		onDidChangeSession.fire(undefined as never);
+		onDidChangeSession.fire([{ session: hidden, kind: 'changed' }]);
 		const unrelated = changes;
 		sessions.push(hidden);
-		onDidChangeSession.fire(undefined as never);
+		onDidChangeSession.fire([{ session: hidden, kind: 'added' }]);
 		const added = changes;
 		chatWorkspace.set(workspace('/work/vscode.worktrees/hidden'), undefined);
 
@@ -383,6 +383,58 @@ suite('AgentHostWorktreeComposerFolders', () => {
 			changes: 2,
 			workingDirectory: '/work/vscode.worktrees/hidden',
 			all: ['/work/vscode', '/work/vscode.worktrees/hidden'],
+		});
+	});
+
+	test('the session layer\'s source does not read every session again as busy sessions update without moving, such as their status or git state, but does as one moves', () => {
+		const folders = (path: string) => [{ root: URI.file('/work/vscode'), workingDirectory: URI.file(path), name: 'vscode', description: undefined }];
+		// A provider's chat workspace is a new object as anything of it changes, also where it works in the same folders
+		let folderReads = 0;
+		const workspace = (path: string) => {
+			const value = folders(path);
+			return upcastPartial<ISessionWorkspace>({ get folders() { folderReads++; return value; } });
+		};
+		const sessionCount = 5, chatCount = 4, updates = 20;
+		const chatWorkspaces: ReturnType<typeof observableValue<ISessionWorkspace | undefined>>[] = [];
+		const sessions = Array.from({ length: sessionCount }, (_, i) => upcastPartial<ISession>({
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			isArchived: observableValue('archived', false),
+			workspace: observableValue('workspace', workspace(`/work/vscode.worktrees/s${i}`)),
+			chats: observableValue('chats', Array.from({ length: chatCount }, (_, j) => {
+				const chatWorkspace = observableValue<ISessionWorkspace | undefined>('workspace', workspace(`/work/vscode.worktrees/s${i}`));
+				chatWorkspaces.push(chatWorkspace);
+				return upcastPartial<IChat>({ resource: URI.from({ scheme: 'ahp-chat', path: `/s${i}/c${j}` }), workspace: chatWorkspace });
+			})),
+		}));
+		let sweeps = 0;
+		const onDidChangeSession = store.add(new Emitter<readonly ISessionChange[]>());
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			onDidChangeSession: onDidChangeSession.event,
+			getAllSessions: () => { sweeps++; return sessions; },
+			getSessionForChatResource: () => undefined,
+		}));
+		const source = store.add(instantiationService.createInstance(AgentHostWorktreeSessionLayerSource));
+		let changes = 0;
+		store.add(source.onDidChange(() => changes++));
+		const initial = { sweeps, folderReads };
+		sweeps = folderReads = 0;
+
+		// The first session is busy: each update of it reports it changed and its chat's workspace anew, where it already works
+		for (let k = 0; k < updates; k++) {
+			transaction(tx => {
+				chatWorkspaces[0].set(workspace('/work/vscode.worktrees/s0'), tx);
+				onDidChangeSession.fire([{ session: sessions[0], kind: 'changed' }]);
+			});
+		}
+		const busy = { sweeps, folderReads, changes };
+		chatWorkspaces[0].set(workspace('/work/vscode.worktrees/moved'), undefined);
+
+		assert.deepStrictEqual({ initial, busy, moved: changes }, {
+			initial: { sweeps: 1, folderReads: sessionCount * (chatCount + 1) },
+			// Only the busy chat's own workspace is read again, once per update
+			busy: { sweeps: 0, folderReads: updates, changes: 0 },
+			moved: 1,
 		});
 	});
 
