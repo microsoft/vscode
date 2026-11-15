@@ -55,6 +55,7 @@ suite('ChatViewPane sessions refresh', () => {
 			sessionsContainer: document.createElement('div'),
 			viewPaneContainer: document.createElement('div'),
 			sessionsControl: { setVisible: (visible: boolean) => visibility.push(visible) },
+			sessionsListService: { sessionsOnly: constObservable(false) },
 			configurationService: configuration,
 			sessionsViewerOrientation: AgentSessionsViewerOrientation.SideBySide,
 			lastDimensions: { width: 1000, height: 600 },
@@ -87,7 +88,7 @@ suite('ChatViewPane sessions refresh', () => {
 			sessionsContainer: document.createElement('div'),
 			viewPaneContainer: document.createElement('div'),
 			sessionsControl: { setVisible: (visible: boolean) => visibility.push(visible) },
-			providedSessionsList: { sessionsOnly },
+			sessionsListService: { sessionsOnly },
 			configurationService: new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsEnabled]: false }),
 			sessionsViewerOrientation: AgentSessionsViewerOrientation.Stacked,
 			lastDimensions: { width: 1000, height: 600 },
@@ -116,7 +117,7 @@ suite('ChatViewPane sessions refresh', () => {
 		const focused: string[] = [];
 		const focusInput = Reflect.get(ChatViewPane.prototype, 'focusInput') as (this: object) => void;
 		const host = (sessionsOnly: boolean) => ({
-			providedSessionsList: { sessionsOnly: constObservable(sessionsOnly) },
+			sessionsListService: { sessionsOnly: constObservable(sessionsOnly) },
 			sessionsControl: { focus: () => focused.push('sessions') },
 			_widget: { focusInput: () => focused.push('chat') },
 		});
@@ -137,6 +138,19 @@ suite('ChatViewPane sessions refresh', () => {
 		providers.push(service.provider === a);
 		first.dispose();
 		assert.deepStrictEqual({ providers, none: service.provider }, { providers: [true, true], none: undefined });
+	});
+
+	test('the Chat view shows only its sessions while a claim is held, also without a provided list', () => {
+		const service = store.add(new ChatViewSessionsListService());
+		const steps = [service.sessionsOnly.get()];
+		const first = service.claimSessionsOnly();
+		const second = service.claimSessionsOnly();
+		steps.push(service.sessionsOnly.get());
+		first.dispose();
+		steps.push(service.sessionsOnly.get());
+		second.dispose();
+		steps.push(service.sessionsOnly.get());
+		assert.deepStrictEqual(steps, [false, true, true, false]);
 	});
 
 	test('the sessions list follows the provider live: a provider registering replaces the Chat view\'s own list, and its own list returns as it goes, the replaced one disposed', () => {
@@ -346,11 +360,12 @@ suite('ChatViewPane sessions refresh', () => {
 				},
 			},
 			hostService: { onDidChangeFocus: focusChanged.event },
-			sessionsListService: { provider: undefined, onDidChangeProvider: Event.None },
+			sessionsListService: { provider: undefined, onDidChangeProvider: Event.None, sessionsOnly: constObservable(false) },
 			configurationService: new TestConfigurationService(),
 			onDidChangeBodyVisibility: Event.None,
 			getLocationBasedColors: () => ({ listOverrideStyles: {} }),
 			doUpdateConfiguredSessionsViewerOrientation: () => { },
+			relayout: () => { },
 		};
 		const createControl = Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => AgentSessionsControl;
 		createControl.call(host, document.createElement('div'));
