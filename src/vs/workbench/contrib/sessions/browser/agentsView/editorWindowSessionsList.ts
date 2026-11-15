@@ -96,21 +96,57 @@ export function registerEditorWindowSessionsViews(container: IViewContainerDescr
 }
 
 /**
- * Registers the settings of the sessions list, marks the window as showing it ({@link EditorWindowSessionsContext}), and registers its actions and those of the sessions it shows once the Sessions view or the
- * chat part first shows. `registerMore` registers the actions of the chat part, which this does not know.
+ * What the sessions lists of a window share, however many hold them: the window marked as showing them
+ * ({@link EditorWindowSessionsContext}), their settings, and, once one first shows, their actions and those of the sessions they
+ * show. Registered with the first holder and disposed with the last.
+ */
+let sharedSessionsList: { holders: number; readonly store: DisposableStore; actionsRegistered: boolean } | undefined;
+
+function holdSharedSessionsList(instantiationService: IInstantiationService): IDisposable {
+	if (!sharedSessionsList) {
+		const store = new DisposableStore();
+		const contextKeyService = instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
+		EditorWindowSessionsContext.bindTo(contextKeyService).set(true);
+		store.add(toDisposable(() => EditorWindowSessionsContext.bindTo(contextKeyService).reset()));
+		store.add(registerSessionsListConfiguration());
+		sharedSessionsList = { holders: 0, store, actionsRegistered: false };
+	}
+	const shared = sharedSessionsList;
+	shared.holders++;
+	return toDisposable(() => {
+		if (--shared.holders === 0) {
+			if (sharedSessionsList === shared) {
+				sharedSessionsList = undefined;
+			}
+			shared.store.dispose();
+		}
+	});
+}
+
+function registerSharedSessionsListActions(instantiationService: IInstantiationService): void {
+	const shared = sharedSessionsList;
+	if (!shared || shared.actionsRegistered) {
+		return;
+	}
+	shared.actionsRegistered = true;
+	shared.store.add(registerSessionsListActions());
+	shared.store.add(registerSessionsListReadStateMenus());
+	shared.store.add(instantiationService.createInstance(SessionsArchiveActionsContribution));
+}
+
+/**
+ * Holds the sessions list of an editor window: its settings, the window marked as showing it ({@link EditorWindowSessionsContext}),
+ * and its actions and those of the sessions it shows once the Sessions view or the chat part first shows, all shared with the
+ * other holders of a window (such as the Agents view and the Chat view) until the last one goes. `registerMore` registers the
+ * actions of this holder, such as of the chat part, which this does not know, as its view first shows.
  * `viewId` is the view whose first show registers them: the Sessions view, or the view that embeds it, such as the Chat view.
  */
 export function registerEditorWindowSessionsList(instantiationService: IInstantiationService, registerMore: () => IDisposable, viewId: string = SessionsViewId): IDisposable {
 	const store = new DisposableStore();
-	const contextKeyService = instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
-	EditorWindowSessionsContext.bindTo(contextKeyService).set(true);
-	store.add(toDisposable(() => EditorWindowSessionsContext.bindTo(contextKeyService).reset()));
-	store.add(registerSessionsListConfiguration());
+	store.add(holdSharedSessionsList(instantiationService));
 	store.add(registerOnFirstShown(instantiationService, viewId, () => {
-		store.add(registerSessionsListActions());
-		store.add(registerSessionsListReadStateMenus());
+		registerSharedSessionsListActions(instantiationService);
 		store.add(registerMore());
-		store.add(instantiationService.createInstance(SessionsArchiveActionsContribution));
 	}));
 	return store;
 }
