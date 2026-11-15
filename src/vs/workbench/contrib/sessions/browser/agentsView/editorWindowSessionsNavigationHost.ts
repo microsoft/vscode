@@ -76,8 +76,12 @@ export class EditorWindowSessionsNavigationHost implements ISessionsNavigationSe
 	}
 
 	async openChat(session: ISession, chatUri: URI, options?: IOpenChatOptions): Promise<void> {
+		// A later open, also of a session, supersedes this one while its session prepares, so that the user's latest pick shows
+		const open = ++this._openGeneration;
 		await prepareAgentsViewSessionForOpen(this._sessionsProvidersService, session);
-		await this._presenter.openChat(session, chatUri, { preserveFocus: options?.preserveFocus });
+		if (open === this._openGeneration) {
+			await this._presenter.openChat(session, chatUri, { preserveFocus: options?.preserveFocus });
+		}
 	}
 
 	async openChatToSide(session: ISession, chatResource: URI, options?: { readonly preserveFocus?: boolean }): Promise<void> {

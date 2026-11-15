@@ -389,4 +389,61 @@ suite('EditorWindowSessionsService', () => {
 
 		assert.deepStrictEqual(opened, ['b']);
 	});
+
+	test('a chat open whose session still prepares is superseded by a later open, and supersedes an earlier one, by the sessions service and the navigation host alike, so the user\'s latest pick shows', async () => {
+		const a: ISession = { ...buildTestSession({ id: 'a', title: 'A' }).session, loading: constObservable(false) };
+		const b: ISession = { ...buildTestSession({ id: 'b', title: 'B' }).session, loading: constObservable(false) };
+		const run = async (kind: 'service' | 'navigation host') => {
+			const shown: string[] = [];
+			let preparingA: DeferredPromise<void> | undefined;
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({}));
+			instantiationService.stub(ICommandService, upcastPartial<ICommandService>({}));
+			const presenterService = disposables.add(instantiationService.createInstance(EditorWindowSessionsPresenterService));
+			const registration = presenterService.registerPresenter(upcastPartial<IEditorWindowSessionsPresenter>({ openChat: async (session, chat) => { shown.push(`${session.sessionId}${chat ? ' chat' : ''}`); }, isShowing: () => false }));
+			instantiationService.stub(IEditorWindowSessionsPresenterService, presenterService);
+			instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({}));
+			instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+				resolveSessionResource: async resource => resource,
+				getSession: resource => [a, b].find(session => isEqual(session.resource, resource)),
+			}));
+			instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
+				getProvider: <T extends ISessionsProvider>(_providerId: string, sessionId?: string) => upcastPartial<ISessionsProvider>({ prepareSessionForOpen: () => sessionId === 'a' && preparingA ? preparingA.p : Promise.resolve() }) as T,
+			}));
+			instantiationService.stub(IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({ acquire: () => toDisposable(() => { }) }));
+			instantiationService.stub(ISessionOpenTelemetryService, upcastPartial<ISessionOpenTelemetryService>({
+				withOpenRequest: (async (_source: string, _token: unknown, open: (attempt: unknown) => Promise<void>) => open({})) as ISessionOpenTelemetryService['withOpenRequest'],
+				sessionResolved: () => { }, sessionActivated: () => { }, sessionLoaded: () => { },
+			}));
+			instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }), getWorkspaceFolder: () => null }));
+			instantiationService.stub(IEditorService, upcastPartial<IEditorService>({ activeEditor: undefined }));
+			instantiationService.stub(IWorkspaceTrustManagementService, upcastPartial<IWorkspaceTrustManagementService>({}));
+			instantiationService.stub(IWorkspaceTrustRequestService, upcastPartial<IWorkspaceTrustRequestService>({}));
+			const host = kind === 'service' ? disposables.add(instantiationService.createInstance(EditorWindowSessionsService)) : instantiationService.createInstance(EditorWindowSessionsNavigationHost);
+			const supersededBy = async (later: () => Promise<void>) => {
+				preparingA = new DeferredPromise<void>();
+				const openingA = host.openChat(a, a.mainChat.get().resource);
+				await later();
+				preparingA.complete();
+				await openingA;
+				return shown.splice(0);
+			};
+
+			const bySession = await supersededBy(() => host.openSession(b.resource));
+			const byChat = await supersededBy(() => host.openChat(b, b.mainChat.get().resource));
+			// A session whose open still prepares does not show over a chat opened later
+			preparingA = new DeferredPromise<void>();
+			const openingA = host.openSession(a.resource);
+			await timeout(0);
+			await host.openChat(b, b.mainChat.get().resource);
+			preparingA.complete();
+			await openingA;
+			const overSessionOpen = shown.splice(0);
+			registration.dispose();
+			return { bySession, byChat, overSessionOpen };
+		};
+
+		const expected = { bySession: ['b'], byChat: ['b chat'], overSessionOpen: ['b chat'] };
+		assert.deepStrictEqual({ service: await run('service'), navigationHost: await run('navigation host') }, { service: expected, navigationHost: expected });
+	});
 });
