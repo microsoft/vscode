@@ -92,7 +92,8 @@ import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { AgentHostStartupMarks, AgentHostStartupPerformance, IAgentHostStartupPerformance } from './agentHostStartupPerformance.js';
 
 export interface IAgentHostCoreServiceInputs {
-	readonly storageResource: URI | undefined;
+	/** Created with `AgentHostStorageService.create`, so the persisted file is read off the event loop before any service reads it. */
+	readonly storage: AgentHostStorageService;
 	readonly rootConfigResource?: URI;
 	readonly orchestratorDatabase?: IAgentHostDatabase;
 	readonly fetchFn: typeof globalThis.fetch;
@@ -117,7 +118,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentEditAttributionService, new SyncDescriptor(AgentEditAttributionService, [undefined, undefined]));
 	services.set(IEditSurvivalReporterFactory, new SyncDescriptor(EditSurvivalReporterFactory));
 	services.set(IEditArcReporterService, new SyncDescriptor(EditArcReporterService, [undefined]));
-	services.set(IAgentHostStorageService, new SyncDescriptor(AgentHostStorageService, [inputs.storageResource]));
+	services.set(IAgentHostStorageService, inputs.storage);
 	services.set(IAgentHostGitHubService, new SyncDescriptor(AgentHostGitHubService, [inputs.gitHubServiceOptions]));
 	services.set(ICopilotApiService, inputs.copilotApiService ?? new SyncDescriptor(CopilotApiService, [inputs.fetchFn]));
 	services.set(IAgentHostCustomizationEnablementService, new SyncDescriptor(AgentHostCustomizationEnablementService));

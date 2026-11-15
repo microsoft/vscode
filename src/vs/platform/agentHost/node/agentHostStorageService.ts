@@ -43,6 +43,11 @@ const defaultStorageWriter: IAgentHostStorageWriter = {
 /**
  * A small host-owned persistent store. Reads are synchronously available after
  * construction; writes are coalesced and atomically replace the persisted file.
+ *
+ * Construct with {@link AgentHostStorageService.create} to load the persisted
+ * file without blocking the event loop. The `persisted` argument injects the
+ * loaded contents, and defaults to an empty store for tests and resources
+ * without persisted data.
  */
 export class AgentHostStorageService extends Disposable implements IAgentHostStorageService {
 	declare readonly _serviceBrand: undefined;
@@ -52,17 +57,46 @@ export class AgentHostStorageService extends Disposable implements IAgentHostSto
 
 	private readonly _writeThrottler = this._register(new Throttler());
 	private readonly _pendingWrites = new Set<Promise<void>>();
-	private _data: Record<string, unknown>;
+	private readonly _data: Record<string, unknown>;
 	private _lastWriteError: Error | undefined;
-	private _loadError: Error | undefined;
+	private readonly _loadError: Error | undefined;
 
 	constructor(
 		private readonly _resource: URI | undefined,
 		@ILogService private readonly _logService: ILogService,
 		private readonly _writer: IAgentHostStorageWriter = defaultStorageWriter,
+		persisted: { readonly data: Record<string, unknown>; readonly loadError?: Error } = { data: {} },
 	) {
 		super();
-		this._data = this._load();
+		this._data = persisted.data;
+		this._loadError = persisted.loadError;
+	}
+
+	/**
+	 * Reads and validates the persisted storage file, then returns a service whose
+	 * reads are available immediately. Reading asynchronously keeps storage I/O off
+	 * the host's event loop, which a synchronous load would block for the whole read.
+	 */
+	static async create(resource: URI | undefined, logService: ILogService, writer: IAgentHostStorageWriter = defaultStorageWriter): Promise<AgentHostStorageService> {
+		let data: Record<string, unknown> = {};
+		let loadError: Error | undefined;
+		if (resource !== undefined) {
+			try {
+				const value: unknown = JSON.parse(await fs.promises.readFile(resource.fsPath, 'utf8'));
+				if (value && typeof value === 'object' && !Array.isArray(value)) {
+					data = value as Record<string, unknown>;
+				} else {
+					logService.warn(`[AgentHostStorageService] Ignoring non-object storage data: ${resource.toString()}`);
+					loadError = new Error(`Agent Host storage does not contain a JSON object: ${resource.toString()}`);
+				}
+			} catch (err) {
+				if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+					logService.warn(`[AgentHostStorageService] Failed to read storage: ${resource.toString()}`, err);
+					loadError = err instanceof Error ? err : new Error(String(err));
+				}
+			}
+		}
+		return new AgentHostStorageService(resource, logService, writer, { data, loadError });
 	}
 
 	get<T>(key: string): T | undefined {
@@ -118,28 +152,6 @@ export class AgentHostStorageService extends Disposable implements IAgentHostSto
 		if (this._lastWriteError) {
 			throw this._lastWriteError;
 		}
-	}
-
-	private _load(): Record<string, unknown> {
-		if (this._resource === undefined) {
-			return {};
-		}
-
-		try {
-			// eslint-disable-next-line local/code-no-sync-fs -- TODO: add an awaited storage-ready boundary; constructor consumers call get immediately and must not read defaults before persisted data is loaded.
-			const value: unknown = JSON.parse(fs.readFileSync(this._resource.fsPath, 'utf8'));
-			if (value && typeof value === 'object' && !Array.isArray(value)) {
-				return value as Record<string, unknown>;
-			}
-			this._logService.warn(`[AgentHostStorageService] Ignoring non-object storage data: ${this._resource.toString()}`);
-			this._loadError = new Error(`Agent Host storage does not contain a JSON object: ${this._resource.toString()}`);
-		} catch (err) {
-			if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-				this._logService.warn(`[AgentHostStorageService] Failed to read storage: ${this._resource.toString()}`, err);
-				this._loadError = err instanceof Error ? err : new Error(String(err));
-			}
-		}
-		return {};
 	}
 
 	private _scheduleWrite(): void {

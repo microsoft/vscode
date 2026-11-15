@@ -28,6 +28,7 @@ import { AgentHostClientConnectionService, IAgentHostClientConnectionService } f
 import { registerAgentHostCoreServices, registerAgentHostHostServices } from '../../../node/agentHostServices.js';
 import { IByokLmBridgeRegistry, NullByokLmBridgeRegistry } from '../../../node/byokLmBridgeRegistry.js';
 import { CopilotAgent } from '../../../node/copilot/copilotAgent.js';
+import { AgentHostStorageService } from '../../../node/agentHostStorageService.js';
 import { SessionDataService } from '../../../node/sessionDataService.js';
 import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js';
@@ -124,7 +125,7 @@ export function createLocalEndpointCopilotAgent(store: DisposableStore, home: st
 		fetchFn: localFetch,
 	});
 	foundation.configurationService.updateRootConfig(rootConfiguration);
-	registerAgentHostCoreServices(services, { storageResource: undefined, fetchFn: localFetch, gitHubServiceOptions: foundation.gitHubServiceOptions });
+	registerAgentHostCoreServices(services, { storage: store.add(new AgentHostStorageService(undefined, logService)), fetchFn: localFetch, gitHubServiceOptions: foundation.gitHubServiceOptions });
 	registerAgentHostHostServices(services, { userDataPath: URI.file(home), fetchFn: localFetch, byok: { kind: 'unavailable' } });
 	services.set(IAgentHostOTelService, NullAgentHostOTelService);
 	const instantiationService = store.add(new InstantiationService(services, true));

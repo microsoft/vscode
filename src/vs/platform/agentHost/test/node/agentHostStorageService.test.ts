@@ -93,7 +93,7 @@ suite('AgentHostStorageService', () => {
 		const path = getRandomTestPath(tmpdir()) + '.json';
 		await writeFile(path, 'not json', 'utf8');
 		try {
-			const service = disposables.add(new AgentHostStorageService(URI.file(path), new NullLogService()));
+			const service = disposables.add(await AgentHostStorageService.create(URI.file(path), new NullLogService()));
 
 			assert.throws(() => service.set('automations', { catalog: { entries: [] } }), /persisted data could not be loaded/);
 			await assert.rejects(service.whenIdle(), /persisted data could not be loaded/);
@@ -114,7 +114,7 @@ suite('AgentHostStorageService', () => {
 		await mkdir(directory);
 		const path = join(directory, 'storage.json');
 		try {
-			const service = disposables.add(new AgentHostStorageService(URI.file(path), new NullLogService()));
+			const service = disposables.add(await AgentHostStorageService.create(URI.file(path), new NullLogService()));
 			service.set('first', { value: 1 });
 			await service.whenIdle();
 
@@ -138,7 +138,7 @@ suite('AgentHostStorageService', () => {
 		const path = join(directory, 'storage.json');
 		await writeFile(path, '{"first":{"value":1},"second":true}', 'utf8');
 		try {
-			const service = disposables.add(new AgentHostStorageService(URI.file(path), new NullLogService()));
+			const service = disposables.add(await AgentHostStorageService.create(URI.file(path), new NullLogService()));
 
 			assert.deepStrictEqual({
 				first: service.get<{ value: number }>('first'),
@@ -162,7 +162,7 @@ suite('AgentHostStorageService', () => {
 		const path = join(directory, 'storage.json');
 		await writeFile(path, '[1, 2, 3]', 'utf8');
 		try {
-			const service = disposables.add(new AgentHostStorageService(URI.file(path), new NullLogService()));
+			const service = disposables.add(await AgentHostStorageService.create(URI.file(path), new NullLogService()));
 
 			assert.throws(() => service.set('next', true), /persisted data could not be loaded/);
 			await assert.rejects(service.whenIdle(), /persisted data could not be loaded/);
@@ -188,7 +188,7 @@ suite('AgentHostStorageService', () => {
 		const path = join(directory, 'storage.json');
 		await mkdir(path);
 		try {
-			const service = disposables.add(new AgentHostStorageService(URI.file(path), new NullLogService()));
+			const service = disposables.add(await AgentHostStorageService.create(URI.file(path), new NullLogService()));
 
 			assert.throws(() => service.set('next', true), /persisted data could not be loaded/);
 			await assert.rejects(service.whenIdle(), /persisted data could not be loaded/);
@@ -228,12 +228,12 @@ suite('AgentHostStorageService', () => {
 				rename,
 				rm: path => rm(path, { force: true }),
 			};
-			const service = disposables.add(new AgentHostStorageService(URI.file(path), new NullLogService(), writer));
+			const service = disposables.add(await AgentHostStorageService.create(URI.file(path), new NullLogService(), writer));
 			try {
 				service.set('next', true);
 				await writeStarted.p;
 				const before = await readFile(path, 'utf8');
-				const reopened = disposables.add(new AgentHostStorageService(URI.file(path), new NullLogService()));
+				const reopened = disposables.add(await AgentHostStorageService.create(URI.file(path), new NullLogService()));
 				releaseWrite.complete();
 				if (fail) {
 					await assert.rejects(service.whenIdle(), /interrupted write/);
@@ -278,14 +278,14 @@ suite('AgentHostStorageService', () => {
 			},
 			rm: target => rm(target, { force: true }),
 		};
-		const service = disposables.add(new AgentHostStorageService(URI.file(path), new NullLogService(), writer));
+		const service = disposables.add(await AgentHostStorageService.create(URI.file(path), new NullLogService(), writer));
 		try {
 			service.set('next', true);
 			await assert.rejects(service.whenIdle(), /storage file is locked/);
 			await assert.rejects(service.whenIdle(), /storage file is locked/);
 			const afterFailure = await readFile(path, 'utf8');
 			const filesAfterFailure = await readdir(directory);
-			const reopened = disposables.add(new AgentHostStorageService(URI.file(path), new NullLogService()));
+			const reopened = disposables.add(await AgentHostStorageService.create(URI.file(path), new NullLogService()));
 
 			fail = false;
 			service.set('retry', true);
@@ -332,7 +332,7 @@ suite('AgentHostStorageService', () => {
 			},
 			rm: target => rm(target, { force: true }),
 		};
-		const service = disposables.add(new AgentHostStorageService(URI.file(path), new NullLogService(), writer));
+		const service = disposables.add(await AgentHostStorageService.create(URI.file(path), new NullLogService(), writer));
 		try {
 			await assert.rejects(service.setAndFlush('value', 'rejected'), /storage file is locked/);
 			await service.whenIdle();

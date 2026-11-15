@@ -39,6 +39,7 @@ import { createAgentServiceComposition, type IAgentServiceComposition } from '..
 import { activateAgentHostContributions } from '../../node/agentHostContributions.js';
 import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.js';
 import { registerAgentHostCoreServices } from '../../node/agentHostServices.js';
+import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { ICopilotApiService } from '../../node/shared/copilotApiService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostSystemWakeService, IAgentHostSystemWakeService } from '../../node/agentHostSystemWakeService.js';
@@ -236,7 +237,7 @@ export function createTestAgentService(
 	fetchFn: typeof globalThis.fetch = globalThis.fetch,
 	providerConfigurations: readonly IAgentCustomizationSettingsRegistration[] = [],
 	hostLaunchKind = AgentHostLaunchKind.Unknown,
-	storageResource?: URI,
+	storage: AgentHostStorageService = new AgentHostStorageService(undefined, logService),
 	orchestratorDatabase?: IAgentHostDatabase,
 	sessionResidencyLimit?: number,
 	sessionReleaseRetryMs?: number,
@@ -266,7 +267,7 @@ export function createTestAgentService(
 		copilotApiService,
 		providerConfigurations,
 		hostLaunchKind,
-		storageResource,
+		storage,
 		orchestratorDatabase,
 		sessionResidencyLimit,
 		sessionReleaseRetryMs,
@@ -284,7 +285,7 @@ export function createTestAgentService(
 		fetchFn,
 	});
 	registerAgentHostCoreServices(services, {
-		storageResource,
+		storage: foundationDisposables.add(storage),
 		rootConfigResource,
 		orchestratorDatabase,
 		fetchFn,
