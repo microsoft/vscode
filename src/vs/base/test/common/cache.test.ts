@@ -140,4 +140,22 @@ suite('Cache', () => {
 
 		assert.strictEqual(cached.cachedValues.size, 2);
 	});
+
+	test('LRUCachedFunction with null and boolean keys', () => {
+		let callCount = 0;
+		const cached = new LRUCachedFunction((arg: boolean | null) => {
+			callCount++;
+			return arg === null ? 'null' : String(arg);
+		});
+
+		assert.strictEqual(cached.get(null), 'null');
+		assert.strictEqual(callCount, 1);
+		assert.strictEqual(cached.get(null), 'null');
+		assert.strictEqual(callCount, 1);
+
+		assert.strictEqual(cached.get(false), 'false');
+		assert.strictEqual(callCount, 2);
+		assert.strictEqual(cached.get(false), 'false');
+		assert.strictEqual(callCount, 2);
+	});
 });
