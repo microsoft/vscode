@@ -323,6 +323,9 @@ export class ToolBar extends Disposable {
 			return;
 		}
 		this.trailingSeparator = trailingSeparator;
+		// Adding an item moves the action bar's focus and tab stop to the start of a compound control, such as a split button
+		const focusedElement = DOM.getActiveElement();
+		const focusedAction = DOM.isHTMLElement(focusedElement) ? this.actionBar.getAction(focusedElement) : undefined;
 		if (trailingSeparator) {
 			if (this.originalPrimaryActions.length > 0 || this.hasSecondaryActions) {
 				this.trailingSeparatorAction = new Separator();
@@ -336,6 +339,9 @@ export class ToolBar extends Disposable {
 		if (this.options.responsiveBehavior?.enabled) {
 			this.reserveResponsiveMinWidth();
 			this.updateActions(this.getAvailableWidth());
+		}
+		if (focusedAction) {
+			this.restoreRovingFocus(focusedElement, focusedAction);
 		}
 	}
 
@@ -780,7 +786,14 @@ export class ToolBar extends Disposable {
 			return;
 		}
 
-		// Rebuild the roving tab stop after items have been removed or inserted.
+		this.restoreRovingFocus(focusedElement, focusedAction);
+	}
+
+	/**
+	 * Rebuilds the roving tab stop after items have been removed or inserted, keeping focus on `focusedElement` of
+	 * `focusedAction`, such as a half of a split button, or moving it to the overflow menu when the action is hidden.
+	 */
+	private restoreRovingFocus(focusedElement: Element | null, focusedAction: IAction | undefined): void {
 		for (let i = 0; i < this.actionBar.length(); i++) {
 			const viewItem = this.getItemViewItem(i);
 			if (viewItem instanceof BaseActionViewItem) {

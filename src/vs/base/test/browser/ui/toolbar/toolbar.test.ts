@@ -838,6 +838,33 @@ suite('ToolBar', () => {
 		}
 	}
 
+	test('keeps the focused half of a split button and its tab stop while the trailing separator comes and goes', () => {
+		const splitAction = store.add(new Action('split', 'New Chat'));
+		const dropdownAction = store.add(new Action('dropdown', 'New Chat in New Window'));
+		const toolbar = store.add(new ToolBar(container, contextMenuProvider, {
+			responsiveBehavior: { enabled: true, kind: 'all', minItems: 0, getAvailableWidth: () => 300 },
+			actionViewItemProvider: action => action === splitAction
+				? new ActionWithDropdownActionViewItem(undefined, action, { icon: true, label: false, menuActionsOrProvider: [dropdownAction] }, contextMenuProvider)
+				: undefined,
+		}));
+		toolbar.setActions([splitAction, store.add(new Action('settings', 'Settings'))]);
+		toolbar.focus(0);
+		document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+		const dropdown = toolbar.getItemElement(0)!.querySelector<HTMLElement>('[aria-haspopup="true"]')!;
+		const states = [];
+		for (const trailingSeparator of [true, false]) {
+			toolbar.setTrailingSeparator(trailingSeparator);
+			states.push({
+				dropdownFocused: document.activeElement === dropdown,
+				tabStops: Array.from(toolbar.getElement().querySelectorAll<HTMLElement>('[tabindex="0"]')).map(element => element === dropdown ? 'dropdown' : 'other'),
+			});
+		}
+		assert.deepStrictEqual(states, [
+			{ dropdownFocused: true, tabStops: ['dropdown'] },
+			{ dropdownFocused: true, tabStops: ['dropdown'] },
+		]);
+	});
+
 	test('keeps overflow keyboard reachable when every primary action moves into it', () => {
 		let availableWidth = 300;
 		const toolbar = store.add(new ToolBar(container, contextMenuProvider, {
