@@ -222,6 +222,7 @@ suite('EditorWindowSessionsService', () => {
 		instantiationService.stub(IEditorWindowSessionsPresenterService, presenterService);
 		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({}));
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ getRemoteHostLabel: () => undefined }));
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }), getWorkspaceFolder: () => null }));
 		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({ activeEditor: undefined }));
 		instantiationService.stub(IWorkspaceTrustManagementService, upcastPartial<IWorkspaceTrustManagementService>({ getUriTrustInfo: async uri => ({ uri, trusted: false }) }));
@@ -291,7 +292,6 @@ suite('EditorWindowSessionsService', () => {
 		const b: ISession = { ...buildTestSession({ id: 'b', title: 'B' }).session, loading: constObservable(false) };
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({}));
-		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({}));
 		const presenterService = disposables.add(instantiationService.createInstance(EditorWindowSessionsPresenterService));
 		const registration = presenterService.registerPresenter(upcastPartial<IEditorWindowSessionsPresenter>({
 			openChat: async (session, chat, options) => { events.push(`show ${session.sessionId}${chat ? ' chat' : ''}${options?.sideBySide ? ' to the side' : ''}`); },
@@ -337,7 +337,6 @@ suite('EditorWindowSessionsService', () => {
 		const calls: string[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({}));
-		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({}));
 		const presenterService = disposables.add(instantiationService.createInstance(EditorWindowSessionsPresenterService));
 		instantiationService.stub(IEditorWindowSessionsPresenterService, presenterService);
 		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({}));
@@ -368,7 +367,6 @@ suite('EditorWindowSessionsService', () => {
 		const b: ISession = { ...buildTestSession({ id: 'b', title: 'B' }).session, loading: constObservable(false) };
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({}));
-		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({}));
 		const presenterService = disposables.add(instantiationService.createInstance(EditorWindowSessionsPresenterService));
 		const registration = presenterService.registerPresenter(upcastPartial<IEditorWindowSessionsPresenter>({ openChat: async session => { opened.push(session.sessionId); } }));
 		instantiationService.stub(IEditorWindowSessionsPresenterService, presenterService);
