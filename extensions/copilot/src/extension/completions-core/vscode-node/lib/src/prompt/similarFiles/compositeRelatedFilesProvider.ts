@@ -47,7 +47,6 @@ type Provider = {
 
 export class CompositeRelatedFilesProvider extends RelatedFilesProvider {
 	protected providers: Map<string, Map<string, Provider>> = new Map();
-	protected telemetrySent = false;
 	private reportedUnknownProviders = new Set<string>();
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -63,14 +62,12 @@ export class CompositeRelatedFilesProvider extends RelatedFilesProvider {
 		telemetryData: TelemetryWithExp,
 		cancellationToken: ICancellationToken | undefined
 	) {
-		const startTime = Date.now();
 		const languageId = docInfo.clientLanguageId.toLowerCase();
 		const fileType = getNeighboringFileType(languageId);
 		if (fileType === NeighboringFileType.RelatedOther && !this.reportedUnknownProviders.has(languageId)) {
 			this.reportedUnknownProviders.add(languageId);
 			relatedFilesLogger.warn(this.logTarget, `unknown language ${languageId}`);
 		}
-		this.relatedFilesTelemetry(telemetryData);
 
 		relatedFilesLogger.debug(this.logTarget, `Fetching related files for ${docInfo.uri}`);
 		if (!this.isActive(languageId, telemetryData)) {
@@ -83,11 +80,10 @@ export class CompositeRelatedFilesProvider extends RelatedFilesProvider {
 			return EmptyRelatedFilesResponse;
 		}
 		try {
-			return this.convert(docInfo.uri, languageProviders, startTime, telemetryData, cancellationToken);
+			return this.convert(docInfo.uri, languageProviders, cancellationToken);
 		} catch (error) {
 			// When the command returns an empty std::optional, we get an Error exception with message:
 			// "Received message which is neither a response nor a notification message: {"jsonrpc": "2.0","id": 22}"
-			this.relatedFileNonresponseTelemetry(languageId, telemetryData);
 			// Return undefined to inform the caller that the command failed.
 			return undefined;
 		}
@@ -95,8 +91,6 @@ export class CompositeRelatedFilesProvider extends RelatedFilesProvider {
 	async convert(
 		uri: string,
 		providers: Map<string, Provider>,
-		startTime: number,
-		telemetryData: TelemetryWithExp,
 		token: ICancellationToken | undefined
 	): Promise<RelatedFilesResponse | undefined> {
 		if (!token) {
@@ -122,7 +116,6 @@ export class CompositeRelatedFilesProvider extends RelatedFilesProvider {
 				}
 			}
 		}
-		this.performanceTelemetry(Date.now() - startTime, telemetryData);
 		return allProvidersReturnedUndefined ? undefined : combined;
 	}
 	registerRelatedFilesProvider(extensionId: string, languageId: string, provider: ProviderCallback) {
@@ -133,18 +126,8 @@ export class CompositeRelatedFilesProvider extends RelatedFilesProvider {
 			this.providers.set(languageId, new Map([[extensionId, { extensionId, languageId, callback: provider }]]));
 		}
 	}
-	unregisterRelatedFilesProvider(extensionId: string, languageId: string, callback: ProviderCallback) {
-		const languageProvider = this.providers.get(languageId);
-		if (languageProvider) {
-			const currentProvider = languageProvider.get(extensionId);
-			if (currentProvider && currentProvider.callback === callback) {
-				languageProvider.delete(extensionId);
-			}
-		}
-	}
 	/**
 	 * Providers should manage their own telemetry.
-	 * These four methods are for backward compatibility with the C++ provider.
 	 */
 	isActive(languageId: string, telemetryData: TelemetryWithExp): boolean {
 		if (csharpLanguageIds.includes(languageId)) {
@@ -167,7 +150,4 @@ export class CompositeRelatedFilesProvider extends RelatedFilesProvider {
 			this.instantiationService.invokeFunction(getConfig<boolean>, ConfigKey.RelatedFilesVSCode)
 		);
 	}
-	relatedFilesTelemetry(telemetryData: TelemetryWithExp) { }
-	relatedFileNonresponseTelemetry(language: string, telemetryData: TelemetryWithExp) { }
-	performanceTelemetry(duration: number, telemetryData: TelemetryWithExp) { }
 }

@@ -92,10 +92,6 @@ class SnippyTelemetry extends CodeQuoteTelemetry {
 		instantiationService.invokeFunction(telemetryError, this.buildKey('unexpectedError'), data);
 	}
 
-	handleCompletionMissing({ instantiationService, origin, reason }: PostInsertionErrorDetails) {
-		const data = TelemetryData.createAndMarkAsIssued({ origin, reason });
-		instantiationService.invokeFunction(telemetryError, this.buildKey('completionMissing'), data);
-	}
 
 	handleSnippyNetworkError({ instantiationService, origin, reason, message }: SnippyNetworkErrorDetails) {
 		if (!origin.match(statusCodeRe)) {

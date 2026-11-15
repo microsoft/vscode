@@ -500,10 +500,6 @@ export function validateTokenEnvelope(obj: unknown): TokenValidationResult {
 	};
 }
 
-export function isTokenEnvelope(obj: unknown): obj is TokenEnvelope {
-	return validateTokenEnvelope(obj).valid;
-}
-
 export function isErrorEnvelope(obj: unknown): obj is ErrorEnvelope {
 	return errorEnvelopeValidator.validate(obj).error === undefined;
 }

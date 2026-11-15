@@ -67,20 +67,6 @@ export class ThrottledDebouncer implements Disposable {
 	}
 
 	/**
-	 * Returns whether there is a pending debounced function call.
-	 */
-	public get isPending(): boolean {
-		return this.timeoutId !== undefined;
-	}
-
-	/**
-	 * Returns the current debounce delay in milliseconds.
-	 */
-	public get getCurrentDelay(): number {
-		return this.currentDelay;
-	}
-
-	/**
 	 * Disposes of the debounce instance, canceling any pending calls.
 	 */
 	public dispose(): void {

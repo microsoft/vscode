@@ -80,8 +80,6 @@ export class NeighborSource {
 	static MAX_NEIGHBOR_AGGREGATE_LENGTH = 200000;
 	static MAX_NEIGHBOR_FILES = 20;
 
-	static EXCLUDED_NEIGHBORS = ['node_modules', 'dist', 'site-packages'];
-
 	static defaultEmptyResult() {
 		return {
 			docs: new Map<string, SimilarFileInfo>(),

@@ -38,21 +38,6 @@ export class ProjectedText {
 		return this.positionOffsetTransformer.toRange(projectedRange);
 	}
 
-	public tryRebase(originalEdit: StringEdit): { edit: StringEdit; text: ProjectedText } | undefined {
-		const edit = originalEdit.tryRebase(this.edits);
-		if (!edit) {
-			return undefined;
-		}
-		const newEdits = this.edits.tryRebase(originalEdit);
-		if (!newEdits) {
-			return undefined;
-		}
-		return {
-			edit,
-			text: new ProjectedText(originalEdit.apply(this.originalText), newEdits),
-		};
-	}
-
 	public projectBack(projectedOffset: number): number {
 		return this.edits.applyInverseToOffset(projectedOffset);
 	}

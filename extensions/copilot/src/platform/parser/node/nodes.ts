@@ -61,11 +61,6 @@ export const TreeSitterOffsetRange = {
 		const end = Math.min(a.endIndex, b.endIndex);
 		return Math.max(end - start, 0);
 	},
-
-	/** Check the given object extends TreeSitterOffsetRange  */
-	isTreeSitterOffsetRange(obj: any): obj is TreeSitterOffsetRange {
-		return typeof obj.startIndex === 'number' && typeof obj.endIndex === 'number';
-	},
 };
 
 export const TreeSitterPoint = {

@@ -19,7 +19,6 @@ import type { IToolsService } from '../../../tools/common/toolsService';
 import { RepositoryProperties } from '../../common/chatSessionMetadataStore';
 import { IChatSessionWorkspaceFolderService } from '../../common/chatSessionWorkspaceFolderService';
 import { ChatSessionWorktreeFile, ChatSessionWorktreeProperties, IChatSessionWorktreeService } from '../../common/chatSessionWorktreeService';
-import { IFolderRepositoryManager } from '../../common/folderRepositoryManager';
 import { ICopilotCLISessionService } from '../../copilotcli/node/copilotcliSessionService';
 import { CopilotCLIFolderRepositoryManager } from '../folderRepositoryManagerImpl';
 import { MockChatSessionMetadataStore } from '../../common/test/mockChatSessionMetadataStore';
@@ -204,80 +203,6 @@ class MockWorkspaceService extends NullWorkspaceService {
 	override async requestResourceTrust(options: { uri: vscode.Uri; message: string }): Promise<boolean> {
 		this.trustRequests.push(options.uri);
 		return this.trustResponse;
-	}
-}
-
-/**
- * FakeFolderRepositoryManager for use in other tests.
- * Provides a configurable mock of IFolderRepositoryManager.
- */
-export class FakeFolderRepositoryManager extends mock<IFolderRepositoryManager>() {
-	private _untitledSessionFolders = new Map<string, vscode.Uri>();
-	private _folderRepoInfo = new Map<string, {
-		folder: vscode.Uri | undefined;
-		repository: vscode.Uri | undefined;
-		repositoryProperties?: RepositoryProperties;
-		worktree: vscode.Uri | undefined;
-		trusted: boolean | undefined;
-		worktreeProperties: ChatSessionWorktreeProperties | undefined;
-	}>();
-
-	override setNewSessionFolder = vi.fn((sessionId: string, folderUri: vscode.Uri): void => {
-		if (!sessionId.startsWith('untitled:') && !sessionId.startsWith('untitled-')) {
-			throw new Error(`Cannot set folder for non-untitled session: ${sessionId}`);
-		}
-		this._untitledSessionFolders.set(sessionId, folderUri);
-	});
-
-	override getFolderRepository = vi.fn(async (
-		sessionId: string,
-		_options: { promptForTrust: true; stream: vscode.ChatResponseStream } | undefined,
-		_token: vscode.CancellationToken
-	) => {
-		const info = this._folderRepoInfo.get(sessionId);
-		return info ?? { folder: undefined, repository: undefined, repositoryProperties: undefined, worktree: undefined, trusted: undefined, worktreeProperties: undefined };
-	});
-
-	override initializeFolderRepository = vi.fn(async (
-		sessionId: string | undefined,
-		_options: { stream: vscode.ChatResponseStream; toolInvocationToken: vscode.ChatParticipantToolToken },
-		_token: vscode.CancellationToken
-	) => {
-		const info = sessionId ? this._folderRepoInfo.get(sessionId) : undefined;
-		return {
-			folder: info?.folder,
-			repository: info?.repository,
-			repositoryProperties: info?.repositoryProperties,
-			worktree: info?.worktree,
-			trusted: info?.trusted ?? true,
-			worktreeProperties: info?.worktreeProperties
-		};
-	});
-
-	override getFolderMRU = vi.fn(() => {
-		return Promise.resolve([]);
-	});
-
-	override deleteNewSessionFolder = vi.fn((sessionId: string): void => {
-		this._untitledSessionFolders.delete(sessionId);
-	});
-
-	override getRepositoryInfo = vi.fn(async (
-		_folder: vscode.Uri,
-		_token: vscode.CancellationToken
-	) => {
-		return { repository: undefined, headBranchName: undefined };
-	});
-
-	setTestFolderRepositoryInfo(sessionId: string, info: {
-		folder: vscode.Uri | undefined;
-		repository: vscode.Uri | undefined;
-		repositoryProperties?: RepositoryProperties;
-		worktree: vscode.Uri | undefined;
-		trusted: boolean | undefined;
-		worktreeProperties: ChatSessionWorktreeProperties | undefined;
-	}): void {
-		this._folderRepoInfo.set(sessionId, info);
 	}
 }
 

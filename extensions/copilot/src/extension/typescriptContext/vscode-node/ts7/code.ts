@@ -602,10 +602,6 @@ export class CodeSnippetBuilder extends ProgramContext implements SnippetProvide
 		return this.symbols.getProject();
 	}
 
-	protected override getSymbols(): Symbols {
-		return this.symbols;
-	}
-
 	private async addEmitter(emitter: AbstractEmitter): Promise<void> {
 		await emitter.initialize();
 		let lines: string[] | undefined;

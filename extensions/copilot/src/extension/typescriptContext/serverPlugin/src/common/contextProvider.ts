@@ -457,10 +457,6 @@ export class ContextResult {
 		this.contextItems = new Map<ContextItemKey, FullContextItem>();
 	}
 
-	public getSession(): ComputeContextSession {
-		return this.context.session;
-	}
-
 	public addPath(path: number[]): void {
 		this.path = path;
 	}
@@ -863,10 +859,6 @@ export abstract class AbstractContextRunnable implements ContextRunnable {
 			}
 		}
 		return true;
-	}
-
-	protected isNodeArray(node: tt.Node | tt.NodeArray<tt.Node>): node is tt.NodeArray<tt.Node> {
-		return Array.isArray(node);
 	}
 
 	protected skipNode(node: tt.Node): boolean {

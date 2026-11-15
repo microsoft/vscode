@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 
 import { ContextKind, type ContextItem, type SnippetContext, type TraitContext } from '../../../platform/languageServer/common/languageContextService';
 import * as protocol from '../common/serverProtocol';
-import { type ContextItemSummary, type IInternalLanguageContextService, type OnCachePopulatedEvent, type OnContextComputedEvent, type OnContextComputedOnTimeoutEvent, type ResolvedRunnableResult } from './types';
+import { type ContextItemSummary, type IInternalLanguageContextService, type OnCachePopulatedEvent, type OnContextComputedEvent, type ResolvedRunnableResult } from './types';
 
 class TreePropertyItem {
 
@@ -378,7 +378,7 @@ abstract class TreeContextRequest {
 
 	private static counter = 1;
 
-	constructor(label: string, event: OnCachePopulatedEvent | OnContextComputedEvent | OnContextComputedOnTimeoutEvent) {
+	constructor(label: string, event: OnCachePopulatedEvent | OnContextComputedEvent) {
 		this.document = event.document.uri.toString();
 		this.position = event.position;
 		this.summary = event.summary;
@@ -453,7 +453,7 @@ class TreeYieldContextRequest extends TreeContextRequest {
 
 	private readonly items: ReadonlyArray<ContextItem>;
 
-	constructor(label: string, event: OnContextComputedEvent | OnContextComputedOnTimeoutEvent) {
+	constructor(label: string, event: OnContextComputedEvent) {
 		super(label, event);
 		this.items = event.items;
 	}
@@ -514,9 +514,6 @@ export class InspectorDataProvider implements vscode.TreeDataProvider<InspectorI
 		});
 		this.languageContextService.onContextComputed((event) => {
 			this.addContextRequest(new TreeYieldContextRequest(`Context`, event));
-		});
-		this.languageContextService.onContextComputedOnTimeout((event) => {
-			this.addContextRequest(new TreeYieldContextRequest(`OnTimeout`, event));
 		});
 	}
 

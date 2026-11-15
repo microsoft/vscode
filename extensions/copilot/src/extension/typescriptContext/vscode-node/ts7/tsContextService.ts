@@ -9,7 +9,7 @@ import * as inspector from 'inspector';
 import type { API } from '@typescript/native/async';
 
 import { IConfigurationService } from '../../../../platform/configuration/common/configurationService';
-import { type ContextItem, type RequestContext, KnownSources } from '../../../../platform/languageServer/common/languageContextService';
+import { type ContextItem, type RequestContext } from '../../../../platform/languageServer/common/languageContextService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
@@ -63,17 +63,13 @@ namespace ComputeContextResult {
 class InflightRequestInfo {
 	public readonly document: string;
 	public readonly position: vscode.Position;
-	public readonly requestId: string;
-	public readonly source: KnownSources | string;
 	public readonly serverPromise: Promise<ComputeContextResult>;
 
 	private readonly tokenSource: vscode.CancellationTokenSource;
 
-	constructor(document: vscode.TextDocument, position: vscode.Position, context: RequestContext, tokenSource: vscode.CancellationTokenSource, serverPromise: Promise<ComputeContextResult>) {
+	constructor(document: vscode.TextDocument, position: vscode.Position, tokenSource: vscode.CancellationTokenSource, serverPromise: Promise<ComputeContextResult>) {
 		this.document = document.uri.toString();
 		this.position = position;
-		this.requestId = context.requestId;
-		this.source = context.source ?? KnownSources.unknown;
 		this.tokenSource = tokenSource;
 		this.serverPromise = serverPromise;
 	}
@@ -175,7 +171,7 @@ export class TS7LanguageContextService extends AbstractTSLanguageContextService 
 			const cacheState = this.runnableResultManager.getCacheState();
 			let result: ComputeContextResult;
 			const promise = this.computeContext(document, position, context, startTime, timeBudget, neighborFiles, contextRequestState?.server, token);
-			const inflightRequest = new InflightRequestInfo(document, position, context, tokenSource, promise);
+			const inflightRequest = new InflightRequestInfo(document, position, tokenSource, promise);
 			this.inflightCachePopulationRequest = inflightRequest;
 			try {
 				result = await promise;

@@ -80,12 +80,10 @@ export type ContextComputedEvent = {
 
 export type OnCachePopulatedEvent = ContextComputedEvent & { items: ReadonlyArray<ResolvedRunnableResult> };
 export type OnContextComputedEvent = ContextComputedEvent & { items: ReadonlyArray<ContextItem> };
-export type OnContextComputedOnTimeoutEvent = ContextComputedEvent & { items: ReadonlyArray<ContextItem> };
 
 export interface IInternalLanguageContextService extends ILanguageContextService {
 	onCachePopulated: vscode.Event<OnCachePopulatedEvent>;
 	onContextComputed: vscode.Event<OnContextComputedEvent>;
-	onContextComputedOnTimeout: vscode.Event<OnContextComputedOnTimeoutEvent>;
 }
 
 export type Stats = {

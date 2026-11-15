@@ -6,17 +6,10 @@
 import { numberComparator } from '../../../../util/vs/base/common/arrays';
 import { BugIndicatingError } from '../../../../util/vs/base/common/errors';
 import { StringEdit, StringReplacement } from '../../../../util/vs/editor/common/core/edits/stringEdit';
-import { TextEdit, TextReplacement } from '../../../../util/vs/editor/common/core/edits/textEdit';
-import { Position } from '../../../../util/vs/editor/common/core/position';
-import { Range } from '../../../../util/vs/editor/common/core/range';
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
-import { AbstractText } from '../../../../util/vs/editor/common/core/text/abstractText';
-import { PositionOffsetTransformer } from '../../../../util/vs/editor/common/core/text/positionToOffset';
 
 export abstract class Random {
 	public static readonly alphabetSmallLowercase = 'abcdefgh';
-	public static readonly alphabetSmallUppercase = 'ABCDEFGH';
-	public static readonly alphabetLowercase = 'abcdefghijklmnopqrstuvwxyz';
 	public static readonly alphabetUppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 	public static readonly basicAlphabet: string = '      abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 	public static readonly basicAlphabetMultiline: string = '      \n\n\nabcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -57,32 +50,6 @@ export abstract class Random {
 		const offsets = OffsetRange.ofLength(count).map(() => this.nextIntRange(range.start, range.endExclusive));
 		offsets.sort(numberComparator);
 		return offsets;
-	}
-
-	public nextConsecutivePositions(source: AbstractText, count: number): Position[] {
-		const t = new PositionOffsetTransformer(source.getValue());
-		const offsets = this.nextConsecutiveOffsets(new OffsetRange(0, t.text.length), count);
-		return offsets.map(offset => t.getPosition(offset));
-	}
-
-	public nextRange(source: AbstractText): Range {
-		const [start, end] = this.nextConsecutivePositions(source, 2);
-		return Range.fromPositions(start, end);
-	}
-
-	public nextTextEdit(target: AbstractText, singleTextEditCount: number): TextEdit {
-		const singleTextEdits: TextReplacement[] = [];
-
-		const positions = this.nextConsecutivePositions(target, singleTextEditCount * 2);
-
-		for (let i = 0; i < singleTextEditCount; i++) {
-			const start = positions[i * 2];
-			const end = positions[i * 2 + 1];
-			const newText = this.nextString(end.column - start.column, this.stringGenerator(Random.basicAlphabetMultiline));
-			singleTextEdits.push(new TextReplacement(Range.fromPositions(start, end), newText));
-		}
-
-		return new TextEdit(singleTextEdits).normalize();
 	}
 
 	public nextOffsetEdit(target: string, singleTextEditCount: number, newTextAlphabet = Random.basicAlphabetMultiline): StringEdit {

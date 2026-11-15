@@ -20,7 +20,7 @@ import {
 import { CodeSnippetBuilder } from './code';
 import * as protocol from '../../common/serverProtocol';
 import { type CodeCacheItem, type EmitterContext, ProgramContext, RecoverableError, type SnippetProvider } from './types';
-import tss, { type CancellationTokenWithTimer, Symbols, Types } from './typescripts';
+import tss, { type CancellationTokenWithTimer, Symbols } from './typescripts';
 
 export class RequestContext {
 	private readonly symbols: Map<Project, Symbols> = new Map();
@@ -84,10 +84,6 @@ export abstract class Search<R> extends ProgramContext {
 		}
 		this.project = project;
 		this.symbols = symbols;
-	}
-
-	public getSymbols(): Symbols {
-		return this.symbols;
 	}
 
 	protected getProject(): Project {
@@ -722,5 +718,3 @@ export class CharacterBudget {
 		return this.charBudget <= 0;
 	}
 }
-
-export { Types };

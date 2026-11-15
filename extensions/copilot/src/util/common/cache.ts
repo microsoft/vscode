@@ -165,23 +165,8 @@ export class DisposablesLRUCache<T extends IDisposable> implements IDisposable {
 		this.actual.clear();
 	}
 
-	deleteKey(key: string): void {
-		const value = this.actual.deleteKey(key);
-		if (value) {
-			value.dispose();
-		}
-	}
-
 	get(key: string): T | undefined {
 		return this.actual.get(key);
-	}
-
-	keys(): string[] {
-		return this.actual.keys();
-	}
-
-	getValues() {
-		return this.actual.getValues();
 	}
 
 	put(key: string, value: T): void {

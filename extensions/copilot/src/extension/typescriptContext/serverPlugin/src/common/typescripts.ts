@@ -11,22 +11,13 @@ import type { KeyComputationContext } from './types';
 
 const EmptyIterator = (function* () { })();
 namespace tss {
-	export type SymbolId = number;
 	type InternalTypeScript = {
 		getTokenAtPosition(sourceFile: tt.SourceFile, position: number): tt.Node;
-		getTouchingToken(sourceFile: tt.SourceFile, position: number, includePrecedingTokenAtEndPosition?: (n: tt.Node) => boolean): tt.Node;
-		getNameTable(sourceFile: tt.SourceFile): Map<tt.__String, number>;
-		findReferencedSymbols(program: tt.Program, cancellationToken: tt.CancellationToken, sourceFiles: readonly tt.SourceFile[], sourceFile: tt.SourceFile, position: number): tt.ReferencedSymbol[] | undefined;
-		getSymbolId(symbol: tt.Symbol): SymbolId;
 	} & typeof ts;
 
 	const its = ts as unknown as InternalTypeScript;
 
 	export const getTokenAtPosition: (sourceFile: tt.SourceFile, position: number) => tt.Node = its.getTokenAtPosition;
-	export const getTouchingToken: (sourceFile: tt.SourceFile, position: number, includePrecedingTokenAtEndPosition?: (n: tt.Node) => boolean) => tt.Node = its.getTouchingToken;
-	export const getNameTable: (sourceFile: tt.SourceFile) => Map<tt.__String, number> = its.getNameTable;
-	export const findReferencedSymbols: (program: tt.Program, cancellationToken: tt.CancellationToken, sourceFiles: readonly tt.SourceFile[], sourceFile: tt.SourceFile, position: number) => tt.ReferencedSymbol[] | undefined = its.findReferencedSymbols;
-	export const getSymbolId: (symbol: tt.Symbol) => SymbolId = its.getSymbolId;
 
 	export type TokenInfo = {
 		token: tt.Node;
@@ -304,20 +295,6 @@ namespace tss {
 		}
 	}
 
-	export namespace TypeChecker {
-
-		interface InternalTypeChecker extends tt.TypeChecker {
-			getAccessibleSymbolChain(symbol: tt.Symbol, enclosingDeclaration: tt.Node | undefined, meaning: tt.SymbolFlags, useOnlyExternalAliasing: boolean): tt.Symbol[] | undefined;
-		}
-		export function getAccessibleSymbolChain(typeChecker: tt.TypeChecker, symbol: tt.Symbol, enclosingDeclaration: tt.Node | undefined, meaning: tt.SymbolFlags, useOnlyExternalAliasing: boolean): tt.Symbol[] | undefined {
-			const internalTypeChecker = typeChecker as InternalTypeChecker;
-			if (typeof internalTypeChecker.getAccessibleSymbolChain !== 'function') {
-				return undefined;
-			}
-			return internalTypeChecker.getAccessibleSymbolChain(symbol, enclosingDeclaration, meaning, useOnlyExternalAliasing);
-		}
-	}
-
 	export namespace Types {
 
 		export function isIntersection(type: tt.Type): type is tt.IntersectionType {
@@ -326,35 +303,6 @@ namespace tss {
 
 		export function isUnion(type: tt.Type): type is tt.UnionType {
 			return (type.flags & ts.TypeFlags.Union) !== 0;
-		}
-
-		export function getBaseTypes(type: tt.Type): tt.Type[] | undefined {
-			return type.getBaseTypes();
-		}
-
-		export function getExtendsTypes(typeChecker: tt.TypeChecker, type: tt.Type): tt.Type[] | undefined {
-			const symbol = type.getSymbol();
-			if (symbol === undefined) {
-				return undefined;
-			}
-			const declarations = symbol.getDeclarations();
-			if (declarations === undefined) {
-				return undefined;
-			}
-			const result: tt.Type[] = []; // Changed from tts.Type[] to tts.Type[]
-			for (const declaration of declarations) {
-				if (ts.isClassDeclaration(declaration)) {
-					const heritageClauses = declaration.heritageClauses;
-					if (heritageClauses !== undefined) {
-						for (const heritageClause of heritageClauses) {
-							for (const type of heritageClause.types) {
-								result.push(typeChecker.getTypeAtLocation(type.expression));
-							}
-						}
-					}
-				}
-			}
-			return result;
 		}
 	}
 
@@ -373,7 +321,6 @@ namespace tss {
 
 	interface InternalSymbol extends tt.Symbol {
 		parent?: tt.Symbol;
-		containingType?: tt.UnionOrIntersectionType;
 	}
 
 	export enum Traversal {
@@ -471,10 +418,6 @@ namespace tss {
 			this.program = program;
 			this.typeChecker = program.getTypeChecker();
 		}
-
-		public static Unknown = 'unknown';
-		public static Undefined = 'undefined';
-		public static None = 'none';
 
 		public static getParent(symbol: tt.Symbol): tt.Symbol | undefined {
 			return (symbol as InternalSymbol).parent;

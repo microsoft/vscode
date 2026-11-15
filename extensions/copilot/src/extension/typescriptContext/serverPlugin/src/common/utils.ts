@@ -250,29 +250,6 @@ export class LinkedMap<K, V> implements Map<K, V> {
 		this._state++;
 	}
 
-	protected trimNew(newSize: number) {
-		if (newSize >= this.size) {
-			return;
-		}
-		if (newSize === 0) {
-			this.clear();
-			return;
-		}
-		let current = this._tail;
-		let currentSize = this.size;
-		while (current && currentSize > newSize) {
-			this._map.delete(current.key);
-			current = current.previous;
-			currentSize--;
-		}
-		this._tail = current;
-		this._size = currentSize;
-		if (current) {
-			current.next = undefined;
-		}
-		this._state++;
-	}
-
 	private addItemFirst(item: Item<K, V>): void {
 		// First time Insert
 		if (!this._head && !this._tail) {
@@ -452,9 +429,6 @@ abstract class Cache<K, V> extends LinkedMap<K, V> {
 		return super.get(key, touch);
 	}
 
-	peek(key: K): V | undefined {
-		return super.get(key, Touch.None);
-	}
 
 	override set(key: K, value: V): this {
 		super.set(key, value, Touch.AsNew);

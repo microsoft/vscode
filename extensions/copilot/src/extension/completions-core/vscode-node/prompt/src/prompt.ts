@@ -29,8 +29,6 @@ export const DEFAULT_SUFFIX_MATCH_THRESHOLD = 10;
 export const DEFAULT_PROMPT_ALLOCATION_PERCENT = {
 	prefix: 35,
 	suffix: 15,
-	stableContext: 35,
-	volatileContext: 15,
 } as const;
 
 /**
