@@ -32,12 +32,14 @@ The main implementation layers are:
 
 Account selection and sign-in UX belong to the caller or host binding, not the engine. The [workbench service](../../workbench/services/github/common/githubService.ts) offers:
 
-- `acquireAccountApiClient(authorization, signal)`: bind an explicit provider/session/account/scopes/issuer grant.
+- `acquireAccountApiClient(providerId, session, signal)`: capture the exact provider/session/account/scopes/issuer grant from an existing authentication session, without forwarding its token or choosing another session.
 - `acquireDefaultAccountApiClient(signal)`: use the selected default account's existing repository grant.
 - `acquireAnonymousApiClient(signal)`: read GitHub.com data without selecting an account or obtaining credentials.
 
+Callers retaining a grant for cache keys or comparisons can use `toGitHubAuthorizationContext(providerId, session)`, which shares the session-based acquisition's token-free conversion.
+
 ```ts
-const client = await gitHubService.acquireAccountApiClient(authorization, signal);
+const client = await gitHubService.acquireAccountApiClient(providerId, session, signal);
 try {
 	const repository = await client.repositories.get(
 		{ owner: 'microsoft', repo: 'vscode' },
