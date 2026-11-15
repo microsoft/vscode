@@ -1863,6 +1863,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 	private readonly _repositoryMenuItems = this._register(new DisposableStore());
 	private readonly _repositoryPropertyRegistrations = this._register(new DisposableMap<string>());
 	private readonly _providerListeners = this._register(new DisposableMap<string>());
+	private readonly _actionViewItemService: IActionViewItemService;
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
@@ -1875,6 +1876,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,
 	) {
 		super();
+		this._actionViewItemService = actionViewItemService;
 		// The mode-picker factories below pick the mobile subclass at
 		// view-item construction time when the viewport is phone, and
 		// the desktop class otherwise. The session-config picker
@@ -1986,6 +1988,11 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 				}
 			}));
 		}
+	}
+
+	/** Shows the repository controls again, after what {@link showsRepositoryProperty} depends on changed. */
+	protected refreshRepositoryProperties(): void {
+		this._refreshRepositoryMenuItems(this._actionViewItemService);
 	}
 
 	/** Whether a repository control shows: here, all of them. */
