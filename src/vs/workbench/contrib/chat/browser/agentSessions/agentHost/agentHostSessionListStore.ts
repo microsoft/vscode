@@ -576,6 +576,19 @@ export class AgentHostSessionListStore extends Disposable {
 			|| (!workspace.configuration && !!workspace.uri && extUriBiasedIgnorePathCase.isEqual(project, workspace.uri));
 	}
 
+	/**
+	 * While matching by project (`matchProjectRoot`), the session's first working directory, the folder it started in, which
+	 * alone matches it to a window: the folders its nested chats add later, also of other repositories, do not. `undefined`
+	 * for a session without a workspace or folder, and of a multi-root workspace, which match by all its folders as otherwise.
+	 */
+	private _firstWorkingDirectory(summary: SessionSummary): URI | undefined {
+		if (!this._options.matchProjectRoot?.get() || readSessionMultiRootMetadata(summary._meta) || readSessionWorkspaceless(summary._meta)) {
+			return undefined;
+		}
+		const first = summary.workingDirectories?.[0];
+		return first ? URI.parse(first) : undefined;
+	}
+
 	/** Whether the session has no workspace, which every window lists while matching by project (`matchProjectRoot`). */
 	private _matchesWorkspaceless(summary: SessionSummary): boolean {
 		return !!this._options.matchProjectRoot?.get() && readSessionWorkspaceless(summary._meta) && !readSessionMultiRootMetadata(summary._meta);
@@ -659,7 +672,8 @@ export class AgentHostSessionListStore extends Disposable {
 	 * session and must not drop out of the list the moment it migrates.
 	 */
 	private _containmentCandidates(summary: SessionSummary): readonly URI[] {
-		const candidates = summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
+		const first = this._firstWorkingDirectory(summary);
+		const candidates = first ? [first] : summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [];
 		if (summary.project?.uri && readSessionMatchesByProjectRoot(summary._meta)) {
 			const project = URI.parse(summary.project.uri);
 			// A project can be a remote (e.g. `https://github.com/owner/repo`), whose
