@@ -74,7 +74,11 @@ export class ChatToolAuthenticationSubPart extends BaseChatToolInvocationSubPart
 		this._register(widget.onDidClick(async ({ button, isTouchClick }) => {
 			await button.data();
 			if (!isTouchClick) {
-				chatWidgetService.getWidgetBySessionResource(context.element.sessionResource)?.focusInput();
+				if (context.focusInput) {
+					context.focusInput();
+				} else {
+					chatWidgetService.getWidgetBySessionResource(context.element.sessionResource)?.focusInput();
+				}
 			}
 		}));
 		this.domNode = widget.domNode;
