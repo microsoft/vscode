@@ -192,6 +192,12 @@ suite('AgentHostWorktreeLocations', () => {
 		}, { throughLinkedPrimary: 'feature', linkedWorktree: 'feature', primaryItself: 'none', offered: ['/alias/feature'] });
 	});
 
+	test('offers a worktree that sessions work in through a symbolic link and through its real path once, by the form a session named first', async () => {
+		const provider = createProvider(repository, [session(SessionType.AgentHostCopilot, '/alias/feature'), session(SessionType.AgentHostCopilot, '/work/vscode.worktrees/feature')], [], { '/alias/feature': '/work/vscode.worktrees/feature' });
+		const offered = (await provider.provideLocations(URI.file('/work/vscode'), CancellationToken.None)).map(location => location.uri.path);
+		assert.deepStrictEqual(offered, ['/alias/feature']);
+	});
+
 	test('follows symbolic links of the repository\'s worktrees folder and of a worktree\'s .git file, and grants the primary\'s trust only to the checkout git links back, not to another folder whose .git links to the same file', async () => {
 		// The repository's `.git/worktrees` is a link to another folder, and the worktree's `.git` file a link to another
 		// file; git names the worktree's own `.git` back. The impostor's `.git` links to the same file.

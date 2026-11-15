@@ -308,16 +308,16 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 		const superseded = () => newChat !== this.newChats || requestedClaims !== this.requestedClaims;
 		let host = this.host;
 		let taken = await host.newChat?.(target, options) ?? false;
-		if (!taken && options?.ownChat && host !== this.chatViewHost) {
-			// Superseded meanwhile, it does not start a new chat in the Chat view, which would replace what a later request
-			// shows, and is handled
-			if (superseded()) {
-				return true;
-			}
+		if (!taken && options?.ownChat && host !== this.chatViewHost && !superseded()) {
 			host = this.chatViewHost;
 			taken = await host.newChat?.(target, options) ?? false;
 		}
-		if (taken && !superseded()) {
+		// Superseded meanwhile, a New Chat is handled, whether or not a host took it: neither the Chat view nor the chat widget
+		// that New Chat acts on starts a new chat, which would replace what a later request shows, and it claims nothing
+		if (superseded()) {
+			return true;
+		}
+		if (taken) {
 			this.claim(host, true);
 		}
 		return taken;
