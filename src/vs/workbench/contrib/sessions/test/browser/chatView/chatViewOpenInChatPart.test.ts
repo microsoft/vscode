@@ -208,7 +208,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		const agentSession = URI.parse('agent-host-copilot:/session-1');
 
 		/** The contribution over the real chat part service and Chat view host service, recording where chats are opened. */
-		function setupServices(options: { agentEnabled: boolean; setting?: boolean; chatViewShows?: URI }) {
+		function setupServices(options: { agentEnabled: boolean; setting?: boolean; chatViewShows?: URI; chatViewHasView?: boolean }) {
 			const calls: string[] = [];
 			const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOpenInChatPart]: options.setting ?? true, [ChatConfiguration.AgentEnabled]: options.agentEnabled });
 			const contextKeyService = store.add(new ContextKeyService(configurationService));
@@ -217,8 +217,9 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const stub = <T extends object>(id: { toString(): string }, service: Partial<T>) => { instantiationService.stub(id as never, upcastPartial<T>(service)); };
 
-			const chatView = { loadSession: async (resource: URI) => { calls.push(`chat view loads ${resource.scheme}`); }, shownSession: constObservable(options.chatViewShows && { resource: options.chatViewShows, reason: 'open' as const }), reportShown: () => { }, focusInput: () => { }, widget: undefined };
-			stub(IViewsService, { openView: (async () => chatView) as unknown as IViewsService['openView'], isViewVisible: () => false, onDidChangeViewVisibility: Event.None, getViewWithId: (() => options.chatViewShows ? chatView : null) as IViewsService['getViewWithId'] });
+			const shown = observableValue<{ readonly resource: URI; readonly reason: 'open' } | undefined>('shown', options.chatViewShows && { resource: options.chatViewShows, reason: 'open' as const });
+			const chatView = { loadSession: async (resource: URI) => { calls.push(`chat view loads ${resource.scheme}`); }, newChat: async () => { shown.set({ resource: LocalChatSessionUri.forSession('draft'), reason: 'open' }, undefined); return true; }, shownSession: shown, reportShown: () => { }, focusInput: () => { }, widget: undefined };
+			stub(IViewsService, { openView: (async () => chatView) as unknown as IViewsService['openView'], isViewVisible: () => false, onDidChangeViewVisibility: Event.None, getViewWithId: (() => options.chatViewShows || options.chatViewHasView ? chatView : null) as IViewsService['getViewWithId'] });
 			stub(IViewDescriptorService, { getViewLocationById: () => null, getViewContainerByViewId: () => null, onDidChangeContainer: Event.None });
 			stub(IWorkbenchLayoutService, { setChatPartAnchor: () => { }, onDidChangePartVisibility: Event.None, isVisible: () => false, setPartHidden: () => { } });
 			stub(IProgressService, {});
@@ -308,6 +309,19 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			const localChat = LocalChatSessionUri.forSession('legacy');
 			const { hostService, sessionsList, setSetting } = setupServices({ agentEnabled: true, setting: false, chatViewShows: localChat });
 
+			const steps = [sessionsList.sessionsOnly.get()];
+			await setSetting(true);
+			steps.push(sessionsList.sessionsOnly.get());
+			await hostService.openSession(agentSession);
+			steps.push(sessionsList.sessionsOnly.get());
+
+			assert.deepStrictEqual(steps, [false, false, true]);
+		});
+
+		test('turning the setting on keeps a local draft that the Chat view started, until an agent chat opens', async () => {
+			const { hostService, sessionsList, setSetting } = setupServices({ agentEnabled: true, setting: false, chatViewHasView: true });
+
+			await hostService.newChat(undefined, { ownChat: true });
 			const steps = [sessionsList.sessionsOnly.get()];
 			await setSetting(true);
 			steps.push(sessionsList.sessionsOnly.get());
