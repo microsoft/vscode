@@ -13,7 +13,7 @@ import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/
 import { SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../common/chatSessionCommands.js';
 import { RENAME_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { SessionsListNotificationFocused } from '../views/sessionsListNotification.js';
-import { getActiveSessionsView, SessionsViewId } from '../views/sessionsView.js';
+import { getSessionsViewResolver, SessionsViewId } from '../views/sessionsView.js';
 
 /**
  * The accessibility help of the Sessions view of an editor window, where its sessions open in the chat area beside it. The
@@ -26,11 +26,12 @@ export class SessionsViewAccessibilityHelp implements IAccessibleViewImplementat
 	readonly when = ContextKeyExpr.and(FocusedViewContext.isEqualTo(SessionsViewId), IsSessionsWindowContext.negate(), SessionsListNotificationFocused.negate());
 
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider {
+		const getSessionsView = getSessionsViewResolver(accessor);
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.SessionsView,
 			{ type: AccessibleViewType.Help },
 			() => getSessionsViewAccessibilityHelpContent(),
-			() => getActiveSessionsView(accessor)?.focus(),
+			() => getSessionsView()?.focus(),
 			AccessibilityVerbositySettingId.SessionsView,
 		);
 	}
