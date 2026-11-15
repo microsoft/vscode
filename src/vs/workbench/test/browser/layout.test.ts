@@ -650,6 +650,16 @@ suite('Workbench layout chat part', () => {
 		});
 	});
 
+	test('the chat part shown beside a secondary side bar at its minimum takes the room it still needs from the wide side bar on the other side', () => {
+		const { layout, grid, views } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: false, size: 162 }, anchor: ViewContainerLocation.AuxiliaryBar, widths: { window: 1200, sideBar: 600, auxiliaryBar: 170 } });
+		const sideBarBefore = grid.getViewSize(views.get(Parts.SIDEBAR_PART)!).width;
+		layout.setPartHidden(false, Parts.CHAT_PART);
+
+		assert.deepStrictEqual({ ...widthsAcross(layout, grid, views, 1200), sideBarShrank: grid.getViewSize(views.get(Parts.SIDEBAR_PART)!).width < sideBarBefore }, {
+			fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true, sideBarShrank: true,
+		});
+	});
+
 	for (const alignment of ['center', 'left', 'right'] satisfies PanelAlignment[]) {
 		for (const sideBar of [Position.LEFT, Position.RIGHT]) {
 			test(`the chat part at its minimum width fits beside a wide secondary side bar as it shows or follows its anchor there, panel aligned ${alignment}, side bar ${sideBar === Position.LEFT ? 'left' : 'right'}`, () => {
