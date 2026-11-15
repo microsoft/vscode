@@ -396,4 +396,3 @@ suite('ChatViewSessionsGate', () => {
 		assert.deepStrictEqual({ keys: Object.keys(list).sort(), hasHeader: list.hasHeader, sessionsOnly: list.sessionsOnly === sessionsOnly }, { keys: ['control', 'hasHeader', 'sessionsOnly'], hasHeader: true, sessionsOnly: true });
 	});
 });
-
