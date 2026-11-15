@@ -10,11 +10,78 @@ import { fileURLToPath } from 'url';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { inspect } from 'util';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
+import { ISocket, PersistentProtocol, SocketCloseEvent, SocketDiagnosticsEventType } from '../../../../base/parts/ipc/common/ipc.net.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NativeParsedArgs } from '../../../environment/common/argv.js';
 import { OPTIONS, parseArgs } from '../../../environment/node/argv.js';
+import { NullLogService } from '../../../log/common/log.js';
+import product from '../../../product/common/product.js';
+import { IProductService } from '../../../product/common/productService.js';
+import { IMessage, ISignService } from '../../../sign/common/sign.js';
+import { ConnectionType, IConnectionOptions, PersistentConnection, PersistentConnectionEventType } from '../../common/remoteAgentConnection.js';
+// This integration test verifies credential snapshot retention across the remote resolver and connection lifecycle.
+// eslint-disable-next-line local/code-layering, local/code-import-patterns
+import { RemoteAuthorityResolverService } from '../../electron-browser/remoteAuthorityResolverService.js';
 import { RemoteConnectionTokenFile, validateRemoteConnectionTokenArguments, WindowRemoteConnectionTokens } from '../../node/remoteConnectionToken.js';
+import { RemoteSocketFactoryService } from '../../common/remoteSocketFactoryService.js';
+// eslint-disable-next-line local/code-import-patterns
+import { resolveDirectRemoteAuthority } from '../../../../workbench/services/extensions/common/directRemoteAuthority.js';
+
+class ReconnectTestSocket implements ISocket {
+	private readonly _onData = new Emitter<VSBuffer>();
+	public readonly onData: Event<VSBuffer> = this._onData.event;
+	private readonly _onClose = new Emitter<SocketCloseEvent>();
+	public readonly onClose: Event<SocketCloseEvent> = this._onClose.event;
+	private readonly _onEnd = new Emitter<void>();
+	public readonly onEnd: Event<void> = this._onEnd.event;
+
+	write(buffer: VSBuffer): void { }
+	end(): void { }
+	async drain(): Promise<void> { }
+	traceSocketEvent(type: SocketDiagnosticsEventType, data?: unknown): void { }
+
+	dispose(): void {
+		this._onData.dispose();
+		this._onClose.dispose();
+		this._onEnd.dispose();
+	}
+
+	public fireClose(): void {
+		this._onClose.fire(undefined);
+	}
+}
+
+class ReconnectTestPersistentConnection extends PersistentConnection {
+	public readonly reconnectedTokens: (string | undefined)[] = [];
+
+	constructor(options: IConnectionOptions, protocol: PersistentProtocol) {
+		super(ConnectionType.Management, options, 'test-reconnection-token', protocol, /* reconnectionFailureIsFatal */ false);
+	}
+
+	protected override async _reconnect(options: Parameters<PersistentConnection['_reconnect']>[0]): Promise<void> {
+		this.reconnectedTokens.push(options.connectionToken);
+	}
+}
+
+class ReconnectTestSignService implements ISignService {
+	declare readonly _serviceBrand: undefined;
+
+	createNewMessage(value: string): Promise<IMessage> {
+		return Promise.resolve({ id: '', data: value });
+	}
+
+	validate(): Promise<boolean> {
+		return Promise.resolve(true);
+	}
+
+	sign(value: string): Promise<string> {
+		return Promise.resolve(value);
+	}
+}
 
 suite('Remote connection token file', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -232,5 +299,74 @@ suite('Remote connection token file', () => {
 		await fs.writeFile(file, 'replacement');
 		tokens.bind(window, authority, (await RemoteConnectionTokenFile.read(args()))!);
 		assert.strictEqual(await tokens.get(window, authority), 'replacement');
+	});
+
+	test('ordinary reconnection retains the original resolved token when the token file changes', async () => {
+		const disposables = new DisposableStore();
+		try {
+			const initialToken = 'synthetic_INITIAL_token-12345';
+			await fs.writeFile(file, initialToken);
+
+			const source = (await RemoteConnectionTokenFile.read(args()))!;
+			const tokens = new WindowRemoteConnectionTokens<object>();
+			const window = {};
+			tokens.bind(window, authority, source);
+
+			const resolvedAuthorityResult = await resolveDirectRemoteAuthority(
+				authority,
+				async a => tokens.get(window, a),
+				async () => { }
+			);
+
+			assert.strictEqual(resolvedAuthorityResult.authority.connectionToken, initialToken);
+
+			const productService: IProductService = { _serviceBrand: undefined, ...product };
+			// eslint-disable-next-line local/code-no-any-casts
+			const resolverService = disposables.add(new RemoteAuthorityResolverService(productService, undefined as any));
+			const resolvePromise = resolverService.resolveAuthority(authority);
+			resolverService._setResolvedAuthority(resolvedAuthorityResult.authority, resolvedAuthorityResult.options);
+			const resolvedFromService = await resolvePromise;
+
+			assert.strictEqual(resolvedFromService.authority.connectionToken, initialToken);
+			assert.strictEqual(resolverService.getConnectionData(authority)?.connectionToken, initialToken);
+
+			const options: IConnectionOptions = {
+				commit: undefined,
+				quality: undefined,
+				addressProvider: {
+					getAddress: async () => {
+						const { authority: resolved } = await resolverService.resolveAuthority(authority);
+						return { connectTo: resolved.connectTo, connectionToken: resolved.connectionToken };
+					}
+				},
+				remoteSocketFactoryService: new RemoteSocketFactoryService(),
+				signService: new ReconnectTestSignService(),
+				logService: new NullLogService(),
+				ipcLogger: null
+			};
+
+			const socket = disposables.add(new ReconnectTestSocket());
+			const protocol = disposables.add(new PersistentProtocol({ socket, sendKeepAlive: false }));
+			const connection = disposables.add(new ReconnectTestPersistentConnection(options, protocol));
+			assert.strictEqual(connection.isConnected, true);
+
+			const mutatedToken = 'synthetic_MUTATED_token-67890';
+			await fs.writeFile(file, mutatedToken);
+
+			assert.strictEqual(await tokens.get(window, authority), mutatedToken);
+
+			const reconnectedPromise = Event.toPromise(Event.filter(connection.onDidStateChange, event => event.type === PersistentConnectionEventType.ConnectionGain));
+			socket.fireClose();
+			await reconnectedPromise;
+
+			assert.strictEqual(connection.reconnectedTokens.length, 1);
+			assert.strictEqual(connection.reconnectedTokens[0], initialToken);
+			assert.strictEqual(resolverService.getConnectionData(authority)?.connectionToken, initialToken);
+
+			assert.notStrictEqual(connection.reconnectedTokens[0], mutatedToken);
+			assert.notStrictEqual(resolverService.getConnectionData(authority)?.connectionToken, mutatedToken);
+		} finally {
+			disposables.dispose();
+		}
 	});
 });
