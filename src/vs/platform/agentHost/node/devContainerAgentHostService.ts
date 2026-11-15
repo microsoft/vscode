@@ -363,7 +363,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 					parseDevContainerUpResult,
 				);
 				if (!up.parsed) {
-					throw new Error(localize('devContainerAgentHost.invalidUpResult', "Dev Container CLI returned an invalid result: {0}", up.stdout.trim() || up.stderr.trim()));
+					throw new Error(localize('devContainerAgentHost.invalidUpResult', "Dev Container CLI returned an invalid result: {0}", getDevContainerCliResultOutput(up.stdout, up.stderr)));
 				}
 				upResult = up.parsed;
 				registerContainer(upResult.containerId);
@@ -759,7 +759,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	private async _runUserCommands(connectionId: string, selectorArgs: readonly string[], token: CancellationToken, environment: NodeJS.ProcessEnv | undefined, errorValues: IDevContainerStateErrorValues): Promise<void> {
 		const result = await this._runDevContainerStage(connectionId, 'userCommands', true, ['run-user-commands', ...DEV_CONTAINER_LOG_ARGS, ...selectorArgs], token, environment, parseDevContainerUserCommandsResult, errorValues);
 		if (!result.parsed) {
-			throw new Error(localize('devContainerAgentHost.lifecycleFailed', "Dev Container lifecycle commands failed: {0}", result.stdout.trim() || result.stderr.trim()));
+			throw new Error(localize('devContainerAgentHost.lifecycleFailed', "Dev Container lifecycle commands failed: {0}", getDevContainerCliResultOutput(result.stdout, result.stderr)));
 		}
 	}
 
@@ -1444,6 +1444,13 @@ function parseDevContainerUserCommandsResult(output: string): true | undefined {
 			return false;
 		}
 	}) || undefined;
+}
+
+/** A failed Dev Container CLI command's output for an error message: its result from stdout, plus its stderr, which carries the CLI's logs including the output of failed lifecycle commands. */
+export function getDevContainerCliResultOutput(stdout: string, stderr: string): string {
+	const result = stdout.trim();
+	const logs = stderr.trim();
+	return logs ? (result ? `${result}\n${logs}` : logs) : result;
 }
 
 /** A failed Dev Container CLI command's error result and Docker daemon error, or its stderr, for telemetry. */
