@@ -35,6 +35,7 @@ export const enum TerminalContextKeyStrings {
 	FindVisible = 'terminalFindVisible',
 	FindInputFocused = 'terminalFindInputFocused',
 	FindFocused = 'terminalFindFocused',
+	NthMatchInput = 'terminalNthMatchInputFocused',
 	TabsSingularSelection = 'terminalTabsSingularSelection',
 	SplitTerminal = 'terminalSplitTerminal',
 	SplitPaneActive = 'terminalSplitPaneActive',
@@ -122,6 +123,9 @@ export namespace TerminalContextKeys {
 
 	/** Whether NO elements within the active terminal's find widget is focused. */
 	export const notFindFocus = findInputFocus.toNegated();
+
+	/** Whether the find widget's nth match edit field is focused in the active terminal. */
+	export const nthMatchInputFocus = new RawContextKey<boolean>(TerminalContextKeyStrings.NthMatchInput, false, true);
 
 	/** Whether terminal processes can be launched in the current workspace. */
 	export const processSupported = new RawContextKey<boolean>(TerminalContextKeyStrings.ProcessSupported, false, localize('terminalProcessSupportedContextKey', "Whether terminal processes can be launched in the current workspace."));
