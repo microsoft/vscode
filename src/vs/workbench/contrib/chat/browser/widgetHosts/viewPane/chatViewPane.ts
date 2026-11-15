@@ -1267,11 +1267,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._widgetCreated.complete(widget);
 		this._register(scopedInstantiationService.createInstance(AgentHostSessionInputPills, this._widget, 'auto'));
 
-		const updateWidgetVisibility = (reader?: IReader) => this._widget.setVisible(this.isBodyVisible() && !this.welcomeController?.isShowingWelcome.read(reader));
-		this._register(this.onDidChangeBodyVisibility(() => updateWidgetVisibility()));
-		this._register(autorun(reader => updateWidgetVisibility(reader)));
+		this._register(this.onDidChangeBodyVisibility(() => this.updateWidgetVisibility()));
+		this._register(autorun(reader => this.updateWidgetVisibility(reader)));
 
 		return this._widget;
+	}
+
+	/**
+	 * The chat widget is visible while the view's body is, unless the view shows its welcome or only its sessions: a chat it
+	 * hides, such as one whose request completes meanwhile, is not marked read.
+	 */
+	private updateWidgetVisibility(reader?: IReader): void {
+		this._widget.setVisible(this.isBodyVisible() && !this.welcomeController?.isShowingWelcome.read(reader) && !this.sessionsListService.sessionsOnly.read(reader));
 	}
 
 	override createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
