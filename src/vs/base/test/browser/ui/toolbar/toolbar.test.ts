@@ -775,6 +775,69 @@ suite('ToolBar', () => {
 		]);
 	});
 
+	for (const overflowFrom of ['start', 'end'] as const) {
+		for (const secondary of [false, true]) {
+			test(`toggles the trailing separator in place while actions overflow (overflowFrom: ${overflowFrom}, secondary: ${secondary})`, () => {
+				let availableWidth = 300;
+				const toolbar = store.add(new ToolBar(container, contextMenuProvider, {
+					trailingSeparator: true,
+					responsiveBehavior: {
+						enabled: true,
+						kind: 'all',
+						minItems: 0,
+						overflowFrom,
+						getActionMinWidth: action => action.id === 'new' ? 36 : 22,
+						getAvailableWidth: () => availableWidth,
+					},
+				}));
+				const actions = ['new', 'settings', 'extra'].map(id => store.add(new Action(id, id)));
+				toolbar.setActions(actions, secondary ? [store.add(new Action('history', 'History'))] : []);
+				let viewItems = new Map<IAction | undefined, unknown>();
+				const snapshot = () => {
+					const items = Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index));
+					const overflow = items.find(action => action instanceof ToggleMenuAction);
+					const previousViewItems = viewItems;
+					viewItems = new Map(items.map((action, index) => [action, toolbar.getItemViewItem(index)]));
+					return {
+						items: items.map(action => action?.id),
+						overflow: overflow?.menuActions.map(action => action.id) ?? [],
+						// Items shown before and after a step must keep their view items
+						recreated: items.filter(action => previousViewItems.has(action) && previousViewItems.get(action) !== viewItems.get(action)).map(action => action?.id),
+					};
+				};
+				const states = [];
+				for (const step of [{ width: 90 }, { separator: false }, { separator: true }, { width: 300 }, { separator: false }, { width: 90 }, { separator: true }, { width: 300 }]) {
+					if (step.width !== undefined) {
+						availableWidth = step.width;
+						toolbar.relayout();
+					} else {
+						toolbar.setTrailingSeparator(step.separator!);
+					}
+					states.push(snapshot());
+				}
+				const state = (visible: string[], hidden: string[], divider: boolean) => ({
+					items: [...visible, ...(hidden.length > 0 || secondary ? [ToggleMenuAction.ID] : []), ...(divider ? [Separator.ID] : [])],
+					overflow: hidden.length > 0 ? [...hidden, ...(secondary ? [Separator.ID, 'history'] : [])] : secondary ? ['history'] : [],
+					recreated: [],
+				});
+				// Without the separator there is room for one more action when the actions overflow from the end
+				const narrow = overflowFrom === 'start' ? [['settings', 'extra'], ['new']] : [['new'], ['settings', 'extra']];
+				const narrowWithoutSeparator = overflowFrom === 'start' ? narrow : [['new', 'settings'], ['extra']];
+				const wide = [['new', 'settings', 'extra'], []];
+				assert.deepStrictEqual(states, [
+					state(narrow[0], narrow[1], true),
+					state(narrowWithoutSeparator[0], narrowWithoutSeparator[1], false),
+					state(narrow[0], narrow[1], true),
+					state(wide[0], wide[1], true),
+					state(wide[0], wide[1], false),
+					state(narrowWithoutSeparator[0], narrowWithoutSeparator[1], false),
+					state(narrow[0], narrow[1], true),
+					state(wide[0], wide[1], true),
+				]);
+			});
+		}
+	}
+
 	test('keeps overflow keyboard reachable when every primary action moves into it', () => {
 		let availableWidth = 300;
 		const toolbar = store.add(new ToolBar(container, contextMenuProvider, {
