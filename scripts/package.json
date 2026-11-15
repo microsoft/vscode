@@ -9,7 +9,6 @@
 		"@vscode/vscode-perf": "^0.0.19",
 		"ansi-colors": "^3.2.3",
 		"fancy-log": "^1.3.3",
-		"kerberos": "2.1.1",
 		"minimist": "^1.2.8",
 		"open": "^10.1.2",
 		"typescript": "npm:@typescript/typescript6@^6.0.2",

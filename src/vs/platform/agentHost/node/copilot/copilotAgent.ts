@@ -149,7 +149,7 @@ import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from './cop
 import { CopilotSecondaryAssignmentContext } from './copilotSecondaryAssignmentContext.js';
 import { COPILOT_VIRTUAL_SESSION_STATE_PATH, createCopilotSessionPathMapper, toCopilotWorkspace, type CopilotWorkspace } from './copilotWorkspace.js';
 import { CopilotVirtualSessionFs, createCopilotVirtualSessionFsConfig } from './copilotVirtualSessionFs.js';
-import { CopilotSessionLauncher, type CopilotChatSurface, getInlineChatFusionAutoTier, AutoTierConfigKey, ContextSizeConfigKey, CopilotAutoTierConfigKey, CopilotReasoningEffortConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotCustomAgents, getCopilotAgentSelection, getCopilotAgentSelectionName, getLocalModelSelectionId, isCopilotReasoningEffort, isCopilotSessionTelemetryEnabled, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotAppliedCustomizations } from './copilotSessionLauncher.js';
+import { CopilotSessionLauncher, type CopilotChatSurface, getInlineChatFusionAutoTier, AutoTierConfigKey, ContextSizeConfigKey, CopilotAutoTierConfigKey, CopilotReasoningEffortConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotCustomAgents, getCopilotAgentSelection, getCopilotAgentSelectionName, getLocalModelSelectionId, isCopilotCanvasRuntimeEnabled, isCopilotReasoningEffort, isCopilotSessionTelemetryEnabled, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotAppliedCustomizations } from './copilotSessionLauncher.js';
 import { createLocalModelRowMeta } from '../../common/meta/localModelStatus.js';
 import { errorCodeForLog, originsOnlyForLog } from '../../common/logRedaction.js';
 import { withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
@@ -640,6 +640,11 @@ interface ICopilotSessionRefreshCheckOptions {
 interface ICopilotSessionRefreshOptions extends ICopilotSessionRefreshCheckOptions {
 	readonly allowRestart: 'whenIdle' | 'always';
 	readonly turnId?: string;
+}
+
+/** Whether a refresh serves an operation outside a turn, which never sends the chat's draft. */
+function isIdleRefreshOperation(operation: ICopilotSessionRefreshCheckOptions['operation']): boolean {
+	return operation === 'startMcpServer' || operation === 'openCanvas';
 }
 
 interface ICopilotAgentSessionIdentity {
@@ -3612,12 +3617,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
 		const liveSession = await this._queueChat(context.lifetimeId, context.sequencerKey, operation, async () => {
 			const current = this._resolveSessionCanvasChatContext(session, chat, operationContext);
-			return current.target ?? this._ensureResolvedChatSession(current);
+			const target = current.target ?? await this._ensureResolvedChatSession(current);
+			// Opening a canvas relaunches an idle runtime that does not run canvases yet. A busy one, including one whose
+			// background subagents outlive its turn and would stop with it, reports canvases disabled until its next turn.
+			if (!target || operation !== 'openSessionCanvas' || !this._requiresCanvasRuntimeRefresh(target) || target.hasActiveSubagents) {
+				return target;
+			}
+			try {
+				return await this._refreshSessionConfiguration(current, target, undefined, { operation: 'openCanvas', allowRestart: 'whenIdle' });
+			} catch (error) {
+				if (error instanceof CopilotSessionConfigurationBusyError) {
+					return target;
+				}
+				throw error;
+			}
 		});
 		if (!liveSession || !isEqual(liveSession.ownerSessionUri, session)) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Canvas operation requires a resumable Copilot chat: ${chat.toString()}`);
 		}
 		return liveSession;
+	}
+
+	/** Whether a live session runs canvases differently from a session launched with the current configuration. */
+	private _requiresCanvasRuntimeRefresh(entry: CopilotAgentSession): boolean {
+		return entry.canvasRuntimeEnabled !== isCopilotCanvasRuntimeEnabled(this._configurationService, entry.isEphemeral);
 	}
 
 	private _resolveSessionCanvasChatContext(session: URI, chat: URI, operationContext: AgentChatOperationContext): IResolvedCopilotChatContext {
@@ -8678,6 +8701,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			?? (entry.requiresMcpLaunchConfigurationRefresh ? 'mcpLaunchConfigurationRefresh' : undefined)
 			?? (entry.requiresControlPlaneResync ? 'controlPlaneResync' : undefined)
 			?? (entry.requiresExtensionConsentRetry ? 'extensionConsentRetry' : undefined)
+			// Canvas enablement is decided at launch, which can precede the client's configuration, such as a setting its experiment enables later.
+			?? (this._requiresCanvasRuntimeRefresh(entry) ? 'canvasesEnabledChanged' : undefined)
 			// The chat changed owner since this runtime launched: relaunch with the new owner's configuration at this turn boundary.
 			?? (!isEqual(entry.launchOwner, context.ownerSession) ? 'ownerChanged' : undefined)
 			?? (currentSnapshot && entry.clientToolsRequireRestart(currentSnapshot.tools) ? 'clientToolsChanged' : undefined)
@@ -8694,8 +8719,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (this._earlyLaunchReservation(context, entry)) {
 			// An unclaimed early launch has nothing on disk, so it must never take
 			// the resume-based restart below. A turn completes (or replaces) it;
-			// starting an MCP server keeps the draft unsent.
-			return options.operation === 'startMcpServer'
+			// an idle operation, such as starting an MCP server, keeps the draft unsent.
+			return isIdleRefreshOperation(options.operation)
 				? entry
 				: this._materializeProvisional(context, workingDirectories, undefined, { token: options.token });
 		}
@@ -8742,7 +8767,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			kind: 'sdkSession',
 			cause: refreshReason,
 			firstTurn: !entry.hasCompletedTurn,
-			phase: operation === 'startMcpServer' || operation === 'openCanvas' ? 'idle' : 'turnPrepare',
+			phase: isIdleRefreshOperation(operation) ? 'idle' : 'turnPrepare',
 		}, entry.completedTurnHistory);
 		const canvasHandoff = entry.takeCanvasProjection() ?? this._canvasHandoffs.get(entry.chatChannelUri);
 		if (canvasHandoff) {
@@ -8756,7 +8781,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			// Finish a started restart so queued control operations can target the replacement runtime.
 			await this._destroyLiveSession(entry, true);
-			const token = operation === 'startMcpServer' ? CancellationToken.None : options.token;
+			const token = isIdleRefreshOperation(operation) ? CancellationToken.None : options.token;
 			if (entry.sessionId === context.sessionBackedId) {
 				replacement = await this._resumeSession(entry.sessionId, context.chat, context.workspaceless, workingDirectories, undefined, token, context.surface);
 			} else {

@@ -291,6 +291,12 @@ export interface ICustomAgent {
 	readonly uri: URI;
 
 	/**
+	 * Original location of an agent that was copied for another host, such as a VS Code agent synced to an Agent Host.
+	 * Provenance checks, like whether an agent is organization-provided, need it because {@link uri} is the copy.
+	 */
+	readonly sourceUri?: URI;
+
+	/**
 	 * Name of the custom agent as used in prompt files or contexts
 	 */
 	readonly name: string;
