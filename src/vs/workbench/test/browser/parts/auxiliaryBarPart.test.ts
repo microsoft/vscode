@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, append } from '../../../../base/browser/dom.js';
+import { $, append, getActiveElement } from '../../../../base/browser/dom.js';
 import { ToggleMenuAction } from '../../../../base/browser/ui/toolbar/toolbar.js';
 import { Separator } from '../../../../base/common/actions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -72,20 +72,40 @@ suite('Auxiliary Bar - Responsive title actions', () => {
 		});
 	}
 
-	test('ends its view\'s title actions in a separator only while actions of its own follow them, as they come and go', () => runWithFakedTimers({}, async () => {
+	test('ends its view\'s title actions in a separator only while actions of its own follow them, as they come and go, keeping its other actions and their focus', () => runWithFakedTimers({}, async () => {
 		const container = append(root, $('.part.auxiliarybar'));
 		const part = createTestAuxiliaryBarPart(container, store, { globalActions: false });
 		const lastAction = () => part.toolbar.getItemAction(part.toolbar.getItemsLength() - 1)?.id;
+		const settingsIndex = () => Array.from({ length: part.toolbar.getItemsLength() }, (_, index) => index).find(index => part.toolbar.getItemAction(index)?.id === 'settings') ?? -1;
+		// A keyboard user on one of the view's title actions
+		const settings = part.toolbar.getItemViewItem(settingsIndex());
+		settings?.focus();
+		const focused = getActiveElement();
+		const settingsElement = part.toolbar.getItemElement(settingsIndex());
 		const withoutOwnActions = lastAction();
 
 		// Menus report their changes debounced
-		const close = MenuRegistry.appendMenuItem(testAuxiliaryBarGlobalActionsMenu, { command: { id: 'test.close', title: 'Hide Secondary Side Bar', icon: Codicon.close }, group: 'navigation' });
+		const close = store.add(MenuRegistry.appendMenuItem(testAuxiliaryBarGlobalActionsMenu, { command: { id: 'test.close', title: 'Hide Secondary Side Bar', icon: Codicon.close }, group: 'navigation' }));
 		await timeout(1000);
 		const withOwnActions = lastAction();
 		close.dispose();
 		await timeout(1000);
 
-		assert.deepStrictEqual({ withoutOwnActions, withOwnActions, afterTheyGo: lastAction() }, { withoutOwnActions: ToggleMenuAction.ID, withOwnActions: Separator.ID, afterTheyGo: ToggleMenuAction.ID });
+		assert.deepStrictEqual({
+			withoutOwnActions,
+			withOwnActions,
+			afterTheyGo: lastAction(),
+			focusedSettings: !!focused && !!settingsElement?.contains(focused),
+			focusKept: getActiveElement() === focused,
+			sameSettingsItem: part.toolbar.getItemViewItem(settingsIndex()) === settings,
+		}, {
+			withoutOwnActions: ToggleMenuAction.ID,
+			withOwnActions: Separator.ID,
+			afterTheyGo: ToggleMenuAction.ID,
+			focusedSettings: true,
+			focusKept: true,
+			sameSettingsItem: true,
+		});
 	}));
 });
 
