@@ -4047,6 +4047,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return;
 			}
 			this._submitHandlerInFlight = true;
+			// The host's submit begins before the files save, which can take a while, such as with save participants
+			const hostSubmit = this.viewOptions.hostSubmit?.beginSubmit?.();
 			try {
 				const inputValue = !query ? this.getInput() : query.query;
 				await saveAllBeforeChatSend(this.configurationService, this.editorService);
@@ -4060,6 +4062,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					return;
 				}
 			} finally {
+				hostSubmit?.dispose();
 				this._submitHandlerInFlight = false;
 			}
 		}
