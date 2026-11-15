@@ -310,7 +310,6 @@ suite('Sessions - SessionsList', () => {
 			scoped: { sessions: ['here'], comparison: false },
 		});
 	});
-
 	test('shown again with nothing changed, the list renders again only once its sections no longer hold as the time passed: at midnight, and once a session is no longer updated in the last day', () => runWithFakedTimers({ startTime: new Date(2024, 5, 10, 23, 50).getTime(), maxTaskCount: 10_000 }, async () => {
 		// Created a week ago, at noon: Recent until midnight, when the week of Recent starts a day later
 		const lastWeek = createTestSession('Last week', { createdAt: new Date(2024, 5, 3, 12, 0) }).session;
