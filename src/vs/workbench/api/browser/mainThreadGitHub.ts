@@ -178,12 +178,12 @@ export class MainThreadGitHub extends Disposable implements MainThreadGitHubShap
 	}
 
 	async $getGitHubRepositoryViewerInfo(handle: number, repository: RepositoryRef, token: CancellationToken): Promise<GitHubResultDto<RepositoryViewerInfo | null>> {
-		return this._runAuthenticated(handle, token, (client, signal, options) => client.repositories.getViewerInfo(validateRequest(repository, parseRepositoryRef), signal, { ...options, priority: 'background' }));
+		return this._runAuthenticated(handle, token, (client, signal, options) => client.repositories.getViewerInfo(validateRequest(repository, parseRepositoryRef), signal, options));
 	}
 
 	async $listGitHubRulesetConnection(handle: number, repository: RepositoryRef, after: string | undefined, maxPages: number | undefined, token: CancellationToken): Promise<GitHubResultDto<Connection<RepositoryRulesetNode> | null>> {
 		return this._runAuthenticated(handle, token, (client, signal, options) => client.repositories.listRulesetConnection(validateRequest(repository, parseRepositoryRef), signal, {
-			...options, priority: 'background', query: { first: 100, after: validateRequest(after, parse.optional(parse.nonEmptyString)) }, maxPages,
+			...options, query: { first: 100, after: validateRequest(after, parse.optional(parse.nonEmptyString)) }, maxPages,
 		}));
 	}
 

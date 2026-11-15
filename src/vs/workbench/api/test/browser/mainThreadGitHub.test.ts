@@ -221,9 +221,9 @@ suite('MainThreadGitHub', () => {
 			createdBody: { name: 'r', private: true },
 			restPriorities: [undefined],
 			graphql: [
-				{ operation: 'RepositoryViewerInfo', variables: { owner: 'o', name: 'r' }, priority: 'background' },
-				{ operation: 'RepositoryRulesets', variables: { owner: 'o', name: 'r', first: 100 }, priority: 'background' },
-				{ operation: 'RepositoryRulesets', variables: { owner: 'o', name: 'r', first: 100, after: 'next' }, priority: 'background' },
+				{ operation: 'RepositoryViewerInfo', variables: { owner: 'o', name: 'r' }, priority: undefined },
+				{ operation: 'RepositoryRulesets', variables: { owner: 'o', name: 'r', first: 100 }, priority: undefined },
+				{ operation: 'RepositoryRulesets', variables: { owner: 'o', name: 'r', first: 100, after: 'next' }, priority: undefined },
 				{ operation: 'RepositoryAssignableUsers', variables: { owner: 'o', name: 'r', first: 100 }, priority: 'enrichment' },
 				{ operation: 'RepositoryCommitAuthor', variables: { owner: 'o', name: 'r', expression: 'HEAD' }, priority: 'enrichment' },
 			],
