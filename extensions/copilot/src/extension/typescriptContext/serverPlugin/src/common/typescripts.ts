@@ -734,10 +734,6 @@ namespace tss {
 			}
 		}
 
-		public getAliasedSymbol(symbol: tt.Symbol): tt.Symbol | undefined {
-			return Symbols.isAlias(symbol) ? this.typeChecker.getAliasedSymbol(symbol) : symbol;
-		}
-
 		public getLeafSymbol(symbol: tt.Symbol): tt.Symbol {
 			let count = 0;
 			while (Symbols.isAlias(symbol) && count++ < 10) {

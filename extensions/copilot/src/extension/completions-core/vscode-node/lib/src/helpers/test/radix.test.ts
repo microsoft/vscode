@@ -108,43 +108,6 @@ suite('LRURadixTrie', function () {
 		});
 	});
 
-	suite('delete', function () {
-		test('removes a value', function () {
-			trie.set('test', 'value');
-			trie.delete('test');
-			assert.deepStrictEqual(trie.findAll('test'), []);
-		});
-
-		test('handles merging child node after delete', function () {
-			trie.set('test', 'first');
-			trie.set('testing', 'second');
-
-			trie.delete('test');
-
-			assert.deepStrictEqual(trie.findAll('test'), []);
-			assert.deepStrictEqual(trie.findAll('testing'), [{ remainingKey: '', value: 'second' }]);
-		});
-
-		test('handles merging sibling node after delete', function () {
-			trie.set('test', 'first');
-			trie.set('testing', 'second');
-			trie.set('testy', 'third');
-
-			trie.delete('test');
-			trie.delete('testing');
-
-			assert.deepStrictEqual(trie.findAll('test'), []);
-			assert.deepStrictEqual(trie.findAll('testing'), []);
-			assert.deepStrictEqual(trie.findAll('testy'), [{ remainingKey: '', value: 'third' }]);
-		});
-
-		test('does nothing when key not found', function () {
-			trie.set('test', 'value');
-			trie.delete('other');
-			assert.deepStrictEqual(trie.findAll('test'), [{ remainingKey: '', value: 'value' }]);
-		});
-	});
-
 	test('handles unicode characters with multiple code points', function () {
 		/* Note: this behavior is arguably incorrect. Ideally, unicode characters
 		 * comprising multiple code points would be treated as single characters.

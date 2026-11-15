@@ -335,40 +335,6 @@ class TreeYieldedTrait {
 
 type TreeYieldedContextItem = TreeYieldedSnippet | TreeYieldedTrait;
 
-class TreeYielded {
-
-	private readonly parent: TreeContextRequest;
-	private readonly items: ReadonlyArray<ContextItem>;
-
-	constructor(parent: TreeContextRequest, items: ReadonlyArray<ContextItem>) {
-		this.parent = parent;
-		this.items = items;
-	}
-
-	public children(): TreeYieldedContextItem[] {
-		const children: TreeYieldedContextItem[] = [];
-		for (const item of this.items) {
-			if (item.kind === ContextKind.Snippet) {
-				children.push(new TreeYieldedSnippet(item as SnippetContext));
-			} else if (item.kind === ContextKind.Trait) {
-				children.push(new TreeYieldedTrait(item as TraitContext));
-			}
-		}
-		return children;
-	}
-
-	public toTreeItem(): vscode.TreeItem {
-		const label = `Yielded: ${this.items.length} items`;
-		const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.Collapsed);
-		item.id = this.id;
-		return item;
-	}
-
-	public get id(): string {
-		return `${this.parent.id}.yielded`;
-	}
-}
-
 abstract class TreeContextRequest {
 
 	protected readonly label: string;
@@ -494,7 +460,7 @@ class TreeYieldContextRequest extends TreeContextRequest {
 	}
 }
 
-type InspectorItems = TreeContextRequest | TreeRunnableResult | TreeTrait | TreeSnippet | TreePropertyItem | TreeYielded | TreeYieldedSnippet | TreeYieldedTrait | TreeCacheInfo;
+type InspectorItems = TreeContextRequest | TreeRunnableResult | TreeTrait | TreeSnippet | TreePropertyItem | TreeYieldedSnippet | TreeYieldedTrait | TreeCacheInfo;
 export class InspectorDataProvider implements vscode.TreeDataProvider<InspectorItems> {
 
 	private readonly languageContextService: IInternalLanguageContextService;
@@ -538,7 +504,7 @@ export class InspectorDataProvider implements vscode.TreeDataProvider<InspectorI
 		if (element === undefined) {
 			return this.items;
 		} else if (
-			element instanceof TreeRunnableResult || element instanceof TreeTrait || element instanceof TreeSnippet || element instanceof TreeYielded ||
+			element instanceof TreeRunnableResult || element instanceof TreeTrait || element instanceof TreeSnippet ||
 			element instanceof TreeYieldedSnippet || element instanceof TreeYieldedTrait || element instanceof TreeCacheInfo || element instanceof TreeContextRequest) {
 
 			return element.children();

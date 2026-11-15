@@ -92,10 +92,6 @@ export function isEvent(message: CapturedTelemetry<any>): message is CapturedTel
 	return message.data.baseType === 'EventData';
 }
 
-export function isException(message: CapturedTelemetry<any>): message is CapturedTelemetry<ExceptionData> {
-	return message.data.baseType === 'ExceptionData';
-}
-
 export function allEvents(messages: CapturedTelemetry<any>[]): messages is CapturedTelemetry<EventData>[] {
 	for (const message of messages) {
 		if (!isEvent(message)) {

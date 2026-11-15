@@ -130,7 +130,6 @@ class FakeCopilotCLISessionService extends mock<ICopilotCLISessionService>() {
  */
 class FakeGitService extends mock<IGitService>() {
 	private _repositories = new Map<string, RepoContext>();
-	private _recentRepositories: { rootUri: vscode.Uri; lastAccessTime: number }[] = [];
 	private _activeRepo: RepoContext | undefined;
 
 	override activeRepository = {
@@ -143,16 +142,8 @@ class FakeGitService extends mock<IGitService>() {
 		return this._repositories.get(uri.fsPath);
 	}
 
-	override getRecentRepositories = vi.fn((): { rootUri: vscode.Uri; lastAccessTime: number }[] => {
-		return this._recentRepositories;
-	});
-
 	setTestRepository(uri: vscode.Uri, repo: RepoContext): void {
 		this._repositories.set(uri.fsPath, repo);
-	}
-
-	setTestRecentRepositories(repos: { rootUri: vscode.Uri; lastAccessTime: number }[]): void {
-		this._recentRepositories = repos;
 	}
 
 	setTestActiveRepository(repo: RepoContext | undefined): void {

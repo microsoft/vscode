@@ -25,9 +25,8 @@ export const DEFAULT_NUM_SNIPPETS = 4;
  */
 export const DEFAULT_SUFFIX_MATCH_THRESHOLD = 10;
 
-/* The default allocation of the prompt to different components */
+/** The default prompt allocation for the suffix. */
 export const DEFAULT_PROMPT_ALLOCATION_PERCENT = {
-	prefix: 35,
 	suffix: 15,
 } as const;
 

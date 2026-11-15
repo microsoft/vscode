@@ -15,13 +15,7 @@ import { getRelatedFilesAndTraits, relatedFilesLogger, RelatedFileTrait } from '
 
 // There is a limitation of the number of the neighbor files. So I use the next strategies to pick the most relevant cursor focused files.
 export enum NeighboringFileType {
-	None = 'none', // Do not add neighbor files.
 	OpenTabs = 'opentabs', // Add open files.
-	CursorMostRecent = 'cursormostrecent', // Add the most recent cursor focused files.
-	CursorMostCount = 'cursormostcount', // Add the most cursor focused files.
-	WorkspaceSharingSameFolder = 'workspacesharingsamefolder', // Add the workspace files sharing the same folder with the target file.
-	WorkspaceSmallestPathDist = 'workspacesmallestpathdist', // Add the workspace files according to their path distance toward the target file
-	OpenTabsAndCocommitted = 'opentabsandcocommitted', // Add open files and the co-committed files.
 	RelatedCSharp = 'related/csharp', // The Semantic Code Context says this file is related.
 	RelatedCSharpRoslyn = 'related/csharproslyn', // The C# language service says this file is related.
 	RelatedCpp = 'related/cpp', // The C++ language service says this file is related.

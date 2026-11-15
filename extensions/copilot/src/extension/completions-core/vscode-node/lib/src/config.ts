@@ -146,12 +146,6 @@ export abstract class ConfigProvider implements ICompletionsConfigProvider {
 	abstract dumpForTelemetry(): { [key: string]: string };
 	abstract onDidChangeCopilotSettings: Event<ConfigProvider>;
 
-	// The language server receives workspace configuration *after* it is fully initialized, which creates a race
-	// condition where an incoming request immediately after initialization might have the default values. Awaiting
-	// this promise allows consumers to ensure that the configuration is ready before using it.
-	requireReady(): Promise<void> {
-		return Promise.resolve();
-	}
 }
 
 /** Provides only the default values, ignoring the user's settings.

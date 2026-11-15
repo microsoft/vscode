@@ -6,7 +6,6 @@
 import type * as vscode from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { ChatSessionWorktreeProperties } from './chatSessionWorktreeService';
-import type { IWorkspaceInfo } from './workspaceInfo';
 
 export interface WorkspaceFolderEntry {
 	readonly folderPath: string;
@@ -133,8 +132,6 @@ export interface IChatSessionMetadataStore {
 	getWorktreeProperties(sessionId: string): Promise<ChatSessionWorktreeProperties | undefined>;
 	getSessionWorkspaceFolder(sessionId: string): Promise<vscode.Uri | undefined>;
 	getSessionWorkspaceFolderEntry(sessionId: string): Promise<WorkspaceFolderEntry | undefined>;
-	getAdditionalWorkspaces(sessionId: string): Promise<IWorkspaceInfo[]>;
-	setAdditionalWorkspaces(sessionId: string, workspaces: IWorkspaceInfo[]): Promise<void>;
 	getSessionFirstUserMessage(sessionId: string): Promise<string | undefined>;
 	setSessionFirstUserMessage(sessionId: string, message: string): Promise<void>;
 	getCustomTitle(sessionId: string): Promise<string | undefined>;

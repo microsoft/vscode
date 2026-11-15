@@ -237,18 +237,6 @@ export class ContextItemResultBuilder implements ContextItemSummary {
 		}
 	}
 
-	public *convert(runnableResult: ResolvedRunnableResult): IterableIterator<ContextItem> {
-		Stats.update(this.stats, runnableResult);
-		for (const item of runnableResult.items) {
-			const converted = ContextItemResultBuilder.doConvert(item, runnableResult.priority, (this.counter++).toString());
-			if (converted === undefined) {
-				continue;
-			}
-			Stats.yielded(this.stats);
-			yield converted;
-		}
-	}
-
 	private static doConvert(item: protocol.ContextItem, priority: number, id: string): ContextItem | undefined {
 		switch (item.kind) {
 			case protocol.ContextKind.Snippet:

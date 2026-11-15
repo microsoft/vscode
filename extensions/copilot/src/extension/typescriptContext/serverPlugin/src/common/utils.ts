@@ -16,7 +16,7 @@ export const enum Touch {
 	AsNew = 2
 }
 
-export class LinkedMap<K, V> implements Map<K, V> {
+class LinkedMap<K, V> implements Map<K, V> {
 
 	readonly [Symbol.toStringTag] = 'LinkedMap';
 
@@ -43,20 +43,8 @@ export class LinkedMap<K, V> implements Map<K, V> {
 		this._state++;
 	}
 
-	isEmpty(): boolean {
-		return !this._head && !this._tail;
-	}
-
 	get size(): number {
 		return this._size;
-	}
-
-	get first(): V | undefined {
-		return this._head?.value;
-	}
-
-	get last(): V | undefined {
-		return this._tail?.value;
 	}
 
 	has(key: K): boolean {
@@ -113,20 +101,6 @@ export class LinkedMap<K, V> implements Map<K, V> {
 			return undefined;
 		}
 		this._map.delete(key);
-		this.removeItem(item);
-		this._size--;
-		return item.value;
-	}
-
-	shift(): V | undefined {
-		if (!this._head && !this._tail) {
-			return undefined;
-		}
-		if (!this._head || !this._tail) {
-			throw new Error('Invalid list');
-		}
-		const item = this._head;
-		this._map.delete(item.key);
 		this.removeItem(item);
 		this._size--;
 		return item.value;
@@ -386,14 +360,6 @@ export class LinkedMap<K, V> implements Map<K, V> {
 
 		return data;
 	}
-
-	fromJSON(data: [K, V][]): void {
-		this.clear();
-
-		for (const [key, value] of data) {
-			this.set(key, value);
-		}
-	}
 }
 
 abstract class Cache<K, V> extends LinkedMap<K, V> {
@@ -405,24 +371,6 @@ abstract class Cache<K, V> extends LinkedMap<K, V> {
 		super();
 		this._limit = limit;
 		this._ratio = Math.min(Math.max(0, ratio), 1);
-	}
-
-	get limit(): number {
-		return this._limit;
-	}
-
-	set limit(limit: number) {
-		this._limit = limit;
-		this.checkTrim();
-	}
-
-	get ratio(): number {
-		return this._ratio;
-	}
-
-	set ratio(ratio: number) {
-		this._ratio = Math.min(Math.max(0, ratio), 1);
-		this.checkTrim();
 	}
 
 	override get(key: K, touch: Touch = Touch.AsNew): V | undefined {

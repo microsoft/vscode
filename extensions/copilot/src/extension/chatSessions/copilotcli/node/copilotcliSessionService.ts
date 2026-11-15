@@ -111,7 +111,6 @@ export type ISessionOptions = {
 	agent?: SweCustomAgent;
 	debugTargetSessionIds?: readonly string[];
 	mcpServerMappings?: McpServerMappings;
-	additionalWorkspaces?: IWorkspaceInfo[];
 	sessionParentId?: string;
 };
 export type IGetSessionOptions = ISessionOptions & { sessionId: string };
@@ -1255,7 +1254,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 	private createCopilotSession(sdkSession: Session, workspaceInfo: IWorkspaceInfo, agentName: string | undefined, sessionManager: internal.LocalSessionManager, sandboxConfig: SessionOptions['sandboxConfig']): RefCountedSession {
 		sdkSession.permissions.setRequired({ required: true });
-		const session = this.instantiationService.createInstance(CopilotCLISession, workspaceInfo, agentName, sdkSession, [], sandboxConfig);
+		const session = this.instantiationService.createInstance(CopilotCLISession, workspaceInfo, agentName, sdkSession, sandboxConfig);
 		this._debugFileLogger.startSession(session.sessionId).catch(err => {
 			this.logService.error('[CopilotCLISession] Failed to start debug log session', err);
 		});

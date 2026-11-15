@@ -104,10 +104,6 @@ export abstract class Search<R> extends ProgramContext {
 		this.symbols = symbols;
 	}
 
-	public getSymbols(): Symbols {
-		return this.symbols;
-	}
-
 	protected override getProgram(): tt.Program {
 		return this.program;
 	}
@@ -412,14 +408,6 @@ class RunnableResultReference {
 
 	constructor(cached: CachedContextRunnableResult) {
 		this.cached = cached;
-	}
-
-	public get items(): ContextItem[] {
-		const result: ContextItem[] = [];
-		for (const item of this.cached.items) {
-			result.push(ContextItemReference.create(item.key));
-		}
-		return result;
 	}
 
 	public toJson(): ContextRunnableResultReference {
