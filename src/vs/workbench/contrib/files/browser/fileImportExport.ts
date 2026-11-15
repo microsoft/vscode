@@ -732,21 +732,50 @@ export class FileDownload {
 	}
 
 	private async doDownload(sources: readonly IDownloadSource[], progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
+
+		// Web: use DOM APIs to download files with optional support
+		// for folders and large files
+		if (isWeb) {
+			for (const source of sources) {
+				if (cts.token.isCancellationRequested) {
+					return;
+				}
+
+				await this.doDownloadBrowser(source.resource, progress, cts);
+			}
+
+			return;
+		}
+
+		// Native: use the file service to get at the contents. Resolve the
+		// number of files and the total number of bytes across the entire
+		// selection upfront, so that a single reporter can report accurate
+		// determinate progress over all sources.
+		const fileSizes = new ResourceMap<number>();
+		let filesTotal = 0;
+		let totalBytes = 0;
 		for (const source of sources) {
+			const sizes = await this.resolveDownloadSize(source.resource, cts.token);
 			if (cts.token.isCancellationRequested) {
 				return;
 			}
 
-			// Web: use DOM APIs to download files with optional support
-			// for folders and large files
-			if (isWeb) {
-				await this.doDownloadBrowser(source.resource, progress, cts);
-			}
+			filesTotal += sizes.filesTotal;
+			totalBytes += sizes.totalBytes;
+			sizes.fileSizes.forEach((size, resource) => fileSizes.set(resource, size));
+		}
 
-			// Native: use working copy file service to get at the contents
-			else {
-				await this.doDownloadNative(source, progress, cts);
+		const reporter = new TransferProgressReporter(filesTotal, totalBytes, downloadProgressMessages, progress);
+		try {
+			for (const source of sources) {
+				if (cts.token.isCancellationRequested) {
+					return;
+				}
+
+				await this.doDownloadNative(source, reporter, fileSizes, progress, cts);
 			}
+		} finally {
+			reporter.dispose();
 		}
 	}
 
@@ -893,7 +922,7 @@ export class FileDownload {
 		operation.reporter.report(name, fileSize, operation.fileBytesDownloaded, bytesDownloaded);
 	}
 
-	private async doDownloadNative(explorerItem: IDownloadSource, progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
+	private async doDownloadNative(explorerItem: IDownloadSource, reporter: TransferProgressReporter, fileSizes: ResourceMap<number>, progress: IProgress<IProgressStep>, cts: CancellationTokenSource): Promise<void> {
 		progress.report({ message: explorerItem.name });
 
 		let defaultUri: URI;
@@ -921,14 +950,6 @@ export class FileDownload {
 			// Remember as last used download folder
 			this.storageService.store(FileDownload.LAST_USED_DOWNLOAD_PATH_STORAGE_KEY, dirname(destination).fsPath, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-			// Resolve the number of files and the total number of bytes to
-			// download upfront to be able to report accurate overall progress
-			const { filesTotal, totalBytes, fileSizes } = await this.resolveDownloadSize(explorerItem.resource, cts.token);
-
-			if (cts.token.isCancellationRequested) {
-				return;
-			}
-
 			// Remember whether the destination existed upfront: when the
 			// download is cancelled before any content was transferred, a
 			// pre-existing destination must not be deleted by the cleanup
@@ -938,7 +959,6 @@ export class FileDownload {
 			// The file service reports the total number of bytes copied per
 			// file, so we keep track of the last reported value per file to
 			// compute the delta.
-			const reporter = new TransferProgressReporter(filesTotal, totalBytes, downloadProgressMessages, progress);
 			const lastBytesCopied = new ResourceMap<number>();
 			let downloadStarted = false;
 			try {
@@ -972,7 +992,6 @@ export class FileDownload {
 				}
 			} finally {
 				reporter.flush();
-				reporter.dispose();
 			}
 		} else {
 			cts.cancel(); // User canceled a download. In case there were multiple files selected we should cancel the remainder of the prompts #86100

@@ -52,14 +52,14 @@ class TestTransferProgressService implements IProgressService {
 
 class TestDownloadFileDialogService extends TestFileDialogService {
 
-	private saveDialogResult: URI | undefined;
+	private saveDialogResults: (URI | undefined)[] = [];
 
-	setSaveDialogResult(result: URI | undefined): void {
-		this.saveDialogResult = result;
+	setSaveDialogResult(...results: (URI | undefined)[]): void {
+		this.saveDialogResults = results;
 	}
 
 	override showSaveDialog(_options: ISaveDialogOptions): Promise<URI | undefined> {
-		return Promise.resolve(this.saveDialogResult);
+		return Promise.resolve(this.saveDialogResults.length > 1 ? this.saveDialogResults.shift() : this.saveDialogResults[0]);
 	}
 }
 
@@ -154,6 +154,24 @@ suite('Files - FileDownload', () => {
 
 		const lastStep = progressService.steps[progressService.steps.length - 1];
 		assert.strictEqual(lastStep.message, 'a.txt');
+	});
+
+	test('downloads multiple sources with one aggregated progress', async () => {
+		const destinationA = URI.file('/downloads/a.txt');
+		const destinationB = URI.file('/downloads/b.txt');
+		dialogService.setSaveDialogResult(destinationA, destinationB);
+
+		await download.download([
+			createExplorerItem(URI.from({ scheme: sourceScheme, path: '/folder/a.txt' }), false),
+			createExplorerItem(URI.from({ scheme: sourceScheme, path: '/folder/b.txt' }), false)
+		]);
+
+		assert.strictEqual((await fileService.readFile(destinationA)).value.toString(), 'a'.repeat(100));
+		assert.strictEqual((await fileService.readFile(destinationB)).value.toString(), 'b'.repeat(200));
+
+		// Increments accumulate to exactly 100 across the whole selection,
+		// not per source
+		assert.strictEqual(progressService.steps.reduce((sum, step) => sum + (step.increment ?? 0), 0), 100);
 	});
 
 	test('cancelling a download stops the copy and cleans up the destination', async () => {
