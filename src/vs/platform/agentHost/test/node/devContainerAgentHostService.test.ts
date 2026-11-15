@@ -128,6 +128,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	volumeCreateExitCode = 0;
 	linkStateResult: { stdout: string; stderr?: string; code: number } = { stdout: '', code: 0 };
 	userCommandsExitCode = 0;
+	userCommandsStderr = '';
 	upExitCode = 0;
 	userStateUpArgs: readonly string[] | undefined;
 	linkedBeforeLifecycle: boolean | undefined;
@@ -268,7 +269,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		}
 		if (args[0] === 'run-user-commands') {
 			this.linkedBeforeLifecycle = this.localCommands.some(command => command.args[2] === 'root' && !!command.args.at(-1)?.includes('link_state'));
-			return Promise.resolve({ stdout: `${JSON.stringify(this.userCommandsExitCode ? { outcome: 'error', description: 'postCreateCommand from devcontainer.json failed with exit code 1.', message: 'npm ERR! Your cache folder contains root-owned files: /home/node/.npm, run: sudo chown -R node /home/node/.npm' } : { outcome: 'success' })}\n`, stderr: '', code: this.userCommandsExitCode });
+			return Promise.resolve({ stdout: `${JSON.stringify(this.userCommandsExitCode ? { outcome: 'error', description: 'postCreateCommand from devcontainer.json failed with exit code 1.', message: 'npm ERR! Your cache folder contains root-owned files: /home/node/.npm, run: sudo chown -R node /home/node/.npm' } : { outcome: 'success' })}\n`, stderr: this.userCommandsStderr, code: this.userCommandsExitCode });
 		}
 		const expectedUpArgs = ['up', '--log-level', 'debug', '--workspace-folder', '/workspace', ...this.sandboxConfigurationPrepared ? ['--config', '/workspace/.devcontainer/devcontainer.json', '--override-config', '/sandbox/devcontainer.json'] : [], ...this.cacheMountConfigured ? [] : ['--mount', devContainerServerCacheMount]];
 		if (args.includes('--skip-post-create')) {
@@ -1761,6 +1762,42 @@ suite('Dev Container Agent Host Main Service', () => {
 			workspaceFolder: '/workspace',
 			name: 'Project Dev Container',
 		}), /is stopped/);
+	});
+
+	test('includes the CLI stderr in the error of an invalid up result', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		service.upExitCode = 1;
+
+		await assert.rejects(service.connect({
+			connectionId: 'connection',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		}), error => {
+			assert.ok(error instanceof Error);
+			assert.match(error.message, /Dev Container CLI returned an invalid result/);
+			// The CLI logs its progress and the output of failed lifecycle commands to its stderr; the stdout result JSON does not include them.
+			assert.match(error.message, /Error response from daemon: invalid mount config/);
+			return true;
+		});
+	});
+
+	test('includes the CLI stderr in the error of failed lifecycle commands', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		service.userCommandsExitCode = 1;
+		service.userCommandsStderr = 'npm ERR! A complete log of this run can be found in: /home/node/.npm/_logs/2026-11-06T13_43_32_556Z-debug-0.log';
+
+		await assert.rejects(service.connect({
+			connectionId: 'connection',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+			persistUserState: true,
+		}), error => {
+			assert.ok(error instanceof Error);
+			assert.match(error.message, /Dev Container lifecycle commands failed/);
+			assert.match(error.message, /npm ERR! Your cache folder contains root-owned files/);
+			assert.match(error.message, /_logs\/2026-11-06T13_43_32_556Z-debug-0\.log/);
+			return true;
+		});
 	});
 
 	test('allows a cold Agent Host to register after the short default deadline', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
