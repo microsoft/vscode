@@ -141,7 +141,7 @@ import { ChatAccessibilityProvider } from '../../../browser/accessibility/chatAc
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatSideChatService, IChatSideChatOrigin, IChatSideChatSelection, IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { ChatWorkingProgressContentPart, pickWorkingLabel } from '../../../browser/widget/chatContentParts/chatProgressContentPart.js';
-import { IChatContentPartDiffData, IChatContentPartRenderContext } from '../../../browser/widget/chatContentParts/chatContentParts.js';
+import { IChatContentPart, IChatContentPartDiffData, IChatContentPartRenderContext } from '../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
@@ -6841,36 +6841,55 @@ suite('ChatListRenderer', () => {
 
 	/**
 	 * Widgets that show the chat of `session`, registered in this order with a real chat widget service, whose inputs keep the
-	 * questions and plan reviews docked in them by their key, as the chat input does.
+	 * questions and plan reviews docked in them by their key, as the chat input does: the same key gets the same copy, and
+	 * clearing a copy, or the widget showing another chat, disposes it.
 	 */
 	function createInputRequestWidgets(session: URI, names: readonly string[]) {
-		const questions = new Map<string, Map<string, IChatQuestionCarouselOptions['onSubmit']>>();
-		const plans = new Map<string, Map<string, IChatPlanReviewPartOptions['onSubmit']>>();
+		type Docked<T> = { readonly submit: T; readonly store: DisposableStore; readonly part: IChatContentPart };
+		const questions = new Map<string, Map<string, Docked<IChatQuestionCarouselOptions['onSubmit']>>>();
+		const plans = new Map<string, Map<string, Docked<IChatPlanReviewPartOptions['onSubmit']>>>();
+		const sessions = new Map<string, URI>();
+		const clears: string[] = [];
+		const dock = <T>(docked: Map<string, Docked<T>>, key: string, submit: T): IChatContentPart => {
+			const existing = docked.get(key);
+			if (existing) {
+				return existing.part;
+			}
+			const partStore = store.add(new DisposableStore());
+			const part: IChatContentPart = { domNode: dom.$('div'), dispose: () => partStore.dispose(), hasSameContent: () => false, addDisposable: disposable => partStore.add(disposable) };
+			docked.set(key, { submit, store: partStore, part });
+			return part;
+		};
+		const undock = <T>(docked: Map<string, Docked<T>>, key: string | undefined) => {
+			for (const [candidate, entry] of [...docked]) {
+				if (key === undefined || candidate === key) {
+					entry.store.dispose();
+					docked.delete(candidate);
+				}
+			}
+		};
 		const widgets = new Map<string, IChatWidget>();
 		for (const name of names) {
-			const dockedQuestions = new Map<string, IChatQuestionCarouselOptions['onSubmit']>();
-			const dockedPlans = new Map<string, IChatPlanReviewPartOptions['onSubmit']>();
+			const dockedQuestions = new Map<string, Docked<IChatQuestionCarouselOptions['onSubmit']>>();
+			const dockedPlans = new Map<string, Docked<IChatPlanReviewPartOptions['onSubmit']>>();
 			questions.set(name, dockedQuestions);
 			plans.set(name, dockedPlans);
+			sessions.set(name, session);
 			const input = new class extends mock<ChatInputPart>() {
 				override get questionCarousel() { return undefined; }
 				override get hasActiveToolConfirmationCarousel() { return false; }
 				override renderQuestionCarousel(...[carousel, context, options]: Parameters<ChatInputPart['renderQuestionCarousel']>) {
-					dockedQuestions.set(carousel.resolveId ?? `${context && isResponseVM(context.element) ? context.element.requestId : ''}_${context?.contentIndex}`, options.onSubmit);
-					return new class extends mock<ChatQuestionCarouselPart>() {
-						override readonly domNode = dom.$('div');
-						override addDisposable() { }
-					}();
+					const key = carousel.resolveId ?? `${context && isResponseVM(context.element) ? context.element.requestId : ''}_${context?.contentIndex}`;
+					return upcastPartial<ChatQuestionCarouselPart>(dock(dockedQuestions, key, options.onSubmit));
 				}
-				override clearQuestionCarousel(_responseId?: string, resolveId?: string) { if (resolveId) { dockedQuestions.delete(resolveId); } }
+				override clearQuestionCarousel(_responseId?: string, resolveId?: string) { clears.push(`${name}:${resolveId}`); undock(dockedQuestions, resolveId); }
 				override renderPlanReview(...[review, , options]: Parameters<ChatInputPart['renderPlanReview']>) {
-					dockedPlans.set(review.resolveId!, options.onSubmit);
-					return upcastPartial<ChatPlanReviewPart>({ domNode: dom.$('div') });
+					return upcastPartial<ChatPlanReviewPart>(dock(dockedPlans, review.resolveId!, options.onSubmit));
 				}
-				override clearPlanReview(_responseId?: string, resolveId?: string) { if (resolveId) { dockedPlans.delete(resolveId); } }
+				override clearPlanReview(_responseId?: string, resolveId?: string) { clears.push(`${name}:${resolveId}`); undock(dockedPlans, resolveId); }
 			}();
 			widgets.set(name, new class extends mock<IChatWidget>() {
-				override readonly viewModel = upcastPartial<IChatViewModel>({ sessionResource: session });
+				override get viewModel() { return upcastPartial<IChatViewModel>({ sessionResource: sessions.get(name)! }); }
 				override readonly supportsInputRequests = true;
 				override readonly domNode = dom.$('div');
 				override readonly location = ChatAgentLocation.Chat;
@@ -6893,9 +6912,15 @@ suite('ChatListRenderer', () => {
 		/** Which widgets dock the question or plan review of `key` in their input now. */
 		const dockedIn = (key: string) => names.filter(name => questions.get(name)!.has(key) || plans.get(name)!.has(key));
 		/** How the copy docked in `name`'s input submits the question or plan review of `key`, kept also once that copy goes. */
-		const questionIn = (name: string, key: string) => questions.get(name)!.get(key)!;
-		const planIn = (name: string, key: string) => plans.get(name)!.get(key)!;
-		return { chatWidgetService, widgets, dockedIn, questionIn, planIn };
+		const questionIn = (name: string, key: string) => questions.get(name)!.get(key)!.submit;
+		const planIn = (name: string, key: string) => plans.get(name)!.get(key)!.submit;
+		/** `name` shows another chat: its input clears what it docked, as the chat input does. */
+		const showChat = (name: string, other: URI) => {
+			undock(questions.get(name)!, undefined);
+			undock(plans.get(name)!, undefined);
+			sessions.set(name, other);
+		};
+		return { chatWidgetService, widgets, dockedIn, questionIn, planIn, showChat, clears };
 	}
 
 	test('a question shows in the input of the widget whose list renders it, also while another widget registered first shows the same chat', async () => {
@@ -6976,6 +7001,54 @@ suite('ChatListRenderer', () => {
 			data: { action: 'Implement', rejected: false },
 			used: true,
 		});
+	});
+
+	test('a question that a widget docked for a chat it no longer shows, settled later, leaves the question of the same key of the chat it shows now', async () => {
+		const first = URI.from({ scheme: 'vscode-chat-session', path: '/first' });
+		const second = URI.from({ scheme: 'vscode-chat-session', path: '/second' });
+		const { chatWidgetService, widgets, dockedIn, showChat } = createInputRequestWidgets(first, ['a']);
+		const one = createPersistentProgressRenderer({ sessionResource: first, chatWidgetService, getWidget: () => widgets.get('a') });
+		// The host's request ids are not unique across chats: both chats ask with the same key
+		const firstQuestion = new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'First?' }], true, 'same');
+		one.model.acceptResponseProgress(one.request, firstQuestion);
+		one.renderer.renderElement(one.node, 0, one.template);
+
+		showChat('a', second);
+		const two = createPersistentProgressRenderer({ sessionResource: second, chatWidgetService, getWidget: () => widgets.get('a') });
+		two.model.acceptResponseProgress(two.request, new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Second?' }], true, 'same'));
+		two.renderer.renderElement(two.node, 0, two.template);
+		firstQuestion.dismiss(undefined);
+		await firstQuestion.completion.p;
+		await timeout(0);
+
+		assert.deepStrictEqual(dockedIn('same'), ['a']);
+	});
+
+	test('a question settled elsewhere refreshes the row that renders it now, also in another template than the one it was first rendered in, and nothing once its copy is gone', async () => {
+		const session = URI.from({ scheme: 'vscode-chat-session', path: '/recycled' });
+		const { chatWidgetService, widgets, clears } = createInputRequestWidgets(session, ['a', 'b']);
+		const { model, request, renderer, template, node, createRenderer, container } = createPersistentProgressRenderer({ sessionResource: session, chatWidgetService, getWidget: () => widgets.get('a') });
+		const refreshed: unknown[] = [];
+		Reflect.set(renderer, 'refreshProgressAfterInteraction', (_context: unknown, templateData: unknown) => refreshed.push(templateData));
+		const recycled = renderer.renderTemplate(dom.append(container, dom.$('div')));
+		store.add(toDisposable(() => renderer.disposeTemplate(recycled)));
+		const question = new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction' }], true, 'recycled');
+		model.acceptResponseProgress(request, question);
+		renderer.renderElement(node, 0, template);
+		// The row is rendered again in another template, its copy in the input stays
+		renderer.renderElement(node, 0, recycled);
+
+		// Another widget's renderer of the chat, whose copy goes before the question is settled
+		const other = createRenderer(() => widgets.get('b'), dom.append(mainWindow.document.body, dom.$('.interactive-session')));
+		other.renderer.renderElement(node, 0, other.template);
+		widgets.get('b')!.input.clearQuestionCarousel(undefined, 'recycled');
+		const clearsBefore = clears.length;
+
+		question.dismiss(undefined);
+		await question.completion.p;
+		await timeout(0);
+
+		assert.deepStrictEqual({ refreshedCurrent: refreshed.length === 1 && refreshed[0] === recycled, clears: clears.slice(clearsBefore) }, { refreshedCurrent: true, clears: ['a:recycled'] });
 	});
 
 	test('previews can omit input requests without resolving them or docking them in another widget', async () => {
