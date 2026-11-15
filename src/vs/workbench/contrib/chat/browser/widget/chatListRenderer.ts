@@ -737,6 +737,24 @@ interface IPendingChatItemHeightUpdate extends IDisposable {
 	initialHeight?: number;
 }
 
+/**
+ * Calls `callback` once `promise` settles, until the returned disposable is disposed. The promise keeps only a stub that the
+ * disposal empties, rather than `callback` and all it holds, as a promise reaction can't be removed.
+ */
+export function onPromiseSettled(promise: Promise<unknown>, callback: () => void): IDisposable & { readonly attached: boolean } {
+	const holder: { callback: (() => void) | undefined } = { callback };
+	const run = () => {
+		const settled = holder.callback;
+		holder.callback = undefined;
+		settled?.();
+	};
+	void promise.then(run, run);
+	return {
+		get attached() { return !!holder.callback; },
+		dispose: () => { holder.callback = undefined; },
+	};
+}
+
 export interface IChatRendererDelegate {
 	container: HTMLElement;
 	/** Lazily provides an anchor that clips content overlays below floating UI such as the sticky header. */
@@ -5217,7 +5235,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		};
 		if (request instanceof ChatQuestionCarouselData || request instanceof ChatPlanReviewData) {
-			void request.completion.p.then(settle, settle);
+			// The pending request outlives this copy, such as a widget closed before it is answered: only a stub stays with it
+			watch.add(onPromiseSettled(request.completion.p, settle));
 		}
 		if (request.kind === 'questionCarousel' && request.resolveId) {
 			const resolveId = request.resolveId;

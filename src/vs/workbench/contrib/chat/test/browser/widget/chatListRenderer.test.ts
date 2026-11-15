@@ -71,7 +71,7 @@ import { getCompactCodicon } from '../../../browser/chatIcons.js';
 import { IChatToolRiskAssessmentService } from '../../../browser/tools/chatToolRiskAssessmentService.js';
 import { completedToolCallToSerialized, finalizeToolInvocation, toolCallStateToInvocation, toolCallStateToPreparedInvocation, updateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfirmationActionId } from '../../../browser/actions/chatToolActions.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentActivityLabel, getPersistentBackgroundActivity, getPersistentProgressState, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentActivityLabel, getPersistentBackgroundActivity, getPersistentProgressState, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, onPromiseSettled, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
@@ -7049,6 +7049,19 @@ suite('ChatListRenderer', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual({ refreshedCurrent: refreshed.length === 1 && refreshed[0] === recycled, clears: clears.slice(clearsBefore) }, { refreshedCurrent: true, clears: ['a:recycled'] });
+	});
+
+	test('a settlement watch disposed before its request settles lets go of what it would call: only an empty stub stays with the pending request', async () => {
+		const pending = new DeferredPromise<void>();
+		const called: string[] = [];
+		const kept = onPromiseSettled(pending.p, () => called.push('kept'));
+		const released = onPromiseSettled(pending.p, () => called.push('released'));
+		released.dispose();
+		const whilePending = { kept: kept.attached, released: released.attached };
+		await pending.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({ whilePending, called, afterSettled: kept.attached }, { whilePending: { kept: true, released: false }, called: ['kept'], afterSettled: false });
 	});
 
 	test('previews can omit input requests without resolving them or docking them in another widget', async () => {
