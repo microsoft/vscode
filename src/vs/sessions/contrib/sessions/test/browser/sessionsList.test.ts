@@ -311,6 +311,44 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	test('shown again with nothing changed, the list renders again only once its sections no longer hold as the time passed: at midnight, and once a session is no longer updated in the last day', () => runWithFakedTimers({ startTime: new Date(2024, 5, 10, 23, 50).getTime(), maxTaskCount: 10_000 }, async () => {
+		// Created a week ago, at noon: Recent until midnight, when the week of Recent starts a day later
+		const lastWeek = createTestSession('Last week', { createdAt: new Date(2024, 5, 3, 12, 0) }).session;
+		const today = createTestSession('Today', { createdAt: new Date(2024, 5, 10, 10, 0) }).session;
+		// Created weeks ago, updated today at 10: Recent for a day since
+		const updated = createTestSession('Updated', { createdAt: new Date(2024, 4, 20, 10, 0), updatedAt: new Date(2024, 5, 10, 10, 0) }).session;
+		const harness = createListHarness(disposables, [today, lastWeek, updated]);
+		const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+		}));
+		list.layout(400, 400);
+		let updates = 0;
+		harness.store.add(list.onDidUpdate(() => updates++));
+		const sections = () => list.getTreeSnapshot().flatMap(node => node.type === 'section' ? [`${node.id}: ${node.children.flatMap(child => child.type === 'session' ? [child.session.title.get()] : []).join(', ')}`] : []);
+		// The renders that showing the list again makes
+		const hideAndShow = async (minutes: number) => {
+			list.setVisible(false);
+			await timeout(minutes * 60_000);
+			const hidden = updates;
+			list.setVisible(true);
+			return { renders: updates - hidden, sections: sections() };
+		};
+		const before = { sections: sections() };
+		const beforeMidnight = await hideAndShow(5);
+		const afterMidnight = await hideAndShow(10);
+		const sameDay = await hideAndShow(9 * 60);
+		const dayAfterUpdate = await hideAndShow(60);
+		list.dispose();
+
+		assert.deepStrictEqual({ before, beforeMidnight, afterMidnight, sameDay, dayAfterUpdate }, {
+			before: { sections: ['recent: Today, Last week, Updated'] },
+			beforeMidnight: { renders: 0, sections: ['recent: Today, Last week, Updated'] },
+			afterMidnight: { renders: 1, sections: ['recent: Today, Updated', 'older: Last week'] },
+			sameDay: { renders: 0, sections: ['recent: Today, Updated', 'older: Last week'] },
+			dayAfterUpdate: { renders: 1, sections: ['recent: Today', 'older: Last week, Updated'] },
+		});
+	}));
+
 	test('lazy archive discovery follows section expansion, not the filter or local refresh', () => {
 		const harness = createListHarness(disposables, []);
 		harness.managementService.archivedSessionItems.set({ available: true, state: 'idle' }, undefined);
@@ -529,6 +567,30 @@ suite('Sessions - SessionsList', () => {
 				immediate, settled: fixture.counts(), titles: fixture.titles(),
 			}, {
 				immediate: { reads: 3, updates: 3 }, settled: { reads: 3, updates: 3 }, titles: ['Latest 2'],
+			});
+		});
+
+		test('keeps its rows as it hides and shows again with nothing changed, and renders again once when something changed while hidden', async () => {
+			const fixture = await createFixture();
+			const row = fixture.container.querySelector('.session-title');
+			for (let index = 0; index < 5; index++) {
+				fixture.list.setVisible(false);
+				fixture.list.setVisible(true);
+			}
+			await nextFrame();
+			const unchanged = { ...fixture.counts(), sameRow: fixture.container.querySelector('.session-title') === row };
+
+			fixture.list.setVisible(false);
+			fixture.management.sessions = [createTestSession('Latest').session];
+			fixture.changes.fire({ added: [], removed: [], changed: [] });
+			fixture.list.setVisible(true);
+			fixture.list.setVisible(false);
+			fixture.list.setVisible(true);
+			await nextFrame();
+
+			assert.deepStrictEqual({ unchanged, changed: { ...fixture.counts(), titles: fixture.titles() } }, {
+				unchanged: { reads: 0, updates: 0, sameRow: true },
+				changed: { reads: 1, updates: 1, titles: ['Latest'] },
 			});
 		});
 
