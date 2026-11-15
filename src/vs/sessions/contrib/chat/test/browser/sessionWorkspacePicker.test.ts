@@ -9100,6 +9100,18 @@ suite('WorkspacePicker - Allowed folders', () => {
 		});
 	});
 
+	test('New Worktree from a worktree of one of several folders names the worktree, not another folder, as it cannot tell which folder the worktree is of', async () => {
+		const newWorktree = { selected: false };
+		const { picker } = createPicker(['/local/alpha', '/local/beta', '/local/beta.worktrees/b'], undefined, {
+			getAllowedFolderPresentation: folderUri => folderUri.path === '/local/beta.worktrees/b' ? { label: 'b', kind: 'worktree' } : { kind: 'folder' },
+			newWorktree: { isAvailable: () => true, isSelected: () => newWorktree.selected, setSelected: selected => { newWorktree.selected = selected; } },
+		});
+		picker.setSelectedWorkspace(URI.file('/local/beta.worktrees/b'), { fireEvent: false });
+		await picker.dispatchItem(picker.getItems().find(item => item.label === 'New Worktree')!.item!);
+
+		assert.deepStrictEqual({ hover: picker.getSelectedLocationDescription(), selected: newWorktree.selected }, { hover: 'New worktree of b', selected: true });
+	});
+
 	test('at a worktree selected by another form of its path, which no provider resolves, selects the worktree the window\'s folder is at, as one selection with its events, so its row is checked, its chip shows it and New Worktree sticks', async () => {
 		const newWorktree = { selected: false };
 		const { picker } = createPicker(['/local/vscode.worktrees/a', '/local/vscode', '/private/local/vscode.worktrees/a'], undefined, {

@@ -123,7 +123,7 @@ export abstract class SessionChatEditorEntry extends Disposable implements ISess
 	readonly content: IObservable<ISessionPaneContent | undefined>;
 	readonly composer: IObservable<IChatEditorComposer | undefined> = derived(this, reader => {
 		const composer = this._composer.read(reader);
-		return composer && { draftHost: composer, session: composer.session };
+		return composer && { draftHost: composer, session: composer.session, close: () => this.closeShown(this.chat.read(undefined)) };
 	});
 	/** Whether it is a new-session composer that has not sent its session yet, which cannot leave its window. */
 	readonly isUnsentComposer: IObservable<boolean> = derived(this, reader => !!this._composer.read(reader));

@@ -375,10 +375,13 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 		});
 	}
 
-	/** Whether its input is empty and no send of it is under way. */
+	/**
+	 * Whether its input is empty and no send of it is under way, also no submit before its send attempt, such as one from an
+	 * empty input that waits for its session to be ready or the host's confirmation.
+	 */
 	isIdle(): boolean {
 		const state = this.input.get();
-		return !state.attempt && !state.input.inputText && !state.input.attachments.length;
+		return !this.input.isSubmitting && !state.attempt && !state.input.inputText && !state.input.attachments.length;
 	}
 
 	/** Whether closing it loses nothing: its input is empty, and no foreground request of it is under way. */
