@@ -13,7 +13,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/virtualSched
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
@@ -37,50 +37,56 @@ suite('SCMViewService', () => {
 		}();
 	}
 
-	test('keeps a previously hidden repository hidden when it is added after loading finished', () => runWithFakedTimers({}, async () => {
-		const onDidAddRepository = disposables.add(new Emitter<ISCMRepository>());
-		const scmService = new class extends mock<ISCMService>() {
-			override readonly onDidAddRepository = onDidAddRepository.event;
-			override readonly onDidRemoveRepository = Event.None;
-			override readonly repositories = [];
-		}();
+	for (const flushStorage of [false, true]) {
+		test(`keeps a previously hidden repository hidden when it is added after loading finished${flushStorage ? ' and storage was flushed' : ''}`, () => runWithFakedTimers({}, async () => {
+			const onDidAddRepository = disposables.add(new Emitter<ISCMRepository>());
+			const scmService = new class extends mock<ISCMService>() {
+				override readonly onDidAddRepository = onDidAddRepository.event;
+				override readonly onDidRemoveRepository = Event.None;
+				override readonly repositories = [];
+			}();
 
-		const editorService = new class extends mock<IEditorService>() {
-			override readonly onDidActiveEditorChange = Event.None;
-		}();
+			const editorService = new class extends mock<IEditorService>() {
+				override readonly onDidActiveEditorChange = Event.None;
+			}();
 
-		const extensionService = new class extends mock<IExtensionService>() {
-			override readonly onWillStop = Event.None;
-		}();
+			const extensionService = new class extends mock<IExtensionService>() {
+				override readonly onWillStop = Event.None;
+			}();
 
-		const instantiationService = new class extends mock<IInstantiationService>() {
-			override createInstance = (() => ({})) as IInstantiationService['createInstance'];
-		}();
+			const instantiationService = new class extends mock<IInstantiationService>() {
+				override createInstance = (() => ({})) as IInstantiationService['createInstance'];
+			}();
 
-		const parent = createRepository('parent');
-		const submodule = createRepository('parent/submodule');
-		const newRepository = createRepository('new');
+			const parent = createRepository('parent');
+			const submodule = createRepository('parent/submodule');
+			const newRepository = createRepository('new');
 
-		const storageService = disposables.add(new TestStorageService());
-		storageService.store('scm:view:visibleRepositories', JSON.stringify({
-			all: [parent, submodule].map(r => `git:Git:${r.provider.rootUri!.toString()}`),
-			visible: [0],
-			sortKey: 'discoveryTime'
-		}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			const storageService = disposables.add(new TestStorageService());
+			storageService.store('scm:view:visibleRepositories', JSON.stringify({
+				all: [parent, submodule].map(r => `git:Git:${r.provider.rootUri!.toString()}`),
+				visible: [0],
+				sortKey: 'discoveryTime'
+			}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 
-		const scmViewService = new SCMViewService(scmService, new MockContextKeyService(), editorService, extensionService, instantiationService,
-			new TestConfigurationService({ scm: { repositories: { selectionMode: 'multiple' } } }), storageService, new (mock<IWorkspaceContextService>())());
+			const scmViewService = new SCMViewService(scmService, new MockContextKeyService(), editorService, extensionService, instantiationService,
+				new TestConfigurationService({ scm: { repositories: { selectionMode: 'multiple' } } }), storageService, new (mock<IWorkspaceContextService>())());
 
-		onDidAddRepository.fire(parent);
+			onDidAddRepository.fire(parent);
 
-		// Repositories finish loading 5s after the last repository was added
-		await timeout(5000);
+			// Repositories finish loading 5s after the last repository was added
+			await timeout(5000);
 
-		onDidAddRepository.fire(submodule);
-		onDidAddRepository.fire(newRepository);
+			if (flushStorage) {
+				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+			}
 
-		assert.deepStrictEqual(scmViewService.visibleRepositories.map(r => r.id), ['parent', 'new']);
+			onDidAddRepository.fire(submodule);
+			onDidAddRepository.fire(newRepository);
 
-		scmViewService.dispose();
-	}));
+			assert.deepStrictEqual(scmViewService.visibleRepositories.map(r => r.id), ['parent', 'new']);
+
+			scmViewService.dispose();
+		}));
+	}
 });
