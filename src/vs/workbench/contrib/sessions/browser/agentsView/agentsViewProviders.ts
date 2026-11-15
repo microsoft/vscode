@@ -8,6 +8,8 @@ import { DisposableStore, IDisposable } from '../../../../../base/common/lifecyc
 import { autorun, observableSignal } from '../../../../../base/common/observable.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 
 export const IAgentsViewProvidersService = createDecorator<IAgentsViewProvidersService>('agentsViewProvidersService');
 
@@ -29,6 +31,14 @@ export const AGENTS_VIEW_SESSION_WAIT_TIMEOUT = 5_000;
  * What `find` finds among the sessions and their chats, once it does, or `undefined` once `timeout` passed: among every
  * session the providers know, also outside their listing scope, and the chats they publish, whatever their resources.
  */
+/**
+ * Prepares `session` to open, as the Agents window does before it shows a session: its provider starts what the session
+ * needs, such as the connection of a Dev Container session it knows only from its cache.
+ */
+export async function prepareAgentsViewSessionForOpen(sessionsProvidersService: ISessionsProvidersService, session: ISession): Promise<void> {
+	await sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.prepareSessionForOpen?.(session, 'open');
+}
+
 export async function waitForAgentsViewSession<T>(sessionsManagementService: ISessionsManagementService, find: () => T | undefined, timeout = AGENTS_VIEW_SESSION_WAIT_TIMEOUT): Promise<T | undefined> {
 	const found = find();
 	if (found) {
