@@ -438,6 +438,42 @@ suite('AgentHostWorktreeComposerFolders', () => {
 		});
 	});
 
+	test('the session layer\'s source follows a session that its provider replaces by a new object of the same session, such as a committed draft, and no longer the one it replaced', () => {
+		const workspace = (path: string) => upcastPartial<ISessionWorkspace>({ folders: [{ root: URI.file('/work/vscode'), workingDirectory: URI.file(path), name: 'vscode', description: undefined }] });
+		const create = (path: string) => {
+			const chatWorkspace = observableValue<ISessionWorkspace | undefined>('workspace', workspace(path));
+			const chat = upcastPartial<IChat>({ resource: URI.from({ scheme: 'ahp-chat', path: '/draft' }), workspace: chatWorkspace });
+			const chats = observableValue<readonly IChat[]>('chats', [chat]);
+			const isArchived = observableValue('archived', false);
+			const session = upcastPartial<ISession>({ sessionId: 'draft', resource: URI.from({ scheme: 'ahp', path: '/draft' }), providerId: LOCAL_AGENT_HOST_PROVIDER_ID, isArchived, workspace: observableValue('workspace', workspace(path)), chats });
+			return { session, chatWorkspace, chats, isArchived };
+		};
+		const skeleton = create('/work/vscode');
+		const sessions = [skeleton.session];
+		const onDidChangeSession = store.add(new Emitter<readonly ISessionChange[]>());
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ onDidChangeSession: onDidChangeSession.event, getAllSessions: () => sessions, getSessionForChatResource: () => undefined }));
+		const source = store.add(instantiationService.createInstance(AgentHostWorktreeSessionLayerSource));
+		let changes = 0;
+		store.add(source.onDidChange(() => changes++));
+
+		// The provider replaces it by the committed session, of the same id, and reports only that it changed
+		const committed = create('/work/vscode');
+		sessions[0] = committed.session;
+		onDidChangeSession.fire([{ session: committed.session, kind: 'changed' }]);
+		const replaced = changes;
+		// The committed session moves first, as its first request creates its worktree
+		committed.chatWorkspace.set(workspace('/work/vscode.worktrees/committed'), undefined);
+		const moved = changes;
+		committed.chats.set([...committed.chats.get(), upcastPartial<IChat>({ resource: URI.from({ scheme: 'ahp-chat', path: '/second' }), workspace: observableValue('workspace', workspace('/work/vscode.worktrees/second')) })], undefined);
+		const chatAdded = changes;
+		skeleton.chatWorkspace.set(workspace('/work/vscode.worktrees/stale'), undefined);
+		const staleMoved = changes;
+		committed.isArchived.set(true, undefined);
+
+		assert.deepStrictEqual({ replaced, moved, chatAdded, staleMoved, archived: changes }, { replaced: 0, moved: 1, chatAdded: 2, staleMoved: 2, archived: 3 });
+	});
+
 	test('the session layer\'s source tells as a session comes to work in a new worktree in a folder other than its first', () => {
 		const folder = (path: string) => ({ root: URI.file(path), workingDirectory: URI.file(path), name: path, description: undefined });
 		const sessionWorkspace = observableValue<ISessionWorkspace | undefined>('workspace', upcastPartial<ISessionWorkspace>({ folders: [folder('/work/other'), folder('/work/vscode')] }));

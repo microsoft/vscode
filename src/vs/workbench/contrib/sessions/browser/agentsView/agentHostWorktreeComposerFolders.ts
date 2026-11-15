@@ -172,9 +172,11 @@ export class AgentHostWorktreeSessionLayerSource extends Disposable implements I
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
-		// Read again as sessions are added or removed, also one outside the listed ones (getAllSessions), or as a provider
-		// invalidates what it lists (an empty batch); not as a session changes otherwise, which its own observables tell
-		const membershipChanged = observableSignalFromEvent(this, Event.filter(_sessionsManagementService.onDidChangeSession, changes => !changes.length || changes.some(change => change.kind !== 'changed')));
+		// Read again as sessions are added or removed, also one outside the listed ones (getAllSessions), as a provider
+		// invalidates what it lists (an empty batch), or as it replaces a session by a new object of it, such as a committed
+		// draft, which it reports as changed; not as a session it reads changes otherwise, which its own observables tell
+		let tracked = new Set<ISession>();
+		const membershipChanged = observableSignalFromEvent(this, Event.filter(_sessionsManagementService.onDidChangeSession, changes => !changes.length || changes.some(change => change.kind !== 'changed' || !tracked.has(change.session))));
 		// Where each session and chat works, by a key that changes only as where it works does: a busy session's updates, such
 		// as of its status or git state, make its workspaces anew without moving them, and stop at its own key
 		const directories = (workspace: ISessionWorkspace | undefined) => workspace?.folders.map(folder => folder.workingDirectory.toString()).join(',') ?? '';
@@ -203,7 +205,9 @@ export class AgentHostWorktreeSessionLayerSource extends Disposable implements I
 		let known: string | undefined;
 		this._register(autorun(reader => {
 			membershipChanged.read(reader);
-			const key = _sessionsManagementService.getAllSessions().map(session => sessionKey(session).read(reader)).filter(Boolean).join('\n');
+			const sessions = _sessionsManagementService.getAllSessions();
+			tracked = new Set(sessions);
+			const key = sessions.map(session => sessionKey(session).read(reader)).filter(Boolean).join('\n');
 			if (known !== undefined && key !== known) {
 				this._onDidChange.fire();
 			}
