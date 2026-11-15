@@ -3618,10 +3618,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const liveSession = await this._queueChat(context.lifetimeId, context.sequencerKey, operation, async () => {
 			const current = this._resolveSessionCanvasChatContext(session, chat, operationContext);
 			const target = current.target ?? await this._ensureResolvedChatSession(current);
-			if (!target || operation !== 'openSessionCanvas' || !this._requiresCanvasRuntimeRefresh(target)) {
+			// Opening a canvas relaunches an idle runtime that does not run canvases yet. A busy one, including one whose
+			// background subagents outlive its turn and would stop with it, reports canvases disabled until its next turn.
+			if (!target || operation !== 'openSessionCanvas' || !this._requiresCanvasRuntimeRefresh(target) || target.hasActiveSubagents) {
 				return target;
 			}
-			// Opening a canvas relaunches an idle runtime that does not run canvases yet; a busy one reports them disabled.
 			try {
 				return await this._refreshSessionConfiguration(current, target, undefined, { operation: 'openCanvas', allowRestart: 'whenIdle' });
 			} catch (error) {

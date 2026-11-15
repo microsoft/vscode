@@ -9525,7 +9525,7 @@ suite('CopilotAgent', () => {
 			});
 		});
 
-		test('relaunches a runtime that started before canvases were enabled, before a canvas opens while it is idle and before its next turn', async () => {
+		test('relaunches a runtime that started before canvases were enabled, before a canvas opens while it is idle, without stopping its work, and before its next turn', async () => {
 			const { agent, launches, configurationService } = setup(undefined, [], [], { [AgentHostCanvasesEnabledConfigKey]: false });
 			afterTest(() => disposeAgent(agent));
 			await agent.authenticate('https://api.github.com', 'token');
@@ -9538,16 +9538,23 @@ suite('CopilotAgent', () => {
 			// The client's configuration enables canvases only after the runtime launched.
 			configurationService.updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
 			const whileBusy = await agent.openSessionCanvas(session, { canvasId: 'preview', instanceId: 'preview' }, chat, context).then(() => 'opened', (error: Error) => error.message);
-			chatEntriesBySdkId(agent).get(launches[0].sessionId)!.chatSession.discardActiveTurn();
+			const launched = chatEntriesBySdkId(agent).get(launches[0].sessionId)!.chatSession;
+			launched.discardActiveTurn();
+			// Background subagents outlive the turn and would stop with the runtime.
+			const subagents = stub(launched, 'hasActiveSubagents').get(() => true);
+			const whileSubagents = await agent.openSessionCanvas(session, { canvasId: 'preview', instanceId: 'preview' }, chat, context).then(() => 'opened', (error: Error) => error.message);
+			subagents.restore();
 			await agent.openSessionCanvas(session, { canvasId: 'preview', instanceId: 'preview' }, chat, context);
 			configurationService.updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: false });
 			await agent.chats.sendMessage(chat, 'second', [directory], undefined, 'second', undefined, context);
 
 			assert.deepStrictEqual({
 				whileBusy,
+				whileSubagents,
 				launches: launches.map(launch => ({ kind: launch.kind, canvases: launch.config.requestCanvasRenderer === true, opens: launch.runtime.canvasOpenCalls.map(call => call.instanceId) })),
 			}, {
 				whileBusy: 'Canvases are disabled for this session.',
+				whileSubagents: 'Canvases are disabled for this session.',
 				launches: [
 					{ kind: 'create', canvases: false, opens: [] },
 					{ kind: 'resume', canvases: true, opens: ['preview'] },
