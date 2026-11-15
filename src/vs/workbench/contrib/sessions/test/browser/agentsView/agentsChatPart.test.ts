@@ -17,7 +17,7 @@ import { IEditorOptions } from '../../../../../../platform/editor/common/editor.
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { parse } from '../../../../../../base/common/marshalling.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../../platform/storage/common/storage.js';
-import { EditorInputWithOptions } from '../../../../../common/editor.js';
+import { EditorInputWithOptions, IEditorPane } from '../../../../../common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { IContentPart, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -213,9 +213,9 @@ suite('AgentsChatPartService', () => {
 				if (!editorOptions?.inactive) {
 					part.activate(group);
 				}
-				// An open may complete only after its editor activates, as the editor part resolves it
+				// An open may complete only after its editor activates, as the editor part resolves it, with the pane that shows it
 				await options?.holdOpen?.();
-				return undefined;
+				return upcastPartial<IEditorPane>({ input: editor });
 			}) as IEditorService['openEditor'],
 			openEditors: async (editors: EditorInputWithOptions[], group?: PreferredGroup) => {
 				const target = group as unknown as FakeGroup;
@@ -781,6 +781,27 @@ suite('AgentsChatPartService', () => {
 			replaced: { groups: [{ tabs: ['/b'], active: '/b' }], activeGroup: 0, visible: true },
 			composer: { groups: [{ tabs: ['composer'], active: 'composer' }], activeGroup: 0, visible: true },
 			untouchedComposerReplaced: { groups: [{ tabs: ['/c'], active: '/c' }], activeGroup: 0, visible: true },
+		});
+	});
+
+	test('in Single, an open that a later one superseded replaces nothing as it resolves after that one: the later chat stays, the only tab', async () => {
+		let held: DeferredPromise<void> | undefined;
+		const { service, layout } = createService({ chatTabs: SessionsChatTabsMode.Single, holdOpen: () => held?.p ?? Promise.resolve() });
+		await service.openChat(session, chatC);
+		// A slow open of a, which the editor part resolves only after b showed
+		const slow = held = new DeferredPromise<void>();
+		const openA = service.openChat(session, chatA);
+		await timeout(0);
+		held = undefined;
+		await service.openChat(session, chatB);
+		const afterB = layout();
+		slow.complete();
+		await openA;
+		await timeout(0);
+
+		assert.deepStrictEqual({ afterB, afterA: layout() }, {
+			afterB: { groups: [{ tabs: ['/b'], active: '/b' }], activeGroup: 0, visible: true },
+			afterA: { groups: [{ tabs: ['/b'], active: '/b' }], activeGroup: 0, visible: true },
 		});
 	});
 
