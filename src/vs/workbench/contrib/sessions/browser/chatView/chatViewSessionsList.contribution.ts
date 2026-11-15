@@ -33,6 +33,9 @@ import { registerAgentsViewNewSessionActions } from '../agentsView/agentsChatPar
 import { ChatViewSessionsListProvider } from '../agentsView/chatViewSessionsList.js';
 import { EditorWindowMainSessionHost } from '../agentsView/editorWindowMainSessionHost.js';
 import { registerEditorWindowSessionsList } from '../agentsView/editorWindowSessionsList.js';
+import { registerSessionsListAccessibilityHelp } from '../views/sessionsListActions.js';
+import { ChatViewSessionsListAccessibilityHelp } from './chatViewSessionsListAccessibilityHelp.js';
+import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessionsRuntime.js';
 import { Menus } from '../menus.js';
 import { ShownChatReadMarker } from '../shownChatReadMarker.js';
@@ -97,6 +100,11 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		configurationRegistry.registerDefaultConfigurations([noLocalChatDefaults]);
 		store.add(toDisposable(() => configurationRegistry.deregisterDefaultConfigurations([noLocalChatDefaults])));
+
+		// Accessibility help of the list and of its Undo notice, as the window starts: help registered once the list shows would
+		// not be installed anymore
+		store.add(registerSessionsListAccessibilityHelp());
+		store.add(AccessibleViewRegistry.register(new ChatViewSessionsListAccessibilityHelp()));
 
 		// The sessions providers, held while the Chat view, which lists their sessions, shows
 		store.add(accessor.get(IEditorWindowSessionsRuntime).enable({ viewIds: [ChatViewId] }));

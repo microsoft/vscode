@@ -48,7 +48,12 @@ import { EditorWindowSessionsPresenterService, IEditorWindowSessionsPresenter, I
 import { EditorWindowSessionsService } from '../../../browser/agentsView/editorWindowSessionsService.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { ChatViewSessionsListProvider } from '../../../browser/agentsView/chatViewSessionsList.js';
-import { SessionsView } from '../../../browser/views/sessionsView.js';
+import { InSessionsViewContext, ISessionsViewLocator, SessionsView, SessionsViewId } from '../../../browser/views/sessionsView.js';
+import { AccessibleViewRegistry } from '../../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { FocusedViewContext, IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
+import { SessionsListNotificationFocused } from '../../../browser/views/sessionsListNotification.js';
+import { ChatViewSessionsListAccessibilityHelp } from '../../../browser/chatView/chatViewSessionsListAccessibilityHelp.js';
+import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { IEditorWindowSessionsRuntime } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
 
 /** How many items the context menu of a session has: the actions of the sessions list add theirs. */
@@ -172,6 +177,48 @@ suite('ChatViewSessionsGate', () => {
 		assert.deepStrictEqual({ whileOn, afterDispose: { ...registered(), providers, runtimeHolds } }, {
 			whileOn: { ...before, localChatDefault: false, providers: 1, runtimeHolds: 1, listActionsBeforeShown: 0 },
 			afterDispose: { ...before, providers: 0, runtimeHolds: 0 },
+		});
+	});
+
+	test('registers the accessibility help of the list and of its Undo notice as the window starts with the setting on, before the list shows, as help registered later would not be installed', () => {
+		const helps = () => AccessibleViewRegistry.getImplementations().map(help => help.name).filter(name => name === 'chatViewSessionsList' || name === 'sessions-list-notification').sort();
+		// The Agents window's list, which other tests load, may hold the Undo notice's help for good
+		const before = helps();
+		const gate = createGate(true);
+		const beforeShown = helps();
+		gate.dispose();
+
+		assert.deepStrictEqual({ beforeShown, afterDispose: helps() }, { beforeShown: ['chatViewSessionsList', 'sessions-list-notification'], afterDispose: before });
+	});
+
+	test('the accessibility help of the list helps in the sessions list of the Chat view, not on its Undo notice, elsewhere in the Chat view, nor in the Agents window, and returns focus to the list as it closes', () => {
+		const focused: string[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ getViewWithId: () => null }));
+		instantiationService.stub(ISessionsViewLocator, upcastPartial<ISessionsViewLocator>({ getEmbeddedView: () => upcastPartial<SessionsView>({ focus: () => { focused.push('list'); } }) }));
+		const help = new ChatViewSessionsListAccessibilityHelp();
+		const provider = disposables.add(instantiationService.invokeFunction(accessor => help.getProvider(accessor)));
+		provider.onClose();
+
+		const shows = (view: string, inList: boolean, sessionsWindow = false, noticeFocused = false) => help.when?.evaluate({
+			getValue: <T>(key: string) => ({ [FocusedViewContext.key]: view, [InSessionsViewContext.key]: inList, [IsSessionsWindowContext.key]: sessionsWindow, [SessionsListNotificationFocused.key]: noticeFocused } as Record<string, unknown>)[key] as T,
+		});
+		assert.deepStrictEqual({
+			inList: shows(ChatViewId, true),
+			inChat: shows(ChatViewId, false),
+			onUndoNotice: shows(ChatViewId, true, false, true),
+			inAgentsWindow: shows(ChatViewId, true, true),
+			inAgentsView: shows(SessionsViewId, false),
+			verbosity: provider.verbositySettingKey,
+			focused,
+		}, {
+			inList: true,
+			inChat: false,
+			onUndoNotice: false,
+			inAgentsWindow: false,
+			inAgentsView: false,
+			verbosity: AccessibilityVerbositySettingId.Chat,
+			focused: ['list'],
 		});
 	});
 
