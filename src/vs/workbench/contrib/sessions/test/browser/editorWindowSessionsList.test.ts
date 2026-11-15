@@ -13,8 +13,10 @@ import { IViewletViewOptions } from '../../../../browser/parts/views/viewsViewle
 import { Extensions as ViewExtensions, IViewContainerDescriptor, IViewsRegistry } from '../../../../common/views.js';
 import { AGENTS_VIEW_SETUP_VIEW_ID, AgentsViewAvailable, AgentsViewNeedsSetup, AgentsViewWhen } from '../../browser/agentsView/agentsView.js';
 import { createEditorWindowSessionsViewOptions, EDITOR_WINDOW_SESSIONS_GROUPINGS, registerEditorWindowSessionsList, registerEditorWindowSessionsViews } from '../../browser/agentsView/editorWindowSessionsList.js';
-import { SessionsViewId } from '../../browser/views/sessionsView.js';
-import { Event } from '../../../../../base/common/event.js';
+import { EditorWindowSessionsContext, SessionsViewId } from '../../browser/views/sessionsView.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -22,6 +24,8 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { registerSessionsListAccessibilityHelp, registerSessionsListActions } from '../../browser/views/sessionsListActions.js';
 
 suite('EditorWindowSessionsList', () => {
 
@@ -76,29 +80,59 @@ suite('EditorWindowSessionsList', () => {
 		]);
 	});
 
-	test('the settings of the sessions list stay registered while any holder of the list still holds it, such as two views that embed it', () => {
+	test('the holders of the sessions lists of a window share its settings, its context key and its actions, which stay until the last one goes; each registers its own actions as its view first shows', () => {
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
-		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: Event.None, isViewVisible: () => false }));
+		const contextKeyService = store.add(new MockContextKeyService());
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		const visibility = store.add(new Emitter<{ id: string; visible: boolean }>());
+		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: visibility.event, isViewVisible: () => false }));
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ onDidChangePartVisibility: Event.None, isVisible: () => false }));
 		instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({ when: () => new Promise<void>(() => { }) }));
-		// The registrations of the sessions list's settings, beyond those of other suites, such as of the Agents window
+		// The registrations of the sessions list's settings, beyond those of other suites, such as of the Agents window. Its actions
+		// register once too: a second registration of the archive contribution would throw on its command ids.
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-		const nodes = () => configurationRegistry.getConfigurations().filter(node => node.id === 'sessionsList').length;
-		const initial = nodes();
-		const registered = () => nodes() - initial;
-		const first = registerEditorWindowSessionsList(instantiationService, () => toDisposable(() => { }));
-		const second = registerEditorWindowSessionsList(instantiationService, () => toDisposable(() => { }), 'workbench.panel.chat.view.copilot');
-		const whileBoth = registered();
-		first.dispose();
-		const whileOne = registered();
-		second.dispose();
+		const settings = () => configurationRegistry.getConfigurations().filter(node => node.id === 'sessionsList').length;
+		const initial = settings();
+		const more: string[] = [];
+		const state = () => ({ settings: settings() - initial, contextKey: contextKeyService.getContextKeyValue(EditorWindowSessionsContext.key) ?? false });
 
-		// Registered once while either holds it
-		assert.deepStrictEqual({ whileBoth, whileOne, afterBoth: registered() }, { whileBoth: 1, whileOne: 1, afterBoth: 0 });
+		const agentsView = registerEditorWindowSessionsList(instantiationService, () => { more.push('agents view'); return toDisposable(() => { }); });
+		const chatView = registerEditorWindowSessionsList(instantiationService, () => { more.push('chat view'); return toDisposable(() => { }); }, 'workbench.panel.chat.view.copilot');
+		// Both views show
+		visibility.fire({ id: SessionsViewId, visible: true });
+		visibility.fire({ id: 'workbench.panel.chat.view.copilot', visible: true });
+		const whileBoth = state();
+		agentsView.dispose();
+		const whileOne = state();
+		chatView.dispose();
+
+		assert.deepStrictEqual({ whileBoth, whileOne, afterBoth: state(), more }, {
+			whileBoth: { settings: 1, contextKey: true },
+			whileOne: { settings: 1, contextKey: true },
+			afterBoth: { settings: 0, contextKey: false },
+			more: ['agents view', 'chat view'],
+		});
 	});
 
 	function localize2Value(value: string) {
 		return { value, original: value, toString: () => value };
 	}
+
+	test('the accessibility help of the sessions list\'s Undo notice registers once while any holder holds it, also the list\'s actions, and goes with the last', () => {
+		const helps = () => AccessibleViewRegistry.getImplementations().filter(help => help.name === 'sessions-list-notification').length;
+		// The Agents window's list, which other tests load, may hold it for good
+		const before = helps();
+		const first = registerSessionsListAccessibilityHelp();
+		const actions = registerSessionsListActions();
+		const second = registerSessionsListAccessibilityHelp();
+		const held = helps();
+		first.dispose();
+		first.dispose();
+		second.dispose();
+		const heldByActions = helps();
+		actions.dispose();
+
+		assert.deepStrictEqual({ held, heldByActions, afterDispose: helps() }, { held: 1, heldByActions: 1, afterDispose: before });
+	});
 });
