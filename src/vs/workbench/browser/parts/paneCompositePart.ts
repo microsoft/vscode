@@ -366,6 +366,11 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			}
 		));
 
+		// The separator after the composite's actions separates them from the part's, so it shows only while the part has any
+		const globalToolBar = this.globalToolBar;
+		this.updateTrailingSeparator(!globalToolBar.isEmpty());
+		this._register(globalToolBar.onDidChangeMenuItems(() => this.updateTrailingSeparator(!globalToolBar.isEmpty())));
+
 		return titleArea;
 	}
 

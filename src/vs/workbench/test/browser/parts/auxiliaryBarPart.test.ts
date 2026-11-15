@@ -8,7 +8,10 @@ import { $, append } from '../../../../base/browser/dom.js';
 import { ToggleMenuAction } from '../../../../base/browser/ui/toolbar/toolbar.js';
 import { Separator } from '../../../../base/common/actions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createTestAuxiliaryBarPart } from './auxiliaryBarTestUtils.js';
+import { createTestAuxiliaryBarPart, testAuxiliaryBarGlobalActionsMenu } from './auxiliaryBarTestUtils.js';
+import { timeout } from '../../../../base/common/async.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { Context } from '../../../../platform/contextkey/browser/contextKeyService.js';
 import { AuxiliaryBarMaximizedContext, AuxiliaryBarMaximizeHiddenContext } from '../../../common/contextkeys.js';
@@ -68,6 +71,22 @@ suite('Auxiliary Bar - Responsive title actions', () => {
 			]);
 		});
 	}
+
+	test('ends its view\'s title actions in a separator only while actions of its own follow them, as they come and go', () => runWithFakedTimers({}, async () => {
+		const container = append(root, $('.part.auxiliarybar'));
+		const part = createTestAuxiliaryBarPart(container, store, { globalActions: false });
+		const lastAction = () => part.toolbar.getItemAction(part.toolbar.getItemsLength() - 1)?.id;
+		const withoutOwnActions = lastAction();
+
+		// Menus report their changes debounced
+		const close = MenuRegistry.appendMenuItem(testAuxiliaryBarGlobalActionsMenu, { command: { id: 'test.close', title: 'Hide Secondary Side Bar', icon: Codicon.close }, group: 'navigation' });
+		await timeout(1000);
+		const withOwnActions = lastAction();
+		close.dispose();
+		await timeout(1000);
+
+		assert.deepStrictEqual({ withoutOwnActions, withOwnActions, afterTheyGo: lastAction() }, { withoutOwnActions: ToggleMenuAction.ID, withOwnActions: Separator.ID, afterTheyGo: ToggleMenuAction.ID });
+	}));
 });
 
 suite('Auxiliary Bar - Maximize action', () => {

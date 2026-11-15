@@ -435,6 +435,14 @@ export abstract class CompositePart<T extends Composite, MementoType extends obj
 		return titleArea;
 	}
 
+	/**
+	 * Shows the separator that ends the composite's title actions, as the part's `trailingSeparator` option asks, only while
+	 * `hasFollowingActions`: while actions follow them in the title area, such as the part's own.
+	 */
+	protected updateTrailingSeparator(hasFollowingActions: boolean): void {
+		this.toolBar?.setTrailingSeparator(this.trailingSeparator && hasFollowingActions);
+	}
+
 	protected getToolbarResponsiveBehavior(): IToolBarResponsiveBehaviorOptions | undefined {
 		return undefined;
 	}
