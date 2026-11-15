@@ -24,6 +24,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { ISCMService } from '../../../../scm/common/scm.js';
@@ -98,6 +99,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
 	) {
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
@@ -167,6 +169,8 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 				this.renderLabel(this.element);
 			}
 		}));
+		// Another product icon theme can size its icon differently under the same name: measured again as it is next laid out
+		this._register(themeService.onDidProductIconThemeChange(() => this._chromeKey = undefined));
 		// Re-render when asynchronous session state reveals the session's working directory.
 		this._register(this._customizationService.onDidChangeCustomizations(() => {
 			if (this.element) {
@@ -303,7 +307,8 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		const element = this.element;
 		const container = this._container;
 		const label = this._labelElement;
-		if (!element?.isConnected || !container || !label) {
+		// Not while it has no layout, such as in a hidden chat input, whose sizes read as zero
+		if (!element?.isConnected || !container || !label || !element.getClientRects().length) {
 			return undefined;
 		}
 		const window = dom.getWindow(container);
