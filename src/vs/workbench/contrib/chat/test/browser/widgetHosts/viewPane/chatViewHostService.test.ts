@@ -255,6 +255,34 @@ suite('ChatViewHostService', () => {
 		assert.deepStrictEqual(steps, [true, true, false]);
 	});
 
+	test('the Chat view restoring a chat that the registered host shows does not make the Chat view the host', () => {
+		const { service, shownSession, showView } = createService();
+		showView();
+		const registration = service.registerHost({ ...upcastPartial<IChatViewHost>({}), canShow: resource => resource.scheme !== 'vscode-chat-session' });
+		const steps = [service.chatViewHosts.get()];
+		shownSession.set({ resource: URI.parse('agent-host-copilot:/session'), reason: 'restore' }, undefined);
+		steps.push(service.chatViewHosts.get());
+		shownSession.set({ resource: URI.parse('vscode-chat-session://local/session'), reason: 'restore' }, undefined);
+		steps.push(service.chatViewHosts.get());
+		registration.dispose();
+
+		assert.deepStrictEqual(steps, [false, false, true]);
+	});
+
+	test('a new chat of its own that falls back to the Chat view makes it the host once it commits, also of a chat that the registered host could show', async () => {
+		const { service, view, shownSession, showView } = createService();
+		showView();
+		Object.assign(view, { newChat: async () => true });
+		const registration = service.registerHost({ ...upcastPartial<IChatViewHost>({}), canShow: () => true, newChat: async () => false });
+		await service.newChat(undefined, { ownChat: true });
+		const committed = URI.parse('agent-host-copilot:/committed');
+		shownSession.set({ resource: committed, reason: 'commit' }, undefined);
+		const result = { chatViewHosts: service.chatViewHosts.get(), shown: service.shownSession.get() && `${service.shownSession.get()!.resource.toString()} ${service.shownSession.get()!.reason}` };
+		registration.dispose();
+
+		assert.deepStrictEqual(result, { chatViewHosts: true, shown: `${committed.toString()} commit` });
+	});
+
 	test('registering a host that shows no chat yet does not take a new chat of New Chat that the Chat view shows and the host leaves to it, until a chat opens in the host', async () => {
 		const { service, view, shownSession, showView } = createService();
 		showView();
