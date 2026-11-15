@@ -519,7 +519,11 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 					...(selectedOption ? { selectedButton: selectedOption.id, selectedButtonKind: selectedOption.kind } : {}),
 				});
 				if (!isTouchClick) {
-					this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
+					if (this.context.focusInput) {
+						this.context.focusInput();
+					} else {
+						this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
+					}
 				}
 			}
 		}));

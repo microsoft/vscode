@@ -1594,6 +1594,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			: undefined;
 		const context: IChatContentPartRenderContext = {
 			element: response,
+			focusInput: () => this.getInputRequestWidget(response.sessionResource)?.focusInput(),
 			elementIndex: this.viewModel?.getItems().indexOf(response) ?? 0,
 			container: this.delegate.container,
 			content: [tool],
@@ -3316,6 +3317,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				element,
 				readOnly: this.rendererOptions.readOnly,
 				renderInputRequests: this.rendererOptions.renderInputRequests,
+				focusInput: () => this.getInputRequestWidget(element.sessionResource)?.focusInput(),
 				elementIndex: index,
 				contentIndex: contentIndex,
 				content: content,
@@ -4131,6 +4133,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				element,
 				readOnly: this.rendererOptions.readOnly,
 				renderInputRequests: this.rendererOptions.renderInputRequests,
+				focusInput: () => this.getInputRequestWidget(element.sessionResource)?.focusInput(),
 				elementIndex: elementIndex,
 				content: contentForThisTurn,
 				contentIndex: contentIndex,
