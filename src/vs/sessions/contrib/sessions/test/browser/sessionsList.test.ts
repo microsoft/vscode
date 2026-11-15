@@ -8438,6 +8438,63 @@ suite('Sessions - SessionsList', () => {
 				list.closeFind();
 				assert.deepStrictEqual({ outsideFocused: mainWindow.document.activeElement === button, opened }, { outsideFocused: true, opened: [] });
 			});
+
+			test('closing a no-results search preserves the collapsed section hiding the active nested chat', async () => {
+				const pear = createSession('Pear test', { chats: ['Peer chat'] });
+				const peer = pear.chats.get().find(chat => chat.title.get() === 'Peer chat')!;
+				const { list, opened, state, search, command } = renderSearchWithActiveSession([pear, createSession('Luna test')], pear, SessionsGrouping.Date, { pinnedSessionIds: new Set([pear.sessionId]) }, peer);
+				list.setItemCollapsed({ section: 'pinned' }, true);
+				search('no matching session');
+				list.closeFind();
+				const closed = state();
+				command('list.select');
+				await timeout(350);
+				assert.deepStrictEqual({ closed, opened, pinnedExpanded: list.getItemRow({ section: 'pinned' })?.getAttribute('aria-expanded'), hasFocusOrSelection: list.hasFocusOrSelection() }, {
+					closed: { focused: [], selected: [], domFocus: 'primary' },
+					opened: [], pinnedExpanded: 'false', hasFocusOrSelection: false,
+				});
+			});
+
+			for (const afterSearch of [false, true]) {
+				test(`Show Done keeps the visible open session highlighted${afterSearch ? ' after cancelling search' : ''}`, async () => {
+					const pear = createSession('Pear test');
+					const done = createSession('Finished test', { test: { isArchived: true } });
+					const { list, state, search } = renderSearchWithActiveSession([pear, createSession('Luna test'), done], pear);
+					if (afterSearch) {
+						search('luna');
+						list.closeFind();
+					}
+					const before = state();
+					list.setExcludeArchived(false);
+					const showingDone = state();
+					list.setExcludeArchived(true);
+					const hidingDone = state();
+					await timeout(350);
+					assert.deepStrictEqual({ before, showingDone, hidingDone }, {
+						before: { focused: ['Pear test'], selected: ['Pear test'], domFocus: afterSearch ? 'primary' : 'elsewhere' },
+						showingDone: { focused: ['Pear test'], selected: ['Pear test'], domFocus: afterSearch ? 'primary' : 'elsewhere' },
+						hidingDone: { focused: ['Pear test'], selected: ['Pear test'], domFocus: afterSearch ? 'primary' : 'elsewhere' },
+					});
+				});
+			}
+
+			test('Show Done changed during search still restores the open session when Find closes', async () => {
+				const pear = createSession('Pear test');
+				const done = createSession('Finished test', { test: { isArchived: true } });
+				const { list, opened, state, search, command } = renderSearchWithActiveSession([pear, createSession('Luna test'), done], pear);
+				search('luna');
+				list.setExcludeArchived(false);
+				list.closeFind();
+				const closed = state();
+				const opening = Event.toPromise(list.onDidOpenSession);
+				command('list.select');
+				await opening;
+				await timeout(350);
+				assert.deepStrictEqual({ closed, opened, showingDone: !list.isExcludeArchived() }, {
+					closed: { focused: ['Pear test'], selected: ['Pear test'], domFocus: 'primary' },
+					opened: ['Pear test'], showingDone: true,
+				});
+			});
 		});
 
 		test('names a folder or repository that neither the row nor its section headers show', async () => {
