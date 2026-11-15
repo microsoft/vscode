@@ -38,3 +38,11 @@ export function isSensitiveFile(docId: DocumentId): boolean {
 export function canUseAsContext(docId: DocumentId, activeDocId: DocumentId): boolean {
 	return docId === activeDocId || !isSensitiveFile(docId);
 }
+
+/**
+ * Leaves out entries of documents other than `activeDocId` that commonly hold secrets, see {@link canUseAsContext}.
+ * Apply it whenever a request is built for an active document, including follow-up requests for another document.
+ */
+export function withoutOtherSensitiveFiles<T extends { readonly docId: DocumentId }>(entries: readonly T[], activeDocId: DocumentId): T[] {
+	return entries.filter(e => canUseAsContext(e.docId, activeDocId));
+}

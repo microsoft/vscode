@@ -14,7 +14,7 @@ import { InlineEditRequestLogContext, type MarkdownLoggable } from '../../../pla
 import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
 import { resolveModelConfigValue } from '../../../platform/inlineEdits/common/modelConfigurationResolution';
 import { IObservableDocument, ObservableWorkspace } from '../../../platform/inlineEdits/common/observableWorkspace';
-import { canUseAsContext } from '../../../platform/inlineEdits/common/sensitiveFiles';
+import { withoutOtherSensitiveFiles } from '../../../platform/inlineEdits/common/sensitiveFiles';
 import { IStatelessNextEditModelTelemetry, IStatelessNextEditProvider, IStatelessNextEditTelemetry, NoNextEditReason, StatelessNextEditDocument, StatelessNextEditRequest, StatelessNextEditResult, StatelessNextEditTelemetryBuilder, StreamedEdit } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { autorunWithChanges } from '../../../platform/inlineEdits/common/utils/observable';
 import { DocumentHistory, HistoryContext, IHistoryContextProvider } from '../../../platform/inlineEdits/common/workspaceEditTracker/historyContextProvider';
@@ -611,25 +611,25 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 	/**
 	 * History for a request in `docId`. Leaves out other documents that commonly hold secrets,
-	 * see {@link canUseAsContext}.
+	 * see {@link withoutOtherSensitiveFiles}.
 	 */
 	private _getHistoryContext(docId: DocumentId): HistoryContext | undefined {
 		const historyContext = this._historyContextProvider.getHistoryContext(docId);
 		if (!historyContext) {
 			return undefined;
 		}
-		const documents = historyContext.documents.filter(d => canUseAsContext(d.docId, docId));
+		const documents = withoutOtherSensitiveFiles(historyContext.documents, docId);
 		return documents.length === historyContext.documents.length ? historyContext : new HistoryContext(documents);
 	}
 
 	/**
 	 * Edit and rejected-edit history for a request in `docId`. Leaves out other documents that
-	 * commonly hold secrets, see {@link canUseAsContext}.
+	 * commonly hold secrets, see {@link withoutOtherSensitiveFiles}.
 	 */
 	private _getXtabHistory(docId: DocumentId): { xtabEditHistory: IXtabHistoryEntry[]; rejectedEditHistory: IXtabHistoryRejectedEditEntry[] } {
 		return {
-			xtabEditHistory: this._xtabHistoryTracker.getHistory().filter(e => canUseAsContext(e.docId, docId)),
-			rejectedEditHistory: this._xtabHistoryTracker.getRejectedEditHistory().filter(e => canUseAsContext(e.docId, docId)),
+			xtabEditHistory: withoutOtherSensitiveFiles(this._xtabHistoryTracker.getHistory(), docId),
+			rejectedEditHistory: withoutOtherSensitiveFiles(this._xtabHistoryTracker.getRejectedEditHistory(), docId),
 		};
 	}
 
