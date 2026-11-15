@@ -66,7 +66,7 @@ import { createSessionSubagentsPillData, type IChatSubagentPillEntry } from '../
 import { SessionBackgroundShellsControl } from '../../../browser/sessionBackgroundShellsControl.js';
 import { IChatOutputRendererService, RenderedOutputPart } from '../../../browser/chatOutputItemRenderer.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
-import { ChatTreeItem, IChatAccessibilityService, IChatListItemRendererOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
+import { ChatTreeItem, IChatAccessibilityService, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IQuickChatService } from '../../../browser/chat.js';
 import { getCompactCodicon } from '../../../browser/chatIcons.js';
 import { IChatToolRiskAssessmentService } from '../../../browser/tools/chatToolRiskAssessmentService.js';
 import { completedToolCallToSerialized, finalizeToolInvocation, toolCallStateToInvocation, toolCallStateToPreparedInvocation, updateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
@@ -77,6 +77,9 @@ import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import type { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
+import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../../../browser/widget/chatContentParts/chatQuestionCarouselPart.js';
+import { ChatWidgetService } from '../../../browser/widget/chatWidgetService.js';
+import { IChatViewHostService } from '../../../browser/chatViewHost.js';
 import { getGitHubIssueOrPullRequestAttachments } from '../../../browser/widget/input/editor/chatPasteProviders.js';
 import { ChatToolConfirmationCarouselPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
@@ -2408,7 +2411,7 @@ suite('ChatListRenderer', () => {
 		assert.deepStrictEqual({ whileStarting, afterStarting }, { whileStarting: true, afterStarting: false });
 	});
 
-	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; permissionLevel?: ChatPermissionLevel; collapsedTools?: CollapsedToolsDisplayMode; persistentProgress?: ChatProgressAnimation; dockPlanReview?: boolean; renderFooterActions?: boolean; sessionResource?: URI; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService; requestText?: string; backgroundShellCount?: IObservable<number | undefined>; initialData?: ISerializedChatDataReference } = {}) {
+	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; permissionLevel?: ChatPermissionLevel; collapsedTools?: CollapsedToolsDisplayMode; persistentProgress?: ChatProgressAnimation; dockPlanReview?: boolean; renderFooterActions?: boolean; sessionResource?: URI; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService; getWidget?: () => IChatWidget | undefined; requestText?: string; backgroundShellCount?: IObservable<number | undefined>; initialData?: ISerializedChatDataReference } = {}) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
@@ -2539,6 +2542,7 @@ suite('ChatListRenderer', () => {
 				isStickyScrollEnabled: () => false,
 				refreshStickyScroll: () => { },
 				stickyScrollTopPadding: 0,
+				getWidget: options.getWidget,
 			},
 			undefined,
 			viewModel,
@@ -6829,6 +6833,61 @@ suite('ChatListRenderer', () => {
 			});
 		}
 	}
+
+	test('a question shows in the input of the widget whose list renders it, also while another widget registered first shows the same chat', async () => {
+		const session = URI.from({ scheme: 'vscode-chat-session', path: '/questions' });
+		const rendered: string[] = [];
+		const cleared: string[] = [];
+		let submit: IChatQuestionCarouselOptions['onSubmit'] | undefined;
+		const widget = (name: string) => new class extends mock<IChatWidget>() {
+			override readonly viewModel = upcastPartial<IChatViewModel>({ sessionResource: session });
+			override readonly supportsInputRequests = true;
+			override readonly domNode = dom.$('div');
+			override readonly location = ChatAgentLocation.Chat;
+			override readonly onDidFocus = Event.None;
+			override readonly onDidShow = Event.None;
+			override readonly onDidHide = Event.None;
+			override readonly onDidChangeViewModel = Event.None;
+			override getInput() { return ''; }
+			override get inputPart() { return this.input; }
+			override readonly input = new class extends mock<ChatInputPart>() {
+				override get questionCarousel() { return undefined; }
+				override get hasActiveToolConfirmationCarousel() { return false; }
+				override clearQuestionCarousel() { cleared.push(name); }
+				override renderQuestionCarousel(...[, , options]: Parameters<ChatInputPart['renderQuestionCarousel']>) {
+					rendered.push(name);
+					submit = options.onSubmit;
+					return new class extends mock<ChatQuestionCarouselPart>() {
+						override readonly domNode = dom.$('div');
+						override addDisposable() { }
+					}();
+				}
+			}();
+		}();
+		// Another widget shows the chat too, registered first, such as the Chat view's while the chat area shows the chat
+		const other = widget('other');
+		const own = widget('own');
+		const widgetServices = workbenchInstantiationService(undefined, store);
+		widgetServices.stub(IQuickChatService, new class extends mock<IQuickChatService>() { }());
+		widgetServices.stub(IChatViewHostService, new class extends mock<IChatViewHostService>() { }());
+		const chatWidgetService = store.add(widgetServices.createInstance(ChatWidgetService));
+		store.add(chatWidgetService.register(other));
+		store.add(chatWidgetService.register(own));
+		const { instantiationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ sessionResource: session, chatWidgetService, getWidget: () => own });
+		const answered = sinon.stub(instantiationService.get(IChatService), 'notifyQuestionCarouselAnswer');
+		const question = new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction' }], true, 'resolve-1');
+		model.acceptResponseProgress(request, question);
+
+		renderer.renderElement(node, 0, template);
+		await submit?.(new Map([['q1', 'Weave']]), true);
+
+		assert.deepStrictEqual({ rendered, cleared, answered: answered.args.map(([requestId, resolveId, answers]) => ({ request: requestId === request.id, resolveId, answers })), used: question.isUsed }, {
+			rendered: ['own'],
+			cleared: ['own'],
+			answered: [{ request: true, resolveId: 'resolve-1', answers: { q1: 'Weave' } }],
+			used: true,
+		});
+	});
 
 	test('previews can omit input requests without resolving them or docking them in another widget', async () => {
 		const { model, request, renderer, template, node, container } = createPersistentProgressRenderer({
