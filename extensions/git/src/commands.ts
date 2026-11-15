@@ -5528,6 +5528,7 @@ export class CommandCenter {
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {
 			let result: Promise<any>;
+			const cancelledPromptCount = this.model.askpass.cancelledPromptCount;
 
 			if (!options.repository) {
 				result = Promise.resolve(method.apply(this, args));
@@ -5560,6 +5561,16 @@ export class CommandCenter {
 			this.telemetryReporter.sendTelemetryEvent('git.command', { command: id });
 
 			return result.catch(err => {
+				// The user dismissed a credential prompt (ex: SSH key passphrase) while the
+				// command was running, which causes the git operation to fail as a result
+				if (this.model.askpass.cancelledPromptCount !== cancelledPromptCount && (
+					err.gitErrorCode === GitErrorCodes.AuthenticationFailed ||
+					err.gitErrorCode === GitErrorCodes.PermissionDenied ||
+					err.gitErrorCode === GitErrorCodes.RemoteConnectionError)) {
+					this.logger.info(`[CommandCenter][createCommand] Command ${id} failed after a credential prompt was cancelled: ${err.gitErrorCode}`);
+					return;
+				}
+
 				const options: MessageOptions = {
 					modal: true
 				};
