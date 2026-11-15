@@ -33,6 +33,7 @@ import { ChatMcpAppModel } from '../../../../browser/widget/chatContentParts/too
 import { IMcpAppRenderData } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatMcpAppSubPart.js';
 import { IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatResponseResourceFileSystemProvider } from '../../../../common/widget/chatResponseResourceFileSystemProvider.js';
+import { registerTestIframe } from '../../../../../../../base/test/browser/testWindow.js';
 
 suite('ChatMcpAppModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -56,6 +57,7 @@ suite('ChatMcpAppModel', () => {
 		let registered: IAgentHostMcpAppToolProvider | undefined;
 		const html: string[] = [];
 		const messages: MCP.JSONRPCMessage[] = [];
+		const serverToolCalls: MCP.CallToolRequestParams[] = [];
 		const operations: string[] = [];
 		const anchors: [HTMLElement, HTMLElement | undefined][] = [];
 		const observerWindows: ReturnType<typeof dom.getWindow>[] = [];
@@ -155,6 +157,10 @@ suite('ChatMcpAppModel', () => {
 				reads++;
 				return loadResource();
 			},
+			callTool: async params => {
+				serverToolCalls.push(params);
+				return { content: [] };
+			},
 			dispose: () => { },
 		});
 		const data: IMcpAppRenderData = {
@@ -206,7 +212,7 @@ suite('ChatMcpAppModel', () => {
 		const send = (message: McpApps.AppMessage) => onMessage.fire({ message });
 		const listRequests = () => messages.filter((message): message is MCP.ListToolsRequest => hasKey(message, { method: true }) && message.method === 'tools/list');
 		return {
-			model, html, messages, operations, anchors, observerWindows, container, attachment, send, listRequests, readsBeforeAttach, setVisible, currentWidth,
+			model, html, messages, serverToolCalls, operations, anchors, observerWindows, container, attachment, send, listRequests, readsBeforeAttach, setVisible, currentWidth,
 			onDidOverlayOperation: onDidOverlayOperation.event,
 			onDidPostMessage: onDidPostMessage.event,
 			get reads() { return reads; },
@@ -410,6 +416,22 @@ suite('ChatMcpAppModel', () => {
 		assert.deepStrictEqual({ tools: fixture.model.tools.get(), cancelled: cancellations.map(message => message.params.requestId) }, {
 			tools: [current], cancelled: [firstRequest.id],
 		});
+	});
+
+	test('forwards app tools/call request metadata separately from arguments', async () => {
+		const fixture = createFixture(McpServerStatus.Ready);
+		await fixture.initialize(false);
+		const requests: MCP.CallToolRequestParams[] = [
+			{ name: 'correlation_probe', arguments: { value: 42 }, _meta: { 'com.example/correlation-id': 'correlation-1', 'com.example/context': { enabled: false, value: null } } },
+			{ name: 'correlation_probe', _meta: {} },
+			{ name: 'correlation_probe' },
+		];
+		for (const [id, params] of requests.entries()) {
+			const response = Event.toPromise(Event.filter(fixture.onDidPostMessage, message => !hasKey(message, { method: true }) && message.id === id));
+			fixture.send({ jsonrpc: '2.0', id, method: 'tools/call', params });
+			await response;
+		}
+		assert.deepStrictEqual(fixture.serverToolCalls, requests);
 	});
 
 	test('calls app tools and propagates JSON-RPC errors', async () => {
@@ -717,6 +739,7 @@ suite('ChatMcpAppModel', () => {
 		const frame = dom.$<HTMLIFrameElement>('iframe');
 		document.body.appendChild(frame);
 		store.add(toDisposable(() => frame.remove()));
+		store.add(registerTestIframe(frame));
 		assert.ok(frame.contentDocument?.body);
 		const container = dom.$('div');
 		container.style.cssText = 'width: 100px; height: 100px;';

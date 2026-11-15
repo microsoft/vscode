@@ -5,9 +5,11 @@
 
 import { isThenable, SequencerByKey } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IArcTextEdit } from '../../../../base/common/editArcTracker.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -18,10 +20,11 @@ import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { FileEditKind, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { IAgentHostFileEditCoordinator } from '../agentHostFileEditCoordinator.js';
+import { getFileEditResourceKey } from '../fileEditPath.js';
 import { extractAiChunks } from './editChunkExtractor.js';
 import { IEditSurvivalReporterFactory } from './editSurvivalReporter.js';
 import { IEditArcReporterService } from './editArcReporter.js';
-import { createArcTextEditFromDiff, extractArcTextEdit } from './arcToolEdit.js';
+import { createArcTextEditFromDiff } from './arcToolEdit.js';
 
 /** A file's content at some point, and whether the file existed then. */
 interface IFileSnapshot {
@@ -88,7 +91,7 @@ export class FileEditTracker extends Disposable {
 	 * {@link takeCompletedEdit}, which persists the edit to the database.
 	 */
 	private readonly _edits = new Map<string, IFileEdits>();
-	/** Processes each file's completed edits in claim order, so attribution never sees them reordered. */
+	/** Processes each file's completed edits in claim order, whichever spelling of its path each used, so they are recorded and attributed in that order. */
 	private readonly _completedEditSequencer = new SequencerByKey<string>();
 
 	constructor(
@@ -96,6 +99,7 @@ export class FileEditTracker extends Disposable {
 		/** The session that owns the chat, read when an edit is attributed: it can change while the chat runs. */
 		private readonly _owner: () => string,
 		private readonly _provider: string | undefined,
+		private readonly _paths: { toUri(path: string): URI; toFileServiceUri(path: string): URI } = { toUri: URI.file, toFileServiceUri: URI.file },
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
@@ -131,7 +135,7 @@ export class FileEditTracker extends Disposable {
 			throw new CancellationError();
 		}
 		const lease = this._runningEdits.add(new DisposableStore());
-		const resource = URI.file(filePath);
+		const resource = this._paths.toUri(filePath);
 		const acquired = this._fileEditCoordinator.isCoordinatedProvider(this._provider)
 			? this._fileEditCoordinator.beginEdit(resource)
 			: this._fileEditCoordinator.markEditing(resource);
@@ -217,7 +221,7 @@ export class FileEditTracker extends Disposable {
 	 * whole-file scoring. `toolInput` also tells the edit apart from other
 	 * edits of the file, as passed to {@link trackEditStart}.
 	 */
-	takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext?: IAgentHostClientTelemetryContext, chatUri?: string, autoTierSnapshot?: string | Promise<string | undefined>, fusionModel?: string): Promise<ToolResultFileEditContent | undefined> {
+	takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext?: IAgentHostClientTelemetryContext, chatUri?: string, autoTierSnapshot?: string | Promise<string | undefined>, fusionModel?: string, copilotTrackingId?: string): Promise<ToolResultFileEditContent | undefined> {
 		const edits = this._edits.get(filePath);
 		if (!edits) {
 			return Promise.resolve(undefined);
@@ -234,7 +238,7 @@ export class FileEditTracker extends Disposable {
 		this._releaseEdits(edits.completed.splice(0, Math.max(completedIndex, 0)));
 		const [edit] = edits.completed.splice(0, 1);
 		this._deleteIfSettled(filePath, edits);
-		return this._completedEditSequencer.queue(filePath, () => this._processCompletedEdit(edit, turnId, toolCallId, filePath, toolName, toolInput, modelId, isSubagent, clientContext, chatUri, autoTierSnapshot, fusionModel))
+		return this._completedEditSequencer.queue(getFileEditResourceKey(this._paths.toUri(filePath)), () => this._processCompletedEdit(edit, turnId, toolCallId, filePath, toolName, toolInput, modelId, isSubagent, clientContext, chatUri, autoTierSnapshot, fusionModel, copilotTrackingId))
 			.finally(() => this._runningEdits.delete(edit.lease));
 	}
 
@@ -260,7 +264,7 @@ export class FileEditTracker extends Disposable {
 		}
 	}
 
-	private async _processCompletedEdit(edit: ICompletedEdit, turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext: IAgentHostClientTelemetryContext | undefined, chatUri: string | undefined, autoTierSnapshot: string | Promise<string | undefined> | undefined, fusionModel: string | undefined): Promise<ToolResultFileEditContent | undefined> {
+	private async _processCompletedEdit(edit: ICompletedEdit, turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, isSubagent: boolean, clientContext: IAgentHostClientTelemetryContext | undefined, chatUri: string | undefined, autoTierSnapshot: string | Promise<string | undefined> | undefined, fusionModel: string | undefined, copilotTrackingId: string | undefined): Promise<ToolResultFileEditContent | undefined> {
 
 		if (!modelId) {
 			this._logService.warn(`[FileEditTracker] No modelId for completed edit: ${filePath} (turn=${turnId}, toolCall=${toolCallId}, tool=${toolName || '<unknown>'}). Edit-survival telemetry will be emitted with an empty modelId.`);
@@ -278,12 +282,16 @@ export class FileEditTracker extends Disposable {
 		let removedLines: number | undefined;
 		let changes: readonly IOffsetEdit[] = [];
 		let diffHitTimeout = false;
+		let initialEdit: IArcTextEdit | undefined;
 		try {
 			const counts = await this._diffComputeService.computeDiffCounts(beforeText, afterText);
 			addedLines = counts.added;
 			removedLines = isCreate ? 0 : counts.removed;
 			changes = counts.changes;
 			diffHitTimeout = counts.hitTimeout ?? false;
+			if (!diffHitTimeout) {
+				initialEdit = createArcTextEditFromDiff(changes, beforeText, afterText);
+			}
 		} catch (err) {
 			this._logService.warn(`[FileEditTracker] Failed to compute diff counts: ${filePath}`, err);
 		}
@@ -310,6 +318,22 @@ export class FileEditTracker extends Disposable {
 
 		const autoTier = isThenable<string | undefined>(autoTierSnapshot) ? await autoTierSnapshot : autoTierSnapshot;
 
+		const content: ToolResultFileEditContent = {
+			type: ToolResultContentType.FileEdit,
+			before: {
+				uri: this._paths.toUri(filePath).toString(),
+				content: { uri: buildSessionDbUri(this._sessionUri, toolCallId, filePath, 'before') },
+			},
+			after: {
+				uri: this._paths.toUri(filePath).toString(),
+				content: { uri: buildSessionDbUri(this._sessionUri, toolCallId, filePath, 'after') },
+			},
+			diff: addedLines !== undefined ? { added: addedLines, removed: removedLines } : undefined,
+		};
+		if (this._paths.toUri(filePath).scheme !== Schemas.file) {
+			return content;
+		}
+
 		this._editSurvivalReporterFactory.launch({
 			clientContext,
 			sessionUri: this._sessionUri,
@@ -328,22 +352,11 @@ export class FileEditTracker extends Disposable {
 			aiChunks: extractAiChunks(toolName, toolInput, filePath),
 		});
 
-		const content: ToolResultFileEditContent = {
-			type: ToolResultContentType.FileEdit,
-			before: {
-				uri: URI.file(filePath).toString(),
-				content: { uri: buildSessionDbUri(this._sessionUri, toolCallId, filePath, 'before') },
-			},
-			after: {
-				uri: URI.file(filePath).toString(),
-				content: { uri: buildSessionDbUri(this._sessionUri, toolCallId, filePath, 'after') },
-			},
-			diff: addedLines !== undefined ? { added: addedLines, removed: removedLines } : undefined,
-		};
 		let marker: IFileEditAttributionMarker | undefined;
 		try {
 			marker = await this._editAttributionService.recordEdit({
 				sessionUri: this._sessionUri,
+				copilotTrackingId,
 				ownerSessionUri: this._owner(),
 				...(this._provider ? { provider: this._provider } : {}),
 				chatUri,
@@ -363,29 +376,31 @@ export class FileEditTracker extends Disposable {
 			this._logService.warn(`[FileEditTracker] Failed to record edit attribution for ${filePath}: ${error}`);
 		}
 
-		const initialEdit = extractArcTextEdit(toolName, toolInput, beforeText, afterText)
-			?? createArcTextEditFromDiff(changes, beforeText, afterText);
-		this._editArcReporterService.reportEdit({
-			clientContext,
-			sessionUri: this._sessionUri,
-			ownerSessionUri: this._owner(),
-			isSubagent,
-			...(this._provider ? { provider: this._provider } : {}),
-			turnId,
-			toolCallId,
-			filePath,
-			beforeText,
-			afterText,
-			initialEdit,
-			modelId,
-			...(autoTier !== undefined ? { autoTier } : {}),
-			...(fusionModel !== undefined ? { fusionModel } : {}),
-			toolName,
-			mode: edit.mode,
-			completionTime,
-		}).catch(error => {
-			this._logService.warn(`[FileEditTracker] Failed to start ARC telemetry: ${filePath}`, error);
-		});
+		if (initialEdit) {
+			this._editArcReporterService.reportEdit({
+				clientContext,
+				sessionUri: this._sessionUri,
+				ownerSessionUri: this._owner(),
+				isSubagent,
+				...(this._provider ? { provider: this._provider } : {}),
+				turnId,
+				toolCallId,
+				filePath,
+				beforeText,
+				afterText,
+				initialEdit,
+				modelId,
+				...(autoTier !== undefined ? { autoTier } : {}),
+				...(fusionModel !== undefined ? { fusionModel } : {}),
+				toolName,
+				mode: edit.mode,
+				completionTime,
+			}).catch(error => {
+				this._logService.warn(`[FileEditTracker] Failed to start ARC telemetry: ${filePath}`, error);
+			});
+		} else {
+			this._logService.warn(`[FileEditTracker] Skipping ARC telemetry: no precise diff for ${filePath}`);
+		}
 
 		if (!marker) {
 			return content;
@@ -403,7 +418,7 @@ export class FileEditTracker extends Disposable {
 
 	private async _readFileWithExistence(filePath: string): Promise<IFileSnapshot> {
 		try {
-			const content = await this._fileService.readFile(URI.file(filePath));
+			const content = await this._fileService.readFile(this._paths.toFileServiceUri(filePath));
 			return { content: content.value, existed: true };
 		} catch (err) {
 			this._logService.trace(`[FileEditTracker] Could not read file for snapshot: ${filePath}`, err);

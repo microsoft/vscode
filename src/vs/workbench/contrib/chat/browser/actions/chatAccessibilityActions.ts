@@ -71,7 +71,7 @@ class AnnounceChatConfirmationAction extends Action2 {
 			// Reveal the response so its confirmation widget is rendered (the
 			// chat list is virtualized — querying before reveal can miss it).
 			pendingWidget.reveal(lastResponse);
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const confirmationWidgets = pendingWidget.domNode.querySelectorAll<HTMLElement>('.chat-confirmation-widget-container[tabindex]');
 			if (confirmationWidgets.length > 0) {
 				firstConfirmationElement = confirmationWidgets[confirmationWidgets.length - 1];

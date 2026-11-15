@@ -5,6 +5,9 @@
 
 import { groupByMap } from '../../../../../base/common/collections.js';
 import { localize } from '../../../../../nls.js';
+import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { getEntryAddress, IRemoteAgentHostEntry, RemoteAgentHostEntryType } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import type { IAutomationDescriptor } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import type { IAutomationProviderDescriptor } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 
@@ -18,6 +21,44 @@ export function getAutomationOwnershipGroups(automations: readonly IAutomationDe
 			automations: automations.filter(automation => automation.ownership === 'repository'),
 		},
 	].filter(group => group.automations.length > 0 || group.ownership === 'user' && automations.some(automation => automation.ownership === 'repository'));
+}
+
+export interface IAutomationRemoteStatusPresentation {
+	readonly tunnelEntries: readonly IRemoteAgentHostEntry[];
+	readonly replacedTunnelProviderIds: ReadonlySet<string>;
+	readonly ignoredGitHubEnvironmentProviderIds: ReadonlySet<string>;
+	readonly visibleUnavailableProviders: readonly IAutomationProviderDescriptor[];
+	readonly suppressedAllReasons: boolean;
+}
+
+export function getAutomationRemoteStatusPresentation(
+	unavailableProviders: readonly IAutomationProviderDescriptor[],
+	configuredEntries: readonly IRemoteAgentHostEntry[],
+	githubEnvironmentIds: readonly string[],
+	replaceTunnelWarnings: boolean,
+): IAutomationRemoteStatusPresentation {
+	const tunnelEntries = configuredEntries.filter(entry => entry.connection.type === RemoteAgentHostEntryType.Tunnel);
+	const tunnelProviderIds = new Set(tunnelEntries.map(entry => `agenthost-${agentHostAuthority(getEntryAddress(entry))}`));
+	const githubEnvironmentProviderIds = new Set(githubEnvironmentIds
+		.map(environmentId => `agenthost-${agentHostAuthority(cloudSandboxAddress(environmentId))}`));
+	const replacedTunnelProviderIds = new Set(replaceTunnelWarnings
+		? unavailableProviders
+			.filter(provider => provider.unavailableReasonCode === 'disconnected' && tunnelProviderIds.has(provider.id))
+			.map(provider => provider.id)
+		: []);
+	const ignoredGitHubEnvironmentProviderIds = new Set(unavailableProviders
+		.filter(provider => provider.unavailableReasonCode === 'disconnected' && githubEnvironmentProviderIds.has(provider.id))
+		.map(provider => provider.id));
+	const visibleUnavailableProviders = unavailableProviders.filter(provider =>
+		!ignoredGitHubEnvironmentProviderIds.has(provider.id)
+		&& !replacedTunnelProviderIds.has(provider.id));
+	return {
+		tunnelEntries,
+		replacedTunnelProviderIds,
+		ignoredGitHubEnvironmentProviderIds,
+		visibleUnavailableProviders,
+		suppressedAllReasons: unavailableProviders.length > 0 && visibleUnavailableProviders.length === 0,
+	};
 }
 
 export function getUnavailableAutomationsReasons(unavailableProviders: readonly IAutomationProviderDescriptor[]): string[] {

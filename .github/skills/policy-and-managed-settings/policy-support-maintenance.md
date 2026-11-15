@@ -40,4 +40,4 @@ Readiness is appended after the existing diagnostic sections (`policyDiagnostics
 
 ## Validation
 
-Test absent, permissive, restrictive, partial, and removed values; Local/Copilot rollout with and without gaps; remembered/explicit choices without storage mutation; policy-over-user precedence with real layering; and inventory graduation to enforced. For bridge changes, exercise the bundled runtime with isolated homes and a synthetic model. Run `npm run export-policy-data` after inventory or policy changes.
+Test absent, permissive, restrictive, partial, and removed values; Local/Copilot rollout with and without gaps; remembered/explicit choices without storage mutation; policy-over-user precedence with real layering; and inventory graduation to enforced. For bridge changes, exercise the bundled runtime with isolated homes and a synthetic model. Run `pnpm run export-policy-data` after inventory or policy changes.

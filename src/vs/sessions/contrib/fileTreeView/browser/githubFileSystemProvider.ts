@@ -15,7 +15,7 @@ import { GitTree, IContentClient } from '../../../../platform/github/common/cont
 import { GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { GitHubApiClient } from '../../github/browser/githubApiClient.js';
+import { GitHubApiClient } from '../../../../workbench/services/github/browser/githubApiClient.js';
 
 interface ITreeCacheEntry {
 	/** Map from path → entry metadata */

@@ -6,12 +6,12 @@
 import './media/editorgroupview.css';
 import { EditorGroupModel, IEditorOpenOptions, IGroupModelChangeEvent, ISerializedEditorGroupModel, isGroupEditorCloseEvent, isGroupEditorOpenEvent, isSerializedEditorGroupModel } from '../../../common/editor/editorGroupModel.js';
 import { GroupIdentifier, CloseDirection, IEditorCloseEvent, IEditorPane, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, EditorResourceAccessor, EditorInputCapabilities, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, GroupModelChangeKind, IActiveEditorChangeEvent, IFindEditorOptions, TEXT_DIFF_EDITOR_ID } from '../../../common/editor.js';
-import { ActiveEditorGroupLockedContext, ActiveEditorDirtyContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorPinnedContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ResourceContextKey, applyAvailableEditorIds, ActiveEditorAvailableEditorIdsContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorContext, ActiveEditorReadonlyContext, ActiveEditorCanRevertContext, ActiveEditorCanToggleReadonlyContext, ActiveCompareEditorCanSwapContext, MultipleEditorsSelectedInGroupContext, TwoEditorsSelectedInGroupContext, SelectedEditorsInGroupFileOrUntitledResourceContextKey, ActiveEditorCannotCloseContext } from '../../../common/contextkeys.js';
+import { ActiveEditorGroupLockedContext, EditorGroupLockActionsHiddenContext, ActiveEditorDirtyContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorPinnedContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ResourceContextKey, applyAvailableEditorIds, ActiveEditorAvailableEditorIdsContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorContext, ActiveEditorReadonlyContext, ActiveEditorCanRevertContext, ActiveEditorCanToggleReadonlyContext, ActiveCompareEditorCanSwapContext, MultipleEditorsSelectedInGroupContext, TwoEditorsSelectedInGroupContext, SelectedEditorsInGroupFileOrUntitledResourceContextKey, ActiveEditorCannotCloseContext } from '../../../common/contextkeys.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { Emitter, Event, Relay } from '../../../../base/common/event.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition, isMouseEvent, isActiveElement, getWindow, getActiveElement, $ } from '../../../../base/browser/dom.js';
+import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition, isMouseEvent, isActiveElement, getWindow, getActiveElement, $, hide, show } from '../../../../base/browser/dom.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
@@ -62,6 +62,7 @@ import { IEditorResolverService } from '../../../services/editor/common/editorRe
 import { IHostService } from '../../../services/host/browser/host.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../../../platform/files/common/files.js';
+import { getEditorTransferVetoDetail } from './editorTransferVeto.js';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -120,6 +121,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private readonly model: EditorGroupModel;
 
 	private active: boolean | undefined;
+	private editorOpenOperation: object | undefined;
+	get isOpeningEditor(): boolean { return this.editorOpenOperation !== undefined; }
+
 	private lastLayout: IDomNodePagePosition | undefined;
 
 	private readonly scopedInstantiationService: IInstantiationService;
@@ -141,6 +145,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	 * `0` (default) is a no-op for all other layouts.
 	 */
 	private _contentRightInset = 0;
+	private _contentLeftInset = 0;
+	private _contentTopInset = 0;
+	private _contentBottomInset = 0;
 
 	private readonly _onDidRelayout = this._register(new Emitter<void>());
 	readonly onDidRelayout = this._onDidRelayout.event;
@@ -194,6 +201,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		{
 			// Scoped context key service
 			this.scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
+			if (options?.hideLockActions) {
+				EditorGroupLockActionsHiddenContext.bindTo(this.scopedContextKeyService).set(true);
+			}
 
 			// Container
 			this.element.classList.add(...coalesce(['editor-group-container', this.model.isLocked ? 'locked' : undefined]));
@@ -229,7 +239,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.element.appendChild(this.titleContainer);
 
 			// Title control
-			this.titleControl = this._register(this.scopedInstantiationService.createInstance(EditorTitleControl, this.titleContainer, this.editorPartsView, this.groupsView, this, this.model, options?.menuIds, options?.showHeader === true, options?.reserveHeaderSpace, options?.useModernUITabs === true));
+			this.titleControl = this._register(this.scopedInstantiationService.createInstance(EditorTitleControl, this.titleContainer, this.editorPartsView, this.groupsView, this, this.model, options?.menuIds, options?.showHeader === true, options?.reserveHeaderSpace, options?.useModernUITabs === true, options?.showHeaderFor));
 
 			// Editor container
 			this.editorContainer = $('.editor-container');
@@ -421,6 +431,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 				this.editorService.openEditor({
 					resource: undefined,
+					untitledOrigin: 'emptyGroupDoubleClick',
 					options: {
 						pinned: true,
 						override: DEFAULT_EDITOR_ASSOCIATION.id
@@ -598,7 +609,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Show active editor (intentionally not using async to keep
 		// `restoreEditors` from executing in same stack)
-		const result = this.doShowEditor(activeEditor, { active: true, isNew: false /* restored */ }, options, internalOptions).then(() => {
+		const result = this.withEditorActionsPending(() => this.doShowEditor(activeEditor, { active: true, isNew: false /* restored */ }, options, internalOptions)).then(() => {
 
 			// Set focused now if this is the active group and focus has
 			// not changed meanwhile. This prevents focus from being
@@ -637,6 +648,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Re-emit to outside
 		this._onDidModelChange.fire(e);
+
+		// The editors changed, which can change who provides the title
+		this.updateTitleProvidedByEditor();
 
 		// Handle within
 
@@ -961,7 +975,40 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	get titleHeight(): IEditorGroupTitleHeight {
+		if (this.titleProvidedByEditor) {
+			return { total: 0, offset: 0 };
+		}
+
 		return this.titleControl.getHeight();
+	}
+
+	private titleProvidedByEditor = false;
+
+	/**
+	 * A group that holds exactly one editor whose pane renders its own title
+	 * does not show its title area. With more editors, it shows as usual, and
+	 * the editor does not show its own title.
+	 */
+	private updateTitleProvidedByEditor(): void {
+		const activeEditorPane = this.editorPane.activeEditorPane;
+		const paneProvidesTitle = activeEditorPane instanceof EditorPane && activeEditorPane.input === this.activeEditor && activeEditorPane.providesTitle;
+		const titleProvidedByEditor = this.count === 1 && paneProvidesTitle;
+		if (paneProvidesTitle) {
+			activeEditorPane.setProvidedTitleVisible(titleProvidedByEditor);
+		}
+		if (this.titleProvidedByEditor === titleProvidedByEditor) {
+			return;
+		}
+
+		this.titleProvidedByEditor = titleProvidedByEditor;
+		this.element.classList.toggle('title-provided-by-editor', titleProvidedByEditor);
+		if (titleProvidedByEditor) {
+			hide(this.titleContainer);
+		} else {
+			show(this.titleContainer);
+		}
+
+		this.relayout();
 	}
 
 	notifyIndexChanged(newIndex: number): void {
@@ -1270,34 +1317,58 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			}
 		}
 
-		// Update model and make sure to continue to use the editor we get from
-		// the model. It is possible that the editor was already opened and we
-		// want to ensure that we use the existing instance in that case.
-		const { editor: openedEditor, isNew } = this.model.openEditor(editor, openEditorOptions);
+		const showEditor = () => {
+			// Update model and make sure to continue to use the editor we get from
+			// the model. It is possible that the editor was already opened and we
+			// want to ensure that we use the existing instance in that case.
+			const { editor: openedEditor, isNew } = this.model.openEditor(editor, openEditorOptions);
 
-		// Conditionally lock the group
-		if (
-			isNew &&								// only if this editor was new for the group
-			this.count === 1 &&						// only when this editor was the first editor in the group
-			this.editorPartsView.groups.length > 1 	// only allow auto locking if more than 1 group is opened
-		) {
-			// only when the editor identifier is configured as such
-			if (openedEditor.editorId && this.groupsView.partOptions.autoLockGroups?.has(openedEditor.editorId)) {
-				this.lock(true);
+			// Conditionally lock the group
+			if (
+				isNew &&								// only if this editor was new for the group
+				this.count === 1 &&						// only when this editor was the first editor in the group
+				this.editorPartsView.groups.length > 1 	// only allow auto locking if more than 1 group is opened
+			) {
+				// only when the editor identifier is configured as such
+				if (openedEditor.editorId && this.groupsView.partOptions.autoLockGroups?.has(openedEditor.editorId)) {
+					this.lock(true);
+				}
+			}
+
+			// Show editor
+			const showEditorResult = this.doShowEditor(openedEditor, { active: !!openEditorOptions.active, isNew }, options, internalOptions);
+
+			// Finally make sure the group is active or restored as instructed
+			if (activateGroup) {
+				this.groupsView.activateGroup(this);
+			} else if (restoreGroup) {
+				this.groupsView.restoreGroup(this);
+			}
+
+			return showEditorResult;
+		};
+
+		const editorToOpen = this.model.findEditor(editor, openEditorOptions)?.[0] ?? editor;
+		if (openEditorOptions.active && (!this.activeEditorPane?.input?.matches(editorToOpen) || options?.forceReload)) {
+			return this.withEditorActionsPending(showEditor);
+		}
+
+		return showEditor();
+	}
+
+	private async withEditorActionsPending(openEditor: () => Promise<IEditorPane | undefined>): Promise<IEditorPane | undefined> {
+		const operation = this.editorOpenOperation = {};
+		this.titleControl.updateEditorActions();
+		try {
+			return await openEditor();
+		} finally {
+			if (this.editorOpenOperation === operation) {
+				this.editorOpenOperation = undefined;
+				if (!this.disposed) {
+					this.titleControl.updateEditorActions();
+				}
 			}
 		}
-
-		// Show editor
-		const showEditorResult = this.doShowEditor(openedEditor, { active: !!openEditorOptions.active, isNew }, options, internalOptions);
-
-		// Finally make sure the group is active or restored as instructed
-		if (activateGroup) {
-			this.groupsView.activateGroup(this);
-		} else if (restoreGroup) {
-			this.groupsView.restoreGroup(this);
-		}
-
-		return showEditorResult;
 	}
 
 	private doShowEditor(editor: EditorInput, context: { active: boolean; isNew: boolean }, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined> {
@@ -1312,6 +1383,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				if (cancelled) {
 					return undefined;
 				}
+
+				// The editor pane changed, which can change who provides the title
+				this.updateTitleProvidedByEditor();
 
 				// Editor change event
 				if (changed) {
@@ -1490,7 +1564,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (!keepCopy || editor.hasCapability(EditorInputCapabilities.Singleton) /* singleton editors will always move */) {
 			const canMoveVeto = editor.canMove(this.id, target.id);
 			if (typeof canMoveVeto === 'string') {
-				this.dialogService.error(canMoveVeto, localize('moveErrorDetails', "Try saving or reverting the editor first and then try again."));
+				this.dialogService.error(canMoveVeto, getEditorTransferVetoDetail({ dirty: editor.isDirty() }));
 
 				return false;
 			}
@@ -1750,6 +1824,25 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.handleCloseConfirmation(editors);
 	}
 
+	private isOpenedInOtherGroup(editor: EditorInput): boolean {
+		return this.editorPartsView.groups.some(groupView => {
+			if (groupView === this) {
+				return false; // skip (we already handled our group above)
+			}
+
+			const otherGroup = groupView;
+			if (otherGroup.contains(editor, { supportSideBySide: SideBySideEditor.BOTH })) {
+				return true; // exact editor still opened (either single, or split-in-group)
+			}
+
+			if (editor instanceof SideBySideEditorInput && otherGroup.contains(editor.primary)) {
+				return true; // primary side of side by side editor still opened
+			}
+
+			return false;
+		});
+	}
+
 	private async doHandleCloseConfirmation(editor: EditorInput, options?: { skipAutoSave: boolean }): Promise<boolean /* veto */> {
 		if (!this.shouldConfirmClose(editor)) {
 			return false; // no veto
@@ -1766,22 +1859,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// The only exception is when the same editor is opened on both sides of a side
 		// by side editor (https://github.com/microsoft/vscode/issues/138442)
 
-		if (this.editorPartsView.groups.some(groupView => {
-			if (groupView === this) {
-				return false; // skip (we already handled our group above)
-			}
-
-			const otherGroup = groupView;
-			if (otherGroup.contains(editor, { supportSideBySide: SideBySideEditor.BOTH })) {
-				return true; // exact editor still opened (either single, or split-in-group)
-			}
-
-			if (editor instanceof SideBySideEditorInput && otherGroup.contains(editor.primary)) {
-				return true; // primary side of side by side editor still opened
-			}
-
-			return false;
-		})) {
+		if (this.isOpenedInOtherGroup(editor)) {
 			return false; // editor is still editable somewhere else
 		}
 
@@ -2032,7 +2110,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private doCloseAllEditors(options?: ICloseAllEditorsOptions): void {
 		let editors = this.model.getEditors(EditorsOrder.SEQUENTIAL, options).filter(editor => options?.force || !editor.hasCapability(EditorInputCapabilities.CannotClose));
 		if (options?.excludeConfirming) {
-			editors = editors.filter(editor => !this.shouldConfirmClose(editor));
+			editors = editors.filter(editor => !this.shouldConfirmClose(editor) || this.isOpenedInOtherGroup(editor));
 		}
 
 		// Close all inactive editors first
@@ -2146,21 +2224,22 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region Editor Actions
 
-	createEditorActions(disposables: DisposableStore, menuId = MenuId.EditorTitle): IActiveEditorActions {
+	createEditorActions(disposables: DisposableStore, menuId = MenuId.EditorTitle, options?: { readonly useEditorTitleMenu?: boolean }): IActiveEditorActions {
 		let actions: PrimaryAndSecondaryActions = { primary: [], secondary: [] };
 		let onDidChange: Event<IMenuChangeEvent | void> | undefined;
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
 		const activeEditorPane = this.activeEditorPane;
 		if (activeEditorPane instanceof EditorPane) {
-			const editorScopedContextKeyService = activeEditorPane.scopedContextKeyService ?? this.scopedContextKeyService;
-			const editorTitleMenu = disposables.add(this.menuService.createMenu(menuId, editorScopedContextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: 0 }));
-			onDidChange = editorTitleMenu.onDidChange;
+			const editorTitleMenuOfPane = options?.useEditorTitleMenu ? activeEditorPane.titleMenu : undefined;
+			const editorScopedContextKeyService = editorTitleMenuOfPane?.contextKeyService ?? activeEditorPane.scopedContextKeyService ?? this.scopedContextKeyService;
+			const editorTitleMenu = disposables.add(this.menuService.createMenu(editorTitleMenuOfPane?.menuId ?? menuId, editorScopedContextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: 0 }));
+			onDidChange = options?.useEditorTitleMenu ? Event.any<IMenuChangeEvent | void>(editorTitleMenu.onDidChange, activeEditorPane.onDidChangeTitleMenu) : editorTitleMenu.onDidChange;
 
 			const shouldInlineGroup = (action: SubmenuAction, group: string) => group === 'navigation' && action.actions.length <= 1;
 
 			actions = getActionBarActions(
-				editorTitleMenu.getActions({ arg: this.resourceContext.get(), shouldForwardArgs: true, renderShortTitle: true }),
+				editorTitleMenu.getActions(editorTitleMenuOfPane?.options ?? { arg: this.resourceContext.get(), shouldForwardArgs: true, renderShortTitle: true }),
 				'navigation',
 				shouldInlineGroup
 			);
@@ -2169,7 +2248,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// resource can be opened by more than one editor type (e.g. Text Editor vs. Markdown
 			// Preview). This mirrors the editor type dropdown shown in the breadcrumbs bar. It is
 			// built per group so it reflects that group's active editor.
-			if (menuId === MenuId.EditorTitle) {
+			if (menuId === MenuId.EditorTitle && !editorTitleMenuOfPane) {
 				const available = getAvailableEditorTypes(this.activeEditor, this.editorResolverService, this.modelService);
 				if (available) {
 					const editorTypeActions = createEditorTypeActions(available, this, this.editorResolverService, this.commandService, this.editorService);
@@ -2251,24 +2330,25 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.lastLayout = { width, height, top, left };
 		this.element.classList.toggle('max-height-478px', height <= 478);
 
-		const contentWidth = Math.max(0, width - this._contentRightInset);
+		const contentWidth = Math.max(0, width - this._contentLeftInset - this._contentRightInset);
 		this.titleContainer.style.setProperty('--title-border-bottom-width', `${contentWidth}px`);
+		this.titleContainer.style.setProperty('--title-border-bottom-left', `${this._contentLeftInset}px`);
 
 		// Keep tabs full-width while the header and editor pane follow the content inset.
-		const titleControlSize = this.titleControl.layout({
+		const titleControlSize = this.titleProvidedByEditor ? new Dimension(width, 0) : this.titleControl.layout({
 			container: new Dimension(width, height),
 			available: new Dimension(width, height - this.editorPane.minimumHeight)
-		}, contentWidth);
+		}, contentWidth, this._contentLeftInset);
 
 		// Update progress bar location
 		this.progressBar.getContainer().style.top = `${Math.max(this.titleHeight.offset - 2, 0)}px`;
 
-		// The editor pane is inset on the right by `_contentRightInset` so a docked
-		// panel can sit beside it under the full-width title (0 = fill the group).
-		const editorHeight = Math.max(0, height - titleControlSize.height);
+		const editorHeight = Math.max(0, height - titleControlSize.height - this._contentTopInset - this._contentBottomInset);
 		this.editorContainer.style.width = `${contentWidth}px`;
 		this.editorContainer.style.height = `${editorHeight}px`;
-		this.editorPane.layout({ width: contentWidth, height: editorHeight, top: top + titleControlSize.height, left });
+		this.editorContainer.style.marginTop = this._contentTopInset > 0 ? `${this._contentTopInset}px` : '';
+		this.editorContainer.style.marginLeft = this._contentLeftInset > 0 ? `${this._contentLeftInset}px` : '';
+		this.editorPane.layout({ width: contentWidth, height: editorHeight, top: top + titleControlSize.height + this._contentTopInset, left: left + this._contentLeftInset });
 	}
 
 	/**
@@ -2276,11 +2356,30 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	 * `0` restores the default full-width content.
 	 */
 	setContentRightInset(inset: number): void {
-		const next = Math.max(0, Math.round(inset));
-		if (next === this._contentRightInset) {
+		this.setContentHorizontalInsets(this._contentLeftInset, inset);
+	}
+
+	/** Reserves space beside the editor header and pane while tabs remain full-width. */
+	setContentHorizontalInsets(left: number, right: number): void {
+		const nextLeft = Math.max(0, Math.round(left));
+		const nextRight = Math.max(0, Math.round(right));
+		if (nextLeft === this._contentLeftInset && nextRight === this._contentRightInset) {
 			return;
 		}
-		this._contentRightInset = next;
+		this._contentLeftInset = nextLeft;
+		this._contentRightInset = nextRight;
+		this.relayout();
+	}
+
+	/** Reserves space above and below editor content without moving its tabs or header. */
+	setContentVerticalInsets(top: number, bottom: number): void {
+		const nextTop = Math.max(0, Math.round(top));
+		const nextBottom = Math.max(0, Math.round(bottom));
+		if (nextTop === this._contentTopInset && nextBottom === this._contentBottomInset) {
+			return;
+		}
+		this._contentTopInset = nextTop;
+		this._contentBottomInset = nextBottom;
 		this.relayout();
 	}
 

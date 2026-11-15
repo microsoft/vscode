@@ -35,7 +35,6 @@ import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
-import { authenticateAgentHostTransport } from '../../node/agentHostTransportAuthentication.js';
 import { MockDevContainerService } from '../common/mockDevContainerService.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
@@ -97,7 +96,7 @@ suite('AHP windowed TCP', function () {
 	this.timeout(20_000);
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function harness(onConnection: (socket: Socket) => void, authenticated = true, advertiseTcp = true) {
+	async function harness(onConnection: (socket: Socket) => void, advertiseTcp = true) {
 		const sockets = new Set<Socket>();
 		const destination = createServer({ allowHalfOpen: true }, socket => {
 			sockets.add(socket);
@@ -154,7 +153,6 @@ suite('AHP windowed TCP', function () {
 					return message;
 				};
 			}
-			if (authenticated) { authenticateAgentHostTransport(remote); }
 			connections.fire(remote);
 			return local;
 		}
@@ -188,7 +186,7 @@ suite('AHP windowed TCP', function () {
 		}
 	}
 
-	test('default clients use TCP capabilities on the released protocol version', async () => {
+	test('accepted transports advertise TCP and forward data on the released protocol version', async () => {
 		const input = VSBuffer.fromString('capability-negotiated TCP');
 		const h = await harness(socket => socket.on('data', data => socket.end(data)));
 		assert.strictEqual(h.client.initializeResult.get()?.protocolVersion, '1.0.0');
@@ -200,8 +198,20 @@ suite('AHP windowed TCP', function () {
 		await stream.drain();
 	});
 
+	test('TCP creation returns an empty object', async () => {
+		const h = await harness(() => { });
+		const wire = h.newTransport();
+		await wire.request({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientId: 'tcp-result', protocolVersions: ['1.0.0'] } });
+		const channel = 'ahp-tcp:/empty-result';
+		const result = await wire.request({
+			jsonrpc: '2.0', id: 2, method: 'createTcpConnection', params: { channel, host: '127.0.0.1', port: h.port },
+		});
+		wire.send({ jsonrpc: '2.0', method: 'unsubscribe', params: { channel } });
+		assert.deepStrictEqual(result, {});
+	});
+
 	test('clients do not open TCP destinations without an advertised capability', async () => {
-		const h = await harness(() => { assert.fail('No TCP capability must not open a socket'); }, true, false);
+		const h = await harness(() => { assert.fail('No TCP capability must not open a socket'); }, false);
 		assert.strictEqual(h.client.initializeResult.get()?.protocolVersion, '1.0.0');
 		assert.strictEqual(h.client.initializeResult.get()?.tcpConnections, undefined);
 		await assert.rejects(h.open(), /does not support TCP/);
@@ -230,7 +240,11 @@ suite('AHP windowed TCP', function () {
 		await assert.rejects(h.open(), /Invalid TCP snapshot/);
 		const controls = h.wire.sent.filter(message => hasKey(message, { method: true }) && (message.method === 'unsubscribe' || message.method === 'tcp/reset'));
 		assert.deepStrictEqual(controls.map(message => hasKey(message, { method: true }) ? message.method : undefined), ['tcp/reset', 'unsubscribe']);
-		assert.deepStrictEqual({ warnings: h.log.warnings, errors: h.log.errors }, { warnings: [], errors: [] });
+		const [reset] = controls.map(message => vObj({ channel: vString() }).validateOrThrow(hasKey(message, { params: true }) ? message.params : undefined).channel);
+		assert.deepStrictEqual({ warnings: h.log.warnings, errors: h.log.errors }, {
+			warnings: [`[AgentHostChannels] ${reset} failed (invalidSnapshot); resetting the channel: Invalid TCP snapshot`],
+			errors: [],
+		});
 	});
 
 	test('client cancellation and repeated teardown controls are quiet on the host', async () => {
@@ -378,21 +392,50 @@ suite('AHP windowed TCP', function () {
 		assert.strictEqual(accepted, 2);
 	});
 
-	test('concurrent re-subscriptions preserve pending data, counters, snapshots, and socket identity', async () => {
+	test('legacy-only concurrent re-subscriptions preserve pending data, counters, snapshots, and socket identity', async () => {
 		const input = randomBytes(512 * 1024);
 		let accepted = 0;
 		const h = await harness(socket => { accepted++; socket.end(input); });
 		const stream = store.add(await h.open());
-		await Promise.all([8192, 4096].map((windowBytes, index) => h.wire.request({
+		// Equal windows keep the client's credit threshold valid; the test bypasses the client stream's own renegotiation.
+		const responses = await Promise.all([1024, 2048].map((maximumFrameBytes, index) => h.wire.request({
 			jsonrpc: '2.0', id: 900 + index, method: 'subscribe', params: {
-				channel: stream.resource, flowControl: { receive: { windowBytes, maximumFrameBytes: 1024 } },
+				channel: stream.resource, flowControl: { receive: { windowBytes: 256 * 1024, maximumFrameBytes } },
 			}
+		})));
+		assert.deepStrictEqual(responses, [1024, 2048].map(maxFrameBytes => ({
+			flowControl: {
+				clientReceive: { windowBytes: 256 * 1024, maxFrameBytes, maximumFrameBytes: maxFrameBytes },
+				hostReceive: { windowBytes: 256 * 1024, maxFrameBytes: 16 * 1024, maximumFrameBytes: 16 * 1024 },
+			},
 		})));
 		assert.deepStrictEqual(await readAll(stream), input);
 		await stream.end();
 		await stream.drain();
 		assert.strictEqual(accepted, 1);
 		assert.strictEqual(h.wire.peer.sent.filter(message => hasKey(message, { method: true }) && message.method === 'channel/snapshot').length, 3);
+	});
+
+	test('offers both TCP frame limits and accepts legacy-only host limits', async () => {
+		const h = await harness(socket => socket.on('data', data => socket.end(data)));
+		h.wire.peer.rewriteMessage = message => {
+			if (hasKey(message, { result: true }) && message.result && typeof message.result === 'object' && hasKey(message.result, { flowControl: true })) {
+				return {
+					...message,
+					result: JSON.parse('{"flowControl":{"clientReceive":{"windowBytes":262144,"maximumFrameBytes":16384},"hostReceive":{"windowBytes":262144,"maximumFrameBytes":16384}}}'),
+				};
+			}
+			return message;
+		};
+		const stream = store.add(await h.open());
+		await stream.write(VSBuffer.fromString('legacy TCP'));
+		await stream.end();
+		const received = (await readAll(stream)).toString();
+		const subscribe = h.wire.sent.find(message => hasKey(message, { method: true }) && message.method === 'subscribe');
+		assert.deepStrictEqual({ offered: subscribe && hasKey(subscribe, { params: true }) ? subscribe.params : undefined, received }, {
+			offered: { channel: stream.resource, flowControl: { receive: { windowBytes: 262144, maxFrameBytes: 16384, maximumFrameBytes: 16384 } } },
+			received: 'legacy TCP',
+		});
 	});
 
 	test('a stalled reader does not block another stream or protocol ping', async () => {
@@ -404,17 +447,6 @@ suite('AHP windowed TCP', function () {
 		assert.deepStrictEqual(await readAll(current), input);
 		await current.end();
 		await current.drain();
-	});
-
-	test('TCP capability and destination creation require authentication', async () => {
-		const untrusted = await harness(socket => socket.end(), false);
-		assert.strictEqual(untrusted.client.initializeResult.get()?.tcpConnections, undefined);
-		await assert.rejects(untrusted.open(), /does not support TCP/);
-		await assert.rejects(untrusted.wire.request({
-			jsonrpc: '2.0', id: 902, method: 'createTcpConnection', params: {
-				channel: 'ahp-tcp:/denied', host: '127.0.0.1', port: untrusted.port,
-			}
-		}), /authenticated/);
 	});
 
 	test('ownership is transport-local, even for the same logical client identity', async () => {
@@ -521,7 +553,7 @@ suite('AHP windowed TCP', function () {
 			jsonrpc: '2.0', method: 'unsubscribe',
 			params: { channel: stream.resource, padding: 'x'.repeat(16 * 1024) },
 		});
-		assert.ok(h.log.errors.some(error => error.includes('AgentHostChannels')));
+		assert.ok(h.log.warnings.some(warning => warning.includes('[AgentHostChannels] Control lane failed (controlLimitExceeded)')));
 		assert.strictEqual(h.wire.peer.disposed, true);
 	});
 
@@ -541,8 +573,8 @@ suite('AHP windowed TCP', function () {
 				},
 			});
 			assert.deepStrictEqual(result, replay
-				? { type: 'replay', actions: [], missing: ['ahp-tcp:/subscription', 'ahp-tcp:/both', 'ahp-tcp:/window-only'] }
-				: { type: 'snapshot', snapshots: [] });
+				? { type: 'replay', actions: [], missing: ['ahp-tcp:/subscription', 'ahp-tcp:/both', 'ahp-tcp:/window-only'], windows: { items: [] } }
+				: { type: 'snapshot', snapshots: [], windows: { items: [] } });
 		});
 	}
 

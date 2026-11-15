@@ -1,7 +1,13 @@
 parameters:
-  # Hygiene and ESLint check only the files that the commits of the build change, unless a change can affect other
-  # files (see build/lib/changedFiles.ts). Other builds check every file.
-  - name: VSCODE_CHECK_CHANGED_FILES
+  # Whether to include the steps that need a privileged service connection
+  # (source map upload). Only product-build-ci.yml sets this to false.
+  - name: VSCODE_PRIVILEGED_CONNECTIONS
+    type: boolean
+    default: true
+  # Whether to fail on an unreviewed contribution or forbidden module in the mobile web
+  # package (see build/next/MOBILE.md). Product builds keep the mobile package best-effort
+  # in their Web stage, so only product-build-ci.yml sets this.
+  - name: VSCODE_CHECK_MOBILE_BOUNDARY
     type: boolean
     default: false
 
@@ -35,20 +41,10 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
 
-      - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts quality $(node -p process.arch) > .build/packagelockhash
-        displayName: Prepare node_modules cache key
-
-      - task: Cache@2
-        inputs:
-          key: '"node_modules" | .build/packagelockhash'
-          path: .build/node_modules_cache
-          cacheHitVar: NODE_MODULES_RESTORED
-        displayName: Restore node_modules cache
-        retryCountOnTaskFailure: 2
-
-      - script: tar -xzf .build/node_modules_cache/cache.tgz
-        condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-        displayName: Extract node_modules cache
+      - template: ./common/restore-pnpm-store.yml@self
+        parameters:
+          keyArgs: quality
+          os: linux
 
       - script: |
           set -e
@@ -63,6 +59,8 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
+      - template: ./common/install-pnpm.yml@self
+
       - task: NuGetAuthenticate@1
         displayName: Setup NuGet Authentication
 
@@ -70,18 +68,17 @@ jobs:
           set -e
 
           for i in {1..5}; do # try 5 times
-            npm ci && break
+            pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
+              echo "pnpm install failed too many times" >&2
               exit 1
             fi
-            echo "Npm install failed $i, trying again..."
+            echo "pnpm install failed $i, trying again..."
           done
         workingDirectory: build
         env:
           GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Install build dependencies
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
       - script: |
           set -e
@@ -96,15 +93,15 @@ jobs:
           set -e
 
           source ./build/azure-pipelines/linux/setup-env.sh
-          node build/npm/preinstall.ts
+          pnpm run preinstall
 
           for i in {1..5}; do # try 5 times
-            npm ci && break
+            pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
+              echo "pnpm install failed too many times" >&2
               exit 1
             fi
-            echo "Npm install failed $i, trying again..."
+            echo "pnpm install failed $i, trying again..."
           done
         env:
           npm_config_arch: x64
@@ -115,7 +112,6 @@ jobs:
           FOUNDRY_LOCAL_NUGET_MODE: dotnet
           FOUNDRY_LOCAL_NUGET_FEEDS: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/index.json"
         displayName: Install dependencies
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
       # NuGetAuthenticate@1 exposes its access token to all later steps as the
       # VSS_NUGET_ACCESSTOKEN environment variable, from where tests can write it
@@ -129,16 +125,11 @@ jobs:
         displayName: Verify native optional dependency binaries
 
       - script: node build/azure-pipelines/distro/mixin-npm.ts
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Mixin distro node modules
 
-      - script: |
-          set -e
-          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
-          mkdir -p .build/node_modules_cache
-          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
-        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-        displayName: Create node_modules archive
+      - template: ./common/prune-pnpm-store.yml@self
+        parameters:
+          os: linux
 
       - script: node build/azure-pipelines/distro/mixin-quality.ts
         displayName: Mixin distro quality
@@ -160,7 +151,7 @@ jobs:
       # minutes. Component Detection only reads manifests and lockfiles, so scanning
       # before compile finds the same components (compile only copies src cgmanifest.json
       # files into out-build).
-      - script: npm run download-builtin-extensions-cg
+      - script: pnpm run download-builtin-extensions-cg
         displayName: Download component details of built-in extensions
         continueOnError: true
         condition: and(succeeded(), eq(lower(variables['VSCODE_CIBUILD']), 'false'))
@@ -385,7 +376,7 @@ jobs:
 
       - script: |
           set -e
-          npx tsc6 --skipLibCheck --module nodenext --moduleResolution nodenext --esModuleInterop --target es2022 --types node --outDir .oss-build-out build/azure-pipelines/oss/apply-overrides.ts build/azure-pipelines/oss/scan-licenses.ts build/azure-pipelines/oss/parse-notices.ts build/azure-pipelines/oss/merge-notices.ts
+          pnpm exec tsc6 --skipLibCheck --module nodenext --moduleResolution nodenext --esModuleInterop --target es2022 --types node --outDir .oss-build-out build/azure-pipelines/oss/apply-overrides.ts build/azure-pipelines/oss/scan-licenses.ts build/azure-pipelines/oss/parse-notices.ts build/azure-pipelines/oss/merge-notices.ts
           node .oss-build-out/scan-licenses.js \
             --repo "$(Build.SourcesDirectory)" \
             --cg "$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt" \
@@ -405,58 +396,61 @@ jobs:
         continueOnError: true
 
       # The NOTICE outputs are already in the artifact staging directory. Remove the
-      # intermediates from the repository so ESLint and hygiene below don't check them.
+      # intermediates from the repository so oxlint and hygiene below don't check them.
       - script: rm -rf .oss-build-out ThirdPartyNotices.generated.txt
         displayName: Remove NOTICE intermediates
 
-      - ${{ if eq(parameters.VSCODE_CHECK_CHANGED_FILES, true) }}:
-        - script: node build/azure-pipelines/common/computeChangedSince.ts
-          env:
-            SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-          displayName: Determine hygiene and ESLint scope
+      - script: pnpm exec npm-run-all2 -lp core-ci hygiene oxlint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+        env:
+          GITHUB_TOKEN: "$(github-token-code-oss)"
+        displayName: Compile & Hygiene
 
-        # With VSCODE_CHANGED_SINCE, hygiene and ESLint check only the files that changed since that commit, so they
-        # take seconds and fail the job before the compilation checks start. --continue-on-error reports both when both
-        # fail. ESLint stays out of the compilation checks so that its worker memory doesn't overlap theirs.
+      - ${{ if eq(parameters.VSCODE_CHECK_MOBILE_BOUNDARY, true) }}:
+        - script: pnpm run check-mobile-boundary
+          displayName: Check mobile dependency boundary
+
+      # Copilot has its own TypeScript projects and code style, which the steps above don't check (see
+      # build/filters.ts). Like the build of the built-in Copilot (see copilot/builtin-steps.yml), the checks run after
+      # Copilot's vscode-capi mixin, so that they cover the code that ships. microsoft/vscode-capi is a separate
+      # repository that installs with npm.
+      - script: BUILD_SOURCESDIRECTORY=$(Build.SourcesDirectory)/extensions/copilot npm run mixin
+        workingDirectory: $(Build.SourcesDirectory)/.build/vscode-capi
+        displayName: Mixin vscode-capi (Copilot)
+
+      - script: pnpm run lint
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: oxlint (Copilot)
+
+      # The compile runs script/postinstall.ts, which deletes and recopies node_modules/@github/copilot/sdk, so the type
+      # check, which resolves the SDK's declarations there, runs after it. The compile only checks that Copilot builds,
+      # so it skips the release version that .esbuild.mts stamps into package.json in CI.
+      - script: BUILD_SOURCEVERSION= pnpm run compile && pnpm run typecheck
+        workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+        displayName: Compile (Copilot)
+
+      - ${{ if eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+        - task: AzureCLI@2
+          displayName: Fetch secrets
+          inputs:
+            azureSubscription: vscode
+            scriptType: pscore
+            scriptLocation: inlineScript
+            addSpnToEnvironment: true
+            inlineScript: |
+              Write-Host "##vso[task.setvariable variable=AZURE_TENANT_ID]$env:tenantId"
+              Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
+              Write-Host "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]$env:idToken"
+          condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
+
         - script: |
             set -e
-            changed_since="${VSCODE_CHANGED_SINCE:+ -- --changed-since $VSCODE_CHANGED_SINCE}"
-            npm exec -- npm-run-all2 -lp --continue-on-error "hygiene$changed_since" "eslint$changed_since"
-          displayName: Hygiene & ESLint
-
-        - script: npm exec -- npm-run-all2 -lp core-ci valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
-          env:
-            GITHUB_TOKEN: "$(github-token-code-oss)"
-          displayName: Compile
-
-      - ${{ else }}:
-        - script: npm exec -- npm-run-all2 -lp core-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
-          env:
-            GITHUB_TOKEN: "$(github-token-code-oss)"
-          displayName: Compile & Hygiene
-
-      - task: AzureCLI@2
-        displayName: Fetch secrets
-        inputs:
-          azureSubscription: vscode
-          scriptType: pscore
-          scriptLocation: inlineScript
-          addSpnToEnvironment: true
-          inlineScript: |
-            Write-Host "##vso[task.setvariable variable=AZURE_TENANT_ID]$env:tenantId"
-            Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
-            Write-Host "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]$env:idToken"
-        condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
-
-      - script: |
-          set -e
-          AZURE_STORAGE_ACCOUNT="vscodeweb" \
-          AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
-          AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
-          AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
-            node build/azure-pipelines/upload-sourcemaps.ts
-        displayName: Upload sourcemaps to Azure
-        condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
+            AZURE_STORAGE_ACCOUNT="vscodeweb" \
+            AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
+            AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
+            AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
+              node build/azure-pipelines/upload-sourcemaps.ts
+          displayName: Upload sourcemaps to Azure
+          condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
 
       # A continued upload failure must not produce an eligible cache tag.
       # Read back the published files for the byte comparison below.

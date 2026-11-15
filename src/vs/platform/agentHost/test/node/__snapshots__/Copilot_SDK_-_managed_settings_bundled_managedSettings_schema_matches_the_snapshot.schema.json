@@ -27,10 +27,10 @@
 			}
 		},
 		"strictPluginOnlyCustomization": {
-			"description": "Customization lockdown baseline. When set, prevents standalone user and workspace/project customizations from the named surfaces; those customizations may then originate only from plugins or managed settings. It does NOT mean managed-plugin-only — eligible plugin-provided customizations are still permitted (use `allowManagedMcpServersOnly` / `allowManagedHooksOnly` for the stricter managed-only overlays). `true` locks all four surfaces (skills, agents, hooks, MCP servers); an array locks only the named surfaces. Unset preserves existing behavior.",
+			"description": "Customization lockdown baseline. When set, prevents standalone user and workspace/project customizations from the named surfaces; those customizations may then originate only from plugins or managed settings. For executable Copilot extensions, also blocks session-state extension directories. It does NOT mean managed-plugin-only — eligible plugin-provided customizations are still permitted (use `allowManagedMcpServersOnly` / `allowManagedHooksOnly` for the stricter managed-only overlays). `true` locks all five surfaces (skills, agents, hooks, MCP servers, extensions); an array locks only the named surfaces. Unset or false preserves existing behavior.",
 			"oneOf": [
 				{
-					"description": "true locks all four surfaces (skills, agents, hooks, MCP servers); false preserves existing behavior.",
+					"description": "true locks all five surfaces (skills, agents, hooks, MCP servers, extensions); false preserves existing behavior.",
 					"type": "boolean"
 				},
 				{
@@ -42,7 +42,8 @@
 							"skills",
 							"agents",
 							"hooks",
-							"mcp"
+							"mcp",
+							"extensions"
 						]
 					},
 					"uniqueItems": true
@@ -70,18 +71,16 @@
 			}
 		},
 		"features": {
-			"description": "Open map of managed product feature availability. A false value blocks the named feature; true or absent does not force-enable it.",
+			"description": "Open map of managed product feature availability. A false value blocks the named feature; true or absent does not force-enable it. Native MDM supports both a JSON-encoded features object and the features.computerUse boolean leaf. When both supply computerUse, false in either form wins and other feature entries are preserved.",
 			"type": "object",
+			"properties": {
+				"computerUse": {
+					"description": "Whether Computer Use is available. For native MDM, features.computerUse is a string containing the JSON boolean false or true.",
+					"type": "boolean"
+				}
+			},
 			"additionalProperties": {
 				"type": "boolean"
-			}
-		},
-		"requireBase64ImageAttachments": {
-			"description": "When true, requires base64-encoded image attachments instead of attachment URLs. False or unset preserves existing behavior.",
-			"type": "boolean",
-			"default": false,
-			"x-composition": {
-				"strategy": "highest-layer-wins"
 			}
 		},
 		"vscode": {
@@ -100,8 +99,39 @@
 				"description": "The whole vscode block is selected from the highest-priority channel that supplies it: device, then server, then policy helper. An explicit false or empty block replaces a lower-priority true; this is a preference, not a security floor."
 			}
 		},
+		"communication": {
+			"description": "Organization-specific information that Copilot clients surface to end users, such as where to get help. Informational only: the runtime does not enforce these values, and clients decide where to display them.",
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"support": {
+					"description": "Where end users find help for this organization's Copilot deployment.",
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"url": {
+							"description": "Absolute http or https URL of an organization-maintained page that tells users how to get help, for example who administers Copilot and how to request access. Clients may link to it wherever they would otherwise tell users to contact their administrator.",
+							"type": "string",
+							"format": "uri",
+							"pattern": "^[Hh][Tt][Tt][Pp][Ss]?://[^/?#\\s]+"
+						}
+					}
+				}
+			},
+			"x-composition": {
+				"strategy": "highest-layer-wins",
+				"description": "The whole communication block is selected from the highest-priority channel that supplies it: device, then server, then policy helper. An empty block replaces a lower-priority block."
+			}
+		},
 		"model": {
 			"description": "Default model identifier for new conversations, including 'auto' or a concrete model ID. 'fusion' is accepted as the Copilot Fusion name for 'auto'; use fusionTier to choose its tier. Users may override this startup default. Hosts should match it against the account's available models.",
+			"type": "string",
+			"x-composition": {
+				"strategy": "highest-layer-wins"
+			}
+		},
+		"copilotInferenceUrl": {
+			"description": "Base URL for GitHub Copilot inference only: chat completions, Anthropic messages, and HTTP/WebSocket responses. Only supported for user bearer authentication; a nonblank URL fails model-turn preparation for HMAC/service authentication, including HMAC credential helpers. Authentication, token refresh, model discovery, and other control-plane services keep their original endpoints. Does not enable offline mode or affect BYOK/Azure providers. Requires an absolute HTTPS URL with a host; HTTP is allowed only for localhost or literal loopback IP addresses. May include a path prefix, but not embedded credentials, a query, or a fragment. Leading/trailing whitespace and trailing slashes are normalized. Unset or blank uses the normal inference endpoint. Device policy takes precedence over server policy, then policy-helper settings; a blank value in a higher-priority channel overrides lower-priority URLs. User and repository settings cannot set this property. Only use a trusted gateway: inference requests carry Copilot credentials and session tokens. Changes apply to subsequently prepared model turns; an in-flight request keeps its captured route.",
 			"type": "string",
 			"x-composition": {
 				"strategy": "highest-layer-wins"
@@ -292,7 +322,7 @@
 					}
 				},
 				"deny": {
-					"description": "Permission rules that block matching operations. Deny takes precedence over ask and allow and is unioned across managed sources.",
+					"description": "Permission rules that block matching operations. Deny takes precedence over ask and allow and is unioned across managed sources. Shell(...), Bash(...), and PowerShell(...) rules here and in ask and allow also accept a JavaScript regular expression written as /pattern/flags.",
 					"type": "array",
 					"items": {
 						"type": "string",
@@ -418,6 +448,39 @@
 			},
 			"x-composition": {
 				"strategy": "deny-wins"
+			}
+		},
+		"pluginAssignments": {
+			"description": "Soft plugin defaults with an optional explanation. The runtime installs and activates assigned plugins on a best-effort basis. Explicit user choices override defaults. Hard enabledPlugins policy remains authoritative.",
+			"type": "object",
+			"propertyNames": {
+				"pattern": "^[A-Za-z0-9-](?:[A-Za-z0-9.-]{0,62}[A-Za-z0-9-])?@[A-Za-z0-9-](?:[A-Za-z0-9.-]{0,62}[A-Za-z0-9-])?$",
+				"not": {
+					"pattern": "\\.\\.|[^A-Za-z0-9.@-]"
+				}
+			},
+			"additionalProperties": {
+				"type": "object",
+				"required": [
+					"state"
+				],
+				"additionalProperties": false,
+				"properties": {
+					"state": {
+						"type": "string",
+						"enum": [
+							"defaultEnabled"
+						]
+					},
+					"reason": {
+						"description": "Administrator-provided explanation. It does not grant authorization or change user preferences.",
+						"type": "string"
+					}
+				}
+			},
+			"x-composition": {
+				"strategy": "highest-layer-wins-per-entry",
+				"description": "Combine distinct plugin entries. For the same plugin, select the complete entry from MDM, then server, then Policy Helper. Empty maps contribute no entries."
 			}
 		},
 		"extraKnownMarketplaces": {
@@ -989,6 +1052,13 @@
 						"strategy": "force-on-wins"
 					}
 				},
+				"sandboxExtensions": {
+					"description": "Whether extension processes are spawned inside the sandbox. Routing flag: true is the more-restrictive value, so a managed true wins and a user false cannot loosen it.",
+					"type": "boolean",
+					"x-composition": {
+						"strategy": "force-on-wins"
+					}
+				},
 				"sandboxLspServers": {
 					"description": "Whether LSP servers are spawned inside the sandbox. Routing flag: true (servers sandboxed) is the more-restrictive value, so a managed true wins (force-on) and a user false cannot loosen it.",
 					"type": "boolean",
@@ -1066,6 +1136,16 @@
 										"strategy": "allowlist-intersection"
 									}
 								},
+								"enumeratePaths": {
+									"description": "Paths granted enumerate-only access on Windows (list a directory and query its attributes, not read file contents). Managed policy can only shrink the effective grant (intersection).",
+									"type": "array",
+									"items": {
+										"type": "string"
+									},
+									"x-composition": {
+										"strategy": "allowlist-intersection"
+									}
+								},
 								"deniedPaths": {
 									"description": "Paths explicitly denied. Managed policy can only add denials (union).",
 									"type": "array",
@@ -1084,21 +1164,21 @@
 							"additionalProperties": false,
 							"properties": {
 								"allowOutbound": {
-									"description": "Whether outbound network access is permitted. Managed false wins.",
+									"description": "Whether outbound network destinations, including private networks, are permitted. Host-loopback access is controlled separately by allowLocalNetwork. Host rules still apply. Managed false wins.",
 									"type": "boolean",
 									"x-composition": {
 										"strategy": "deny-wins"
 									}
 								},
 								"allowLocalNetwork": {
-									"description": "Whether local-network access is permitted. Managed false wins.",
+									"description": "Whether host-local destinations, including loopback and unspecified addresses, are permitted. Private networks follow outbound and host rules. Managed false wins.",
 									"type": "boolean",
 									"x-composition": {
 										"strategy": "deny-wins"
 									}
 								},
 								"allowedHosts": {
-									"description": "Host allowlist for the built-in local proxy. Non-empty lists intersect with other configured allowlists; absent or empty lists add no restriction. Supports exact hosts, IP addresses, and *.example.com for strict subdomains.",
+									"description": "Allow rules for the built-in local proxy: hostnames, IPs, IPv4/IPv6 CIDRs (10.0.0.0/8, fd00::/8), and *.example.com for strict subdomains. CIDR host bits must be zero; the runtime suggests the corrected network otherwise. Matching names or addresses are alternative grants within a list; every nonempty user and managed list must permit every resolved address. Empty lists add no restriction. Network toggles still apply. Upstream proxies own DNS: CIDR-only grants cannot authorize unresolved names or constrain the upstream's chosen address.",
 									"type": "array",
 									"items": {
 										"$ref": "#/$defs/hostPattern"
@@ -1108,7 +1188,7 @@
 									}
 								},
 								"blockedHosts": {
-									"description": "Host denylist for the built-in local proxy. Combined with other denylists; deny takes precedence over allow. A domain also denies all its subdomains. IP addresses match exactly; *.example.com matches strict subdomains, and * denies every host.",
+									"description": "Deny rules for the built-in local proxy. Denylists combine; any matching name, IP, or IPv4/IPv6 CIDR denial overrides allow rules, including an allowed hostname's resolved addresses. CIDR host bits must be zero. A domain also denies its subdomains; *.example.com matches strict subdomains, and * denies every host. Address denials cannot constrain names resolved by an upstream proxy.",
 									"type": "array",
 									"items": {
 										"$ref": "#/$defs/hostPattern"
@@ -1167,17 +1247,17 @@
 			},
 			"x-composition": {
 				"strategy": "restrictiveness-merge",
-				"description": "The managed sandbox is a floor: each field composes with the user's value in the safe direction (force-on for enabled and the MCP/LSP routing flags, deny-wins for the remaining boolean toggles including allowDevToolAccess, intersection for the readwrite/readonly grant lists, union for the deny list). The proxy URL is a directional managed override: it replaces the user's URL while preserving user-managed credentials, and device-managed settings win conflicts between managed sources. Deprecated keys (sandbox.config, sandbox.userPolicy.experimental) are excluded. The runtime applies this per-field merge to compute the effective sandbox policy."
+				"description": "The managed sandbox is a floor: each field composes with the user's value in the safe direction (force-on for enabled and the MCP/LSP/extension routing flags, deny-wins for the remaining boolean toggles including allowDevToolAccess, intersection for the readwrite/readonly grant lists, union for the deny list). The proxy URL is a directional managed override: it replaces the user's URL while preserving user-managed credentials, and device-managed settings win conflicts between managed sources. Deprecated keys (sandbox.config, sandbox.userPolicy.experimental) are excluded. The runtime applies this per-field merge to compute the effective sandbox policy."
 			}
 		}
 	},
 	"$defs": {
 		"hostPattern": {
-			"description": "A host rule in standard ASCII DNS, dotted IPv4, or hexadecimal IPv6 notation. Domains may have a leading *. wildcard; * matches every host. No URL, port, userinfo, path, or IPv6 zone identifier is permitted.",
+			"description": "A network rule: an ASCII DNS name, IPv4 or IPv6 address, or IPv4 or IPv6 CIDR block. Domains may have a leading *. wildcard; * matches every host. CIDR prefixes range from 0 to 32 for IPv4 and 0 to 128 for IPv6. The runtime additionally requires CIDR host bits to be zero and suggests the network address otherwise. No URL, port, userinfo, path, or IPv6 zone identifier is permitted.",
 			"type": "string",
 			"minLength": 1,
 			"not": {
-				"pattern": "[\\s/@%?#\\\\]"
+				"pattern": "[\\s@%?#\\\\]"
 			},
 			"anyOf": [
 				{
@@ -1187,7 +1267,7 @@
 					"pattern": "^(?:\\*\\.)?(?!(?:.*\\.)?(?:[0-9]+|0[xX][0-9A-Fa-f]*)\\.*$)[A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]+)*\\.*$"
 				},
 				{
-					"pattern": "^(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(?:\\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}\\.*$"
+					"pattern": "^(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(?:\\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}(?:\\.*|/(?:[0-9]|[12][0-9]|3[0-2]))$"
 				},
 				{
 					"allOf": [
@@ -1195,9 +1275,12 @@
 							"pattern": "^(?:[^\\[\\]]*|\\[[^\\[\\]]*\\])$"
 						},
 						{
-							"pattern": "^\\[?(?:(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}|(?:[0-9A-Fa-f]{1,4}:){1,7}:|(?:[0-9A-Fa-f]{1,4}:){1,6}:[0-9A-Fa-f]{1,4}|(?:[0-9A-Fa-f]{1,4}:){1,5}(?::[0-9A-Fa-f]{1,4}){1,2}|(?:[0-9A-Fa-f]{1,4}:){1,4}(?::[0-9A-Fa-f]{1,4}){1,3}|(?:[0-9A-Fa-f]{1,4}:){1,3}(?::[0-9A-Fa-f]{1,4}){1,4}|(?:[0-9A-Fa-f]{1,4}:){1,2}(?::[0-9A-Fa-f]{1,4}){1,5}|[0-9A-Fa-f]{1,4}:(?:(?::[0-9A-Fa-f]{1,4}){1,6})|:(?:(?::[0-9A-Fa-f]{1,4}){1,7}|:))\\]?$"
+							"pattern": "^\\[?(?:(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}|(?:[0-9A-Fa-f]{1,4}:){1,7}:|(?:[0-9A-Fa-f]{1,4}:){1,6}:[0-9A-Fa-f]{1,4}|(?:[0-9A-Fa-f]{1,4}:){1,5}(?::[0-9A-Fa-f]{1,4}){1,2}|(?:[0-9A-Fa-f]{1,4}:){1,4}(?::[0-9A-Fa-f]{1,4}){1,3}|(?:[0-9A-Fa-f]{1,4}:){1,3}(?::[0-9A-Fa-f]{1,4}){1,4}|(?:[0-9A-Fa-f]{1,4}:){1,2}(?::[0-9A-Fa-f]{1,4}){1,5}|[0-9A-Fa-f]{1,4}:(?:(?::[0-9A-Fa-f]{1,4}){1,6})|:(?:(?::[0-9A-Fa-f]{1,4}){1,7}|:))\\]?(?:/(?:[0-9]|[1-9][0-9]|1[01][0-9]|12[0-8]))?$"
 						}
 					]
+				},
+				{
+					"pattern": "^(?:(?:[0-9A-Fa-f]{1,4}:){6}|::(?:[0-9A-Fa-f]{1,4}:){0,5}|[0-9A-Fa-f]{1,4}::(?:[0-9A-Fa-f]{1,4}:){0,4}|(?:[0-9A-Fa-f]{1,4}:){1}[0-9A-Fa-f]{1,4}::(?:[0-9A-Fa-f]{1,4}:){0,3}|(?:[0-9A-Fa-f]{1,4}:){2}[0-9A-Fa-f]{1,4}::(?:[0-9A-Fa-f]{1,4}:){0,2}|(?:[0-9A-Fa-f]{1,4}:){3}[0-9A-Fa-f]{1,4}::(?:[0-9A-Fa-f]{1,4}:){0,1}|(?:[0-9A-Fa-f]{1,4}:){4}[0-9A-Fa-f]{1,4}::)(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(?:\\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}/(?:[0-9]|[1-9][0-9]|1[01][0-9]|12[0-8])$"
 				}
 			]
 		},

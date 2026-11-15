@@ -23,6 +23,8 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { TitleBarSetting } from '../../../../platform/window/common/window.js';
 import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
+import { ISizeService } from '../../../../platform/theme/common/sizeService.js';
+import { activityBarCornerRadius, secondarySideBarCornerRadius, editorAreaCornerRadius, toolsPanelCornerRadius, primarySideBarCornerRadius } from '../../../../platform/theme/common/sizeRegistry.js';
 
 export class PartsSplash {
 
@@ -42,6 +44,7 @@ export class PartsSplash {
 		@ISplashStorageService private readonly _partSplashService: ISplashStorageService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@ISizeService private readonly _sizeService: ISizeService,
 	) {
 		Event.once(_layoutService.onDidLayoutMainContainer)(() => {
 			this._removePartsSplash();
@@ -53,7 +56,7 @@ export class PartsSplash {
 			lastIdleSchedule.value = dom.runWhenWindowIdle(mainWindow, () => this._savePartsSplash(), 2500);
 		};
 		lifecycleService.when(LifecyclePhase.Restored).then(() => {
-			Event.any(Event.filter(onDidChangeFullscreen, windowId => windowId === mainWindow.vscodeWindowId), editorGroupsService.mainPart.onDidLayout, _themeService.onDidColorThemeChange)(savePartsSplashSoon, undefined, this._disposables);
+			Event.any(Event.filter(onDidChangeFullscreen, windowId => windowId === mainWindow.vscodeWindowId), editorGroupsService.mainPart.onDidLayout, _themeService.onDidColorThemeChange, _sizeService.onDidChangeSizes)(savePartsSplashSoon, undefined, this._disposables);
 			savePartsSplashSoon();
 		});
 
@@ -119,6 +122,7 @@ export class PartsSplash {
 				windowBorderRadius: this._layoutService.getMainWindowBorderRadius(),
 				modernUI: this._layoutService.isFloatingPanelsEnabled(),
 				modernUICompact: this._layoutService.isModernUICompact(),
+				panelSpacing: this._layoutService.getPanelSpacing(),
 				partBounds: this._layoutService.isFloatingPanelsEnabled() ? {
 					activityBar: this._getPartBounds(Parts.ACTIVITYBAR_PART),
 					sideBar: this._getPartBounds(Parts.SIDEBAR_PART),
@@ -143,11 +147,19 @@ export class PartsSplash {
 		const position = dom.getDomNodePagePosition(container);
 		const classPrefix = part === Parts.EDITOR_PART ? 'floating-editor' : 'floating-part';
 		const activityBarOnLeft = this._layoutService.getSideBarPosition() === Position.LEFT;
+		const radiusToken = {
+			[Parts.ACTIVITYBAR_PART]: activityBarCornerRadius,
+			[Parts.SIDEBAR_PART]: primarySideBarCornerRadius,
+			[Parts.AUXILIARYBAR_PART]: secondarySideBarCornerRadius,
+			[Parts.PANEL_PART]: toolsPanelCornerRadius,
+			[Parts.EDITOR_PART]: editorAreaCornerRadius,
+		}[part];
 		return {
 			top: position.top,
 			left: position.left,
 			width: position.width,
 			height: position.height,
+			cornerRadius: this._sizeService.getSize(radiusToken, this._themeService.getColorTheme())?.value,
 			outerEdges: part === Parts.ACTIVITYBAR_PART ? {
 				left: activityBarOnLeft,
 				right: !activityBarOnLeft,
@@ -167,14 +179,14 @@ export class PartsSplash {
 	}
 
 	private _removePartsSplash(): void {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const element = mainWindow.document.getElementById(PartsSplash._splashElementId);
 		if (element) {
 			element.style.display = 'none';
 		}
 
 		// remove initial colors
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const defaultStyles = mainWindow.document.head.getElementsByClassName('initialShellColors');
 		defaultStyles[0]?.remove();
 	}

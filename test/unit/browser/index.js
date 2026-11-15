@@ -313,6 +313,35 @@ async function createServer(claims) {
 }
 
 /**
+ * Appends what the isolation checks found (see isolationCheck.ts) to the JSON lines file in
+ * VSCODE_TEST_ISOLATION_REPORT, one line per finding, so the findings of several runs end up in one file.
+ * @param {import('playwright').Page} page
+ * @param {string} browserType
+ */
+async function writeIsolationFindings(page, browserType) {
+	const reportPath = process.env.VSCODE_TEST_ISOLATION_REPORT;
+	if (!reportPath) {
+		return;
+	}
+	const findings = await page.evaluate(async () => {
+		try {
+			// Settles checks that only a later suite would have settled, see flushIsolationChecks in isolationCheck.ts.
+			await globalThis.__vscodeTestIsolationFlush?.();
+		} catch (error) {
+			console.error(`Failed to flush isolation checks: ${error}`);
+		}
+		return globalThis.__vscodeTestIsolationFindings ?? [];
+	});
+	if (findings.length) {
+		try {
+			await fs.promises.appendFile(reportPath, findings.map(finding => JSON.stringify({ runner: browserType, ...finding }) + '\n').join(''));
+		} catch (error) {
+			// The report is optional: never fail the run because of it.
+			console.error(`Failed to write isolation findings to ${reportPath}: ${error}`);
+		}
+	}
+}
+/**
  * Runs the test modules once in a newly launched browser. Returns the failure message
  * for the console, if any test failed, and which tests passed and failed.
  * @param {string[]} testModules
@@ -417,7 +446,9 @@ async function runTestsInBrowser(testModules, browserType, browserChannel, grep,
 			grep,
 			rerunTargets,
 			claimTestFiles: !!claims,
+			isolationProbes: !!process.env.VSCODE_TEST_ISOLATION_REPORT,
 		});
+		await writeIsolationFindings(page, browserType);
 	} finally {
 		await stallWatchdog.dispose();
 		if (!isDebug) {

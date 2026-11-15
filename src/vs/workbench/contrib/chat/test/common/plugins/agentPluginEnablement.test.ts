@@ -182,6 +182,22 @@ suite('AgentPlugin enablement', () => {
 		});
 	});
 
+	test('does not mirror or roll back Copilot-owned enablement against legacy local state', async () => {
+		const service = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
+		const calls: boolean[] = [];
+		const plugin: IAgentPlugin = {
+			...makePlugin(URI.file('/plugins/runtime'), 'runtime'),
+			copilotCliInstallation: { name: 'runtime', marketplace: 'marketplace' },
+			setEnabled: async enabled => { calls.push(enabled); },
+		};
+		service.setEnabled(plugin.uri.toString(), ContributionEnablementState.DisabledWorkspace);
+		await setAgentPluginEnablement(plugin, service, ContributionEnablementState.EnabledProfile);
+		await assert.rejects(() => setAgentPluginEnablement(plugin, service, ContributionEnablementState.EnabledWorkspace), /chat customizations/);
+		assert.deepStrictEqual({ calls, local: service.readEnabled(plugin.uri.toString()) }, {
+			calls: [true], local: ContributionEnablementState.DisabledWorkspace,
+		});
+	});
+
 	test('does not publish local success when runtime enablement fails', async () => {
 		const service = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
 		const plugin = makePlugin(URI.file('/plugins/direct'), 'direct');

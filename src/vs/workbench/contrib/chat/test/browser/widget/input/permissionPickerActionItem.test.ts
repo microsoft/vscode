@@ -245,7 +245,7 @@ suite('PermissionPickerActionItem', () => {
 		assert.deepStrictEqual({ restricted, hover: isMarkdownString(hover) ? hover.value : hover, hidesAfterRefresh, withheld, removed, writes: fixture.writes }, {
 			restricted: [
 				{ label: 'Default permissions', ...enabled },
-				{ label: 'Assisted permissions', ...enabled, badge: 'New' },
+				{ label: 'Assisted permissions', ...enabled, badge: 'Recommended' },
 				{ label: 'Allow all', ...policy },
 			],
 			hover: 'Your organization doesn\'t allow this permission level. Contact your administrator.',
@@ -257,7 +257,7 @@ suite('PermissionPickerActionItem', () => {
 			],
 			removed: [
 				{ label: 'Default permissions', ...enabled },
-				{ label: 'Assisted permissions', ...enabled, badge: 'New' },
+				{ label: 'Assisted permissions', ...enabled, badge: 'Recommended' },
 				{ label: 'Allow all', ...enabled },
 			],
 			writes: [],

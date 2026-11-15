@@ -68,7 +68,8 @@ registerAction2(class extends Action2 {
 				}
 				const active = new Set(quickPick.activeItems.map(item => item.environment.id));
 				const selected = new Set(quickPick.selectedItems.map(item => item.environment.id));
-				const hosts = inventory.hosts.get().filter(host => host.status === 'online');
+				const ownEnvironmentId = inventory.ownEnvironmentId.get();
+				const hosts = inventory.hosts.get().filter(host => host.status === 'online' && host.id !== ownEnvironmentId);
 				const items: IEnvironmentPick[] = [...hosts]
 					.sort((a, b) => (a.displayName ?? a.name).localeCompare(b.displayName ?? b.name) || a.id.localeCompare(b.id))
 					.map(host => {
@@ -96,6 +97,7 @@ registerAction2(class extends Action2 {
 			};
 			resources.add(autorun(reader => {
 				inventory.hosts.read(reader);
+				inventory.ownEnvironmentId.read(reader);
 				update();
 			}));
 			resources.add(remote.onDidChangeConnections(update));

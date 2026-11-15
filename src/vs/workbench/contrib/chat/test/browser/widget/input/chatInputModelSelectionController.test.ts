@@ -1579,6 +1579,32 @@ suite('ChatInputModelSelectionController', () => {
 		});
 	});
 
+	test('restoring chat-local configuration stays nonpersistent even when the model publishes later', () => {
+		const sessionType = 'agent-host-test';
+		const desired = targetedModel('test/desired', sessionType);
+		const restored: object[] = [];
+		const beforePublication: number[] = [];
+		for (const late of [false, true]) {
+			const modelChanges = disposables.add(new Emitter<string>());
+			const state: IRuntimeState = { models: late ? [] : [desired], sessionType };
+			const controller = disposables.add(new ChatInputModelSelectionController({
+				...createRuntime(state, modelChanges, []),
+				restoreModelConfiguration: (modelId, configuration, persist) => restored.push({ modelId, configuration, persist }),
+			}));
+			controller.syncFromConversationState(desired, { effort: late ? 'high' : 'low' }, sessionType, 'chat:one', false, ModelSelectionReason.SessionRestore, true);
+			beforePublication.push(restored.length);
+			state.models = [desired];
+			modelChanges.fire('test');
+		}
+		assert.deepStrictEqual({ beforePublication, restored }, {
+			beforePublication: [1, 1],
+			restored: [
+				{ modelId: desired.identifier, configuration: { effort: 'low' }, persist: false },
+				{ modelId: desired.identifier, configuration: { effort: 'high' }, persist: false },
+			],
+		});
+	});
+
 	test('syncFromConversationState reclaims the conversation model however late the pool publishes', () => {
 		// Cold-restart race: the agent-host vendor is registered but its models arrive later, and it
 		// publishes in waves — first the workbench's BYOK models mirrored in over the bridge, then its

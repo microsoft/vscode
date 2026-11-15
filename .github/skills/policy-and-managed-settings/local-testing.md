@@ -1,7 +1,7 @@
 # Local Testing: Mock Policy Server
 
 ```sh
-npm run mock-policy-server   # http://127.0.0.1:3000
+pnpm run mock-policy-server   # http://127.0.0.1:3000
 ```
 
 [`scripts/mock-policy-server/README.md`](../../../scripts/mock-policy-server/README.md) covers proxy setup, file deployment, cache locations, schema loading, and options. Agent essentials:

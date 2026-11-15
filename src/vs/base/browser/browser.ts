@@ -153,6 +153,15 @@ export function getWCOTitlebarAreaRect(targetWindow: Window): DOMRect | undefine
 	return (targetWindow.navigator as Navigator & { windowControlsOverlay?: { getTitlebarAreaRect: () => DOMRect } })?.windowControlsOverlay?.getTitlebarAreaRect();
 }
 
+/**
+ * Returns the titlebar area rect of the given window only while its window
+ * controls overlay is visible. The value is read on every call.
+ */
+export function getVisibleWCOTitlebarAreaRect(targetWindow: Window): DOMRect | undefined {
+	const overlay = (targetWindow.navigator as Navigator & { windowControlsOverlay?: { visible: boolean; getTitlebarAreaRect: () => DOMRect } })?.windowControlsOverlay;
+	return overlay?.visible ? overlay.getTitlebarAreaRect() : undefined;
+}
+
 export interface IMonacoEnvironment {
 
 	createTrustedTypesPolicy?<Options extends TrustedTypePolicyOptions>(

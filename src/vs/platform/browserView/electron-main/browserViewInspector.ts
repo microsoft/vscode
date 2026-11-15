@@ -335,6 +335,7 @@ export class BrowserViewInspector extends Disposable {
 					this._onDidChangeElementSelectionState.fire({ active: false, options: selection.options });
 					this._activeSelection.clearAndLeak();
 					void this._queueInspectionOperation(async () => {
+						await this.browser.emulator.setElementSelectionActive(false);
 						await Promise.all([...this._registry.inspectors].map(i => i.stopInspection()));
 					}).catch(() => { });
 				}
@@ -359,6 +360,9 @@ export class BrowserViewInspector extends Disposable {
 				return;
 			}
 			await Promise.all([...this._registry.inspectors].map(i => i.startInspection(options)));
+			if (this._activeSelection.value === selection && selection.options === options) {
+				await this.browser.emulator.setElementSelectionActive(true);
+			}
 		});
 		return this._activeSelection.value === selection && selection.options === options;
 	}

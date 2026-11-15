@@ -26,6 +26,7 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
+import { ChatPetJumpGameModel } from '../../common/chatPetJumpGame.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, ChatPetAccessoryId, getChatPetAccessory, getChatPetAchievement } from '../chatPetAchievements.js';
 import { CHAT_PET_DEFAULT_SCALE, ChatPetHorizontalAnchor, ChatPetHorizontalPosition, ChatPetVariant, IChatPetService } from '../chatPetService.js';
@@ -33,9 +34,9 @@ import { CHAT_PET_CHANGE_COLOR_COMMAND_ID, ChatPetColor, getChatPetBodyColor, ge
 import { drawChatPetComposite, drawChatPetEyeAccessory, drawChatPetPropeller, getChatPetAccessoryImageSource, getChatPetPropellerBounds, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions, IChatPetAccessoryImageSource, IChatPetFixedOrientationDecoration } from './chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetReducedMotionRigFrame } from './chatPetAccessoryRig.js';
 import { isImageGenerationToolInProgress } from './chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
-import { ChatPetJumpGame } from './chatPetJumpGame.js';
+import { ChatPetJumpGame, ChatPetJumpGameRetry } from './chatPetJumpGame.js';
 
-export type ChatPetState = 'idle' | 'sleep' | 'waking' | 'typing' | 'rendering' | 'painting' | 'achievementUnlocked' | 'buttonPress' | 'complete' | 'love' | 'clapping' | 'jump' | 'cool' | 'yapping' | 'yappingMouthOpen' | 'sing' | 'speechless' | 'worry' | 'dizzy' | 'falling' | 'wallImpact' | 'splat' | 'onTheRun' | 'searching' | 'searchingDown';
+export type ChatPetState = 'idle' | 'sleep' | 'waking' | 'typing' | 'rendering' | 'painting' | 'achievementUnlocked' | 'buttonPress' | 'complete' | 'love' | 'clapping' | 'jump' | 'cool' | 'yapping' | 'yappingMouthOpen' | 'sing' | 'speechless' | 'worry' | 'dizzy' | 'falling' | 'wallImpact' | 'splat';
 export type ChatPetClickInteraction = Extract<ChatPetState, 'buttonPress' | 'complete' | 'love' | 'cool' | 'yapping' | 'sing' | 'speechless' | 'worry'>;
 
 export interface IChatPetPlatformOccupation {
@@ -83,7 +84,6 @@ interface ChatPetHostTransition {
 
 /** The layer the pet is positioned in, spanning its host. */
 export const CHAT_PET_OVERLAY_CLASS = 'chat-pet-overlay';
-const CHAT_PET_RUN_LAYER_CLASS = 'chat-pet-run-layer';
 
 export const CHAT_PET_IDLE_SLEEP_DELAY = 20_000;
 export const CHAT_PET_CONFIRMATION_ATTENTION_DURATION = 2_000;
@@ -184,7 +184,6 @@ const SING_FRAME_DURATIONS = [180, 180, 180, 180];
 const SPEECHLESS_FRAME_DURATIONS = [400, 120, 1_000, 120, 1_080];
 const WORRY_FRAME_DURATIONS = [600, 600];
 const DIZZY_FRAME_DURATIONS = Array.from({ length: 8 }, () => 120);
-const SEARCH_FRAME_DURATIONS = [500, 500, 500, 500];
 
 interface ChatPetSpriteSource {
 	readonly url: string;
@@ -223,6 +222,7 @@ interface ChatPetPendingRender {
 	readonly accessoryImage: HTMLImageElement | undefined;
 	readonly accessory: ChatPetAccessoryId | undefined;
 	readonly state: ChatPetState;
+	readonly frameIndex?: number;
 	readonly useStaticSprite: boolean;
 }
 
@@ -306,7 +306,7 @@ const speechSpriteSources = new Map<ChatPetVariant, ChatPetSpriteSources>();
 const respawnSpriteSources = new Map<ChatPetVariant, ChatPetSpriteSources>();
 
 export function doesChatPetStateTrackCursor(state: ChatPetState | undefined): boolean {
-	return state !== undefined && state !== 'sleep' && state !== 'waking' && state !== 'typing' && state !== 'painting' && state !== 'buttonPress' && state !== 'complete' && state !== 'jump' && state !== 'love' && state !== 'cool' && state !== 'yappingMouthOpen' && state !== 'sing' && state !== 'speechless' && state !== 'worry' && state !== 'dizzy' && state !== 'falling' && state !== 'wallImpact' && state !== 'splat' && state !== 'onTheRun' && state !== 'searching' && state !== 'searchingDown';
+	return state !== undefined && state !== 'sleep' && state !== 'waking' && state !== 'typing' && state !== 'painting' && state !== 'buttonPress' && state !== 'complete' && state !== 'jump' && state !== 'love' && state !== 'cool' && state !== 'yappingMouthOpen' && state !== 'sing' && state !== 'speechless' && state !== 'worry' && state !== 'dizzy' && state !== 'falling' && state !== 'wallImpact' && state !== 'splat';
 }
 
 export function doesChatPetStateBlink(state: ChatPetState | undefined, frameIndex?: number): boolean {
@@ -335,10 +335,6 @@ export function getChatPetSpriteName(state: ChatPetState, quality: string | unde
 			return `buddy-wall-impact-${variant}`;
 		case 'splat':
 			return `buddy-splat-${variant}`;
-		case 'onTheRun':
-		case 'searching':
-		case 'searchingDown':
-			return `buddy-search-${variant}`;
 		case 'sleep':
 			return `buddy-sleep-${variant}`;
 		case 'waking':
@@ -396,11 +392,7 @@ export function getChatPetFrameDurations(state: ChatPetState): readonly number[]
 			return WORRY_FRAME_DURATIONS;
 		case 'dizzy':
 			return DIZZY_FRAME_DURATIONS;
-		case 'searching':
-			return SEARCH_FRAME_DURATIONS;
-		case 'onTheRun':
 		case 'wallImpact':
-		case 'searchingDown':
 			return [];
 		case 'yappingMouthOpen':
 		case 'yapping':
@@ -439,7 +431,7 @@ function createSpriteSources(name: string, state: ChatPetState, tracksCursor = t
 			fixedOrientationDecorations,
 			frameDurations: coalesceIdleFrames ? IDLE_ANIMATION_FRAME_DURATIONS : frameDurations,
 			frameIndices: coalesceIdleFrames ? IDLE_ANIMATION_FRAME_INDICES : undefined,
-			iterations: state === 'waking' || state === 'buttonPress' || state === 'cool' || state === 'splat' || state === 'searching' || state === 'jump' ? 1 : Infinity,
+			iterations: state === 'waking' || state === 'buttonPress' || state === 'cool' || state === 'splat' || state === 'jump' ? 1 : Infinity,
 		},
 		reducedMotion: staticSource,
 	};
@@ -480,9 +472,6 @@ export function getChatPetSpriteSources(variant: ChatPetVariant): Record<ChatPet
 			falling: createStateSpriteSources('falling'),
 			wallImpact: createStateSpriteSources('wallImpact'),
 			splat: createStateSpriteSources('splat'),
-			onTheRun: createStateSpriteSources('onTheRun'),
-			searching: createStateSpriteSources('searching'),
-			searchingDown: createStateSpriteSources('searchingDown'),
 		};
 		spriteSources.set(variant, sources);
 	}
@@ -596,8 +585,8 @@ export function shouldClaimChatPetWindowOnConstruction(windowActive: boolean, do
 	return windowActive && documentFocused;
 }
 
-export function isChatPetKeyboardInteractionEnabled(enabled: boolean, isDead: boolean, hasPointerInteraction: boolean, isAirborne: boolean, onTheRun: boolean): boolean {
-	return enabled && !isDead && !hasPointerInteraction && !isAirborne && !onTheRun;
+export function isChatPetKeyboardInteractionEnabled(enabled: boolean, isDead: boolean, hasPointerInteraction: boolean, isAirborne: boolean): boolean {
+	return enabled && !isDead && !hasPointerInteraction && !isAirborne;
 }
 
 function isChatPetYapState(state: ChatPetState | undefined): boolean {
@@ -1012,7 +1001,8 @@ export function getChatPetThrowRotation(rotation: number, horizontalDistance: nu
 
 export function advanceChatPetThrow(motion: ChatPetThrowMotion, elapsed: number, bounds: ChatPetThrowBounds, maximumFallSpeed?: number): ChatPetThrowStep {
 	const duration = Math.max(0, elapsed) / 1_000;
-	const projectedLeft = motion.left + motion.x * duration;
+	const startLeft = getChatPetHorizontalPosition(motion.left, bounds.minimumLeft, bounds.maximumLeft);
+	const projectedLeft = startLeft + motion.x * duration;
 	const hasHorizontalRange = bounds.maximumLeft > bounds.minimumLeft;
 	let wall: ChatPetWall | undefined;
 	let motionDuration = duration;
@@ -1020,11 +1010,11 @@ export function advanceChatPetThrow(motion: ChatPetThrowMotion, elapsed: number,
 
 	if (hasHorizontalRange && projectedLeft < bounds.minimumLeft) {
 		wall = 'left';
-		motionDuration *= (bounds.minimumLeft - motion.left) / (projectedLeft - motion.left);
+		motionDuration *= (bounds.minimumLeft - startLeft) / (projectedLeft - startLeft);
 		left = bounds.minimumLeft;
 	} else if (hasHorizontalRange && projectedLeft > bounds.maximumLeft) {
 		wall = 'right';
-		motionDuration *= (bounds.maximumLeft - motion.left) / (projectedLeft - motion.left);
+		motionDuration *= (bounds.maximumLeft - startLeft) / (projectedLeft - startLeft);
 		left = bounds.maximumLeft;
 	}
 
@@ -1285,6 +1275,8 @@ export class ChatPetWidget extends Disposable {
 	private readonly _jumpGame = this._register(new MutableDisposable<ChatPetJumpGame>());
 	private readonly _jumpGameExit = this._register(new MutableDisposable<IDisposable>());
 	private readonly _jumpGameFallLayer = this._register(new MutableDisposable<IDisposable>());
+	private readonly _jumpGameRetry = this._register(new MutableDisposable<ChatPetJumpGameRetry>());
+	private _pendingJumpGameRetry: ChatPetJumpGameModel | undefined;
 	private readonly _jumpGameActive = observableValue(this, false);
 	private _jumpGameFacing: ChatPetFacingDirection = 'right';
 	private readonly _hostPositionScheduler: dom.AnimationFrameScheduler;
@@ -1368,7 +1360,7 @@ export class ChatPetWidget extends Disposable {
 	private _renderGeneration = 0;
 	private _accessoryGeneration = 0;
 	private _activeFrameIndex = 0;
-	private _redrawActiveFrame: (() => void) | undefined;
+	private _redrawActiveFrame: ((frameIndex?: number) => void) | undefined;
 	private readonly _failedAccessorySources = new Set<string>();
 	private _renderedState: ChatPetState | undefined;
 	private _motionReduced = false;
@@ -1426,7 +1418,7 @@ export class ChatPetWidget extends Disposable {
 			this._overlay.remove();
 		}));
 		this._button = this._register(new Button(this._overlay, {
-			ariaLabel: this._getAriaLabel(false, false),
+			ariaLabel: this._getAriaLabel(false),
 		}));
 		this._button.element.classList.add('chat-pet-button');
 		this._button.element.dataset.facing = this._facingController.direction;
@@ -1567,11 +1559,6 @@ export class ChatPetWidget extends Disposable {
 					return;
 				}
 				this._finishHostTransition(true);
-			} else if (event.target === this._button.element && event.propertyName === 'transform') {
-				this._button.element.classList.remove('returning-from-run');
-				this._updateRunLayer();
-				this._updatePlatformOccupation();
-				this._rememberHostPosition();
 			}
 		};
 		this._register(dom.addDisposableListener(this._button.element, 'transitionend', onTransitionComplete));
@@ -1590,8 +1577,8 @@ export class ChatPetWidget extends Disposable {
 		this._register(autorun(reader => {
 			const currentHost = this._host.read(reader);
 			reader.store.add(currentHost.inputChanged(() => {
-				this._stopJumpGame('fall');
-				if (this._enabled && !this.chatPetService.onTheRun.read(undefined)) {
+				this._stopJumpGame('blur');
+				if (this._enabled) {
 					this._wake();
 				}
 			}));
@@ -1628,11 +1615,6 @@ export class ChatPetWidget extends Disposable {
 				void this.commandService.executeCommand(CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID);
 				return;
 			}
-			if (this.chatPetService.onTheRun.get()) {
-				this._transientState.set(undefined, undefined);
-				this.chatPetService.setOnTheRun(false);
-				return;
-			}
 			const wasSleeping = this._idleExpired.get() || this._renderedState === 'sleep';
 			if (wasSleeping) {
 				this._wake();
@@ -1641,6 +1623,7 @@ export class ChatPetWidget extends Disposable {
 				status(localize('chatPet.wokeUp', "The VS Code pet woke up"));
 				return;
 			}
+			this._dismissJumpGameRetry();
 			if (this._tryStartJumpGame()) {
 				return;
 			}
@@ -1675,7 +1658,7 @@ export class ChatPetWidget extends Disposable {
 			}
 		}));
 		this._register(this.chatPetService.onDidUnlockAchievement(id => {
-			if (!this._enabled || !this.hostService.hasFocus || this.chatPetService.onTheRun.get() || this._isDead.get()) {
+			if (!this._enabled || !this.hostService.hasFocus || this._isDead.get()) {
 				return;
 			}
 			this._stopJumpGame('restore');
@@ -1746,15 +1729,7 @@ export class ChatPetWidget extends Disposable {
 			if (accessoryChanged) {
 				this._switchAccessory(selectedAccessory);
 			}
-			const onTheRun = this.chatPetService.onTheRun.read(reader);
 			const isDead = this._isDead.read(reader);
-			if (onTheRun || this._motionReduced) {
-				this._button.element.classList.remove('returning-from-run');
-			} else if (this._enabled && this._button.element.classList.contains('on-the-run')) {
-				this._button.element.classList.add('returning-from-run');
-			}
-			this._button.element.classList.toggle('on-the-run', onTheRun);
-			this._updateRunLayer();
 			const currentHost = this._host.read(reader);
 			const chatModel = currentHost.model.read(reader);
 			const request = chatModel?.lastRequestObs.read(reader);
@@ -1773,14 +1748,17 @@ export class ChatPetWidget extends Disposable {
 			const isGeneratingImage = enabled && this._isGeneratingImage.read(reader);
 			const inputHasContent = currentHost.hasInput.read(reader);
 			this._busy = hasActiveRequest || needsInput;
+			if (!enabled || this._busy || inputHasContent) {
+				this._dismissJumpGameRetry();
+			}
 			const jumpGameActive = this._jumpGameActive.read(reader);
-			if (jumpGameActive && (!enabled || onTheRun || this._busy)) {
-				this._stopJumpGame(enabled && !onTheRun ? 'fall' : 'immediate');
+			if (jumpGameActive && (!enabled || this._busy)) {
+				this._stopJumpGame(enabled ? 'blur' : 'immediate');
 			}
 			let idleExpired = this._idleExpired.read(reader);
 			let transientState = this._transientState.read(reader);
 			if (!this._jumpGame.value) {
-				this._button.setAriaLabel(this._getAriaLabel(onTheRun, transientState === 'achievementUnlocked', isGeneratingImage && !needsInput));
+				this._button.setAriaLabel(this._getAriaLabel(transientState === 'achievementUnlocked', isGeneratingImage && !needsInput));
 			}
 			const isDragging = this._isDragging.read(reader);
 			const hostTransition = this._hostTransition.read(reader);
@@ -1825,16 +1803,6 @@ export class ChatPetWidget extends Disposable {
 				this._idleScheduler.cancel();
 				this._transientScheduler.cancel();
 				this._showRespawnSequence();
-				return;
-			}
-
-			if (onTheRun) {
-				this._finishHostTransition();
-				this._clearPlatformOccupation();
-				this._dismissBounceResult();
-				this._hopController.cancel();
-				this._idleScheduler.cancel();
-				this._renderState('onTheRun', variantChanged);
 				return;
 			}
 
@@ -1900,9 +1868,9 @@ export class ChatPetWidget extends Disposable {
 		return this._getPlatforms().find(platform => platform.supportsJumpGame && platform.element?.checkVisibility({ checkVisibilityCSS: true }));
 	}
 
-	private _tryStartJumpGame(platform = this._restingPlatform): boolean {
+	private _tryStartJumpGame(platform = this._restingPlatform, retryModel?: ChatPetJumpGameModel): boolean {
 		if (!platform?.supportsJumpGame || !platform.element || this._busy || !this._enabled || this._jumpGame.value
-			|| this._isDead.get() || this._isDragging.get() || this._isAirborne() || this.chatPetService.onTheRun.get()) {
+			|| this._isDead.get() || this._isDragging.get() || this._isAirborne()) {
 			return false;
 		}
 		const bounds = this.movementBounds.getBoundingClientRect();
@@ -1910,7 +1878,10 @@ export class ChatPetWidget extends Disposable {
 		if (bounds.width < size * 2 || bounds.height < size + 80 || !platform.element.checkVisibility({ checkVisibilityCSS: true })) {
 			return false;
 		}
+		this._dismissJumpGameRetry();
 		this._hopController.cancel();
+		// The crouch reuses the jump sprite, but must face the game's aim rather than the last normal hop.
+		delete this._button.element.dataset.hopDirection;
 		if (platform.element !== this._restingPlatform?.element) {
 			const overlayBounds = this._overlay.getBoundingClientRect();
 			this._setHorizontalPosition((platform.left + platform.right - size) / 2 - overlayBounds.left);
@@ -1929,20 +1900,25 @@ export class ChatPetWidget extends Disposable {
 		this._jumpGameExit.clear();
 		this._jumpGameFacing = this._facingController.direction;
 		this._clearPlatformOccupation();
+		retryModel?.resetToCheckpoint();
 		this._jumpGame.value = this.instantiationService.createInstance(ChatPetJumpGame, this._overlay, this._button.element, {
 			bounds: this.movementBounds,
 			platform: platform.element,
 			motionReduced: this._motionReduced,
-			onRender: (airborne, direction) => {
+			model: retryModel,
+			onRender: (airborne, direction, charge) => {
 				if (direction !== 0) {
 					this._setFacingDirection(direction < 0 ? 'left' : 'right');
 				}
-				const state = airborne ? 'falling' : 'idle';
-				if (this._renderedState !== state || !this._activeSource || this._activeSource !== getChatPetSpriteSources(this._variant)[state].reducedMotion) {
-					this._renderState(state, false, true);
+				const frameIndex = !airborne && charge > 0 ? this._motionReduced || charge < 0.5 ? 1 : 4 : undefined;
+				const state = airborne ? 'falling' : frameIndex !== undefined ? 'jump' : 'idle';
+				const sources = getChatPetSpriteSources(this._variant)[state];
+				const source = frameIndex !== undefined ? sources.animated : sources.reducedMotion;
+				if (this._renderedState !== state || this._activeSource?.url !== source.url || frameIndex !== undefined && this._activeFrameIndex !== frameIndex) {
+					this._renderState(state, false, true, frameIndex);
 				}
 			},
-			onExit: reason => this._stopJumpGame(reason === 'escape' ? 'restore' : reason === 'cancel' ? 'immediate' : 'fall', reason === 'escape'),
+			onExit: reason => this._stopJumpGame(reason === 'cancel' ? 'immediate' : reason),
 		});
 		transaction(tx => {
 			this._idleExpired.set(false, tx);
@@ -1952,25 +1928,28 @@ export class ChatPetWidget extends Disposable {
 		return true;
 	}
 
-	private _stopJumpGame(mode: 'restore' | 'fall' | 'immediate', restoreFocus = false): void {
-		if (mode === 'immediate') {
+	private _stopJumpGame(reason: 'escape' | 'fall' | 'blur' | 'restore' | 'immediate'): void {
+		this._dismissJumpGameRetry();
+		const game = this._jumpGame.value;
+		if (reason === 'immediate') {
 			this._jumpGameExit.clear();
 			this._jumpGameFallLayer.clear();
 		}
-		const game = this._jumpGame.value;
 		if (!game) {
 			return;
 		}
+		const shouldFall = reason === 'fall' || reason === 'blur';
+		this._pendingJumpGameRetry = shouldFall ? game.model : undefined;
 		const position = this._button.element.getBoundingClientRect();
 		const facing = this._facingController.direction;
-		if (mode !== 'immediate') {
+		if (reason !== 'immediate') {
 			this._jumpGameExit.value = game.fadeOut(this._motionReduced);
 		}
 		this._jumpGame.clear();
-		this._setFacingDirection(mode === 'fall' ? facing : this._jumpGameFacing);
+		this._setFacingDirection(shouldFall ? facing : this._jumpGameFacing);
 		transaction(tx => {
 			this._jumpGameActive.set(false, tx);
-			if (mode === 'fall') {
+			if (shouldFall) {
 				// Drop through the welcome perch that the disappearing game platform replaced.
 				this._fallThroughPlatform = this._restingPlatform?.element;
 				(this.parent.closest('.monaco-workbench') ?? dom.getWindow(this.parent).document.body).appendChild(this._overlay);
@@ -1990,9 +1969,40 @@ export class ChatPetWidget extends Disposable {
 			}
 		});
 		this._wake();
-		if (restoreFocus) {
+		if (reason === 'escape') {
 			this._button.element.focus({ preventScroll: true });
 			status(localize('chatPet.jump.ended', "Blobby's jump game ended"));
+		}
+	}
+
+	private _showJumpGameRetry(): void {
+		const model = this._pendingJumpGameRetry;
+		if (!model || !this._enabled || this._busy || this._isDead.get() || this._isDragging.get() || this._isAirborne() || !this._getJumpGamePlatform()) {
+			return;
+		}
+		this._pendingJumpGameRetry = undefined;
+		this._jumpGameRetry.value = this.instantiationService.createInstance(ChatPetJumpGameRetry, this._overlay, this._button.element, this.movementBounds, () => {
+			if (!this._tryStartJumpGame(this._getJumpGamePlatform(), model)) {
+				this._dismissJumpGameRetry();
+			}
+		}, () => {
+			if (!this._tryStartJumpGame(this._getJumpGamePlatform())) {
+				this._dismissJumpGameRetry();
+			}
+		}, () => this._dismissJumpGameRetry());
+		this._button.setAriaLabel(this._getAriaLabel(false));
+		const activeElement = dom.getActiveElement();
+		if (activeElement === this._button.element || activeElement === dom.getWindow(this._button.element).document.body) {
+			this._button.element.focus({ preventScroll: true });
+		}
+		status(localize('chatPet.jump.retryReady', "Blobby has landed. Retry or R resumes the same game. Reset or Z starts a new game. Tab to the recovery buttons."));
+	}
+
+	private _dismissJumpGameRetry(): void {
+		this._pendingJumpGameRetry = undefined;
+		if (this._jumpGameRetry.value) {
+			this._jumpGameRetry.clear();
+			this._button.setAriaLabel(this._getAriaLabel(this._transientState.get() === 'achievementUnlocked'));
 		}
 	}
 
@@ -2014,7 +2024,7 @@ export class ChatPetWidget extends Disposable {
 			source = { ...source, transition: transition.source.transition };
 		}
 		const canAnimate = this._enabled && !this._motionReduced && !this._isDead.get() && !this._isDragging.get()
-			&& (!this._isAirborne() || !!transition) && !this.chatPetService.onTheRun.get();
+			&& (!this._isAirborne() || !!transition);
 		this.parent.classList.remove('chat-pet-host');
 		this.parent = host.parent;
 		this.dragBounds = host.dragBounds;
@@ -2285,9 +2295,10 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _startDrag(event: PointerEvent): void {
-		if (!this._enabled || this._jumpGameActive.get() || this._isDead.get() || this._isDragging.get() || this._isAirborne() || this.chatPetService.onTheRun.get() || event.button !== 0) {
+		if (!this._enabled || this._jumpGameActive.get() || this._isDead.get() || this._isDragging.get() || this._isAirborne() || event.button !== 0) {
 			return;
 		}
+		this._dismissJumpGameRetry();
 		this._wake();
 		dom.EventHelper.stop(event);
 		this._button.element.focus();
@@ -2416,7 +2427,7 @@ export class ChatPetWidget extends Disposable {
 		const maximumFallSpeed = getChatPetThrowMaximumFallSpeed(this._hasAnimatedPropeller());
 		const buttonBounds = this._button.element.getBoundingClientRect();
 		let motion: ChatPetThrowMotion = {
-			left: buttonBounds.left - geometry.overlayLeft,
+			left: getChatPetHorizontalPosition(buttonBounds.left - geometry.overlayLeft, geometry.bounds.minimumLeft, geometry.bounds.maximumLeft),
 			top: buttonBounds.top - geometry.overlayTop,
 			x: velocity.x,
 			y: velocity.y,
@@ -2708,8 +2719,8 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _showContextMenu(event?: MouseEvent): void {
+		this._dismissJumpGameRetry();
 		this._contextMenuVisible = true;
-		const onTheRun = this.chatPetService.onTheRun.get();
 		const actions = new DisposableStore();
 		this._contextMenuActions.value = actions;
 		const achievements = actions.add(new Action(
@@ -2740,21 +2751,11 @@ export class ChatPetWidget extends Disposable {
 			this.chatPetService.resetScale();
 			status(localize('chatPet.sizeReset', "VS Code pet size: {0} percent", CHAT_PET_DEFAULT_SCALE * 100));
 		}));
-		const onTheRunAction = actions.add(new Action(
-			'chat.pet.onTheRun',
-			onTheRun ? localize('chatPet.comeBack.action', "Come Back") : localize('chatPet.goOnTheRun.action', "Go on the Run"),
-			undefined,
-			true,
-			() => {
-				this._transientState.set(undefined, undefined);
-				this.chatPetService.setOnTheRun(!onTheRun);
-			}
-		));
 		const playJumpGame = this._getJumpGamePlatform() ? actions.add(new Action(
 			'chat.pet.playJumpGame',
 			localize('chatPet.playJumpGame.action', "Play Jump Game"),
 			undefined,
-			!this._busy && !onTheRun && !this._isDead.get() && !this._isDragging.get() && !this._isAirborne(),
+			!this._busy && !this._isDead.get() && !this._isDragging.get() && !this._isAirborne(),
 			() => {
 				const platform = this._getJumpGamePlatform();
 				if (platform) {
@@ -2762,21 +2763,34 @@ export class ChatPetWidget extends Disposable {
 				}
 			},
 		)) : undefined;
+		const hide = actions.add(new Action(
+			'chat.pet.hide',
+			localize('chatPet.hide.action', "Hide Pet"),
+			undefined,
+			true,
+			() => {
+				if (this.chatPetService.enabled.get()) {
+					this.chatPetService.toggle();
+				}
+			},
+		));
 		const interactionSeparator = new Separator();
 		const appearanceSeparator = new Separator();
+		const hideSeparator = new Separator();
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => event ? new StandardMouseEvent(dom.getWindow(this._button.element), event) : this._button.element,
 			autoSelectItem: !event,
 			getActions: (): IAction[] => [
 				achievements,
 				...(playJumpGame ? [playJumpGame] : []),
-				onTheRunAction,
 				interactionSeparator,
 				grow,
 				shrink,
 				resetSize,
 				appearanceSeparator,
 				changeColor,
+				hideSeparator,
+				hide,
 			],
 			onHide: () => {
 				this._contextMenuVisible = false;
@@ -2795,7 +2809,7 @@ export class ChatPetWidget extends Disposable {
 			this._dragMonitor.stopMonitoring(false);
 		}
 		const hasPointerInteraction = this._isDragging.get() || this._dragMonitor.isMonitoring();
-		if (!isChatPetKeyboardInteractionEnabled(this._enabled, this._isDead.get(), hasPointerInteraction, this._isAirborne(), this.chatPetService.onTheRun.get())) {
+		if (!isChatPetKeyboardInteractionEnabled(this._enabled, this._isDead.get(), hasPointerInteraction, this._isAirborne())) {
 			return;
 		}
 		const keyboardEvent = new StandardKeyboardEvent(event);
@@ -2825,6 +2839,7 @@ export class ChatPetWidget extends Disposable {
 		this._wake();
 		keyboardEvent.preventDefault();
 		keyboardEvent.stopPropagation();
+		this._dismissJumpGameRetry();
 		const facingDirection = direction < 0 ? 'left' : 'right';
 		if (this._transientState.get() === 'dizzy' || this._recordDirectionChange(facingDirection)) {
 			return;
@@ -2846,17 +2861,17 @@ export class ChatPetWidget extends Disposable {
 			: localize('chatPet.movedRight', "VS Code pet moved right"));
 	}
 
-	private _getAriaLabel(onTheRun: boolean, achievementUnlocked: boolean, isGeneratingImage = false): string {
+	private _getAriaLabel(achievementUnlocked: boolean, isGeneratingImage = false): string {
+		if (this._jumpGameRetry.value) {
+			return localize('chatPet.jump.retryPetLabel', "Blobby has landed. Press R to retry from before the fall in the same game or Z to reset to a new game. Tab to the recovery buttons. Press Escape to dismiss.");
+		}
 		if (achievementUnlocked) {
 			return localize('chatPet.openAchievements', "Open pet achievements. A new achievement is unlocked.");
-		}
-		if (onTheRun) {
-			return localize('chatPet.restore', "Bring back the VS Code pet");
 		}
 		if (this._restingPlatform?.supportsJumpGame && !this._busy) {
 			return localize('chatPet.playJumpGame', "Play Blobby's Jump Game. Activate the pet on this perch to play, or drag it to move it.");
 		}
-		const label = localize('chatPet.interact', "Interact with the VS Code pet. Drag it around the chat, or flick it toward either side to throw it. While it is falling, catch it with the pointer to bounce it; while it is airborne, press Enter or Space to bounce it. Use the left and right arrow keys to make it hop, or hold Shift to throw it toward a wall. Use the context menu to put it on the run.");
+		const label = localize('chatPet.interact', "Interact with the VS Code pet. Drag it around the chat, or flick it toward either side to throw it. While it is falling, catch it with the pointer to bounce it; while it is airborne, press Enter or Space to bounce it. Use the left and right arrow keys to make it hop, or hold Shift to throw it toward a wall. Use the context menu to open achievements, change its size, or change its color.");
 		if (this._enabled && !this._busy && this._getJumpGamePlatform()) {
 			return localize('chatPet.playJumpGameFromInput', "{0} Choose Play Jump Game in the context menu to play from here.", label);
 		}
@@ -2982,13 +2997,6 @@ export class ChatPetWidget extends Disposable {
 			.reduce<IChatPetPlatform>((topmost, platform) => platform.top <= topmost.top ? platform : topmost, fallback);
 	}
 
-	private _updateRunLayer(): void {
-		this._overlay.classList.toggle(
-			CHAT_PET_RUN_LAYER_CLASS,
-			this._button.element.classList.contains('on-the-run') || this._button.element.classList.contains('returning-from-run')
-		);
-	}
-
 	private _setInitialVerticalPosition(): void {
 		if (this._getHorizontalBounds() === undefined) {
 			return;
@@ -3023,9 +3031,10 @@ export class ChatPetWidget extends Disposable {
 		const jumpGameAvailabilityChanged = this._restingPlatform?.supportsJumpGame !== platform.supportsJumpGame;
 		this._restingPlatform = platform;
 		if (jumpGameAvailabilityChanged) {
-			this._button.setAriaLabel(this._getAriaLabel(this.chatPetService.onTheRun.get(), this._transientState.get() === 'achievementUnlocked'));
+			this._button.setAriaLabel(this._getAriaLabel(this._transientState.get() === 'achievementUnlocked'));
 		}
 		this._updatePlatformOccupation(platform.top);
+		this._jumpGameRetry.value?.layout();
 		this._rememberHostPosition();
 	}
 
@@ -3034,7 +3043,7 @@ export class ChatPetWidget extends Disposable {
 		if (!host.setPlatformOccupation) {
 			return;
 		}
-		if (platformTop === undefined || !this._enabled || this._jumpGameActive.get() || this._isDead.get() || this._isDragging.get() || this._isAirborne() || this.chatPetService.onTheRun.get() || this._button.element.classList.contains('returning-from-run')) {
+		if (platformTop === undefined || !this._enabled || this._jumpGameActive.get() || this._isDead.get() || this._isDragging.get() || this._isAirborne()) {
 			host.setPlatformOccupation(undefined);
 			return;
 		}
@@ -3160,6 +3169,7 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _updateSpeechBubblePosition(): void {
+		this._jumpGameRetry.value?.layout();
 		const buttonBounds = this._button.element.getBoundingClientRect();
 		const inputBounds = this.dragBounds.getBoundingClientRect();
 		this._button.element.classList.toggle('speech-bubble-left', shouldPlaceChatPetSpeechBubbleLeft(this._renderedState, buttonBounds.right, inputBounds.right, this._scale));
@@ -3363,7 +3373,7 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _recordDirectionChange(direction: ChatPetFacingDirection): boolean {
-		if (!this._enabled || this._isDead.get() || this.chatPetService.onTheRun.get() || this._transientState.get() === 'dizzy') {
+		if (!this._enabled || this._isDead.get() || this._transientState.get() === 'dizzy') {
 			return false;
 		}
 		if (!this._directionChangeController.record(direction, dom.getWindow(this._button.element).performance.now())) {
@@ -3445,8 +3455,7 @@ export class ChatPetWidget extends Disposable {
 		this._throwGeometryDirty = false;
 		this._resetBounceCount();
 		this._button.element.style.transform = '';
-		this._button.element.classList.remove('bounce-impact', 'entering', 'exiting', 'falling', 'throwing', 'dragging', 'resisting', 'soft-resisting', 'returning-from-run');
-		this._updateRunLayer();
+		this._button.element.classList.remove('bounce-impact', 'entering', 'exiting', 'falling', 'throwing', 'dragging', 'resisting', 'soft-resisting');
 		this._button.element.style.transitionDuration = '';
 		this._button.element.classList.add('hidden');
 		this._respawnEffectScheduler.cancel();
@@ -3532,20 +3541,31 @@ export class ChatPetWidget extends Disposable {
 		return 'waking';
 	}
 
-	private _renderState(state: ChatPetState, restart = false, useStaticSprite = false): void {
+	private _renderState(state: ChatPetState, restart = false, useStaticSprite = false, frameIndex?: number): void {
 		if (state !== 'idle' || useStaticSprite) {
 			this._facingController.setState(state, useStaticSprite);
 		}
 		const sources = getChatPetSpriteSources(this._variant)[state];
-		const source = this._motionReduced || useStaticSprite ? sources.reducedMotion : sources.animated;
-		if (!restart && this._activeSprite && isChatPetImageSource(this._activeSprite.image, source.url)) {
+		const source = frameIndex !== undefined ? { ...sources.animated, frameDurations: [] } : this._motionReduced || useStaticSprite ? sources.reducedMotion : sources.animated;
+		if (!restart && this._activeSprite && isChatPetImageSource(this._activeSprite.image, source.url) && this._activeSource?.frameDurations.length === source.frameDurations.length) {
 			this._pendingRender = undefined;
 			this._renderGeneration++;
+			if (frameIndex !== undefined && this._activeFrameIndex !== frameIndex) {
+				this._redrawActiveFrame?.(frameIndex);
+			}
 			this._button.element.dataset.state = state;
 			this._renderedState = state;
 			this._setRenderedFacingState(state, useStaticSprite);
 			this._updateEyes(state);
 			this._updateSpeechBubble(state, restart);
+			if (state === 'idle') {
+				this._showJumpGameRetry();
+			}
+			return;
+		}
+
+		if (!restart && this._pendingRender?.state === state && this._pendingRender.bodySource.url === source.url && this._pendingRender.bodySource.frameDurations.length === source.frameDurations.length) {
+			this._pendingRender = { ...this._pendingRender, frameIndex };
 			return;
 		}
 
@@ -3571,6 +3591,7 @@ export class ChatPetWidget extends Disposable {
 			accessory: accessoryImage ? this._selectedAccessory : undefined,
 			state,
 			useStaticSprite,
+			frameIndex,
 		};
 		setChatPetImageSource(sprite.image, source.url);
 		if (accessoryImage && accessorySource && accessoryImage !== cachedAccessoryImage) {
@@ -3686,7 +3707,8 @@ export class ChatPetWidget extends Disposable {
 					this._updateEyes(state, frameIndex);
 				}
 			},
-			state
+			state,
+			pendingRender.frameIndex
 		);
 		this._button.element.dataset.state = state;
 		if (state === 'yapping') {
@@ -3707,13 +3729,15 @@ export class ChatPetWidget extends Disposable {
 		}
 		if (state === 'falling') {
 			this._beginHostTransitionFall();
+		} else if (state === 'idle') {
+			this._showJumpGameRetry();
 		}
 	}
 
 	private _switchAccessory(accessory: ChatPetAccessoryId | undefined): void {
 		const pendingRender = this._pendingRender;
 		if (pendingRender) {
-			this._renderState(pendingRender.state, true, pendingRender.useStaticSprite);
+			this._renderState(pendingRender.state, true, pendingRender.useStaticSprite, pendingRender.frameIndex);
 		}
 		const sprite = this._activeSprite;
 		const bodySource = this._activeSource;
@@ -3842,7 +3866,7 @@ export class ChatPetWidget extends Disposable {
 		}
 	}
 
-	private _startSpriteAnimation(source: ChatPetSpriteSource, sprite: ChatPetSpriteElement, animationDisposable: MutableDisposable<IDisposable>, onComplete?: () => void, reverse = false, onFrame?: (frameIndex: number) => void, state?: ChatPetState): void {
+	private _startSpriteAnimation(source: ChatPetSpriteSource, sprite: ChatPetSpriteElement, animationDisposable: MutableDisposable<IDisposable>, onComplete?: () => void, reverse = false, onFrame?: (frameIndex: number) => void, state?: ChatPetState, initialFrame?: number): void {
 		sprite.color = this._color;
 		const { frameDurations } = source;
 		const { image, canvas } = sprite;
@@ -3903,12 +3927,12 @@ export class ChatPetWidget extends Disposable {
 		};
 		if (sprite === this._activeSprite) {
 			this._eyes.style.color = getChatPetEyeColor(sprite.color);
-			this._redrawActiveFrame = () => drawFrame(renderedFrameIndex);
+			this._redrawActiveFrame = (frameIndex = renderedFrameIndex) => drawFrame(frameIndex);
 			this._redrawEyeAccessory = state
 				? () => this._drawEyeAccessory(sprite.activeAccessory, sprite.activeAccessoryImage, source, state, source.accessoryRigFrame ?? this._activeFrameIndex)
 				: undefined;
 		}
-		const initialFrameIndex = reverse && frameDurations.length > 0 ? frameDurations.length - 1 : 0;
+		const initialFrameIndex = initialFrame ?? (reverse && frameDurations.length > 0 ? frameDurations.length - 1 : 0);
 		drawFrame(initialFrameIndex);
 		if (frameDurations.length < 2) {
 			return;

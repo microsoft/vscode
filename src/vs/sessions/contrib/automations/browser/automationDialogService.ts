@@ -35,8 +35,9 @@ import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialo
 import { AutomationRepositoryOwnershipUnavailableError, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { IAutomationSessionConfiguration } from '../../../services/sessions/common/sessionsProvider.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IChatViewFactory } from '../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
+import { IAutomationSessionConfiguration } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { AutomationDialogMessageSource, AutomationSessionConfigurationCapture, createAutomationTarget, getAutomationDialogProviders, IAutomationDialogMessage, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
 import { AutomationDialogTelemetry } from './automationTelemetry.js';
 
@@ -92,11 +93,34 @@ export class AutomationDialogService implements IAutomationDialogService {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IChatViewFactory private readonly chatViewFactory: IChatViewFactory,
 	) { }
 
 	async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
 		const disposables = new DisposableStore();
-
+		const initialDefinition = options.existing ?? options.initialValues;
+		if (initialDefinition?.schedule.interval === 'once') {
+			const dialog = disposables.add(new Dialog(
+				this.layoutService.activeContainer,
+				initialDefinition.name,
+				[localize('automation.dialog.close', "Close")],
+				createWorkbenchDialogOptions({
+					type: 'info',
+					detail: [
+						localize('automation.dialog.oneTimeReadOnly', "This one-time automation preserves a captured request and cannot be edited or duplicated in this dialog. Use the available run or removal actions in Automations. Disabling a scheduled chat cancels it permanently."),
+						localize('automation.dialog.oneTimeSchedule', "Scheduled for: {0}", initialDefinition.schedule.runAt ?? ''),
+						initialDefinition.prompt,
+						...(options.existing?.request?.attachments?.map(attachment => attachment.label) ?? []),
+					].join('\n\n'),
+				}, this.keybindingService, this.layoutService, this.hostService),
+			));
+			try {
+				await dialog.show();
+			} finally {
+				disposables.dispose();
+			}
+			return undefined;
+		}
 		const existing = options.existing;
 		const allowedProviders = getAutomationDialogProviders(this.automationService, existing);
 		const initial = existing ?? options.initialValues;
@@ -275,6 +299,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						...(sessionConfiguration.permissionLevel !== undefined ? { permissionLevel: sessionConfiguration.permissionLevel } : {}),
 					} : {}),
 				enabled: state.enabled,
+				...(initial?.disableConditions ? { disableConditions: initial.disableConditions } : {}),
 				...(customizationIds !== undefined ? { customizationIds } : {}),
 			};
 			return { kind: 'create', value: create };
@@ -465,7 +490,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					const scrollable = DOM.append(container, $('.automation-dialog-scrollable'));
 					const formPane = DOM.append(scrollable, $('.automation-form-pane'));
 					const form = DOM.append(formPane, $('.automation-form'));
-					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, providerId => this.automationService.getProviderConfiguration?.(providerId), isEdit, { service: this.automationService, hoverService: this.hoverService, existingId: existing?.id }, error => setDialogMessage('operationError', { severity: 'error', text: getErrorMessage(error) }), this.quickInputService, setRepositoryWarningVisible, setDialogMessage, () => notificationCenter?.focus());
+					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, providerId => this.automationService.getProviderConfiguration?.(providerId), isEdit, { service: this.automationService, hoverService: this.hoverService, existingId: existing?.id }, error => setDialogMessage('operationError', { severity: 'error', text: getErrorMessage(error) }), this.quickInputService, setRepositoryWarningVisible, setDialogMessage, () => notificationCenter?.focus(), this.chatViewFactory.inputEditorOptions);
 					getPrompt = handle.getPrompt;
 					getSessionConfiguration = handle.getSessionConfiguration;
 					getBranch = handle.getBranch;
@@ -536,7 +561,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 
 		try {
 			void dialog.show().then(() => closeDialog(undefined));
-			// eslint-disable-next-line no-restricted-syntax -- Dialog owns its close toolbar and exposes no enablement API.
+			// eslint-disable-next-line eslint-js/no-restricted-syntax -- Dialog owns its close toolbar and exposes no enablement API.
 			closeToolbar = dialogElement?.querySelector<HTMLElement>('.dialog-toolbar') ?? undefined;
 			focusFirst();
 			return await completion.p;

@@ -4,41 +4,60 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../../base/common/async.js';
+import { Action } from '../../../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { Lazy } from '../../../../../../../base/common/lazy.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { CodeEditorWidget } from '../../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { EditorOption } from '../../../../../../../editor/common/config/editorOptions.js';
+import { createCodeEditorServices } from '../../../../../../../editor/test/browser/testCodeEditor.js';
+import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
 import { IAccessibilitySignalService } from '../../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IMenuService, MenuId } from '../../../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId, MenuItemAction, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
+import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { MenuService } from '../../../../../../../platform/actions/common/menuService.js';
+import { MenuEntryActionViewItem } from '../../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITextDiffEditorPane, IUntypedEditorInput, isResourceDiffEditorInput, isResourceEditorInput } from '../../../../../../common/editor.js';
 import { EditorInput } from '../../../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
-import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
+import { getSimpleEditorOptions } from '../../../../../codeEditor/browser/simpleEditorOptions.js';
+import { ChatLayoutService } from '../../../../browser/widget/chatLayoutService.js';
+import { ChatInputPart, getChatInputEditorMetrics, IChatInputPartOptions } from '../../../../browser/widget/input/chatInputPart.js';
+import { ChatQueuePickerActionItem } from '../../../../browser/widget/input/chatQueuePickerActionItem.js';
+import { ChatQueueMessageAction } from '../../../../browser/actions/chatQueueActions.js';
+import { IChatWidget, IChatWidgetService } from '../../../../browser/chat.js';
 import { ChatSessionWorkingSetKeptChanges } from '../../../../browser/widget/input/chatSessionWorkingSet.js';
 import { ChatSessionReviewPreferencesService, IChatSessionReviewPreferencesService } from '../../../../common/editing/chatSessionReviewPreferences.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
-import { IChatSessionFileChange2, IChatSessionsService, SessionType } from '../../../../common/chatSessionsService.js';
+import { IChatSessionsService, SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
+import { ChatMode } from '../../../../common/chatModes.js';
 import { emptySessionEntryDiff, hasUndecidedChatEditingResourceContextKey, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
 import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
-import { IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry } from '../../../../browser/attachments/chatAttachmentWidgetRegistry.js';
-import { createChatReferenceVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
+import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry, IChatImageAttachmentEditor } from '../../../../browser/attachments/chatAttachmentWidgetRegistry.js';
+import { ChatAttachmentModel } from '../../../../browser/attachments/chatAttachmentModel.js';
+import { ImageAttachmentWidget } from '../../../../browser/attachments/chatAttachmentWidgets.js';
+import { createChatReferenceVariableEntry, IImageVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { MockChatModel } from '../../../common/model/mockChatModel.js';
 import { ChatQuestionCarouselData } from '../../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../../../common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -48,9 +67,184 @@ import { ToolDataSource } from '../../../../common/tools/languageModelToolsServi
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { Target } from '../../../../common/promptSyntax/promptTypes.js';
 import '../../../../browser/widget/media/chat.css';
+import { IChatSessionFileChange2 } from '../../../../../../common/chatSessionFileChange.js';
 
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const busy of [false, true]) {
+		test(`send dropdown shares the queue control and routes actions with busy=${busy}`, async () => {
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			const config = new TestConfigurationService({ [ChatConfiguration.RequestQueueingDefaultAction]: 'queue' });
+			const contextKeyService = store.add(new ContextKeyService(config));
+			ChatContextKeys.inputHasText.bindTo(contextKeyService).set(true);
+			instantiationService.stub(IConfigurationService, config);
+			instantiationService.stub(IContextKeyService, contextKeyService);
+			instantiationService.stub(IChatWidgetService, { lastFocusedWidget: undefined });
+			const calls: { id: string; args: unknown[] }[] = [];
+			instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+				override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T | undefined> {
+					calls.push({ id, args });
+					return undefined;
+				}
+			});
+			instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+			let labels: (string | undefined)[] = [];
+			let enabled: boolean[] = [];
+			let sendLaterIcon: { id: string | undefined; hidden: boolean | undefined } | undefined;
+			let selectLast: (() => void) | undefined;
+			instantiationService.stub(IActionWidgetService, {
+				hide() { },
+				show: (_user, _preview, items, delegate) => {
+					labels = items.map(item => item.label);
+					enabled = items.map(item => !item.disabled);
+					sendLaterIcon = { id: items.at(-1)?.group?.icon?.id, hidden: items.at(-1)?.hideIcon };
+					const last = items.at(-1)?.item;
+					selectLast = () => {
+						if (last) {
+							delegate.onSelect(last);
+							delegate.onHide?.();
+						}
+					};
+				},
+			});
+			store.add(MenuRegistry.appendMenuItem(MenuId.ChatExecuteSecondary, { command: { id: 'test.sendLater', title: 'Send Later...', icon: Codicon.clock } }));
+			const send = instantiationService.createInstance(MenuItemAction, { id: 'test.send', title: 'Send', icon: Codicon.arrowUp }, undefined, { shouldForwardArgs: true }, undefined, undefined);
+			const queue = store.add(new Action('test.queue', 'Queue'));
+			const item = store.add(instantiationService.createInstance(ChatQueuePickerActionItem, busy ? queue : send, busy ? {} : { primaryAction: instantiationService.createInstance(MenuEntryActionViewItem, send, {}) }));
+			const context = { widget: upcastPartial<IChatWidget>({}) };
+			item.setActionContext(context);
+			const root = dom.append(mainWindow.document.body, dom.$('.interactive-session'));
+			store.add(toDisposable(() => root.remove()));
+			const toolbars = dom.append(root, dom.$('.chat-input-toolbars'));
+			const toolbar = dom.append(toolbars, dom.$('.chat-execute-toolbar'));
+			const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
+			const container = dom.append(actionBar, dom.$('.action-item'));
+			item.render(container);
+			item.focus();
+			const primary = container.querySelector<HTMLElement>('.action-container .action-label')!;
+			primary.click();
+			primary.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+			const dropdown = container.querySelector<HTMLElement>('.dropdown-action-container .action-label')!;
+			const dropdownFocused = mainWindow.document.activeElement === dropdown;
+			dropdown.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', keyCode: 37, bubbles: true }));
+			const primaryFocused = mainWindow.document.activeElement === primary;
+			dropdown.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			selectLast?.();
+			await timeout(0);
+			assert.deepStrictEqual({
+				sharedControl: container.classList.contains('monaco-dropdown-with-default'),
+				circularSend: !!container.querySelector('.chat-submit-button'),
+				nestedButtons: container.querySelectorAll('[role="button"] [role="button"]').length,
+				dropdownFocused, primaryFocused, labels, calls, sendLaterIcon,
+			}, {
+				sharedControl: true, circularSend: false, nestedButtons: 0,
+				dropdownFocused: true, primaryFocused: true,
+				labels: busy ? ['Stop and Send', 'Add to Queue', 'Steer with Message', 'Send Later...'] : ['Send Later...'],
+				sendLaterIcon: { id: Codicon.clock.id, hidden: false },
+				calls: [{ id: busy ? ChatQueueMessageAction.ID : 'test.send', args: busy ? [] : [context] }, { id: 'test.sendLater', args: [context] }],
+			});
+			if (busy) {
+				ChatContextKeys.inputHasText.bindTo(contextKeyService).set(false);
+				dropdown.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+				assert.deepStrictEqual(enabled, [true, false, false, true]);
+			}
+		});
+	}
+
+	test('component metrics override the configured chat font size', () => {
+		assert.deepStrictEqual([
+			getChatInputEditorMetrics(undefined, 13),
+			getChatInputEditorMetrics(undefined, 24),
+			getChatInputEditorMetrics({ fontSize: 16, lineHeight: 24 }, 24),
+			getChatInputEditorMetrics({ fontSize: 16 }, 24),
+			getChatInputEditorMetrics({ lineHeight: 32 }, 24),
+		], [
+			{ fontSize: 13, lineHeight: 20 },
+			{ fontSize: 24, lineHeight: 36 },
+			{ fontSize: 16, lineHeight: 24 },
+			{ fontSize: 16, lineHeight: 24 },
+			{ fontSize: 24, lineHeight: 32 },
+		]);
+	});
+
+	test('refreshes session toolbars synchronously before scheduling layout', () => {
+		const updates: string[] = [];
+		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			inputActionsToolbar: { refresh: () => updates.push('input'), getElement: () => dom.$('div') },
+			executeToolbar: { refresh: () => updates.push('execute') },
+			secondaryToolbar: { refresh: () => updates.push('secondary'), getElement: () => dom.$('div') },
+			_toolbarRelayoutScheduler: { schedule: () => updates.push('layout') },
+		});
+		input.refreshToolbars();
+		assert.deepStrictEqual(updates, ['input', 'execute', 'secondary', 'layout']);
+	});
+
+	test('announces a model once across metadata refreshes and transient loading states', () => {
+		const announcements: string[] = [];
+		const labels: string[] = [];
+		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			chatModelIdKey: { set: () => { } },
+			accessibilityService: { alert: (message: string) => announcements.push(message) },
+			_inputEditor: { updateOptions: ({ ariaLabel }: { ariaLabel: string }) => labels.push(ariaLabel) },
+			_getAriaLabel: () => 'Chat input',
+		});
+		const model = (identifier: string) => upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
+			identifier, metadata: upcastPartial<ILanguageModelChatMetadata>({ id: identifier, name: identifier }),
+		});
+		const update = Reflect.get(ChatInputPart.prototype, '_updateSelectedModel') as (this: ChatInputPart, model: ILanguageModelChatMetadataAndIdentifier | undefined) => void;
+		for (const selected of [undefined, model('first'), model('first'), undefined, model('first'), model('second'), model('second')]) {
+			update.call(input, selected);
+		}
+		assert.deepStrictEqual({ announcements, labelUpdates: labels.length }, {
+			announcements: ['first', 'second'], labelUpdates: 7,
+		});
+	});
+
+	for (const placement of ['primary', 'secondary'] as const) {
+		test(`keeps dependent session options in the attached ${placement} toolbar after synchronous refresh`, () => {
+			const root = dom.append(mainWindow.document.body, dom.$('div'));
+			store.add(toDisposable(() => root.remove()));
+			const primary = dom.append(root, dom.$('div'));
+			const secondary = dom.append(root, dom.$('div'));
+			const toolbar = placement === 'primary' ? primary : secondary;
+			const oldContainer = dom.append(toolbar, dom.$('.chat-sessionPicker-container'));
+			const groups = [{ id: 'initial' }];
+			const selected: string[] = [];
+			const refresh = (element: HTMLElement) => {
+				dom.clearNode(element);
+				if (element === toolbar) {
+					dom.append(element, dom.$('.chat-sessionPicker-container'));
+				}
+			};
+			const input: { refreshToolbars(): void; refreshChatSessionPickers(): void } = Object.assign(Object.create(ChatInputPart.prototype), {
+				inputActionsToolbar: { refresh: () => refresh(primary), getElement: () => primary },
+				executeToolbar: { refresh: () => { } },
+				secondaryToolbar: { refresh: () => refresh(secondary), getElement: () => secondary },
+				_toolbarRelayoutScheduler: { schedule: () => { } },
+				chatSessionPickerContainer: oldContainer,
+				chatSessionPickerWidgets: new Map([['initial', {}]]),
+				_lastSessionPickerAction: {},
+				getCurrentSessionResource: () => undefined,
+				getAllOptionsGroups: () => groups,
+				getVisibleOptionGroupsModeAndUpdateContextKeys: () => groups,
+				createChatSessionPickerWidgets: () => groups.map(group => ({
+					render: (container: HTMLElement) => {
+						const button = dom.append(container, dom.$('button', undefined, group.id));
+						store.add(dom.addDisposableListener(button, dom.EventType.CLICK, () => selected.push(group.id)));
+					},
+				})),
+			});
+			input.refreshToolbars();
+			groups.push({ id: 'dependent' });
+			input.refreshChatSessionPickers();
+			const buttons = [...toolbar.querySelectorAll('button')];
+			buttons.at(-1)?.click();
+			assert.deepStrictEqual({ detachedOldContainer: !oldContainer.isConnected, labels: buttons.map(button => button.textContent), selected }, {
+				detachedOldContainer: true, labels: ['initial', 'dependent'], selected: ['dependent'],
+			});
+		});
+	}
 
 	for (const { preserveFocus, moveFocus } of [
 		{ preserveFocus: undefined, moveFocus: false },
@@ -254,6 +448,7 @@ suite('ChatInputPart', () => {
 			_store: inputStore,
 			options: {},
 			_widget: { viewModel: { model: { sessionResource: URI.parse('remote-example-agent:/history') } } },
+			localSandboxToggleAvailable: observableValue('localSandboxToggleAvailable', false),
 			chatSessionHasTargetedModels: targetedModels,
 			chatSessionHasCustomAgentTarget: ChatContextKeys.chatSessionHasCustomAgentTarget.bindTo(contextKeyService),
 			chatSessionHasOptions: ChatContextKeys.chatSessionHasModels.bindTo(contextKeyService),
@@ -293,10 +488,11 @@ suite('ChatInputPart', () => {
 			_inputModelSessionResource: sessionResource,
 			_widget: { viewModel: { model: { sessionResource } } },
 			_currentSessionTypeObservable: observableValue<string | undefined>('currentSessionType', 'agent-host-copilotcli'),
+			_currentModeObservable: observableValue('currentMode', ChatMode.Agent),
 			_modelSessionTypeOverride: observableValue<{ readonly resource: URI; readonly sessionType: string } | undefined>('override', undefined),
 			_modelSelectionController: { revalidateForSessionType: () => revalidations.push(inputPart.modelTargetSessionType) },
 			getAllMergedModels: () => [...models],
-			chatSessionsService: upcastPartial<IChatSessionsService>({ requiresCustomModelsForSessionType: () => true }),
+			chatSessionsService: upcastPartial<IChatSessionsService>({ requiresCustomModelsForSessionType: () => true, getChatSessionContribution: () => undefined }),
 			languageModelsService: upcastPartial<ILanguageModelsService>({ isModelHidden: () => false }),
 		});
 		return { inputPart, revalidations };
@@ -305,6 +501,75 @@ suite('ChatInputPart', () => {
 	function targetedModel(sessionType: string, id: string): ILanguageModelChatMetadataAndIdentifier {
 		return { identifier: `${sessionType}:${id}`, metadata: upcastPartial<ILanguageModelChatMetadata>({ id, name: id, targetChatSessionType: sessionType, isUserSelectable: true }) };
 	}
+
+	test('required agents filter the model pool and reject stale manual choices before persisting them', () => {
+		const required = targetedModel('agent-host-copilotcli', 'sonnet');
+		const other = targetedModel('agent-host-copilotcli', 'other');
+		const { inputPart } = createModelPoolInput([required, other]);
+		Object.assign(inputPart, {
+			_currentModeObservable: constObservable({
+				...ChatMode.Agent, model: constObservable(['sonnet']), modelPolicy: constObservable('required'),
+			}),
+			logService: new NullLogService(),
+		});
+		assert.throws(() => inputPart.setCurrentLanguageModel(other, true), /Select one of the models required/);
+		assert.strictEqual(inputPart.switchModelByIdentifier(other.identifier), false);
+	});
+
+	test('agent preferences resolve IDs and ordered aliases and apply effort only to this input', () => {
+		const base = targetedModel('agent-host-copilotcli', 'sonnet');
+		const model: ILanguageModelChatMetadataAndIdentifier = {
+			...base, metadata: { ...base.metadata, name: 'Sonnet', configurationSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', enum: ['low', 'medium'] } } } },
+		};
+		const { inputPart } = createModelPoolInput([model]);
+		const applied: string[] = [];
+		const configurations: object[] = [];
+		const warnings: string[] = [];
+		Object.assign(inputPart, {
+			options: {},
+			_modelSelectionController: { applyProgrammaticSelection: (selected: ILanguageModelChatMetadataAndIdentifier) => applied.push(selected.identifier) },
+			_modelConfigStore: {
+				getModelConfiguration: () => ({ contextSize: 200000 }),
+				restoreModelConfiguration: (id: string, configuration: object, persist: boolean) => configurations.push({ id, configuration, persist }),
+			},
+			logService: { warn: (message: string) => warnings.push(message) },
+		});
+		const selected = [
+			inputPart.switchModelByQualifiedName(['missing', 'Sonnet (copilot)'], 'low'),
+			inputPart.switchModelByQualifiedName(['sonnet'], 'unsupported'),
+			inputPart.switchModelByQualifiedName(['missing']),
+		];
+		assert.deepStrictEqual({ selected, applied, configurations, warningCount: warnings.length }, {
+			selected: [true, true, false],
+			applied: [model.identifier, model.identifier],
+			configurations: [{ id: model.identifier, configuration: { reasoningEffort: 'low' }, persist: false }],
+			warningCount: 1,
+		});
+	});
+
+	test('agent aliases do not select BYOK models, but explicit IDs and vendor-qualified names do', () => {
+		const base = targetedModel('agent-host-copilotcli', 'byok');
+		const byok = { ...base, metadata: { ...base.metadata, name: 'Sonnet', vendor: 'copilot', isBYOK: true } };
+		const custom = { ...base, identifier: 'custom:model', metadata: { ...base.metadata, id: 'custom-model', name: 'Custom Model', vendor: 'custom', isBYOK: true } };
+		const { inputPart } = createModelPoolInput([byok, custom]);
+		const applied: string[] = [];
+		const warnings: string[] = [];
+		Object.assign(inputPart, {
+			options: {},
+			_modelSelectionController: { applyProgrammaticSelection: (model: ILanguageModelChatMetadataAndIdentifier) => applied.push(model.identifier) },
+			logService: { warn: (message: string) => warnings.push(message) },
+		});
+		const selected = [
+			inputPart.switchModelByQualifiedName(['Sonnet (copilot)']),
+			inputPart.switchModelByQualifiedName(['byok']),
+			inputPart.switchModelByQualifiedName(['Custom Model (custom)']),
+		];
+		assert.deepStrictEqual({ selected, applied, warningCount: warnings.length }, {
+			selected: [false, true, true],
+			applied: [byok.identifier, custom.identifier],
+			warningCount: 1,
+		});
+	});
 
 	test('selects a chat\'s models from the session type it is answered by, never another one\'s', () => {
 		const copilot = targetedModel('agent-host-copilotcli', 'gpt');
@@ -341,6 +606,84 @@ suite('ChatInputPart', () => {
 		});
 	});
 
+	test('catalog conversations select only their acquired environment model pool', () => {
+		const first = targetedModel('remote-first-copilot', 'first-model');
+		const second = targetedModel('remote-second-copilot', 'second-model');
+		const { inputPart } = createModelPoolInput([first, second]);
+		const resource = URI.parse('cloud-sandbox-task:/first');
+		const targets = observableValue<ReadonlyMap<string, string>>('targets', new Map());
+		Object.assign(inputPart, {
+			_inputModelSessionResource: resource,
+			_currentSessionTypeObservable: observableValue('type', resource.scheme),
+			_currentSessionResourceObservable: observableValue('resource', resource),
+			_widget: { viewModel: { model: { sessionResource: resource } } },
+			chatSessionsService: upcastPartial<IChatSessionsService>({
+				requiresCustomModelsForSessionType: () => true,
+				getChatSessionContribution: type => type === resource.scheme ? {
+					type,
+					name: 'Cloud',
+					displayName: 'Cloud',
+					description: '',
+					icon: undefined,
+					modelSessionType: (resource, reader) => targets.read(reader).get(resource.path),
+				} : undefined,
+			}),
+		});
+		const read = () => ({
+			target: inputPart.modelTargetSessionType,
+			models: (inputPart as unknown as { getModels(): ILanguageModelChatMetadataAndIdentifier[] }).getModels().map(model => model.identifier),
+		});
+		const unresolved = read();
+		targets.set(new Map([['/first', 'remote-first-copilot'], ['/second', 'remote-second-copilot']]), undefined);
+		const acquired = read();
+		const nextResource = resource.with({ path: '/second' });
+		Object.assign(inputPart, {
+			_inputModelSessionResource: nextResource,
+			_widget: { viewModel: { model: { sessionResource: nextResource } } },
+		});
+		const switched = read();
+		inputPart.setModelSessionTypeOverride({ sessionType: 'remote-first-copilot' });
+		const respondent = read();
+		inputPart.setModelSessionTypeOverride(undefined);
+		assert.deepStrictEqual({ unresolved, acquired, switched, respondent, restored: read() }, {
+			unresolved: { target: resource.scheme, models: [] },
+			acquired: { target: 'remote-first-copilot', models: [first.identifier] },
+			switched: { target: 'remote-second-copilot', models: [second.identifier] },
+			respondent: { target: 'remote-first-copilot', models: [first.identifier] },
+			restored: { target: 'remote-second-copilot', models: [second.identifier] },
+		});
+	});
+
+	test('catalog model-pool revalidation preserves valid conversation choices instead of restoring profile defaults', () => {
+		const conversation = targetedModel('remote-first-copilot', 'conversation');
+		const profile = targetedModel('remote-first-copilot', 'profile');
+		const other = targetedModel('remote-second-copilot', 'other');
+		const selected = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('selected', conversation);
+		let models = [conversation, profile];
+		let revalidations = 0;
+		const input: { revalidateContributedModelPool(): void } = Object.assign(Object.create(ChatInputPart.prototype), {
+			_currentLanguageModel: selected,
+			getModels: () => models,
+			initSelectedModel: () => selected.set(profile, undefined),
+			_modelSelectionController: {
+				revalidateForSessionType: (initialize: () => void) => {
+					revalidations++;
+					initialize();
+				},
+			},
+		});
+		input.revalidateContributedModelPool();
+		const preserved = { selected: selected.get()?.identifier, revalidations };
+		models = [other];
+		input.revalidateContributedModelPool();
+		selected.set(undefined, undefined);
+		input.revalidateContributedModelPool();
+		assert.deepStrictEqual({ preserved, revalidations }, {
+			preserved: { selected: conversation.identifier, revalidations: 0 },
+			revalidations: 2,
+		});
+	});
+
 	test('replacing or dropping the bound chat\'s pool while switching away never revalidates it against another pool', () => {
 		const claude = targetedModel('agent-host-claude', 'claude-haiku');
 		const { inputPart, revalidations } = createModelPoolInput([targetedModel('agent-host-copilotcli', 'gpt'), claude]);
@@ -365,6 +708,7 @@ suite('ChatInputPart', () => {
 				chatSessionHasTargetedModels: ChatContextKeys.chatSessionHasTargetedModels.bindTo(contextKeyService),
 				chatSessionHasCustomAgentTarget: ChatContextKeys.chatSessionHasCustomAgentTarget.bindTo(contextKeyService),
 				chatSessionHasOptions: ChatContextKeys.chatSessionHasModels.bindTo(contextKeyService),
+				localSandboxToggleAvailable: observableValue('localSandboxToggleAvailable', false),
 				chatSessionOptionsValid: optionsValid,
 				_updateInputContentContextKeys: () => { },
 				chatSessionsService: upcastPartial<IChatSessionsService>({
@@ -853,6 +1197,7 @@ suite('ChatInputPart', () => {
 				attachedContextContainer: dom.$('div'),
 				attachmentsContainer: dom.$('div'),
 				attachedContextDisposables,
+				attachedContextElements: new Map(),
 				_attachmentModel: { attachments: [chip] },
 				configurationService: { getValue: () => false },
 				options: {},
@@ -881,6 +1226,109 @@ suite('ChatInputPart', () => {
 		assert.deepStrictEqual(createdFor, [restoredSession.toString(), restoredSession.toString(), editedRequestSession.toString()]);
 	});
 
+	test('image actions use the entry-owned editor without requiring a screenshot service', async () => {
+		const results: { hasMarkUp: boolean; edited: boolean }[] = [];
+		for (const editing of [false, true]) {
+			const attachment: IImageVariableEntry = { id: 'image', name: 'image.png', kind: 'image', value: new Uint8Array() };
+			const attachmentModel = upcastPartial<ChatAttachmentModel>({ attachments: [attachment] });
+			let edited = false;
+			const imageEditor: IChatImageAttachmentEditor | undefined = editing ? {
+				edit: async (model, entry) => { edited = model === attachmentModel && entry === attachment; },
+				createMarkUp: () => assert.fail('The input action must not open carousel markup'),
+			} : undefined;
+			const instantiationService = store.add(new TestInstantiationService());
+			const createInstance = sinon.stub(instantiationService, 'createInstance').returns(upcastPartial<ImageAttachmentWidget>({}));
+			store.add(toDisposable(() => createInstance.restore()));
+			const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+				_currentLanguageModel: constObservable(undefined),
+				_attachmentModel: attachmentModel,
+				_chatAttachmentWidgetRegistry: Object.assign(new ChatAttachmentWidgetRegistry(), { imageEditor }),
+				instantiationService,
+			}) as ChatInputPart;
+			inputPart.createAttachmentWidget(attachment, dom.$('div'), { shouldFocusClearButton: false, supportsDeletion: true });
+			const options = createInstance.firstCall.args[4] as ConstructorParameters<typeof ImageAttachmentWidget>[3];
+			await options.markUp?.();
+			results.push({ hasMarkUp: !!options.markUp, edited });
+		}
+		assert.deepStrictEqual(results, [{ hasMarkUp: false, edited: false }, { hasMarkUp: true, edited: true }]);
+	});
+
+	for (const { name, options, padding, minimumLines } of [
+		{ name: 'default', options: {}, padding: { top: 12, bottom: 12 }, minimumLines: 1 },
+		{ name: 'compact', options: { renderStyle: 'compact' }, padding: { top: 2, bottom: 2 }, minimumLines: 1 },
+		{ name: 'Sessions', options: { isSessionsWindow: true, inputEditorMinLines: 2, inputEditorPadding: { top: 4, bottom: 4 } }, padding: { top: 4, bottom: 4 }, minimumLines: 2 },
+		{ name: 'mobile overrides', options: { isSessionsWindow: true, inputEditorOptions: { fontSize: 16, lineHeight: 24 }, inputEditorMinLines: 2, inputEditorPadding: { top: 4, bottom: 4 } }, padding: { top: 4, bottom: 4 }, minimumLines: 2 },
+	] satisfies { name: string; options: Partial<IChatInputPartOptions>; padding: { top: number; bottom: number }; minimumLines: number }[]) {
+		for (const maxHeight of [undefined, 1]) {
+			test(`respects chat or presentation metrics and preserves usable input height (${name}, max height ${maxHeight})`, async () => {
+				const configurationService = new TestConfigurationService({ 'chat.fontSize': 24 });
+				store.add(configurationService.onDidChangeConfigurationEmitter);
+				const chatLayoutService = store.add(new ChatLayoutService(configurationService));
+				const container = dom.append(mainWindow.document.body, dom.$('div'));
+				store.add(toDisposable(() => container.remove()));
+				const instantiationService = createCodeEditorServices(store);
+				const editor = store.add(instantiationService.createInstance(CodeEditorWidget, container, {
+					...getSimpleEditorOptions(configurationService),
+					padding,
+				}, { contributions: [], isSimpleWidget: true }));
+				editor.setModel(store.add(createTextModel('')));
+
+				const inputPart: Pick<ChatInputPart, 'layout'> & { bindInputEditorFontSize(): IDisposable } = Object.assign(Object.create(ChatInputPart.prototype), {
+					options,
+					chatLayoutService,
+					_inputEditor: editor,
+					followupsContainer: dom.$('div'),
+					inputEditorMaxHeight: options.renderStyle === 'compact' ? 250 / 3 : 250,
+					inputEditorTrailingSpace: 0,
+					_maxHeight: maxHeight,
+					height: constObservable(0),
+					getLayoutData: () => ({
+						inputPartHorizontalPadding: 0, inputPartHorizontalPaddingInside: 0,
+						editorBorder: 0, toolbarsWidth: 0, sideToolbarWidth: 0,
+					}),
+				});
+				const binding = store.add(inputPart.bindInputEditorFontSize());
+				const setConfiguration = async (key: string, value: number | undefined) => {
+					await configurationService.setUserConfiguration(key, value);
+					configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+						affectsConfiguration: setting => setting === key,
+					}));
+				};
+				const getState = () => {
+					inputPart.layout(400);
+					return {
+						fontSize: editor.getOption(EditorOption.fontSize),
+						lineHeight: editor.getOption(EditorOption.lineHeight),
+						height: editor.getLayoutInfo().height,
+					};
+				};
+
+				const states = [getState()];
+				for (const fontSize of [18, 100, 10, 6, undefined]) {
+					await setConfiguration('chat.fontSize', fontSize);
+					states.push(getState());
+				}
+				await setConfiguration('chat.editor.fontSize', 40);
+				await setConfiguration('editor.fontSize', 30);
+				states.push(getState());
+				binding.dispose();
+				await setConfiguration('chat.fontSize', 24);
+				states.push(getState());
+
+				assert.deepStrictEqual(states, [
+					{ fontSize: 24, lineHeight: 36 },
+					{ fontSize: 18, lineHeight: 27 },
+					{ fontSize: 100, lineHeight: 150 },
+					{ fontSize: 10, lineHeight: 20 },
+					{ fontSize: 6, lineHeight: 20 },
+					{ fontSize: 13, lineHeight: 20 },
+					{ fontSize: 13, lineHeight: 20 },
+					{ fontSize: 13, lineHeight: 20 },
+				].map(state => options.inputEditorOptions ?? state).map(state => ({ ...state, height: state.lineHeight * minimumLines + padding.top + padding.bottom })));
+			});
+		}
+	}
+
 	test('uses the Sessions content gutter for composer layout', () => {
 		const followupsContainer = dom.$('div');
 		const editorLayouts: { width: number; height: number }[] = [];
@@ -891,11 +1339,10 @@ suite('ChatInputPart', () => {
 			_inputEditor: {
 				getScrollWidth: () => 100,
 				getContentHeight: () => 20,
+				getOption: () => 20,
 				layout: (dimension: { width: number; height: number }) => editorLayouts.push(dimension),
 			},
 			inputEditorMaxHeight: 250,
-			inputEditorMinHeight: undefined,
-			singleLineInputEditorHeight: 20,
 			inputEditorTrailingSpace: 0,
 			ignoreInputEditorContentSizeChanges: false,
 		}) as ChatInputPart;
@@ -909,6 +1356,36 @@ suite('ChatInputPart', () => {
 			followupsWidth: '752px',
 			editorLayouts: [{ width: 740, height: 20 }],
 		});
+	});
+
+	test('lays the input editor out one line tall while single-line, whatever its content and minimum lines', () => {
+		const editorLayouts: number[] = [];
+		let contentHeight = 120;
+		const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			options: { isSessionsWindow: true },
+			inputContainer: dom.$('div'),
+			followupsContainer: dom.$('div'),
+			_inputEditor: {
+				getScrollWidth: () => 100,
+				getContentHeight: () => contentHeight,
+				layout: (dimension: { width: number; height: number }) => editorLayouts.push(dimension.height),
+			},
+			inputEditorMaxHeight: 250,
+			inputEditorTrailingSpace: 0,
+			ignoreInputEditorContentSizeChanges: false,
+			height: observableValue('height', 0),
+		}) as ChatInputPart;
+		// Getters on the part, computed from the input font size
+		Object.defineProperty(inputPart, 'inputEditorMinHeight', { value: 52 });
+		Object.defineProperty(inputPart, 'singleLineInputEditorHeight', { value: 32 });
+
+		inputPart.layout(800);
+		inputPart.setSingleLine(true);
+		contentHeight = 400;
+		inputPart.layout(800);
+		inputPart.setSingleLine(false);
+
+		assert.deepStrictEqual(editorLayouts, [120, 32, 250]);
 	});
 
 	test('working borders rotate fixed gradients inside masks at any input aspect ratio', async () => {

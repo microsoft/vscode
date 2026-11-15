@@ -529,13 +529,13 @@
 				"git": {
 					"name": "electron",
 					"repositoryUrl": "https://github.com/electron/electron",
-					"commitHash": "1c0ee213f150fc4a0d06304dcedabd9b2e8ce0f7",
-					"tag": "43.8.3"
+					"commitHash": "1afd314211c923547f1dd139b718e159575f2067",
+					"tag": "43.8.9"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "43.8.3"
+			"version": "43.8.9"
 		},
 		{
 			"component": {

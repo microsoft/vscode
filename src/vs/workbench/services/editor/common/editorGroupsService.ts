@@ -5,6 +5,7 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { IInstantiationService, createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorOptions, IModalEditorNavigation, IModalEditorPartOptions } from '../../../../platform/editor/common/editor.js';
@@ -126,6 +127,11 @@ export interface IMergeGroupOptions {
 	 * they are in the source group.
 	 */
 	readonly preserveExistingIndex?: boolean;
+
+	/**
+	 * Set this to not move focus to the moved editors.
+	 */
+	readonly preserveFocus?: boolean;
 }
 
 export interface ICloseEditorOptions {
@@ -333,6 +339,14 @@ export interface IEditorGroupsContainer {
 	readonly partOptions: IEditorPartOptions;
 
 	/**
+	 * Whether the container supports splitting, i.e. creating editor
+	 * groups next to existing ones (for example to open an editor to
+	 * the side). Containers that do not support splitting keep all
+	 * editors in a single group.
+	 */
+	readonly supportsSplitting: boolean;
+
+	/**
 	 * Enforce container options temporarily.
 	 */
 	enforcePartOptions(options: DeepPartial<IEditorPartOptions>): IDisposable;
@@ -480,6 +494,12 @@ export interface IEditorGroupsContainer {
 export interface IEditorPart extends IEditorGroupsContainer {
 
 	/**
+	 * Whether the part is owned by someone else than the editor parts service,
+	 * in which case it is not part of working sets.
+	 */
+	readonly isTransient?: boolean;
+
+	/**
 	 * An event for when the editor part receives focus.
 	 */
 	readonly onDidFocus: Event<void>;
@@ -528,13 +548,125 @@ export interface IEditorPart extends IEditorGroupsContainer {
 export interface IAuxiliaryEditorPart extends IEditorPart {
 
 	/**
+	 * Fired right before the part closes.
+	 */
+	readonly onWillClose: Event<void>;
+
+	/**
 	 * Close this auxiliary editor part after moving all
 	 * dirty editors of all groups back to the main editor
 	 * part.
 	 *
+	 * @param options `preserveFocus` keeps the focus where it is instead of
+	 * moving it to the group that received the editors.
+	 *
+	 * @returns `false` if an editor could not be moved back.
+	 */
+	close(options?: { preserveFocus?: boolean }): boolean;
+}
+
+/**
+ * Options to create an {@link IContentPart}.
+ */
+export interface ICreateEditorPartOptions {
+
+	/**
+	 * The element the part renders into. It becomes the root element of
+	 * the part, which belongs to the window the element is attached to.
+	 * The caller places the element and lays out the part.
+	 */
+	readonly container: unknown /* HTMLElement */;
+
+	/**
+	 * A label for the part, used as the accessible name of its region.
+	 */
+	readonly label?: string;
+
+	/**
+	 * Initial state of the part, as returned from {@link IContentPart.createState}.
+	 */
+	readonly state?: unknown /* IEditorPartUIState */;
+
+	/**
+	 * Services the part, its groups and their editors use in place of the
+	 * workbench's.
+	 */
+	readonly services?: ServiceCollection;
+
+	/**
+	 * Part options that override the user's settings in this part.
+	 */
+	readonly partOptions?: DeepPartial<IEditorPartOptions>;
+
+	/**
+	 * Options of the groups of the part, such as the menus of their title areas.
+	 */
+	readonly groupViewOptions?: unknown /* IEditorGroupViewOptions */;
+}
+
+/**
+ * An editor part that renders into a container of its owner. The owner
+ * places it, lays it out and closes it. It is not part of working sets
+ * or of the restored state of windows: its owner keeps its state.
+ */
+export interface IContentPart extends IEditorPart {
+
+	/**
+	 * The root element of the part.
+	 */
+	readonly element: unknown /* HTMLElement */;
+
+	readonly minimumWidth: number;
+	readonly maximumWidth: number;
+	readonly minimumHeight: number;
+	readonly maximumHeight: number;
+
+	/**
+	 * Fired when the size constraints of the part change.
+	 */
+	readonly onDidChange: Event<{ width: number; height: number } | undefined>;
+
+	/**
+	 * Lays out the part within its container.
+	 */
+	layout(width: number, height: number, top: number, left: number): void;
+
+	/**
+	 * Tells the part whether it shows, such as when its owner hides it.
+	 */
+	setVisible(visible: boolean): void;
+
+	/**
+	 * Fired right before the part closes.
+	 */
+	readonly onWillClose: Event<void>;
+
+	/**
+	 * Fired before a group of the part moves to another part, while the group
+	 * still has all its editors: the move copies the group into the other
+	 * part, then closes its editors here.
+	 */
+	readonly onWillMoveGroupOut: Event<IEditorGroup>;
+
+	/**
+	 * Returns the state of the part, to pass as `state` when creating
+	 * a part again. The owner is responsible for persisting it.
+	 */
+	createState(): unknown /* IEditorPartUIState */;
+
+	/**
+	 * Closes this part after moving all dirty editors of all groups
+	 * back to the main editor part. The owner disposes the container.
+	 *
 	 * @returns `false` if an editor could not be moved back.
 	 */
 	close(): boolean;
+
+	/**
+	 * Closes this part like {@link close}, and also when an editor could not be
+	 * moved back, such as when its window goes away: such editors close with it.
+	 */
+	forceClose(): void;
 }
 
 export interface IModalEditorPart extends IEditorPart {
@@ -625,7 +757,31 @@ export interface IEditorWorkingSet {
 	readonly name: string;
 }
 
+export interface IResolvedEditorWorkingSet extends IDisposable {
+
+	/**
+	 * The editors of the main part's groups, in group and editor order, with an editor shown in several groups listed once.
+	 */
+	readonly editors: readonly EditorInput[];
+
+	/**
+	 * The editor that was active in the main part's active group.
+	 */
+	readonly activeEditor: EditorInput | undefined;
+
+	/**
+	 * Disposes the editors that no group shows, as the editors are not needed: editors that are shown, such as
+	 * an editor of a file that another group has open as well, stay open.
+	 */
+	dispose(): void;
+}
+
 export interface IEditorWorkingSetOptions {
+
+	/**
+	 * Keeps the focus where it is: focus outside of the editor parts is not touched,
+	 * and focus inside of an editor part moves to the new active editor.
+	 */
 	readonly preserveFocus?: boolean;
 }
 
@@ -650,6 +806,14 @@ export interface IEditorGroupContextKeyProvider<T extends ContextKeyValue> {
 /**
  * The main service to interact with editor groups across all opened editor parts.
  */
+/**
+ * The main part of a window: the first part created in it, or the main
+ * part when the window has none.
+ */
+export function getWindowMainPart(editorGroupsService: Pick<IEditorGroupsService, 'parts' | 'mainPart'>, windowId: number): IEditorPart {
+	return editorGroupsService.parts.find(part => part.windowId === windowId) ?? editorGroupsService.mainPart;
+}
+
 export interface IEditorGroupsService extends IEditorGroupsContainer {
 
 	readonly _serviceBrand: undefined;
@@ -665,7 +829,8 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	readonly mainPart: IEditorPart;
 
 	/**
-	 * Provides access to all editor parts.
+	 * Provides access to all editor parts, in the order they were created.
+	 * The first part created in a window is the main part of that window.
 	 */
 	readonly parts: ReadonlyArray<IEditorPart>;
 
@@ -684,6 +849,13 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * in there at the optional position and size on screen.
 	 */
 	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle>; compact?: boolean; alwaysOnTop?: boolean }): Promise<IAuxiliaryEditorPart>;
+
+	/**
+	 * Creates an editor part that renders into the provided container,
+	 * which the caller places in a window. The first part created in a
+	 * window is the main part of that window.
+	 */
+	createEditorPart(options: ICreateEditorPartOptions): IContentPart;
 
 	/**
 	 * Creates a modal editor part that shows in a modal overlay
@@ -724,6 +896,14 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * @returns `true` when the working set as applied.
 	 */
 	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean>;
+
+	/**
+	 * Resolves the editors of the main part of a working set without applying it or
+	 * changing any part. The returned editors are the caller's to show or to dispose.
+	 *
+	 * @returns `undefined` when the working set does not exist, or when it has editors that cannot be restored.
+	 */
+	resolveWorkingSet(workingSet: IEditorWorkingSet): IResolvedEditorWorkingSet | undefined;
 
 	/**
 	 * Deletes a working set.
@@ -1081,9 +1261,10 @@ export interface IEditorGroup {
 	focus(): void;
 
 	/**
-	 * Create the editor actions for the current active editor.
+	 * Create the editor actions for the current active editor. With `useEditorTitleMenu`, those of the editor's own title
+	 * menu, if the editor has one, in place of those of `menuId`, such as on the tab bar of the group.
 	 */
-	createEditorActions(disposables: DisposableStore, menuId?: MenuId): IActiveEditorActions;
+	createEditorActions(disposables: DisposableStore, menuId?: MenuId, options?: { readonly useEditorTitleMenu?: boolean }): IActiveEditorActions;
 }
 
 export function isEditorGroup(obj: unknown): obj is IEditorGroup {

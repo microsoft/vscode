@@ -25,10 +25,12 @@ import { ApiRequestError, MutationUncertainError } from '../../../github/common/
 import { isPullRequestFeedbackAuthor } from '../../../github/common/pullRequestFeedback.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
-import { getCapturedCredentialSourceKey, IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
+import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import { getCapturedCredentialSourceKey, IAgentHostCredentialSource, isAuthRequiredError } from '../../common/agentHostCredentials.js';
 import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
-import { getPullRequestArtifactChecks, getPullRequestArtifactCheckState, getPullRequestArtifactFailedChecks, getPullRequestArtifactThreads, GitHubPullRequestArtifactTarget, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactOptions, gitHubPullRequestArtifactWorkspaceSettingsKey, isArtifactDataObject, isCurrentPullRequestFragment, isPullRequestArtifactMergeable, isPullRequestArtifactReadyForReview, parseGitHubPullRequestArtifact, readGitHubPullRequestArtifactWorkspaceSettings } from '../../common/githubPullRequestArtifact.js';
-import { AuthRequiredReason } from '../../common/state/sessionActions.js';
+import { getPullRequestRepairActivityLabel } from '../../common/systemTurnActivity.js';
+import { getPullRequestArtifactChecks, getPullRequestArtifactCheckState, getPullRequestArtifactFailedChecks, getPullRequestArtifactMissingRequiredChecks, getPullRequestArtifactThreads, GitHubPullRequestArtifactTarget, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactOptions, gitHubPullRequestArtifactWorkspaceSettingsKey, isArtifactDataObject, isCurrentPullRequestFragment, isPullRequestArtifactMergeable, isPullRequestArtifactReadyForReview, parseGitHubPullRequestArtifact, readGitHubPullRequestArtifactWorkspaceSettings } from '../../common/githubPullRequestArtifact.js';
+import { ActionType, AuthRequiredReason } from '../../common/state/sessionActions.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostGitHubService } from '../agentHostGitHubService.js';
@@ -42,6 +44,8 @@ const resolvedThreadReadLag = 30_000;
 const reviewThreadIcon: ArtifactIcon = { id: 'comment-discussion', colorId: 'editorWarning.foreground' };
 const checkStateOrder = { pending: 0, failed: 1, skipped: 2, passed: 3 };
 const automationPollInterval = 60_000;
+/** How long a checkout probe stands when no Git state refresh reports a change, for a chat whose folder nobody watches. */
+const workspaceProbeMaxAge = 30_000;
 const unchangedRepairCooldown = 10 * 60_000;
 const undispatchedRetryDelay = 30_000;
 
@@ -57,6 +61,12 @@ async function withAuthenticationRecovery<T>(operation: () => Promise<T>, owner:
 	} catch (error) {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
+		}
+		if (isAuthRequiredError(error)) {
+			if (!isArtifactDataObject(error.data) || !Array.isArray(error.data.resources) || error.data.resources.length === 0) {
+				throw new Error(localize('prArtifact.sessionCredentialsUnavailable', "Resume this session or reconnect its client to restore access to this pull request."));
+			}
+			throw new GitHubRequestError(authenticationRequiredMessage(owner, error.message), 'authentication');
 		}
 		if (error instanceof GitHubRequestError && (error.kind === 'authentication' || error.kind === 'authorization')) {
 			const ssoAuthorizationUrl = error.responseMetadata?.ssoAuthorizationUrl;
@@ -117,9 +127,20 @@ class GitHubPullRequestArtifactResource extends Disposable {
 			const failure = firstCredentialFailure(snapshot, pullRequestFragments);
 			if (failure) {
 				this.requireAuthentication(failure);
-			} else if (pullRequestFragments.every(fragment => snapshot[fragment].status === 'ready' && snapshot[fragment].complete)) {
+			} else if (snapshot.core.status === 'ready' && pullRequestFragments.every(fragment => snapshot[fragment].status === 'ready' || snapshot[fragment].status === 'error')) {
+				// Every fragment answered since the refusal and GitHub accepted the credential for the pull request;
+				// a fragment that keeps failing for another reason, such as an overloaded queue, must not hold sign-in.
 				this.authenticationError.set(undefined, undefined);
 				this.requestedAuthentication = false;
+			}
+		}));
+		this._register(this.client.credentials.onDidInvalidate(event => {
+			// A refusal an action received leaves the fragments healthy, so a same-token reauthorization produces no new
+			// observation; read the pull request again to revalidate access instead of replaying the action.
+			if (event.reason === 'reauthorization' && this.authenticationError.get()) {
+				void this.subscription.refresh(undefined, CancellationToken.None, { authoritative: true }).catch(() => {
+					// A renewed refusal reaches the snapshot and requires authentication again.
+				});
 			}
 		}));
 	}
@@ -208,6 +229,7 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 		@IAgentHostArtifactEventService private readonly events: AgentHostArtifactEventService,
 		@ILogService private readonly logService: ILogService,
 		@IAgentHostGitHubEndpointService private readonly endpoint: IAgentHostGitHubEndpointService,
+		@IAgentHostGitStateService private readonly gitState: IAgentHostGitStateService,
 	) {
 		this.onDidChange = github.onDidChangeRepositoryClient;
 	}
@@ -221,11 +243,11 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 			return undefined;
 		}
 		const chat = artifact.origin?.chat;
-		const source = chat ? this.github.captureSessionCredentialSource(chat, undefined, this.stateManager.getChatOwner(chat)) : undefined;
-		return withSignal(token, async signal => {
+		return this.withAuthentication(target, token, () => withSignal(token, async signal => {
+			const source = chat ? this.github.captureSessionCredentialSource(chat, undefined, this.stateManager.getChatOwner(chat)) : undefined;
 			const client = this.github.acquireRepositoryClient(signal, source, chat);
 			try {
-				const credential = await this.getCredential(target, token, client.object);
+				const credential = await client.object.credentials.getCredential(signal);
 				if (credential.account.host.toLowerCase() !== target.apiHost) {
 					throw new Error(localize('prArtifact.accountHost', "The GitHub account does not belong to this pull request's host."));
 				}
@@ -239,7 +261,7 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 			} finally {
 				client.dispose();
 			}
-		});
+		}));
 	}
 
 	async createResource(match: ArtifactResourceMatch, _context: IArtifactResourceContext, token: CancellationToken): Promise<GitHubPullRequestArtifactResource> {
@@ -251,10 +273,10 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 		if (!context) {
 			throw new Error('The pull request credential context is unavailable');
 		}
-		return withSignal(token, async signal => {
+		return this.withAuthentication(target, token, () => withSignal(token, async signal => {
 			const client = this.github.acquireRepositoryClient(signal, context.source, context.chat);
 			try {
-				const credential = await this.getCredential(target, token, client.object);
+				const credential = await client.object.credentials.getCredential(signal);
 				if (credentialScope(credential.account, context.source) !== match.credentialScope || credential.account.host.toLowerCase() !== target.apiHost) {
 					throw new Error(localize('prArtifact.accountChanged', "The GitHub account or host changed while loading this pull request."));
 				}
@@ -274,7 +296,7 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 				client.dispose();
 				throw error;
 			}
-		});
+		}));
 	}
 
 	getAuthenticationRequest(resource: URI, token: CancellationToken, artifact: ArtifactRecord): ArtifactAuthenticationRequest {
@@ -288,10 +310,10 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 		return { resource: metadata.resource, authorizationServers: metadata.authorization_servers, scopes: metadata.scopes_supported };
 	}
 
-	private async getCredential(target: GitHubPullRequestArtifactTarget, token: CancellationToken, client: IGitHubClient) {
+	private async withAuthentication<T>(target: GitHubPullRequestArtifactTarget, token: CancellationToken, operation: () => Promise<T>): Promise<T> {
 		try {
 			return await withAuthenticationRecovery(
-				() => withSignal(token, signal => client.credentials.getCredential(signal)),
+				operation,
 				target.owner,
 				token,
 				error => this.requestAuthentication(target, error),
@@ -312,7 +334,7 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 	}
 
 	createBinding(resource: GitHubPullRequestArtifactResource, context: IArtifactBindingContext): IArtifactIntegrationBinding {
-		return new GitHubPullRequestArtifactBinding(resource, context, resource.client, this.git, this.stateManager, this.configuration, this.events, this.logService);
+		return new GitHubPullRequestArtifactBinding(resource, context, resource.client, this.git, this.stateManager, this.configuration, this.events, this.logService, this.gitState);
 	}
 }
 
@@ -367,6 +389,12 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	readonly actions: readonly ArtifactAction[];
 	private readonly workspaces = observableValueOpts<Readonly<Record<string, WorkspaceState>>>({ owner: this, equalsFn: structuralEquals }, {});
 	private workspaceRevision = 0;
+	/** What the last conclusive checkout probe was based on and when; the same inputs give the same answer until the checkout changes, which a Git state refresh reports. */
+	private lastWorkspaceProbe: string | undefined;
+	private lastWorkspaceProbeAt = 0;
+	/** Counts the announced Git state refreshes and the turn ends of the session, so that a probe that started before one is not taken for current. */
+	private gitRefreshGeneration = 0;
+	private probingWorkspace: string | undefined;
 	private readonly automationError = observableValue<string | undefined>(this, undefined);
 	/** Threads resolved from their details row, by resolution time, hidden until GitHub's thread list reflects it. */
 	private readonly resolvedThreads = observableValue<ReadonlyMap<string, number>>(this, new Map());
@@ -386,14 +414,21 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		private readonly configuration: IAgentConfigurationService,
 		events: AgentHostArtifactEventService,
 		private readonly logService: ILogService,
+		gitState: IAgentHostGitStateService,
 	) {
 		super();
+		const sessionGitRefreshes = Event.filter(gitState.onDidRefreshSessionGitState, key => key === context.session || stateManager.getChatOwner(key) === context.session);
+		// An agent may have changed a checkout nobody watches during its turn.
+		const sessionTurnEnds = Event.filter(stateManager.onDidEmitEnvelope, envelope => envelope.action.type === ActionType.ChatTurnComplete && stateManager.getChatOwner(envelope.channel) === context.session);
 		this.hostChanges = observableSignalFromEvent(this, Event.any<unknown>(
 			Event.filter(events.onDidChange, event => event.channel === context.session || stateManager.getChatOwner(event.channel) === context.session),
+			sessionGitRefreshes,
+			sessionTurnEnds,
 			configuration.onDidRootConfigChange,
 			Event.filter(configuration.onDidSessionConfigChange, event => event.session === context.session),
 		));
 		const refreshWorkspace = this._register(new RunOnceScheduler(() => { void this.refreshWorkspaces(); }, 50));
+		this._register(Event.any<unknown>(sessionGitRefreshes, sessionTurnEnds)(() => { this.gitRefreshGeneration++; }));
 		this._register(autorun(reader => this.pruneResolvedThreads(resource.snapshot.read(reader).reviewThreads)));
 		this._register(autorun(reader => {
 			resource.snapshot.read(reader);
@@ -401,8 +436,8 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			refreshWorkspace.schedule();
 		}));
 		this.actions = [
-			this.promptAction('fixCI', 'github-action', localize('prArtifact.fixCI', "Fix Checks")),
-			this.promptAction('addressReviews', 'comment-discussion', localize('prArtifact.addressReviews', "Address Comments")),
+			this.promptAction('fixCI', 'lightbulb', localize('prArtifact.fixCI', "Fix Checks")),
+			this.promptAction('addressReviews', 'comment', localize('prArtifact.addressReviews', "Address Comments")),
 			this.promptAction('resolveConflicts', 'git-compare', localize('prArtifact.updateBranch', "Resolve Conflicts / Update Branch")),
 			this.codeAction('markReady', 'git-pull-request', localize('prArtifact.markReady', "Mark Ready")),
 			this.codeAction('merge', 'git-merge', localize('prArtifact.merge', "Merge")),
@@ -761,8 +796,13 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		if (snapshot.core.value?.state !== 'open') {
 			return localize('prArtifact.terminal', "This pull request is closed or merged.");
 		}
-		return actionId === 'merge' ? localize('prArtifact.cannotMerge', "GitHub has not confirmed that this pull request can be merged, or it is already queued for merging.")
-			: undefined;
+		if (actionId !== 'merge') {
+			return undefined;
+		}
+		const missing = snapshot.checks.value?.headSha === snapshot.core.value?.headSha ? getPullRequestArtifactMissingRequiredChecks(snapshot) : [];
+		return missing.length
+			? localize('prArtifact.requiredChecksMissing', "GitHub blocks merging until these required checks report on the current revision: {0}. If their workflow has finished, rerun it.", missing.join(', '))
+			: localize('prArtifact.cannotMerge', "GitHub has not confirmed that this pull request can be merged, or it is already queued for merging.");
 	}
 
 	/**
@@ -810,25 +850,45 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 
 	/** Verifies the recording chat's checkout, which merging only unchanged pull requests requires to stay clean. */
 	private async refreshWorkspaces(): Promise<void> {
-		const revision = ++this.workspaceRevision;
 		const core = this.resource.snapshot.get().core.value;
 		const chat = this.context.artifact.origin?.chat ?? this.stateManager.getSessionState(this.context.session)?.defaultChat;
 		if (!core || core.state !== 'open' || !chat) {
+			this.workspaceRevision++;
+			this.lastWorkspaceProbe = undefined;
+			// The pending probe is superseded and can no longer clear its own marker.
+			this.probingWorkspace = undefined;
 			this.workspaces.set({}, undefined);
 			return;
 		}
+		const directories = this.configuration.getEffectiveWorkingDirectories(chat);
+		const probe = JSON.stringify([chat, directories, core.headRef, core.headSha, core.repositoryNameWithOwner, core.headRepositoryNameWithOwner, this.gitRefreshGeneration]);
+		if ((probe === this.lastWorkspaceProbe && Date.now() - this.lastWorkspaceProbeAt < workspaceProbeMaxAge) || probe === this.probingWorkspace) {
+			return;
+		}
+		const revision = ++this.workspaceRevision;
+		this.lastWorkspaceProbe = undefined;
+		this.probingWorkspace = probe;
+		let conclusive = false;
 		const workspaces: Record<string, WorkspaceState> = {};
 		try {
 			const checkout = await this.checkout(chat, core);
 			workspaces[chat] = checkout ? { kind: 'ready', checkout } : { kind: 'missing' };
+			conclusive = true;
 		} catch (error) {
 			this.logService.warn('[GitHubPullRequestArtifact] Could not verify chat checkout', error);
 			workspaces[chat] = { kind: 'unavailable', reason: toErrorMessage(error) };
+		}
+		if (revision === this.workspaceRevision) {
+			this.probingWorkspace = undefined;
 		}
 		const currentCore = this.resource.snapshot.get().core.value;
 		if (!this._store.isDisposed && revision === this.workspaceRevision && currentCore?.state === 'open' && currentCore.headSha === core.headSha) {
 			this.workspaces.set(workspaces, undefined);
 			this.automationError.set(undefined, undefined);
+			if (conclusive) {
+				this.lastWorkspaceProbe = probe;
+				this.lastWorkspaceProbeAt = Date.now();
+			}
 		}
 	}
 
@@ -840,7 +900,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	}
 
 	private promptAction(id: 'addressReviews' | 'fixCI' | 'resolveConflicts', iconId: string, label: string): ArtifactAction {
-		return { id, iconId, label, kind: 'prompt', prepare: (context, token) => this.preparePrompt(id, context, token) };
+		return { id, iconId, label, activityLabel: getPullRequestRepairActivityLabel(id), kind: 'prompt', prepare: (context, token) => this.preparePrompt(id, context, token) };
 	}
 
 	private async preparePrompt(id: 'addressReviews' | 'fixCI' | 'resolveConflicts', context: IArtifactActionContext, token: CancellationToken): Promise<ArtifactPreparation<ArtifactPrompt>> {
@@ -1238,7 +1298,7 @@ function checkIcon(state: ReturnType<typeof checkPresentationState>): ArtifactIc
 	return state === 'passed' ? { id: 'pass-filled-compact', colorId: 'charts.green' }
 		: state === 'failed' ? { id: 'error-compact', colorId: 'errorForeground' }
 			: state === 'skipped' ? { id: 'skip', colorId: 'descriptionForeground' }
-				: { id: 'sync-compact', colorId: 'editorWarning.foreground' };
+				: { id: 'circle-filled-compact', colorId: 'editorWarning.foreground' };
 }
 
 type PullRequestDisplayState = 'open' | 'draft' | 'merged' | 'closed';

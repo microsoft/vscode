@@ -6,6 +6,7 @@
 import * as cp from 'child_process';
 import * as fsPromises from 'fs/promises';
 import { cp as copyFile } from '@vscode/fs-copyfile';
+import { Schemas } from '../../../base/common/network.js';
 import * as path from '../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
@@ -43,8 +44,17 @@ const SHOW_BLOB_TIMEOUT_MS = 15_000;
  */
 const GET_REFS_TIMEOUT_MS = 30_000;
 
+/** Budget for a git command that doesn't set its own, so that an unresponsive remote can't hang a caller. */
+const GIT_COMMAND_TIMEOUT_MS = 30_000;
+
+/** Beyond this many changed paths, stat-ing them costs about as much as the diff the fingerprint would save. */
+const MAX_FINGERPRINTED_CHANGED_PATHS = 2000;
+
 export class AgentHostGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
+
+	/** The timeout of the git commands that don't set their own; tests shorten it to observe it quickly. */
+	protected readonly _defaultTimeoutMs: number = GIT_COMMAND_TIMEOUT_MS;
 
 	/**
 	 * A cache of repository roots and confirmed non-repositories.
@@ -223,6 +233,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean }): Promise<URI | undefined> {
+		if (workingDirectory.scheme !== Schemas.file) {
+			return undefined;
+		}
+
 		const workingDirectoryKey = extUriBiasedIgnorePathCase.getComparisonKey(workingDirectory);
 
 		return this._repositoryRootSequencer.queue(workingDirectoryKey, async () => {
@@ -772,6 +786,60 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 
 		return this._resolveBranchMergeBaseCommit(repositoryRoot, baseBranch);
+	}
+
+	async getBranchDiffFingerprint(workingDirectory: URI, baseBranch?: string): Promise<string | undefined> {
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
+			return undefined;
+		}
+		const [mergeBaseCommit, head, statusOut] = await Promise.all([
+			this._resolveBranchMergeBaseCommit(repositoryRoot, baseBranch),
+			this._runGit(repositoryRoot, ['rev-parse', 'HEAD']),
+			this._runGitStatus(repositoryRoot, ['--porcelain=v1', '-z', '--untracked-files=all']),
+		]);
+		if (statusOut === undefined) {
+			return undefined;
+		}
+		const changedPaths = parseChangedPaths(statusOut);
+		if (changedPaths.length > MAX_FINGERPRINTED_CHANGED_PATHS) {
+			return undefined;
+		}
+		const limiter = new Limiter<string>(16);
+		try {
+			const files = await Promise.all(changedPaths.map(changedPath => limiter.queue(async () => {
+				try {
+					const stat = await fsPromises.lstat(path.join(repositoryRoot.fsPath, changedPath), { bigint: true });
+					return `${stat.size}:${stat.mtimeNs}`;
+				} catch {
+					return 'missing';
+				}
+			})));
+			return JSON.stringify([mergeBaseCommit, head?.trim(), statusOut, files]);
+		} finally {
+			limiter.dispose();
+		}
+	}
+
+	async hasUnignoredPaths(workingDirectory: URI, resources: readonly URI[]): Promise<boolean | undefined> {
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot || resources.length === 0) {
+			return undefined;
+		}
+		const gitDirectory = path.join(repositoryRoot.fsPath, '.git');
+		const paths = resources.map(resource => resource.fsPath);
+		if (paths.some(candidate => candidate === gitDirectory || candidate.startsWith(gitDirectory + path.sep))) {
+			return true;
+		}
+		try {
+			// Tracked files are never reported, only untracked ones that an ignore rule covers.
+			const ignored = await this._runGit(repositoryRoot, ['check-ignore', '-z', '--stdin'], { throwOnError: true, input: paths.join('\0') + '\0' });
+			const ignoredPaths = new Set(ignored?.split('\0').filter(Boolean));
+			return paths.some(candidate => !ignoredPaths.has(candidate));
+		} catch (error) {
+			// Exit status 1 is `check-ignore` saying that no path is ignored.
+			return error instanceof GitCommandError && (error.cause as cp.ExecFileException | undefined)?.code === 1 ? true : undefined;
+		}
 	}
 
 	/**
@@ -1422,7 +1490,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 
 		return new Promise((resolve, reject) => {
 			const env = options?.env ? { ...process.env, ...options.env } : undefined;
-			const timeoutMs = options?.timeout ?? 30_000;
+			const timeoutMs = options?.timeout ?? this._defaultTimeoutMs;
 			// Use our own timer rather than execFile's `timeout` option so
 			// we can definitively flag the timeout case in the error
 			// message — execFile only surfaces signal/killed, which can

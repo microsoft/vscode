@@ -6,9 +6,9 @@
 import assert from 'assert';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
-import { ManagedSettingsData } from '../../../../base/common/policy.js';
+import { ManagedSettingsData, ManagedSettingValue } from '../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectManagedSettingsDefinitions, COPILOT_DEFAULT_PERMISSIONS_MODE_KEY, COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, managedDefaultConfigurationValue, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_PERMISSION_RULES_KEYS, COPILOT_SANDBOX_ALLOWED_HOSTS_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_DENIED_PATHS_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_SANDBOX_READONLY_PATHS_KEY, COPILOT_SANDBOX_READWRITE_PATHS_KEY, COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, MANAGED_SETTINGS_CONTROL_DEFINITIONS, hasManagedPermissionDenials, hasManagedSettingsDefinitions, IManagedSettingsService, NullManagedSettingsService, managedModelValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, projectManagedSettings, pickManagedSettings, requiresCopilotAgentHost, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, COPILOT_ALLOWED_HARNESSES_KEY, COPILOT_COMMUNICATION_SUPPORT_URL_KEY, COPILOT_DEFAULT_PERMISSIONS_MODE_KEY, COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, managedDefaultConfigurationValue, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_PERMISSION_RULES_KEYS, COPILOT_SANDBOX_ALLOWED_HOSTS_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_DENIED_PATHS_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_SANDBOX_READONLY_PATHS_KEY, COPILOT_SANDBOX_READWRITE_PATHS_KEY, COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, MANAGED_SETTINGS_CONTROL_DEFINITIONS, getManagedSupportUrl, hasManagedPermissionDenials, hasManagedSettingsDefinitions, hasRawManagedSettings, IManagedSettingsService, isManagedSettingGovernanceActive, NullManagedSettingsService, managedModelValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, projectManagedSettings, pickManagedSettings, requiresCopilotAgentHost, resolveForceRemoteSettingsRefresh, thirdPartyAgentEnabledValue } from '../../common/copilotManagedSettings.js';
 import { PolicyDefinition } from '../../common/policy.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 
@@ -154,6 +154,47 @@ suite('Copilot managed settings projection', () => {
 			pickManagedSettings({}, { [key]: false }, { [key]: true }).values,
 			pickManagedSettings({}, {}, { [key]: true }).values,
 		], [{ [key]: false }, { [key]: false }, { [key]: true }]);
+	});
+
+	test('an allowed harnesses list permits the third-party harnesses it names and ignores other entries', () => {
+		const key = COPILOT_ALLOWED_HARNESSES_KEY;
+		const claude = thirdPartyAgentEnabledValue('claude');
+		const codex = thirdPartyAgentEnabledValue('codex');
+		const lists: readonly unknown[] = [undefined, ['claude', 'codex'], ['claude'], ['codex', 'codex'], ['future', 'claude', 7], [], ['Claude'], [['claude']], 'claude', null, { claude: true }];
+		const results = lists.map(allowedHarnesses => {
+			const raw = { vscode: { allowedHarnesses } };
+			const managedSettings = normalizeManagedSettings(raw);
+			return {
+				carried: managedSettings[key],
+				governance: hasRawManagedSettings(raw) || hasRawManagedSettings(managedSettings),
+				governed: [claude({ managedSettings, managedSettingsActive: true }), codex({ managedSettings, managedSettingsActive: true })],
+				ungoverned: [claude({ managedSettings }), codex({ managedSettings })],
+			};
+		});
+		const permitted = normalizeManagedSettings({ vscode: { allowedHarnesses: ['claude', 'codex'] } });
+		assert.deepStrictEqual({
+			results,
+			otherDenials: [
+				claude({ managedSettings: permitted, chat_preview_features_enabled: false }),
+				codex({ managedSettings: { ...permitted, [COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: false } }),
+			],
+			malformedJson: ['not json', '["claude"] trailing', '["claude",]', ''].map(value => claude({ managedSettings: { [key]: value } })),
+			sameCallback: thirdPartyAgentEnabledValue('claude') === claude,
+		}, {
+			results: [
+				{ carried: undefined, governance: false, governed: [false, false], ungoverned: [undefined, undefined] },
+				{ carried: '["claude","codex"]', governance: false, governed: [undefined, undefined], ungoverned: [undefined, undefined] },
+				{ carried: '["claude"]', governance: false, governed: [undefined, false], ungoverned: [undefined, false] },
+				{ carried: '["codex","codex"]', governance: false, governed: [false, undefined], ungoverned: [false, undefined] },
+				{ carried: '["future","claude",7]', governance: false, governed: [undefined, false], ungoverned: [undefined, false] },
+				...['[]', '["Claude"]', '[["claude"]]', '"claude"', 'null', '{"claude":true}'].map(carried => (
+					{ carried, governance: false, governed: [false, false], ungoverned: [false, false] }
+				)),
+			],
+			otherDenials: [false, false],
+			malformedJson: [false, false, false, false],
+			sameCallback: true,
+		});
 	});
 
 	const definitions: IStringDictionary<PolicyDefinition> = {
@@ -552,7 +593,7 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 				value: false, source: 'nativeMdm',
 				contributions: [{ channel: 'nativeMdm', value: false }, { channel: 'server', value: true }],
 			}]]),
-			suppressedTelemetry: new Map([['telemetry.enabled', [{ channel: 'server', value: true }]]]),
+			excludedBlockContributions: new Map([['telemetry.enabled', [{ channel: 'server', value: true }]]]),
 			activeSources: ['nativeMdm'],
 		});
 	});
@@ -578,7 +619,7 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 		assert.deepStrictEqual({
 			values: pick.values,
 			resolvedKeys: [...pick.resolutions.keys()],
-			suppressed: [...pick.suppressedTelemetry],
+			suppressed: [...pick.excludedBlockContributions],
 			activeSources: pick.activeSources,
 		}, {
 			values: { 'telemetry.capture.prompts': false },
@@ -598,7 +639,7 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 			values: pick.values,
 			projected: projectManagedSettings(pick.values, { [key]: { type: 'boolean' } }),
 			marker: pick.resolutions.get('telemetry'),
-			suppressed: [...pick.suppressedTelemetry],
+			suppressed: [...pick.excludedBlockContributions],
 		}, {
 			values: { telemetry: '{}' },
 			projected: {},
@@ -629,7 +670,7 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 			assert.deepStrictEqual({
 				values: pick.values,
 				resolutionValues: Object.fromEntries([...pick.resolutions].map(([key, resolution]) => [key, resolution.value])),
-				suppressed: [...pick.suppressedTelemetry.keys()].sort(),
+				suppressed: [...pick.excludedBlockContributions.keys()].sort(),
 				activeSources: pick.activeSources,
 				sharedSource: pick.resolutions.get('shared')?.source,
 				sandboxSource: pick.resolutions.get(sandbox)?.source,
@@ -655,6 +696,54 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 			empty: { telemetry: '{}' },
 			withdrawn: lower,
 		});
+	});
+
+	test('organization communication is selected as a whole block and never counts as governance', () => {
+		const key = COPILOT_COMMUNICATION_SUPPORT_URL_KEY;
+		const file = normalizeManagedSettings({ communication: { support: { url: 'https://file.example/help' } } });
+		assert.deepStrictEqual({
+			file,
+			server: pickManagedSettings(undefined, normalizeManagedSettings({ communication: { support: { url: 'https://server.example/help' } } }), file).values,
+			native: pickManagedSettings({ [key]: 'https://mdm.example/help' }, undefined, file).values,
+			emptyBlock: pickManagedSettings(undefined, normalizeManagedSettings({ communication: {} }), file).values,
+			excludedForDiagnostics: [...pickManagedSettings(undefined, normalizeManagedSettings({ communication: {} }), file).excludedBlockContributions],
+			emptySupport: pickManagedSettings(undefined, normalizeManagedSettings({ communication: { support: {} } }), file).values,
+			scalar: normalizeManagedSettings({ communication: 'https://scalar.example' }),
+			withdrawn: pickManagedSettings(undefined, normalizeManagedSettings({}), file).values,
+			watched: MANAGED_SETTINGS_CONTROL_DEFINITIONS[key],
+			governance: {
+				communicationOnly: hasRawManagedSettings({ communication: { support: { url: 'https://example.com' } } }),
+				withRestriction: hasRawManagedSettings({ communication: {}, allowManagedHooksOnly: true }),
+				key: isManagedSettingGovernanceActive(key),
+				anchor: isManagedSettingGovernanceActive('communication'),
+				lookalike: isManagedSettingGovernanceActive('communications'),
+			},
+		}, {
+			file: { [key]: 'https://file.example/help' },
+			server: { [key]: 'https://server.example/help' },
+			native: { [key]: 'https://mdm.example/help' },
+			emptyBlock: { communication: '{}' },
+			excludedForDiagnostics: [[key, [{ channel: 'file', value: 'https://file.example/help' }]]],
+			emptySupport: { communication: '{}' },
+			scalar: {},
+			withdrawn: file,
+			watched: { type: 'string' },
+			governance: { communicationOnly: false, withRestriction: true, key: false, anchor: false, lookalike: true },
+		});
+	});
+
+	test('the organization support URL must be an absolute http or https URL with a host', () => {
+		const read = (value: ManagedSettingValue | undefined) => getManagedSupportUrl({ getManagedSettingValue: key => key === COPILOT_COMMUNICATION_SUPPORT_URL_KEY ? value : undefined });
+		const values: (ManagedSettingValue | undefined)[] = [
+			'https://example.com/copilot-help', 'http://intranet.example/help?team=ai#contact', 'HTTPS://Example.COM',
+			' https://example.com', 'https://example.com\n', 'javascript:alert(1)', 'file:///etc/passwd', 'mailto:admin@example.com',
+			'/help', 'example.com/help', 'https://', '{}', '', 42, true, undefined,
+		];
+		assert.deepStrictEqual(values.map(read), [
+			'https://example.com/copilot-help', 'http://intranet.example/help?team=ai#contact', 'https://example.com/',
+			undefined, undefined, undefined, undefined, undefined,
+			undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+		]);
 	});
 
 	test('managed sandbox enablement is force-on-wins across every channel combination', () => {
@@ -689,7 +778,7 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 					{ channel: 'file', value: true },
 				],
 			}]]),
-			suppressedTelemetry: new Map(),
+			excludedBlockContributions: new Map(),
 			activeSources: ['server'],
 		});
 	});
@@ -917,10 +1006,10 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 				allEmpty: pickManagedSettings({}, {}, {}),
 			},
 			{
-				partial: { values: { 'b': 'server' }, resolutions: new Map([['b', { value: 'server', source: 'server', contributions: [{ channel: 'server', value: 'server' }] }]]), suppressedTelemetry: new Map(), activeSources: ['server'] },
+				partial: { values: { 'b': 'server' }, resolutions: new Map([['b', { value: 'server', source: 'server', contributions: [{ channel: 'server', value: 'server' }] }]]), excludedBlockContributions: new Map(), activeSources: ['server'] },
 				gap: ['nativeMdm', 'file'],
-				allUndefined: { values: {}, resolutions: new Map(), suppressedTelemetry: new Map(), activeSources: [] },
-				allEmpty: { values: {}, resolutions: new Map(), suppressedTelemetry: new Map(), activeSources: [] },
+				allUndefined: { values: {}, resolutions: new Map(), excludedBlockContributions: new Map(), activeSources: [] },
+				allEmpty: { values: {}, resolutions: new Map(), excludedBlockContributions: new Map(), activeSources: [] },
 			},
 		);
 	});

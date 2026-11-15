@@ -1290,6 +1290,30 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('a detached worktree attributes its branch-name call to the session it is created for', async () => {
+		const agentSessionIds: (string | undefined)[] = [];
+		const isolation = createIsolation(disposables, {
+			branchNameGenerator: {
+				_serviceBrand: undefined,
+				generateBranchName: async request => {
+					agentSessionIds.push(request.agentSessionId);
+					return `${branchName}-${agentSessionIds.length}`;
+				},
+			},
+		});
+		const request = {
+			workingDirectory: repoRoot,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+			prompt: 'do a thing',
+		};
+
+		await isolation.createDetachedWorktree({ ...request, ownerSession: URI.parse('copilotcli:/owner-session') });
+		// A dev container worktree is prepared before the session that uses it exists.
+		await isolation.createDetachedWorktree(request);
+
+		assert.deepStrictEqual(agentSessionIds, ['owner-session', undefined]);
+	});
+
 	test('lists retained detached paths from persisted records before and after a claim or host restart', async () => {
 		const { service } = createTrackedSessionDataService();
 		const isolation = createIsolation(disposables, { sessionDataService: service });
@@ -2393,6 +2417,21 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('cleanup-adopted worktrees preserve managed removal guards after the host restarts', async () => {
+		const worktree = URI.joinPath(worktreesRoot, 'cleanup-adopted');
+		const first = createIsolation(disposables);
+		await first.recordAdoptedWorktreeMetadata(sessionUri, {
+			worktreePath: worktree, repositoryRoot: repoRoot, branchName: 'agents/cleanup-adopted', baseBranch: undefined, managedCleanup: true,
+		});
+		const restarted = createIsolation(disposables);
+		const recorded = await restarted.readSessionWorktreeForRemoval(sessionUri);
+		assert.deepStrictEqual({
+			worktree: recorded?.worktree.toString(), repositoryRoot: recorded?.repositoryRoot.toString(), branch: recorded?.branchName, managedCleanup: recorded?.managedCleanup,
+		}, {
+			worktree: worktree.toString(), repositoryRoot: repoRoot.toString(), branch: 'agents/cleanup-adopted', managedCleanup: true,
+		});
+	});
+
 	test('applyRestoreAnnouncement prepends a markdown part when worktree metadata exists', async () => {
 		const isolation = createIsolation(disposables);
 		const turn: Turn = {
@@ -2659,7 +2698,7 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
-	test('a removal reports what it did, asks its guard last, and prunes a folder that is already gone in every mode', async () => {
+	test('a removal guards commits and removal, and prunes a folder that is already gone in every mode', async () => {
 		const isolation = createIsolation(disposables);
 		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
 		assert.ok(worktree);
@@ -2681,7 +2720,6 @@ suite('WorktreeIsolation', () => {
 		assert.deepStrictEqual({
 			outcomes,
 			stillExists,
-			// The commit before the guard runs, so the folder's changes are kept either way.
 			commitCalls: commitCalls.length,
 			removeCalls: removeCalls.map(call => ({ worktree: call.worktree.toString(), force: call.force })),
 		}, {
@@ -2693,9 +2731,25 @@ suite('WorktreeIsolation', () => {
 				'commit, folder gone': 'removed',
 			},
 			stillExists: true,
-			commitCalls: 1,
+			commitCalls: 0,
 			removeCalls: [{ worktree: worktree.toString(), force: true }, { worktree: worktree.toString(), force: true }],
 		});
+	});
+
+	test('rechecks the removal guard after checking for uncommitted changes and before committing', async () => {
+		let canRemove = true;
+		const gitService = createGitService();
+		gitService.hasUncommittedChanges = async () => {
+			canRemove = false;
+			return true;
+		};
+		const isolation = createIsolation(disposables, { gitService });
+		const worktree = await isolation.resolveWorkingDirectory({ sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } });
+		assert.ok(worktree);
+		const outcome = await isolation.removeRecordedWorktree(sessionId, { worktree, repositoryRoot: repoRoot, branchName }, 'commit', async () => canRemove);
+		assert.deepStrictEqual({
+			outcome, commits: commitCalls.length, removals: removeCalls.length, exists: existsSync(worktree.fsPath),
+		}, { outcome: 'inUse', commits: 0, removals: 0, exists: true });
 	});
 
 	test('removeSessionWorktree force-removes a worktree for explicit session deletion', async () => {

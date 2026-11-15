@@ -300,7 +300,7 @@ if (PasteAction) {
 				logService.trace('registerExecCommandImpl (triggerPaste defined)');
 				return triggerPaste.then(async () => {
 					logService.trace('registerExecCommandImpl (after triggerPaste)');
-					return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
+					await CopyPasteController.get(focusedEditor)?.finishedPaste();
 				});
 			} else {
 				logService.trace('registerExecCommandImpl (triggerPaste undefined)');

@@ -71,6 +71,8 @@ export interface ApiRequest {
 
 /** Semantic response hints, not a transport header collection. */
 export interface ApiResponseMetadata {
+	/** The server's request identifier for correlating an operation with service diagnostics. */
+	readonly requestId?: string;
 	readonly nextLink?: string;
 	/** Validated API-relative continuation, or null when an advertised continuation is invalid. */
 	readonly nextPath?: string | null;

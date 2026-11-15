@@ -18,11 +18,12 @@ import { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY } from '../../../../../workben
 import { markOnboardingTarget, ONBOARDING_TARGET_PULSE_CLASS } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { NewSessionTourContribution } from '../../browser/newSessionTourContribution.js';
 import { NEW_SESSION_TOUR_ID } from '../../browser/tours/newSessionTour.js';
+import { ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('NewSessionTourContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -40,10 +41,10 @@ suite('NewSessionTourContribution', () => {
 			disposables.add(toDisposable(() => button.remove()));
 			disposables.add(markOnboardingTarget(button, 'sessions.newSession.button'));
 			const requests = disposables.add(new Emitter<ISession>());
-			const session = new class extends mock<IActiveSession>() {
+			const session = new class extends mock<ITestSessionWithChat>() {
 				override readonly sessionId = 'session';
 			}();
-			const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []);
+			const visibleSessions = observableValue<readonly (ITestSessionWithChat | undefined)[]>('visibleSessions', []);
 			const nudgeChecks: string[] = [];
 			const onboardingService = new class extends mock<IOnboardingScenarioService>() {
 				override hasBeenShown(): boolean { return false; }
@@ -60,7 +61,8 @@ suite('NewSessionTourContribution', () => {
 				}(),
 				onboardingService,
 				new class extends mock<ISessionsService>() {
-					override readonly visibleSessions = visibleSessions;
+					readonly gridShown = visibleSessions;
+					override readonly slotPanes = testGridPanes(this.gridShown);
 				}(),
 				storage,
 				new TestConfigurationService(),
@@ -105,10 +107,10 @@ suite('NewSessionTourContribution', () => {
 			disposables.add(toDisposable(() => button.remove()));
 			disposables.add(markOnboardingTarget(button, 'sessions.newSession.button'));
 			const requests = disposables.add(new Emitter<ISession>());
-			const session = new class extends mock<IActiveSession>() {
+			const session = new class extends mock<ITestSessionWithChat>() {
 				override readonly sessionId = 'session';
 			}();
-			const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', [session]);
+			const visibleSessions = observableValue<readonly (ITestSessionWithChat | undefined)[]>('visibleSessions', [session]);
 			const allowed = observableValue('allowed', false);
 			const contribution = disposables.add(new NewSessionTourContribution(
 				new class extends mock<ISessionsManagementService>() {
@@ -119,7 +121,8 @@ suite('NewSessionTourContribution', () => {
 					override shouldShowNudge(_id: string, reader?: IReader): boolean { return allowed.read(reader); }
 				}(),
 				new class extends mock<ISessionsService>() {
-					override readonly visibleSessions = visibleSessions;
+					readonly gridShown = visibleSessions;
+					override readonly slotPanes = testGridPanes(this.gridShown);
 				}(),
 				disposables.add(new InMemoryStorageService()),
 				new TestConfigurationService(),

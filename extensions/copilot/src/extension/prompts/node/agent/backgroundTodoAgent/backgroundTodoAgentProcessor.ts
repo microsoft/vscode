@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CancellationToken, ChatParticipantToolToken, Uri } from 'vscode';
+// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { IEndpointProvider } from '../../../../../lib/node/chatLibMain';
 import { ILogger, ILogService } from '../../../../../platform/log/common/logService';
 import { IChatEndpoint } from '../../../../../platform/networking/common/networking';

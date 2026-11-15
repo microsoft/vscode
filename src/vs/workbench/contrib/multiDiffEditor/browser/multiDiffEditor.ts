@@ -39,7 +39,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { FloatingEditorToolbarWidget } from '../../../../editor/contrib/floatingMenu/browser/floatingMenu.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { MULTI_DIFF_EDITOR_ID, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewMode, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFileListVisibleContext, multiDiffEditorExperimentalFileListSetting, observableMultiDiffEditorFileListPosition, observableMultiDiffEditorFileListViewMode, observableMultiDiffEditorFileListVisible, observableWorkbenchMultiDiffEditorVariant, sortMultiDiffEditorFileListItems } from '../common/multiDiffEditor.js';
+import { MULTI_DIFF_EDITOR_ID, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewMode, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFileListVisibleContext, multiDiffEditorExperimentalFileListSetting, observableMultiDiffEditorFileListPosition, observableMultiDiffEditorFileListViewMode, observableMultiDiffEditorFileListVisible, observableWorkbenchMultiDiffEditorVariant, sortMultiDiffEditorFileListItems, toggleMultiDiffEditorFileList } from '../common/multiDiffEditor.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { MultiDiffEditorWithFileListWidget } from './multiDiffEditorWithFileListWidget.js';
 
@@ -224,8 +224,15 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	}
 
 	/** Moves keyboard focus to the file list, if it is shown. */
+	/** Moves focus into the changed files list, showing it first when the user has hidden it. */
 	public focusFileList(): void {
-		this._multiDiffEditorWithFileListWidget?.focusFileList();
+		if (!this._multiDiffEditorWithFileListWidget) {
+			return;
+		}
+		if (!MultiDiffEditorFileListEnabledContext.getValue(this.contextKeyService)) {
+			toggleMultiDiffEditorFileList(this.storageService);
+		}
+		this._multiDiffEditorWithFileListWidget.focusFileList();
 	}
 
 	override getControl(): ICompositeControl | undefined {

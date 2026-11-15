@@ -26,18 +26,19 @@ import { IOnboardingScenarioService } from '../../../../workbench/contrib/onboar
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
-import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
-import { IChangesViewService } from '../../changes/common/changesViewService.js';
-import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../changes/common/changes.js';
-import { ISessionChangesService } from '../../changes/common/sessionChangesService.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../sessions/browser/automationsConstants.js';
-import { SessionsList } from '../../sessions/browser/views/sessionsList.js';
-import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';
+import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
+import { ISessionsRecentWorkspacesService } from '../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISession, isSessionCreated, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
+import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { VIEW_SESSION_CHANGES_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/changes.js';
+import { ISessionChangesService } from '../../../../workbench/services/sessions/common/sessionChangesService.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../workbench/contrib/sessions/browser/automationsConstants.js';
+import { SessionsList } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { GetStartedItemId } from '../common/getStartedChecklist.js';
 import { createGetStartedTourSteps, GetStartedTourTarget, IGetStartedTourContext, IGetStartedTourNavigation } from './getStartedTours.js';
 
@@ -70,6 +71,7 @@ export class GetStartedTourRunner extends Disposable {
 		@IOnboardingScenarioService private readonly _onboardingService: IOnboardingScenarioService,
 		@IViewsService private readonly _viewsService: IViewsService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IChangesViewService private readonly _changesViewService: IChangesViewService,
 		@ISessionChangesService private readonly _sessionChangesService: ISessionChangesService,
@@ -146,7 +148,7 @@ export class GetStartedTourRunner extends Disposable {
 			},
 			showNewSession: async () => {
 				this._customViewService.hideCustomView();
-				if (this._sessionsService.activeSession.get()?.isCreated.get()) {
+				if (isSessionCreated(this._focusedSessionHostService.focusedHost.get().session.get())) {
 					await this._sessionsService.openNewSession();
 				}
 			},
@@ -167,7 +169,7 @@ export class GetStartedTourRunner extends Disposable {
 			},
 		};
 		return {
-			onNewSessionView: !this._sessionsService.activeSession.get()?.isCreated.get(),
+			onNewSessionView: !isSessionCreated(this._focusedSessionHostService.focusedHost.get().session.get()),
 			currentProject: item === GetStartedItemId.SecondProject ? await this._revealCurrentProject(sessions, store) : undefined,
 			suggestedProjects: item === GetStartedItemId.SecondProject ? await this._getSuggestedProjects(sessions) : [],
 			sessionWithChanges: sessionWithChanges && { fileCount: sessionWithChanges.fileCount },
@@ -212,8 +214,8 @@ export class GetStartedTourRunner extends Disposable {
 
 	/** The active session when it has changes, otherwise the most recently updated session with changes. */
 	private _findSessionWithChanges(sessions: readonly ISession[]): ISessionWithChanges | undefined {
-		const active = this._sessionsService.activeSession.get();
-		if (active?.isCreated.get() && !active.isArchived.get()) {
+		const active = this._focusedSessionHostService.focusedHost.get().session.get();
+		if (active && isSessionCreated(active) && !active.isArchived.get()) {
 			const fileCount = this._changesViewService.activeSessionChangesSummaryObs.get()?.files ?? active.changesSummary?.get()?.files ?? 0;
 			if (fileCount > 0) {
 				return { session: active, fileCount };
@@ -230,7 +232,7 @@ export class GetStartedTourRunner extends Disposable {
 
 	private async _showSession(session: ISession): Promise<void> {
 		this._customViewService.hideCustomView();
-		if (!isEqual(this._sessionsService.activeSession.get()?.resource, session.resource)) {
+		if (!isEqual(this._focusedSessionHostService.focusedHost.get().session.get()?.resource, session.resource)) {
 			await this._sessionsService.openSession(session.resource);
 		}
 	}

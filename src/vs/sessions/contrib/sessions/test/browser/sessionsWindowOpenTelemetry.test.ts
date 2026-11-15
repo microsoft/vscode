@@ -11,7 +11,7 @@ import { AgentsWindowOpenSource } from '../../../../../platform/window/common/wi
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ShutdownReason } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { FIRST_TIME_WINDOW_OPEN_DURATION_LIMIT_MS, ISessionsWindowOpenViewState, SessionsWindowOpenTelemetry, SessionsWindowSessionStartTelemetry } from '../../browser/sessionsWindowOpenTelemetry.js';
-import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
+import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { EditorChatUsage } from '../../../../../workbench/contrib/chat/common/editorChatUsage.js';
@@ -81,6 +81,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 					workspacePreselected: true,
 					workspacePreselectionSource: 'existingSessions',
 					workspaceArgumentKind: 'none',
+					workspaceArgumentRemoteKind: 'none',
 					hasSessionArgument: false,
 					workspaceArgumentIsDefault: false,
 					initialViewKind: 'newSession',
@@ -135,6 +136,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 					workspacePreselected: undefined,
 					workspacePreselectionSource: undefined,
 					workspaceArgumentKind: 'local',
+					workspaceArgumentRemoteKind: 'none',
 					hasSessionArgument: true,
 					workspaceArgumentIsDefault: false,
 					initialViewKind: 'createdSession',
@@ -319,7 +321,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 		const telemetryService = new TestDataTelemetryService();
 		const tracker = disposables.add(new SessionsWindowOpenTelemetry(
 			AgentsWindowOpenSource.CommandPalette,
-			{ workspaceArgumentKind: 'remote', hasSessionArgument: false },
+			{ workspaceArgumentKind: 'remote', workspaceArgumentRemoteKind: 'codespaces', hasSessionArgument: false },
 			() => false,
 			() => ({
 				workspacePreselected: true,
@@ -344,6 +346,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 		const data = telemetryService.events[0].data;
 		assert.deepStrictEqual({
 			argument: data.workspaceArgumentKind,
+			remote: data.workspaceArgumentRemoteKind,
 			handoff: data.workspaceHandoffState,
 			selected: data.workspacePreselected,
 			origin: data.workspaceSelectionOrigin,
@@ -351,6 +354,7 @@ suite('SessionsWindowOpenTelemetry', () => {
 			containsPath: JSON.stringify(data).includes('/private/'),
 		}, {
 			argument: 'remote',
+			remote: 'codespaces',
 			handoff: 'unsupportedWorkspace',
 			selected: true,
 			origin: 'vscodeRecent',

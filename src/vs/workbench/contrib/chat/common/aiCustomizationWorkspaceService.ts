@@ -33,6 +33,44 @@ export namespace AICustomizationSources {
 export const BUILTIN_STORAGE = AICustomizationSources.builtin;
 
 /**
+ * Who a customization applies to. This is the primary grouping axis of the
+ * management UI and is independent of {@link AICustomizationSource}, which
+ * describes where an item is stored and therefore what can be done with it.
+ * Who supplied an item within its scope (a plugin, extension, or organization)
+ * is a separate tag.
+ *
+ * - `user`: the harness user's home folder (on the agent host when remote),
+ *   including plugins and extensions the user installed and customizations
+ *   from the user's organization.
+ * - `workspace`: the working directories, including workspace-configured plugins.
+ * - `application`: built into VS Code or the agent harness (shown as Built-in).
+ */
+export type AICustomizationScope = 'user' | 'workspace' | 'application';
+
+export namespace AICustomizationScopes {
+	export const user: AICustomizationScope = 'user';
+	export const workspace: AICustomizationScope = 'workspace';
+	export const application: AICustomizationScope = 'application';
+	export const all: readonly AICustomizationScope[] = [user, workspace, application];
+
+	/**
+	 * Derives the scope implied by a storage source when a provider does not
+	 * report one. Extensions and plugins are installed by the user; providers
+	 * that know better should set the scope.
+	 */
+	export function fromSource(source: AICustomizationSource): AICustomizationScope {
+		switch (source) {
+			case AICustomizationSources.local: return workspace;
+			case AICustomizationSources.user: return user;
+			case AICustomizationSources.plugin: return user;
+			case AICustomizationSources.extension: return user;
+			case AICustomizationSources.builtin: return application;
+			default: return user;
+		}
+	}
+}
+
+/**
  * Possible section IDs for the AI Customization Management Editor sidebar.
  */
 export const AICustomizationManagementSection = {
@@ -93,6 +131,12 @@ export interface IWelcomePageFeatures {
 	readonly showGettingStartedBanner: boolean;
 }
 
+export interface IAICustomizationTargetLabels {
+	readonly harness?: string;
+	readonly workspace?: string;
+	readonly environment?: string;
+}
+
 /**
  * Provides workspace context for AI Customization views.
  */
@@ -108,6 +152,17 @@ export interface IAICustomizationWorkspaceService {
 	 * Display label for the active project.
 	 */
 	readonly activeProjectLabel: IObservable<string | undefined>;
+
+	/**
+	 * Display labels for the active customization target.
+	 */
+	readonly activeTargetLabels?: IObservable<IAICustomizationTargetLabels>;
+
+	/**
+	 * Targets customization management at a specific session or chat resource.
+	 * Pass `undefined` to follow the window's focused session, new-session composer, or workspace.
+	 */
+	setActiveSessionResource?(resource: URI | undefined): void;
 
 	/**
 	 * Returns the current active project root, if any.

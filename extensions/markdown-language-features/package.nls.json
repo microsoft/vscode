@@ -433,5 +433,82 @@
 			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
 		],
 		"$generated": true
+	},
+	"markdown.editor.insertTable.title": {
+		"message": "Insert Table",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.table.insertRowAbove.title": {
+		"message": "Table: Insert Row Above",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.table.insertRowBelow.title": {
+		"message": "Table: Insert Row Below",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.table.deleteRow.title": {
+		"message": "Table: Delete Row",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.table.insertColumnLeft.title": {
+		"message": "Table: Insert Column Left",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.table.insertColumnRight.title": {
+		"message": "Table: Insert Column Right",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.table.deleteColumn.title": {
+		"message": "Table: Delete Column",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.table.alignColumnLeft.title": {
+		"message": "Table: Align Column Left",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.table.alignColumnCenter.title": {
+		"message": "Table: Align Column Center",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.table.alignColumnRight.title": {
+		"message": "Table: Align Column Right",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.table.alignColumnNone.title": {
+		"message": "Table: Remove Column Alignment",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
 	}
 }

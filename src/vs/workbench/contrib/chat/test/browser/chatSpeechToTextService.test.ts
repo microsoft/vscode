@@ -105,7 +105,8 @@ type StopTestService = {
 	_setState: (state: ChatSpeechToTextState) => void;
 	_accessibilitySignalService: { playSignal: (signal: unknown) => void };
 	_configurationService: { getValue: () => boolean };
-	_logService: { trace: (message: string) => void };
+	_logService: { trace: (message: string) => void; error?: (message: string, error: unknown) => void };
+	_notificationService: { error: (message: string) => void };
 	_logSessionTelemetry: (outcome: string) => void;
 	_teardown: () => void;
 	_stopAndTranscribe: (generation: number) => Promise<string | undefined>;
@@ -116,6 +117,7 @@ type LocalStartupTestService = {
 	_localSessionDisposables: DisposableStore;
 	_localTranscription: {
 		onDidTranscribe: Event<{ text: string; finalizedText?: string; isFinal: boolean }>;
+		onDidChangeModelStatus: Event<ILocalTranscriptionModelStatus>;
 		start: () => Promise<void>;
 		getModelStatus: () => Promise<ILocalTranscriptionModelStatus>;
 	};
@@ -442,6 +444,7 @@ suite('ChatSpeechToTextService', () => {
 		service._localSessionDisposables = new DisposableStore();
 		service._localTranscription = {
 			onDidTranscribe: Event.None,
+			onDidChangeModelStatus: Event.None,
 			start: async () => { },
 			getModelStatus: async () => status,
 		};
@@ -454,6 +457,102 @@ suite('ChatSpeechToTextService', () => {
 		await service._startLocalSession(mainWindow, 1);
 		assert.deepStrictEqual(statuses, [status]);
 	});
+
+	test('tracks on-device errors after an initially ready model and ignores stale events', async () => {
+		const statuses: ILocalTranscriptionModelStatus[] = [];
+		const statusChanged = store.add(new Emitter<ILocalTranscriptionModelStatus>());
+		const service = Object.create(ChatSpeechToTextService.prototype) as LocalStartupTestService;
+		service._sessionGeneration = 1;
+		service._localSessionDisposables = store.add(new DisposableStore());
+		service._localTranscription = {
+			onDidTranscribe: Event.None,
+			onDidChangeModelStatus: statusChanged.event,
+			start: async () => { },
+			getModelStatus: async () => ({ state: LocalTranscriptionModelState.Ready }),
+		};
+		service._environmentService = { cacheHome: URI.file('/cache') };
+		service._configurationService = { getValue: () => '' };
+		service._emitTranscript = () => { };
+		service._handleModelStatus = status => statuses.push(status);
+
+		await service._startLocalSession(mainWindow, 1);
+		const error: ILocalTranscriptionModelStatus = { state: LocalTranscriptionModelState.Error, error: 'native inference failed' };
+		statusChanged.fire(error);
+		service._sessionGeneration++;
+		statusChanged.fire(error);
+
+		assert.deepStrictEqual(statuses, [error]);
+	});
+
+	test('handles on-device errors emitted before start returns', async () => {
+		const statuses: ILocalTranscriptionModelStatus[] = [];
+		const statusChanged = store.add(new Emitter<ILocalTranscriptionModelStatus>());
+		const error: ILocalTranscriptionModelStatus = { state: LocalTranscriptionModelState.Error, error: 'native startup failed' };
+		let snapshots = 0;
+		const service = Object.create(ChatSpeechToTextService.prototype) as LocalStartupTestService;
+		service._sessionGeneration = 1;
+		service._localSessionDisposables = store.add(new DisposableStore());
+		service._localTranscription = {
+			onDidTranscribe: Event.None,
+			onDidChangeModelStatus: statusChanged.event,
+			start: async () => statusChanged.fire(error),
+			getModelStatus: async () => {
+				snapshots++;
+				return { state: LocalTranscriptionModelState.Ready };
+			},
+		};
+		service._environmentService = { cacheHome: URI.file('/cache') };
+		service._configurationService = { getValue: () => '' };
+		service._emitTranscript = () => { };
+		service._handleModelStatus = status => {
+			statuses.push(status);
+			service._sessionGeneration++;
+		};
+
+		await service._startLocalSession(mainWindow, 1);
+
+		assert.deepStrictEqual({ statuses, snapshots }, { statuses: [error], snapshots: 0 });
+	});
+
+	for (const transcript of ['', 'partial transcript']) {
+		test(`reports on-device finalization errors with ${transcript ? 'a partial transcript' : 'no transcript'}`, async () => {
+			const outcomes: string[] = [];
+			const notifications: string[] = [];
+			const errors: unknown[] = [];
+			const error = new Error('native inference failed');
+			const service = Object.create(ChatSpeechToTextService.prototype) as StopTestService;
+			service._sessionGeneration = 0;
+			service._activeBackend = 'nemo';
+			service._maiReceivedFinal = false;
+			service._finalizedText = transcript;
+			service._deltaText = '';
+			service._sessionErrorCode = '';
+			service._flushCapture = undefined;
+			service._finishBackend = async () => { throw error; };
+			service._stopCapture = () => { };
+			service._setState = () => { };
+			service._accessibilitySignalService = { playSignal: () => { } };
+			service._configurationService = { getValue: () => false };
+			service._logService = { trace: () => { }, error: (_message, error) => errors.push(error) };
+			service._notificationService = { error: message => notifications.push(message) };
+			service._logSessionTelemetry = outcome => outcomes.push(outcome);
+			service._teardown = () => { };
+
+			assert.deepStrictEqual({
+				result: await service._stopAndTranscribe(0),
+				errorCode: service._sessionErrorCode,
+				outcomes,
+				errors,
+				notifications,
+			}, {
+				result: transcript || undefined,
+				errorCode: 'transcribe',
+				outcomes: ['error'],
+				errors: [error],
+				notifications: ['Could not finish on-device speech-to-text: native inference failed'],
+			});
+		});
+	}
 
 	test('fails a session while on-device startup is in progress', () => {
 		const calls: string[] = [];

@@ -30,9 +30,10 @@ import { ClaudeFileEditObserver } from '../../node/claude/claudeFileEditObserver
 import { ClaudeMapperState } from '../../node/claude/claudeMapSessionEvents.js';
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
 import { IEditArcReporterLaunchParams, IEditArcReporterService } from '../../node/shared/editArcReporter.js';
-import { createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { TestChatOwnerRef } from './agentChatContextTestUtils.js';
+import { InProcessDiffComputeService } from './inProcessDiffComputeService.js';
 
 interface IObserverHarness {
 	readonly observer: ClaudeFileEditObserver;
@@ -56,7 +57,7 @@ function createObserver(disposables: Pick<import('../../../../base/common/lifecy
 		[IFileService, fileService],
 		[IAgentHostFileEditCoordinator, fileEditCoordinator],
 		[ISessionDataService, createSessionDataService(db)],
-		[IDiffComputeService, createZeroDiffComputeService()],
+		[IDiffComputeService, new InProcessDiffComputeService()],
 		[IAgentEditAttributionService, new NullAgentEditAttributionService()],
 		[IEditSurvivalReporterFactory, new NullEditSurvivalReporterFactory()],
 		[IEditArcReporterService, {
@@ -87,6 +88,22 @@ function userMessage(content: unknown): Extract<SDKMessage, { type: 'user' }> {
 suite('ClaudeFileEditObserver', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('replace_all preserves short unchanged gaps in the ARC edit', async () => {
+		const { observer, fileService, mapperState, arcReports } = createObserver(disposables);
+		const file = URI.file('/work/repeated.txt');
+		await fileService.writeFile(file, VSBuffer.fromString('a a a a'));
+		observer.observeAssistant(assistantMessage([
+			{ type: 'tool_use', id: 'replace-all', name: 'Edit', input: { file_path: file.fsPath, old_string: 'a', new_string: 'b', replace_all: true } },
+		]));
+		await fileService.writeFile(file, VSBuffer.fromString('b b b b'));
+		await observer.observeUser(userMessage([
+			{ type: 'tool_result', tool_use_id: 'replace-all', content: 'ok' },
+		]), 'turn-1', mapperState);
+		assert.deepStrictEqual(arcReports.map(report => report.initialEdit), [{
+			replacements: [0, 2, 4, 6].map(start => ({ start, endExclusive: start + 1, text: 'b' })),
+		}]);
+	});
 
 	test('attributes edits to the live owner after the chat moves', async () => {
 		const owner = disposables.add(new TestChatOwnerRef(URI.parse('claude:/original')));

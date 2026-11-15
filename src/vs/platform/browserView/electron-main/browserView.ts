@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { screen, WebContentsView, webContents } from 'electron';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { nativeImage, screen, WebContentsView, webContents } from 'electron';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation, getBrowserViewPopupAction } from '../common/browserView.js';
+import { Schemas } from '../../../base/common/network.js';
+import { BrowserViewDevToolsDockSide, composeDevToolsScreenshot } from '../common/browserViewCompositor.js';
+import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, remoteUrlToFileUrl, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation, getBrowserViewPopupAction, BROWSER_REMOTE_FILE_SCHEMES, getBrowserViewPathComparer } from '../common/browserView.js';
 import { BrowserViewEmulator } from './browserViewEmulator.js';
 import { BrowserViewInspector } from './browserViewInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -22,6 +24,7 @@ import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryW
 import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../common/browserViewTelemetry.js';
+import { BrowserViewReportedFocus } from '../common/browserViewFocus.js';
 import { URI } from '../../../base/common/uri.js';
 
 enum NewPageLocation {
@@ -60,6 +63,9 @@ export class BrowserView extends Disposable {
 	private _ownerWindow: ICodeWindow;
 	private _owner: IBrowserViewOwner;
 	private _currentWindow: ICodeWindow | IAuxiliaryWindow | undefined;
+	/** Its page's focus, while its window has focus: see {@link BrowserViewReportedFocus}. */
+	private readonly _reportedFocus: BrowserViewReportedFocus;
+	private readonly _hostWindowFocusListeners = this._register(new MutableDisposable<DisposableStore>());
 	private _isDisposed = false;
 	private _audiences: readonly IBrowserViewAudience[] = [];
 
@@ -162,6 +168,12 @@ export class BrowserView extends Disposable {
 			// Passing an `undefined` webContents triggers an error in Electron.
 			...(options?.webContents ? { webContents: options.webContents } : {})
 		});
+		this._updateBackgroundThrottling();
+		this._register(this.onDidChangeAudiences(() => this._updateBackgroundThrottling()));
+		this._register(this.onDidChangeOwner(() => this._updateBackgroundThrottling()));
+		// Electron only keeps a never-shown view rendering if the setting is applied once its frame exists,
+		// so re-apply it whenever a new document is ready (this also covers renderer swaps on navigation).
+		this._view.webContents.on('dom-ready', () => this._updateBackgroundThrottling());
 		if (this.session.network) {
 			this._view.webContents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
 		}
@@ -278,7 +290,29 @@ export class BrowserView extends Disposable {
 			this._onDidChangePermissions.fire(this.session.permissions.serialize());
 		}));
 
+		this._reportedFocus = new BrowserViewReportedFocus(this._view.webContents.isFocused(), !!this._hostWindow?.isFocused(), focused => this._onDidChangeFocus.fire({ focused }));
+		this._trackHostWindowFocus();
 		this.setupEventListeners();
+	}
+
+	/** Follows whether the window that hosts the view has focus, which the view's page does not tell when another window is activated. */
+	private _trackHostWindowFocus(): void {
+		const win = this._hostWindow;
+		if (!win) {
+			this._hostWindowFocusListeners.clear();
+			return;
+		}
+		const store = new DisposableStore();
+		const onFocus = () => this._reportedFocus.setWindowFocused(true);
+		const onBlur = () => this._reportedFocus.setWindowFocused(false);
+		win.on('focus', onFocus);
+		win.on('blur', onBlur);
+		store.add(toDisposable(() => {
+			win.off('focus', onFocus);
+			win.off('blur', onBlur);
+		}));
+		this._hostWindowFocusListeners.value = store;
+		this._reportedFocus.setWindowFocused(win.isFocused());
 	}
 
 	private setupEventListeners(): void {
@@ -466,11 +500,11 @@ export class BrowserView extends Disposable {
 
 		// Focus events
 		webContents.on('focus', () => {
-			this._onDidChangeFocus.fire({ focused: true });
+			this._reportedFocus.setViewFocused(true);
 		});
 
 		webContents.on('blur', () => {
-			this._onDidChangeFocus.fire({ focused: false });
+			this._reportedFocus.setViewFocused(false);
 		});
 
 		const onCommandKeydown = (_event: unknown, keyEvent: IBrowserViewKeyDownEvent) => {
@@ -640,7 +674,7 @@ export class BrowserView extends Disposable {
 			canGoBack: webContents.navigationHistory.canGoBack(),
 			canGoForward: webContents.navigationHistory.canGoForward(),
 			loading: webContents.isLoading(),
-			focused: webContents.isFocused(),
+			focused: this._reportedFocus.focused,
 			visible: this._view.getVisible(),
 			isDevToolsOpen: webContents.isDevToolsOpened(),
 			lastScreenshot: this._lastScreenshot,
@@ -678,6 +712,15 @@ export class BrowserView extends Disposable {
 		}
 	}
 
+	/**
+	 * Views shared with agents must keep rendering while hidden so that rAF-based
+	 * automation (e.g. Playwright's stability checks) doesn't stall. Other views stay throttled.
+	 */
+	private _updateBackgroundThrottling(): void {
+		const sharedWithAgent = this._owner.type === 'agent' || this._audiences.some(audience => audience.type === 'agent');
+		this._view.webContents.setBackgroundThrottling(!sharedWithAgent);
+	}
+
 	setAudiences(audiences: readonly IBrowserViewAudience[]): void {
 		if (audiences.length === this._audiences.length && audiences.every(audience => this._audiences.some(candidate => equalsBrowserViewAudience(candidate, audience)))) {
 			return;
@@ -704,6 +747,7 @@ export class BrowserView extends Disposable {
 				this._currentWindow?.win?.contentView.removeChildView(this._view);
 				this._currentWindow = newWindow;
 				newWindow.win?.contentView.addChildView(this._view);
+				this._trackHostWindowFocus();
 			}
 		}
 
@@ -764,6 +808,10 @@ export class BrowserView extends Disposable {
 	 * Load a URL in this view
 	 */
 	async loadURL(url: string): Promise<void> {
+		url = remoteUrlToFileUrl(this.session.network, url);
+		if (this._isUnservedRemoteFileUrl(url)) {
+			return;
+		}
 		if (this._redirectPinnedNavigation(url)) {
 			return;
 		}
@@ -774,8 +822,14 @@ export class BrowserView extends Disposable {
 		await this._view.webContents.loadURL(url);
 	}
 
+	/** Without a network a remote resource's `file:` URL would be read from this machine's disk, so it isn't loaded. */
+	private _isUnservedRemoteFileUrl(url: string): boolean {
+		const scheme = this.associatedResource?.scheme;
+		return !this.session.network && BROWSER_REMOTE_FILE_SCHEMES.includes(scheme!) && url.startsWith(`${Schemas.file}:`);
+	}
+
 	private _redirectPinnedNavigation(url: string): boolean {
-		if (!this.associatedResource || isBrowserViewAssociatedResourceNavigation(this.associatedResource, url)) {
+		if (!this.associatedResource || isBrowserViewAssociatedResourceNavigation(this.associatedResource, url, this.session.network, getBrowserViewPathComparer(this.session.isPathCaseSensitive))) {
 			return false;
 		}
 
@@ -869,7 +923,7 @@ export class BrowserView extends Disposable {
 		if (options?.awaitNextPaint) {
 			await this._waitForNextPaint();
 		}
-		const image = await (async () => {
+		const pageImage = await (async () => {
 			const maxAttempts = 5;
 			let lastError: Error | undefined;
 			for (let i = 0; i < maxAttempts; i++) {
@@ -892,6 +946,8 @@ export class BrowserView extends Disposable {
 			}
 			throw new Error(`Failed to capture screenshot after ${maxAttempts} attempts`, { cause: lastError });
 		})();
+		// A docked DevTools panel is a separate web contents, so add it to a capture of the whole view, for placeholders only.
+		const image = options?.includeDevTools && !options.screenRect ? await this._withDevTools(pageImage) : pageImage;
 		const buffer = format === 'png' ? image.toPNG() : image.toJPEG(quality);
 		const screenshot = VSBuffer.wrap(buffer);
 		// Only update _lastScreenshot if capturing the full view
@@ -899,6 +955,42 @@ export class BrowserView extends Disposable {
 			this._lastScreenshot = screenshot;
 		}
 		return screenshot;
+	}
+
+	/**
+	 * Composes the page screenshot with the DevTools panel when it is open and docked inside this
+	 * view. Undocked DevTools live in their own window, so the page screenshot is returned as is.
+	 */
+	private async _withDevTools(pageImage: Electron.NativeImage): Promise<Electron.NativeImage> {
+		const webContents = this._view.webContents;
+		const devTools = webContents.devToolsWebContents;
+		if (!devTools || devTools.isDestroyed() || !webContents.isDevToolsOpened()) {
+			return pageImage;
+		}
+		try {
+			// The frontend marks its dock side on <body>; it has none while undocked.
+			const dockSide = await devTools.executeJavaScript(
+				`['left', 'right', 'bottom'].find(side => document.body.classList.contains(side)) ?? 'undocked'`
+			) as BrowserViewDevToolsDockSide | 'undocked';
+			if (dockSide === 'undocked') {
+				return pageImage;
+			}
+			const devToolsImage = await devTools.capturePage(undefined, { stayHidden: true });
+			if (devToolsImage.isEmpty()) {
+				return pageImage;
+			}
+			const pageSize = pageImage.getSize();
+			const devToolsSize = devToolsImage.getSize();
+			const composed = composeDevToolsScreenshot(
+				{ data: pageImage.toBitmap(), ...pageSize },
+				{ data: devToolsImage.toBitmap(), ...devToolsSize },
+				dockSide
+			);
+			return nativeImage.createFromBitmap(Buffer.from(composed.data.buffer, composed.data.byteOffset, composed.data.byteLength), { width: composed.width, height: composed.height });
+		} catch (error) {
+			this.logService.warn('Failed to capture DevTools for browser view screenshot', error);
+			return pageImage;
+		}
 	}
 
 	// Capture a screenshot of the full scrollable document (beyond the viewport) via CDP.

@@ -8,17 +8,20 @@ import { IPosition, Position } from '../../../../../editor/common/core/position.
 import { Range } from '../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { IChatVariablesService, IDynamicVariable } from '../attachments/chatVariables.js';
+import { getAgentHostCompletionReferenceKindFromValue } from '../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { getChatSessionType } from '../model/chatUri.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../participants/chatAgents.js';
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IPromptsService, matchesSessionType } from '../promptSyntax/service/promptsService.js';
+import { slashCommandNamePattern } from '../promptSyntax/utils/promptsServiceUtils.js';
 import { ToolAndToolSetEnablementMap, IToolData, IToolSet, isToolSet } from '../tools/languageModelToolsService.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
 
 export const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
 export const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
-export const slashReg = /^\/([\p{L}\d_\-\.:]+)(?=(\s|$|\b))/iu; // A / command
+export const slashReg = new RegExp(String.raw`^/(${slashCommandNamePattern})(?=(\s|$|\b))`, 'iu'); // A / command
+const subcommandReg = new RegExp(String.raw`^[ \t]+(${slashCommandNamePattern})`, 'u');
 
 export interface IChatParserContext {
 	/** Used only as a disambiguator, when the query references an agent that has a duplicate with the same name. */
@@ -33,6 +36,8 @@ export interface IChatParserContext {
 	 * gone by the time the query is parsed, instead of those of the chat's input.
 	 */
 	references?: ReadonlyArray<IDynamicVariable>;
+	/** References carried by the submission's attachments when no originating input provides them. */
+	fallbackReferences?: ReadonlyArray<IDynamicVariable>;
 }
 
 export class ChatRequestParser {
@@ -44,7 +49,7 @@ export class ChatRequestParser {
 	) { }
 
 	parseChatRequest(sessionResource: URI, message: string, location: ChatAgentLocation = ChatAgentLocation.Chat, context: IChatParserContext = {}): IParsedChatRequest {
-		const references = context.references ?? this.variableService.getDynamicVariables(sessionResource); // must access this list before any async calls
+		const references = context.references ?? [...this.variableService.getDynamicVariables(sessionResource), ...context.fallbackReferences ?? []]; // must access this list before any async calls
 		const selectedToolAndToolSets = this.variableService.getSelectedToolAndToolSets(sessionResource);
 		if (!context.sessionType) {
 			context = { ...context, sessionType: getChatSessionType(sessionResource) };
@@ -80,7 +85,10 @@ export class ChatRequestParser {
 				} else if (char === chatAgentLeader) {
 					newPart = this.tryToParseAgent(message.slice(i), message, i, new Position(lineNumber, column), parts, location, context);
 				} else if (char === chatSubcommandLeader) {
-					newPart = this.tryToParseSlashCommand(message.slice(i), message, i, new Position(lineNumber, column), parts, location, context);
+					const reference = this.tryToParseDynamicVariable(message.slice(i), i, new Position(lineNumber, column), references);
+					newPart = reference && getAgentHostCompletionReferenceKindFromValue(reference.data) !== undefined
+						? reference
+						: this.tryToParseSlashCommand(message.slice(i), message, i, new Position(lineNumber, column), parts, location, context);
 				}
 
 				if (!newPart) {
@@ -263,7 +271,7 @@ export class ChatRequestParser {
 			// syntactic only — bare `<cmd>` always passes, so we must commit to the longer
 			// match here when the discovered prompt list contains it.
 			const afterSlash = remainingMessage.slice(full.length);
-			const subMatch = afterSlash.match(/^[ \t]+([\p{L}\d_\-\.]+)/u);
+			const subMatch = afterSlash.match(subcommandReg);
 			if (subMatch) {
 				const candidate = `${command}:${subMatch[1]}`;
 				if (this.promptsService.hasPromptSlashCommand(candidate)) {

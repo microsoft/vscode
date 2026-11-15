@@ -70,7 +70,10 @@ suite('Agent host permission settings', () => {
 	test('ignores grants without supported URL or terminal rules', async () => {
 		const configurationService = new TestConfigurationService();
 		const update = sinon.stub(configurationService, 'updateValue').resolves();
-		await mirrorAgentHostGrants(configurationService, ['Read', 'Bash(echo *)', 'WebFetch(example.com', 'WebFetch()', 'Shell', 'Shell()']);
+		await mirrorAgentHostGrants(configurationService, [
+			'Read', 'Read(//repo/notes.txt)', 'Read(//repo/docs/**)', 'Edit(//repo/.mcp.json)', 'Edit(//repo/src/**)',
+			'Bash(echo *)', 'WebFetch(example.com', 'WebFetch()', 'Shell', 'Shell()',
+		]);
 		assert.deepStrictEqual(update.args, []);
 	});
 

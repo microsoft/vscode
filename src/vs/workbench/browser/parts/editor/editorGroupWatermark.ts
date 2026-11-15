@@ -314,12 +314,15 @@ export class EditorGroupWatermark extends Disposable {
 	}
 }
 
-class WatermarkActionViewItem extends BaseActionViewItem {
+/**
+ * A row of the editor group watermark: icon, label and keybinding. Also used by the empty editor hint.
+ */
+export class WatermarkActionViewItem extends BaseActionViewItem {
 
 	constructor(
 		action: IAction,
 		private readonly icon: ThemeIcon,
-		private readonly keybinding: ResolvedKeybinding,
+		private readonly keybinding: ResolvedKeybinding | undefined,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(undefined, action);
@@ -329,13 +332,16 @@ class WatermarkActionViewItem extends BaseActionViewItem {
 		const row = append(container, $('a.action-label.watermark-entry'));
 		super.render(row);
 		row.setAttribute('role', 'button');
-		row.setAttribute('aria-label', localize('watermark.shortcutAriaLabel', "{0} ({1})", this._action.label, this.keybinding.getAriaLabel()));
+		const keybindingAriaLabel = this.keybinding?.getAriaLabel();
+		row.setAttribute('aria-label', keybindingAriaLabel ? localize('watermark.shortcutAriaLabel', "{0} ({1})", this._action.label, keybindingAriaLabel) : this._action.label);
 
 		const icon = append(row, renderIcon(this.icon));
 		icon.classList.add('watermark-icon');
 		icon.setAttribute('aria-hidden', 'true');
 		append(row, $('span.watermark-label')).textContent = this._action.label;
-		this._register(new KeybindingLabel(append(row, $('span.watermark-keybinding')), OS, defaultKeybindingLabelStyles)).set(this.keybinding);
+		if (this.keybinding) {
+			this._register(new KeybindingLabel(append(row, $('span.watermark-keybinding')), OS, defaultKeybindingLabelStyles)).set(this.keybinding);
+		}
 		this._register(this.hoverService.setupDelayedHover(row, { content: this._action.label }));
 	}
 }

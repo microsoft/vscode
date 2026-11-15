@@ -10,11 +10,15 @@ import { ServiceCollection } from '../../platform/instantiation/common/serviceCo
 import { ILogService } from '../../platform/log/common/log.js';
 import { MobileWorkbench } from './mobileWorkbench.js';
 import { DesktopWorkbench } from './desktopWorkbench.js';
-import { AgentWorkbenchLayout, IWorkbenchOptions, Workbench } from './workbench.js';
+import { IWorkbenchOptions, Workbench } from './workbench.js';
+import { AgentWorkbenchLayout } from '../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 
 export function getSessionsWorkbenchLayout(viewportWidth: number, platform = { isWeb, isMobile }): AgentWorkbenchLayout {
 	return platform.isWeb && platform.isMobile && viewportWidth < 640 ? AgentWorkbenchLayout.Mobile : AgentWorkbenchLayout.Desktop;
 }
+
+/** Entry-owned workbench construction, sharing the browser bootstrap. */
+export type SessionsWorkbenchFactory = (parent: HTMLElement, options: IWorkbenchOptions | undefined, serviceCollection: ServiceCollection, logService: ILogService) => Workbench;
 
 /**
  * Creates the Agents window workbench. Non-phone windows always use the

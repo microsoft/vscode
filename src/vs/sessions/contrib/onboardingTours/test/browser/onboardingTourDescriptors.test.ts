@@ -11,7 +11,7 @@ import { NEW_SESSION_VIEW_TOUR_ID } from '../../browser/tours/newSessionViewTour
 import { NEW_SESSION_VIEW_V2_TOUR_ID, NEW_SESSION_VIEW_V2_VARIATIONS } from '../../browser/tours/newSessionViewV2Tour.js';
 import { AGENTS_WINDOW_INVITATION_TOUR_ID } from '../../browser/tours/agentsWindowInvitationTour.js';
 import { NEW_SESSION_VIEW_V3_TOUR_ID, NEW_SESSION_VIEW_V3_VARIATIONS } from '../../browser/tours/newSessionViewV3Tour.js';
-import { SESSION_ARCHIVE_TOUR_ID } from '../../browser/tours/sessionArchiveTour.js';
+import { registerSessionArchiveTourDescriptor, SESSION_ARCHIVE_TOUR_ID } from '../../../../../workbench/contrib/sessions/browser/tours/sessionArchiveTour.js';
 import { PARALLEL_TASKS_TOUR_ID } from '../../browser/tours/parallelTasksTour.js';
 
 suite('OnboardingTourDescriptors', () => {
@@ -19,6 +19,8 @@ suite('OnboardingTourDescriptors', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('declares every session onboarding tour for developer settings', () => {
+		// The Agents window's chat contribution declares the shared session UI's tours.
+		registerSessionArchiveTourDescriptor();
 		const descriptors = new Map(onboardingScenarioRegistry.getScenarioDescriptors().map(descriptor => [descriptor.id, descriptor]));
 
 		assert.deepStrictEqual([

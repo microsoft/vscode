@@ -15,7 +15,7 @@ import { createEditorInlineChatInstruction, createTerminalChatInstruction, readC
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { readMcpRoutingServers, readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpRoutingServers, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { readSkillArgumentHint, withSkillArgumentHintMeta } from '../../common/meta/skillCustomizationMeta.js';
-import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
+import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, restoreLegacySkillAttachment, toCommandCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readSessionComparisonMetadata, readUsageInfoMeta, withSessionComparisonMetadata, type AgentCustomization, type ClientPluginCustomization, type SkillCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
 import { McpServerStatus, type McpServerCustomization, type SessionModelInfo, type SimpleMessageAttachment } from '../../common/state/protocol/state.js';
 import { createAgentModelByokMeta, readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js';
@@ -43,6 +43,15 @@ suite('Agent host _meta readers', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('round trips agent model preferences and ignores malformed optional values', () => {
+		const preferences = { 'vscode.models': ['missing', 'sonnet'], 'vscode.reasoningEffort': 'low', 'vscode.modelPolicy': 'required' as const };
+		assert.deepStrictEqual([
+			readAgentCustomizationMeta(agentCustomization(toAgentCustomizationMeta(preferences))),
+			readAgentCustomizationMeta(agentCustomization({ 'vscode.models': ['sonnet', 42], 'vscode.reasoningEffort': 42, 'vscode.modelPolicy': 'unknown' })),
+			readAgentCustomizationMeta(agentCustomization(undefined)),
+		], [preferences, {}, {}]);
+	});
+
 	test('round trips optional app tool origin and rejects malformed metadata', () => {
 		const tool = withAgentToolOrigin({ name: 'semantic_search', _meta: { unrelated: true } }, 'mcpApp');
 		assert.deepStrictEqual({
@@ -65,6 +74,14 @@ suite('Agent host _meta readers', () => {
 			readToolCallMeta(toolCall(toToolCallMeta({ [key]: 'copilot-cli-v1' })))[key],
 			...[undefined, null, {}, true, 'copilot', 'future-v2'].map(value => readToolCallMeta(toolCall({ [key]: value }))[key]),
 		], ['copilot-cli-v1', undefined, undefined, undefined, undefined, undefined, undefined]);
+	});
+
+	test('validates what the path of a view call named', () => {
+		const key = 'vscode.viewedResourceType';
+		assert.deepStrictEqual([
+			...(['file', 'directory'] as const).map(value => readToolCallMeta(toolCall(toToolCallMeta({ [key]: value })))[key]),
+			...[undefined, null, {}, true, 'image', 'unknown'].map(value => readToolCallMeta(toolCall({ [key]: value }))[key]),
+		], ['file', 'directory', undefined, undefined, undefined, undefined, undefined, undefined]);
 	});
 
 	test('Copilot network restrictions round trip and reject malformed or absent metadata', () => {
@@ -558,11 +575,22 @@ suite('Agent host _meta readers', () => {
 			);
 		});
 
-		test('classifies a skill bag, dropping wrong-typed optional fields', () => {
+		test('does not use URI metadata to identify a skill completion', () => {
 			assert.deepStrictEqual(
 				readCompletionAttachmentMeta(attachment({ uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon', description: 5 })),
-				{ kind: 'skill', uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon' }
+				undefined
 			);
+		});
+
+		test('restores legacy persisted skills only at the explicit skill boundary', () => {
+			const legacy = { ...attachment({ uri: 'file:///s/SKILL.md', opaque: false }), displayKind: 'skill' };
+			assert.deepStrictEqual([
+				restoreLegacySkillAttachment(legacy),
+				restoreLegacySkillAttachment({ ...legacy, displayKind: 'command' }),
+				restoreLegacySkillAttachment({ ...legacy, _meta: { uri: 42 } }),
+			], [{
+				type: MessageAttachmentKind.Resource, uri: 'file:///s/SKILL.md', label: legacy.label, displayKind: 'skill', _meta: legacy._meta,
+			}, undefined, undefined]);
 		});
 
 		test('returns undefined for an unrecognized or empty bag', () => {
@@ -579,15 +607,6 @@ suite('Agent host _meta readers', () => {
 			const cmdWithHint = toCommandCompletionAttachmentMeta({ command: 'rename', isSkill: true, argumentHint: 'New name', description: undefined });
 			assert.deepStrictEqual(cmdWithHint, { command: 'rename', isSkill: true, argumentHint: 'New name' });
 			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(cmdWithHint)), { kind: 'command', command: 'rename', isSkill: true, argumentHint: 'New name' });
-
-			const skill = toSkillCompletionAttachmentMeta({ uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon', description: undefined });
-			assert.deepStrictEqual(skill, { uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon' });
-			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(skill)), { kind: 'skill', uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon' });
-
-			const skillWithHint = toSkillCompletionAttachmentMeta({ uri: 'file:///s/SKILL.md', name: 'mon', argumentHint: '<pr number>' });
-			assert.deepStrictEqual(skillWithHint, { uri: 'file:///s/SKILL.md', name: 'mon', argumentHint: '<pr number>' });
-			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(skillWithHint)), { kind: 'skill', uri: 'file:///s/SKILL.md', name: 'mon', argumentHint: '<pr number>' });
-			assert.strictEqual(getCommandArgumentHint(skillWithHint), '<pr number>');
 		});
 
 		test('getCommandArgumentHint reads the hint and ignores wrong-typed / absent bags', () => {
