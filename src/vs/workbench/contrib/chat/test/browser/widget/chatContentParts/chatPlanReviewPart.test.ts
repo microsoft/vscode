@@ -639,6 +639,22 @@ suite('ChatPlanReviewPart', () => {
 			});
 		});
 
+		test('the copy of a review whose overall comment the user wrote submits it, also when another copy registered later', async () => {
+			const review = createMockReviewWithPlan();
+			createWidget(review);
+			const first = widget;
+			const planUri = URI.revive(review.planUri!);
+			const results: IChatPlanReviewResult[] = [];
+			store.add(lastInstantiationService!.createInstance(ChatPlanReviewPart, review, createMockContext(), { onSubmit: result => { results.push(result); } }));
+			const textarea = first.domNode.querySelector('.chat-plan-review-feedback-textarea') as HTMLTextAreaElement;
+			textarea.value = 'Written in the first copy';
+			textarea.dispatchEvent(new Event('input'));
+
+			const submitted = await lastFeedbackService!.submitAllFeedback(planUri);
+
+			assert.deepStrictEqual({ submitted, overall: lastSubmitResult?.feedbackOverall, fromLaterCopy: results.length }, { submitted: true, overall: 'Written in the first copy', fromLaterCopy: 0 });
+		});
+
 		test('renders comments list and updates Submit Feedback count when service has items', async () => {
 			const review = createMockReviewWithPlan();
 			createWidget(review);

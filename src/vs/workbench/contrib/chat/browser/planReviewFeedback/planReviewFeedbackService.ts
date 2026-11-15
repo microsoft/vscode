@@ -30,7 +30,8 @@ export interface IPlanReviewFeedbackRegistration {
 	readonly reject: () => Promise<void>;
 	/**
 	 * The plan review this registers, such as its model part. Copies of the same review, such as one per widget that shows
-	 * its chat, share one registration and its feedback; the copy registered last handles submission.
+	 * its chat, share one registration and its feedback. The copy that holds an overall comment handles submission, else the
+	 * copy registered last.
 	 */
 	readonly identity?: object;
 }
@@ -65,7 +66,7 @@ export interface IPlanReviewFeedbackService {
 interface IPlanReviewRegistration {
 	readonly identity: object | undefined;
 	readonly sessionResource: URI;
-	/** The registered copies of the review, the last of which is active. */
+	/** The registered copies of the review, in the order they registered. */
 	readonly copies: IPlanReviewFeedbackRegistration[];
 	readonly review: IPlanReviewFeedbackRegistration;
 	readonly items: IPlanReviewFeedbackItem[];
@@ -118,7 +119,8 @@ export class PlanReviewFeedbackService extends Disposable implements IPlanReview
 			identity: review.identity,
 			sessionResource: review.sessionResource,
 			copies,
-			get review() { return copies.at(-1)!; },
+			// Each copy has its own overall comment box: the one the user wrote in submits, so the comment goes along
+			get review() { return copies.findLast(copy => copy.hasOverallFeedback()) ?? copies.at(-1)!; },
 			items: [],
 			existingCommentIds: new Set(),
 			navigationAnchor: undefined,
