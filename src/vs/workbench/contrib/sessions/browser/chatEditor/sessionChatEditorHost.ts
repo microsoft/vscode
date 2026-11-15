@@ -123,7 +123,7 @@ export abstract class SessionChatEditorEntry extends Disposable implements ISess
 	readonly content: IObservable<ISessionPaneContent | undefined>;
 	readonly composer: IObservable<IChatEditorComposer | undefined> = derived(this, reader => {
 		const composer = this._composer.read(reader);
-		return composer && { draftHost: composer, session: composer.session };
+		return composer && { draftHost: composer, session: composer.session, close: () => this.closeShown(this.chat.read(undefined)) };
 	});
 	/** Whether it is a new-session composer that has not sent its session yet, which cannot leave its window. */
 	readonly isUnsentComposer: IObservable<boolean> = derived(this, reader => !!this._composer.read(reader));
@@ -262,12 +262,18 @@ export abstract class SessionChatEditorEntry extends Disposable implements ISess
 	/** Called as it shows `composer`, with what it disposes once the composer goes. */
 	protected onDidSetComposer(_composer: ChatWindowComposerModel, _store: DisposableStore): void { }
 
+	/**
+	 * Whether its editor's pane gives its title while it is a composer, such as with a session header of its own (see
+	 * `ISessionViewHostOptions.showComposerHeader`): otherwise its tab shows, also alone in its group.
+	 */
+	protected get composerRendersTitle(): boolean { return false; }
+
 	private _setComposer(composer: ChatWindowComposerModel): void {
 		const store = new DisposableStore();
 		store.add(composer);
 		// Its tab shows while it is a composer, also alone in its group, so it can be closed there: until its session's chat
-		// shows, it has no title of its own, as its session header hides.
-		this.input.setRendersTitle(false);
+		// shows, it has no title of its own, as its session header hides, unless its host shows it for the composer too.
+		this.input.setRendersTitle(this.composerRendersTitle);
 		store.add(toDisposable(() => this.input.setRendersTitle(true)));
 		store.add(composer.onDidStart(session => {
 			const main = session.mainChat.get().resource;

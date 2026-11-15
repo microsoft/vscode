@@ -21,4 +21,4 @@ export const AgentsViewAvailable: ContextKeyExpression = ContextKeyExpr.and(
 )!;
 
 /** Whether a menu shows for the chat part beside the editor area, such as the More Actions of its editor groups. */
-export const InAgentsChatPartContext = new RawContextKey<boolean>('inAgentsChatPart', false, localize('inAgentsChatPart', "Whether the context is the chat part beside the editor area."));
+export const InAgentsChatPartContext = new RawContextKey<boolean>('inAgentsChatPart', false, localize('inAgentsChatPart', "Whether the context is the chat area beside the editor area."));

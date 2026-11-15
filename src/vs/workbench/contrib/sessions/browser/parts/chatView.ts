@@ -194,6 +194,11 @@ export interface IChatViewInputOptions {
 export interface ISessionViewHostOptions {
 	/** Whether the session header shows above the chats; `true` by default. */
 	readonly showHeader?: boolean;
+	/**
+	 * Whether a new-session composer shows the session header too, titled as a new session, rather than hiding it until its
+	 * session is created; `false` by default.
+	 */
+	readonly showComposerHeader?: boolean;
 	/** Whether the Session Activity Bar shows beside the chats; `true` by default. */
 	readonly showActivityBar?: boolean;
 	/** Options of the inputs of the chats. */
