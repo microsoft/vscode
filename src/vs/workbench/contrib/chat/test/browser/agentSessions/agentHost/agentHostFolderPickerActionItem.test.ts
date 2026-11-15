@@ -38,6 +38,8 @@ import { AgentHostWorktreeSessionSources, IAgentHostWorktreeSessionSources } fro
 import { IAgentSessionsService } from '../../../../browser/agentSessions/agentSessionsService.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
+import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../../../../../platform/theme/test/common/testThemeService.js';
 import '../../../../browser/widget/media/chat.css';
 
 suite('AgentHostFolderPickerActionItem', () => {
@@ -127,7 +129,7 @@ suite('AgentHostFolderPickerActionItem', () => {
 		});
 	});
 	/** A chat input's secondary row of `availableWidth`, with two neighbors and the folder chip last, as in the chat input. */
-	function createRow(availableWidth: number, started?: { readonly workspaceless: boolean }) {
+	function createRow(availableWidth: number, started?: { readonly workspaceless: boolean }, itemCtor: typeof AgentHostFolderPickerActionItem = AgentHostFolderPickerActionItem) {
 		const primary = URI.file('/work/vscode');
 		const longName = URI.file('/work/a-worktree-with-a-name-far-too-long-to-fit-in-the-chat-input-row');
 		const shortName = URI.file('/work/fix');
@@ -187,7 +189,7 @@ suite('AgentHostFolderPickerActionItem', () => {
 				getAvailableWidth: () => availableWidth,
 			},
 			actionViewItemProvider: action => action.id === folderAction.id
-				? chip = instantiationService.createInstance(AgentHostFolderPickerActionItem, upcastPartial<MenuItemAction>(folderAction), widget, { compact: observableValue('compact', true) })
+				? chip = instantiationService.createInstance(itemCtor, upcastPartial<MenuItemAction>(folderAction), widget, { compact: observableValue('compact', true) })
 				: undefined,
 		}));
 		// Last, as in the chat input
@@ -205,8 +207,100 @@ suite('AgentHostFolderPickerActionItem', () => {
 			toolbar.relayout();
 			return { minWidth: chip?.getMinimumWidth() ?? 0, overflowed: toolbar.hasOverflow(), floor };
 		};
-		return { select, chip: () => chip, lane, longName, shortName };
+		return { select, chip: () => chip, lane, longName, shortName, themeService: instantiationService.get(IThemeService) as TestThemeService };
 	}
+
+	test('measures what it needs besides its name once while it shows the same, however often it renders or the toolbar lays it out, and again as what it shows changes', () => {
+		let measurements = 0;
+		class CountingItem extends AgentHostFolderPickerActionItem {
+			protected override measureChrome() {
+				measurements++;
+				return super.measureChrome();
+			}
+		}
+		const { select, longName, shortName } = createRow(1000, undefined, CountingItem);
+		const first = select(shortName);
+		const initial = measurements;
+		// Renders again, as its session's state changes, and is laid out again, with the same name
+		const again = Array.from({ length: 10 }, () => select(shortName));
+		const unchanged = measurements - initial;
+		const long = select(longName);
+
+		assert.deepStrictEqual({
+			initial: initial > 0,
+			unchanged,
+			sameWidth: again.every(result => result.minWidth === first.minWidth),
+			remeasured: measurements - initial > 0,
+			longNeedsMore: long.minWidth > first.minWidth,
+		}, { initial: true, unchanged: 0, sameWidth: true, remeasured: true, longNeedsMore: true });
+	});
+
+	test('measured while hidden, such as in a hidden chat input, it measures again once shown, also with the same name', () => {
+		let measurements = 0;
+		class CountingItem extends AgentHostFolderPickerActionItem {
+			protected override measureChrome() {
+				measurements++;
+				return super.measureChrome();
+			}
+		}
+		const visible = createRow(1000).select(URI.file('/work/fix'));
+		root.style.display = 'none';
+		const { select, longName, shortName } = createRow(1000, undefined, CountingItem);
+		select(longName);
+		// Its name changes while hidden
+		const hidden = select(shortName);
+		root.style.display = '';
+		const before = measurements;
+		const shown = select(shortName);
+
+		assert.deepStrictEqual({ remeasured: measurements > before, minWidth: shown.minWidth, hiddenMinWidth: hidden.minWidth }, { remeasured: true, minWidth: visible.minWidth, hiddenMinWidth: 0 });
+	});
+
+	test('measures again as the product icon theme changes, which can change the size of its icon under the same name', () => {
+		let measurements = 0;
+		class CountingItem extends AgentHostFolderPickerActionItem {
+			protected override measureChrome() {
+				measurements++;
+				return super.measureChrome();
+			}
+		}
+		const { select, shortName, themeService } = createRow(1000, undefined, CountingItem);
+		const before = select(shortName);
+		const measured = measurements;
+		// The new theme's glyph is wider
+		const style = root.appendChild(document.createElement('style'));
+		style.textContent = '.agent-host-folder-chip .codicon { margin-right: 10px; }';
+		select(shortName);
+		const unchanged = measurements === measured;
+		themeService._onProductIconThemeChange.fire(themeService.getProductIconTheme());
+		const after = select(shortName);
+
+		assert.deepStrictEqual({ unchanged, remeasured: measurements > measured, wider: after.minWidth - before.minWidth }, { unchanged: true, remeasured: true, wider: 10 });
+	});
+
+	test('measures again as fonts finish loading, such as its icon\'s, which it may have been measured without', () => {
+		let measurements = 0;
+		class CountingItem extends AgentHostFolderPickerActionItem {
+			protected override measureChrome() {
+				measurements++;
+				return super.measureChrome();
+			}
+		}
+		const { select, shortName } = createRow(1000, undefined, CountingItem);
+		const before = select(shortName);
+		const measured = measurements;
+		// The icon font loaded and its glyph is wider than the fallback's
+		const style = root.appendChild(document.createElement('style'));
+		style.textContent = '.agent-host-folder-chip .codicon { margin-right: 10px; }';
+		document.fonts.dispatchEvent(new mainWindow.Event('loadingdone'));
+		const after = select(shortName);
+		const remeasured = measurements;
+		// Laid out again as before, it does not measure again
+		select(shortName);
+		select(shortName);
+
+		assert.deepStrictEqual({ remeasured: remeasured > measured, wider: after.minWidth - before.minWidth, thenUnchanged: measurements === remeasured }, { remeasured: true, wider: 10, thenUnchanged: true });
+	});
 
 	test('last in a narrow row, it needs the width of the name it shows now: a shorter name, or No Workspace, brings it back from the overflow', () => {
 		// Room for its neighbors and a chip with a short name, not a long one

@@ -10,7 +10,7 @@ import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover
 import { IManagedHoverTooltipMarkdownString } from '../../../../../../base/browser/ui/hover/hover.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -24,6 +24,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { ISCMService } from '../../../../scm/common/scm.js';
@@ -77,6 +78,10 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	private _labelElement: HTMLElement | undefined;
 	/** What the chip needs besides its name, its icon, gap and padding, and its name's font, as last rendered. */
 	private _chrome: { readonly width: number; readonly font: string } | undefined;
+	/** What the chip shows as it last rendered, and what it showed as {@link _chrome} was measured: it is measured again only as that changes. */
+	private _renderedKey: string | undefined;
+	private _chromeKey: string | undefined;
+	private readonly _fontsListener = this._register(new MutableDisposable());
 	/** The choices in a window with a single local folder while worktree support is on: New Worktree, the folder and its worktrees. */
 	private readonly _worktree: AgentHostWorktreeFolderChoices;
 
@@ -95,6 +100,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
 	) {
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
@@ -164,6 +170,8 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 				this.renderLabel(this.element);
 			}
 		}));
+		// Another product icon theme can size its icon differently under the same name: measured again as it is next laid out
+		this._register(themeService.onDidProductIconThemeChange(() => this._chromeKey = undefined));
 		// Re-render when asynchronous session state reveals the session's working directory.
 		this._register(this._customizationService.onDidChangeCustomizations(() => {
 			if (this.element) {
@@ -213,9 +221,11 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		element.classList.toggle('agent-host-folder-chip', !!chip);
 		element.classList.toggle('icon-only', compact || !shownLabel);
 		this._labelElement = !compact && shownLabel ? dom.$('span.chat-input-picker-label', undefined, shownLabel) : undefined;
+		const icon = chip?.icon === Codicon.worktree || chip?.icon === Codicon.comment ? chip.icon.id : 'folder-compact';
+		this._renderedKey = `${icon}|${!!chip}|${compact}|${shownLabel ?? ''}`;
 		dom.reset(
 			element,
-			...renderLabelWithIcons(chip?.icon === Codicon.worktree || chip?.icon === Codicon.comment ? `$(${chip.icon.id})` : `$(folder-compact)`),
+			...renderLabelWithIcons(`$(${icon})`),
 			...(this._labelElement ? [this._labelElement] : []),
 		);
 		// Set the aria label after the visible text is in place: the base class
@@ -228,6 +238,9 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 
 	override render(container: HTMLElement): void {
 		this._container = container;
+		this._chromeKey = undefined;
+		// Its icon's font can load after it was measured with a fallback: measured again as it is next laid out
+		this._fontsListener.value = dom.addDisposableListener(dom.getWindow(container).document.fonts, 'loadingdone', () => this._chromeKey = undefined);
 		super.render(container);
 
 		// The chip often shows a disabled folder name — the working directory is
@@ -256,7 +269,14 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		if (!chip) {
 			return undefined;
 		}
-		this._measureChrome();
+		// Only as what it shows changes: measuring reads the layout, which its toolbar asks for on every layout
+		if (!this._chrome || this._chromeKey !== this._renderedKey) {
+			const chrome = this.measureChrome();
+			if (chrome) {
+				this._chrome = chrome;
+				this._chromeKey = this._renderedKey;
+			}
+		}
 		// Of the name it shows now, also while in the overflow, rather than of the width the toolbar gave it
 		return this._chrome && Math.ceil(this._chrome.width + Math.min(measureTextWidth(chip.label, this._chrome.font), FOLDER_CHIP_LABEL_MAX_WIDTH));
 	}
@@ -285,12 +305,14 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		return !!sessionResource && (this._newSessionFolderService.isNoWorkspace(sessionResource) || this._customizationService.isWorkspaceless?.(sessionResource) === true);
 	}
 
-	private _measureChrome(): void {
+	/** What the chip needs besides its name, as it shows now; `undefined` while it is not in the DOM. */
+	protected measureChrome(): { readonly width: number; readonly font: string } | undefined {
 		const element = this.element;
 		const container = this._container;
 		const label = this._labelElement;
-		if (!element?.isConnected || !container || !label) {
-			return;
+		// Not while it has no layout, such as in a hidden chat input, whose sizes read as zero
+		if (!element?.isConnected || !container || !label || !element.getClientRects().length) {
+			return undefined;
 		}
 		const window = dom.getWindow(container);
 		const px = (value: string) => Number.parseFloat(value) || 0;
@@ -310,7 +332,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 			width += edges(style) + px(style.marginLeft) + px(style.marginRight);
 		}
 		width += edges(window.getComputedStyle(container));
-		this._chrome = { width, font: labelStyle.font };
+		return { width, font: labelStyle.font };
 	}
 
 	/**
