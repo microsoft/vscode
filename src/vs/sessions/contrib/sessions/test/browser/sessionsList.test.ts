@@ -8172,6 +8172,160 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		suite('closing', () => {
+			// Searching moves the list's focus to the results. Closing the search cancels it: the list points at the chat
+			// the main window shows again, so Enter, which opens the focused row (`list.select`), does not open a result the
+			// user only searched for.
+
+			/**
+			 * A list that the main window shows `active` in. Like the sessions service, the list shows the sessions it opens in
+			 * the main window, and records their titles. `state` reports the titles of the rows with the list's focus and
+			 * selection, and which part of the list has DOM focus.
+			 */
+			function renderSearchWithActiveSession(sessions: ISession[], active: ISession | undefined, grouping = SessionsGrouping.Date, harnessOptions: IListHarnessOptions = {}) {
+				const withChat = (session: ISession | undefined) => session && upcastPartial<ITestSessionWithChat>({ ...session, activeChat: session.mainChat });
+				const activeSession = observableValue<ITestSessionWithChat | undefined>('active-session', withChat(active));
+				const opened: string[] = [];
+				const harness = createListHarness(disposables, sessions, { ...harnessOptions, activeSession });
+				if (grouping === SessionsGrouping.Inbox) {
+					harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+				}
+				const container = harness.createContainer(300, 800);
+				const findWidgetContainer = append(container, $('div'));
+				const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+					grouping: () => grouping,
+					sorting: () => SessionsSorting.Created,
+					findWidgetContainer,
+					onSessionOpen: resource => {
+						const session = sessions.find(candidate => isEqual(candidate.resource, resource));
+						opened.push(session?.title.get() ?? resource.toString());
+						activeSession.set(withChat(session), undefined);
+					},
+				}));
+				list.layout(800, 300);
+				const input = () => findWidgetContainer.querySelector<HTMLInputElement>('input');
+				const titles = (row: string) => [...container.querySelectorAll<HTMLElement>(`.monaco-list-row${row} .session-title`)].map(title => title.textContent);
+				const state = () => {
+					const active = mainWindow.document.activeElement;
+					return {
+						focused: titles('.focused'),
+						selected: titles('.selected'),
+						domFocus: active?.closest('.sessions-list-inbox-footer') ? 'footer' : active?.closest('.sessions-list-primary') ? 'primary' : active && active === input() ? 'input' : 'elsewhere',
+					};
+				};
+				const search = (pattern: string) => {
+					list.openFind();
+					input()!.value = pattern;
+					input()!.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+				};
+				const row = (title: string) => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(candidate => candidate.querySelector('.session-title')?.textContent === title)!;
+				return { list, container, findWidgetContainer, opened, state, search, row };
+			}
+
+			for (const close of ['Escape', 'the close button'] as const) {
+				test(`with ${close}, returns the focus and selection to the session the main window shows`, async () => {
+					const pear = createSession('Pear test');
+					const { list, findWidgetContainer, state, search } = renderSearchWithActiveSession([pear, createSession('Luna test')], pear);
+					const before = state();
+					search('luna');
+					const searching = state();
+					if (close === 'Escape') {
+						// Escape in the find input and in the list both close the search through `closeFind`.
+						list.closeFind();
+					} else {
+						findWidgetContainer.querySelector<HTMLElement>('.monaco-tree-type-filter-actionbar .action-label')!.click();
+					}
+					const closed = state();
+					await timeout(350);
+
+					assert.deepStrictEqual({ before, searching, closed }, {
+						before: { focused: ['Pear test'], selected: ['Pear test'], domFocus: 'elsewhere' },
+						searching: { focused: ['Luna test'], selected: [], domFocus: 'input' },
+						closed: { focused: ['Pear test'], selected: ['Pear test'], domFocus: 'primary' },
+					});
+				});
+			}
+
+			test('keeps a result opened during the search, rather than the session shown when it began', async () => {
+				const pear = createSession('Pear test');
+				const { list, opened, state, search, row } = renderSearchWithActiveSession([pear, createSession('Luna test')], pear);
+				search('luna');
+				clickRow(row('Luna test'));
+				for (let i = 0; i < 50; i++) {
+					await Promise.resolve();
+				}
+				list.closeFind();
+				const closed = state();
+				await timeout(350);
+
+				assert.deepStrictEqual({ opened, closed }, {
+					opened: ['Luna test'],
+					closed: { focused: ['Luna test'], selected: ['Luna test'], domFocus: 'primary' },
+				});
+			});
+
+			test('scrolls the open session back into view, so that screen readers announce it', async () => {
+				const pear = createSession('Pear test');
+				const { list, container, state, search } = renderSearchWithActiveSession([pear, ...Array.from({ length: 40 }, (_, index) => createSession(`Filler ${index}`))], pear);
+				// The open session is the oldest, at the end of the list, and the results of the search are at its start.
+				list.reveal(pear.resource);
+				search('filler 1');
+				list.closeFind();
+				const closed = state();
+				const tree = container.querySelector('.sessions-list-primary .monaco-list');
+				const focusedRow = tree?.querySelector('.monaco-list-row.focused');
+				const announced = !!focusedRow && tree?.getAttribute('aria-activedescendant') === focusedRow.id;
+				await timeout(350);
+
+				assert.deepStrictEqual({ closed, announced }, {
+					closed: { focused: ['Pear test'], selected: ['Pear test'], domFocus: 'primary' },
+					announced: true,
+				});
+			});
+
+			test('leaves no row focused when the main window shows no session', async () => {
+				const { list, state, search } = renderSearchWithActiveSession([createSession('Pear test'), createSession('Luna test')], undefined);
+				search('luna');
+				list.closeFind();
+				const closed = state();
+				await timeout(350);
+
+				assert.deepStrictEqual(closed, { focused: [], selected: [], domFocus: 'primary' });
+			});
+
+			test('returns DOM focus to the region of the open session rather than of the last result (inbox)', async () => {
+				const ready = createTestSession('ready').session;
+				const working = createTestSession('working', { status: SessionStatus.InProgress }).session;
+				const { list, state, search } = renderSearchWithActiveSession([ready, working], ready, SessionsGrouping.Inbox);
+				search('working');
+				const searching = state();
+				list.closeFind();
+				const closed = state();
+				await timeout(350);
+
+				assert.deepStrictEqual({ searching, closed }, {
+					searching: { focused: ['working'], selected: [], domFocus: 'input' },
+					closed: { focused: ['ready'], selected: ['ready'], domFocus: 'primary' },
+				});
+			});
+
+			test('selects the open session without expanding the collapsed section that hides it', async () => {
+				const pinned = createSession('Pinned telemetry');
+				const { list, state, search } = renderSearchWithActiveSession([pinned, createSession('Recent telemetry')], pinned, SessionsGrouping.Date, { pinnedSessionIds: new Set([pinned.sessionId]) });
+				list.setItemCollapsed({ section: 'pinned' }, true);
+				search('recent');
+				list.closeFind();
+				const closed = state();
+				await timeout(350);
+
+				// The row is hidden, so no visible row has focus, and Enter opens nothing.
+				assert.deepStrictEqual({ closed, pinnedExpanded: list.getItemRow({ section: 'pinned' })?.getAttribute('aria-expanded') }, {
+					closed: { focused: [], selected: [], domFocus: 'primary' },
+					pinnedExpanded: 'false',
+				});
+			});
+		});
+
 		test('names a folder or repository that neither the row nor its section headers show', async () => {
 			const sessions = () => [
 				createSession('Update README', { gitHub: true }),
