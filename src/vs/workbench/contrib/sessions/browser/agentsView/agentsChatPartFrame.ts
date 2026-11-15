@@ -17,6 +17,11 @@ export const IAgentsChatPartFrame = createDecorator<IAgentsChatPartFrame>('agent
  */
 export interface IAgentsChatPartFrame {
 	readonly _serviceBrand: undefined;
+	/**
+	 * The part, created as it is first read: by the chat part's service as a feature enables it, as the window starts, before
+	 * the workbench creates its grid. Creating the frame does not create it, so that what only reads whether chats open in
+	 * the chat part, also in a window where no feature enables it, does not create it once the grid exists.
+	 */
 	readonly part: ChatHostPart;
 	/**
 	 * What the chat part shows, `IAgentsChatPartService`, once it was created: what reads it without needing it, such as what
@@ -34,14 +39,18 @@ export class AgentsChatPartFrame extends Disposable implements IAgentsChatPartFr
 
 	declare readonly _serviceBrand: undefined;
 
-	readonly part: ChatHostPart;
+	private _part: ChatHostPart | undefined;
 	private readonly _content = observableValue<IAgentsChatPartService | undefined>(this, undefined);
 	readonly content: IObservable<IAgentsChatPartService | undefined> = this._content;
 	readonly contentCreated: IObservable<boolean> = derived(this, reader => !!this._content.read(reader));
 
-	constructor(@IInstantiationService instantiationService: IInstantiationService) {
+	constructor(@IInstantiationService private readonly _instantiationService: IInstantiationService) {
 		super();
-		this.part = this._register(instantiationService.createInstance(ChatHostPart));
+	}
+
+	get part(): ChatHostPart {
+		this._part ??= this._register(this._instantiationService.createInstance(ChatHostPart));
+		return this._part;
 	}
 
 	didCreateContent(content: IAgentsChatPartService): void {

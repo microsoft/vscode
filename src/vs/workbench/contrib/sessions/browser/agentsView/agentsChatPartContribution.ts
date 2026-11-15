@@ -115,7 +115,7 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 		const store = new DisposableStore();
 		store.add(toDisposable(() => this._layoutService.setChatPartAnchor(undefined)));
 
-		// The part, before the workbench creates its grid: reading it creates the delayed frame
+		// The part, before the workbench creates its grid: the frame creates it as it is first read
 		void this._frame.part;
 
 		// The Changes editor that the pills of the chats open in the editor area, as the Agents window registers it
