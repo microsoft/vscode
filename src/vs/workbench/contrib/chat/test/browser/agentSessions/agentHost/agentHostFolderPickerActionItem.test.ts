@@ -278,6 +278,30 @@ suite('AgentHostFolderPickerActionItem', () => {
 		assert.deepStrictEqual({ unchanged, remeasured: measurements > measured, wider: after.minWidth - before.minWidth }, { unchanged: true, remeasured: true, wider: 10 });
 	});
 
+	test('measures again as fonts finish loading, such as its icon\'s, which it may have been measured without', () => {
+		let measurements = 0;
+		class CountingItem extends AgentHostFolderPickerActionItem {
+			protected override measureChrome() {
+				measurements++;
+				return super.measureChrome();
+			}
+		}
+		const { select, shortName } = createRow(1000, undefined, CountingItem);
+		const before = select(shortName);
+		const measured = measurements;
+		// The icon font loaded and its glyph is wider than the fallback's
+		const style = root.appendChild(document.createElement('style'));
+		style.textContent = '.agent-host-folder-chip .codicon { margin-right: 10px; }';
+		document.fonts.dispatchEvent(new mainWindow.Event('loadingdone'));
+		const after = select(shortName);
+		const remeasured = measurements;
+		// Laid out again as before, it does not measure again
+		select(shortName);
+		select(shortName);
+
+		assert.deepStrictEqual({ remeasured: remeasured > measured, wider: after.minWidth - before.minWidth, thenUnchanged: measurements === remeasured }, { remeasured: true, wider: 10, thenUnchanged: true });
+	});
+
 	test('last in a narrow row, it needs the width of the name it shows now: a shorter name, or No Workspace, brings it back from the overflow', () => {
 		// Room for its neighbors and a chip with a short name, not a long one
 		const { select, longName, shortName } = createRow(160);
