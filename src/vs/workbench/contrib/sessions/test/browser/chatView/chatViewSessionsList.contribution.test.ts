@@ -42,7 +42,7 @@ import { ChatViewSessionsGate } from '../../../browser/chatView/chatViewSessions
 import { IChatViewSessionsListService } from '../../../../chat/browser/widgetHosts/viewPane/chatViewSessionsList.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionGroupToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId } from '../../../browser/views/sessionsList.js';
+import { SessionGroupToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionsList } from '../../../browser/views/sessionsList.js';
 import { ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { EditorWindowSessionsPresenterService, IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { EditorWindowSessionsService } from '../../../browser/agentsView/editorWindowSessionsService.js';
@@ -484,5 +484,23 @@ suite('ChatViewSessionsGate', () => {
 		disposables.add(list.control);
 
 		assert.deepStrictEqual({ keys: Object.keys(list).sort(), hasHeader: list.hasHeader, sessionsOnly: list.sessionsOnly === sessionsOnly }, { keys: ['control', 'hasHeader', 'sessionsOnly'], hasHeader: true, sessionsOnly: true });
+	});
+
+	test('revealing the chat that the Chat view shows reveals its session, also for a peer chat of the session, whose resource differs from the session\'s', () => {
+		const revealed: string[] = [];
+		const view = upcastPartial<SessionsView>({ element: document.createElement('div'), render: () => { }, setVisible: () => { }, dispose: () => { }, sessionsControl: upcastPartial<SessionsList>({ reveal: (resource: URI) => { revealed.push(resource.path); return resource.path === '/session'; }, setAriaDescription: () => { } }) });
+		const workspaceContextService = upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) });
+		const session = upcastPartial<ISession>({ resource: URI.parse('agent-host-copilot:/session') });
+		const sessionsManagementService = upcastPartial<ISessionsManagementService>({ getSessionForChatResource: resource => resource.path === '/peer' ? { session, chat: upcastPartial<IChat>({ resource }) } : undefined });
+		const accessor = upcastPartial<ServicesAccessor>({ get: (<T>(id: unknown) => (id === ISessionsManagementService ? sessionsManagementService : id === IConfigurationService ? new TestConfigurationService() : id === IKeybindingService ? upcastPartial<IKeybindingService>({ lookupKeybinding: () => undefined, onDidUpdateKeybindings: Event.None }) : workspaceContextService) as T) as ServicesAccessor['get'] });
+		const instantiationService = upcastPartial<IInstantiationService>({
+			invokeFunction: ((fn: (accessor: ServicesAccessor) => unknown) => fn(accessor)) as IInstantiationService['invokeFunction'],
+			createInstance: (() => view) as IInstantiationService['createInstance'],
+		});
+		const list = new ChatViewSessionsListProvider(constObservable(false)).create(document.createElement('div'), instantiationService, { overrideStyles: {} });
+		disposables.add(list.control);
+
+		const results = { peer: list.control.reveal(URI.parse('agent-host-copilot:/peer')), unknown: list.control.reveal(URI.parse('agent-host-copilot:/untitled')) };
+		assert.deepStrictEqual({ results, revealed }, { results: { peer: true, unknown: false }, revealed: ['/session', '/untitled'] });
 	});
 });
