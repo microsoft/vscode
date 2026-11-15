@@ -15,11 +15,20 @@ import { SessionsView } from '../views/sessionsView.js';
 import { createEditorWindowSessionsScope, createEditorWindowSessionsView } from './editorWindowSessionsList.js';
 import { ChatViewId } from '../../../chat/browser/chat.js';
 import { localize } from '../../../../../nls.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { trackChatViewSessionsListHelpHint } from '../chatView/chatViewSessionsListAccessibilityHelp.js';
 
 /** The shared sessions list of an editor window, embedded in the Chat view, as the Chat view acts on it. */
 class ChatViewSessionsListControl implements IChatViewSessionsListControl {
 
-	constructor(private readonly _view: SessionsView) { }
+	constructor(
+		private readonly _view: SessionsView,
+		private readonly _helpHint: IDisposable | undefined,
+		private readonly _sessionsManagementService: ISessionsManagementService,
+	) { }
 
 	setVisible(visible: boolean): void { this._view.setVisible(visible); }
 	layout(height: number, width: number): void {
@@ -33,13 +42,20 @@ class ChatViewSessionsListControl implements IChatViewSessionsListControl {
 		this._view.sessionsControl?.update();
 		return true;
 	}
-	reveal(sessionResource: URI): boolean { return this._view.sessionsControl?.reveal(sessionResource) ?? false; }
+	/** Reveals the session of `resource`, which the Chat view gives as the chat it shows, such as a peer chat of a session. */
+	reveal(resource: URI): boolean {
+		const sessionResource = this._sessionsManagementService.getSessionForChatResource(resource)?.session.resource ?? resource;
+		return this._view.sessionsControl?.reveal(sessionResource) ?? false;
+	}
 	clearFocus(): void { this._view.sessionsControl?.clearFocus(); }
 	hasFocusOrSelection(): boolean { return this._view.sessionsControl?.hasFocusOrSelection() ?? false; }
 	/** The sessions of the Chat view's own list that have focus: none of those here. */
 	getFocus(): IAgentSession[] { return []; }
 	openFind(): void { this._view.openFind(); }
-	dispose(): void { this._view.dispose(); }
+	dispose(): void {
+		this._helpHint?.dispose();
+		this._view.dispose();
+	}
 }
 
 /**
@@ -66,9 +82,11 @@ export class ChatViewSessionsListProvider implements IChatViewSessionsListProvid
 		view.render();
 		container.appendChild(view.element);
 		view.setVisible(true);
-		const list = view;
+		// How to open the list's accessibility help, which screen readers tell in the list
+		const sessionsList = view.sessionsControl;
+		const helpHint = sessionsList && instantiationService.invokeFunction(accessor => trackChatViewSessionsListHelpHint(sessionsList, accessor.get(IConfigurationService), accessor.get(IKeybindingService)));
 		return {
-			control: new ChatViewSessionsListControl(list),
+			control: new ChatViewSessionsListControl(view, helpHint, instantiationService.invokeFunction(accessor => accessor.get(ISessionsManagementService))),
 			hasHeader: true,
 			sessionsOnly: this._sessionsOnly,
 		};

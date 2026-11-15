@@ -42,13 +42,21 @@ import { ChatViewSessionsGate } from '../../../browser/chatView/chatViewSessions
 import { IChatViewSessionsListService } from '../../../../chat/browser/widgetHosts/viewPane/chatViewSessionsList.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionGroupToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId } from '../../../browser/views/sessionsList.js';
+import { SessionGroupToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionsList } from '../../../browser/views/sessionsList.js';
 import { ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { EditorWindowSessionsPresenterService, IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { EditorWindowSessionsService } from '../../../browser/agentsView/editorWindowSessionsService.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { ChatViewSessionsListProvider } from '../../../browser/agentsView/chatViewSessionsList.js';
-import { SessionsView } from '../../../browser/views/sessionsView.js';
+import { InSessionsViewContext, ISessionsViewLocator, SessionsView, SessionsViewId } from '../../../browser/views/sessionsView.js';
+import { AccessibleViewRegistry } from '../../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { FocusedViewContext, IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
+import { SessionsListNotificationFocused } from '../../../browser/views/sessionsListNotification.js';
+import { ChatViewSessionsListAccessibilityHelp, trackChatViewSessionsListHelpHint } from '../../../browser/chatView/chatViewSessionsListAccessibilityHelp.js';
+import { AccessibleViewType } from '../../../../../../platform/accessibility/browser/accessibleView.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { ResolvedKeybinding } from '../../../../../../base/common/keybindings.js';
+import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { IEditorWindowSessionsRuntime } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
 
 /** How many items the context menu of a session has: the actions of the sessions list add theirs. */
@@ -147,7 +155,7 @@ suite('ChatViewSessionsGate', () => {
 		};
 	}
 
-	test('reads only its settings and registers nothing while the setting is off', () => {
+	test('reads only its settings and registers nothing but the accessibility help of the list while the setting is off', () => {
 		const reads: string[] = [];
 		const configurationService = new class extends TestConfigurationService {
 			override getValue<T>(arg1?: string | IConfigurationOverrides, arg2?: IConfigurationOverrides): T | undefined {
@@ -172,6 +180,86 @@ suite('ChatViewSessionsGate', () => {
 		assert.deepStrictEqual({ whileOn, afterDispose: { ...registered(), providers, runtimeHolds } }, {
 			whileOn: { ...before, localChatDefault: false, providers: 1, runtimeHolds: 1, listActionsBeforeShown: 0 },
 			afterDispose: { ...before, providers: 0, runtimeHolds: 0 },
+		});
+	});
+
+	test('registers the accessibility help of the list and of its Undo notice as the window starts, also with the setting off, so that the help that the window installs then opens in the list once the setting turns on', () => {
+		const helps = () => AccessibleViewRegistry.getImplementations().map(help => help.name).filter(name => name === 'chatViewSessionsList' || name === 'sessions-list-notification').sort();
+		// The Agents window's list, which other tests load, may hold the Undo notice's help for good
+		const before = helps();
+		const gate = createGate(false);
+		// What the window's accessibility help installs, once, after the window starts
+		const installed = [...AccessibleViewRegistry.getImplementations()];
+		change(ChatConfiguration.ChatViewSessionsListEnabled, true);
+		const inList = { getValue: <T>(key: string) => ({ [FocusedViewContext.key]: ChatViewId, [InSessionsViewContext.key]: true } as Record<string, unknown>)[key] as T };
+		const opens = installed.filter(help => help.type === AccessibleViewType.Help && help.when?.evaluate(inList)).sort((a, b) => b.priority - a.priority)[0]?.name;
+		const registeredHelps = helps();
+		gate.dispose();
+
+		assert.deepStrictEqual({ registeredHelps, opens, afterDispose: helps() }, { registeredHelps: ['chatViewSessionsList', 'sessions-list-notification'], opens: 'chatViewSessionsList', afterDispose: before });
+	});
+
+	test('the list tells screen readers how to open its accessibility help while the Chat view\'s verbosity setting is on, following the setting and the keybindings', () => {
+		const configuration = new TestConfigurationService({ [AccessibilityVerbositySettingId.Chat]: true });
+		const keybindingsChanged = disposables.add(new Emitter<void>());
+		let keybinding: string | undefined = 'Alt+F1';
+		const keybindingService = upcastPartial<IKeybindingService>({
+			lookupKeybinding: () => keybinding ? upcastPartial<ResolvedKeybinding>({ getAriaLabel: () => keybinding! }) : undefined,
+			onDidUpdateKeybindings: keybindingsChanged.event,
+		});
+		const descriptions: (string | undefined)[] = [];
+		const hint = trackChatViewSessionsListHelpHint({ setAriaDescription: description => descriptions.push(description) }, configuration, keybindingService);
+		const setVerbosity = (value: boolean) => {
+			configuration.setUserConfiguration(AccessibilityVerbositySettingId.Chat, value);
+			configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === AccessibilityVerbositySettingId.Chat }));
+		};
+		setVerbosity(false);
+		setVerbosity(true);
+		keybinding = 'Ctrl+K Ctrl+H';
+		keybindingsChanged.fire();
+		keybinding = undefined;
+		keybindingsChanged.fire();
+		hint.dispose();
+		keybinding = 'Alt+F1';
+		keybindingsChanged.fire();
+
+		assert.deepStrictEqual(descriptions, [
+			'Press Alt+F1 for accessibility help.',
+			undefined,
+			'Press Alt+F1 for accessibility help.',
+			'Press Ctrl+K Ctrl+H for accessibility help.',
+			undefined,
+		]);
+	});
+
+	test('the accessibility help of the list helps in the sessions list of the Chat view, not on its Undo notice, elsewhere in the Chat view, nor in the Agents window, and returns focus to the list as it closes', () => {
+		const focused: string[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ getViewWithId: () => null }));
+		instantiationService.stub(ISessionsViewLocator, upcastPartial<ISessionsViewLocator>({ getEmbeddedView: () => upcastPartial<SessionsView>({ focus: () => { focused.push('list'); } }) }));
+		const help = new ChatViewSessionsListAccessibilityHelp();
+		const provider = disposables.add(instantiationService.invokeFunction(accessor => help.getProvider(accessor)));
+		provider.onClose();
+
+		const shows = (view: string, inList: boolean, sessionsWindow = false, noticeFocused = false) => help.when?.evaluate({
+			getValue: <T>(key: string) => ({ [FocusedViewContext.key]: view, [InSessionsViewContext.key]: inList, [IsSessionsWindowContext.key]: sessionsWindow, [SessionsListNotificationFocused.key]: noticeFocused } as Record<string, unknown>)[key] as T,
+		});
+		assert.deepStrictEqual({
+			inList: shows(ChatViewId, true),
+			inChat: shows(ChatViewId, false),
+			onUndoNotice: shows(ChatViewId, true, false, true),
+			inAgentsWindow: shows(ChatViewId, true, true),
+			inAgentsView: shows(SessionsViewId, false),
+			verbosity: provider.verbositySettingKey,
+			focused,
+		}, {
+			inList: true,
+			inChat: false,
+			onUndoNotice: false,
+			inAgentsWindow: false,
+			inAgentsView: false,
+			verbosity: AccessibilityVerbositySettingId.Chat,
+			focused: ['list'],
 		});
 	});
 
@@ -396,5 +484,23 @@ suite('ChatViewSessionsGate', () => {
 		disposables.add(list.control);
 
 		assert.deepStrictEqual({ keys: Object.keys(list).sort(), hasHeader: list.hasHeader, sessionsOnly: list.sessionsOnly === sessionsOnly }, { keys: ['control', 'hasHeader', 'sessionsOnly'], hasHeader: true, sessionsOnly: true });
+	});
+
+	test('revealing the chat that the Chat view shows reveals its session, also for a peer chat of the session, whose resource differs from the session\'s', () => {
+		const revealed: string[] = [];
+		const view = upcastPartial<SessionsView>({ element: document.createElement('div'), render: () => { }, setVisible: () => { }, dispose: () => { }, sessionsControl: upcastPartial<SessionsList>({ reveal: (resource: URI) => { revealed.push(resource.path); return resource.path === '/session'; }, setAriaDescription: () => { } }) });
+		const workspaceContextService = upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) });
+		const session = upcastPartial<ISession>({ resource: URI.parse('agent-host-copilot:/session') });
+		const sessionsManagementService = upcastPartial<ISessionsManagementService>({ getSessionForChatResource: resource => resource.path === '/peer' ? { session, chat: upcastPartial<IChat>({ resource }) } : undefined });
+		const accessor = upcastPartial<ServicesAccessor>({ get: (<T>(id: unknown) => (id === ISessionsManagementService ? sessionsManagementService : id === IConfigurationService ? new TestConfigurationService() : id === IKeybindingService ? upcastPartial<IKeybindingService>({ lookupKeybinding: () => undefined, onDidUpdateKeybindings: Event.None }) : workspaceContextService) as T) as ServicesAccessor['get'] });
+		const instantiationService = upcastPartial<IInstantiationService>({
+			invokeFunction: ((fn: (accessor: ServicesAccessor) => unknown) => fn(accessor)) as IInstantiationService['invokeFunction'],
+			createInstance: (() => view) as IInstantiationService['createInstance'],
+		});
+		const list = new ChatViewSessionsListProvider(constObservable(false)).create(document.createElement('div'), instantiationService, { overrideStyles: {} });
+		disposables.add(list.control);
+
+		const results = { peer: list.control.reveal(URI.parse('agent-host-copilot:/peer')), unknown: list.control.reveal(URI.parse('agent-host-copilot:/untitled')) };
+		assert.deepStrictEqual({ results, revealed }, { results: { peer: true, unknown: false }, revealed: ['/session', '/untitled'] });
 	});
 });

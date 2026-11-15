@@ -33,6 +33,9 @@ import { registerAgentsViewNewSessionActions } from '../agentsView/agentsChatPar
 import { ChatViewSessionsListProvider } from '../agentsView/chatViewSessionsList.js';
 import { EditorWindowMainSessionHost } from '../agentsView/editorWindowMainSessionHost.js';
 import { registerEditorWindowSessionsList } from '../agentsView/editorWindowSessionsList.js';
+import { registerSessionsListAccessibilityHelp } from '../views/sessionsListActions.js';
+import { ChatViewSessionsListAccessibilityHelp } from './chatViewSessionsListAccessibilityHelp.js';
+import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessionsRuntime.js';
 import { Menus } from '../menus.js';
 import { ShownChatReadMarker } from '../shownChatReadMarker.js';
@@ -81,6 +84,12 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 		if (environmentService.remoteAuthority) {
 			return;
 		}
+
+		// Accessibility help of the list and of its Undo notice, as the window starts, whether the setting is on or turns on
+		// later: help registered after the window's accessibility help installs what is registered would not be installed. They
+		// help only where the list has focus, and create nothing.
+		this._register(registerSessionsListAccessibilityHelp());
+		this._register(AccessibleViewRegistry.register(new ChatViewSessionsListAccessibilityHelp()));
 
 		const enabled = observeChatViewSessionsListEnabled(configurationService);
 		this._register(autorun(reader => {
