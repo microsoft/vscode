@@ -74,6 +74,17 @@ export const SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING = 'sessions.sidebar.se
  */
 export const SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING = 'sessions.sidebar.customizationsAtBottom';
 
+/**
+ * Which customization categories the Customizations section below the Sessions list shows.
+ */
+export const SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING = 'sessions.sidebar.customizationsCategories';
+
+export const enum SessionsSidebarCustomizationsCategories {
+	All = 'all',
+	/** Only the categories that are shown when reduced, and a More menu with the others. */
+	Reduced = 'reduced',
+}
+
 export const SESSIONS_LIST_REARRANGE_TREATMENT = 'sessions.list.rearrage';
 
 export const enum SessionsChatTabsMode {

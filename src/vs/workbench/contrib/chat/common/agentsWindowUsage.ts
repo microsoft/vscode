@@ -12,6 +12,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 export class AgentsWindowUsage {
 	constructor(private readonly storageService: IStorageService) { }
 
+	/** Requests the user sent from the Agents Window that started a session. Onboarding uses it to recognize new users. */
 	get createdSessionCount(): number {
 		return this.storageService.getNumber(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, StorageScope.APPLICATION, 0);
 	}

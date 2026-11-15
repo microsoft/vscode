@@ -1104,6 +1104,14 @@ export function isCopilotSessionTelemetryEnabled(
 	return effectiveLevel >= TelemetryLevel.USAGE;
 }
 
+/** Whether a Copilot session launched now runs canvases: canvases are enabled and the session is durable. */
+export function isCopilotCanvasRuntimeEnabled(
+	configurationService: Pick<IAgentConfigurationService, 'getRootValue'>,
+	isEphemeral: boolean,
+): boolean {
+	return !isEphemeral && configurationService.getRootValue(platformRootSchema, AgentHostCanvasesEnabledConfigKey) === true;
+}
+
 export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	/**
@@ -1494,8 +1502,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	 */
 	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime, onManagedSettingsResolved: () => void): Promise<{ config: ICopilotSessionConfig; modelPolicy: CopilotManagedModelPolicy | undefined; resetAutoTier: boolean }> {
 		const plugins = plan.snapshot.plugins;
-		const canvasRuntimeEnabled = !plan.isEphemeral
-			&& this._configurationService.getRootValue(platformRootSchema, AgentHostCanvasesEnabledConfigKey) === true;
+		const canvasRuntimeEnabled = isCopilotCanvasRuntimeEnabled(this._configurationService, plan.isEphemeral === true);
 		if (canvasRuntimeEnabled && !plan.extensionSdkPath) {
 			throw new Error(`Extension SDK path is unavailable for canvas-enabled Copilot session '${plan.sessionId}'`);
 		}
