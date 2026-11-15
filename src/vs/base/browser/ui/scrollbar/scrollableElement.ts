@@ -14,7 +14,7 @@ import { VerticalScrollbar } from './verticalScrollbar.js';
 import { Widget } from '../widget.js';
 import { TimeoutTimer } from '../../../common/async.js';
 import { Emitter, Event } from '../../../common/event.js';
-import { IDisposable, dispose } from '../../../common/lifecycle.js';
+import { IDisposable, dispose, toDisposable } from '../../../common/lifecycle.js';
 import * as platform from '../../../common/platform.js';
 import { INewScrollDimensions, INewScrollPosition, IScrollDimensions, IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from '../../../common/scrollable.js';
 import './media/scrollbars.css';
@@ -22,6 +22,17 @@ import './media/scrollbars.css';
 const HIDE_TIMEOUT = 500;
 const SCROLL_WHEEL_SENSITIVITY = 50;
 const SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED = true;
+
+let revealOnScrollDisabledCount = 0;
+
+/**
+ * Test-only: stops auto-hiding scrollbars from flashing visible on scroll and
+ * scroll-dimension changes, so screenshots do not depend on when those happen.
+ */
+export function disableScrollbarRevealOnScroll(): IDisposable {
+	revealOnScrollDisabledCount++;
+	return toDisposable(() => revealOnScrollDisabledCount--);
+}
 
 /** The default size (px) used when a scrollbar element does not pass an explicit size. */
 export const DEFAULT_SCROLLBAR_SIZE = 10;
@@ -580,7 +591,7 @@ export abstract class AbstractScrollableElement extends Widget {
 			this._shouldRender = true;
 		}
 
-		if (this._revealOnScroll) {
+		if (this._revealOnScroll && revealOnScrollDisabledCount === 0) {
 			this._reveal();
 		}
 

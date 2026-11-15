@@ -11,6 +11,7 @@ let _isWindows = false;
 let _isMacintosh = false;
 let _isLinux = false;
 let _isLinuxSnap = false;
+let _isChromeOS = false;
 let _isNative = false;
 let _isWeb = false;
 let _isElectron = false;
@@ -20,6 +21,7 @@ let _isMobile = false;
 let _locale: string | undefined = undefined;
 let _language: string = LANGUAGE_DEFAULT;
 let _platformLocale: string = LANGUAGE_DEFAULT;
+let _regionalLocale: string = LANGUAGE_DEFAULT;
 let _translationsConfigFile: string | undefined = undefined;
 let _userAgent: string | undefined = undefined;
 
@@ -86,6 +88,7 @@ if (typeof nodeProcess === 'object') {
 			const nlsConfig: nls.INLSConfiguration = JSON.parse(rawNlsConfig);
 			_locale = nlsConfig.userLocale;
 			_platformLocale = nlsConfig.osLocale;
+			_regionalLocale = nlsConfig.regionalLocale ?? nlsConfig.osLocale;
 			_language = nlsConfig.resolvedLanguage || LANGUAGE_DEFAULT;
 			_translationsConfigFile = nlsConfig.languagePack?.translationsConfigFile;
 		} catch (e) {
@@ -101,11 +104,13 @@ else if (typeof navigator === 'object' && !isElectronRenderer) {
 	_isMacintosh = _userAgent.indexOf('Macintosh') >= 0;
 	_isIOS = (_userAgent.indexOf('Macintosh') >= 0 || _userAgent.indexOf('iPad') >= 0 || _userAgent.indexOf('iPhone') >= 0) && !!navigator.maxTouchPoints && navigator.maxTouchPoints > 0;
 	_isLinux = _userAgent.indexOf('Linux') >= 0;
+	_isChromeOS = _userAgent.indexOf('CrOS') >= 0;
 	_isMobile = _userAgent?.indexOf('Mobi') >= 0;
 	_isWeb = true;
 	_language = nls.getNLSLanguage() || LANGUAGE_DEFAULT;
 	_locale = navigator.language.toLowerCase();
 	_platformLocale = _locale;
+	_regionalLocale = _locale;
 }
 
 // Unknown environment
@@ -143,6 +148,7 @@ export const isWindows = _isWindows;
 export const isMacintosh = _isMacintosh;
 export const isLinux = _isLinux;
 export const isLinuxSnap = _isLinuxSnap;
+export const isChromeOS = _isChromeOS;
 export const isNative = _isNative;
 export const isElectron = _isElectron;
 export const isWeb = _isWeb;
@@ -195,12 +201,16 @@ export namespace Language {
 export const locale = _locale;
 
 /**
- * This will always be set to the OS/browser's locale regardless of
- * what was specified otherwise. The format of the string is all
- * lower case (e.g. zh-tw for Traditional Chinese). The UI is not
- * necessarily shown in the provided locale.
+ * The OS's preferred language (desktop) or browser locale (web), in lower case,
+ * independent of the UI language override.
  */
 export const platformLocale = _platformLocale;
+
+/**
+ * The OS/browser locale for regional formatting, independent of the UI language.
+ * Locale-based Intl formats do not include arbitrary OS custom date/time patterns.
+ */
+export const regionalLocale = _regionalLocale;
 
 /**
  * The translations that are available through language packs.

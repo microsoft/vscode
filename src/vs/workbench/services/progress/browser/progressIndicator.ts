@@ -302,7 +302,7 @@ export class ScopedProgressIndicator extends Disposable implements IProgressIndi
 		}
 
 		// Keep Promise in State
-		this.progressState = new ProgressIndicatorState.While(promise, delay || 0, Date.now());
+		this.progressState = new ProgressIndicatorState.While(promise, Date.now(), delay || 0);
 
 		try {
 			this.doShowWhile(delay);

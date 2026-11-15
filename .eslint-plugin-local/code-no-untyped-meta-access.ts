@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import { TSESTree } from '@typescript-eslint/utils';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 
 /**
  * Disallows untyped access to the agent host protocol's open `_meta` bag.
@@ -14,35 +13,33 @@ import { TSESTree } from '@typescript-eslint/utils';
  * `x._meta?.['foo']`) or casting it to an interface (`x._meta as Foo`) bypasses
  * any validation and lets well-known keys drift between producers and consumers.
  *
- * Instead, read well-known keys through a validating reader declared in a common
- * module (e.g. `readToolCallMeta(toolCall)`), which takes the parent object,
- * reads its `_meta` internally, checks each field, and drops wrong-typed values.
- * Referencing `_meta` itself as a value (the leaf reference, e.g.
- * `const meta = source._meta`) is allowed — only further member access or casts
- * off `_meta` are flagged.
+ * Instead, read well-known keys through a validating reader declared under
+ * `common/meta` (e.g. `readToolCallMeta(toolCall)`), which takes the parent
+ * object, checks each recognized field, and drops wrong-typed values.
+ * Referencing `_meta` itself as a value is allowed; only further member access
+ * or casts directly off `_meta` are flagged.
  *
  * This rule is purely syntactic (no type information): it keys off the `_meta`
- * identifier, so the reader modules that perform the one sanctioned first hop
- * into a namespaced slot, and the rare access to a non-protocol `_meta` (e.g. a
- * vendored SDK's own typed `_meta`), use a scoped `eslint-disable` line.
+ * identifier. Capturing a non-protocol `_meta` (for example, a vendored SDK's
+ * own typed metadata) in a local also keeps that distinction explicit.
  */
-export default new class NoUntypedMetaAccess implements eslint.Rule.RuleModule {
+export default new class NoUntypedMetaAccess implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		messages: {
-			noMetaFieldAccess: 'Do not read fields off `_meta` directly. Read well-known keys through a validating reader that takes the parent object (e.g. `readToolCallMeta(toolCall)`) declared in a common module.',
+			noMetaFieldAccess: 'Do not read fields off `_meta` directly. Use a validating reader declared under `common/meta` (e.g. `readToolCallMeta(toolCall)`).',
 			noMetaCast: 'Do not cast `_meta` to an interface. Read well-known keys through a validating reader that takes the parent object (e.g. `readToolCallMeta(toolCall)`) declared in a common module.',
 		},
 		schema: false,
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 
-		function unwrap(node: TSESTree.Node | null | undefined): TSESTree.Node | null | undefined {
+		function unwrap(node: ESTree.Node | null | undefined): ESTree.Node | null | undefined {
 			return node?.type === 'ChainExpression' ? node.expression : node;
 		}
 
-		function isMetaAccess(node: TSESTree.Node | null | undefined): boolean {
+		function isMetaAccess(node: ESTree.Node | null | undefined): boolean {
 			const n = unwrap(node);
 			if (!n || n.type !== 'MemberExpression') {
 				return false;
@@ -57,12 +54,12 @@ export default new class NoUntypedMetaAccess implements eslint.Rule.RuleModule {
 		}
 
 		return {
-			'MemberExpression': (node: TSESTree.MemberExpression) => {
+			'MemberExpression': (node: ESTree.MemberExpression) => {
 				if (isMetaAccess(node.object)) {
 					context.report({ node, messageId: 'noMetaFieldAccess' });
 				}
 			},
-			'TSAsExpression, TSTypeAssertion': (node: TSESTree.TSAsExpression | TSESTree.TSTypeAssertion) => {
+			'TSAsExpression, TSTypeAssertion': (node: ESTree.TSAsExpression | ESTree.TSTypeAssertion) => {
 				if (isMetaAccess(node.expression)) {
 					context.report({ node, messageId: 'noMetaCast' });
 				}

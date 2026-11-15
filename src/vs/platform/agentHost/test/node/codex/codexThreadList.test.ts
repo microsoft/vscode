@@ -67,17 +67,20 @@ suite('codexThreadList', () => {
 
 		test('stops when the server repeats a cursor instead of looping forever', async () => {
 			let calls = 0;
+			const truncatedAt: number[] = [];
 			const fetchPage = async (): Promise<IThreadListPage<string>> => {
 				calls++;
 				return { data: ['x'], nextCursor: 'same' };
 			};
 
 			assert.deepStrictEqual({
-				threads: await collectThreadListPages(fetchPage),
+				threads: await collectThreadListPages(fetchPage, collected => truncatedAt.push(collected)),
 				calls,
+				truncatedAt,
 			}, {
 				threads: ['x', 'x'],
 				calls: 2,
+				truncatedAt: [2],
 			});
 		});
 

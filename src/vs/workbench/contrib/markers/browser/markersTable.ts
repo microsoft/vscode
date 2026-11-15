@@ -297,7 +297,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 	) {
 		super();
 
-		this.table = this.instantiationService.createInstance(WorkbenchTable,
+		this.table = this._register(this.instantiationService.createInstance(WorkbenchTable,
 			'Markers',
 			this.container,
 			new MarkersTableVirtualDelegate(),
@@ -352,9 +352,9 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 				this.instantiationService.createInstance(MarkerSourceColumnRenderer),
 			],
 			options
-		) as WorkbenchTable<MarkerTableItem>;
+		) as WorkbenchTable<MarkerTableItem>);
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const list = this.table.domNode.querySelector('.monaco-list-rows')! as HTMLElement;
 
 		// mouseover/mouseleave event handlers

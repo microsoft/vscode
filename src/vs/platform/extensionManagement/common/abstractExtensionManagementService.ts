@@ -24,14 +24,14 @@ import {
 	ExtensionSignatureVerificationCode,
 	IAllowedExtensionsService
 } from './extensionManagement.js';
-import { areSameExtensions, ExtensionKey, getGalleryExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, isMalicious } from './extensionManagementUtil.js';
+import { areSameExtensions, ExtensionKey, getExtensionBlockedMessage, getGalleryExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, isMalicious } from './extensionManagementUtil.js';
 import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from '../../extensions/common/extensions.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
-import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
+import { escapeUntrustedMarkdown, IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 
 export type InstallableExtension = { readonly manifest: IExtensionManifest; extension: IGalleryExtension | URI; options: InstallOptions };
 
@@ -72,6 +72,10 @@ export abstract class CommontExtensionManagementService extends Disposable imple
 	}
 
 	async canInstall(extension: IGalleryExtension): Promise<true | IMarkdownString> {
+		if (extension.blockingInfo) {
+			return getExtensionBlockedMessage(extension.blockingInfo);
+		}
+
 		const allowedToInstall = this.allowedExtensionsService.isAllowed({ id: extension.identifier.id, publisherDisplayName: extension.publisherDisplayName });
 		if (allowedToInstall !== true) {
 			return new MarkdownString(nls.localize('not allowed to install', "This extension cannot be installed because {0}", allowedToInstall.value));
@@ -79,8 +83,10 @@ export abstract class CommontExtensionManagementService extends Disposable imple
 
 		if (!(await this.isExtensionPlatformCompatible(extension))) {
 			const learnLink = isWeb ? 'https://aka.ms/vscode-web-extensions-guide' : 'https://aka.ms/vscode-platform-specific-extensions';
-			return new MarkdownString(`${nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for the {2} platform.",
-				extension.displayName ?? extension.identifier.id, this.productService.nameLong, TargetPlatformToString(await this.getTargetPlatform()))} [${nls.localize('learn why', "Learn Why")}](${learnLink})`);
+			return new MarkdownString()
+				.appendMarkdown(nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for the {2} platform.",
+					escapeUntrustedMarkdown(extension.displayName ?? extension.identifier.id), this.productService.nameLong, TargetPlatformToString(await this.getTargetPlatform())))
+				.appendMarkdown(` [${nls.localize('learn why', "Learn Why")}](${learnLink})`);
 		}
 
 		return true;
@@ -719,6 +725,10 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 		}
 
 		else {
+			if (extension.blockingInfo) {
+				throw new ExtensionManagementError(getExtensionBlockedMessage(extension.blockingInfo).value, ExtensionManagementErrorCode.NotAllowed);
+			}
+
 			if (await this.canInstall(extension) !== true) {
 				const targetPlatform = await this.getTargetPlatform();
 				throw new ExtensionManagementError(nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for the {2} platform.", extension.identifier.id, this.productService.nameLong, TargetPlatformToString(targetPlatform)), ExtensionManagementErrorCode.IncompatibleTargetPlatform);
@@ -732,6 +742,10 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 				}
 				throw new ExtensionManagementError(nls.localize('notFoundCompatibleDependency', "Can't install '{0}' extension because it is not compatible with the current version of {1} (version {2}).", extension.identifier.id, this.productService.nameLong, this.productService.version), ExtensionManagementErrorCode.Incompatible);
 			}
+		}
+
+		if (compatibleExtension.blockingInfo) {
+			throw new ExtensionManagementError(getExtensionBlockedMessage(compatibleExtension.blockingInfo).value, ExtensionManagementErrorCode.NotAllowed);
 		}
 
 		this.logService.info('Getting Manifest...', compatibleExtension.identifier.id);

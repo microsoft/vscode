@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './searchEditorEmptyState.contribution.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { dirname } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -15,11 +16,10 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { KeybindingWeight, KeybindingsRegistry } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { ExplorerFolderContext } from '../../../../workbench/contrib/files/common/files.js';
+import { ExplorerFolderContext, SESSIONS_FILES_VIEW_ID } from '../../../../workbench/contrib/files/common/files.js';
 import { IExplorerService } from '../../../../workbench/contrib/files/browser/files.js';
 import { OpenEditorCommandId } from '../../../../workbench/contrib/searchEditor/browser/constants.js';
 import { resolveResourcesForSearchIncludes } from '../../../../workbench/services/search/common/queryBuilder.js';
-import { SESSIONS_FILES_VIEW_ID } from '../../files/browser/filesView.js';
 
 KeybindingsRegistry.registerKeybindingRule({
 	id: OpenEditorCommandId,

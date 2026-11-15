@@ -4,17 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DataTransfers } from '../../../../../base/browser/dnd.js';
-import { $, DragAndDropObserver } from '../../../../../base/browser/dom.js';
+import { $, DragAndDropObserver, getWindow } from '../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { UriList } from '../../../../../base/common/dataTransfer.js';
-import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../../base/common/mime.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { DraggedChatReferenceIdentifier, CodeDataTransfers, containsDragType, extractChatReferenceDropData, extractEditorsDropData, extractMarkerDropData, extractNotebookCellOutputDropData, extractSymbolDropData, LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { CodeDataTransfers, containsDragType, extractChatReferenceDropData, extractEditorsDropData, extractMarkerDropData, extractNotebookCellOutputDropData, extractSymbolDropData } from '../../../../../platform/dnd/browser/dnd.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IThemeService, Themable } from '../../../../../platform/theme/common/themeService.js';
 import { ISharedWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
@@ -28,6 +29,7 @@ import { IChatAttachmentResolveService, ImageTransferData } from '../attachments
 import { isCrossAgentHostChatReferenceDrop, isSelfChatReferenceDrop, resolveChatReferenceDropEntry } from './chatReferenceDrop.js';
 import { IChatInputStyles } from './input/chatInputPart.js';
 import { convertStringToUInt8Array } from '../chatImageUtils.js';
+import { isPassThroughDrag, registerInputDropTarget } from '../../../../browser/dnd.js';
 
 enum ChatDragAndDropType {
 	CHAT_REFERENCE,
@@ -47,17 +49,10 @@ const URL_REGEX = /^https?:\/\/.+/;
 
 export class ChatDragAndDrop extends Themable {
 
-	private readonly overlays: Map<HTMLElement, { overlay: HTMLElement; disposable: IDisposable }> = new Map();
+	private readonly overlays: Map<HTMLElement, { overlay: HTMLElement; disposable: IDisposable; observer: DragAndDropObserver }> = new Map();
 	private overlayText?: HTMLElement;
 	private overlayTextBackground: string = '';
 	private disableOverlay: boolean = false;
-
-	/**
-	 * In-process transfer for a dragged chat reference. Readable during
-	 * `dragover` (unlike the `dataTransfer` mime payload), so the self-reference
-	 * guard can suppress the overlay when a chat is dragged onto its own input.
-	 */
-	private readonly chatReferenceTransfer = LocalSelectionTransfer.getInstance<DraggedChatReferenceIdentifier>();
 
 	constructor(
 		private readonly widgetRef: () => IChatWidget | undefined,
@@ -68,6 +63,7 @@ export class ChatDragAndDrop extends Themable {
 		@ISharedWebContentExtractorService private readonly webContentExtractorService: ISharedWebContentExtractorService,
 		@ILogService private readonly logService: ILogService,
 		@IChatAttachmentResolveService private readonly chatAttachmentResolveService: IChatAttachmentResolveService,
+		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 	) {
 		super(themeService);
 
@@ -86,11 +82,10 @@ export class ChatDragAndDrop extends Themable {
 		}));
 	}
 
-	addOverlay(target: HTMLElement, overlayContainer: HTMLElement): void {
+	addOverlay(target: HTMLElement, overlayContainer: HTMLElement, inputTarget: HTMLElement = target): void {
 		this.removeOverlay(target);
 
-		const { overlay, disposable } = this.createOverlay(target, overlayContainer);
-		this.overlays.set(target, { overlay, disposable });
+		this.overlays.set(target, this.createOverlay(target, overlayContainer, inputTarget));
 	}
 
 	removeOverlay(target: HTMLElement): void {
@@ -110,14 +105,38 @@ export class ChatDragAndDrop extends Themable {
 		this.disableOverlay = disable;
 	}
 
+	/** Clears feedback and enter/leave tracking after an internally handled drag. */
+	resetDragState(): void {
+		if (this.currentActiveTarget) {
+			this.setOverlay(this.currentActiveTarget, undefined);
+			this.currentActiveTarget = undefined;
+		}
+		for (const { observer } of this.overlays.values()) {
+			observer.reset();
+		}
+	}
+
 	private currentActiveTarget: HTMLElement | undefined = undefined;
-	private createOverlay(target: HTMLElement, overlayContainer: HTMLElement): { overlay: HTMLElement; disposable: IDisposable } {
+	private createOverlay(target: HTMLElement, overlayContainer: HTMLElement, inputTarget: HTMLElement): { overlay: HTMLElement; disposable: IDisposable; observer: DragAndDropObserver } {
 		const overlay = document.createElement('div');
 		overlay.classList.add('chat-dnd-overlay');
 		this.updateOverlayStyles(overlay);
 		overlayContainer.appendChild(overlay);
 
-		const disposable = new DragAndDropObserver(target, {
+		const disposable = new DisposableStore();
+		// The pane around the input, such as a grid that opens what is dropped on it, leaves the input the drags it takes.
+		disposable.add(registerInputDropTarget(inputTarget, {
+			accepts: e => !this.disableOverlay && this.isDragEventSupported(e),
+			area: target,
+			getHint: passThroughModifier => passThroughModifier
+				? localize({ key: 'chatInputDropHintWithModifier', comment: ['{0} is a key, such as Shift. Keep the underscores around it: they show it as a key.'] }, "Drag here or hold __{0}__ to attach to chat", passThroughModifier)
+				: localize('chatInputDropHint', "Drag here to attach to chat"),
+		}));
+		// Whether a pane around the target lets the drag through to it, such as the editor area of a chat editor while the key
+		// to drop into the editor is held. The input takes it then, as with the drag over it, until the drag leaves: also
+		// once the key is released, as the drop still attaches until the pane takes the drag again.
+		let letThrough = false;
+		const observer = disposable.add(new DragAndDropObserver(target, {
 			onDragOver: (e) => {
 				if (this.disableOverlay) {
 					return;
@@ -126,7 +145,11 @@ export class ChatDragAndDrop extends Themable {
 				e.stopPropagation();
 				e.preventDefault();
 
-				if (target === this.currentActiveTarget) {
+				const entering = target !== this.currentActiveTarget;
+				letThrough = (letThrough && !entering) || isPassThroughDrag(target, e);
+				this.layoutOverlay(overlay, overlayContainer, target, inputTarget, e, letThrough);
+
+				if (!entering) {
 					return;
 				}
 
@@ -163,9 +186,40 @@ export class ChatDragAndDrop extends Themable {
 				this.currentActiveTarget = undefined;
 				this.onDrop(e, target);
 			},
-		});
+		}));
 
-		return { overlay, disposable };
+		return { overlay, disposable, observer };
+	}
+
+	/**
+	 * Fits the overlay to what takes the drop: the input while the drag is over it, as the pane around the input, such as
+	 * a grid that opens what is dropped on it, can take the drag elsewhere, and while that pane lets the drag through to
+	 * the target (`letThrough`); else the whole target, whose drags outside the input reach it only where nothing around
+	 * it takes them.
+	 */
+	private layoutOverlay(overlay: HTMLElement, overlayContainer: HTMLElement, target: HTMLElement, inputTarget: HTMLElement, e: DragEvent, letThrough: boolean): void {
+		if (inputTarget === target) {
+			return;
+		}
+
+		const input = inputTarget.getBoundingClientRect();
+		const overInput = e.clientX >= input.left && e.clientX <= input.right && e.clientY >= input.top && e.clientY <= input.bottom;
+		if (input.width <= 0 || input.height <= 0 || !(overInput || letThrough)) {
+			overlay.style.top = overlay.style.left = overlay.style.width = overlay.style.height = overlay.style.borderRadius = '';
+			return;
+		}
+
+		// Measures before it writes, as this runs on every `dragover`
+		const container = overlayContainer.getBoundingClientRect();
+		const top = input.top - container.top - overlayContainer.clientTop;
+		const left = input.left - container.left - overlayContainer.clientLeft;
+		// Shaped as the input is, whose corners depend on where it shows and on what is docked on it.
+		const borderRadius = getWindow(inputTarget).getComputedStyle(inputTarget).borderRadius;
+		overlay.style.top = `${top}px`;
+		overlay.style.left = `${left}px`;
+		overlay.style.width = `${input.width}px`;
+		overlay.style.height = `${input.height}px`;
+		overlay.style.borderRadius = borderRadius;
 	}
 
 	private onDragEnter(e: DragEvent, target: HTMLElement): void {
@@ -183,12 +237,14 @@ export class ChatDragAndDrop extends Themable {
 	}
 
 	private async drop(e: DragEvent): Promise<void> {
+		// Resolving the dropped attachments takes time, so the drop point is mapped while the input is as it was dropped on.
+		const dropPosition = this.attachmentTarget.getDropPosition?.(e.clientX, e.clientY);
 		const contexts = await this.resolveAttachmentsFromDragEvent(e);
 		if (contexts.length === 0) {
 			return;
 		}
 
-		this.attachmentTarget.addAttachments(contexts);
+		this.attachmentTarget.addAttachments(contexts, dropPosition);
 	}
 
 	private updateDropFeedback(e: DragEvent, target: HTMLElement, dropType: ChatDragAndDropType | undefined): void {
@@ -238,39 +294,23 @@ export class ChatDragAndDrop extends Themable {
 	 * - a self-reference (a chat dropped onto its *own* input), and
 	 * - a cross-agent-host reference, which the owning host could never resolve.
 	 *
-	 * The dragged chat's client resource is read from the in-process
-	 * {@link LocalSelectionTransfer} (readable during `dragover`) with the
-	 * `dataTransfer` mime payload as a fallback (readable on `drop`), and compared
-	 * against this input's own client session resource. Both are opaque client
-	 * URIs, so the workbench never touches an AHP chat URI.
+	 * The dragged chat's client resource is read with {@link extractChatReferenceDropData}
+	 * (from the drag in progress during `dragover`, from the `dataTransfer` payload
+	 * on `drop`), and compared against this input's own client session resource.
+	 * Both are opaque client URIs, so the workbench never touches an AHP chat URI.
 	 */
 	private guessChatReferenceDropType(e: DragEvent): ChatDragAndDropType | undefined {
 		const sessionResource = this.widgetRef()?.viewModel?.model.sessionResource;
 		if (!sessionResource || !isAgentHostTarget(getChatSessionType(sessionResource))) {
 			return undefined;
 		}
-		const droppedClientResource = this.getDraggedClientResource(e);
+		const droppedClientResource = extractChatReferenceDropData(e)?.clientResource;
 		if (droppedClientResource !== undefined
 			&& (isSelfChatReferenceDrop(droppedClientResource, sessionResource.toString())
-				|| isCrossAgentHostChatReferenceDrop(droppedClientResource, sessionResource.toString()))) {
+				|| isCrossAgentHostChatReferenceDrop(droppedClientResource, sessionResource.toString(), this.agentHostConnectionsService))) {
 			return undefined;
 		}
 		return ChatDragAndDropType.CHAT_REFERENCE;
-	}
-
-	/**
-	 * The client resource of the dragged chat reference (used only for
-	 * self-reference identity comparison). Prefers the in-process local transfer
-	 * (available during `dragover`), falling back to the `dataTransfer` mime
-	 * payload (only readable on `drop`). Returns `undefined` when neither source
-	 * carries a chat reference.
-	 */
-	private getDraggedClientResource(e: DragEvent): string | undefined {
-		const local = this.chatReferenceTransfer.getData(DraggedChatReferenceIdentifier.prototype);
-		if (local && local.length > 0) {
-			return local[0].clientResource;
-		}
-		return extractChatReferenceDropData(e)?.clientResource;
 	}
 
 	private isDragEventSupported(e: DragEvent): boolean {
@@ -371,7 +411,7 @@ export class ChatDragAndDrop extends Themable {
 			? sessionResource.toString()
 			: undefined;
 
-		const entry = resolveChatReferenceDropEntry(data, ownClientResource);
+		const entry = resolveChatReferenceDropEntry(data, ownClientResource, this.agentHostConnectionsService);
 		return entry ? [entry] : [];
 	}
 

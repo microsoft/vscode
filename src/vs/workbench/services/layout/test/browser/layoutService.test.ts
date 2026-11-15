@@ -46,7 +46,7 @@ suite('LayoutService - floating panel spacing', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('uses density-specific inter-card gaps', () => {
+	test('uses density-specific inter-card and perimeter gaps', () => {
 		const compactLayoutService = new TestLayoutService();
 		compactLayoutService.isModernUICompact = () => true;
 
@@ -54,14 +54,16 @@ suite('LayoutService - floating panel spacing', () => {
 			leadingMargin: FLOATING_PANEL_MARGIN,
 			trailingMargin: FLOATING_PANEL_INNER_MARGIN,
 			gap: FLOATING_PANEL_MARGIN + FLOATING_PANEL_INNER_MARGIN,
+			outerMargin: getFloatingPanelOuterMargin(new TestLayoutService()),
 			compactMargin: getFloatingPanelMargin(compactLayoutService),
 			compactOuterMargin: getFloatingPanelOuterMargin(compactLayoutService),
 		}, {
 			leadingMargin: 4,
 			trailingMargin: 0,
 			gap: 4,
-			compactMargin: COMPACT_FLOATING_PANEL_MARGIN,
-			compactOuterMargin: 4,
+			outerMargin: 4,
+			compactMargin: 0,
+			compactOuterMargin: 0,
 		});
 	});
 });
@@ -130,6 +132,11 @@ suite('LayoutService - getFloatingOuterEdgeOwners', () => {
 			// Visible horizontal (bottom) panel: not part of the vertical order, so it owns no
 			// edge; the secondary side bar still owns the right edge.
 			horizontalPanelVisible: owners(s => { s.panelPosition = Position.BOTTOM; s.visibleParts = new Set([Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART]); }),
+
+			// A chat part sits beside the editor on the side bar's side, inside a vertical panel on that side.
+			chatPartOnly: owners(s => { s.visibleParts = new Set([Parts.CHAT_PART, Parts.EDITOR_PART]); }),
+			chatPartOnlySideBarRight: owners(s => { s.sideBarPosition = Position.RIGHT; s.visibleParts = new Set([Parts.CHAT_PART, Parts.EDITOR_PART]); }),
+			chatPartInsideVerticalPanel: owners(s => { s.panelPosition = Position.LEFT; s.visibleParts = new Set([Parts.PANEL_PART, Parts.CHAT_PART, Parts.EDITOR_PART]); }),
 		};
 
 		assert.deepStrictEqual(actual, {
@@ -145,6 +152,9 @@ suite('LayoutService - getFloatingOuterEdgeOwners', () => {
 			verticalPanelFull: { left: Parts.ACTIVITYBAR_PART, right: Parts.AUXILIARYBAR_PART },
 			maximizedVerticalPanel: { left: Parts.PANEL_PART, right: Parts.PANEL_PART },
 			horizontalPanelVisible: { left: Parts.SIDEBAR_PART, right: Parts.AUXILIARYBAR_PART },
+			chatPartOnly: { left: Parts.CHAT_PART, right: Parts.EDITOR_PART },
+			chatPartOnlySideBarRight: { left: Parts.EDITOR_PART, right: Parts.CHAT_PART },
+			chatPartInsideVerticalPanel: { left: Parts.PANEL_PART, right: Parts.EDITOR_PART },
 		});
 	});
 });
@@ -193,11 +203,14 @@ suite('LayoutService - getFloatingPaneCompositeHorizontalMargins', () => {
 			compactSecondarySideBarOnly: margins(Parts.AUXILIARYBAR_PART, [Parts.AUXILIARYBAR_PART], Position.LEFT, true),
 			compactPrimarySideBarLeft: margins(Parts.SIDEBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART], Position.LEFT, true),
 			compactPrimarySideBarRight: margins(Parts.SIDEBAR_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART], Position.RIGHT, true),
+			justifiedPanelSideBarRight: margins(Parts.PANEL_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.RIGHT, false, 'justify'),
+			rightAlignedPanelSideBarRight: margins(Parts.PANEL_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.RIGHT, false, 'right'),
+			leftAlignedPanelSideBarRight: margins(Parts.PANEL_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.RIGHT, false, 'left'),
+			justifiedPanelSideBarHidden: margins(Parts.PANEL_PART, [Parts.ACTIVITYBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.RIGHT, false, 'justify'),
 			compactJustifiedPanel: margins(Parts.PANEL_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.LEFT, true, 'justify'),
 			compactJustifiedPanelSideBarRight: margins(Parts.PANEL_PART, [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART], Position.RIGHT, true, 'justify'),
 		}, {
-			// The default density uses the same 4px for the window-edge perimeter as for the
-			// gap between cards; only compact distinguishes them.
+			// The default density keeps its 4px perimeter and inter-card gaps.
 			activityBarLeft: { left: 4, right: 4 },
 			activityBarRight: { left: 4, right: 0 },
 			secondarySideBarOnly: { left: 4, right: 4 },
@@ -207,6 +220,10 @@ suite('LayoutService - getFloatingPaneCompositeHorizontalMargins', () => {
 			compactSecondarySideBarOnly: { left: COMPACT_FLOATING_PANEL_OUTER_MARGIN, right: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
 			compactPrimarySideBarLeft: { left: COMPACT_FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
 			compactPrimarySideBarRight: { left: COMPACT_FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
+			justifiedPanelSideBarRight: { left: FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_MARGIN },
+			rightAlignedPanelSideBarRight: { left: FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_MARGIN },
+			leftAlignedPanelSideBarRight: { left: FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
+			justifiedPanelSideBarHidden: { left: FLOATING_PANEL_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
 			compactJustifiedPanel: { left: COMPACT_FLOATING_PANEL_MARGIN, right: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
 			compactJustifiedPanelSideBarRight: { left: COMPACT_FLOATING_PANEL_OUTER_MARGIN, right: FLOATING_PANEL_INNER_MARGIN },
 		});
@@ -359,7 +376,7 @@ suite('LayoutService - getFloatingPaneCompositeVerticalMargins', () => {
 		});
 	});
 
-	test('compact density keeps internal seams flush and reserves the outer cluster gutter', () => {
+	test('compact density keeps internal seams and window edges flush', () => {
 		assert.deepStrictEqual({
 			atWindowEdges: margins(Parts.PANEL_PART, service => {
 				service.modernUICompact = true;
@@ -378,9 +395,9 @@ suite('LayoutService - getFloatingPaneCompositeVerticalMargins', () => {
 				service.visibleParts.add(Parts.PANEL_PART);
 			}),
 		}, {
-			atWindowEdges: { top: COMPACT_FLOATING_PANEL_OUTER_MARGIN, bottom: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
-			betweenTitleAndStatusBars: { top: FLOATING_PANEL_INNER_MARGIN, bottom: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
-			betweenEditorAndStatusBar: { top: COMPACT_FLOATING_PANEL_MARGIN, bottom: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
+			atWindowEdges: { top: 0, bottom: 0 },
+			betweenTitleAndStatusBars: { top: 0, bottom: 0 },
+			betweenEditorAndStatusBar: { top: 0, bottom: 0 },
 		});
 	});
 });
@@ -435,7 +452,7 @@ suite('LayoutService - getFloatingEditorVerticalMargins', () => {
 		});
 	});
 
-	test('compact density attaches to title chrome and preserves the lower perimeter gutter', () => {
+	test('compact density sits flush against window chrome', () => {
 		assert.deepStrictEqual({
 			betweenTitleAndStatusBars: margins(service => {
 				service.modernUICompact = true;
@@ -446,8 +463,8 @@ suite('LayoutService - getFloatingEditorVerticalMargins', () => {
 				service.visibleParts.delete(Parts.STATUSBAR_PART);
 			}),
 		}, {
-			betweenTitleAndStatusBars: { top: FLOATING_PANEL_INNER_MARGIN, bottom: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
-			atWindowEdges: { top: COMPACT_FLOATING_PANEL_OUTER_MARGIN, bottom: COMPACT_FLOATING_PANEL_OUTER_MARGIN },
+			betweenTitleAndStatusBars: { top: 0, bottom: 0 },
+			atWindowEdges: { top: 0, bottom: 0 },
 		});
 	});
 });

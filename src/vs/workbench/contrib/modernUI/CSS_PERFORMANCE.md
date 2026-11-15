@@ -101,7 +101,7 @@ profile, window sizes, iteration count, and operation order.
 Run it from the repository root:
 
 ```bash
-npm run perf:css -- \
+pnpm run perf:css \
   --skip-prelaunch \
   --output .build/css-performance/run
 ```

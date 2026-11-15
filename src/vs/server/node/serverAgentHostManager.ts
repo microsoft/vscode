@@ -3,14 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { realpath } from 'fs/promises';
 import { raceTimeout } from '../../base/common/async.js';
 import { Event } from '../../base/common/event.js';
+import { isObject, isStringArray } from '../../base/common/types.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../base/common/lifecycle.js';
 import { ProxyChannel } from '../../base/parts/ipc/common/ipc.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../../platform/agentHost/common/agent.js';
 import { reportAgentHostProcessError } from '../../platform/agentHost/common/agentHostProcessTelemetry.js';
+import type { IAgentHostProcessExitEvent } from '../../platform/agentHost/common/agentHostProcessExit.js';
 import { AgentHostLaunchKind } from '../../platform/agentHost/common/agentHostTelemetry.js';
-import { AgentHostIpcChannels, IAgentService } from '../../platform/agentHost/common/agentService.js';
+import { AgentHostIpcChannels, IAgentService, IAgentHostManagementService, IMissionControlOptions } from '../../platform/agentHost/common/agentService.js';
+import { reviveConnectionDiagnosticError } from '../../platform/agentHost/common/connectionDiagnostics.js';
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
 import { ILogService, ILoggerService } from '../../platform/log/common/log.js';
 import { RemoteLoggerChannelClient } from '../../platform/log/common/logIpc.js';
@@ -33,10 +37,73 @@ export interface IServerAgentHostManager {
 
 	/** Starts the agent host if necessary and resolves after its IPC connection is established. */
 	ensureStarted(): Promise<void>;
+	shutdown(): Promise<void>;
 }
 
 export interface IServerAgentHostManagerOptions {
 	readonly startMode?: 'eager' | 'lazy';
+	readonly githubEnvironment?: IServerGithubEnvironmentOptions;
+	readonly onGithubEnvironmentReady?: (environmentId: string) => void;
+	readonly onRestartLimitReached?: () => void;
+}
+
+interface IServerGithubEnvironmentOptions extends IMissionControlOptions {
+	/** Automatically discovered grants that may be omitted when unavailable. */
+	readonly optionalRoots?: readonly string[];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return isObject(value);
+}
+
+/** Consumes the CLI's trusted bootstrap credential before spawning child processes. */
+export function readGithubEnvironmentOptions(env: NodeJS.ProcessEnv): IServerGithubEnvironmentOptions | undefined {
+	const value = env.VSCODE_CLI_GITHUB_ENVIRONMENT_OPTIONS;
+	delete env.VSCODE_CLI_GITHUB_ENVIRONMENT_OPTIONS;
+	if (value === undefined) {
+		return undefined;
+	}
+	let options: unknown;
+	try {
+		options = JSON.parse(value);
+	} catch (error) {
+		if (error instanceof SyntaxError) {
+			throw new Error('Invalid GitHub environment bootstrap options');
+		}
+		throw error;
+	}
+	if (!isRecord(options)) {
+		throw new Error('Invalid GitHub environment bootstrap options');
+	}
+	const name = options.name;
+	const projects = options.projects;
+	const defaultDirectory = options.defaultDirectory;
+	const roots = options.roots;
+	const optionalRoots = options.optionalRoots;
+	if (options.baseUrl !== 'https://api.github.com' || options.live !== true
+		|| typeof options.accountId !== 'string' || !/^\d+$/.test(options.accountId)
+		|| typeof options.credential !== 'string' || !options.credential.trim()
+		|| !isStringArray(roots) || roots.length === 0 || roots.some(root => !root)
+		|| (optionalRoots !== undefined && (!isStringArray(optionalRoots) || optionalRoots.some(root => !root)))
+		|| (projects !== undefined && (!isStringArray(projects) || projects.some(project => !project)))
+		|| (defaultDirectory !== undefined && (typeof defaultDirectory !== 'string' || !defaultDirectory))
+		|| (name !== undefined && (typeof name !== 'string' || !name.trim()))) {
+		throw new Error('Invalid GitHub environment bootstrap options');
+	}
+	if (optionalRoots?.some(root => !roots.includes(root) || projects?.includes(root) || root === defaultDirectory)) {
+		throw new Error('Invalid optional GitHub environment roots');
+	}
+	return {
+		baseUrl: options.baseUrl,
+		accountId: options.accountId,
+		credential: options.credential,
+		roots,
+		...(optionalRoots !== undefined ? { optionalRoots } : {}),
+		...(projects !== undefined ? { projects } : {}),
+		...(defaultDirectory !== undefined ? { defaultDirectory } : {}),
+		name,
+		live: true,
+	};
 }
 
 /**
@@ -46,6 +113,7 @@ export interface IServerAgentHostManagerOptions {
  */
 interface IConnectionTrackerService {
 	readonly onDidChangeConnectionCount: Event<number>;
+	readonly onDidChangeGitHubEnvironmentRegistered: Event<boolean>;
 	waitForConfiguredWebSocketServer(): Promise<void>;
 }
 
@@ -64,26 +132,27 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 	private readonly _connectionStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _startMode: 'eager' | 'lazy';
 
-	/** Lifetime token held while sessions are active or standalone WebSocket clients are connected. */
+	/** Lifetime token held while sessions are active, standalone WebSocket clients are connected, or a client registered a GitHub environment. */
 	private readonly _lifetimeToken = this._register(new MutableDisposable());
 
 	private _hasActiveSessions = false;
 	private _connectionCount = 0;
+	private _githubEnvironmentRegistered = false;
 
 	constructor(
 		private readonly _starter: IAgentHostStarter,
-		options: IServerAgentHostManagerOptions = {},
+		private readonly _options: IServerAgentHostManagerOptions = {},
 		@ILogService private readonly _logService: ILogService,
 		@ILoggerService private readonly _loggerService: ILoggerService,
 		@IServerLifetimeService private readonly _serverLifetimeService: IServerLifetimeService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
-		this._startMode = options.startMode ?? 'eager';
+		this._startMode = _options.startMode ?? 'eager';
 		this._register(this._starter);
 		this._register(this._serverLifetimeService.onWillShutdown(event => {
 			this._shuttingDown = true;
-			event.join(this._shutdown());
+			event.join(this.shutdown());
 		}));
 		this._register(this._serverLifetimeService.onDidAbortShutdown(() => {
 			if (this._startMode === 'eager') {
@@ -139,6 +208,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 					this._logService.error(`ServerAgentHostManager: agent host failed to start, giving up after ${Constants.MaxRestarts} restarts`, error);
 					// A future explicit request gets a fresh crash-retry budget.
 					this._restartCount = 0;
+					this._options.onRestartLimitReached?.();
 					throw error;
 				}
 
@@ -159,6 +229,18 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 		this._trackActiveSessions(connection);
 		try {
 			await this._trackClientConnections(connection);
+			if (this._options.githubEnvironment) {
+				const management = ProxyChannel.toService<IAgentHostManagementService>(connection.client.getChannel(AgentHostIpcChannels.Management));
+				const result = await management.configureMissionControl(await this._getGithubEnvironmentOptions(this._options.githubEnvironment));
+				if (result) {
+					throw reviveConnectionDiagnosticError(result.error);
+				}
+				const environmentId = await management.getMissionControlEnvironmentId();
+				if (!environmentId) {
+					throw new Error('GitHub environment registration did not return an environment ID');
+				}
+				this._options.onGithubEnvironmentReady?.(environmentId);
+			}
 		} catch (error) {
 			connection.store.dispose();
 			throw error;
@@ -183,13 +265,31 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 		this._connectionStore.value = connection.store;
 	}
 
-	private _handleUnexpectedExit(connection: IAgentHostConnection, e: { code: number; signal: string }): void {
+	private async _getGithubEnvironmentOptions(options: IServerGithubEnvironmentOptions): Promise<IMissionControlOptions> {
+		const { optionalRoots, ...configuration } = options;
+		const roots: string[] = [];
+		for (const root of configuration.roots) {
+			if (optionalRoots?.includes(root)) {
+				try {
+					await realpath(root);
+				} catch (error) {
+					this._logService.warn('ServerAgentHostManager: skipping unavailable automatic GitHub environment root', root, error);
+					continue;
+				}
+			}
+			roots.push(root);
+		}
+		return { ...configuration, roots };
+	}
+
+	private _handleUnexpectedExit(connection: IAgentHostConnection, e: IAgentHostProcessExitEvent): void {
 		if (this._store.isDisposed || this._connection !== connection) {
 			return;
 		}
 
 		this._hasActiveSessions = false;
 		this._connectionCount = 0;
+		this._githubEnvironmentRegistered = false;
 		this._lifetimeToken.clear();
 
 		const willRestart = this._restartCount < Constants.MaxRestarts;
@@ -199,6 +299,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 			code: e.code,
 			restartCount: this._restartCount,
 			willRestart,
+			exitDiagnostics: e.diagnostics,
 		});
 		this._connection = undefined;
 		this._connectionStore.clear();
@@ -211,13 +312,16 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 			this._logService.error(`ServerAgentHostManager: agent host terminated with code ${e.code}, giving up after ${Constants.MaxRestarts} restarts`);
 			// A future explicit request gets a fresh crash-retry budget.
 			this._restartCount = 0;
+			this._options.onRestartLimitReached?.();
 		}
 	}
 
-	private async _shutdown(): Promise<void> {
+	async shutdown(): Promise<void> {
+		this._shuttingDown = true;
 		try {
-			await raceTimeout(this._shutdownGracefully(), Constants.ShutdownTimeoutMs, () => {
-				this._logService.warn(`ServerAgentHostManager: agent host did not shut down within ${Constants.ShutdownTimeoutMs}ms; terminating it`);
+			const shutdownTimeout = this._options.githubEnvironment ? 20_000 : Constants.ShutdownTimeoutMs;
+			await raceTimeout(this._shutdownGracefully(), shutdownTimeout, () => {
+				this._logService.warn(`ServerAgentHostManager: agent host did not shut down within ${shutdownTimeout}ms; terminating it`);
 			});
 		} catch (error) {
 			this._logService.error('ServerAgentHostManager: failed to shut down agent host gracefully', error);
@@ -261,11 +365,15 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 			this._connectionCount = count;
 			this._updateLifetimeToken();
 		}));
+		connection.store.add(connectionTracker.onDidChangeGitHubEnvironmentRegistered(registered => {
+			this._githubEnvironmentRegistered = registered;
+			this._updateLifetimeToken();
+		}));
 		await connectionTracker.waitForConfiguredWebSocketServer();
 	}
 
 	private _updateLifetimeToken(): void {
-		if (this._hasActiveSessions || this._connectionCount > 0) {
+		if (this._hasActiveSessions || this._connectionCount > 0 || this._githubEnvironmentRegistered) {
 			this._lifetimeToken.value ??= this._serverLifetimeService.active('AgentHost');
 		} else {
 			this._lifetimeToken.clear();

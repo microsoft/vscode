@@ -7,14 +7,13 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
 import { GitHubHostCapabilities, IGitHubEndpointProvider } from './githubTypes.js';
 import { GitHubCredential } from './githubCredentialService.js';
-import { GitHubBackoffPolicy, gitHubBackoffDelay } from './githubBackoff.js';
-import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
+import { BackoffPolicy, backoffDelay } from './backoff.js';
+import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
 import { GitHubGraphQLError, IGitHubTransport } from './githubTransport.js';
 
 const unavailableCapabilities: GitHubHostCapabilities = {
 	graphql: false,
 	mergeQueue: false,
-	internalMergeStatus: false,
 	reviewThreads: false,
 	checkContextRequiredness: false,
 };
@@ -61,7 +60,7 @@ interface ICachedCapabilities {
  * nothing throttles it: a host that always answers with an unexpected error
  * would pay one extra introspection query per poll forever.
  */
-const defaultProbeBackoff: GitHubBackoffPolicy = {
+const defaultProbeBackoff: BackoffPolicy = {
 	immediateRetries: 0,
 	base: 60_000,
 	maximum: 900_000,
@@ -82,33 +81,32 @@ interface IDegradedCapabilities {
 }
 
 export interface IGitHubCapabilities {
-	getCapabilities(credential: GitHubCredential, enterpriseVersion: string | undefined, signal: AbortSignal): Promise<GitHubHostCapabilities>;
-	clear(): void;
+	getCapabilities(credential: GitHubCredential, signal: AbortSignal): Promise<GitHubHostCapabilities>;
 }
 
 export class GitHubHostCapabilitiesService extends Disposable implements IGitHubCapabilities {
 
 	private readonly _cache = new Map<string, ICachedCapabilities>();
 	private readonly _degraded = new Map<string, IDegradedCapabilities>();
-	private readonly _scheduler: IGitHubScheduler;
+	private readonly _scheduler: IRequestScheduler;
 
 	constructor(
-		scheduler: IGitHubScheduler | undefined,
-		private readonly _policy: GitHubBackoffPolicy = defaultProbeBackoff,
+		scheduler: IRequestScheduler | undefined,
+		private readonly _policy: BackoffPolicy = defaultProbeBackoff,
 		private readonly _transport: IGitHubTransport,
 		private readonly _endpointService: IGitHubEndpointProvider,
 		private readonly _logService?: ILogService,
 	) {
 		super();
-		this._scheduler = scheduler ?? systemGitHubScheduler;
-		this._register(this._endpointService.onDidChange(() => this.clear()));
+		this._scheduler = scheduler ?? systemRequestScheduler;
+		this._register(this._endpointService.onDidChange(() => this._clear()));
 	}
 
-	getCapabilities(credential: GitHubCredential, enterpriseVersion: string | undefined, signal: AbortSignal): Promise<GitHubHostCapabilities> {
+	getCapabilities(credential: GitHubCredential, signal: AbortSignal): Promise<GitHubHostCapabilities> {
 		if (signal.aborted) {
 			return Promise.reject(signal.reason);
 		}
-		const key = `${credential.account.host.toLowerCase()}\x00${enterpriseVersion ?? ''}`;
+		const key = credential.account.host.toLowerCase();
 		const degraded = this._degraded.get(key);
 		if (degraded && degraded.generation !== credential.generation) {
 			// A new credential has never been refused, so it is probed at once
@@ -121,7 +119,7 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 		}
 		let cached = this._cache.get(key);
 		if (!cached) {
-			this._logService?.debug(`[GitHubHostCapabilitiesService] Probing capabilities for ${credential.account.host}${enterpriseVersion ? ` (${enterpriseVersion})` : ''}`);
+			this._logService?.debug(`[GitHubHostCapabilitiesService] Probing capabilities for ${credential.account.host}`);
 			const controller = new AbortController();
 			const entry: ICachedCapabilities = {
 				controller,
@@ -152,7 +150,7 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 			cached = entry;
 			this._cache.set(key, cached);
 		} else {
-			this._logService?.trace(`[GitHubHostCapabilitiesService] Reusing capability probe for ${credential.account.host}${enterpriseVersion ? ` (${enterpriseVersion})` : ''}`);
+			this._logService?.trace(`[GitHubHostCapabilitiesService] Reusing capability probe for ${credential.account.host}`);
 		}
 		cached.waiters++;
 		return waitForCapabilities(cached.promise, signal).finally(() => {
@@ -164,7 +162,7 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 		});
 	}
 
-	clear(): void {
+	private _clear(): void {
 		if (this._cache.size > 0) {
 			this._logService?.debug(`[GitHubHostCapabilitiesService] Clearing ${this._cache.size} cached capability probe(s)`);
 		}
@@ -176,7 +174,7 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 	}
 
 	override dispose(): void {
-		this.clear();
+		this._clear();
 		super.dispose();
 	}
 
@@ -185,7 +183,7 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 		// Only failures the same credential kept hitting escalate; a fresh one
 		// starts over so it is retried promptly.
 		const attempts = (previous?.generation === credential.generation ? previous.attempts : 0) + 1;
-		const delay = gitHubBackoffDelay(this._policy, this._scheduler, attempts);
+		const delay = backoffDelay(this._policy, this._scheduler, attempts);
 		this._degraded.set(key, { capabilities, attempts, retryAt: this._scheduler.now() + delay, generation: credential.generation });
 		this._logService?.debug(`[GitHubHostCapabilitiesService] Reusing degraded capabilities for ${credential.account.host} for ${delay}ms after ${attempts} unusable probe(s)`);
 	}
@@ -199,6 +197,7 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 			{},
 			AbortSignal.any([signal, credential.signal]),
 			'enrichment',
+			{ caller: 'github.capabilities', domain: 'capabilities' },
 		);
 		if (response.errors.length > 0) {
 			const schemaValidation = response.errors.every(isSchemaValidationError);
@@ -225,7 +224,6 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 			capabilities: {
 				graphql: true,
 				mergeQueue: pullRequestFields.has('mergeQueueEntry') && repositoryFields.has('mergeQueue'),
-				internalMergeStatus: false,
 				reviewThreads: pullRequestFields.has('reviewThreads'),
 				checkContextRequiredness: typeof response.data.requirableByPullRequest?.name === 'string',
 			},

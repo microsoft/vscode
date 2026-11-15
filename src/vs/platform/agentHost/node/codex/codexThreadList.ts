@@ -41,7 +41,7 @@ export function buildThreadListPageRequest(cursor: string | undefined): IThreadL
 
 /**
  * Page through `thread/list` until the server stops handing back a cursor.
- * `onTruncated` reports that the page cap was hit with more results pending.
+ * `onTruncated` reports a page cap or repeated cursor with more results pending.
  */
 export async function collectThreadListPages<T>(
 	fetchPage: (request: IThreadListPageRequest) => Promise<IThreadListPage<T>>,
@@ -55,7 +55,11 @@ export async function collectThreadListPages<T>(
 		items.push(...response.data);
 		const nextCursor = response.nextCursor ?? undefined;
 		// A server that keeps handing back the same cursor would loop forever.
-		if (nextCursor === undefined || seenCursors.has(nextCursor)) {
+		if (nextCursor === undefined) {
+			return items;
+		}
+		if (seenCursors.has(nextCursor)) {
+			onTruncated?.(items.length);
 			return items;
 		}
 		seenCursors.add(nextCursor);

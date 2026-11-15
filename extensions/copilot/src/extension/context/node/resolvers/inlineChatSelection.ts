@@ -6,7 +6,6 @@
 
 import type * as vscode from 'vscode';
 import { TextDocumentSnapshot } from '../../../../platform/editing/common/textDocumentSnapshot';
-import { TreeSitterOffsetRange } from '../../../../platform/parser/node/nodes';
 import { ITabsAndEditorsService } from '../../../../platform/tabs/common/tabsAndEditorsService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { ILanguage, getLanguage } from '../../../../util/common/languages';
@@ -125,47 +124,6 @@ export function processCodeAroundSelection(
 	}
 	aboveInfo.isComplete = aboveLineIndex < constraints.minimumLineIndex; // all lines above are included
 	belowInfo.isComplete = belowLineIndex > constraints.maximumLineIndex; // all lines below are included
-}
-
-export function removeBodiesOutsideRange(
-	src: string,
-	functionBodies: TreeSitterOffsetRange[],
-	rangeToMaintain: { startOffset: number; endOffset: number },
-	replaceBodyWith: string
-): { outlineAbove: string; outlineBelow: string } {
-	// remove nodes that are outside the range `rangeToMaintain`
-	// by copying undeleted chunks of `src` into `above` and `below`
-	// depending on position of deleted chunk relative to `rangeToMaintain`
-
-	let lastOffsetAbove = 0;
-	let outlineAbove = '';
-
-	let lastOffsetBelow = rangeToMaintain.endOffset;
-	let outlineBelow = '';
-
-	for (const rangeToDelete of functionBodies) {
-		if (rangeToDelete.endIndex < rangeToMaintain.startOffset) {
-			// range is above - delete
-
-			outlineAbove += src.substring(lastOffsetAbove, rangeToDelete.startIndex);
-			outlineAbove += replaceBodyWith;
-			lastOffsetAbove = rangeToDelete.endIndex;
-		} else if (rangeToDelete.startIndex > rangeToMaintain.endOffset) {
-			// range is below - delete
-
-			outlineBelow += src.substring(lastOffsetBelow, rangeToDelete.startIndex);
-			outlineBelow += replaceBodyWith;
-			lastOffsetBelow = rangeToDelete.endIndex;
-		} else {
-			// intersection - do not delete
-			continue;
-		}
-	}
-
-	outlineAbove += src.substring(lastOffsetAbove, rangeToMaintain.startOffset);
-	outlineBelow += src.substring(lastOffsetBelow, src.length);
-
-	return { outlineAbove, outlineBelow };
 }
 
 export function generateNotebookCellContext(

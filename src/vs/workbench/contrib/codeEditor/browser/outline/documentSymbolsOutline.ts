@@ -21,9 +21,8 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IPosition } from '../../../../../editor/common/core/position.js';
-import { ScrollType } from '../../../../../editor/common/editorCommon.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { IEditorOptions, TextEditorSelectionRevealType } from '../../../../../platform/editor/common/editor.js';
+import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { IDataSource } from '../../../../../base/browser/ui/tree/tree.js';
@@ -33,6 +32,9 @@ import { IMarkerDecorationsService } from '../../../../../editor/common/services
 import { MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { codeEditorDocumentSymbolAdapter, customTextEditorDocumentSymbolAdapter, IDocumentSymbolEditor } from './documentSymbolEditor.js';
+import { CustomEditorInput } from '../../../customEditor/browser/customEditorInput.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
 type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -41,7 +43,7 @@ class DocumentSymbolBreadcrumbsSource implements IBreadcrumbsDataSource<Document
 	private _breadcrumbs: IBreadcrumbsOutlineElement<DocumentSymbolItem>[] = [];
 
 	constructor(
-		private readonly _editor: ICodeEditor,
+		private readonly _editor: IDocumentSymbolEditor,
 		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 	) { }
 
@@ -107,7 +109,7 @@ class DocumentSymbolBreadcrumbsSource implements IBreadcrumbsDataSource<Document
 }
 
 
-class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
+export class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _onDidChange = this._disposables.add(new Emitter<OutlineChangeEvent>());
@@ -133,11 +135,10 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 	}
 
 	constructor(
-		private readonly _editor: ICodeEditor,
+		private readonly _editor: IDocumentSymbolEditor,
 		target: OutlineTarget,
 		firstLoadBarrier: Barrier,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IOutlineModelService private readonly _outlineModelService: IOutlineModelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
@@ -204,7 +205,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		}));
 
 		// stop when editor dies
-		this._disposables.add(this._editor.onDidDispose(() => this._outlineDisposables.clear()));
+		this._disposables.add(this._editor.onDidDispose(() => this.dispose()));
 
 		// initial load
 		this._createOutline().finally(() => firstLoadBarrier.open());
@@ -228,14 +229,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		if (!model || !(entry instanceof OutlineElement)) {
 			return;
 		}
-		await this._codeEditorService.openCodeEditor({
-			resource: model.uri,
-			options: {
-				...options,
-				selection: select ? entry.symbol.range : Range.collapseToStart(entry.symbol.selectionRange),
-				selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport,
-			}
-		}, this._editor, sideBySide);
+		await this._editor.reveal(model.uri, entry.symbol.range, select ? entry.symbol.range : Range.collapseToStart(entry.symbol.selectionRange), options, sideBySide);
 	}
 
 	preview(entry: DocumentSymbolItem): IDisposable {
@@ -243,26 +237,11 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			return Disposable.None;
 		}
 
-		const { symbol } = entry;
-		this._editor.revealRangeInCenterIfOutsideViewport(symbol.range, ScrollType.Smooth);
-		const decorationsCollection = this._editor.createDecorationsCollection([{
-			range: symbol.range,
-			options: {
-				description: 'document-symbols-outline-range-highlight',
-				className: 'rangeHighlight',
-				isWholeLine: true
-			}
-		}]);
-		return toDisposable(() => decorationsCollection.clear());
+		return this._editor.preview(entry.symbol.range);
 	}
 
 	captureViewState(): IDisposable {
-		const viewState = this._editor.saveViewState();
-		return toDisposable(() => {
-			if (viewState) {
-				this._editor.restoreViewState(viewState);
-			}
-		});
+		return this._editor.captureViewState();
 	}
 
 	private async _createOutline(contentChangeEvent?: IModelContentChangedEvent): Promise<void> {
@@ -272,10 +251,10 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			this._setOutlineModel(undefined);
 		}
 
-		if (!this._editor.hasModel()) {
+		const buffer = this._editor.getModel();
+		if (!buffer) {
 			return;
 		}
-		const buffer = this._editor.getModel();
 		if (!this._languageFeaturesService.documentSymbolProvider.has(buffer)) {
 			return;
 		}
@@ -294,7 +273,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 				return;
 			}
 
-			if (TreeElement.empty(model) || !this._editor.hasModel()) {
+			if (TreeElement.empty(model) || !this._editor.getModel()) {
 				// empty -> no outline elements
 				this._setOutlineModel(model);
 				return;
@@ -343,9 +322,9 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 					// outline filtering, problems on/off
 					this._onDidChange.fire({});
 				}
-				if (e.affectsConfiguration('breadcrumbs') && this._editor.hasModel()) {
+				if (e.affectsConfiguration('breadcrumbs')) {
 					// breadcrumbs filtering
-					this._breadcrumbsDataSource.update(model, this._editor.getPosition());
+					this._updateBreadcrumbs(model);
 					this._onDidChange.fire({});
 				}
 			}));
@@ -363,8 +342,8 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			// feature: update active when cursor changes
 			this._outlineDisposables.add(this._editor.onDidChangeCursorPosition(_ => {
 				timeoutTimer.cancelAndSet(() => {
-					if (!buffer.isDisposed() && versionIdThen === buffer.getVersionId() && this._editor.hasModel()) {
-						this._breadcrumbsDataSource.update(model, this._editor.getPosition());
+					if (!buffer.isDisposed() && versionIdThen === buffer.getVersionId() && this._editor.getModel()) {
+						this._updateBreadcrumbs(model);
 						this._onDidChange.fire({ affectOnlyActiveElement: true });
 					}
 				}, 150);
@@ -395,17 +374,25 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 	}
 
 	private _setOutlineModel(model: OutlineModel | undefined) {
-		const position = this._editor.getPosition();
-		if (!position || !model) {
+		if (!model) {
 			this._outlineModel = undefined;
 			this._breadcrumbsDataSource.clear();
 		} else {
 			if (!this._outlineModel?.merge(model)) {
 				this._outlineModel = model;
 			}
-			this._breadcrumbsDataSource.update(model, position);
+			this._updateBreadcrumbs(model);
 		}
 		this._onDidChange.fire({});
+	}
+
+	private _updateBreadcrumbs(model: OutlineModel): void {
+		const position = this._editor.getPosition();
+		if (position) {
+			this._breadcrumbsDataSource.update(model, position);
+		} else {
+			this._breadcrumbsDataSource.clear();
+		}
 	}
 }
 
@@ -414,7 +401,10 @@ class DocumentSymbolsOutlineCreator implements IOutlineCreator<IEditorPane, Docu
 	readonly dispose: () => void;
 
 	constructor(
-		@IOutlineService outlineService: IOutlineService
+		@IOutlineService outlineService: IOutlineService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		const reg = outlineService.registerOutlineCreator(this);
 		this.dispose = () => reg.dispose();
@@ -422,10 +412,10 @@ class DocumentSymbolsOutlineCreator implements IOutlineCreator<IEditorPane, Docu
 
 	matches(candidate: IEditorPane): candidate is IEditorPane {
 		const ctrl = candidate.getControl();
-		return isCodeEditor(ctrl) || isDiffEditor(ctrl);
+		return isCodeEditor(ctrl) || isDiffEditor(ctrl) || (candidate.input instanceof CustomEditorInput && !!candidate.input.navigation);
 	}
 
-	async createOutline(pane: IEditorPane, target: OutlineTarget, _token: CancellationToken): Promise<IOutline<DocumentSymbolItem> | undefined> {
+	async createOutline(pane: IEditorPane, target: OutlineTarget, token: CancellationToken): Promise<IOutline<DocumentSymbolItem> | undefined> {
 		const control = pane.getControl();
 		let editor: ICodeEditor | undefined;
 		if (isCodeEditor(control)) {
@@ -433,12 +423,22 @@ class DocumentSymbolsOutlineCreator implements IOutlineCreator<IEditorPane, Docu
 		} else if (isDiffEditor(control)) {
 			editor = control.getModifiedEditor();
 		}
-		if (!editor) {
+		const input = pane.input instanceof CustomEditorInput ? pane.input : undefined;
+		const adapter = editor
+			? codeEditorDocumentSymbolAdapter(editor, this._codeEditorService)
+			: input?.navigation ? customTextEditorDocumentSymbolAdapter(input.navigation, input.viewType, this._editorService) : undefined;
+		if (!adapter || token.isCancellationRequested) {
 			return undefined;
 		}
 		const firstLoadBarrier = new Barrier();
-		const result = editor.invokeWithinContext(accessor => accessor.get(IInstantiationService).createInstance(DocumentSymbolsOutline, editor, target, firstLoadBarrier));
-		await firstLoadBarrier.wait();
+		const result = editor
+			? editor.invokeWithinContext(accessor => accessor.get(IInstantiationService).createInstance(DocumentSymbolsOutline, adapter, target, firstLoadBarrier))
+			: this._instantiationService.createInstance(DocumentSymbolsOutline, adapter, target, firstLoadBarrier);
+		await raceCancellation(firstLoadBarrier.wait(), token);
+		if (token.isCancellationRequested) {
+			result.dispose();
+			return undefined;
+		}
 		return result;
 	}
 }

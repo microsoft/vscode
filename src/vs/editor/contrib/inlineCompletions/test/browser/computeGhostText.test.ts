@@ -9,6 +9,7 @@ import { Range } from '../../../../common/core/range.js';
 import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { computeGhostText } from '../../browser/model/computeGhostText.js';
+import '../../../../common/core/text/positionToOffset.js';
 
 suite('computeGhostText', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

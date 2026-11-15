@@ -6,9 +6,9 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IObservable } from '../../../base/common/observable.js';
-import { GitHubAccountHandle, GitHubRequestErrorKind } from './githubTypes.js';
+import { AccountHandle, RequestErrorKind } from './types.js';
 
-export interface PullRequestRef extends GitHubAccountHandle {
+export interface PullRequestRef extends AccountHandle {
 	readonly owner: string;
 	readonly repo: string;
 	readonly number: number;
@@ -16,20 +16,19 @@ export interface PullRequestRef extends GitHubAccountHandle {
 
 export type PullRequestPriority = 'background' | 'visible' | 'interactive';
 
+export type PullRequestMergeMethod = 'MERGE' | 'SQUASH' | 'REBASE';
+
 export type PullRequestFragment =
 	| 'core'
 	| 'topLevelComments'
 	| 'submittedReviews'
-	| 'inlineComments'
 	| 'reviewThreads'
 	| 'checks'
-	| 'mergeability'
-	| 'participants';
+	| 'mergeability';
 
 export interface PullRequestConversationInterests {
 	readonly topLevelComments?: boolean;
 	readonly submittedReviews?: boolean;
-	readonly inlineComments?: boolean;
 	readonly reviewThreads?: boolean;
 	readonly includeBodies?: boolean;
 }
@@ -44,7 +43,6 @@ export interface PullRequestInterests {
 	readonly conversation?: PullRequestConversationInterests;
 	readonly checks?: PullRequestChecksInterests;
 	readonly mergeability?: true;
-	readonly participants?: true;
 }
 
 export interface PullRequestSubscriptionOptions extends PullRequestInterests {
@@ -53,8 +51,14 @@ export interface PullRequestSubscriptionOptions extends PullRequestInterests {
 
 export interface GitHubFragmentError {
 	readonly message: string;
-	readonly kind: GitHubRequestErrorKind;
+	readonly kind: RequestErrorKind;
 	readonly statusCode?: number;
+	/**
+	 * The GitHub page where the user authorizes the credential for an
+	 * organization that enforces SAML single sign-on, when it refused the
+	 * request for that. GitHub expires it after an hour.
+	 */
+	readonly ssoAuthorizationUrl?: string;
 }
 
 export interface FragmentState<T> {
@@ -117,6 +121,8 @@ export interface PullRequestReview {
 }
 
 export interface PullRequestInlineComment extends PullRequestComment {
+	/** GitHub's review-comment state (PENDING or SUBMITTED), when available. */
+	readonly state?: string;
 	readonly reviewId?: string;
 	readonly replyToId?: string;
 	readonly path?: string;
@@ -146,9 +152,20 @@ export interface PullRequestCheck {
 	readonly name: string;
 	readonly status?: string;
 	readonly conclusion?: string;
+	/** Whether GitHub reports the check itself as required by the base branch. */
 	readonly required?: boolean;
 	readonly detailsUrl?: string;
 	readonly workflowName?: string;
+	/** The GitHub Actions workflow run that reported the check. */
+	readonly workflowRunId?: string;
+	/** The path of that run's workflow file. */
+	readonly workflowPath?: string;
+	/**
+	 * The unfinished required checks that wait for this check through their
+	 * workflow's `needs:`, directly or through other jobs; see
+	 * `classifyRequiredPullRequestChecks`.
+	 */
+	readonly requiredBy?: readonly string[];
 }
 
 export interface PullRequestCheckSuite {
@@ -163,6 +180,12 @@ export interface PullRequestChecks {
 	readonly headSha: string;
 	readonly checks: readonly PullRequestCheck[];
 	readonly requirednessComplete: boolean;
+	/**
+	 * The names of the checks the base branch's protection and rulesets
+	 * require, including those that have not reported yet. `undefined` when
+	 * they were not requested or could not be read.
+	 */
+	readonly requiredContexts?: readonly string[];
 	readonly expectedSuites: readonly PullRequestCheckSuite[];
 	readonly expectedSuitesComplete: boolean;
 }
@@ -176,19 +199,11 @@ export interface PullRequestMergeability {
 	readonly viewerCanUpdate: boolean;
 	readonly viewerCanMerge: boolean;
 	readonly viewerCanEnableAutoMerge: boolean;
-	readonly allowedMergeMethods: readonly ('MERGE' | 'SQUASH' | 'REBASE')[];
+	readonly allowedMergeMethods: readonly PullRequestMergeMethod[];
 	readonly autoMergeEnabled: boolean;
 	readonly mergeQueueEntryId?: string;
 	readonly mergeQueueRequired: boolean;
 	readonly queueRequirementKnown: boolean;
-}
-
-export interface PullRequestParticipant extends GitHubActor {
-	readonly roles: readonly ('author' | 'commenter' | 'reviewer')[];
-}
-
-export interface PullRequestParticipants {
-	readonly participants: readonly PullRequestParticipant[];
 }
 
 export interface PullRequestSnapshot {
@@ -198,11 +213,9 @@ export interface PullRequestSnapshot {
 	readonly core: FragmentState<PullRequestCore>;
 	readonly topLevelComments: FragmentState<readonly PullRequestComment[]>;
 	readonly submittedReviews: FragmentState<readonly PullRequestReview[]>;
-	readonly inlineComments: FragmentState<readonly PullRequestInlineComment[]>;
 	readonly reviewThreads: FragmentState<readonly PullRequestReviewThread[]>;
 	readonly checks: FragmentState<PullRequestChecks>;
 	readonly mergeability: FragmentState<PullRequestMergeability>;
-	readonly participants: FragmentState<PullRequestParticipants>;
 }
 
 export interface PullRequestResource {
@@ -218,4 +231,17 @@ export interface PullRequestSubscription extends IDisposable {
 	readonly resource: PullRequestResource;
 	update(options: PullRequestSubscriptionOptions): void;
 	refresh(fragment?: PullRequestFragment, token?: CancellationToken, options?: PullRequestRefreshOptions): Promise<void>;
+}
+
+export function firstCredentialFailure(snapshot: PullRequestSnapshot, fragments: readonly PullRequestFragment[]): { readonly id: string; readonly kind: 'authentication' | 'authorization'; readonly message: string; readonly ssoAuthorizationUrl?: string } | undefined {
+	for (const fragment of fragments) {
+		const error = snapshot[fragment].error;
+		if (error?.kind === 'authentication' || error?.kind === 'authorization') {
+			return {
+				id: `${fragment}:${error.kind}`, kind: error.kind, message: error.message,
+				...(error.ssoAuthorizationUrl ? { ssoAuthorizationUrl: error.ssoAuthorizationUrl } : {}),
+			};
+		}
+	}
+	return undefined;
 }

@@ -21,7 +21,7 @@ import { equals } from '../../../common/objects.js';
 import { ScrollbarVisibility } from '../../../common/scrollable.js';
 import './inputBox.css';
 import * as nls from '../../../../nls.js';
-import { MutableDisposable, type IDisposable } from '../../../common/lifecycle.js';
+import { DisposableStore, MutableDisposable, type IDisposable } from '../../../common/lifecycle.js';
 
 
 const $ = dom.$;
@@ -569,15 +569,16 @@ export class InputBox extends Widget {
 	 * containing view was resized.
 	 */
 	private observeElementResize(): void {
-		const observer = new dom.DisposableResizeObserver('InputBox.validationMessage', () => {
+		const disposables = new DisposableStore();
+		const observer = disposables.add(new dom.DisposableResizeObserver('InputBox.validationMessage', () => {
 			// Ignore notifications for a hidden or detached input, laying out
 			// against a degenerate anchor would move the message to the corner.
 			if (this.element.isConnected && dom.getTotalWidth(this.element) > 0) {
 				this.layoutMessage();
 			}
-		}, dom.getWindow(this.element));
-		observer.observe(this.element);
-		this.messageResizeObserver.value = observer;
+		}, dom.getWindow(this.element)));
+		disposables.add(observer.observe(this.element));
+		this.messageResizeObserver.value = disposables;
 	}
 
 	private layoutMessage(): void {

@@ -130,6 +130,13 @@ impl StoredCredential {
 		&self.access_token
 	}
 
+	/// Returns the remaining lifetime in whole seconds, omitting unknown or non-positive lifetimes.
+	pub fn expires_in(&self, now: Timestamp) -> Option<i64> {
+		self.expires_at
+			.map(|expiry| expiry.duration_since(now).as_secs())
+			.filter(|seconds| *seconds > 0)
+	}
+
 	pub async fn is_expired(&self, log: &log::Logger, client: &reqwest::Client) -> bool {
 		match self.provider {
 			AuthProvider::Microsoft => self
@@ -938,4 +945,33 @@ fn encrypt(value: &str) -> String {
 #[cfg(not(feature = "vscode-encrypt"))]
 fn decrypt(value: &str) -> Option<String> {
 	Some(value.to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn credential_expires_in_reports_positive_remaining_seconds() {
+		let now = Timestamp::from_second(1_000_000).unwrap();
+		let cases = [
+			(None, None),
+			(Some(now + SignedDuration::from_secs(3600)), Some(3600)),
+			(Some(now + SignedDuration::from_millis(1500)), Some(1)),
+			(Some(now + SignedDuration::from_millis(500)), None),
+			(Some(now), None),
+			(Some(now - SignedDuration::from_secs(60)), None),
+		];
+		let actual = cases.map(|(expires_at, _)| {
+			StoredCredential {
+				provider: AuthProvider::Microsoft,
+				access_token: "test-token".to_string(),
+				refresh_token: None,
+				expires_at,
+			}
+			.expires_in(now)
+		});
+
+		assert_eq!(actual, cases.map(|(_, expected)| expected));
+	}
 }

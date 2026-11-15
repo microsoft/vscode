@@ -13,9 +13,26 @@
 	z-index: 2600;
 }
 
-/* Expanded pickers and mobile sheets remain above the spotlight blocker. */
+/*
+ * Expanded pickers stay above the scrim, but their full-window dismiss layers
+ * must not cover the callout's actions. Avoid a shared stacking context here.
+ */
 .spotlight-overlay.target-overlay-visible {
+	position: static;
+	z-index: auto;
+}
+
+.spotlight-overlay.target-overlay-visible .spotlight-blocker,
+.spotlight-overlay.target-overlay-visible .spotlight-hole {
 	z-index: 1999;
+}
+
+.spotlight-overlay.target-overlay-visible .spotlight-callout {
+	z-index: 2600;
+}
+
+.spotlight-overlay.target-overlay-visible .spotlight-callout-pointer {
+	z-index: 2601;
 }
 
 /* Full-screen click blocker. Transparent; swallows interaction outside the hole. */

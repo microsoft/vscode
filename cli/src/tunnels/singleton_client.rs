@@ -36,7 +36,6 @@ pub struct SingletonClientArgs {
 	pub stream: AsyncPipe,
 	pub shutdown: Barrier<ShutdownSignal>,
 	pub machine_status_enabled: bool,
-	pub has_editor_link: bool,
 }
 
 struct SingletonServerContext {
@@ -98,7 +97,6 @@ pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
 	}
 
 	let caller = rpc.get_caller(msg_tx);
-	let has_editor_link = args.has_editor_link;
 	let mut rpc = rpc.methods(SingletonServerContext {
 		log: args.log.clone(),
 		exit_entirely: exit_entirely.clone(),
@@ -131,12 +129,8 @@ pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
 			// connected though, it will be soon, and that'll be in the log replays.
 			if let Ok(Ok(s)) = res.await {
 				if let Some(name) = s.name {
-					// The running singleton decides what is actually served; a
-					// full-access invocation attaching to an agent-host-only
-					// singleton must not advertise an editor link it cannot
-					// honour. Older servers omit this, so fall back to
-					// describing this invocation.
-					let serves_editor = s.has_editor_link.unwrap_or(has_editor_link);
+					// Older singletons may serve only the agent-host port.
+					let serves_editor = s.has_editor_link.unwrap_or(true);
 					print_listening(&c.log, &name, serves_editor);
 					machine_status::emit_connected(
 						&name,

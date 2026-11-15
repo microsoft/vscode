@@ -59,6 +59,29 @@ export function findWindowOnWorkspaceOrFolder(windows: ICodeWindow[], folderOrWo
 	return undefined;
 }
 
+/**
+ * Finds the window that opened the path an open request asked for, among the
+ * windows the request used. Only resolved paths are passed, so a request whose
+ * path doesn't exist finds no window, even when windows from the previous
+ * session were restored next to it.
+ */
+export function findWindowOnRequestedPath(windows: ICodeWindow[], requestedPaths: readonly { readonly workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier; readonly fileUri?: URI }[], filesOpenedInWindow: ICodeWindow | undefined): ICodeWindow | undefined {
+	if (requestedPaths.length !== 1) {
+		return undefined;
+	}
+
+	const [{ workspace, fileUri }] = requestedPaths;
+	if (isWorkspaceIdentifier(workspace)) {
+		return findWindowOnWorkspaceOrFolder(windows, workspace.configPath);
+	}
+
+	if (isSingleFolderWorkspaceIdentifier(workspace)) {
+		return findWindowOnWorkspaceOrFolder(windows, workspace.uri);
+	}
+
+	return fileUri ? filesOpenedInWindow : undefined;
+}
+
 
 export function findWindowOnExtensionDevelopmentPath(windows: ICodeWindow[], extensionDevelopmentPaths: string[]): ICodeWindow | undefined {
 

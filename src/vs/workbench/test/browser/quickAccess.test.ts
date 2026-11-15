@@ -269,6 +269,49 @@ suite('QuickAccess', () => {
 		restore();
 	});
 
+	test('provider can be bound independently of the input value', () => {
+		const registry = Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess);
+		const restore = (registry as QuickAccessRegistry).clear();
+		const localDisposables = new DisposableStore();
+		let defaultPicker: IQuickPick<IQuickPickItem, { useSeparators: true }> | undefined;
+		let prefixedProviderCalled = false;
+
+		class BoundDefaultProvider implements IQuickAccessProvider {
+			provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>): IDisposable {
+				defaultPicker = picker;
+				return toDisposable(() => { });
+			}
+		}
+
+		class PrefixedProvider implements IQuickAccessProvider {
+			provide(): IDisposable {
+				prefixedProviderCalled = true;
+				return toDisposable(() => { });
+			}
+		}
+
+		localDisposables.add(registry.registerQuickAccessProvider({ ctor: BoundDefaultProvider, prefix: '', helpEntries: [] }));
+		localDisposables.add(registry.registerQuickAccessProvider({ ctor: PrefixedProvider, prefix: '#', helpEntries: [] }));
+
+		accessor.quickInputService.quickAccess.show('#literal-file', { providerPrefix: '' });
+		assert.ok(defaultPicker);
+		defaultPicker.value = '#changed-file';
+
+		assert.deepStrictEqual({
+			value: defaultPicker.value,
+			prefixedProviderCalled,
+			currentPickerPreserved: accessor.quickInputService.currentQuickInput === defaultPicker,
+		}, {
+			value: '#changed-file',
+			prefixedProviderCalled: false,
+			currentPickerPreserved: true,
+		});
+
+		defaultPicker.hide();
+		localDisposables.dispose();
+		restore();
+	});
+
 	let fastProviderCalled = false;
 	let slowProviderCalled = false;
 	let fastAndSlowProviderCalled = false;

@@ -7,6 +7,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -18,7 +19,7 @@ import { ChatRequestQueueKind, IChatService } from '../../common/chatService/cha
 import { IChatSideChatService } from '../../common/chatSideChatService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { isRequestVM } from '../../common/model/chatViewModel.js';
-import { IChatWidgetService } from '../chat.js';
+import { IChatWidgetService, unwrapChatContextMenuActionContext } from '../chat.js';
 import { captureSideChatSelection } from '../chatSideChat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
@@ -27,6 +28,7 @@ const editingSteer = ChatContextKeys.editingRequestType.isEqualTo(ChatContextKey
 const editingQueueOrSteer = ContextKeyExpr.or(editingQueue, editingSteer)!;
 
 const queuingActionsPresent = ContextKeyExpr.and(
+	ChatContextKeys.transcriptProgressActive.negate(),
 	ContextKeyExpr.or(ChatContextKeys.requestInProgress, editingQueueOrSteer),
 	ChatContextKeys.editingRequestType.notEqualsTo(ChatContextKeys.EditingRequestType.Sent),
 );
@@ -71,7 +73,7 @@ export class ChatQueueMessageAction extends Action2 {
 			f1: false,
 			category: CHAT_CATEGORY,
 
-			precondition: ChatContextKeys.inputHasText,
+			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.transcriptProgressActive.negate(), ChatContextKeys.inputBlocked.negate()),
 			keybinding: [{
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
@@ -82,6 +84,7 @@ export class ChatQueueMessageAction extends Action2 {
 			}, {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
+					EditorContextKeys.hoverFocused.negate(),
 					queuingActionsPresent,
 					effectiveDefaultIsQueue,
 				),
@@ -94,7 +97,7 @@ export class ChatQueueMessageAction extends Action2 {
 	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = widgetService.lastFocusedWidget;
-		if (!widget?.viewModel) {
+		if (!widget?.viewModel || widget.isTranscriptProgressActive) {
 			return;
 		}
 
@@ -124,10 +127,11 @@ export class ChatSteerWithMessageAction extends Action2 {
 			icon: Codicon.newLine,
 			f1: false,
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.inputHasText,
+			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.transcriptProgressActive.negate(), ChatContextKeys.inputBlocked.negate()),
 			keybinding: [{
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
+					EditorContextKeys.hoverFocused.negate(),
 					queuingActionsPresent,
 					effectiveDefaultIsSteer,
 				),
@@ -147,7 +151,7 @@ export class ChatSteerWithMessageAction extends Action2 {
 	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = widgetService.lastFocusedWidget;
-		if (!widget?.viewModel) {
+		if (!widget?.viewModel || widget.isTranscriptProgressActive) {
 			return;
 		}
 
@@ -181,7 +185,7 @@ export class ChatAskInSideChatAction extends Action2 {
 			icon: Codicon.commentDiscussion,
 			f1: false,
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.inputHasText,
+			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.transcriptProgressActive.negate()),
 		});
 	}
 
@@ -193,7 +197,7 @@ export class ChatAskInSideChatAction extends Action2 {
 
 		const widget = widgetService.lastFocusedWidget;
 		const sessionResource = widget?.viewModel?.model.sessionResource;
-		if (!widget || !sessionResource) {
+		if (!widget || !sessionResource || widget.isTranscriptProgressActive) {
 			return;
 		}
 
@@ -356,7 +360,7 @@ export class ChatRemoveAllPendingRequestsAction extends Action2 {
 	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const chatService = accessor.get(IChatService);
 		const widgetService = accessor.get(IChatWidgetService);
-		const [context] = args;
+		const context = unwrapChatContextMenuActionContext(args[0]);
 
 		const widget = (isRequestVM(context) && widgetService.getWidgetBySessionResource(context.sessionResource)) || widgetService.lastFocusedWidget;
 		const model = widget?.viewModel?.model;
@@ -400,7 +404,10 @@ export function registerChatQueueActions(): void {
 		icon: Codicon.listOrdered,
 		when: ContextKeyExpr.and(
 			queuingActionsPresent,
-			ChatContextKeys.inputHasText,
+			ContextKeyExpr.or(
+				ChatContextKeys.inputHasText,
+				ContextKeyExpr.and(ChatContextKeys.hasSecondaryExecuteActions, ChatContextKeys.inputHasSendableContent),
+			),
 		),
 		group: 'navigation',
 		order: 4,

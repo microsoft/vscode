@@ -1,0 +1,22 @@
+# Cargo steps fetch crates from the ADO Cargo feed, which intermittently cancels HTTP/2 streams
+# ("[92] HTTP/2 stream ... CANCEL"), so they fetch without multiplexing, with more cargo retries,
+# and retry the step on top (except tests, so a flaky test isn't hidden). The settings are
+# --config flags rather than CARGO_* environment variables, which sccache hashes into every
+# compile key.
+steps:
+  - script: rustup component add rustfmt clippy
+    displayName: Install Rust quality components
+    condition: and(succeeded(), eq(variables['CARGO_REGISTRY'], 'none'))
+
+  - script: cargo fmt --check
+    displayName: Check Copilot shim formatting
+    workingDirectory: $(Build.SourcesDirectory)/copilot_shim
+
+  - script: cargo test --config http.multiplexing=false --config net.retry=5 --locked
+    displayName: Test Copilot shim
+    workingDirectory: $(Build.SourcesDirectory)/copilot_shim
+
+  - script: cargo clippy --config http.multiplexing=false --config net.retry=5 --all-targets --locked -- -D warnings
+    displayName: Lint Copilot shim
+    workingDirectory: $(Build.SourcesDirectory)/copilot_shim
+    retryCountOnTaskFailure: 2

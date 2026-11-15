@@ -12,8 +12,9 @@ import type { AutomationRunSummary, AutomationTriggeredRunOrigin } from '../chan
 import type { ResolveSessionConfigResult } from '../channels-root/commands.js';
 import type { AgentInfo, ModelSelection, SessionModelInfo } from '../channels-root/state.js';
 import type { CreateSessionParams } from '../channels-session/commands.js';
-import type { AgentSelection } from '../channels-session/state.js';
-import type { AutomationRemovedAction, AutomationSetAction, AutomationUpdateRequestedAction } from './actions.js';
+import type { AgentSelection, ClientPluginCustomization, PluginCustomization, SessionActiveClient, SessionState } from '../channels-session/state.js';
+import type { AutomationCapabilities } from '../common/commands.js';
+import type { AutomationCreateRequestedAction, AutomationRemovedAction, AutomationSetAction, AutomationUpdateRequestedAction } from './actions.js';
 import type { FetchAutomationRunsParams, ListAutomationTriggerDefinitionsParams, RunAutomationParams } from './commands.js';
 
 /**
@@ -65,6 +66,7 @@ export const enum AutomationOperation {
  * `30 9 * * 1-5` runs at 09:30 every weekday.
  *
  * @category Automation State
+ * @preserveUnknownMembers
  */
 export interface AutomationSchedule {
 	/** Five-field AHP cron expression described by {@link AutomationSchedule}. */
@@ -104,12 +106,15 @@ export const enum AutomationTriggerKind {
 	Schedule = 'schedule',
 	/** A host-defined external event discovered from trigger definitions. */
 	Event = 'event',
+	/** A single {@link AutomationOneTimeTrigger.runAt | scheduled time}. */
+	OneTime = 'oneTime',
 }
 
 /**
  * Starts runs from a recurring cron schedule evaluated by the host.
  *
  * @category Automation State
+ * @preserveUnknownMembers
  */
 export interface AutomationScheduleTrigger {
 	/**
@@ -129,6 +134,33 @@ export interface AutomationScheduleTrigger {
 }
 
 /**
+ * Starts one run at a fixed time evaluated by the host.
+ *
+ * The trigger fires at most once for a given {@link runAt}. Updating
+ * {@link runAt} moves the occurrence to the new time; the previous time no
+ * longer fires.
+ *
+ * @category Automation State
+ * @preserveUnknownMembers
+ */
+export interface AutomationOneTimeTrigger {
+	/**
+	 * Identifier unique and stable within this automation definition. Recorded in
+	 * {@link AutomationTriggeredRunOrigin.triggerId} when this trigger creates a
+	 * run.
+	 */
+	id: string;
+	kind: AutomationTriggerKind.OneTime;
+	/** Scheduled run timestamp in ISO 8601 format. */
+	runAt: string;
+	/**
+	 * Policy when {@link runAt} passes while automatic execution is unavailable.
+	 * Omission is equivalent to {@link AutomationMisfirePolicy.RunOnce}.
+	 */
+	misfirePolicy?: AutomationMisfirePolicy;
+}
+
+/**
  * Starts runs from events understood by the owning host.
  *
  * Event trigger types, events, and configuration are discovered through
@@ -138,6 +170,7 @@ export interface AutomationScheduleTrigger {
  * discovery.
  *
  * @category Automation State
+ * @preserveUnknownMembers
  */
 export interface AutomationEventTrigger {
 	/**
@@ -177,12 +210,65 @@ export interface AutomationEventTrigger {
  */
 export type AutomationTrigger =
 	| AutomationScheduleTrigger
-	| AutomationEventTrigger;
+	| AutomationEventTrigger
+	| AutomationOneTimeTrigger;
+
+/**
+ * Discriminant for an {@link AutomationDisableCondition}.
+ *
+ * @category Automation State
+ * @exhaustive
+ */
+export const enum AutomationDisableConditionKind {
+	/** Stop scheduling after a fixed number of scheduled runs. */
+	AfterRuns = 'afterRuns',
+	/** Stop scheduling once a wall-clock date passes. */
+	AfterDate = 'afterDate',
+}
+
+/**
+ * Stops scheduling after a fixed number of scheduled runs.
+ *
+ * @category Automation State
+ * @preserveUnknownMembers
+ */
+export interface AutomationAfterRunsCondition {
+	kind: AutomationDisableConditionKind.AfterRuns;
+	/**
+	 * Positive-integer cap on scheduled runs.
+	 * @integer
+	 * @minimum 1
+	 */
+	max: number;
+}
+
+/**
+ * Stops scheduling once a wall-clock date passes.
+ *
+ * @category Automation State
+ * @preserveUnknownMembers
+ */
+export interface AutomationAfterDateCondition {
+	kind: AutomationDisableConditionKind.AfterDate;
+	/** ISO 8601 timestamp after which scheduling stops. */
+	date: string;
+}
+
+/**
+ * One self-disable rule in {@link AutomationDefinition.disableConditions}.
+ * The host disables scheduling once any rule is met (logical OR).
+ *
+ * @category Automation State
+ */
+export type AutomationDisableCondition =
+	| AutomationAfterRunsCondition
+	| AutomationAfterDateCondition;
 
 /**
  * Describes one host-defined trigger event.
  *
  * @category Automation State
+ * @preserveUnknownMembers
  */
 export interface AutomationTriggerEventDefinition {
 	/** Stable event id. */
@@ -223,6 +309,7 @@ export interface AutomationTriggerDefinition {
  * carry credentials, confirmation decisions, or durable permission grants.
  *
  * @category Automation State
+ * @preserveUnknownMembers
  */
 export interface AutomationSessionTemplate {
 	/** Provider id matching {@link AgentInfo.provider}. Omit to use the host's default provider. */
@@ -247,6 +334,32 @@ export interface AutomationSessionTemplate {
 	 * {@link ResolveSessionConfigResult.values}.
 	 */
 	config?: Record<string, unknown>;
+	/**
+	 * Client plugins to make available in every run session, in the same
+	 * published shape as
+	 * {@link SessionActiveClient.customizations | `activeClients[].customizations`}.
+	 * Entries are keyed by `id`.
+	 *
+	 * Runs usually start when no client is connected, so the host does not
+	 * resolve these URIs at run time. Instead, when it accepts a
+	 * {@link AutomationCreateRequestedAction | `automation/createRequested`} or
+	 * {@link AutomationUpdateRequestedAction | `automation/updateRequested`}
+	 * that adds an entry or changes an entry's `uri` or `nonce`, the host
+	 * captures a host-owned copy of the plugin. For client-served URIs such as
+	 * `virtual://…`, it reads the contents from the dispatching client with
+	 * server→client `resource*` requests. If a capture fails, the host rejects
+	 * the whole action. Entries whose `id`, `uri`, and `nonce` are unchanged keep
+	 * their existing copy, so any client can re-submit a template it received
+	 * without being able to serve the plugin itself. The resulting copies are
+	 * reported in {@link AutomationEntry.customizations}.
+	 *
+	 * The host MAY share one stored copy between entries with equal `uri` and
+	 * `nonce`, including across automations; this is not observable to clients.
+	 *
+	 * Clients MUST NOT set this field unless the host advertises
+	 * {@link AutomationCapabilities.customizations}.
+	 */
+	customizations?: ClientPluginCustomization[];
 }
 
 /**
@@ -277,6 +390,24 @@ export interface AutomationDefinition {
 	/** Automatic triggers. An empty list means manual-only. */
 	triggers: AutomationTrigger[];
 	/**
+	 * Self-disable rules combined with logical OR: the host sets
+	 * {@link AutomationDefinition.enabled} to `false` when any condition is met.
+	 * Absent or empty means no automatic disable conditions. Each
+	 * {@link AutomationDisableConditionKind} may appear at most once; hosts MUST
+	 * reject create or update requests containing duplicate kinds.
+	 *
+	 * Only automatic (scheduled) runs are governed; manual runs via
+	 * {@link RunAutomationParams | runAutomation} are never blocked. For a
+	 * {@link AutomationAfterRunsCondition}, usage is tracked by the host-owned
+	 * {@link AutomationEntry.runCount}. Adding that kind when absent or
+	 * a disabled→enabled transition starts a fresh allowance. Clearing the
+	 * conditions does not re-enable a disabled automation. See the
+	 * {@link /guide/automations | Automations Guide}.
+	 *
+	 * @uniqueItemsBy kind
+	 */
+	disableConditions?: AutomationDisableCondition[];
+	/**
 	 * Opaque implementation-defined metadata. Clients MUST preserve unknown
 	 * entries when updating the definition.
 	 */
@@ -297,8 +428,22 @@ export interface AutomationEntry {
 	resource: URI;
 	/** Current durable definition. */
 	definition: AutomationDefinition;
-	/** Earliest schedule occurrence awaiting evaluation, as an ISO 8601 timestamp. It may be in the past while catch-up is pending. */
+	/** Earliest schedule or one-time occurrence awaiting evaluation, as an ISO 8601 timestamp. It may be in the past while catch-up is pending. */
 	nextRunAt?: string;
+	/**
+	 * Host-owned count of scheduled runs consumed against the current
+	 * {@link AutomationAfterRunsCondition} allowance. Authoritative usage for the
+	 * **current** allowance, not a lifetime total: the host resets it to `0` when
+	 * a disabled→enabled transition starts a fresh allowance or a
+	 * {@link AutomationAfterRunsCondition} is added when none was present. It is NOT
+	 * reconstructed from {@link runs} (a bounded, prunable window). The host
+	 * increments it atomically when it admits a scheduled run, including runs
+	 * later cancelled or failed.
+	 *
+	 * Absent when {@link AutomationDefinition.disableConditions} contains no
+	 * {@link AutomationAfterRunsCondition}.
+	 */
+	runCount?: number;
 	/**
 	 * Newest-first retained run summaries. This is a bounded window; use
 	 * {@link FetchAutomationRunsParams | fetchAutomationRuns} when
@@ -309,6 +454,22 @@ export interface AutomationEntry {
 	runsNextCursor?: string;
 	/** Operations currently permitted for this automation. */
 	operations: AutomationOperation[];
+	/**
+	 * Host-owned copies of the plugins in
+	 * {@link AutomationSessionTemplate.customizations}, one per template entry
+	 * with the same `id`. Absent when the template has no customizations.
+	 *
+	 * Each copy's `uri` identifies the captured contents, which clients can
+	 * browse with `resourceRead`. `children` and `load` report what the host
+	 * found in that copy, independent of whether the originating client is
+	 * connected. `clientId` is absent because the copy no longer depends on a
+	 * client.
+	 *
+	 * Every run session receives these plugins in
+	 * {@link SessionState.customizations}, with the enablement from the
+	 * matching template entry.
+	 */
+	customizations?: PluginCustomization[];
 	/** Creation timestamp in ISO 8601 format. */
 	createdAt: string;
 	/** Last definition modification timestamp in ISO 8601 format. */

@@ -10,6 +10,7 @@ import { rawPartAsThinkingData } from '../../endpoint/common/thinkingDataContain
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { ThinkingData, ThinkingDataInMessage } from '../../thinking/common/thinking';
 import { ICopilotReference, RequestId } from './fetch';
+import type { TelemetryMessage } from './messageTelemetry';
 
 /**
  * How the logprobs field looks in the OpenAI API chunks.
@@ -310,6 +311,8 @@ export enum FilterReason {
 
 export interface ChatCompletion {
 	message: Raw.ChatMessage;
+	/** Provider-native messages retained only for restricted telemetry, never for model replay. */
+	telemetryMessages?: TelemetryMessage[];
 	choiceIndex: number;
 	requestId: RequestId;
 	tokens: readonly string[];

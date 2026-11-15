@@ -179,18 +179,14 @@ suite('sshKnownHosts', () => {
 				});
 		});
 
-		test('scopes mismatch to the same key type', () => {
-			// A host with only an RSA entry that presents an ed25519 key is
-			// unknown, not evidence of an attack. Reporting `mismatch` here
-			// would fire a false alarm for every RSA-only user, since ssh2
-			// negotiates ed25519 first.
+		test('distinguishes another key type from an unknown host', () => {
 			const rsaOnly = line('example.com', RSA_A);
 			assert.deepStrictEqual(
 				{
 					differentType: match(rsaOnly, 'example.com', 22, ED25519_A),
 					sameType: match(rsaOnly, 'example.com', 22, RSA_A),
 				},
-				{ differentType: 'unknown', sameType: 'match' });
+				{ differentType: 'other-key-type', sameType: 'match' });
 		});
 
 		test('handles non-default ports via the bracket form', () => {

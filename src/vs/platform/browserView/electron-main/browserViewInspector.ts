@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { BrowserElementSelectionMode, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserElementSelectionState, IElementData, IBrowserViewTheme, IBrowserViewRect, IBrowserViewPreloadLocalizedStrings } from '../common/browserView.js';
 import { ICDPConnection } from '../common/cdp/types.js';
 import type { BrowserView } from './browserView.js';
@@ -101,6 +101,7 @@ export class BrowserViewInspector extends Disposable {
 	private readonly _activeAreaSelection = this._register(new MutableDisposable<IActiveAreaSelection>());
 
 	private readonly _registry = this._register(new FrameInspectorRegistry());
+	private readonly _sessionListeners = this._register(new DisposableMap<ICDPConnection, DisposableStore>());
 
 	constructor(private readonly browser: BrowserView) {
 		super();
@@ -191,7 +192,12 @@ export class BrowserViewInspector extends Disposable {
 	 * and each cross-origin target session (sees only its own frame).
 	 */
 	private _watchSession(session: ICDPConnection): void {
-		this._register(session.onEvent(async event => {
+		if (this._store.isDisposed || this._sessionListeners.has(session)) {
+			return;
+		}
+		const listeners = new DisposableStore();
+		this._sessionListeners.set(session, listeners);
+		listeners.add(session.onEvent(async event => {
 			if (event.method === 'Runtime.executionContextCreated') {
 				const context = (event.params as {
 					context: {
@@ -216,7 +222,7 @@ export class BrowserViewInspector extends Disposable {
 					}) as { result: { value?: string } };
 
 					const token = result.value;
-					if (!token) {
+					if (!token || listeners.isDisposed) {
 						return;
 					}
 
@@ -235,9 +241,10 @@ export class BrowserViewInspector extends Disposable {
 			}
 		}));
 
-		Event.once(session.onClose)(() => {
+		listeners.add(Event.once(session.onClose)(() => {
+			this._sessionListeners.deleteAndDispose(session);
 			this._registry.disposeBySession(session);
-		});
+		}));
 
 		// Enable Runtime + Page to start receiving context and frame events
 		session.sendCommand('Runtime.enable').catch(() => { });
@@ -328,6 +335,7 @@ export class BrowserViewInspector extends Disposable {
 					this._onDidChangeElementSelectionState.fire({ active: false, options: selection.options });
 					this._activeSelection.clearAndLeak();
 					void this._queueInspectionOperation(async () => {
+						await this.browser.emulator.setElementSelectionActive(false);
 						await Promise.all([...this._registry.inspectors].map(i => i.stopInspection()));
 					}).catch(() => { });
 				}
@@ -352,6 +360,9 @@ export class BrowserViewInspector extends Disposable {
 				return;
 			}
 			await Promise.all([...this._registry.inspectors].map(i => i.startInspection(options)));
+			if (this._activeSelection.value === selection && selection.options === options) {
+				await this.browser.emulator.setElementSelectionActive(true);
+			}
 		});
 		return this._activeSelection.value === selection && selection.options === options;
 	}

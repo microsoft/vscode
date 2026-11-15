@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* eslint-disable no-restricted-globals */
-/* eslint-disable no-restricted-syntax */
+/* eslint-disable eslint-js/no-restricted-syntax */
 
 // Only `import type` is allowed in preload scripts — Electron preloads cannot resolve module imports at runtime.
 import type { BrowserElementSelectionMode, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewPreloadLocalizedStrings, IBrowserViewTheme, IBrowserViewRect } from '../common/browserView.js';
@@ -81,6 +81,11 @@ function init() {
 
 		// Never handle plain modifier key presses as keybindings
 		if (event.key === 'Control' || event.key === 'Shift' || event.key === 'Alt' || event.key === 'Meta') {
+			return;
+		}
+
+		// Never handle Insert (or Help, which can be emitted by Ctrl+Insert on Mac) as keybindings.
+		if (event.key === 'Insert' || event.key === 'Help') {
 			return;
 		}
 

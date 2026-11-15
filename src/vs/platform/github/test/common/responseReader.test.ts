@@ -1,0 +1,116 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { isSafari } from '../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { cancelResponseBody, parseResponseJson, readBoundedResponse } from '../../common/responseReader.js';
+import { RequestError } from '../../common/types.js';
+import { NullLogService } from '../../../log/common/log.js';
+
+suite('Response readers', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reads exact byte limits across chunks without cancelling a complete body', async () => {
+		let cancellations = 0;
+		const body = new ReadableStream<Uint8Array>({
+			start: controller => {
+				controller.enqueue(new Uint8Array([1, 2]));
+				controller.enqueue(new Uint8Array());
+				controller.enqueue(new Uint8Array([3, 4]));
+				controller.close();
+			},
+			cancel: () => { cancellations++; },
+		});
+		const result = await readBoundedResponse(new Response(body), 4, new AbortController().signal);
+		assert.deepStrictEqual({ bytes: [...result.bytes], truncated: result.truncated, cancellations, locked: body.locked }, {
+			bytes: [1, 2, 3, 4], truncated: false, cancellations: 0, locked: isSafari,
+		});
+	});
+
+	for (const limit of [0, 3]) {
+		test(`truncates and cancels an oversized body at exactly ${limit} bytes`, async () => {
+			let cancellations = 0;
+			const body = new ReadableStream<Uint8Array>({
+				start: controller => {
+					controller.enqueue(new Uint8Array([1, 2]));
+					controller.enqueue(new Uint8Array([3, 4]));
+					controller.enqueue(new Uint8Array([5]));
+				},
+				cancel: () => { cancellations++; },
+			});
+			const result = await readBoundedResponse(new Response(body), limit, new AbortController().signal);
+			assert.deepStrictEqual({ bytes: [...result.bytes], truncated: result.truncated, cancellations, locked: body.locked }, {
+				bytes: [1, 2, 3].slice(0, limit), truncated: true, cancellations: 1, locked: isSafari,
+			});
+		});
+	}
+
+	test('releases the reader lock after complete or truncated reads, except in WebKit', async () => {
+		// releaseLock() can hang WebKit (regressed by https://bugs.webkit.org/show_bug.cgi?id=309882).
+		const read = async (maximumBytes: number) => {
+			const response = new Response('hello');
+			const { bytes, truncated } = await readBoundedResponse(response, maximumBytes, new AbortController().signal);
+			return { text: new TextDecoder().decode(bytes), truncated, locked: response.body?.locked };
+		};
+		assert.deepStrictEqual([await read(5), await read(2)], [
+			{ text: 'hello', truncated: false, locked: isSafari },
+			{ text: 'he', truncated: true, locked: isSafari },
+		]);
+	});
+
+	test('a missing response body is empty unless the caller already cancelled', async () => {
+		const controller = new AbortController();
+		assert.deepStrictEqual(await readBoundedResponse(new Response(null), 0, controller.signal), { bytes: new Uint8Array(), truncated: false });
+		const reason = new Error('Cancelled');
+		controller.abort(reason);
+		await assert.rejects(readBoundedResponse(new Response(null), 0, controller.signal), error => error === reason);
+	});
+
+	test('cancellation settles a stalled read without awaiting stalled body cancellation', async () => {
+		let cancellations = 0;
+		const body = new ReadableStream<Uint8Array>({
+			cancel: () => { cancellations++; return new Promise<void>(() => { }); },
+		});
+		const controller = new AbortController();
+		const pending = readBoundedResponse(new Response(body), 10, controller.signal);
+		const reason = new Error('Cancelled');
+		controller.abort(reason);
+		await assert.rejects(pending, error => error === reason);
+		assert.deepStrictEqual({ cancellations, locked: body.locked }, { cancellations: 1, locked: isSafari });
+	});
+
+	test('read errors propagate without retaining the reader lock outside WebKit', async () => {
+		const error = new Error('Body read failed');
+		const body = new ReadableStream<Uint8Array>({ start: controller => controller.error(error) });
+		await assert.rejects(readBoundedResponse(new Response(body), 10, new AbortController().signal), actual => actual === error);
+		assert.strictEqual(body.locked, isSafari);
+	});
+
+	test('body cancellation failures are logged without rejecting the caller', async () => {
+		const warnings: unknown[][] = [];
+		const log = store.add(new class extends NullLogService {
+			override warn(...args: unknown[]): void { warnings.push(args); }
+		}());
+		cancelResponseBody({ cancel: async () => { throw new Error('Cancellation failed'); } }, log);
+		await Promise.resolve();
+		assert.deepStrictEqual(warnings, [['[Request] Failed to cancel a response body']]);
+	});
+
+	test('parses JSON without imposing a response schema or invoking the error factory', () => {
+		const unexpectedError = () => { throw new Error('Unexpected parse failure'); };
+		assert.deepStrictEqual(parseResponseJson('{"data":[]}', unexpectedError), { data: [] });
+		assert.strictEqual(parseResponseJson('null', unexpectedError), null);
+	});
+
+	test('reports malformed JSON with the caller error instead of response content', () => {
+		const error = new RequestError('Unreadable response', 'malformedResponse');
+		for (const body of ['', '<html>upstream status</html>', '{"data":']) {
+			assert.throws(() => parseResponseJson(body, () => error), function expectedError(actual: unknown) {
+				return actual === error;
+			});
+		}
+	});
+});

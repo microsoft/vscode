@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as Sinon from 'sinon';
-import { Disposable, ExtensionContext } from 'vscode';
+import { Disposable, ExtensionContext, OutputChannel } from 'vscode';
 import { CodeReference } from '..';
+import { IAuthenticationService } from '../../../../../../../platform/authentication/common/authentication';
 import { CopilotToken, createTestExtendedTokenInfo } from '../../../../../../../platform/authentication/common/copilotToken';
 import { generateUuid } from '../../../../../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../../../../../util/vs/platform/instantiation/common/instantiation';
 import { ConnectionState } from '../../../../lib/src/snippy/connectionState';
 import { createExtensionTestingContext } from '../../test/context';
+import { GitHubCopilotLogger } from '../outputChannel';
 
 function testExtensionContext() {
 	return {
@@ -66,5 +68,31 @@ suite('CodeReference', function () {
 			assert.ok(codeQuote.enabled);
 			assert.notStrictEqual(codeQuote.subscriptions, undefined);
 		});
+	});
+
+	test('output channel is created lazily', function () {
+		const accessor = createExtensionTestingContext().createTestingAccessor();
+		const authenticationService = accessor.get(IAuthenticationService);
+		let channelCount = 0;
+		const logger = new class extends GitHubCopilotLogger {
+			protected override createOutputChannel(): OutputChannel {
+				channelCount++;
+				return {
+					name: 'test',
+					append() { },
+					appendLine() { },
+					clear() { },
+					replace() { },
+					show() { },
+					hide() { },
+					dispose() { },
+				};
+			}
+		}(accessor.get(IInstantiationService), authenticationService);
+
+		assert.strictEqual(channelCount, 0);
+		logger.info('citation');
+		assert.strictEqual(channelCount, 1);
+		logger.dispose();
 	});
 });

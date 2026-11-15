@@ -12,8 +12,9 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
-import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
-import { WatchingProblemCollector } from '../../common/problemCollectors.js';
+import { IMarker, IMarkerData, IMarkerService } from '../../../../../platform/markers/common/markers.js';
+import { MarkerService } from '../../../../../platform/markers/common/markerService.js';
+import { ProblemCollectorEventKind, WatchingProblemCollector } from '../../common/problemCollectors.js';
 import { ApplyToKind, FileLocationKind, ProblemMatcher } from '../../common/problemMatcher.js';
 
 class CountingRegExp extends RegExp {
@@ -27,6 +28,91 @@ class CountingRegExp extends RegExp {
 
 suite('ProblemCollectors', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const twoFiles of [false, true]) {
+		test(`publishes the final resource in a completed background cycle (two files: ${twoFiles})`, async () => {
+			const markerService = store.add(new MarkerService());
+			const modelService = new class extends mock<IModelService>() {
+				override readonly onModelAdded = Event.None;
+				override readonly onModelRemoved = Event.None;
+				override getModels(): ITextModel[] { return []; }
+			};
+			const matcher: ProblemMatcher = {
+				owner: 'test', applyTo: ApplyToKind.allDocuments, fileLocation: FileLocationKind.Relative, filePrefix: '/workspace',
+				pattern: { regexp: /^(.*):(\d+): (.*)$/, file: 1, line: 2, message: 3 },
+				watching: { activeOnStart: true, beginsPattern: { regexp: /^begin$/ }, endsPattern: { regexp: /^end$/ } }
+			};
+			const collector = store.add(new WatchingProblemCollector([matcher], markerService, modelService));
+			const snapshots: string[][] = [];
+			let invalidated = 0;
+			store.add(collector.onDidRequestInvalidateLastMarker(() => invalidated++));
+			store.add(collector.onDidFindErrors((markers: IMarker[]) => snapshots.push(markers.map(m => m.message))));
+			let completed: (() => void) | undefined;
+			store.add(collector.onDidStateChange(event => {
+				if (event.kind === ProblemCollectorEventKind.BackgroundProcessingEnds) {
+					completed?.();
+				}
+			}));
+			collector.aboutToStart();
+			for (const prefix of ['first', 'next']) {
+				const ended = new Promise<void>(resolve => completed = resolve);
+				for (const line of ['begin', `a.ts:1: ${prefix} one`, `a.ts:2: ${prefix} two`, ...(twoFiles ? [`b.ts:3: ${prefix} three`] : []), 'end']) {
+					collector.processLine(line);
+				}
+				await ended;
+			}
+			const emptyCycle = new Promise<void>(resolve => completed = resolve);
+			collector.processLine('begin');
+			collector.processLine('end');
+			await emptyCycle;
+			assert.deepStrictEqual({ invalidated, remaining: markerService.read({ owner: 'test' }).length }, { invalidated: 1, remaining: 0 });
+			assert.deepStrictEqual(snapshots, twoFiles ? [['first one', 'first two', 'first three'], ['next one', 'next two', 'next three']] : [['first one', 'first two'], ['next one', 'next two']]);
+		});
+	}
+
+	test('does not flush the current resource when an inactive background matcher ends', async () => {
+		const markerService = store.add(new MarkerService());
+		const modelService = new class extends mock<IModelService>() {
+			override readonly onModelAdded = Event.None;
+			override readonly onModelRemoved = Event.None;
+			override getModels(): ITextModel[] { return []; }
+		};
+		const matcher: ProblemMatcher = {
+			owner: 'test', applyTo: ApplyToKind.allDocuments, fileLocation: FileLocationKind.Relative, filePrefix: '/workspace',
+			pattern: { regexp: /^(.*):(\d+): (.*)$/, file: 1, line: 2, message: 3 },
+			watching: { activeOnStart: true, beginsPattern: { regexp: /^begin$/ }, endsPattern: { regexp: /^end$/ } }
+		};
+		const inactiveMatcher: ProblemMatcher = {
+			...matcher,
+			watching: { activeOnStart: false, beginsPattern: { regexp: /^inactive-begin$/ }, endsPattern: { regexp: /^inactive-end$/ } }
+		};
+		const collector = store.add(new WatchingProblemCollector([matcher, inactiveMatcher], markerService, modelService));
+		const snapshots: string[][] = [];
+		let inactiveEnd: (() => void) | undefined;
+		store.add(collector.onDidFindErrors((markers: IMarker[]) => {
+			snapshots.push(markers.map(marker => marker.message));
+			inactiveEnd?.();
+			inactiveEnd = undefined;
+		}));
+		let completed: (() => void) | undefined;
+		store.add(collector.onDidStateChange(event => {
+			if (event.kind === ProblemCollectorEventKind.BackgroundProcessingEnds) {
+				completed?.();
+			}
+		}));
+		collector.aboutToStart();
+
+		const inactiveEndProcessed = new Promise<void>(resolve => inactiveEnd = resolve);
+		collector.processLine('a.ts:1: diagnostic');
+		collector.processLine('inactive-end');
+		await inactiveEndProcessed;
+		assert.deepStrictEqual(markerService.read({ owner: 'test' }), []);
+
+		const activeEndProcessed = new Promise<void>(resolve => completed = resolve);
+		collector.processLine('end');
+		await activeEndProcessed;
+		assert.deepStrictEqual(snapshots, [[], ['diagnostic']]);
+	});
 
 	test('does not retain replayed lines when a model is removed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const modelRemoved = store.add(new Emitter<ITextModel>());
@@ -72,5 +158,56 @@ suite('ProblemCollectors', () => {
 		}
 
 		assert.deepStrictEqual(matchCounts, [1, 2, 3]);
+	}));
+
+	test('reports markers of lines still being processed when done is called', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const modelService = new class extends mock<IModelService>() {
+			override readonly onModelAdded = Event.None;
+			override readonly onModelRemoved = Event.None;
+			override getModels(): ITextModel[] { return []; }
+		};
+
+		const delivered = new Map<string, string[]>();
+		const markerService = new class extends mock<IMarkerService>() {
+			override readonly onMarkerChanged = Event.None;
+			override read() { return []; }
+			override changeOne(_owner: string, resource: URI, markers: IMarkerData[]) {
+				delivered.set(resource.path, markers.map(marker => marker.message));
+			}
+			override remove() { }
+		};
+
+		const problemMatcher: ProblemMatcher = {
+			owner: 'test',
+			applyTo: ApplyToKind.allDocuments,
+			fileLocation: FileLocationKind.Absolute,
+			pattern: { regexp: /^(.*):(\d+):\s+([^:]+):\s+(.*)$/, file: 1, line: 2, severity: 3, message: 4 },
+			watching: {
+				activeOnStart: true,
+				beginsPattern: { regexp: /^Start$/ },
+				endsPattern: { regexp: /^End$/ }
+			}
+		};
+		const collector = store.add(new WatchingProblemCollector([problemMatcher], markerService, modelService));
+		collector.aboutToStart();
+
+		// The task process exits right after printing its output, before the
+		// end pattern is seen, while the lines are still being processed.
+		for (const line of [
+			'Start',
+			'/file1:150: error: problem1',
+			'/file1:825: error: problem2',
+			'/file2:468: error: problem3',
+			'/file2:550: error: problem4',
+		]) {
+			collector.processLine(line);
+		}
+		// The markers are reported by the time the returned promise resolves.
+		await collector.done();
+
+		assert.deepStrictEqual([...delivered.entries()].sort(), [
+			['/file1', ['problem1', 'problem2']],
+			['/file2', ['problem3', 'problem4']],
+		]);
 	}));
 });

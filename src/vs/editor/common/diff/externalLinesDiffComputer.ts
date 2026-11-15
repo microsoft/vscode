@@ -8,6 +8,7 @@ import { resolveAmdNodeModulePath } from '../../../amdX.js';
 import { LineRange } from '../core/ranges/lineRange.js';
 import { OffsetRange } from '../core/ranges/offsetRange.js';
 import { StringText } from '../core/text/abstractText.js';
+import { PositionOffsetTransformerBase } from '../core/text/positionToOffsetImpl.js';
 import { ensureDependenciesAreSet } from '../core/text/positionToOffset.js';
 import { ILinesDiffComputer, ILinesDiffComputerOptions, LinesDiff, MovedText } from './linesDiffComputer.js';
 import { lineRangeMappingFromRangeMappings, LineRangeMapping, RangeMapping } from './rangeMapping.js';
@@ -15,8 +16,6 @@ import { lineRangeMappingFromRangeMappings, LineRangeMapping, RangeMapping } fro
 type ExternalDiffModule = { createDiffComputer: typeof createExternalDiffComputer };
 
 let externalModulePromise: Promise<ExternalDiffModule> | undefined;
-let externalDiffComputerPromise: Promise<IExternalDiffComputer> | undefined;
-let externalWasmDiffComputerPromise: Promise<IExternalDiffComputer> | undefined;
 
 function loadExternalModule(): Promise<ExternalDiffModule> {
 	if (!externalModulePromise) {
@@ -27,24 +26,24 @@ function loadExternalModule(): Promise<ExternalDiffModule> {
 	return externalModulePromise;
 }
 
-function loadExternalComputer(useWasm: boolean): Promise<IExternalDiffComputer> {
-	if (useWasm) {
-		if (!externalWasmDiffComputerPromise) {
-			externalWasmDiffComputerPromise = loadExternalModule().then(m => m.createDiffComputer({ useWasm: true }));
-		}
-		return externalWasmDiffComputerPromise;
+const externalComputers = new Map<boolean, Promise<ILinesDiffComputer>>();
+
+export function getExternalLinesDiffComputer(useWasm: boolean): Promise<ILinesDiffComputer> {
+	let computer = externalComputers.get(useWasm);
+	if (!computer) {
+		computer = loadExternalModule().then(m => createExternalLinesDiffComputer(m, useWasm));
+		externalComputers.set(useWasm, computer);
 	}
-	if (!externalDiffComputerPromise) {
-		externalDiffComputerPromise = loadExternalModule().then(m => m.createDiffComputer({ useWasm: false }));
-	}
-	return externalDiffComputerPromise;
+	return computer;
 }
 
-export async function getExternalLinesDiffComputer(useWasm: boolean): Promise<ILinesDiffComputer> {
-	const computer = await loadExternalComputer(useWasm);
-	return new ExternalLinesDiffComputer(computer);
+export async function createExternalLinesDiffComputer(externalModule: ExternalDiffModule, useWasm: boolean): Promise<ILinesDiffComputer> {
+	return new ExternalLinesDiffComputer(await externalModule.createDiffComputer({ useWasm }));
 }
 
+/**
+ * Adapts the offset-based string edit of `@vscode/diff` to line range mappings.
+ */
 class ExternalLinesDiffComputer implements ILinesDiffComputer {
 	constructor(private readonly _computer: IExternalDiffComputer) { }
 
@@ -54,12 +53,10 @@ class ExternalLinesDiffComputer implements ILinesDiffComputer {
 		const originalText = new StringText(originalLines.join('\n'));
 		const modifiedText = new StringText(modifiedLines.join('\n'));
 
+		// The edit always contains whitespace changes, so it reproduces the modified text.
+		// Ignoring trim whitespace only hides the replacements annotated as such.
 		const result = this._computer.computeDiff(originalText.value, modifiedText.value, {
-			// TODO: this currently throws
-			ignoreTrimWhitespace: true,
-			// ignoreTrimWhitespace: options.ignoreTrimWhitespace,
-			// TODO: support this. Currently throws with "Time is not implemented in this environment."
-			// maxComputationTimeMs: options.maxComputationTimeMs,
+			maxComputationTimeMs: options.maxComputationTimeMs,
 			computeMoves: options.computeMoves,
 			extendToSubwords: options.extendToSubwords,
 		});
@@ -70,12 +67,14 @@ class ExternalLinesDiffComputer implements ILinesDiffComputer {
 		const rangeMappings: RangeMapping[] = [];
 		let delta = 0;
 		for (const r of result.edits.replacements) {
-			const modifiedStart = r.range.start + delta;
-			const modifiedEndExclusive = modifiedStart + r.newText.length;
-			const originalRange = originalTransformer.getRange(new OffsetRange(r.range.start, r.range.endExclusive));
-			const modifiedRange = modifiedTransformer.getRange(new OffsetRange(modifiedStart, modifiedEndExclusive));
-			rangeMappings.push(new RangeMapping(originalRange, modifiedRange));
-			delta += r.newText.length - (r.range.endExclusive - r.range.start);
+			const originalRange = new OffsetRange(r.range.start, r.range.endExclusive);
+			const modifiedRange = new OffsetRange(r.range.start + delta, r.range.start + delta + r.newText.length);
+			delta += r.newText.length - originalRange.length;
+
+			if (options.ignoreTrimWhitespace && r.data.isTrimWhitespaceChange) {
+				continue;
+			}
+			rangeMappings.push(new RangeMapping(originalTransformer.getRange(originalRange), modifiedTransformer.getRange(modifiedRange)));
 		}
 
 		const changes = lineRangeMappingFromRangeMappings(rangeMappings, originalText, modifiedText);
@@ -83,16 +82,36 @@ class ExternalLinesDiffComputer implements ILinesDiffComputer {
 		const moves: MovedText[] = [];
 		if (options.computeMoves) {
 			for (const move of result.moves) {
-				const originalStartPos = originalTransformer.getPosition(move.range.original.start);
-				const originalEndPos = originalTransformer.getPosition(move.range.original.endExclusive);
-				const modifiedStartPos = modifiedTransformer.getPosition(move.range.modified.start);
-				const modifiedEndPos = modifiedTransformer.getPosition(move.range.modified.endExclusive);
-				const originalLineRange = new LineRange(originalStartPos.lineNumber, originalEndPos.lineNumber);
-				const modifiedLineRange = new LineRange(modifiedStartPos.lineNumber, modifiedEndPos.lineNumber);
-				moves.push(new MovedText(new LineRangeMapping(originalLineRange, modifiedLineRange), []));
+				const original = move.range.original;
+				const modified = move.range.modified;
+
+				// The inner edit is relative to the moved text.
+				const innerMappings: RangeMapping[] = [];
+				let innerDelta = 0;
+				for (const r of move.innerEdit.replacements) {
+					const innerOriginal = new OffsetRange(original.start + r.range.start, original.start + r.range.endExclusive);
+					const innerModified = new OffsetRange(modified.start + r.range.start + innerDelta, modified.start + r.range.start + innerDelta + r.newText.length);
+					innerDelta += r.newText.length - innerOriginal.length;
+					innerMappings.push(new RangeMapping(originalTransformer.getRange(innerOriginal), modifiedTransformer.getRange(innerModified)));
+				}
+
+				moves.push(new MovedText(
+					new LineRangeMapping(toLineRange(originalTransformer, original), toLineRange(modifiedTransformer, modified)),
+					lineRangeMappingFromRangeMappings(innerMappings, originalText, modifiedText, true),
+				));
 			}
 		}
 
 		return new LinesDiff(changes, moves, result.hitTimeout);
 	}
+}
+
+/**
+ * Moves cover whole lines. Their range ends after the line break of the last moved line,
+ * or at the end of the document if that line is the last one.
+ */
+function toLineRange(transformer: PositionOffsetTransformerBase, range: { readonly start: number; readonly endExclusive: number }): LineRange {
+	const start = transformer.getPosition(range.start);
+	const end = transformer.getPosition(range.endExclusive);
+	return new LineRange(start.lineNumber, end.column === 1 ? end.lineNumber : end.lineNumber + 1);
 }

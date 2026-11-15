@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../common/languageModels.js';
-import { ModelSelectionReason, resolveConfiguredModel, resolveInitialModelSelection, resolveModelIdentifier, resolveModelIdentifierFromCatalog, resolveModelIdentifierFromLanguageModels } from '../../common/modelSelection.js';
+import { getDefaultModelPolicyDescription, getVisibleLanguageModelsForTarget, ModelSelectionReason, resolveConfiguredModel, resolveInitialModelSelection, resolveModelIdentifier, resolveModelIdentifierFromCatalog, resolveModelIdentifierFromLanguageModels } from '../../common/modelSelection.js';
 
 function model(identifier: string, metadataId = identifier, family = identifier, version = '1.0'): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -32,6 +32,45 @@ const second = model('target:second', 'second', 'second');
 suite('ModelSelection', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('explains an organization default without implying that conversation model selection is locked', () => {
+		assert.deepStrictEqual(
+			[undefined, '', '   ', 'opus', ' OPUS '].map(saved => getDefaultModelPolicyDescription('opus', saved)),
+			Array(5).fill('Your organization sets "opus" as the default for new conversations. You can choose another model for each conversation.'),
+		);
+	});
+
+	test('names the overridden preference without claiming it was deleted', () => {
+		assert.strictEqual(
+			getDefaultModelPolicyDescription('opus', 'gemini'),
+			'Your organization sets "opus" as the default for new conversations. Your saved preference "gemini" is preserved but does not apply while this policy is in effect. You can choose another model for each conversation.',
+		);
+	});
+
+	test('filters model targets and respects host-specific and underlying BYOK visibility', () => {
+		const target = 'remote-host-copilot';
+		const models = [
+			{ id: 'visible', target },
+			{ id: 'hidden', target },
+			{ id: 'byok-visible', target, byokModelIdentifier: 'openrouter/visible' },
+			{ id: 'byok-hidden-copy', target, byokModelIdentifier: 'openrouter/hidden-copy' },
+			{ id: 'byok-hidden-source', target, byokModelIdentifier: 'openrouter/hidden-source' },
+			{ id: 'other-target', target: 'remote-other-copilot' },
+		].map(({ id, target, byokModelIdentifier }) => {
+			const entry = model(`${target}:${id}`, id);
+			return { ...entry, metadata: { ...entry.metadata, targetChatSessionType: target, byokModelIdentifier } };
+		});
+		const hidden = new Set([`${target}:hidden`, `${target}:byok-hidden-copy`, 'openrouter/hidden-source']);
+		const languageModelsService = { isModelHidden: (identifier: string) => hidden.has(identifier) };
+		const visible = getVisibleLanguageModelsForTarget(models, target, languageModelsService).map(model => model.metadata.id);
+		hidden.clear();
+		const unhidden = getVisibleLanguageModelsForTarget(models, target, languageModelsService).map(model => model.metadata.id);
+
+		assert.deepStrictEqual({ visible, unhidden }, {
+			visible: ['visible', 'byok-visible'],
+			unhidden: ['visible', 'hidden', 'byok-visible', 'byok-hidden-copy', 'byok-hidden-source'],
+		});
+	});
 
 	test('resolves identifier availability states', () => {
 		assert.deepStrictEqual([

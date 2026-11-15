@@ -15,7 +15,6 @@ import { IExtensionHostDebugService } from '../../../../platform/debug/common/ex
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService, ILoggerService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IWorkbenchAssignmentService } from '../../assignment/common/assignmentService.js';
 import { IConnectionOptions, IRemoteExtensionHostStartParams, connectRemoteAgentExtensionHost } from '../../../../platform/remote/common/remoteAgentConnection.js';
 import { IRemoteAuthorityResolverService, IRemoteConnectionData } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IRemoteSocketFactoryService } from '../../../../platform/remote/common/remoteSocketFactoryService.js';
@@ -28,9 +27,10 @@ import { IDefaultLogLevelsService } from '../../log/common/defaultLogLevels.js';
 import { parseExtensionDevOptions } from './extensionDevOptions.js';
 import { IExtensionHostInitData, MessageType, UIKind, createMessageOfType, isMessageOfType } from './extensionHostProtocol.js';
 import { RemoteRunningLocation } from './extensionRunningLocation.js';
-import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost, resolveEnabledApiProposalsFallbackExperiment } from './extensions.js';
+import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost } from './extensions.js';
 
 export interface IRemoteExtensionHostInitData {
+	readonly os: platform.OperatingSystem;
 	readonly connectionData: IRemoteConnectionData | null;
 	readonly pid: number;
 	readonly appRoot: URI;
@@ -49,6 +49,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
 	public readonly pid = null;
 	public readonly remoteAuthority: string;
+	public remoteOS: platform.OperatingSystem | undefined;
 	public readonly startup = ExtensionHostStartup.EagerAutoStart;
 	public extensions: ExtensionHostExtensions | null = null;
 
@@ -76,7 +77,6 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		@IProductService private readonly _productService: IProductService,
 		@ISignService private readonly _signService: ISignService,
 		@IDefaultLogLevelsService private readonly _defaultLogLevelsService: IDefaultLogLevelsService,
-		@IWorkbenchAssignmentService private readonly _workbenchAssignmentService: IWorkbenchAssignmentService,
 	) {
 		super();
 		this.remoteAuthority = this._initDataProvider.remoteAuthority;
@@ -207,16 +207,15 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
 	private async _createExtHostInitData(isExtensionDevelopmentDebug: boolean): Promise<IExtensionHostInitData> {
 		const remoteInitData = await this._initDataProvider.getInitData();
+		this.remoteOS = remoteInitData.os;
 		this.extensions = remoteInitData.extensions;
 		const workspace = this._contextService.getWorkspace();
-		const enabledApiProposalsFallback = await resolveEnabledApiProposalsFallbackExperiment(this._workbenchAssignmentService, this._productService.quality);
 		return {
 			commit: this._productService.commit,
 			version: this._productService.version,
 			quality: this._productService.quality,
 			date: this._productService.date,
 			parentPid: remoteInitData.pid,
-			enabledApiProposalsFallback,
 			environment: {
 				isExtensionDevelopmentDebug,
 				appRoot: remoteInitData.appRoot,

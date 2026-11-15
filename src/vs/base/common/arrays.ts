@@ -113,19 +113,19 @@ type Compare<T> = (a: T, b: T) => number;
  * Finds the nth smallest element in the array using quickselect algorithm.
  * The data does not need to be sorted.
  *
- * @param nth The zero-based index of the element to find (0 = smallest, 1 = second smallest, etc.)
+ * @param nth The zero-based index of the element to find (0 = smallest, 1 = second smallest, etc.). Non-negative fractional values are truncated towards zero.
  * @param data The unsorted array
  * @param compare A comparator function that defines the sort order
  * @returns The nth smallest element
- * @throws TypeError if nth is >= data.length
+ * @throws TypeError if nth is not finite or is out of bounds (< 0 or >= data.length)
  */
 export function quickSelect<T>(nth: number, data: T[], compare: Compare<T>): T {
 
-	nth = nth | 0;
-
-	if (nth >= data.length) {
+	if (!Number.isFinite(nth) || nth < 0 || nth >= data.length) {
 		throw new TypeError('invalid index');
 	}
+
+	nth = Math.trunc(nth);
 
 	const pivotValue = data[Math.floor(data.length * Math.random())];
 	const lower: T[] = [];
