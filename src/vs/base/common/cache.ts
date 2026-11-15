@@ -48,13 +48,15 @@ interface ICacheOptions<TArg> {
 	getCacheKey: (arg: TArg) => unknown;
 }
 
+const unset = Symbol('unset');
+
 /**
  * Uses a LRU cache to make a given parametrized function cached.
  * Caches just the last key/value.
 */
 export class LRUCachedFunction<TArg, TComputed> {
 	private lastCache: TComputed | undefined = undefined;
-	private lastArgKey: unknown | undefined = undefined;
+	private lastArgKey: unknown = unset;
 
 	private readonly _fn: (arg: TArg) => TComputed;
 	private readonly _computeKey: (arg: TArg) => unknown;
