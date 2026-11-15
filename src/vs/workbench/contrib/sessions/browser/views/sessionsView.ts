@@ -1212,8 +1212,10 @@ export class SessionsView extends ViewPane {
 			}
 			header.label.textContent = inbox ? localize('inboxHeader', "Inbox") : localize('sessionsHeader', "Sessions");
 			if (this.headerInTitle) {
-				// The title shows the actions; the row only shows the find widget while it is open.
+				// The title shows the label and the actions; the row only shows the find widget while it is open, at its full width
 				header.row.style.display = this.isFindWidgetOpen ? '' : 'none';
+				header.label.style.display = this.isFindWidgetOpen ? 'none' : '';
+				header.actions.style.display = this.isFindWidgetOpen ? 'none' : '';
 				continue;
 			}
 			// On phone the desktop header content is hidden; the row is only
