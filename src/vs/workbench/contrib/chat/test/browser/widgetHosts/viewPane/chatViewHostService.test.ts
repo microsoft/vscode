@@ -414,6 +414,40 @@ suite('ChatViewHostService', () => {
 		assert.deepStrictEqual({ taken, chatViewNewChat: calls.includes('chat view newChat') }, { taken: true, chatViewNewChat: false });
 	});
 
+	test('a New Chat superseded meanwhile is handled whichever host declines it last, so that the chat widget does not start a new chat in place of the opened chat; one not superseded is left to it', async () => {
+		const { service, view, showView } = createService();
+		showView();
+		let declined = new DeferredPromise<boolean>();
+		const chatViewDeclined = new DeferredPromise<boolean>();
+		Object.assign(view, { newChat: () => chatViewDeclined.p });
+		const registration = service.registerHost({ ...upcastPartial<IChatViewHost>({}), newChat: () => declined.p, openSession: async () => undefined });
+		const results: Record<string, boolean> = {};
+
+		// The ordinary New Chat command, which the host in use declines after a later open
+		const superseded = service.newChat();
+		await service.openSession(URI.parse('agent-host-copilot:/opened'));
+		await declined.complete(false);
+		results.supersededDeclinedByHost = await superseded;
+
+		// Not superseded, it is left to the chat widget
+		declined = new DeferredPromise<boolean>();
+		const notSuperseded = service.newChat();
+		await declined.complete(false);
+		results.notSuperseded = await notSuperseded;
+
+		// A new chat of its own that the host declines, which the Chat view then declines after a later open
+		declined = new DeferredPromise<boolean>();
+		const ownChat = service.newChat(undefined, { ownChat: true });
+		await declined.complete(false);
+		await timeout(0);
+		await service.openSession(URI.parse('agent-host-copilot:/opened-again'));
+		await chatViewDeclined.complete(false);
+		results.supersededDeclinedByChatView = await ownChat;
+		registration.dispose();
+
+		assert.deepStrictEqual(results, { supersededDeclinedByHost: true, notSuperseded: false, supersededDeclinedByChatView: true });
+	});
+
 	test('a host that completes a reveal after it is removed does not supersede a New Chat under way', async () => {
 		const { service, shownSession, showView } = createService();
 		shownSession.set({ resource: URI.parse('vscode-chat-session://local/chat-view'), reason: 'open' }, undefined);
