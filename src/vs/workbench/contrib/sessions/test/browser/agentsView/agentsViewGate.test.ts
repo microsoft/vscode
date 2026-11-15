@@ -21,7 +21,8 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../../services/panecomposite/browser/panecomposite.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyChangeEvent, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -79,10 +80,27 @@ suite('AgentsViewGate', () => {
 	let hosts: number;
 	let hiddenParts: Parts[];
 	let chatPartAnchors: (string | undefined)[];
-	let contextKeyService: MockContextKeyService;
+	/** The window's context keys, as the gate sets them, and whether chat shows (AI features on, the agent enabled, a local window), as it changes. */
+	class ChatContextKeyService extends MockContextKeyService {
+		private readonly _onDidChangeContext = disposables.add(new Emitter<IContextKeyChangeEvent>());
+		private readonly _values = new Map<string, unknown>([[ChatContextKeys.enabled.key, true], ['config.chat.agent.enabled', true], ['remoteName', '']]);
+		override get onDidChangeContext(): Event<IContextKeyChangeEvent> { return this._onDidChangeContext.event; }
+		override contextMatchesRules(rules: ContextKeyExpression): boolean {
+			return rules.evaluate({ getValue: <T>(key: string) => (this._values.has(key) ? this._values.get(key) : this.getContextKeyValue(key)) as T });
+		}
+		setValue(key: string, value: unknown): void {
+			this._values.set(key, value);
+			this._onDidChangeContext.fire({ affectsSome: keys => keys.has(key), allKeysContainedIn: keys => keys.has(key) });
+		}
+	}
 
-	function createGate(enabled: boolean, remoteAuthority?: string, auxiliaryBar?: { visible: boolean; containers: string[] }, events?: { readonly partVisibility?: Event<IPartVisibilityChangeEvent>; readonly compositeClose?: Event<{ viewContainerLocation: ViewContainerLocation }>; readonly extensionsRegistered?: Promise<boolean> }): AgentsViewGate {
+	let contextKeyService: ChatContextKeyService;
+	/** Whether chats open in the chat part, as the gate enabled it. */
+	let chatPartEnabled: IObservable<boolean> | undefined;
+
+	function createGate(enabled: boolean, remoteAuthority?: string, auxiliaryBar?: { visible: boolean; containers: string[] }, events?: { readonly partVisibility?: Event<IPartVisibilityChangeEvent>; readonly compositeClose?: Event<{ viewContainerLocation: ViewContainerLocation }>; readonly extensionsRegistered?: Promise<boolean>; readonly aiOff?: boolean }): AgentsViewGate {
 		createdChatParts = 0;
+		chatPartEnabled = undefined;
 		hosts = 0;
 		hiddenParts = [];
 		chatPartAnchors = [];
@@ -105,7 +123,10 @@ suite('AgentsViewGate', () => {
 			},
 		}));
 		instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({ when: () => Promise.resolve() }));
-		contextKeyService = new MockContextKeyService();
+		contextKeyService = new ChatContextKeyService();
+		if (events?.aiOff) {
+			contextKeyService.setValue(ChatContextKeys.enabled.key, false);
+		}
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IPaneCompositePartService, upcastPartial<IPaneCompositePartService>({
 			getVisiblePaneCompositeIds: () => auxiliaryBar?.containers ?? [],
@@ -118,6 +139,7 @@ suite('AgentsViewGate', () => {
 		instantiationService.stub(IEditorWindowChatPartService, upcastPartial<IEditorWindowChatPartService>({
 			enable: options => {
 				createdChatParts++;
+				chatPartEnabled = options.enabled;
 				chatPartAnchors.push(options.anchorViewId);
 				const replacesChatView = options.enabled.get();
 				if (replacesChatView) {
@@ -243,6 +265,17 @@ suite('AgentsViewGate', () => {
 		const claims = (values: Record<string, unknown>) => !!rule?.when?.evaluate({ getValue: <T>(key: string) => ({ chatAgentsViewActive: true, 'config.chat.agent.enabled': true, remoteName: '', ...values })[key] as T });
 
 		assert.deepStrictEqual({ available: claims({}), aiOff: claims({ chatSetupHidden: true }), disabledInWorkspace: claims({ chatSetupDisabledInWorkspace: true }) }, { available: true, aiOff: false, disabledInWorkspace: false });
+	});
+
+	test('opens its chats in the chat part only while chat shows: not with AI features off as the window starts, and as they turn off and on again', () => {
+		createGate(true, undefined, undefined, { aiOff: true });
+		const seen: boolean[] = [];
+		disposables.add(autorun(reader => seen.push(!!chatPartEnabled?.read(reader))));
+		contextKeyService.setValue(ChatContextKeys.enabled.key, true);
+		contextKeyService.setValue(ChatContextKeys.enabled.key, false);
+		contextKeyService.setValue(ChatContextKeys.enabled.key, true);
+
+		assert.deepStrictEqual(seen, [false, true, false, true]);
 	});
 
 	test('hides the Secondary Side Bar whenever, without the Chat view, it would show nothing: once extensions registered their containers, and as it shows again', () => runWithFakedTimers({}, async () => {
