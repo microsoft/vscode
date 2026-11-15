@@ -72,9 +72,9 @@ export class SessionHeader extends Disposable {
 
 	/**
 	 * Shows `session`, a new session not created yet, such as of a composer, titled as new, with the actions of its session;
-	 * nothing while undefined.
+	 * nothing while undefined. `close` closes what shows it, such as on a middle-click of its title, as a chat's header does.
 	 */
-	setDraftSession(session: ISession | undefined): void {
+	setDraftSession(session: ISession | undefined, close?: () => void): void {
 		this._sessionDisposables.clear();
 		if (!session) {
 			this.setSession(undefined);
@@ -82,7 +82,7 @@ export class SessionHeader extends Disposable {
 		}
 		this._headerTargetsChatKey.set(false);
 		this._toolbarShowsSessionKey.set(true);
-		this._bar.setContext({ session, chat: session.mainChat, isDraft: true });
+		this._bar.setContext({ session, chat: session.mainChat, isDraft: true, closeSession: close });
 	}
 
 	/** See {@link SessionHeaderBar.setDragsEditor}. */

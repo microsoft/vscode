@@ -706,13 +706,14 @@ suite('Session chat view editor', () => {
 		});
 	});
 
-	test('a host that shows the session header for a composer too, as the chat part of an editor window does, shows it for the composer\'s session, titled as new and without a status, with its session\'s actions; once created, the chat\'s', () => {
+	test('a host that shows the session header for a composer too, as the chat part of an editor window does, shows it for the composer\'s session, titled as new and without a status, with its session\'s actions, and a middle-click on its title closes the composer, as on a chat\'s; once created, the chat\'s', () => {
 		const { instantiationService } = createServices();
 		const draft = createTestActiveSession('draft', false);
 		const content = observableValue<ISessionPaneContent | undefined>('content', undefined);
+		let closed = 0;
 		const view = disposables.add(instantiationService.createInstance(ChatEditorView, {
 			content,
-			composer: constObservable({ draftHost: upcastPartial<INewSessionDraftHost>({}), session: constObservable(draft) }),
+			composer: constObservable({ draftHost: upcastPartial<INewSessionDraftHost>({}), session: constObservable(draft), close: () => closed++ }),
 			window: constObservable(undefined),
 			active: constObservable(true),
 			attach: () => Disposable.None,
@@ -733,12 +734,15 @@ suite('Session chat view editor', () => {
 		};
 
 		const composing = read();
+		view.element.querySelector<HTMLElement>('.session-header-bar .chat-composite-bar-session-title')!.dispatchEvent(new MouseEvent('auxclick', { button: 1, bubbles: true }));
+		const middleClickClosed = closed;
 		draft.isCreated.set(true, undefined);
 		content.set(testPaneContentOf(draft, () => { }), undefined);
 		const created = read();
 
-		assert.deepStrictEqual({ composing, created }, {
+		assert.deepStrictEqual({ composing, middleClickClosed, created }, {
 			composing: { shown: true, title: 'New Session', status: false, onSession: true },
+			middleClickClosed: 1,
 			created: { shown: true, title: 'Main Chat', status: true, onSession: true },
 		});
 	});
