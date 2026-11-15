@@ -62,7 +62,7 @@ suite('SessionCanvasRegistryService', () => {
 		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', session);
 		const listedChats: URI[] = [];
 		const didListCanvases = store.add(new Emitter<URI>());
-		const opened: Array<{ chat: URI; canvas: ISessionCanvasDefinition; instanceId: string }> = [];
+		const opened: Array<{ chat: URI; canvas: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>; instanceId: string }> = [];
 		let currentDefinitions: readonly ISessionCanvasDefinition[] | undefined = definitions;
 		let listingGate: DeferredPromise<void> | undefined;
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({

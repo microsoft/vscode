@@ -52,7 +52,6 @@
     "kerberos": "2.1.1",
     "libsodium-wrappers": "^0.8.4",
     "minimist": "^1.2.8",
-    "node-addon-api": "^6.0.0",
     "node-pty": "^1.2.0-beta.18",
     "ssh2": "^1.16.0",
     "tar": "^7.5.20",

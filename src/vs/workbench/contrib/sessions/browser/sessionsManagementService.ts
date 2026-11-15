@@ -1864,7 +1864,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return provider.listCanvases(session.sessionId, chat.resource);
 	}
 
-	async openCanvas(session: ISession, chat: IChat, canvas: ISessionCanvasDefinition, instanceId: string, options?: ICanvasOpenOptions): Promise<void> {
+	async openCanvas(session: ISession, chat: IChat, canvas: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>, instanceId: string, options?: ICanvasOpenOptions): Promise<void> {
 		const provider = this._getProvider(session);
 		if (!session.capabilities.get().supportsCanvases || !provider?.openCanvas) {
 			throw new Error(localize('sessions.openCanvas.unsupported', "Opening canvases is not supported for this session."));
