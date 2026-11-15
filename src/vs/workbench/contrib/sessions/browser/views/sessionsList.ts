@@ -4823,6 +4823,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private visible = true;
 	/** Whether something the list shows changed while it was hidden, which it skips rendering until it shows again. */
 	private changedWhileHidden = false;
+	/** Until when what the list rendered last holds, as its sections and caps also follow the time: see {@link getRenderValidUntil}. */
+	private renderValidUntil = Number.POSITIVE_INFINITY;
 	private readonly onboardingTarget = observableValue<ISessionOnboardingTarget | undefined>(this, undefined);
 	readonly filters: SessionsListFilters;
 	private _excludeArchived: boolean;
@@ -5917,6 +5919,26 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.update();
 	}
 
+	/**
+	 * Until when the sections and caps of the list hold as it renders them now: they also follow the time, without an event
+	 * as it passes, such as a session moving from Recent to Older at midnight, a session updated in the last day staying
+	 * Recent (see `RECENTLY_UPDATED_SESSION_THRESHOLD_MS`), or a workspace updated in the last days staying uncapped (see
+	 * `FOUR_DAYS_MS`).
+	 */
+	private getRenderValidUntil(): number {
+		const now = new Date();
+		let validUntil = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
+		for (const session of this.sessions) {
+			const updated = session.updatedAt.get().getTime();
+			for (const boundary of [updated + RECENTLY_UPDATED_SESSION_THRESHOLD_MS, updated + FOUR_DAYS_MS]) {
+				if (boundary > now.getTime() && boundary < validUntil) {
+					validUntil = boundary;
+				}
+			}
+		}
+		return validUntil;
+	}
+
 	private refreshSessions(): void {
 		this.sessions = this._sessionsManagementService.getSessions();
 		this.sessionChatsUpdate.clear();
@@ -5954,6 +5976,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.refreshPending = false;
 			this.refreshSessions();
 		}
+		this.renderValidUntil = this.getRenderValidUntil();
 		const activeSession = this._mainWindowShown.get()?.session;
 		const onboardingSession = this.onboardingTarget.get()?.session;
 		const grouping = this.options.grouping();
@@ -7275,7 +7298,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.visible) {
 			// Shown again, the list keeps its rows: it renders again only what changed while hidden, and the inbox observes
 			// its sessions' attention again, which it stops observing while hidden
-			if (this.changedWhileHidden || this.isInboxLayout()) {
+			if (this.changedWhileHidden || this.isInboxLayout() || Date.now() >= this.renderValidUntil) {
 				this.changedWhileHidden = false;
 				this.refresh();
 			}
