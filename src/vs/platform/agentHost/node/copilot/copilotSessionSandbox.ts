@@ -11,6 +11,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IEnvironmentService, INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentSandboxEnabledValue, normalizeSandboxFileSystemPath } from '../../../sandbox/common/settings.js';
@@ -100,6 +101,7 @@ export class CopilotSessionSandbox extends Disposable {
 		@IWorkspaceSandboxPathService private readonly _workspacePaths: IWorkspaceSandboxPathService,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 	) {
 		super();
 		this._diagnostics = this._register(instantiationService.createInstance(CopilotSandboxDiagnostics, _options.ownerSession.toString(), _options.getHostSupport, _options.platform));
@@ -423,6 +425,7 @@ export class CopilotSessionSandbox extends Disposable {
 		const sandbox = getSessionSandboxConfig(this._configurationService, target, this._options.platform, this._getWorkspacePaths());
 		const policy = this._configurationService.getSessionSandboxPolicy(target.session);
 		const readonlyPaths = [...getVSCodeSandboxReadRoots({
+			appBundleRoot: this._environmentService.appBundleRoot,
 			sessionDataDirectories: [this._options.ownerSession.toString(), this._options.storage.toString(), ...this._configurationService.getChatAttachmentScopes(target)]
 				.filter((scope, index, scopes) => scopes.indexOf(scope) === index)
 				.map(scope => this._sessionDataService.getSessionDataDir(URI.parse(scope))),

@@ -101,6 +101,7 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 
 	getReadRoots(): readonly URI[] {
 		return getVSCodeSandboxReadRoots({
+			appBundleRoot: this._environmentService.appBundleRoot,
 			sessionDataDirectories: [resolveAgentHostRootSession(URI.parse(this._target.session)).toString(), ...this._agentConfigurationService.getChatAttachmentScopes(this._target)]
 				.filter((scope, index, scopes) => scopes.indexOf(scope) === index)
 				.map(scope => this._sessionDataService.getSessionDataDir(URI.parse(scope))),

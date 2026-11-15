@@ -19,6 +19,15 @@ import { buildSandboxConfigForSdk, resolveAttachedPathGrants, toSandboxFileSyste
 suite('VS Code sandbox read roots', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('grants application contents alongside session resources', () => {
+		const appBundleRoot = '/Applications/Visual Studio Code - Insiders.app/Contents';
+		const terminalOutputDirectory = URI.file('/cache/terminal-output');
+		assert.deepStrictEqual(getVSCodeSandboxReadRoots({ appBundleRoot, terminalOutputDirectory }), [
+			URI.file(appBundleRoot),
+			terminalOutputDirectory,
+		]);
+	});
+
 	test('grants the local harness its terminal output root', () => {
 		const terminalOutputDirectory = URI.file('/cache/terminal-output');
 		assert.deepStrictEqual(getVSCodeSandboxReadRoots({ terminalOutputDirectory }), [terminalOutputDirectory]);

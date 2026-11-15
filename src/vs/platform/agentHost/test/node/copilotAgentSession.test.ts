@@ -1442,6 +1442,7 @@ function progressUpdatesTriggers(telemetryService: TestExperimentTriggerTelemetr
 
 async function createAgentSession(disposables: DisposableStore, options?: {
 	copilotHome?: string;
+	appBundleRoot?: string;
 	getSessionPathRoots?: () => readonly ISessionPathRoot[];
 	clientSnapshot?: IActiveClientSnapshot;
 	builtinPluginDirectories?: readonly URI[];
@@ -1953,6 +1954,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	services.set(IAgentHostPromptCache, new AgentHostPromptCache(stateManager));
 	const environmentService = {
 		_serviceBrand: undefined,
+		appBundleRoot: options?.appBundleRoot,
 		userHome: URI.file('/mock-home'),
 		tmpDir: URI.file('/mock-tmp'),
 		userDataPath: '/mock-userdata',
@@ -17097,13 +17099,15 @@ suite('CopilotAgentSession', () => {
 
 		for (const platform of ['linux', 'darwin', 'win32'] as const) {
 			for (const resume of [false, true]) {
-				test(`sandbox launch and first turn: grants read-only access to applied plugin resources on ${platform} (resume=${resume})`, async () => {
+				test(`sandbox launch and first turn: grants read-only access to application and applied plugin resources on ${platform} (resume=${resume})`, async () => {
+					const appBundleRoot = URI.file(platform === 'darwin' ? '/Applications/Code.app/Contents' : platform === 'win32' ? 'C:\\Program Files\\Code' : '/usr/share/code').fsPath;
 					const pluginDir = URI.file('/extensions/fixture extension/plugin');
 					const resourceDir = URI.file('/plugins/projected');
 					const snapshot = createPluginSnapshot(pluginDir, resourceDir, URI.from({ scheme: Schemas.vscodeRemote, authority: 'other-host', path: '/plugins/remote' }));
 					const { session, runtime, mockSession } = await createAgentSession(disposables, {
 						platform,
 						resume,
+						appBundleRoot,
 						clientSnapshot: {
 							...snapshot,
 							plugins: snapshot.plugins.map((plugin, index) => index === 1 ? { ...plugin, pluginDir: undefined, resourceDir } : plugin),
@@ -17118,7 +17122,7 @@ suite('CopilotAgentSession', () => {
 						launchFilesystem: launchConfig?.userPolicy?.filesystem,
 						firstTurnConfig: mockSession.sandboxConfigUpdates.at(-1),
 					}, {
-						launchFilesystem: { readonlyPaths: [TEST_SESSION_ATTACHMENTS_DIR, pluginDir.fsPath, resourceDir.fsPath].map(native) },
+						launchFilesystem: { readonlyPaths: [appBundleRoot, TEST_SESSION_ATTACHMENTS_DIR, pluginDir.fsPath, resourceDir.fsPath].map(native) },
 						firstTurnConfig: launchConfig,
 					});
 				});
@@ -17130,6 +17134,7 @@ suite('CopilotAgentSession', () => {
 				const readonlyPlugin = URI.file('/plugins/readonly');
 				const { session, mockSession } = await createAgentSession(disposables, {
 					platform,
+					appBundleRoot: deniedPlugin.fsPath,
 					clientSnapshot: createPluginSnapshot(deniedPlugin, writablePlugin, readonlyPlugin, readonlyPlugin),
 					rootValues: {
 						[AgentHostSandboxConfigKey.Sandbox]: {
@@ -17153,11 +17158,13 @@ suite('CopilotAgentSession', () => {
 			});
 
 			test(`per-request sandbox: skips extra read grants under managed readonly paths on ${platform}`, async () => {
+				const appBundleRoot = URI.file('/application').fsPath;
 				const sandboxPolicy: { enabled: boolean; readonlyPaths?: string[] } = { enabled: true };
 				const pluginDir = URI.file('/plugins/active');
 				const { session, mockSession } = await createAgentSession(disposables, {
 					platform,
 					sandboxPolicy,
+					appBundleRoot,
 					clientSnapshot: createPluginSnapshot(pluginDir),
 					rootValues: {
 						[AgentHostSandboxConfigKey.Sandbox]: {
@@ -17176,10 +17183,10 @@ suite('CopilotAgentSession', () => {
 				const attachmentsPath = platform === 'win32' ? TEST_SESSION_ATTACHMENTS_DIR.replace(/\//g, '\\') : TEST_SESSION_ATTACHMENTS_DIR;
 				const pluginPath = platform === 'win32' ? pluginDir.fsPath.replace(/\//g, '\\') : pluginDir.fsPath;
 				assert.deepStrictEqual(paths, [
-					['local-reference', attachmentsPath, pluginPath],
+					['local-reference', appBundleRoot.replace(/\//g, platform === 'win32' ? '\\' : '/'), attachmentsPath, pluginPath],
 					['managed-reference'],
 					undefined,
-					['local-reference', attachmentsPath, pluginPath],
+					['local-reference', appBundleRoot.replace(/\//g, platform === 'win32' ? '\\' : '/'), attachmentsPath, pluginPath],
 				]);
 			});
 
