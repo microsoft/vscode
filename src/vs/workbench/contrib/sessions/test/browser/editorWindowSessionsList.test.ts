@@ -13,7 +13,9 @@ import { IViewletViewOptions } from '../../../../browser/parts/views/viewsViewle
 import { Extensions as ViewExtensions, IViewContainerDescriptor, IViewsRegistry } from '../../../../common/views.js';
 import { AGENTS_VIEW_SETUP_VIEW_ID, AgentsViewAvailable, AgentsViewNeedsSetup, AgentsViewWhen } from '../../browser/agentsView/agentsView.js';
 import { createEditorWindowSessionsViewOptions, EDITOR_WINDOW_SESSIONS_GROUPINGS, registerEditorWindowSessionsList, registerEditorWindowSessionsViews } from '../../browser/agentsView/editorWindowSessionsList.js';
-import { EditorWindowSessionsContext, SessionsViewId } from '../../browser/views/sessionsView.js';
+import { EditorWindowSessionsContext, SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { SessionsGrouping } from '../../browser/views/sessionsList.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -26,6 +28,7 @@ import { ILifecycleService } from '../../../../services/lifecycle/common/lifecyc
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { registerSessionsListAccessibilityHelp, registerSessionsListActions } from '../../browser/views/sessionsListActions.js';
+import { registerSessionsListConfiguration, sessionsListConfigurationProperties } from '../../browser/sessionsConfiguration.js';
 
 suite('EditorWindowSessionsList', () => {
 
@@ -134,5 +137,38 @@ suite('EditorWindowSessionsList', () => {
 		actions.dispose();
 
 		assert.deepStrictEqual({ held, heldByActions, afterDispose: helps() }, { held: 1, heldByActions: 1, afterDispose: before });
+	});
+
+	test('registering the settings of the sessions list keeps the shared properties whole when another node registers some of them already, such as the Agents window', () => {
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		const key = Object.keys(sessionsListConfigurationProperties)[0];
+		const owner = configurationRegistry.getConfigurationProperties()[key] ? undefined : { id: 'agentsWindowSessionsList', properties: { [key]: sessionsListConfigurationProperties[key as keyof typeof sessionsListConfigurationProperties] } };
+		if (owner) {
+			configurationRegistry.registerConfiguration(owner);
+		}
+		const settings = registerSessionsListConfiguration();
+		const kept = Object.hasOwn(sessionsListConfigurationProperties, key);
+		settings.dispose();
+		if (owner) {
+			configurationRegistry.deregisterConfigurations([owner]);
+		}
+
+		assert.strictEqual(kept, true);
+	});
+
+	test('with its header in the view title, the Sessions view shows only the find widget in its header row while Find is open, at the row\'s full width', () => {
+		const update = Reflect.get(SessionsView.prototype, 'updateHeaderLayout') as (this: object) => void;
+		const header = { row: mainWindow.document.createElement('div'), label: mainWindow.document.createElement('div'), actions: mainWindow.document.createElement('div'), toolbar: undefined };
+		const host = { sessionsHeaders: new Set([header]), headerInTitle: true, isFindWidgetOpen: true, grouping: SessionsGrouping.Workspace };
+		const display = () => ({ row: header.row.style.display, label: header.label.style.display, actions: header.actions.style.display });
+		update.call(host);
+		const findOpen = display();
+		host.isFindWidgetOpen = false;
+		update.call(host);
+
+		assert.deepStrictEqual({ findOpen, findClosed: display() }, {
+			findOpen: { row: '', label: 'none', actions: 'none' },
+			findClosed: { row: 'none', label: '', actions: '' },
+		});
 	});
 });

@@ -120,11 +120,7 @@ export const sessionsListConfigurationProperties = {
 	},
 } satisfies IStringDictionary<IConfigurationPropertySchema>;
 
-const sessionsListConfiguration: IConfigurationNode = {
-	id: 'sessionsList',
-	properties: sessionsListConfigurationProperties,
-};
-
+let sessionsListConfiguration: IConfigurationNode | undefined;
 let sessionsListConfigurationHolds = 0;
 
 /**
@@ -135,11 +131,15 @@ let sessionsListConfigurationHolds = 0;
 export function registerSessionsListConfiguration(): IDisposable {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	if (sessionsListConfigurationHolds++ === 0) {
+		// Of a copy of the properties: the registry drops a property that another node registers already, such as the Agents
+		// window's, from the node it registers, which must not change the shared properties
+		sessionsListConfiguration = { id: 'sessionsList', properties: { ...sessionsListConfigurationProperties } };
 		configurationRegistry.registerConfiguration(sessionsListConfiguration);
 	}
 	return toDisposable(() => {
-		if (--sessionsListConfigurationHolds === 0) {
+		if (--sessionsListConfigurationHolds === 0 && sessionsListConfiguration) {
 			configurationRegistry.deregisterConfigurations([sessionsListConfiguration]);
+			sessionsListConfiguration = undefined;
 		}
 	});
 }
