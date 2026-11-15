@@ -92,13 +92,19 @@ suite('Workbench GitHub credential broker', () => {
 
 	for (const [issuer, apiBaseUri, graphQlUri] of [
 		['https://enterprise.example.test/login/oauth', 'https://enterprise.example.test/api/v3', 'https://enterprise.example.test/api/graphql'],
+		['https://enterprise.example.test:8443/login/oauth', 'https://enterprise.example.test:8443/api/v3', 'https://enterprise.example.test:8443/api/graphql'],
 		['https://tenant.ghe.com/login/oauth', 'https://api.tenant.ghe.com', 'https://api.tenant.ghe.com/graphql'],
+		['https://tenant.ghe.com:443/login/oauth', 'https://api.tenant.ghe.com', 'https://api.tenant.ghe.com/graphql'],
+		['https://TENANT.GHE.COM:443/login/oauth', 'https://api.tenant.ghe.com', 'https://api.tenant.ghe.com/graphql'],
 	]) {
 		test(`derives enterprise endpoints from the selected session issuer: ${issuer}`, async () => {
-			const { broker } = setup([session({ authorizationServer: URI.parse(issuer) })]);
-			const context = { ...authorization, providerId: 'github-enterprise', authorizationServer: issuer };
-			assert.deepStrictEqual(await broker.resolveClient(context, signal()), {
-				authorization: { ...context, accountId: 'account' }, apiBaseUri, graphQlUri, missionControl: undefined,
+			const authorizationServer = URI.parse(issuer);
+			const { broker } = setup([session({ authorizationServer })]);
+			const context = { ...authorization, providerId: 'github-enterprise', authorizationServer: authorizationServer.toString() };
+			const options = await broker.resolveClient(context, signal());
+			assert.deepStrictEqual({ options, token: await broker.getToken(options.authorization, signal()) }, {
+				options: { authorization: { ...context, accountId: 'account' }, apiBaseUri, graphQlUri, missionControl: undefined },
+				token: 'selected-token',
 			});
 		});
 	}
