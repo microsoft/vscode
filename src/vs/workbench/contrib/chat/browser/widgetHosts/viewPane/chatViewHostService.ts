@@ -180,7 +180,10 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 	/** Makes `host` the latest host whenever it shows another chat, such as one it restores or one opened in it directly. */
 	private trackShownSession(host: IChatViewHost): IDisposable {
 		return host.shownSession ? runOnChange(host.shownSession, shown => {
-			if (shown) {
+			// A chat that the Chat view restores while another host showed last, one that the host in use shows instead, such as of a
+			// session, does not make the Chat view the host that showed last: it stays sessions-only. What concludes something of
+			// the Chat view's own, such as the commit of its New Chat, still does
+			if (shown && !(host === this.chatViewHost && this.latest.get().host !== this.chatViewHost && this.registrations.length > 0 && this.host.canShow?.(shown.resource) !== false)) {
 				this.claim(host, false, false);
 			}
 		}) : Disposable.None;
