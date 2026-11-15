@@ -113,7 +113,7 @@ export function findFirstIdxMonotonousOrArrLen<T>(array: readonly T[], predicate
 
 export function findFirstIdxMonotonous<T>(array: readonly T[], predicate: (item: T) => boolean, startIdx = 0, endIdxEx = array.length): number {
 	const idx = findFirstIdxMonotonousOrArrLen(array, predicate, startIdx, endIdxEx);
-	return idx === array.length ? -1 : idx;
+	return idx === endIdxEx ? -1 : idx;
 }
 
 /**
