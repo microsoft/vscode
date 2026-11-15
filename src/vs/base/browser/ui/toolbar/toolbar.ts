@@ -111,6 +111,7 @@ export class ToolBar extends Disposable {
 	get onDidChangeDropdownVisibility() { return this._onDidChangeDropdownVisibility.event; }
 	private originalPrimaryActions: ReadonlyArray<IAction> = [];
 	private originalSecondaryActions: ReadonlyArray<IAction> = [];
+	private trailingSeparator: boolean;
 	private hiddenActions: IAction[] = [];
 	private minItemsWidth = 0;
 	private readonly dropdownMenuDisposables = this._register(new DisposableMap<IActionViewItem>());
@@ -120,6 +121,7 @@ export class ToolBar extends Disposable {
 
 		options.hoverDelegate = options.hoverDelegate ?? this._register(createInstantHoverDelegate());
 		this.options = options;
+		this.trailingSeparator = options.trailingSeparator ?? false;
 
 		this.toggleMenuAction = this._register(new ToggleMenuAction(() => this.toggleMenuActionViewItem?.show(), options.toggleMenuTitle));
 
@@ -310,7 +312,22 @@ export class ToolBar extends Disposable {
 		}
 	}
 
+	/**
+	 * Sets whether the toolbar ends in a separator after its actions, such as before actions that follow it outside of it,
+	 * as the `trailingSeparator` option does initially.
+	 */
+	setTrailingSeparator(trailingSeparator: boolean): void {
+		if (this.trailingSeparator !== trailingSeparator) {
+			this.trailingSeparator = trailingSeparator;
+			this.doSetActions(this.originalPrimaryActions, this.originalSecondaryActions);
+		}
+	}
+
 	setActions(primaryActions: ReadonlyArray<IAction>, secondaryActions?: ReadonlyArray<IAction>): void {
+		this.doSetActions(primaryActions, secondaryActions);
+	}
+
+	private doSetActions(primaryActions: ReadonlyArray<IAction>, secondaryActions?: ReadonlyArray<IAction>): void {
 		this.clear();
 
 		// Store primary and secondary actions as rendered initially
@@ -326,7 +343,7 @@ export class ToolBar extends Disposable {
 			primaryActionsToSet.splice(this.getSecondaryActionsPosition(primaryActionsToSet), 0, this.toggleMenuAction);
 		}
 
-		if (primaryActionsToSet.length > 0 && this.options.trailingSeparator) {
+		if (primaryActionsToSet.length > 0 && this.trailingSeparator) {
 			primaryActionsToSet.push(new Separator());
 		}
 
@@ -358,7 +375,7 @@ export class ToolBar extends Disposable {
 					overflowWidth = ACTION_MIN_WIDTH + ACTION_PADDING;
 				}
 
-				const separatorWidth = this.options.trailingSeparator && !this.actionBar.isEmpty() ? this.actionBar.getWidth(this.actionBar.length() - 1) + ACTION_PADDING : 0;
+				const separatorWidth = this.trailingSeparator && !this.actionBar.isEmpty() ? this.actionBar.getWidth(this.actionBar.length() - 1) + ACTION_PADDING : 0;
 				this.minItemsWidth = primaryActionsMinWidth + overflowWidth + separatorWidth;
 				this.reserveMinWidth(this.minItemsWidth);
 			} else {
