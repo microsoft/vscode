@@ -528,7 +528,10 @@ suite('Workbench layout chat part', () => {
 			layout.focus();
 			layout.setEditorHiddenByChat(true);
 			layout.focus();
-			assert.deepStrictEqual(focused, [Parts.EDITOR_PART, Parts.CHAT_PART]);
+			// An auxiliary editor window being active keeps its editor focused
+			Object.defineProperty(layout, 'activeContainer', { value: $('div') });
+			layout.focus();
+			assert.deepStrictEqual(focused, [Parts.EDITOR_PART, Parts.CHAT_PART, Parts.EDITOR_PART]);
 		});
 	});
 
