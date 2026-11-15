@@ -24,7 +24,7 @@ import { ISessionOpenTelemetryService, SESSION_OPEN_TIMEOUT_MS } from '../sessio
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { ICloseChatOptions, IOpenChatOptions, IOpenNewChatInSessionOptions, IOpenNewSessionOptions, IOpenNewSessionResult, IOpenSessionOptions, IOpenSessionsOptions, ISessionNavigationRequest, ISessionsService, SessionGridDirection } from '../sessionsService.js';
 import { getEditorWindowComposerTarget, IEditorWindowSessionsPresenterService } from '../editorWindow/editorWindowSessionsPresenter.js';
-import { IAgentsViewProvidersService, waitForAgentsViewSession } from './agentsViewProviders.js';
+import { IAgentsViewProvidersService, prepareAgentsViewSessionForOpen, waitForAgentsViewSession } from './agentsViewProviders.js';
 
 /**
  * The sessions of an editor window, for the UI the Agents window shares with it, such as the chat view and its pills: the
@@ -138,6 +138,9 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 			const resolved = await this._sessionsManagementService.resolveSessionResource(sessionResource, 'open');
 			const session = open === this._openGeneration ? await waitForAgentsViewSession(this._sessionsManagementService, () => this._sessionsManagementService.getSession(resolved)) : undefined;
 			if (session && open === this._openGeneration) {
+				await prepareAgentsViewSessionForOpen(this._sessionsProvidersService, session);
+			}
+			if (session && open === this._openGeneration) {
 				await this._openSession(session, options);
 			}
 		} finally {
@@ -173,10 +176,12 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 	}
 
 	async openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI }): Promise<void> {
+		await prepareAgentsViewSessionForOpen(this._sessionsProvidersService, session);
 		await this._presenter.openChat(session, options?.chatResource, { preserveFocus: options?.preserveFocus, sideBySide: true });
 	}
 
 	async openChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
+		await prepareAgentsViewSessionForOpen(this._sessionsProvidersService, session);
 		await this._presenter.openChat(session, chatResource, { preserveFocus: options?.preserveFocus, sideBySide: true });
 	}
 
@@ -187,6 +192,7 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 	}
 
 	async openChat(session: ISession, chatUri: URI, options?: IOpenChatOptions): Promise<void> {
+		await prepareAgentsViewSessionForOpen(this._sessionsProvidersService, session);
 		await this._presenter.openChat(session, chatUri, { preserveFocus: options?.preserveFocus });
 	}
 
@@ -246,9 +252,13 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 		// A composer that holds its drafts in a slot of its own, such as one of the chat part, creates its draft there
 		const draftSlot = options?.draftSlot && options.draftSlot !== this._sessionsManagementService.defaultNewSessionSlot ? options.draftSlot : undefined;
 		if (!draftSlot) {
-			const target = options?.folderUri
-				? { folderUri: options.folderUri, providerId: options.providerId, sessionTypeId: options.sessionTypeId, modelId: options.modelId, modeId: options.modeId, requireDevContainer: options.requireDevContainer }
-				: getEditorWindowComposerTarget(this._workspaceContextService, this._editorService);
+			// A new session supersedes an open still resolving, which would otherwise show its session in place of the composer
+			this._openGeneration++;
+			// In the folder asked for, else the window's, with what is asked for: without a folder, the composer's picker keeps its own
+			const folderUri = options?.folderUri ?? getEditorWindowComposerTarget(this._workspaceContextService, this._editorService)?.folderUri;
+			const target = folderUri
+				? { folderUri, providerId: options?.providerId, sessionTypeId: options?.sessionTypeId, modelId: options?.modelId, modeId: options?.modeId, requireDevContainer: options?.requireDevContainer }
+				: undefined;
 			await this._presenter.openComposer(target, { sideBySide: options?.toSide });
 			return { session: undefined, trustDeclined: false };
 		}
@@ -284,8 +294,9 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 		return { session: draftSlot.newSession.get(), trustDeclined: false };
 	}
 
-	openQuickChat(_options?: ICreateNewSessionOptions): ISession | undefined {
-		void this._presenter.openComposer(undefined);
+	openQuickChat(options?: ICreateNewSessionOptions): ISession | undefined {
+		// A target without a folder is a chat without a workspace, with what is asked for; no target keeps the picker's folder
+		void this._presenter.openComposer({ providerId: options?.providerId, sessionTypeId: options?.sessionTypeId, modelId: options?.modelId, modeId: options?.modeId });
 		return undefined;
 	}
 
