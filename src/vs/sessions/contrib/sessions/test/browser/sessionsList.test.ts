@@ -6435,6 +6435,33 @@ suite('Sessions - SessionsList', () => {
 			}
 		}
 
+		test('lists quick chats in the Chats section under time grouping only when asked, as the sessions lists of editor windows do; pins and archived take precedence', () => {
+			const sessions: ISession[] = [
+				createSession('quick', {}),
+				createSession('quick-pinned', {}),
+				createSession('quick-archived', { isArchived: true }),
+				createSession('regular', { workspaceLabel: 'Alpha' }),
+			];
+			const sections = (quickChatsInTimeGrouping: boolean) => groupSessionsForList(sessions, SessionsGrouping.Date, SessionsSorting.Created,
+				session => session.sessionId === 'quick-pinned' || session.sessionId === 'quick-archived',
+				session => sessions.length - sessions.indexOf(session), 'Done', false, undefined, undefined, undefined, quickChatsInTimeGrouping,
+			).map(section => ({ id: section.id, sessions: section.sessions.map(s => s.sessionId) }));
+
+			assert.deepStrictEqual({ editorWindow: sections(true), agentsWindow: sections(false) }, {
+				editorWindow: [
+					{ id: 'pinned', sessions: ['quick-pinned'] },
+					{ id: QUICK_CHATS_SECTION_ID, sessions: ['quick'] },
+					{ id: 'recent', sessions: ['regular'] },
+					{ id: 'archived', sessions: ['quick-archived'] },
+				],
+				agentsWindow: [
+					{ id: 'pinned', sessions: ['quick-pinned'] },
+					{ id: 'recent', sessions: ['quick', 'regular'] },
+					{ id: 'archived', sessions: ['quick-archived'] },
+				],
+			});
+		});
+
 		test('shows pinned sessions in a dedicated top section', () => {
 			const pinned = createSession('pinned', { workspaceLabel: 'Alpha', createdAt: new Date('2024-06-01') });
 			const regular = createSession('regular', { workspaceLabel: 'Beta', createdAt: new Date('2024-05-01') });
