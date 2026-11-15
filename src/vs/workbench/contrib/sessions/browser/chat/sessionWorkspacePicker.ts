@@ -2995,8 +2995,10 @@ export class WorkspacePicker extends Disposable {
 		}
 		const name = presentation.label ?? this._getFolderWorkspaceLabel(workspace, providerId);
 		if (this._isSelectedFolder(folderUri) && this._isNewWorktreeSelected()) {
-			// A new worktree of the window's folder, also from one of its worktrees
-			const primary = presentation.kind === 'worktree' ? this._getAllowedFolders()?.find(candidate => this.options.getAllowedFolderPresentation?.(candidate)?.kind === 'folder') : undefined;
+			// A new worktree of the window's folder, also from one of its worktrees; with several folders, which one a worktree is
+			// of is not known, so it is named by the worktree itself
+			const folders = presentation.kind === 'worktree' ? this._getAllowedFolders()?.filter(candidate => this.options.getAllowedFolderPresentation?.(candidate)?.kind === 'folder') : undefined;
+			const primary = folders?.length === 1 ? folders[0] : undefined;
 			const primaryResolved = primary ? this._resolveFolder(primary) : undefined;
 			const of = primary && primaryResolved ? this.options.getAllowedFolderPresentation?.(primary)?.label ?? this._getFolderWorkspaceLabel(primaryResolved.workspace, primaryResolved.providerId) : name;
 			return { icon: WORKSPACE_PICKER_WORKTREE_ICON, label: getNewWorktreeLabel(), description: localize('workspacePicker.newWorktreeChipDescription', "New worktree of {0}", of) };
