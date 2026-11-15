@@ -398,7 +398,6 @@ suite('EditorWindowSessionsService', () => {
 			let preparingA: DeferredPromise<void> | undefined;
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({}));
-			instantiationService.stub(ICommandService, upcastPartial<ICommandService>({}));
 			const presenterService = disposables.add(instantiationService.createInstance(EditorWindowSessionsPresenterService));
 			const registration = presenterService.registerPresenter(upcastPartial<IEditorWindowSessionsPresenter>({ openChat: async (session, chat) => { shown.push(`${session.sessionId}${chat ? ' chat' : ''}`); }, isShowing: () => false }));
 			instantiationService.stub(IEditorWindowSessionsPresenterService, presenterService);
