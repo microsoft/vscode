@@ -140,20 +140,50 @@ suite('ChatViewPane sessions refresh', () => {
 		assert.deepStrictEqual({ providers, none: service.provider }, { providers: [true, true], none: undefined });
 	});
 
-	test('the chat widget is not visible while the Chat view shows only its sessions, so a chat it hides is not marked read, and is again once the chat shows', () => {
-		const update = Reflect.get(ChatViewPane.prototype, 'updateWidgetVisibility') as (this: object) => void;
-		const sessionsOnly = observableValue('sessionsOnly', true);
-		const visible: boolean[] = [];
-		const host = {
-			isBodyVisible: () => true,
-			welcomeController: undefined,
-			sessionsListService: { sessionsOnly },
-			_widget: { setVisible: (value: boolean) => visible.push(value) },
+	test('the chat widget is not visible while the Chat view shows only its sessions, so a chat it hides is not marked read; as the claim goes, it shows and the view lays it out', () => {
+		const service = store.add(new ChatViewSessionsListService());
+		const filter = Object.assign(toDisposable(() => { }), { onDidChange: Event.None, isDefault: () => true });
+		const events: string[] = [];
+		const widget = {
+			visible: true,
+			setVisible(value: boolean) { this.visible = value; events.push(`visible ${value}`); },
 		};
-		update.call(host);
-		sessionsOnly.set(false, undefined);
-		update.call(host);
-		assert.deepStrictEqual(visible, [false, true]);
+		const host = {
+			_register: <T extends { dispose(): void }>(value: T) => store.add(value),
+			instantiationService: {
+				createInstance: (ctor: typeof AgentSessionsControl | typeof AgentSessionsFilter | typeof MenuWorkbenchToolBar) => ctor === AgentSessionsFilter ? filter : Object.assign(toDisposable(() => { }), { context: undefined, setVisible: () => { } }),
+			},
+			hostService: { onDidChangeFocus: Event.None },
+			sessionsListService: service,
+			configurationService: new TestConfigurationService(),
+			onDidChangeBodyVisibility: Event.None,
+			getLocationBasedColors: () => ({ listOverrideStyles: {} }),
+			doUpdateConfiguredSessionsViewerOrientation: () => { },
+			viewPaneContainer: document.createElement('div'),
+			isBodyVisible: () => true,
+			sessionsViewerVisible: true,
+			updateSessionsControlVisibility: () => ({ changed: false, visible: true }),
+			welcomeController: undefined,
+			lastDimensions: { width: 400, height: 600 },
+			layoutBody: () => events.push(`layout, chat ${widget.visible ? 'shown' : 'hidden'}`),
+			relayout: Reflect.get(ChatViewPane.prototype, 'relayout'),
+			updateWidgetVisibility: Reflect.get(ChatViewPane.prototype, 'updateWidgetVisibility'),
+			_widget: undefined as typeof widget | undefined,
+		};
+		// As the Chat view creates them: its sessions control, then its chat widget
+		(Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => void).call(host, document.createElement('div'));
+		host._widget = widget;
+		(Reflect.get(ChatViewPane.prototype, 'trackWidgetVisibility') as (this: typeof host) => void).call(host);
+		events.splice(0);
+
+		const claim = service.claimSessionsOnly();
+		const claimed = events.splice(0);
+		claim.dispose();
+
+		assert.deepStrictEqual({ claimed, released: events }, {
+			claimed: ['visible false', 'layout, chat hidden'],
+			released: ['visible true', 'layout, chat shown'],
+		});
 	});
 
 	test('the Chat view shows only its sessions while a claim is held, also without a provided list', () => {
@@ -269,6 +299,7 @@ suite('ChatViewPane sessions refresh', () => {
 			},
 			sessionsControlContainer: undefined as HTMLElement | undefined,
 			_widget: { focusInput: () => chatInput.focus() },
+			updateWidgetVisibility: () => { },
 		};
 		Object.assign(host, { focusInput: Reflect.get(ChatViewPane.prototype, 'focusInput') });
 		const createControl = Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => void;
