@@ -16,6 +16,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ResourceFileEdit } from '../../../../editor/browser/services/bulkEditService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { Schemas } from '../../../../base/common/network.js';
 
@@ -46,6 +47,7 @@ class RenameOperation implements IFileOperation {
 	constructor(
 		private readonly _edits: RenameEdit[],
 		private readonly _undoRedoInfo: IFileOperationUndoRedoInfo,
+		private readonly _collectPartialUndo: (op: IFileOperation) => void,
 		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
 		@IFileService private readonly _fileService: IFileService,
 	) { }
@@ -76,8 +78,21 @@ class RenameOperation implements IFileOperation {
 			return new Noop();
 		}
 
-		await this._workingCopyFileService.move(moves, token, this._undoRedoInfo);
-		return new RenameOperation(undoes, { isUndoing: true }, this._workingCopyFileService, this._fileService);
+		let completed = 0;
+		try {
+			await this._workingCopyFileService.move(moves, token, this._undoRedoInfo, () => completed++);
+		} catch (error) {
+
+			// When the batch is cancelled mid-way, surface the inverse
+			// edits of the moves that completed so that they still get
+			// an undo entry
+			if (isCancellationError(error) && completed > 0) {
+				this._collectPartialUndo(new RenameOperation(undoes.slice(0, completed), { isUndoing: true }, () => { }, this._workingCopyFileService, this._fileService));
+			}
+
+			throw error;
+		}
+		return new RenameOperation(undoes, { isUndoing: true }, () => { }, this._workingCopyFileService, this._fileService);
 	}
 
 	toString(): string {
@@ -99,6 +114,7 @@ class CopyOperation implements IFileOperation {
 	constructor(
 		private readonly _edits: CopyEdit[],
 		private readonly _undoRedoInfo: IFileOperationUndoRedoInfo,
+		private readonly _collectPartialUndo: (op: IFileOperation) => void,
 		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService private readonly _instaService: IInstantiationService
@@ -112,11 +128,13 @@ class CopyOperation implements IFileOperation {
 
 		// (1) create copy operations, remove noops
 		const copies: ICopyOperation[] = [];
+		const copyEdits: CopyEdit[] = [];
 		for (const edit of this._edits) {
 			//check: not overwriting, but ignoring, and the target file exists
 			const skip = edit.options.overwrite === undefined && edit.options.ignoreIfExists && await this._fileService.exists(edit.newUri);
 			if (!skip) {
 				copies.push({ file: { source: edit.oldUri, target: edit.newUri }, overwrite: edit.options.overwrite });
+				copyEdits.push(edit);
 			}
 		}
 
@@ -125,14 +143,26 @@ class CopyOperation implements IFileOperation {
 		}
 
 		// (2) perform the actual copy and use the return stats to build undo edits
-		const stats = await this._workingCopyFileService.copy(copies, token, this._undoRedoInfo);
-		const undoes: DeleteEdit[] = [];
+		const toUndoEdit = (stat: IFileStatWithMetadata, edit: CopyEdit) => new DeleteEdit(stat.resource, { recursive: true, folder: edit.options.folder || stat.isDirectory, ...edit.options }, false);
 
-		for (let i = 0; i < stats.length; i++) {
-			const stat = stats[i];
-			const edit = this._edits[i];
-			undoes.push(new DeleteEdit(stat.resource, { recursive: true, folder: this._edits[i].options.folder || stat.isDirectory, ...edit.options }, false));
+		const completed: IFileStatWithMetadata[] = [];
+		let stats: readonly IFileStatWithMetadata[];
+		try {
+			stats = await this._workingCopyFileService.copy(copies, token, this._undoRedoInfo, stat => completed.push(stat));
+		} catch (error) {
+
+			// When the batch is cancelled mid-way, surface the inverse
+			// edits of the copies that completed so that they still get
+			// an undo entry
+			if (isCancellationError(error) && completed.length > 0) {
+				const partialUndoes = completed.map((stat, i) => toUndoEdit(stat, copyEdits[i]));
+				this._collectPartialUndo(this._instaService.createInstance(DeleteOperation, partialUndoes, { isUndoing: true }));
+			}
+
+			throw error;
 		}
+
+		const undoes = stats.map((stat, i) => toUndoEdit(stat, copyEdits[i]));
 
 		return this._instaService.createInstance(DeleteOperation, undoes, { isUndoing: true });
 	}
@@ -376,37 +406,56 @@ export class BulkFileEdits {
 			}
 		}
 
-		for (const group of groups) {
+		const collectPartialUndo = (op: IFileOperation) => undoOperations.push(op);
 
-			if (this._token.isCancellationRequested) {
-				break;
+		try {
+			for (const group of groups) {
+
+				if (this._token.isCancellationRequested) {
+					break;
+				}
+
+				let op: IFileOperation | undefined;
+				switch (group[0].type) {
+					case 'rename':
+						op = this._instaService.createInstance(RenameOperation, <RenameEdit[]>group, undoRedoInfo, collectPartialUndo);
+						break;
+					case 'copy':
+						op = this._instaService.createInstance(CopyOperation, <CopyEdit[]>group, undoRedoInfo, collectPartialUndo);
+						break;
+					case 'delete':
+						op = this._instaService.createInstance(DeleteOperation, <DeleteEdit[]>group, undoRedoInfo);
+						break;
+					case 'create':
+						op = this._instaService.createInstance(CreateOperation, <CreateEdit[]>group, undoRedoInfo);
+						break;
+				}
+
+				if (op) {
+					const undoOp = await op.perform(this._token);
+					undoOperations.push(undoOp);
+				}
+				this._progress.report(undefined);
+			}
+		} catch (error) {
+
+			// When cancellation aborts a group mid-way, the operations that
+			// already completed must still get their undo entry (the
+			// cancelled group contributes the inverse of its completed
+			// subset via `collectPartialUndo`)
+			if (isCancellationError(error) && undoOperations.length > 0) {
+				this.pushUndoRedoElement(undoOperations);
 			}
 
-			let op: IFileOperation | undefined;
-			switch (group[0].type) {
-				case 'rename':
-					op = this._instaService.createInstance(RenameOperation, <RenameEdit[]>group, undoRedoInfo);
-					break;
-				case 'copy':
-					op = this._instaService.createInstance(CopyOperation, <CopyEdit[]>group, undoRedoInfo);
-					break;
-				case 'delete':
-					op = this._instaService.createInstance(DeleteOperation, <DeleteEdit[]>group, undoRedoInfo);
-					break;
-				case 'create':
-					op = this._instaService.createInstance(CreateOperation, <CreateEdit[]>group, undoRedoInfo);
-					break;
-			}
-
-			if (op) {
-				const undoOp = await op.perform(this._token);
-				undoOperations.push(undoOp);
-			}
-			this._progress.report(undefined);
+			throw error;
 		}
 
+		return this.pushUndoRedoElement(undoOperations).resources;
+	}
+
+	private pushUndoRedoElement(undoOperations: IFileOperation[]): FileUndoRedoElement {
 		const undoRedoElement = new FileUndoRedoElement(this._label, this._code, undoOperations, this._confirmBeforeUndo);
 		this._undoRedoService.pushElement(undoRedoElement, this._undoRedoGroup, this._undoRedoSource);
-		return undoRedoElement.resources;
+		return undoRedoElement;
 	}
 }

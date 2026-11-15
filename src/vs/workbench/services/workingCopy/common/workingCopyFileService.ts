@@ -245,8 +245,12 @@ export interface IWorkingCopyFileService {
 	 *
 	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
 	 * `onDidRunWorkingCopyFileOperation` events to participate.
+	 *
+	 * @param onDidCompleteOperation called with the resulting stat for every
+	 * operation of the batch that finished successfully. Allows callers to
+	 * know the completed subset when the batch is cancelled mid-way.
 	 */
-	move(operations: IMoveOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]>;
+	move(operations: IMoveOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo, onDidCompleteOperation?: (stat: IFileStatWithMetadata) => void): Promise<readonly IFileStatWithMetadata[]>;
 
 	/**
 	 * Will copy working copies matching the provided resources and corresponding children
@@ -254,8 +258,12 @@ export interface IWorkingCopyFileService {
 	 *
 	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
 	 * `onDidRunWorkingCopyFileOperation` events to participate.
+	 *
+	 * @param onDidCompleteOperation called with the resulting stat for every
+	 * operation of the batch that finished successfully. Allows callers to
+	 * know the completed subset when the batch is cancelled mid-way.
 	 */
-	copy(operations: ICopyOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]>;
+	copy(operations: ICopyOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo, onDidCompleteOperation?: (stat: IFileStatWithMetadata) => void): Promise<readonly IFileStatWithMetadata[]>;
 
 	/**
 	 * Will delete working copies matching the provided resources and children
@@ -388,15 +396,15 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		return stats;
 	}
 
-	async move(operations: IMoveOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> {
-		return this.doMoveOrCopy(operations, true, token, undoInfo);
+	async move(operations: IMoveOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo, onDidCompleteOperation?: (stat: IFileStatWithMetadata) => void): Promise<IFileStatWithMetadata[]> {
+		return this.doMoveOrCopy(operations, true, token, undoInfo, onDidCompleteOperation);
 	}
 
-	async copy(operations: ICopyOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> {
-		return this.doMoveOrCopy(operations, false, token, undoInfo);
+	async copy(operations: ICopyOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo, onDidCompleteOperation?: (stat: IFileStatWithMetadata) => void): Promise<IFileStatWithMetadata[]> {
+		return this.doMoveOrCopy(operations, false, token, undoInfo, onDidCompleteOperation);
 	}
 
-	private async doMoveOrCopy(operations: IMoveOperation[] | ICopyOperation[], move: boolean, token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> {
+	private async doMoveOrCopy(operations: IMoveOperation[] | ICopyOperation[], move: boolean, token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo, onDidCompleteOperation?: (stat: IFileStatWithMetadata) => void): Promise<IFileStatWithMetadata[]> {
 		const stats: IFileStatWithMetadata[] = [];
 
 		// validate move/copy operation before starting
@@ -460,6 +468,8 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 						throw error;
 					}
 				}
+
+				onDidCompleteOperation?.(stats[stats.length - 1]);
 			}
 		} catch (error) {
 
