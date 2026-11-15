@@ -8,11 +8,13 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionGitRepository, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionGitRepository, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { SessionsListingScopeFilter } from '../../browser/sessionScope.js';
 import { ISessionChangeEvent } from '../../common/sessionsProvider.js';
 import { buildTestSession, buildTestWorkspace } from '../common/testSessionBuilder.js';
+import { buildAgentHostChatWorkspace, buildAgentHostSessionWorkspace } from '../../common/agentHostSessionWorkspace.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 
 suite('SessionsListingScopeFilter', () => {
 
@@ -240,5 +242,66 @@ suite('SessionsListingScopeFilter', () => {
 			repositoryWindow: ['inRepository', 'inSubfolder', 'worktreeByRepository', 'worktreeByRoot'],
 			subfolderWindow: ['inSubfolder'],
 		});
+	});
+
+	test('a session is in the scope by its main chat\'s first folder, not by the folders its other chats add, unless its main chat has none, also a legacy Copilot CLI session', () => {
+		// Built as the agent-host provider builds them: the session's workspace from its project and working directories, its
+		// main chat's from its own working directories, or the session's when it sets none, with each folder's GitHub info
+		const options = { fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true };
+		const folderGitHubInfo = () => constObservable(undefined);
+		const sessionOf = (id: string, project: string, workingDirectories: string[], mainChatWorkingDirectories?: string[]): ISession => {
+			const built = buildTestSession({ id, title: id }).session;
+			const workspace = buildAgentHostSessionWorkspace({ uri: URI.file(project), displayName: id }, workingDirectories.map(path => URI.file(path)), options, constObservable(undefined));
+			const mainChatWorkspace = buildAgentHostChatWorkspace(workspace, mainChatWorkingDirectories?.map(path => URI.file(path)), folderGitHubInfo);
+			return { ...built, mainChat: constObservable({ ...built.mainChat.get(), workspace: constObservable(mainChatWorkspace) }), workspace: constObservable(workspace) };
+		};
+		const aphWorktree = '/work/aph.worktrees/update-docs-33abcbc0';
+		const vscodeWorktree = '/work/vscode.worktrees/sync-docs';
+		const sessions = [
+			// The user's session: its main chat works in a worktree of another repository, a nested chat in one of the scope
+			// folder's, with the main chat having the session's folders, or its own
+			sessionOf('nestedChatInScope', '/work/aph', [aphWorktree, vscodeWorktree]),
+			sessionOf('nestedChatInScopeMainChatOwnFolder', '/work/aph', [aphWorktree, vscodeWorktree], [aphWorktree]),
+			sessionOf('mainChatSecondFolderInScope', '/work/aph', [aphWorktree, vscodeWorktree], [aphWorktree, vscodeWorktree]),
+			sessionOf('mainChatInScopeWorktree', '/work/vscode', [vscodeWorktree, aphWorktree]),
+			sessionOf('mainChatInScopeOwnFolder', '/work/vscode', [vscodeWorktree, aphWorktree], [vscodeWorktree]),
+			// A main chat without a folder: the folders its other chats add place the session
+			sessionOf('mainChatWithoutFolder', '/work/aph', [aphWorktree, vscodeWorktree], []),
+			// A legacy Copilot CLI session, in a worktree of its repository, alone and once a chat it gained after its adoption
+			// added a folder of another repository
+			sessionOf('legacy', '/work/aph', [aphWorktree]),
+			sessionOf('legacyAdopted', '/work/aph', [aphWorktree, vscodeWorktree]),
+		];
+		const folders = observableValue<readonly URI[]>('folders', [URI.file('/work/vscode')]);
+		const filter = disposables.add(new SessionsListingScopeFilter({ folders }, () => sessions, Event.None));
+		const listed = () => filter.getSessions().map(session => session.sessionId).sort();
+		const vscodeWindow = listed();
+		folders.set([URI.file('/work/aph')], undefined);
+
+		assert.deepStrictEqual({ vscodeWindow, aphWindow: listed() }, {
+			vscodeWindow: ['mainChatInScopeOwnFolder', 'mainChatInScopeWorktree', 'mainChatWithoutFolder'],
+			aphWindow: ['legacy', 'legacyAdopted', 'mainChatSecondFolderInScope', 'mainChatWithoutFolder', 'nestedChatInScope', 'nestedChatInScopeMainChatOwnFolder'],
+		});
+	});
+
+	test('matches a session to the scope again as its main chat, or its main chat\'s folders, change', () => {
+		const options = { fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true };
+		const workspace = buildAgentHostSessionWorkspace({ uri: URI.file('/work/aph'), displayName: 'aph' }, [URI.file('/work/aph.worktrees/docs'), URI.file('/work/vscode.worktrees/sync')], options, constObservable(undefined));
+		const mainChatWorkspaceOf = (workingDirectories: string[] | undefined) => buildAgentHostChatWorkspace(workspace, workingDirectories?.map(path => URI.file(path)), () => constObservable(undefined));
+		const built = buildTestSession({ id: 'session', title: 'session' }).session;
+		const mainChatWorkspace = observableValue<ISessionWorkspace | undefined>('mainChatWorkspace', mainChatWorkspaceOf(undefined));
+		const mainChat = observableValue<IChat>('mainChat', { ...built.mainChat.get(), workspace: mainChatWorkspace });
+		const session: ISession = { ...built, mainChat, workspace: constObservable(workspace) };
+		const filter = disposables.add(new SessionsListingScopeFilter({ folders: constObservable([URI.file('/work/vscode')]) }, () => [session], Event.None));
+		const listed: boolean[] = [filter.getSessions().length > 0];
+
+		// Its main chat comes to work in the scope folder's worktree only
+		mainChatWorkspace.set(mainChatWorkspaceOf(['/work/vscode.worktrees/sync']), undefined);
+		listed.push(filter.getSessions().length > 0);
+		// Another chat becomes its main chat, with the session's folders
+		mainChat.set({ ...built.mainChat.get(), workspace: constObservable(mainChatWorkspaceOf(undefined)) }, undefined);
+		listed.push(filter.getSessions().length > 0);
+
+		assert.deepStrictEqual(listed, [false, true, false]);
 	});
 });

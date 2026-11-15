@@ -8,7 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IReader, observableSignal } from '../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession } from '../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionFolder } from '../../../services/sessions/common/session.js';
 import { ISessionChangeEvent, ISessionsListingScope } from '../common/sessionsProvider.js';
 
 /** Whether `uri` is on GitHub (`github-remote-file://github/<owner>/<repo>/<branch>/...`) in one of `repositories`. */
@@ -88,9 +88,10 @@ export class SessionsListingScopeFilter extends Disposable {
 	}
 
 	/**
-	 * The `sessions` in the scope of `scopeFolders`, such as the folders of an editor window: the sessions with a folder that
-	 * works in a scope folder, or whose root or git repository, its project, is a scope folder, such as a session in a
-	 * worktree of a scope folder's repository; not one whose project is only inside a scope folder. `scopeGitHubRepositories`, as lowercase `owner/repo`, are the GitHub repositories of the scope folders'
+	 * The `sessions` in the scope of `scopeFolders`, such as the folders of an editor window: the sessions whose main chat's
+	 * folder works in a scope folder, or whose root or git repository, its project, is a scope folder, such as a session in a
+	 * worktree of a scope folder's repository; not one whose project is only inside a scope folder. A session belongs where
+	 * its main chat works (see `_getScopingFolders`): the folders its other chats add count only while the main chat has none. `scopeGitHubRepositories`, as lowercase `owner/repo`, are the GitHub repositories of the scope folders'
 	 * `origin`: a session working in one of them on GitHub, on any branch, such as a Copilot Cloud session, is in the scope
 	 * too. Only the metadata the providers report is read, comparing whole URIs, so a session of another host never matches a
 	 * local folder. A workspace-less quick chat, by its own `isQuickChat` flag, is in every scope: a session whose workspace
@@ -104,11 +105,23 @@ export class SessionsListingScopeFilter extends Disposable {
 		const isScopeFolder = (uri: URI | undefined) => !!uri && (scopeFolders.some(folder => extUri.isEqual(uri, folder)) || isGitHubRepositoryOf(uri, gitHubRepositories));
 		const included = new Set<ISession>();
 		for (const session of sessions) {
-			if (session.isQuickChat?.read(reader) || session.workspace.read(reader)?.folders.some(folder => worksInScope(folder.workingDirectory) || isScopeFolder(folder.root) || isScopeFolder(folder.gitRepository?.uri))) {
+			if (session.isQuickChat?.read(reader) || this._getScopingFolders(session, reader).some(folder => worksInScope(folder.workingDirectory) || isScopeFolder(folder.root) || isScopeFolder(folder.gitRepository?.uri))) {
 				included.add(session);
 			}
 		}
 		return included;
+	}
+
+	/**
+	 * The folders by which `session` is in a scope: the first folder of its main chat's workspace, which is the main chat's
+	 * primary when it sets folders of its own, else the session's primary, as the main chat then has the session's folders,
+	 * in their order, with those its other chats added after it. Every folder of the session counts while the main chat has
+	 * none. Deliberately the first folder only, also of a main chat that sets several of its own: the main chat's workspace
+	 * does not tell its own folders from the session's it has, so its other folders would bring in those other chats added.
+	 */
+	private _getScopingFolders(session: ISession, reader: IReader): readonly ISessionFolder[] {
+		const mainFolder = session.mainChat.read(reader).workspace.read(reader)?.folders[0];
+		return mainFolder ? [mainFolder] : session.workspace.read(reader)?.folders ?? [];
 	}
 
 	/** The sessions the scope lists. */
