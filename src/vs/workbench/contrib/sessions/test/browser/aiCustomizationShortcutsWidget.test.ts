@@ -220,7 +220,7 @@ suite('AI customization shortcuts header', () => {
 suite('AI customization shortcuts list', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('keeps keyboard focus at its position when updating the items replaces the focused one, until focus leaves', async () => {
+	test('keeps keyboard focus and the only tab stop at its position when updating the items replaces the focused one, until focus leaves', async () => {
 		const container = DOM.append(mainWindow.document.body, DOM.$('div'));
 		disposables.add(toDisposable(() => container.remove()));
 		const outside = DOM.append(mainWindow.document.body, DOM.$('button'));
@@ -273,7 +273,9 @@ suite('AI customization shortcuts list', () => {
 			labels = next;
 			onDidChange.fire(upcastPartial<IMenuChangeEvent>({}));
 			await Promise.resolve();
-			return focused();
+			// Tab and Shift+Tab move between tab stops, so they leave the list when it has only the focused one.
+			const tabStops = items().flatMap((item, index) => item.querySelector<HTMLElement>('.action-label')?.tabIndex === 0 ? [labels[index]] : []);
+			return { focused: focused(), tabStops };
 		};
 
 		await focus(2);
@@ -288,6 +290,11 @@ suite('AI customization shortcuts list', () => {
 		moveFocus(outside);
 		const focusLeftToOutside = await update(['Overview', 'Skills', 'More']);
 
-		assert.deepStrictEqual({ more, less, focusLeftToNothing, focusLeftToOutside }, { more: 'Agents', less: 'More', focusLeftToNothing: 'none', focusLeftToOutside: 'outside' });
+		assert.deepStrictEqual({ more, less, focusLeftToNothing, focusLeftToOutside }, {
+			more: { focused: 'Agents', tabStops: ['Agents'] },
+			less: { focused: 'More', tabStops: ['More'] },
+			focusLeftToNothing: { focused: 'none', tabStops: ['Overview'] },
+			focusLeftToOutside: { focused: 'outside', tabStops: ['Overview'] },
+		});
 	});
 });

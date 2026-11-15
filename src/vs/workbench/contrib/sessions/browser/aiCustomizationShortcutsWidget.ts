@@ -7,6 +7,7 @@ import './media/sidebarActionButton.css';
 import './media/customizationsToolbar.css';
 import './media/disclosure.css';
 import * as DOM from '../../../../base/browser/dom.js';
+import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -243,6 +244,22 @@ export class AICustomizationShortcutsWidget extends Disposable {
 				const active = DOM.getActiveElement();
 				if ((!active || active === DOM.getWindow(container).document.body) && toolbar.getItemsLength() > 0) {
 					toolbar.focus(Math.min(index, toolbar.getItemsLength() - 1));
+				}
+			}
+			// The updated items make the first item a tab stop even when focus stays on another one, so keep only the
+			// focused item's, for Tab and Shift+Tab to leave the list.
+			let focusedIndex = -1;
+			for (let index = 0; index < toolbar.getItemsLength(); index++) {
+				const element = toolbar.getItemElement(index);
+				if (element && DOM.isAncestorOfActiveElement(element)) {
+					focusedIndex = index;
+					break;
+				}
+			}
+			for (let index = 0; focusedIndex !== -1 && index < toolbar.getItemsLength(); index++) {
+				const viewItem = toolbar.getItemViewItem(index);
+				if (viewItem instanceof BaseActionViewItem) {
+					viewItem.setFocusable(index === focusedIndex);
 				}
 			}
 			this._scrollableElement?.scanDomNode();
