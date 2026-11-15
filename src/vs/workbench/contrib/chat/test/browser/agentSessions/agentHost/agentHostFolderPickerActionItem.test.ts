@@ -294,8 +294,12 @@ suite('AgentHostFolderPickerActionItem', () => {
 		style.textContent = '.agent-host-folder-chip .codicon { margin-right: 10px; }';
 		document.fonts.dispatchEvent(new mainWindow.Event('loadingdone'));
 		const after = select(shortName);
+		const remeasured = measurements;
+		// Laid out again as before, it does not measure again
+		select(shortName);
+		select(shortName);
 
-		assert.deepStrictEqual({ remeasured: measurements > measured, wider: after.minWidth - before.minWidth }, { remeasured: true, wider: 10 });
+		assert.deepStrictEqual({ remeasured: remeasured > measured, wider: after.minWidth - before.minWidth, thenUnchanged: measurements === remeasured }, { remeasured: true, wider: 10, thenUnchanged: true });
 	});
 
 	test('last in a narrow row, it needs the width of the name it shows now: a shorter name, or No Workspace, brings it back from the overflow', () => {
