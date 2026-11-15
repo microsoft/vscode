@@ -993,8 +993,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	/** Track pending question carousels by session resource for auto-skip on chat submission */
 	private readonly pendingQuestionCarousels = new ResourceMap<Set<ChatQuestionCarouselPart>>();
 	private readonly _notifiedQuestionCarousels = new Set<string>();
-	/** The questions and plan reviews shown in the input that it removes as they are settled, by session, kind and key. */
-	private readonly inputRequestSettlements = this._register(new DisposableMap<string, DisposableStore>());
+	/** The copies of questions and plan reviews docked in its widget's input that it removes as they are settled elsewhere. */
+	private readonly settlementWatchedParts = new WeakSet<IChatContentPart>();
 	private readonly workingProgressConfirmationEndListeners = new WeakSet<IChatToolInvocation>();
 
 	private readonly chatContentMarkdownRenderer: IMarkdownRenderer;
@@ -5193,31 +5193,44 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	/**
-	 * Calls `remove` once `request`, which this renderer shows in its widget's input, is settled anywhere: each widget that
-	 * shows the chat shows a copy of it, and settling one, such as by answering it, settles all. Its completion tells, also
-	 * when it is dismissed, and so does the chat service as an extension's question is answered. Once per request.
+	 * Calls `remove` once `request`, whose copy `part` this renderer docked in `widget`'s input, is settled anywhere: each
+	 * widget that shows the chat docks a copy of it, and settling one, such as by answering it, settles all. Its completion
+	 * tells, also when it is dismissed, and so does the chat service as an extension's question is answered. The watch lives
+	 * as long as `part` does: the input disposes it as it clears it, such as as its widget shows another chat, so a request
+	 * settled later never removes what the input shows by then, such as another chat's request of the same key.
 	 */
-	private removeInputRequestOnSettle(element: IChatResponseViewModel, request: IChatQuestionCarousel | IChatPlanReview, key: string, remove: () => void): void {
-		const id = `${element.sessionResource.toString()}|${request.kind}|${key}`;
-		if (request.isUsed || this.inputRequestSettlements.has(id)) {
+	private removeOnSettleElsewhere(element: IChatResponseViewModel, request: IChatQuestionCarousel | IChatPlanReview, part: IChatContentPart, widget: IChatWidget, remove: () => void): void {
+		if (request.isUsed || !part.addDisposable || this.settlementWatchedParts.has(part)) {
 			return;
 		}
-		const store = new DisposableStore();
+		this.settlementWatchedParts.add(part);
+		const watch = new DisposableStore();
+		part.addDisposable(watch);
 		const settle = () => {
-			if (this.inputRequestSettlements.get(id) === store) {
-				this.inputRequestSettlements.deleteAndDispose(id);
+			if (watch.isDisposed || this._store.isDisposed) {
+				return;
+			}
+			watch.dispose();
+			// Only while the widget still shows this chat, whose input then still holds this copy
+			if (isEqual(widget.viewModel?.sessionResource, element.sessionResource)) {
 				remove();
 			}
 		};
 		if (request instanceof ChatQuestionCarouselData || request instanceof ChatPlanReviewData) {
-			const completion = request.completion.p;
-			void completion.then(settle, settle);
+			void request.completion.p.then(settle, settle);
 		}
 		if (request.kind === 'questionCarousel' && request.resolveId) {
 			const resolveId = request.resolveId;
-			store.add(Event.filter(this.chatService.onDidReceiveQuestionCarouselAnswer, e => e.requestId === element.requestId && e.resolveId === resolveId)(settle));
+			watch.add(Event.filter(this.chatService.onDidReceiveQuestionCarouselAnswer, e => e.requestId === element.requestId && e.resolveId === resolveId)(settle));
 		}
-		this.inputRequestSettlements.set(id, store);
+	}
+
+	/** Refreshes the row that renders `element` now, such as in a template it was rendered into again since. */
+	private refreshRowAfterSettle(context: IChatContentPartRenderContext, element: IChatResponseViewModel): void {
+		const templateData = this.getTemplateDataForRequestId(element.id);
+		if (templateData) {
+			this.refreshProgressAfterInteraction(context, templateData);
+		}
 	}
 
 	/**
@@ -6031,11 +6044,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		});
 
 		// Settled through another widget that shows the chat, its copy here goes too
-		if (part && isResponseVM(context.element)) {
-			this.removeInputRequestOnSettle(context.element, carousel, carouselKey, () => {
+		if (part && widget && isResponseVM(context.element)) {
+			const element = context.element;
+			this.removeOnSettleElsewhere(element, carousel, part, widget, () => {
 				this.removeCarouselFromTracking(context, part);
-				widget?.input.clearQuestionCarousel(undefined, carouselKey);
-				this.refreshProgressAfterInteraction(context, templateData);
+				widget.input.clearQuestionCarousel(undefined, carouselKey);
+				this.refreshRowAfterSettle(context, element);
 			});
 		}
 
@@ -6234,10 +6248,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		});
 
 		// Settled through another widget that shows the chat, its copy here goes too
-		if (dockedPart && isResponseVM(context.element)) {
-			this.removeInputRequestOnSettle(context.element, review, reviewKey, () => {
-				widget?.input.clearPlanReview(undefined, reviewKey);
-				this.refreshProgressAfterInteraction(context, templateData);
+		if (dockedPart && widget && isResponseVM(context.element)) {
+			const element = context.element;
+			this.removeOnSettleElsewhere(element, review, dockedPart, widget, () => {
+				widget.input.clearPlanReview(undefined, reviewKey);
+				this.refreshRowAfterSettle(context, element);
 			});
 		}
 
