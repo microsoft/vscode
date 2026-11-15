@@ -144,21 +144,7 @@ export const promptResultMetadata = (metadata: PromptMetadata[]): MetadataMap =>
 	}
 });
 
-/**
- * Generic marker type of telemetry data that can be passed
- * along in an opaque way
- */
-export class TelemetryData extends PromptMetadata {
-
-	override toString(): string {
-		return `[TelemetryData](${super.toString()})`;
-	}
-}
-
-export interface IBuildPromptResult extends RenderPromptResult {
-
-	telemetryData?: readonly TelemetryData[];
-}
+export type IBuildPromptResult = RenderPromptResult;
 
 
 export interface IIntentInvocation extends Partial<IResponseProcessor> {

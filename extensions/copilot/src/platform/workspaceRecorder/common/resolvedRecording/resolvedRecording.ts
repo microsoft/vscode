@@ -107,6 +107,16 @@ export class ResolvedRecording {
 		public readonly repoRootUri: string | undefined,
 	) { }
 
+	public findFirstOperationAfter<T extends Operation>(op: Operation, predicate1: (op: Operation) => op is T, predicate2: (op: T) => boolean): T | undefined {
+		for (let i = op.operationIdx + 1; i < this._operations.length; i++) {
+			const op = this._operations[i];
+			if (predicate1(op) && predicate2(op)) {
+				return op;
+			}
+		}
+		return undefined;
+	}
+
 	public get operations(): readonly Operation[] { return this._operations; }
 	public get documents(): readonly WorkspaceDocument[] {
 		return [...this._documents.values()].map(d => new WorkspaceDocument(d.documentId, d));
