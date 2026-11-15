@@ -1491,6 +1491,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.focusPart(Parts.PANEL_PART);
 		} else if (this.isAuxiliaryBarMaximized() && this.mainContainer === this.activeContainer) {
 			this.focusPart(Parts.AUXILIARYBAR_PART);
+		} else if (this.isEditorHiddenByChat() && this.isVisible(Parts.CHAT_PART) && this.mainContainer === this.activeContainer) {
+			this.focusPart(Parts.CHAT_PART);
 		} else {
 			this.focusPart(Parts.EDITOR_PART, getWindow(this.activeContainer));
 		}
@@ -2289,7 +2291,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		if (focusEditor) {
-			this.editorGroupService.mainPart.activeGroup.focus(); // Pass focus to editor group if panel part is now hidden
+			if (this.isEditorHiddenByChat() && this.isVisible(Parts.CHAT_PART)) {
+				this.focusPart(Parts.CHAT_PART); // The editor is hidden, the chat part has its area
+			} else {
+				this.editorGroupService.mainPart.activeGroup.focus(); // Pass focus to editor group if panel part is now hidden
+			}
 		}
 	}
 
@@ -3199,7 +3205,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Hidden for the chat part, the editor area stays hidden only while a chat part shows again
 		if (this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT) && !(this.chatPartView && this.readChatPartLayout().visible)) {
 			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT, false);
-			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, false);
+			if (this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED)) {
+				// The maximized secondary side bar keeps the editor hidden, and showing the editor again restores it
+				const state = this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY);
+				if (state) {
+					this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_VISIBILITY, { ...state, editorVisible: true });
+				}
+			} else {
+				this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, false);
+			}
 		}
 
 		const editorNode: ISerializedLeafNode = {
