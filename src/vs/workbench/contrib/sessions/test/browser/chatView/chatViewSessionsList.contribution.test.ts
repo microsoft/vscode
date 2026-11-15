@@ -52,7 +52,10 @@ import { InSessionsViewContext, ISessionsViewLocator, SessionsView, SessionsView
 import { AccessibleViewRegistry } from '../../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { FocusedViewContext, IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { SessionsListNotificationFocused } from '../../../browser/views/sessionsListNotification.js';
-import { ChatViewSessionsListAccessibilityHelp } from '../../../browser/chatView/chatViewSessionsListAccessibilityHelp.js';
+import { ChatViewSessionsListAccessibilityHelp, trackChatViewSessionsListHelpHint } from '../../../browser/chatView/chatViewSessionsListAccessibilityHelp.js';
+import { AccessibleViewType } from '../../../../../../platform/accessibility/browser/accessibleView.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { ResolvedKeybinding } from '../../../../../../base/common/keybindings.js';
 import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { IEditorWindowSessionsRuntime } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
 
@@ -152,7 +155,7 @@ suite('ChatViewSessionsGate', () => {
 		};
 	}
 
-	test('reads only its settings and registers nothing while the setting is off', () => {
+	test('reads only its settings and registers nothing but the accessibility help of the list while the setting is off', () => {
 		const reads: string[] = [];
 		const configurationService = new class extends TestConfigurationService {
 			override getValue<T>(arg1?: string | IConfigurationOverrides, arg2?: IConfigurationOverrides): T | undefined {
@@ -180,15 +183,53 @@ suite('ChatViewSessionsGate', () => {
 		});
 	});
 
-	test('registers the accessibility help of the list and of its Undo notice as the window starts with the setting on, before the list shows, as help registered later would not be installed', () => {
+	test('registers the accessibility help of the list and of its Undo notice as the window starts, also with the setting off, so that the help that the window installs then opens in the list once the setting turns on', () => {
 		const helps = () => AccessibleViewRegistry.getImplementations().map(help => help.name).filter(name => name === 'chatViewSessionsList' || name === 'sessions-list-notification').sort();
 		// The Agents window's list, which other tests load, may hold the Undo notice's help for good
 		const before = helps();
-		const gate = createGate(true);
-		const beforeShown = helps();
+		const gate = createGate(false);
+		// What the window's accessibility help installs, once, after the window starts
+		const installed = [...AccessibleViewRegistry.getImplementations()];
+		change(ChatConfiguration.ChatViewSessionsListEnabled, true);
+		const inList = { getValue: <T>(key: string) => ({ [FocusedViewContext.key]: ChatViewId, [InSessionsViewContext.key]: true } as Record<string, unknown>)[key] as T };
+		const opens = installed.filter(help => help.type === AccessibleViewType.Help && help.when?.evaluate(inList)).sort((a, b) => b.priority - a.priority)[0]?.name;
+		const registeredHelps = helps();
 		gate.dispose();
 
-		assert.deepStrictEqual({ beforeShown, afterDispose: helps() }, { beforeShown: ['chatViewSessionsList', 'sessions-list-notification'], afterDispose: before });
+		assert.deepStrictEqual({ registeredHelps, opens, afterDispose: helps() }, { registeredHelps: ['chatViewSessionsList', 'sessions-list-notification'], opens: 'chatViewSessionsList', afterDispose: before });
+	});
+
+	test('the list tells screen readers how to open its accessibility help while the Chat view\'s verbosity setting is on, following the setting and the keybindings', () => {
+		const configuration = new TestConfigurationService({ [AccessibilityVerbositySettingId.Chat]: true });
+		const keybindingsChanged = disposables.add(new Emitter<void>());
+		let keybinding: string | undefined = 'Alt+F1';
+		const keybindingService = upcastPartial<IKeybindingService>({
+			lookupKeybinding: () => keybinding ? upcastPartial<ResolvedKeybinding>({ getAriaLabel: () => keybinding! }) : undefined,
+			onDidUpdateKeybindings: keybindingsChanged.event,
+		});
+		const descriptions: (string | undefined)[] = [];
+		const hint = trackChatViewSessionsListHelpHint({ setAriaDescription: description => descriptions.push(description) }, configuration, keybindingService);
+		const setVerbosity = (value: boolean) => {
+			configuration.setUserConfiguration(AccessibilityVerbositySettingId.Chat, value);
+			configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === AccessibilityVerbositySettingId.Chat }));
+		};
+		setVerbosity(false);
+		setVerbosity(true);
+		keybinding = 'Ctrl+K Ctrl+H';
+		keybindingsChanged.fire();
+		keybinding = undefined;
+		keybindingsChanged.fire();
+		hint.dispose();
+		keybinding = 'Alt+F1';
+		keybindingsChanged.fire();
+
+		assert.deepStrictEqual(descriptions, [
+			'Press Alt+F1 for accessibility help.',
+			undefined,
+			'Press Alt+F1 for accessibility help.',
+			'Press Ctrl+K Ctrl+H for accessibility help.',
+			undefined,
+		]);
 	});
 
 	test('the accessibility help of the list helps in the sessions list of the Chat view, not on its Undo notice, elsewhere in the Chat view, nor in the Agents window, and returns focus to the list as it closes', () => {

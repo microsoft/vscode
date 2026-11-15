@@ -85,6 +85,12 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 			return;
 		}
 
+		// Accessibility help of the list and of its Undo notice, as the window starts, whether the setting is on or turns on
+		// later: help registered after the window's accessibility help installs what is registered would not be installed. They
+		// help only where the list has focus, and create nothing.
+		this._register(registerSessionsListAccessibilityHelp());
+		this._register(AccessibleViewRegistry.register(new ChatViewSessionsListAccessibilityHelp()));
+
 		const enabled = observeChatViewSessionsListEnabled(configurationService);
 		this._register(autorun(reader => {
 			if (enabled.read(reader)) {
@@ -100,11 +106,6 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		configurationRegistry.registerDefaultConfigurations([noLocalChatDefaults]);
 		store.add(toDisposable(() => configurationRegistry.deregisterDefaultConfigurations([noLocalChatDefaults])));
-
-		// Accessibility help of the list and of its Undo notice, as the window starts: help registered once the list shows would
-		// not be installed anymore
-		store.add(registerSessionsListAccessibilityHelp());
-		store.add(AccessibleViewRegistry.register(new ChatViewSessionsListAccessibilityHelp()));
 
 		// The sessions providers, held while the Chat view, which lists their sessions, shows
 		store.add(accessor.get(IEditorWindowSessionsRuntime).enable({ viewIds: [ChatViewId] }));

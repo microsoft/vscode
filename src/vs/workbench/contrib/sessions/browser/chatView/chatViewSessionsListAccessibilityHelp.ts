@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -50,4 +53,24 @@ function getChatViewSessionsListAccessibilityHelpContent(): string {
 		localize('chatViewSessionsList.shortcuts', "Rename the focused session{0}. Mark it as read{1} or unread{2}.", `<keybinding:${RENAME_SESSION_COMMAND_ID}>`, `<keybinding:${SESSIONS_LIST_MARK_READ_COMMAND_ID}>`, `<keybinding:${SESSIONS_LIST_MARK_UNREAD_COMMAND_ID}>`),
 		localize('chatViewSessionsList.undo', "After you archive or delete sessions, a notice above the list offers Undo for 10 seconds. Focus it and open accessibility help{0} for how to use it.", '<keybinding:editor.action.accessibilityHelp>'),
 	].join('\n');
+}
+
+/**
+ * Tells screen readers in the list how to open its accessibility help, while the Chat view's verbosity setting is on, and
+ * follows changes of the setting and of the keybindings.
+ */
+export function trackChatViewSessionsListHelpHint(list: { setAriaDescription(description: string | undefined): void }, configurationService: IConfigurationService, keybindingService: IKeybindingService): IDisposable {
+	const store = new DisposableStore();
+	const update = () => {
+		const keybinding = configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Chat) ? keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel() : undefined;
+		list.setAriaDescription(keybinding ? localize('chatViewSessionsListHelpHint', "Press {0} for accessibility help.", keybinding) : undefined);
+	};
+	update();
+	store.add(configurationService.onDidChangeConfiguration(e => {
+		if (e.affectsConfiguration(AccessibilityVerbositySettingId.Chat)) {
+			update();
+		}
+	}));
+	store.add(keybindingService.onDidUpdateKeybindings(() => update()));
+	return store;
 }
