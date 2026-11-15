@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../common/async.js';
-import { Cache } from '../../common/cache.js';
+import { Cache, LRUCachedFunction } from '../../common/cache.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Cache', () => {
@@ -64,5 +64,16 @@ suite('Cache', () => {
 				assert.strictEqual(counter1, 2);
 				assert.strictEqual(counter2, 1);
 			});
+	});
+
+	test('LRUCachedFunction with initial undefined key', () => {
+		let callCount = 0;
+		const cached = new LRUCachedFunction((arg?: string) => {
+			callCount++;
+			return arg ? `val:${arg}` : 'default';
+		});
+
+		assert.strictEqual(cached.get(undefined), 'default');
+		assert.strictEqual(callCount, 1);
 	});
 });
