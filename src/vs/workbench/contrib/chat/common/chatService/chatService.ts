@@ -2202,6 +2202,8 @@ export interface IChatRequestAcceptedEvent {
 	readonly isNewSession: boolean;
 	/** The mode (agent) the submission was sent with, if the sender chose one. */
 	readonly modeInfo?: IChatRequestModeInfo;
+	/** Actor that produced an Agent Host message, e.g. an agent delegating to another session. Absent for direct sends. */
+	readonly agentHostMessageOrigin?: MessageOrigin;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');

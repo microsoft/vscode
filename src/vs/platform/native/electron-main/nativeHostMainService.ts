@@ -27,7 +27,10 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, INativeZipProgress, INativeZipResult, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeAppWindow, INativeAppWindows, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, INativeZipProgress, INativeZipResult, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { excludeOwnWindowSources, getScreenWindowId, getWindowSourceId, OrderedAppWindow, orderAppWindows } from '../common/appWindows.js';
+import { AppWindowCaptureFeedback, IAppWindowCaptureFeedbackOptions, IAppWindowCaptureOverlay } from './appWindowCaptureFeedback.js';
+import { captureMacWindow, getMacScreenWindows } from './macScreenWindows.js';
 import { IGlobalKeybindingsMainService } from '../../globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IGPUProcessMainService } from '../../gpu/electron-main/gpuProcessMainService.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -913,6 +916,96 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		// Electron has no screen-permission request API; enumerate screens in the application process to request access.
 		await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } });
 		return systemPreferences.getMediaAccessStatus('screen') === 'granted';
+	}
+
+	async getAppWindows(windowId: number | undefined, options?: { readonly interactive?: boolean }): Promise<INativeAppWindows> {
+		const interactive = !!options?.interactive;
+		// Chromium lets the user pick a window in the system's picker in Wayland sessions, even under XWayland. The test is
+		// WebRTC's own (`DesktopCapturer::IsRunningUnderWayland`): without it, Chromium lists the windows through X11.
+		if (isLinux && process.env['XDG_SESSION_TYPE']?.startsWith('wayland') && process.env['WAYLAND_DISPLAY'] && !interactive) {
+			return { kind: 'systemPicker' };
+		}
+		// Listing the windows asks for the permission the first time.
+		if (isMacintosh && systemPreferences.getMediaAccessStatus('screen') !== 'granted' && !interactive) {
+			return { kind: 'permissionRequired' };
+		}
+
+		// Only macOS tells where windows are, and which application is in front.
+		const screenWindows = isMacintosh ? getMacScreenWindows(this.logService) : undefined;
+		let sources: Electron.DesktopCapturerSource[];
+		try {
+			// Thumbnails would capture every window, so none are made.
+			sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: true });
+		} catch (error) {
+			if (isMacintosh && systemPreferences.getMediaAccessStatus('screen') !== 'granted') {
+				return { kind: 'permissionRequired' };
+			}
+			throw error;
+		}
+
+		const ownSourceIds = BrowserWindow.getAllWindows().filter(window => !window.isDestroyed()).map(window => window.getMediaSourceId());
+		const others = excludeOwnWindowSources(sources, ownSourceIds);
+		const screen = await screenWindows;
+		const ordered: OrderedAppWindow<Electron.DesktopCapturerSource>[] = screen ? orderAppWindows(others, screen, process.pid) : others.map(source => ({ source, window: undefined }));
+		// Desktop media sources leave out the windows that the screen doesn't show, which take their application's icon.
+		const appPaths = new Set<string>();
+		for (const { source, window } of ordered) {
+			if (!source && window.appPath) {
+				appPaths.add(window.appPath);
+			}
+		}
+		const appIcons = new Map(await Promise.all(Array.from(appPaths, async path => [path, await this.getAppIconDataUrl(path)] as const)));
+		const windows = ordered.map(({ source, window }): INativeAppWindow => source ? {
+			sourceId: source.id,
+			title: source.name,
+			iconDataUrl: source.appIcon && !source.appIcon.isEmpty() ? source.appIcon.resize({ width: 32, height: 32, quality: 'best' }).toDataURL() : undefined,
+			bounds: window?.bounds,
+		} : {
+			sourceId: getWindowSourceId(window),
+			title: window.title ?? '',
+			iconDataUrl: window.appPath ? appIcons.get(window.appPath) : undefined,
+			bounds: window.bounds,
+		});
+		return { kind: 'windows', windows };
+	}
+
+	/** Returns the icon of the application at the path, at the size of the icons of desktop media sources, as a PNG `data:` URL. */
+	private async getAppIconDataUrl(path: string): Promise<string | undefined> {
+		try {
+			const icon = await app.getFileIcon(path, { size: 'normal' });
+			return icon.isEmpty() ? undefined : icon.toDataURL();
+		} catch (error) {
+			this.logService.trace('[AppWindows] Getting the icon of an application failed:', error);
+			return undefined;
+		}
+	}
+
+	private appWindowCaptureFeedback: AppWindowCaptureFeedback | undefined;
+
+	async captureAppWindow(windowId: number | undefined, window: INativeAppWindow, options?: { readonly feedback?: IAppWindowCaptureFeedbackOptions }): Promise<VSBuffer | undefined> {
+		let overlay: IAppWindowCaptureOverlay | undefined;
+		if (options?.feedback && window.bounds) {
+			this.appWindowCaptureFeedback ??= this._register(new AppWindowCaptureFeedback(this.logService));
+			overlay = this.appWindowCaptureFeedback.show(window.bounds, options.feedback);
+		}
+		const screenWindowId = isMacintosh ? getScreenWindowId(window.sourceId) : undefined;
+		const image = screenWindowId !== undefined ? await captureMacWindow(screenWindowId, this.logService) : undefined;
+		if (!image) {
+			// The caller captures the window another way, which shows the window meanwhile.
+			void overlay?.dim();
+			return undefined;
+		}
+		await overlay?.reveal(image);
+		return VSBuffer.wrap(image);
+	}
+
+	async endAppWindowCaptureFeedback(windowId: number | undefined, screenshot?: { readonly image?: string; readonly destination?: IRectangle; readonly radius?: number }, options?: INativeHostOptions): Promise<void> {
+		let destination: IRectangle | undefined;
+		const content = screenshot?.destination && this.windowById(options?.targetWindowId, windowId)?.win?.getContentBounds();
+		if (screenshot?.destination && content) {
+			destination = { ...screenshot.destination, x: content.x + screenshot.destination.x, y: content.y + screenshot.destination.y };
+		}
+		await this.appWindowCaptureFeedback?.end(screenshot && { image: screenshot.image, destination, radius: screenshot.radius });
 	}
 
 	async isAdmin(): Promise<boolean> {

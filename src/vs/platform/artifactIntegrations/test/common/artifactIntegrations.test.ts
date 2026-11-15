@@ -373,6 +373,20 @@ suite('Artifact Integrations', () => {
 		});
 	}));
 
+	test('notices say when the agent turned a rule on without the person confirming it', () => run(async store => {
+		const f = fixture(store);
+		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
+		await reference.object.configure('test', 0, { automatic: true }, { kind: 'agent', chat: 'agent-chat', turnId: 'agent-turn', autoApproved: true });
+		await timeout(0);
+		assert.deepStrictEqual({
+			grants: reference.object.snapshot.get().contributions[0].configuration.grants,
+			notices: f.notices.map(notice => notice.content.split('\n\n').at(-1)),
+		}, {
+			grants: { automatic: { kind: 'agent', chat: 'agent-chat', turnId: 'agent-turn', autoApproved: true } },
+			notices: ['Turned on by the agent \\(auto-approved\\).'],
+		});
+	}));
+
 	test('a deleted session loses its bindings and history once nothing is running, but keeps uncertain effects', () => run(async store => {
 		const gate = new DeferredPromise<void>();
 		const f = fixture(store, {
@@ -1027,6 +1041,7 @@ suite('Artifact Integrations', () => {
 				kind: 'enabled', session: 'session', chat: 'origin-chat', iconId: 'link',
 				lines: [
 					'Automatically Act enabled for Example',
+					'Autopilot keeps working automatically, sending messages to the agent in this chat when there is work to do.',
 					'Run Act automatically.',
 				],
 			}, {
@@ -1062,7 +1077,7 @@ suite('Artifact Integrations', () => {
 			disabledReason: notice.content.includes('Attempt limit reached'),
 			remaining: notice.content.includes('Still enabled: Merge'),
 		})), [
-			{ kind: 'enabled', heading: 'Autopilot updated for Example \\(2 rules\\)', changedMode: false, modeExplanation: false, disabledReason: false, remaining: false },
+			{ kind: 'enabled', heading: 'Autopilot enabled for Example \\(2 rules\\)', changedMode: false, modeExplanation: false, disabledReason: false, remaining: false },
 			{ kind: 'changed', heading: 'Merge updated for Example', changedMode: true, modeExplanation: true, disabledReason: false, remaining: false },
 			{ kind: 'disabled', heading: 'Repair disabled for Example', changedMode: false, modeExplanation: false, disabledReason: true, remaining: true },
 		]);
@@ -1094,6 +1109,8 @@ suite('Artifact Integrations', () => {
 			merged: {
 				kind: 'changed', content: [
 					'Autopilot updated for Example \\(3 rules\\)',
+					'',
+					'Autopilot keeps working automatically, sending messages to the agent in this chat when there is work to do.',
 					'',
 					'- **Repair enabled**\\',
 					'  Repair failures.',
@@ -1128,6 +1145,8 @@ suite('Artifact Integrations', () => {
 			kind: 'changed',
 			content: [
 				'Autopilot updated for Example \\(2 rules\\)',
+				'',
+				'Autopilot keeps working automatically, sending messages to the agent in this chat when there is work to do.',
 				'',
 				'- **\\*Repair\\* failures updated**\\',
 				'  Use \\[this\\]\\(command:run\\). Then push.',
@@ -1186,7 +1205,8 @@ suite('Artifact Integrations', () => {
 		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
 		await reference.object.configure('test', 0, { automatic: true });
 		await timeout(0);
-		assert.deepStrictEqual(f.notices[0].content.split('\n\n').slice(0, 2), [
+		const [title, , description] = f.notices[0].content.split('\n\n');
+		assert.deepStrictEqual([title, description], [
 			'\\*Automatically Act\\* enabled for \\[Example\\]\\(command:run\\)',
 			'Use \\[this\\]\\(command:run\\).',
 		]);

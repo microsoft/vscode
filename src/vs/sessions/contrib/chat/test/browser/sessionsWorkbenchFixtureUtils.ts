@@ -62,6 +62,7 @@ import { appendNewSessionTitleBarMenuItem } from '../../browser/newSessionTitleB
 
 import '../../../../browser/layoutActions.js';
 import '../../browser/runScriptAction.js';
+import '../../../sessions/browser/views/sessionsViewActions.js';
 import '../../../../../workbench/contrib/modernUI/browser/media/tabs.css';
 import '../../../../common/sizes.js';
 import '../../../../browser/media/workbench.css';

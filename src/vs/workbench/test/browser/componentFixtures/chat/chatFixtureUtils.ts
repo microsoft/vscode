@@ -74,6 +74,7 @@ import { EditSuggestionId } from '../../../../../editor/common/textModelEditSour
 import { IChatAttachmentResolveService } from '../../../../contrib/chat/browser/attachments/chatAttachmentResolveService.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../../contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { IChatContextPickService } from '../../../../contrib/chat/browser/attachments/chatContextPickService.js';
+import { IChatUserImageAttachmentService } from '../../../../contrib/chat/browser/attachments/chatUserImageAttachments.js';
 import { IChatContextService } from '../../../../contrib/chat/browser/contextContrib/chatContextService.js';
 import { IChatImageCarouselService } from '../../../../contrib/chat/browser/chatImageCarouselService.js';
 import { IChatInputNotification, IChatInputNotificationService } from '../../../../contrib/chat/browser/widget/input/chatInputNotificationService.js';
@@ -365,6 +366,10 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IChatInputNoticeHubService, new class extends mock<IChatInputNoticeHubService>() {
 		override registerHost() { return Disposable.None; }
 		override toggleNoticeFocus() { return false; }
+	}());
+	reg.defineInstance(IChatUserImageAttachmentService, new class extends mock<IChatUserImageAttachmentService>() {
+		override readonly onDidAttachImages = Event.None;
+		override didAttachImages() { }
 	}());
 	reg.defineInstance(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
 		override readonly isExtensionDevelopment = false;

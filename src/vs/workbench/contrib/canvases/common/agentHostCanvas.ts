@@ -10,14 +10,17 @@ import { derived, derivedOpts, IObservable, mapObservableArrayCached } from '../
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
+import { getCanvasUri } from '../../../../platform/agentHost/common/agentHostProtocolTransition.js';
 import { getInlineToolInput, parsePartialToolInput } from '../../../../platform/agentHost/common/partialToolInput.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { CanvasReference, CanvasState } from '../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { ActionType, type ActionEnvelope } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { ActiveTurn, ChatState, ResponsePartKind, StateComponents, ToolCallStatus, Turn } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { openCanvasWithExtensionConsent } from './agentHostCanvasConsent.js';
 import { ICanvasContext, ICanvasDefinition, ICanvasDefinitionProvider, ICanvasOpenRequest } from './canvas.js';
-import { ICanvas, ICanvasOwner } from '../../../common/canvasReference.js';
+import { ICanvas, ICanvasOpenOptions, ICanvasOwner } from '../../../common/canvasReference.js';
 
 export class AgentHostCanvas implements ICanvas {
 	readonly resource: URI;
@@ -39,9 +42,10 @@ export class AgentHostCanvas implements ICanvas {
 		this.canvasId = canvas?.canvasId;
 		this.title = canvas?.title ?? canvas?.extensionName ?? canvas?.canvasId ?? localize('canvas.pendingTitle', "Canvas");
 		this.status = canvas?.status;
-		if (canvas?.url !== undefined) {
+		const uri = canvas && getCanvasUri(canvas);
+		if (uri !== undefined) {
 			try {
-				const source = URI.parse(canvas.url, true);
+				const source = URI.parse(uri, true);
 				if ((source.scheme === Schemas.http || source.scheme === Schemas.https) && source.authority) {
 					this.source = source;
 				} else {
@@ -60,6 +64,7 @@ export class AgentHostCanvasCollection extends Disposable {
 		readonly providerId: string,
 		private readonly connection: IAgentConnection,
 		@ILogService private readonly logService: ILogService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 	}
@@ -89,11 +94,11 @@ export class AgentHostCanvasCollection extends Disposable {
 			? {
 				onDidChangeDefinitions,
 				listCanvases: () => this.connection.listSessionCanvases!(owner.session, owner.chat),
-				openCanvas: (canvas: ICanvasDefinition, instanceId: string) => this.connection.openSessionCanvas!(owner.session, {
+				openCanvas: (canvas: ICanvasDefinition, instanceId: string, options?: ICanvasOpenOptions) => openCanvasWithExtensionConsent(this.dialogService, answer => this.connection.openSessionCanvas!(owner.session, {
 					canvasId: canvas.canvasId,
 					extensionId: canvas.extensionId,
 					instanceId,
-				}, owner.chat),
+				}, owner.chat, answer), options),
 			}
 			: undefined;
 		const closeCanvas = this.connection.closeSessionCanvas

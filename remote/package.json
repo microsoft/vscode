@@ -13,7 +13,7 @@
   "private": true,
   "dependencies": {
     "@devcontainers/cli": "0.88.0",
-    "@github/copilot-sdk": "1.0.32-preview.3",
+    "@github/copilot-sdk": "1.0.33-preview.0",
     "@hpke/core": "^1.9.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
@@ -52,7 +52,6 @@
     "kerberos": "2.1.1",
     "libsodium-wrappers": "^0.8.4",
     "minimist": "^1.2.8",
-    "node-addon-api": "^6.0.0",
     "node-pty": "^1.2.0-beta.18",
     "ssh2": "^1.16.0",
     "tar": "^7.5.20",
@@ -65,5 +64,5 @@
     "yazl": "^2.4.3",
     "zod": "^4.4.3"
   },
-  "copilotRuntimeVersion": "1.0.110-3"
+  "copilotRuntimeVersion": "1.0.111-0"
 }

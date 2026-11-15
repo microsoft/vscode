@@ -934,6 +934,40 @@ suite('AgentCustomizationItemProvider', () => {
 		]);
 	});
 
+	test('labels bundled extension customizations with the extension display name', async () => {
+		const bundleUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/bundle' });
+		const syncedSkillUri = URI.joinPath(bundleUri, 'skills', 'review', 'SKILL.md');
+		const extensionSkillUri = URI.file('/extensions/acme.acme-chat-kit/skills/review/SKILL.md');
+		const fileService = createInMemoryFileService(disposables, SYNCED_CUSTOMIZATION_SCHEME);
+		await fileService.writeFile(syncedSkillUri, VSBuffer.fromString('---\nname: Review Skill\ndescription: Reviews code\n---\nReview code.'));
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') },
+			undefined,
+			syncedUri => isEqual(syncedUri, syncedSkillUri)
+				? { uri: extensionSkillUri, source: AICustomizationSources.extension, extensionId: 'acme.acme-chat-kit', extensionLabel: 'Acme Chat Kit' }
+				: undefined,
+			fileService,
+			new NullLogService(),
+			new NullAgentHostCustomizationService(),
+			makePromptsService(), labelService,
+		));
+		provider.setDraftCustomizations(observableValue<readonly ClientPluginCustomization[]>('draftCustomizations', [{
+			type: CustomizationType.Plugin,
+			id: bundleUri.toString(),
+			uri: bundleUri.toString(),
+			name: 'VS Code Standalone Customizations',
+			nonce: '1',
+		}]));
+
+		const items = await provider.provideChatSessionCustomizations(URI.parse('agent-host-copilotcli:///draft'), CancellationToken.None);
+		const normalized = new AICustomizationItemNormalizer(labelService, upcastPartial<IProductService>({})).normalizeItems(items, PromptsType.skill);
+
+		assert.deepStrictEqual(normalized.map(item => ({ uri: item.uri.toString(), origin: item.origin })), [{
+			uri: extensionSkillUri.toString(),
+			origin: { kind: 'extension', id: 'extension:acme.acme-chat-kit', label: 'Acme Chat Kit' },
+		}]);
+	});
+
 	test('surfaces session agents through directory customizations', async () => {
 		const agentUri = 'file:///workspace/.github/agents/reviewer.agent.md';
 		const customizations: Customization[] = [{

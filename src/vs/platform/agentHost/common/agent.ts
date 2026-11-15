@@ -26,7 +26,7 @@ import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.
 import type { AuthenticateTarget, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { CanvasState } from './state/protocol/channels-canvas/state.js';
 import { subagentChatUri, type ChatUriFormat } from './agentHostChatMinting.js';
-import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type SessionOrigin, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
+import { ProtectedResourceMetadata, type AnnotationsSummary, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type SessionOrigin, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction, ProgressParams } from './state/sessionActions.js';
 import { AHP_CHAT_SCHEME, ChatInputResponseKind, ChatOriginKind, SessionStatus, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState, type IModelRoutedInfo } from './state/sessionState.js';
 import type { IAgentDecisionsRequest, IAgentDecisionsResult } from './agentDecisions.js';
@@ -232,6 +232,12 @@ export interface IAgentImportedChat {
 export interface IAgentChatHistoryChange {
 	readonly chat: URI;
 	readonly turns: readonly Turn[];
+	/**
+	 * The provider reloaded the chat from storage, so {@link turns} replace the host's turns instead of being merged
+	 * with them: turns that ran live have host-generated ids, while reloaded turns take the provider's. The turn running
+	 * when the change arrives, and any later turn, is kept after them.
+	 */
+	readonly replace?: boolean;
 }
 
 /** Returns the candidate session URI keys already present in the host registry. */
@@ -264,6 +270,7 @@ export interface IAgentSessionChatMetadata {
 
 export interface IAgentSessionMetadata extends Omit<IAgentChatMetadata, 'chat'> {
 	readonly session: URI;
+	readonly annotations?: AnnotationsSummary;
 	/** Host-advertised agent identity; older cached metadata may omit it. */
 	readonly provider?: string;
 	readonly origin?: SessionOrigin;
@@ -408,6 +415,47 @@ export interface IAgentCanvasOpenRequest {
 	readonly extensionId?: string;
 	readonly instanceId: string;
 }
+
+/** The choices a user can make about a Copilot extension that needs consent before it loads. */
+export const enum AgentExtensionConsentOption {
+	/** Allows the extension for the rest of the chat's runtime sessions. */
+	Allow = 'allow-once',
+	AlwaysAllow = 'allow-extension-always',
+	NotNow = 'not-now',
+	Never = 'deny-extension-always',
+}
+
+/**
+ * A Copilot extension that waits for the user's consent before it loads: to read sensitive
+ * environment variables, or to load with privileged capabilities. Carries names only, never values.
+ */
+export interface IAgentExtensionConsentRequest {
+	/** Identifies this request until it is answered. */
+	readonly id: string;
+	readonly kind: 'environment' | 'capabilities';
+	/** Source-qualified extension identifier, such as `user:my-canvas`. */
+	readonly extensionName: string;
+	/** Short extension name for display. */
+	readonly displayName: string;
+	/** The requested environment variable names, or the requested capabilities. */
+	readonly items: readonly string[];
+	/** Whether the decision can be remembered for all sessions ({@link AgentExtensionConsentOption.AlwaysAllow} and {@link AgentExtensionConsentOption.Never}). */
+	readonly persistable: boolean;
+}
+
+/** Continues a canvas open that returned {@link AgentCanvasOpenResult} `consentRequired`, or retries one that was denied. */
+export type AgentCanvasOpenAnswer =
+	| { readonly kind: 'consent'; readonly consentId: string; readonly optionId: AgentExtensionConsentOption }
+	| { readonly kind: 'retry' };
+
+/**
+ * The outcome of opening a canvas. `consentRequired` leaves the open pending until it is answered;
+ * `consentDenied` means the extension was not allowed to load, and `retryable` whether asking again can help.
+ */
+export type AgentCanvasOpenResult =
+	| { readonly kind: 'opened' }
+	| { readonly kind: 'consentRequired'; readonly consent: IAgentExtensionConsentRequest }
+	| { readonly kind: 'consentDenied'; readonly consent: IAgentExtensionConsentRequest; readonly retryable: boolean };
 
 /** Closes one canvas that a live provider chat presents, notifying its canvas provider. */
 export interface IAgentCanvasCloseRequest {
@@ -1940,6 +1988,8 @@ export interface IAgentChatAdoptionResult {
 	};
 	/** Set when the adopted chat ran in a worktree that no longer exists and can be recreated. */
 	readonly worktree?: IAgentAdoptedWorktree;
+	/** The adopted chat's own creation and last-modified times, so registration does not stamp it with the adoption time. */
+	readonly timestamps?: { readonly startTime: number; readonly modifiedTime: number };
 	/** Diagnostic reason behind {@link adopted}. */
 	readonly reason?: AgentChatAdoptionReason;
 	/** Bounded provenance evidence; a missing marker alone does not prove an external session. */
@@ -2063,8 +2113,8 @@ export interface IAgent {
 	/** List canvas declarations available to one initialized provider chat. After returning `undefined`, publish {@link ActionType.ChatCanvasesChanged} when an authoritative snapshot is available. */
 	listSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<AgentCanvasDefinitionSnapshot>;
 
-	/** Open or focus one canvas instance in an initialized provider chat. */
-	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
+	/** Open or focus one canvas instance in an initialized provider chat, or continue one that waits for the user's consent. */
+	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI, context: AgentChatOperationContext, answer?: AgentCanvasOpenAnswer): Promise<AgentCanvasOpenResult>;
 
 	/** Close one canvas that a live provider chat presents, notifying its canvas provider. Never resumes a cold chat. */
 	closeSessionCanvas?(session: URI, request: IAgentCanvasCloseRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
@@ -2085,13 +2135,13 @@ export interface IAgent {
 	retryManagedPlugins?(session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]>;
 
 	/** List plugin marketplaces through the provider that owns marketplace state. */
-	listPluginMarketplaces?(session: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]>;
+	listPluginMarketplaces?(session?: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]>;
 
 	/** Add a plugin marketplace through the provider that owns marketplace state. */
-	addPluginMarketplace?(session: URI, source: string, chat?: URI): Promise<IAgentPluginMarketplace>;
+	addPluginMarketplace?(session: URI | undefined, source: string, chat?: URI): Promise<IAgentPluginMarketplace>;
 
 	/** Browse one plugin marketplace through the provider that owns marketplace state. */
-	browsePluginMarketplace?(session: URI, name: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceItem[]>;
+	browsePluginMarketplace?(session: URI | undefined, name: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceItem[]>;
 
 	/** Remove a plugin marketplace through the provider that owns marketplace state. */
 	removePluginMarketplace?(session: URI, name: string, force?: boolean, chat?: URI): Promise<IAgentPluginMarketplaceRemoveResult>;

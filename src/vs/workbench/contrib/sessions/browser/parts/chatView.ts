@@ -11,6 +11,7 @@ import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js
 import { IAction } from '../../../../../base/common/actions.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IFolderLocation } from '../../../../../platform/workspace/common/folderLocations.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { IAgentsWindowDraft } from '../../../../../platform/window/common/window.js';
@@ -23,6 +24,8 @@ import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chat
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../common/sessionPickerVisibility.js';
 import type { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
+import { IChatWidget } from '../../../chat/browser/chat.js';
+import type { INewSessionInputPresentation } from '../newSessionInputPresentation.js';
 
 /**
  * Discriminates between concrete {@link AbstractChatView} subclasses without
@@ -56,6 +59,7 @@ export interface IChatViewBackground {
  * Options passed to a chat view when it is created.
  */
 export interface IChatViewOptions {
+	readonly newSessionInput?: INewSessionInputPresentation;
 	readonly inputEditorOptions?: Pick<IEditorOptions, 'fontSize' | 'lineHeight'>;
 	readonly showEmptyStateIcon?: boolean;
 	readonly renderNewSessionHeader?: (container: HTMLElement, before: HTMLElement) => IDisposable;
@@ -107,6 +111,13 @@ export interface INewSessionDraftHost {
 	 * starts its next draft from the selection of a background send.
 	 */
 	setRequestedTarget?(target: INewSessionTarget, reason: 'user' | 'background'): void;
+	/**
+	 * The only folders the composer can create its sessions in, such as an editor window's folders: its workspace picker
+	 * offers no other. Unset, it offers any workspace.
+	 */
+	readonly allowedFolders?: IObservable<readonly URI[]>;
+	/** How its workspace picker shows one of its {@link allowedFolders}, such as a linked checkout of a window's folder. */
+	getFolderPresentation?(folderUri: URI): IFolderLocation | undefined;
 	/** Opens a session the composer started in the background, in the composer's own window. */
 	openStartedSession(session: ISession): Promise<void>;
 	/**
@@ -359,6 +370,14 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 */
 	saveViewState(): void {
 		// no-op by default
+	}
+
+	/**
+	 * The chat widget of its input, which sends what it takes: of the chat it shows, or of its new-session composer, whose
+	 * sends create the session. Undefined while it has none.
+	 */
+	get chatWidget(): IChatWidget | undefined {
+		return undefined;
 	}
 
 	/**

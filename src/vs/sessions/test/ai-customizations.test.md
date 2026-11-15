@@ -12,10 +12,11 @@ Production behavior reads the `sessions.list.rearrage` treatment directly from t
 
 - Treatment: `"experiments.override.sessions.list.rearrage": true`
 - Control: `"experiments.override.sessions.list.rearrage": false`
+- Customizations at the bottom (with the treatment): `"experiments.override.config.sessions.sidebar.customizationsAtBottom": true`
 
 The Agents sidebar updates reactively when the override changes. Remove the override to use the automatically assigned experiment variant.
 
-In the treatment, Automations and Customizations are the first rows in the Sessions tree and scroll with its content. The Sessions header follows them and remains sticky while session rows scroll beneath it. The control keeps the expandable Customizations pane above the Sessions list.
+In the treatment, Automations and Customizations are the first rows in the Sessions tree and scroll with its content. The Sessions header follows them and remains sticky while session rows scroll beneath it. The control keeps the expandable Customizations pane above the Sessions list. The `customizationsAtBottom` variant shows the treatment's navigation rows without Customizations, and keeps the control's expandable Customizations pane. It has no effect in the control.
 
 ## SCENARIOS
 

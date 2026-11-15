@@ -301,6 +301,8 @@ interface IObserveTurnOptions {
 	/** Receives the final turn for structured result and error details, never markdown progress. */
 	readonly onTurnEnded?: (lastTurn: Turn | undefined) => void;
 	readonly onResponseText?: (text: string) => void;
+	/** Receives live reasoning deltas of this turn; never set for subagent or replaying observers. */
+	readonly onResponseReasoning?: (text: string) => void;
 	readonly onOpenResponseResource?: (resource: ISlashCommandResource) => void;
 	/**
 	 * When set, this turn is being observed as part of a subagent session.
@@ -1852,6 +1854,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let chatTitle: string | undefined;
 		let draftInputState: ISerializableChatModelInputState | undefined;
 		let draftModelId: string | undefined;
+		let draftModelConfiguration: ModelSelection['config'];
 		let sessionSubscription: IAgentSubscription<SessionState> | undefined;
 		let chatSubscription: IAgentSubscription<ChatState> | undefined;
 		const historySubagentObservations = new DisposableStore();
@@ -1901,6 +1904,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						const draft = sessionState.draft ?? emptyDraftFromLastTurn(sessionState);
 						draftInputState = this._draftToInputState(sessionResource, draft);
 						draftModelId = this._toLanguageModelId(sessionResource, draft?.model?.id);
+						draftModelConfiguration = draft?.model?.config;
 						if (!sessionState.draft && draft) {
 							this._config.connection.dispatch(chatURI, { type: ActionType.ChatDraftChanged, draft });
 						}
@@ -2074,7 +2078,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					});
 					return Promise.resolve();
 				},
-				draftInputState ? { editingSession: undefined, inputState: draftInputState, ...(draftModelId ? { selectedModelId: draftModelId } : {}) } : undefined,
+				draftInputState ? { editingSession: undefined, inputState: draftInputState, ...(draftModelId ? { selectedModelId: draftModelId, ...(draftModelConfiguration ? { selectedModelConfiguration: draftModelConfiguration } : {}) } : {}) } : undefined,
 				initialProgress?.filter(part => !isUnstartedSubagent(part)),
 				historySubagentObservations,
 				() => {
@@ -2398,7 +2402,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			};
 
 			failureStage = 'prepareTurn';
-			const completedTurn = await this._handleTurn(resolvedSession, request, measuredProgress, cancellationToken, stage => failureStage = stage, invocationKind === 'newTurn' ? text => firstResponse.observeText(text) : undefined);
+			const timesFirstResponse = invocationKind === 'newTurn';
+			const completedTurn = await this._handleTurn(resolvedSession, request, measuredProgress, cancellationToken, stage => failureStage = stage,
+				timesFirstResponse ? text => firstResponse.observeText(text) : undefined,
+				timesFirstResponse ? text => firstResponse.observeReasoning(text) : undefined);
 			this._localModels.noteCompletedTurn(request.sessionResource, completedTurn?.usage, this._isAutoModelFusion(request.sessionResource));
 			outcome = completedTurn?.state === TurnState.Error ? 'error'
 				: completedTurn?.state === TurnState.Cancelled || cancellationToken.isCancellationRequested ? 'cancelled'
@@ -3817,6 +3824,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		cancellationToken: CancellationToken,
 		onFailureStage: (stage: AgentHostInvocationFailureStage) => void,
 		onResponseText?: (text: string) => void,
+		onResponseReasoning?: (text: string) => void,
 	): Promise<Turn | undefined> {
 		if (this._isInvocationAbandoned(cancellationToken)) {
 			return;
@@ -3985,6 +3993,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					sink: progress,
 					cancellationToken,
 					onResponseText,
+					onResponseReasoning,
 					onOpenResponseResource: request.message.trimStart().startsWith('/')
 						? resource => {
 							resourceOpens.push(openResponseResource(resource).catch(error => {
@@ -4887,7 +4896,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let lastDuration = initial?.reasoningDurationMs;
 		store.add(autorun(reader => {
 			const part = part$.read(reader);
-			const progress = reasoningPartToThinking(part, part.content.substring(lastEmitted));
+			const delta = part.content.substring(lastEmitted);
+			const progress = reasoningPartToThinking(part, delta);
 			if (!part.content || (part.content.length <= lastEmitted
 				&& progress.reasoningStartedAt === lastStartedAt && progress.reasoningDurationMs === lastDuration)) {
 				return;
@@ -4895,6 +4905,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			lastEmitted = part.content.length;
 			lastStartedAt = progress.reasoningStartedAt;
 			lastDuration = progress.reasoningDurationMs;
+			opts.onResponseReasoning?.(delta);
 			opts.sink([progress]);
 		}));
 	}

@@ -471,6 +471,27 @@ suite('Chat window composer', () => {
 		});
 	});
 
+	test('a composer of a window with folders creates sessions only in them and in the folder it aims at; one of a window without folders anywhere', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createServices(store);
+		const composers = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const windowFolders = observableValue<readonly URI[]>('windowFolders', [URI.file('/repo')]);
+		const allowed = (target: string | undefined) => {
+			const composer = store.add(composers.create(URI.parse(`vscode-agents-composer:/${target ?? 'none'}`), { target: target ? { folderUri: URI.file(target) } : undefined, allowedFolders: windowFolders }, async () => { }));
+			return composer.allowedFolders?.get().map(folder => folder.path);
+		};
+		const inWindow = { window: allowed('/repo'), sibling: allowed('/repo.worktrees/feature'), none: allowed(undefined) };
+		windowFolders.set([], undefined);
+
+		assert.deepStrictEqual({ ...inWindow, emptyWindow: allowed('/repo.worktrees/feature'), chatWindow: store.add(composers.create(URI.parse('vscode-agents-composer:/chat-window'), {}, async () => { })).allowedFolders }, {
+			window: ['/repo'],
+			sibling: ['/repo', '/repo.worktrees/feature'],
+			none: ['/repo'],
+			emptyWindow: [],
+			chatWindow: undefined,
+		});
+	});
+
 	test('the composers of chat windows are stored as the state is saved, not as their input changes, with what they aim for, their group, their input and a send that did not end; they restore as a composer with that input or with what the send sent, or as the session a send started; a discarded composer and a malformed entry are not stored', async () => {
 		const store = disposables.add(new DisposableStore());
 		const started = createSession('started', { folder: '/repo', status: constObservable(SessionStatus.Completed) });

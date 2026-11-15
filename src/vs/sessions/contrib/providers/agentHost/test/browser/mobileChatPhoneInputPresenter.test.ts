@@ -71,7 +71,7 @@ import { ISessionsProvidersService, SessionsProvidersService } from '../../../..
 import { ISessionModelsSnapshot } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { MobileChatPhoneInputPresenterContribution } from '../../browser/mobile/mobileChatPhoneInputPresenter.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from '../../../../../../workbench/contrib/sessions/browser/chat/newChatModelPicker.js';
-import { ModelPicker } from '../../../../chat/browser/modelPicker.js';
+import { ModelPicker } from '../../../../../../workbench/contrib/sessions/browser/chat/modelPicker.js';
 import { ISessionModelSelection } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
 import { createModelSelectionState, normalizeModelPickerOptions } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionModelPickerState.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -84,6 +84,8 @@ import { MobilePermissionPicker } from '../../../../../../workbench/contrib/sess
 import { MobileAgentHostModePicker } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/mobile/mobileAgentHostModePicker.js';
 import { AgentHostPermissionPickerDelegate } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostPermissionPickerDelegate.js';
 import { AgentHostSessionConfigPickerContribution } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
+import { IChatViewFactory } from '../../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
+import { MobileChatViewFactory } from '../../../../mobile/browser/mobileChatViewFactory.js';
 import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { ILifecycleService } from '../../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
@@ -246,6 +248,7 @@ suite('Mobile workbench - MobileChatPhoneInputPresenter', () => {
 		assert.ok(descriptor);
 		const instantiationService = createServices(store.add(new DisposableStore()), [
 			[IChatPhoneInputPresenter, descriptor.ctor],
+			[IChatViewFactory, new MobileChatViewFactory()],
 			[IContextKeyService, contextKeys],
 			[ICommandService, upcastPartial<ICommandService>({})],
 			[IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ mainContainer: container })],
