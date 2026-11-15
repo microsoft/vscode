@@ -28,6 +28,7 @@ import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { AgentsChatPartVisibleContext } from './agentsView/agentsChatPartActions.js';
+import { InAgentsChatPartContext } from './agentsView/agentsChatPartContext.js';
 import { EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_FOREGROUND, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_INACTIVE_FOREGROUND } from '../../../common/theme.js';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR } from '../../terminal/common/terminalColorRegistry.js';
 import { CHAT_CATEGORY } from '../../chat/browser/actions/chatActions.js';
@@ -39,6 +40,12 @@ import { activeSessionViewBackground, activeSessionViewForeground, agentsBackgro
 import { ISessionsChatBackgroundService } from './chatBackgroundService.js';
 
 export const AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING = 'chat.agentSessions.backgroundImageTint';
+
+/**
+ * The context menu of a chat's background that shows over the chat background: in the Agents window, or in the chat area
+ * of an editor window, not in another chat of that window, such as the Chat view's.
+ */
+export const CHAT_BACKGROUND_CHAT_CONTEXT_MENU_WHEN = ContextKeyExpr.and(ChatContextKeys.contextMenuIsBackground, ContextKeyExpr.or(IsSessionsWindowContext, InAgentsChatPartContext));
 
 export class ToggleChatBackgroundTintAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.toggleAgentSessionsBackgroundTint';
@@ -62,7 +69,7 @@ export class ToggleChatBackgroundTintAction extends Action2 {
 				id: MenuId.ChatContext,
 				group: 'zz_background',
 				order: 3,
-				when: ContextKeyExpr.and(when, ChatContextKeys.contextMenuIsBackground),
+				when: ContextKeyExpr.and(when, CHAT_BACKGROUND_CHAT_CONTEXT_MENU_WHEN),
 			}],
 		});
 	}
