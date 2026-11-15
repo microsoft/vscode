@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { MonotonousArray, findFirstMonotonous, findLastMonotonous } from '../../common/arraysFind.js';
+import { MonotonousArray, findFirstIdxMonotonous, findFirstMonotonous, findLastMonotonous } from '../../common/arraysFind.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Arrays', () => {
@@ -57,5 +57,12 @@ suite('Arrays', () => {
 		assert.strictEqual(arr.findLastMonotonous(n => n <= 55), 55);
 		assert.strictEqual(arr.findLastMonotonous(n => n <= 60), 60);
 		assert.strictEqual(arr.findLastMonotonous(n => n <= 80), 69);
+	});
+
+	test('findFirstIdxMonotonous with bounded endIdxEx', () => {
+		const array = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
+
+		// Subrange [0, 4) contains [1, 4, 5, 7]; none are >= 50
+		assert.strictEqual(findFirstIdxMonotonous(array, n => n >= 50, 0, 4), -1);
 	});
 });
