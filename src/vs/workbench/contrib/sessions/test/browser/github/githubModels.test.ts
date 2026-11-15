@@ -491,8 +491,8 @@ suite('GitHubPullRequestReviewThreadsModel', () => {
 		}, {
 			postReviewCommentCalls: [{ body: 'LGTM', inReplyTo: 100 }],
 			threads: ['thread-200'],
-			getReviewThreadsCalls: 3,
-			priorities: ['background', 'mutationReconciliation', 'mutationReconciliation'],
+			getReviewThreadsCalls: 2,
+			priorities: ['background', 'mutationReconciliation'],
 		});
 	});
 
@@ -556,8 +556,8 @@ suite('GitHubPullRequestReviewThreadsModel', () => {
 		}, {
 			resolveThreadCalls: [{ threadId: 'thread-100' }],
 			threads: [],
-			getReviewThreadsCalls: 3,
-			priorities: ['interactive', 'mutationReconciliation', 'mutationReconciliation'],
+			getReviewThreadsCalls: 2,
+			priorities: ['interactive', 'mutationReconciliation'],
 		});
 	});
 
@@ -820,7 +820,8 @@ suite('GitHubPullRequestCIModel', () => {
 	});
 
 	test('rerunFailedCheck refreshes after an in-progress refresh completes', async () => {
-		const model = acquireModel();
+		const requiredRefreshes: boolean[] = [];
+		const model = store.add(new GitHubPullRequestCIModel('owner', 'repo', 1, 'abc', mockFetcher, logService, storageService, checksSource(undefined, requiredRefreshes)));
 		mockFetcher.nextChecks = [
 			{ id: 1, name: 'build', status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Failure, startedAt: undefined, completedAt: undefined, detailsUrl: 'https://github.com/owner/repo/actions/runs/12345/job/67890' },
 		];
@@ -840,10 +841,12 @@ suite('GitHubPullRequestCIModel', () => {
 			checks: model.checks.get().map(check => check.conclusion),
 			getCheckRunsCalls: mockFetcher.getCheckRunsCalls,
 			priorities: mockFetcher.priorities,
+			requiredRefreshes,
 		}, {
 			checks: [GitHubCheckConclusion.Success],
-			getCheckRunsCalls: 3,
-			priorities: ['background', 'mutationReconciliation', 'mutationReconciliation'],
+			getCheckRunsCalls: 2,
+			priorities: ['background', 'mutationReconciliation'],
+			requiredRefreshes: [false, true, false],
 		});
 	});
 

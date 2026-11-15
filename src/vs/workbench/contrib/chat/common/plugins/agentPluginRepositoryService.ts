@@ -5,7 +5,6 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { RequestPriority } from '../../../../../platform/github/common/types.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceType, PluginSourceKind } from './pluginMarketplaceService.js';
 import { IPluginSource } from './pluginSource.js';
@@ -16,7 +15,6 @@ export const IAgentPluginRepositoryService = createDecorator<IAgentPluginReposit
  * Options for ensuring a marketplace repository is available locally.
  */
 export interface IEnsureRepositoryOptions {
-	readonly priority?: RequestPriority;
 	/** Optional progress notification title shown during clone. */
 	readonly progressTitle?: string;
 	/** Label used in clone failure messaging. */
@@ -38,7 +36,6 @@ export interface IEnsureRepositoryOptions {
  * Options for pulling the latest changes from a cloned marketplace repository.
  */
 export interface IPullRepositoryOptions {
-	readonly priority?: RequestPriority;
 	/** Optional plugin name used in progress messaging. */
 	readonly pluginName?: string;
 	/** Label used in pull failure messaging. */

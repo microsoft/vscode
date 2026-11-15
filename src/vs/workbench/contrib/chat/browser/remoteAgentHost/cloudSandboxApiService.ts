@@ -453,7 +453,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			}
 			const client = store.add(await this._githubService.acquireAccountApiClient(this._authenticationProviderId, authentication, signal));
 			requested = true;
-			connection = await client.tasks.connectFeed(signal, { caller: 'mc.sessionFeed.connect', priority: 'background' });
+			connection = await client.tasks.connectFeed(signal, { caller: 'mc.sessionFeed.connect' });
 			const current = await raceCancellationError(this._resolveGitHubSession(), requestToken);
 			if (!current || current.account.id !== authentication.account.id) {
 				throw new CancellationError();

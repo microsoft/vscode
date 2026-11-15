@@ -13,7 +13,6 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { RepositoryRef } from '../../../../platform/github/common/client/types.js';
 import { IContentClient } from '../../../../platform/github/common/content/content.js';
 import { GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
-import { RequestPriority } from '../../../../platform/github/common/types.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
@@ -55,12 +54,12 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 	) { }
 
-	async cloneRepository(cloneUrl: string, targetDir: URI, ref?: string, token?: CancellationToken, priority?: RequestPriority): Promise<void> {
+	async cloneRepository(cloneUrl: string, targetDir: URI, ref?: string, token?: CancellationToken): Promise<void> {
 		const repo = this._parseOrThrow(cloneUrl);
 		const cancel = token ?? CancellationToken.None;
 		const clone = async (content: IContentClient, signal: AbortSignal): Promise<void> => {
-			const sha = await content.resolveRef(repo, ref || 'HEAD', signal, { caller: 'pluginGit.resolveSha', priority });
-			await fetchAndExtractGitHubRepo(content, this._fileService, this._logService, repo, sha, targetDir, signal, priority);
+			const sha = await content.resolveRef(repo, ref || 'HEAD', signal, { caller: 'pluginGit.resolveSha' });
+			await fetchAndExtractGitHubRepo(content, this._fileService, this._logService, repo, sha, targetDir, signal);
 			this._setCacheEntry(targetDir, { ...repo, ref, sha, fetchedAt: Date.now() });
 		};
 
@@ -94,7 +93,7 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		));
 	}
 
-	async pull(repoDir: URI, token?: CancellationToken, priority?: RequestPriority): Promise<boolean> {
+	async pull(repoDir: URI, token?: CancellationToken): Promise<boolean> {
 		const entry = this._getCacheEntry(repoDir);
 		if (!entry) {
 			throw new Error(`Cannot pull plugin: no cached metadata for ${repoDir.toString()}`);
@@ -102,17 +101,17 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		const cancel = token ?? CancellationToken.None;
 		const session = await getExistingGitHubAuthenticationSession(this._authenticationService, this._logService);
 		return this._withContentClient(entry, session, cancel, async (content, signal) => {
-			const newSha = await content.resolveRef(entry, entry.ref || 'HEAD', signal, { caller: 'pluginGit.resolveSha', priority });
+			const newSha = await content.resolveRef(entry, entry.ref || 'HEAD', signal, { caller: 'pluginGit.resolveSha' });
 			if (newSha === entry.sha) {
 				return false;
 			}
-			await fetchAndExtractGitHubRepo(content, this._fileService, this._logService, entry, newSha, repoDir, signal, priority);
+			await fetchAndExtractGitHubRepo(content, this._fileService, this._logService, entry, newSha, repoDir, signal);
 			this._setCacheEntry(repoDir, { ...entry, sha: newSha, fetchedAt: Date.now() });
 			return true;
 		});
 	}
 
-	async checkout(repoDir: URI, treeish: string, _detached?: boolean, token?: CancellationToken, priority?: RequestPriority): Promise<void> {
+	async checkout(repoDir: URI, treeish: string, _detached?: boolean, token?: CancellationToken): Promise<void> {
 		const entry = this._getCacheEntry(repoDir);
 		if (!entry) {
 			throw new Error(`Cannot checkout plugin: no cached metadata for ${repoDir.toString()}`);
@@ -130,12 +129,12 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		await this._withContentClient(entry, session, cancel, async (content, signal) => {
 			const requestedSha = isFullSha
 				? requestedRef.toLowerCase()
-				: await content.resolveRef(entry, requestedRef || 'HEAD', signal, { caller: 'pluginGit.resolveSha', priority });
-			await this._materializeCommit(content, repoDir, entry, requestedSha, isFullSha ? entry.ref : requestedRef, signal, priority);
+				: await content.resolveRef(entry, requestedRef || 'HEAD', signal, { caller: 'pluginGit.resolveSha' });
+			await this._materializeCommit(content, repoDir, entry, requestedSha, isFullSha ? entry.ref : requestedRef, signal);
 		});
 	}
 
-	async checkoutCommit(repoDir: URI, commit: string, token?: CancellationToken, priority?: RequestPriority): Promise<void> {
+	async checkoutCommit(repoDir: URI, commit: string, token?: CancellationToken): Promise<void> {
 		const expectedCommit = commit.trim().toLowerCase();
 		if (!/^[0-9a-f]{40}$/.test(expectedCommit)) {
 			throw new Error(localize('pluginsInvalidPinnedCommit', "Pinned plugin commit '{0}' is not a full SHA-1 hash.", commit));
@@ -152,11 +151,11 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		const cancel = token ?? CancellationToken.None;
 		const session = await getExistingGitHubAuthenticationSession(this._authenticationService, this._logService);
 		await this._withContentClient(entry, session, cancel, async (content, signal) => {
-			const resolvedCommit = (await content.resolveRef(entry, expectedCommit, signal, { caller: 'pluginGit.resolveSha', priority })).toLowerCase();
+			const resolvedCommit = (await content.resolveRef(entry, expectedCommit, signal, { caller: 'pluginGit.resolveSha' })).toLowerCase();
 			if (resolvedCommit !== expectedCommit) {
 				throw new Error(localize('pluginsPinnedCommitResolutionMismatch', "Pinned plugin commit '{0}' resolved to a different commit '{1}'.", commit, resolvedCommit));
 			}
-			await this._materializeCommit(content, repoDir, entry, resolvedCommit, entry.ref, signal, priority);
+			await this._materializeCommit(content, repoDir, entry, resolvedCommit, entry.ref, signal);
 		});
 		const checkedOutCommit = (await this.revParse(repoDir, 'HEAD')).toLowerCase();
 		if (checkedOutCommit !== expectedCommit) {
@@ -194,12 +193,12 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 
 	// -- helpers --------------------------------------------------------------
 
-	private async _materializeCommit(content: IContentClient, repoDir: URI, entry: IBrowserPluginCacheEntry, commit: string, ref: string | undefined, signal: AbortSignal, priority?: RequestPriority): Promise<void> {
+	private async _materializeCommit(content: IContentClient, repoDir: URI, entry: IBrowserPluginCacheEntry, commit: string, ref: string | undefined, signal: AbortSignal): Promise<void> {
 		if (commit === entry.sha.toLowerCase()) {
 			return;
 		}
 
-		await fetchAndExtractGitHubRepo(content, this._fileService, this._logService, entry, commit, repoDir, signal, priority);
+		await fetchAndExtractGitHubRepo(content, this._fileService, this._logService, entry, commit, repoDir, signal);
 		this._setCacheEntry(repoDir, { ...entry, ref, sha: commit, fetchedAt: Date.now() });
 	}
 

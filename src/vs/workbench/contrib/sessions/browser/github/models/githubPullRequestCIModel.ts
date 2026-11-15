@@ -181,15 +181,16 @@ export class GitHubPullRequestCIModel extends Disposable {
 		return new Map();
 	}
 
-	/** Refreshes CI checks. */
+	/** Forced refreshes wait for the current scan to avoid reusing its pre-mutation response. */
 	refresh(force = false, options?: ApiRequestOptions): Promise<void> {
+		if (force && this._refreshPromise) {
+			return this._refreshPromise.then(() => this.refresh(true, options));
+		}
+
 		if (!this._requiredChecksSubscription.value) {
 			this._subscribeRequiredChecks();
 		} else if (force) {
 			void this._requiredChecksHandle?.refresh(true, this._token).catch(error => this._logRequiredChecksError(error));
-		}
-		if (force && this._refreshPromise) {
-			return this.refresh(false, options).then(() => this.refresh(true, options));
 		}
 
 		const priority = options?.priority ?? 'interactive';

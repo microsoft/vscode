@@ -5,7 +5,6 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { RequestPriority } from '../../../../../platform/github/common/types.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 
 export const IPluginGitService = createDecorator<IPluginGitService>('pluginGitService');
@@ -28,8 +27,6 @@ export const IPluginGitService = createDecorator<IPluginGitService>('pluginGitSe
  * the AHP filesystem provider (`agent-client:`), so its test fixture is
  * agnostic to which client impl wrote the bytes.
  *
- * Request priorities apply to GitHub-backed reads; native Git execution is unchanged.
- *
  * A future "server-side clone" path (Approach B) would add a fifth arm
  * where the server itself runs `git clone` based on a typed git-source
  * variant of `CustomizationRef`. That work is not yet implemented.
@@ -37,10 +34,10 @@ export const IPluginGitService = createDecorator<IPluginGitService>('pluginGitSe
 export interface IPluginGitService {
 	readonly _serviceBrand: undefined;
 
-	cloneRepository(cloneUrl: string, targetDir: URI, ref?: string, token?: CancellationToken, priority?: RequestPriority): Promise<void>;
-	pull(repoDir: URI, token?: CancellationToken, priority?: RequestPriority): Promise<boolean>;
-	checkout(repoDir: URI, treeish: string, detached?: boolean, token?: CancellationToken, priority?: RequestPriority): Promise<void>;
-	checkoutCommit(repoDir: URI, commit: string, token?: CancellationToken, priority?: RequestPriority): Promise<void>;
+	cloneRepository(cloneUrl: string, targetDir: URI, ref?: string, token?: CancellationToken): Promise<void>;
+	pull(repoDir: URI, token?: CancellationToken): Promise<boolean>;
+	checkout(repoDir: URI, treeish: string, detached?: boolean, token?: CancellationToken): Promise<void>;
+	checkoutCommit(repoDir: URI, commit: string, token?: CancellationToken): Promise<void>;
 	revParse(repoDir: URI, ref: string): Promise<string>;
 	fetch(repoDir: URI, token?: CancellationToken): Promise<void>;
 	fetchRepository(repoDir: URI, token?: CancellationToken): Promise<void>;

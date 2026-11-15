@@ -1183,7 +1183,6 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		let repoDir: URI;
 		try {
 			repoDir = await this._pluginRepositoryService.ensureRepository(reference, {
-				priority: options?.priority,
 				refreshIfOlderThanMs: options?.refresh ? 0 : GITHUB_MARKETPLACE_CACHE_TTL_MS,
 				token,
 			});

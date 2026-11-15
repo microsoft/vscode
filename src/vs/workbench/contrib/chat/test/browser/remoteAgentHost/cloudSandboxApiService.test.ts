@@ -1611,7 +1611,7 @@ suite('CloudSandboxApiService session feed', () => {
 		}, {
 			url: 'https://api.github.com/cmc_internal/api/agents/feed/connect',
 			integration: COPILOT_INTEGRATION_ID, authenticated: true, result: connection,
-			metadata: [{ caller: 'mc.sessionFeed.connect', priority: 'background' }],
+			metadata: [{ caller: 'mc.sessionFeed.connect', priority: 'mutation' }],
 		});
 	});
 

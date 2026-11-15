@@ -18,7 +18,6 @@ import { IEnvironmentService } from '../../../../platform/environment/common/env
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { RequestPriority } from '../../../../platform/github/common/types.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { NotificationTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
@@ -172,7 +171,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 			this._throwIfCancelled(options?.token);
 			if (repositoryIsValid) {
 				const refreshedAt = this._isRefreshDue(marketplace, options)
-					? await this._refreshRepository(repoDir, marketplace, options?.token, options?.priority)
+					? await this._refreshRepository(repoDir, marketplace, options?.token)
 					: undefined;
 				this._updateMarketplaceIndex(marketplace, repoDir, options?.marketplaceType, refreshedAt);
 				return repoDir;
@@ -204,7 +203,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 
 			const progressTitle = options?.progressTitle ?? localize('preparingMarketplace', "Preparing plugin marketplace '{0}'...", marketplace.displayLabel);
 			const failureLabel = options?.failureLabel ?? marketplace.displayLabel;
-			await this._cloneRepository(repoDir, marketplace.cloneUrl, progressTitle, failureLabel, marketplace.ref, options?.token, options?.priority);
+			await this._cloneRepository(repoDir, marketplace.cloneUrl, progressTitle, failureLabel, marketplace.ref, options?.token);
 			this._updateMarketplaceIndex(marketplace, repoDir, options?.marketplaceType, Date.now());
 			return repoDir;
 		}
@@ -308,9 +307,9 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 	 * suppress the next attempt. Genuine failures are recorded, otherwise an
 	 * unreachable remote would be retried on every single fetch.
 	 */
-	private async _refreshRepository(repoDir: URI, marketplace: IMarketplaceReference, token: CancellationToken | undefined, priority: RequestPriority | undefined): Promise<number | undefined> {
+	private async _refreshRepository(repoDir: URI, marketplace: IMarketplaceReference, token: CancellationToken | undefined): Promise<number | undefined> {
 		try {
-			await this._pluginGit.pull(repoDir, token, priority);
+			await this._pluginGit.pull(repoDir, token);
 		} catch (err) {
 			if (isCancellationError(err)) {
 				return undefined;
@@ -333,8 +332,8 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 
 		try {
 			const changed = options?.silent
-				? await this._pluginGit.pull(repoDir, undefined, options.priority)
-				: await this._pullWithProgress(repoDir, updateLabel, options?.priority);
+				? await this._pluginGit.pull(repoDir)
+				: await this._pullWithProgress(repoDir, updateLabel);
 
 			// An explicit pull leaves the clone exactly as fresh as a stale
 			// refresh would, so record it — otherwise flows that pull and then
@@ -365,7 +364,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 	}
 
 	/** Pulls a clone behind a cancellable progress notification. */
-	private async _pullWithProgress(repoDir: URI, updateLabel: string, priority?: RequestPriority): Promise<boolean> {
+	private async _pullWithProgress(repoDir: URI, updateLabel: string): Promise<boolean> {
 		const cts = new CancellationTokenSource();
 		try {
 			return await this._progressService.withProgress(
@@ -375,7 +374,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 					title: localize('updatingPlugin', "Updating plugin '{0}'...", updateLabel),
 					cancellable: true,
 				},
-				() => this._pluginGit.pull(repoDir, cts.token, priority),
+				() => this._pluginGit.pull(repoDir, cts.token),
 				() => cts.dispose(true),
 			);
 		} finally {
@@ -502,7 +501,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		this._storageService.store(MARKETPLACE_INDEX_STORAGE_KEY, JSON.stringify(serialized), StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
-	private async _cloneRepository(repoDir: URI, cloneUrl: string, progressTitle: string, failureLabel: string, ref?: string, token?: CancellationToken, priority?: RequestPriority): Promise<void> {
+	private async _cloneRepository(repoDir: URI, cloneUrl: string, progressTitle: string, failureLabel: string, ref?: string, token?: CancellationToken): Promise<void> {
 		const cts = new CancellationTokenSource();
 		// Cancelling the caller (e.g. the marketplace refresh progress) must
 		// also abort a first-time clone, not just an incremental refresh.
@@ -517,7 +516,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 				},
 				async () => {
 					await this._fileService.createFolder(dirname(repoDir));
-					await this._pluginGit.cloneRepository(cloneUrl, repoDir, ref, cts.token, priority);
+					await this._pluginGit.cloneRepository(cloneUrl, repoDir, ref, cts.token);
 				},
 				() => cts.dispose(true),
 			);

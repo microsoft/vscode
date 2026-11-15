@@ -13,7 +13,6 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { RepositoryRef } from '../../../../platform/github/common/client/types.js';
 import { GitTreeEntry, GitTreeEntryMode, IContentClient } from '../../../../platform/github/common/content/content.js';
-import { RequestPriority } from '../../../../platform/github/common/types.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 
 const GITHUB_HOSTS = new Set(['github.com', 'www.github.com']);
@@ -46,9 +45,8 @@ export async function fetchAndExtractGitHubRepo(
 	sha: string,
 	targetDir: URI,
 	signal: AbortSignal,
-	priority?: RequestPriority,
 ): Promise<void> {
-	const tree = await content.getTree(repo, sha, signal, { caller: 'pluginGit.tree', priority, noCache: true, query: { recursive: true } });
+	const tree = await content.getTree(repo, sha, signal, { caller: 'pluginGit.tree', noCache: true, query: { recursive: true } });
 	if (tree.truncated) {
 		logService.warn(`[GitHubRepoFetcher] Tree for ${repo.owner}/${repo.repo}@${sha} is truncated; some files will be missing from the install`);
 	}
@@ -96,7 +94,7 @@ export async function fetchAndExtractGitHubRepo(
 
 		await Promise.all(blobsToFetch.map(({ entry, dest }) => limiter.queue(async () => {
 			operationSignal.throwIfAborted();
-			const blob = await content.getBlob(repo, entry.sha, operationSignal, { caller: 'pluginGit.blob', priority, noCache: true });
+			const blob = await content.getBlob(repo, entry.sha, operationSignal, { caller: 'pluginGit.blob', noCache: true });
 			operationSignal.throwIfAborted();
 			await fileService.writeFile(dest, decodeBase64(blob.content.replace(/\s+/g, '')));
 		})));

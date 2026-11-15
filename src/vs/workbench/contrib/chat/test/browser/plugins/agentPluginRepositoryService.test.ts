@@ -13,7 +13,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { IFileService, IFileStatWithMetadata } from '../../../../../../platform/files/common/files.js';
-import { RequestPriority } from '../../../../../../platform/github/common/types.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -517,10 +516,10 @@ suite('AgentPluginRepositoryService', () => {
 	});
 
 	test('refreshes an existing repository without a recorded refresh timestamp', async () => {
-		const priorities: (RequestPriority | undefined)[] = [];
+		let pullCount = 0;
 		const service = createService(async () => true, undefined, {
-			pull: async (_repository, _token, priority) => {
-				priorities.push(priority);
+			pull: async () => {
+				pullCount++;
 				return false;
 			},
 		});
@@ -528,7 +527,7 @@ suite('AgentPluginRepositoryService', () => {
 
 		const uri = await service.ensureRepository(plugin.marketplaceReference, { refreshIfOlderThanMs: 8 * 60 * 60 * 1000 });
 
-		assert.deepStrictEqual({ priorities, uri: uri.path }, { priorities: [undefined], uri: '/cache/agentPlugins/github.com/microsoft/vscode' });
+		assert.deepStrictEqual({ pullCount, uri: uri.path }, { pullCount: 1, uri: '/cache/agentPlugins/github.com/microsoft/vscode' });
 	});
 
 	test('does not refresh an existing repository with a recent refresh timestamp', async () => {

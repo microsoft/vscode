@@ -185,7 +185,7 @@ suite('GitHubQueryService', () => {
 				requests: request.getCalls().map(call => ({ priority: call.args[6], caller: call.args[7]?.caller })),
 			}, {
 				repository: { nameWithOwner: 'octo/repo', language: 'TypeScript', stars: 42 },
-				requests: [{ priority: 'visible', caller: 'github.query' }],
+				requests: [{ priority: 'interactive', caller: 'github.query' }],
 			});
 			server.assertSatisfied();
 		});

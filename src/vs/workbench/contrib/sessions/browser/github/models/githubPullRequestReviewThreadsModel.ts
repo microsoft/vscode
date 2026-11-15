@@ -83,10 +83,10 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 		}));
 	}
 
-	/** Refreshes review threads. */
+	/** Forced refreshes wait for the current scan to avoid reusing its pre-mutation response. */
 	refresh(force = false, options?: ApiRequestOptions): Promise<void> {
 		if (force && this._refreshPromise) {
-			return this.refresh(false, options).then(() => this.refresh(true, options));
+			return this._refreshPromise.then(() => this.refresh(true, options));
 		}
 
 		const priority = options?.priority ?? 'interactive';

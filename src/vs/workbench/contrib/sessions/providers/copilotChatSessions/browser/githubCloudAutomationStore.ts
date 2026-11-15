@@ -113,7 +113,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 				signal.throwIfAborted();
 				const repositoryState = resolvedRepository
 					? await this.withClient(signal, async (client, signal) => {
-						const options = { caller: 'cloudAutomations', priority: 'background' } as const;
+						const options = { caller: 'cloudAutomations' };
 						const metadata = await client.repositories.get(resolvedRepository, signal, options);
 						const configuration = metadata.private
 							? await client.automations.getConfiguration(resolvedRepository, signal, options)

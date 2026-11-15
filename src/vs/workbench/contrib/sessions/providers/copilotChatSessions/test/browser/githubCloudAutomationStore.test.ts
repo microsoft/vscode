@@ -284,7 +284,7 @@ suite('GitHubCloudAutomationStore', () => {
 			priorities: api.priorities,
 		}, {
 			target: { workspace, repositoryLabel: 'microsoft/vscode-internalbacklog', allowReadAccessTriggers: false }, calls: ['capability'], entries: [], cached: true,
-			priorities: ['repository', 'capability'].map(method => ({ method, caller: 'cloudAutomations', priority: 'background' })),
+			priorities: ['repository', 'capability'].map(method => ({ method, caller: 'cloudAutomations', priority: undefined })),
 		});
 	});
 
