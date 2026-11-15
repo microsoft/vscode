@@ -38,6 +38,7 @@ class ChatViewSessionsListControl implements IChatViewSessionsListControl {
 	hasFocusOrSelection(): boolean { return this._view.sessionsControl?.hasFocusOrSelection() ?? false; }
 	/** The sessions of the Chat view's own list that have focus: none of those here. */
 	getFocus(): IAgentSession[] { return []; }
+	openFind(): void { this._view.openFind(); }
 	dispose(): void { this._view.dispose(); }
 }
 
