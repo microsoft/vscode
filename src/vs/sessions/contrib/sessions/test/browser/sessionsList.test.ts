@@ -349,6 +349,45 @@ suite('Sessions - SessionsList', () => {
 		});
 	}));
 
+	test('shown again just after a session is no longer updated within the last day or the last days, the list renders again, as it counts a session updated exactly then as within them', () => runWithFakedTimers({ startTime: new Date(2024, 5, 10, 10, 0).getTime(), maxTaskCount: 10_000 }, async () => {
+		const day = 24 * 60 * 60 * 1000;
+		const now = Date.now();
+		// Updated exactly a day ago, created weeks ago: Recent still now
+		const updated = createTestSession('Updated', { createdAt: new Date(now - 30 * day), updatedAt: new Date(now - day) }).session;
+		// Workspaces updated long ago, one updated exactly four days ago and one updated a day ago: those two stay uncapped
+		const workspaces = ['A', 'B', 'C'].map(name => createTestSession(name, { workspaceLabel: name, createdAt: new Date(now - 30 * day) }).session);
+		const fourDays = createTestSession('E', { workspaceLabel: 'E', createdAt: new Date(now - 30 * day), updatedAt: new Date(now - 4 * day) }).session;
+		const recentWorkspace = createTestSession('F', { workspaceLabel: 'F', createdAt: new Date(now - 30 * day), updatedAt: new Date(now - day + 60_000) }).session;
+		const render = (sessions: ISession[], grouping: SessionsGrouping) => {
+			const harness = createListHarness(disposables, sessions);
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(400, 1400), {
+				grouping: () => grouping, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			return list;
+		};
+		const byDate = render([updated], SessionsGrouping.Date);
+		const byWorkspace = render([...workspaces, fourDays, recentWorkspace], SessionsGrouping.Workspace);
+		const state = () => ({
+			recent: byDate.getTreeSnapshot().flatMap(node => node.type === 'section' ? [node.id] : []),
+			uncapped: byWorkspace.getTreeSnapshot().flatMap(node => node.type === 'section' && !node.hidden ? [node.label] : []),
+		});
+		const atThreshold = state();
+		byDate.setVisible(false);
+		byWorkspace.setVisible(false);
+		await timeout(1);
+		byDate.setVisible(true);
+		byWorkspace.setVisible(true);
+		const justAfter = state();
+		byDate.dispose();
+		byWorkspace.dispose();
+
+		assert.deepStrictEqual({ atThreshold, justAfter }, {
+			atThreshold: { recent: ['recent'], uncapped: ['E', 'F'] },
+			justAfter: { recent: ['older'], uncapped: ['F'] },
+		});
+	}));
+
 	test('lazy archive discovery follows section expansion, not the filter or local refresh', () => {
 		const harness = createListHarness(disposables, []);
 		harness.managementService.archivedSessionItems.set({ available: true, state: 'idle' }, undefined);
