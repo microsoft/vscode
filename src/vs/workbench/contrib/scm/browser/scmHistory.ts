@@ -574,9 +574,10 @@ export function toHistoryItemHoverContent(markdownRendererService: IMarkdownRend
 	// the reference is pointing to. They are being added before the last element
 	// of the array which is assumed to contain the hover commands.
 	const tooltipSections = historyItem.tooltip.slice();
+	let referencesMarkdownString: MarkdownString | undefined;
 
 	if (includeReferences && historyItem.references?.length) {
-		const markdownString = new MarkdownString('', { supportHtml: true, supportThemeIcons: true });
+		const markdownString = referencesMarkdownString = new MarkdownString('', { supportHtml: true, supportThemeIcons: true });
 
 		for (const reference of historyItem.references) {
 			const labelIconId = ThemeIcon.isThemeIcon(reference.icon) ? reference.icon.id : '';
@@ -603,6 +604,7 @@ export function toHistoryItemHoverContent(markdownRendererService: IMarkdownRend
 		}
 
 		const renderedContent = markdownRendererService.render(markdownString);
+		renderedContent.element.classList.toggle('history-item-hover-references', markdownString === referencesMarkdownString);
 		hoverContainer.appendChild(renderedContent.element);
 		disposables.add(renderedContent);
 	}
