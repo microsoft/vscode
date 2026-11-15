@@ -6850,6 +6850,8 @@ suite('ChatListRenderer', () => {
 		const plans = new Map<string, Map<string, Docked<IChatPlanReviewPartOptions['onSubmit']>>>();
 		const sessions = new Map<string, URI>();
 		const clears: string[] = [];
+		const focused: string[] = [];
+		const toolCarousels = new Map<string, ((tool: IChatToolInvocation) => ChatToolInvocationPart)[]>();
 		const dock = <T>(docked: Map<string, Docked<T>>, key: string, submit: T): IChatContentPart => {
 			const existing = docked.get(key);
 			if (existing) {
@@ -6878,6 +6880,9 @@ suite('ChatListRenderer', () => {
 			const input = new class extends mock<ChatInputPart>() {
 				override get questionCarousel() { return undefined; }
 				override get hasActiveToolConfirmationCarousel() { return false; }
+				override addToolToConfirmationCarousel(...[, factory]: Parameters<ChatInputPart['addToolToConfirmationCarousel']>) {
+					toolCarousels.set(name, [...toolCarousels.get(name) ?? [], factory]);
+				}
 				override renderQuestionCarousel(...[carousel, context, options]: Parameters<ChatInputPart['renderQuestionCarousel']>) {
 					const key = carousel.resolveId ?? `${context && isResponseVM(context.element) ? context.element.requestId : ''}_${context?.contentIndex}`;
 					return upcastPartial<ChatQuestionCarouselPart>(dock(dockedQuestions, key, options.onSubmit));
@@ -6898,6 +6903,7 @@ suite('ChatListRenderer', () => {
 				override readonly onDidHide = Event.None;
 				override readonly onDidChangeViewModel = Event.None;
 				override getInput() { return ''; }
+				override focusInput() { focused.push(name); }
 				override get inputPart() { return input; }
 				override readonly input = input;
 			}());
@@ -6920,7 +6926,7 @@ suite('ChatListRenderer', () => {
 			undock(plans.get(name)!, undefined);
 			sessions.set(name, other);
 		};
-		return { chatWidgetService, widgets, dockedIn, questionIn, planIn, showChat, clears };
+		return { chatWidgetService, widgets, dockedIn, questionIn, planIn, showChat, clears, focused, toolCarousels };
 	}
 
 	test('a question shows in the input of the widget whose list renders it, also while another widget registered first shows the same chat', async () => {
@@ -7062,6 +7068,26 @@ suite('ChatListRenderer', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual({ whilePending, called, afterSettled: kept.attached }, { whilePending: { kept: true, released: false }, called: ['kept'], afterSettled: false });
+	});
+
+	test('approving a tool in the carousel of one of two widgets that show the chat focuses that widget\'s input, not the other\'s', async () => {
+		const session = URI.from({ scheme: 'vscode-chat-session', path: '/approve' });
+		const { chatWidgetService, widgets, focused, toolCarousels } = createInputRequestWidgets(session, ['other', 'own']);
+		const { disposables, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ sessionResource: session, chatMode: ChatModeKind.Agent, chatWidgetService, getWidget: () => widgets.get('own') });
+		configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, true);
+		const tool = new ChatToolInvocation(
+			{ invocationMessage: 'Run the build', confirmationMessages: { title: 'Run build?', message: 'Runs npm run build.' } },
+			{ id: 'run_in_terminal', displayName: 'Run in terminal', modelDescription: 'Run', source: ToolDataSource.Internal },
+			'approve-build', undefined, {},
+		);
+		model.acceptResponseProgress(request, tool);
+		renderer.renderElement(node, 0, template);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const factory = toolCarousels.get('own')?.[0];
+		const carouselPart = factory && disposables.add(factory(tool));
+		carouselPart?.domNode.querySelector<HTMLElement>('.chat-buttons .monaco-button')?.click();
+
+		assert.deepStrictEqual({ carousels: [...toolCarousels.keys()], focused }, { carousels: ['own'], focused: ['own'] });
 	});
 
 	test('previews can omit input requests without resolving them or docking them in another widget', async () => {

@@ -72,6 +72,8 @@ export interface IChatContentPartRenderContext {
 	readonly element: IChatRequestViewModel | IChatResponseViewModel;
 	readonly readOnly?: boolean;
 	readonly renderInputRequests?: boolean;
+	/** Focuses the input of the widget that shows this chat's input requests, such as the one whose list renders it. */
+	readonly focusInput?: () => void;
 	readonly elementIndex: number;
 	readonly container: HTMLElement;
 	/** Lazily provides an anchor that clips content overlays below floating list UI such as the sticky header. */
