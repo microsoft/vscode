@@ -12,7 +12,8 @@ import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsNavigationService } from '../sessionsNavigationService.js';
 import type { IOpenChatOptions, IOpenSessionOptions } from '../sessionsService.js';
 import { IEditorWindowSessionsPresenterService } from '../editorWindow/editorWindowSessionsPresenter.js';
-import { IAgentsViewProvidersService, waitForAgentsViewSession } from './agentsViewProviders.js';
+import { IAgentsViewProvidersService, prepareAgentsViewSessionForOpen, waitForAgentsViewSession } from './agentsViewProviders.js';
+import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { requestSessionWorkspaceTrust } from '../../../../services/sessions/browser/worktreeTrust.js';
 
@@ -34,6 +35,7 @@ export class EditorWindowSessionsNavigationHost implements ISessionsNavigationSe
 		@IAgentsViewProvidersService private readonly _providers: IAgentsViewProvidersService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 	) { }
 
 	/** What shows the chats of sessions: the chat part, while a feature shows them there, or the Chat view. */
@@ -45,14 +47,22 @@ export class EditorWindowSessionsNavigationHost implements ISessionsNavigationSe
 		return this._mainWindowHost;
 	}
 
+	/** Increases with each {@link openSession}, which shows its session only while it is the latest. */
+	private _openGeneration = 0;
+
 	async openSession(sessionResource: URI, options?: IOpenSessionOptions): Promise<void> {
+		// A later open supersedes this one while it resolves, waits for or prepares its session: the user's latest pick shows
+		const open = ++this._openGeneration;
 		// Its session is known only while the providers are held: until it shows, such as in the chat part, which holds them then
 		const hold = this._providers.acquire();
 		try {
 			// Providers redirect superseded resources, such as of a session they adopted, and leave unfamiliar ones unchanged
 			const resolved = await this._sessionsManagementService.resolveSessionResource(sessionResource, 'open');
-			const session = await waitForAgentsViewSession(this._sessionsManagementService, () => this._sessionsManagementService.getSession(resolved));
-			if (session) {
+			const session = open === this._openGeneration ? await waitForAgentsViewSession(this._sessionsManagementService, () => this._sessionsManagementService.getSession(resolved)) : undefined;
+			if (session && open === this._openGeneration) {
+				await prepareAgentsViewSessionForOpen(this._sessionsProvidersService, session);
+			}
+			if (session && open === this._openGeneration) {
 				await this._presenter.openChat(session, undefined, { preserveFocus: options?.preserveFocus });
 			}
 		} finally {
@@ -61,14 +71,17 @@ export class EditorWindowSessionsNavigationHost implements ISessionsNavigationSe
 	}
 
 	async openSessionToSide(session: ISession, options?: IOpenSessionOptions): Promise<void> {
+		await prepareAgentsViewSessionForOpen(this._sessionsProvidersService, session);
 		await this._presenter.openChat(session, undefined, { preserveFocus: options?.preserveFocus, sideBySide: true });
 	}
 
 	async openChat(session: ISession, chatUri: URI, options?: IOpenChatOptions): Promise<void> {
+		await prepareAgentsViewSessionForOpen(this._sessionsProvidersService, session);
 		await this._presenter.openChat(session, chatUri, { preserveFocus: options?.preserveFocus });
 	}
 
 	async openChatToSide(session: ISession, chatResource: URI, options?: { readonly preserveFocus?: boolean }): Promise<void> {
+		await prepareAgentsViewSessionForOpen(this._sessionsProvidersService, session);
 		await this._presenter.openChat(session, chatResource, { preserveFocus: options?.preserveFocus, sideBySide: true });
 	}
 
