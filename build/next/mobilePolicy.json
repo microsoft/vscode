@@ -140,6 +140,7 @@
 		"src/vs/workbench/contrib/chat/browser/chatPetAchievements.contribution.ts",
 		"src/vs/workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.ts",
 		"src/vs/workbench/contrib/chat/browser/contextContrib/chatContext.contribution.ts",
+		"src/vs/workbench/contrib/chat/browser/customAgentUsage.contribution.ts",
 		"src/vs/workbench/contrib/chat/browser/editorChatUsage.contribution.ts",
 		"src/vs/workbench/contrib/chat/browser/promptTimeline/promptTimeline.contribution.ts",
 		"src/vs/workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHost.contribution.ts",
