@@ -140,6 +140,22 @@ suite('ChatViewPane sessions refresh', () => {
 		assert.deepStrictEqual({ providers, none: service.provider }, { providers: [true, true], none: undefined });
 	});
 
+	test('the chat widget is not visible while the Chat view shows only its sessions, so a chat it hides is not marked read, and is again once the chat shows', () => {
+		const update = Reflect.get(ChatViewPane.prototype, 'updateWidgetVisibility') as (this: object) => void;
+		const sessionsOnly = observableValue('sessionsOnly', true);
+		const visible: boolean[] = [];
+		const host = {
+			isBodyVisible: () => true,
+			welcomeController: undefined,
+			sessionsListService: { sessionsOnly },
+			_widget: { setVisible: (value: boolean) => visible.push(value) },
+		};
+		update.call(host);
+		sessionsOnly.set(false, undefined);
+		update.call(host);
+		assert.deepStrictEqual(visible, [false, true]);
+	});
+
 	test('the Chat view shows only its sessions while a claim is held, also without a provided list', () => {
 		const service = store.add(new ChatViewSessionsListService());
 		const steps = [service.sessionsOnly.get()];
@@ -1181,6 +1197,7 @@ suite('ChatViewPane widget readiness', () => {
 			onDidChangeBodyVisibility: Event.None,
 			isBodyVisible: () => true,
 			welcomeController: undefined,
+			sessionsListService: { sessionsOnly: constObservable(false) },
 			relayout: () => { },
 		}) as ChatViewPane;
 		pane.whenWidget.then(created => steps.push(created === widget ? 'resolved to the widget' : `resolved to ${created}`));
