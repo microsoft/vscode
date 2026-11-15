@@ -4821,6 +4821,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return ids;
 	});
 	private visible = true;
+	/** Whether something the list shows changed while it was hidden, which it skips rendering until it shows again. */
+	private changedWhileHidden = false;
 	private readonly onboardingTarget = observableValue<ISessionOnboardingTarget | undefined>(this, undefined);
 	readonly filters: SessionsListFilters;
 	private _excludeArchived: boolean;
@@ -5182,6 +5184,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 					this.nestedSessionOrderUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
 						if (this.visible) {
 							this.update();
+						} else {
+							this.changedWhileHidden = true;
 						}
 					});
 				}
@@ -5769,6 +5773,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 				} else {
 					this.scheduleListUpdate(true);
 				}
+			} else {
+				this.changedWhileHidden = true;
 			}
 			// A removed session may have been the last one in its workspace.
 			// Garbage-collect manual order / promotion entries for identities
@@ -5786,12 +5792,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.expandPinnedSectionForNewPins(e);
 			if (this.visible) {
 				this.update();
+			} else {
+				this.changedWhileHidden = true;
 			}
 		}));
 
 		this._register(this._sessionGroupsService.onDidChange(e => {
 			if (this.visible) {
 				this.update();
+			} else {
+				this.changedWhileHidden = true;
 			}
 			// Garbage-collect manual order / promotion entries when groups are
 			// deleted or nested, since the order only keeps top-level headers.
@@ -5806,12 +5816,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._register(this._sessionSectionOrderService.onDidChange(() => {
 			if (this.visible) {
 				this.update();
+			} else {
+				this.changedWhileHidden = true;
 			}
 		}));
 
 		this._register(this._agentHostFilterService.onDidChange(() => {
 			if (this.visible) {
 				this.scheduleListUpdate();
+			} else {
+				this.changedWhileHidden = true;
 			}
 		}));
 		this._register(this.filters.onDidChange(() => this.update()));
@@ -5839,6 +5853,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 				if (this.visible) {
 					this.update();
 					this.syncActiveChatSelection(shown);
+				} else {
+					this.changedWhileHidden = true;
 				}
 			});
 		}));
@@ -5871,6 +5887,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 				this.sessionGroupLimit.set(limit, undefined);
 				if (this.visible) {
 					this.update();
+				} else {
+					this.changedWhileHidden = true;
 				}
 			}
 		});
@@ -5887,6 +5905,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 					} else {
 						this.update();
 					}
+				} else {
+					this.changedWhileHidden = true;
 				}
 			});
 		}
@@ -5913,8 +5933,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 				this.sessionChatsUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
 					if (this.visible) {
 						this.update();
+					} else {
+						this.changedWhileHidden = true;
 					}
 				});
+			} else if (initialized) {
+				this.changedWhileHidden = true;
 			}
 			initialized = true;
 		});
@@ -7249,7 +7273,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.updateArchiveDemand();
 		this.updateInboxDemand();
 		if (this.visible) {
-			this.refresh();
+			// Shown again, the list keeps its rows: it renders again only what changed while hidden, and the inbox observes
+			// its sessions' attention again, which it stops observing while hidden
+			if (this.changedWhileHidden || this.isInboxLayout()) {
+				this.changedWhileHidden = false;
+				this.refresh();
+			}
 		} else {
 			this.inboxObserver.clear();
 		}

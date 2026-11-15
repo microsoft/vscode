@@ -532,6 +532,30 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('keeps its rows as it hides and shows again with nothing changed, and renders again once when something changed while hidden', async () => {
+			const fixture = await createFixture();
+			const row = fixture.container.querySelector('.session-title');
+			for (let index = 0; index < 5; index++) {
+				fixture.list.setVisible(false);
+				fixture.list.setVisible(true);
+			}
+			await nextFrame();
+			const unchanged = { ...fixture.counts(), sameRow: fixture.container.querySelector('.session-title') === row };
+
+			fixture.list.setVisible(false);
+			fixture.management.sessions = [createTestSession('Latest').session];
+			fixture.changes.fire({ added: [], removed: [], changed: [] });
+			fixture.list.setVisible(true);
+			fixture.list.setVisible(false);
+			fixture.list.setVisible(true);
+			await nextFrame();
+
+			assert.deepStrictEqual({ unchanged, changed: { ...fixture.counts(), titles: fixture.titles() } }, {
+				unchanged: { reads: 0, updates: 0, sameRow: true },
+				changed: { reads: 1, updates: 1, titles: ['Latest'] },
+			});
+		});
+
 		test('does not render a hidden list and refreshes its latest catalogue when shown', async () => {
 			const fixture = await createFixture();
 			fixture.invalidateCatalogue();
