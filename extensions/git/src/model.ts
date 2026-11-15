@@ -492,11 +492,9 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				// Keep a parent repo open while any remaining child workspace folder uses it.
 				.filter(r => !remainingFolders.some(folder => overlapsFolder(folder.uri.fsPath, r.repository.root)));
 
+			// Manually closed repository markers are intentionally kept so that the
+			// repository scan below does not reopen a repository the user closed.
 			openRepositoriesToDispose.forEach(r => r.dispose());
-
-			// Preserve manually closed repository markers. Removing them here would
-			// allow the next repository scan to reopen a repository the user closed.
-
 			this.logger.trace(`[Model][onDidChangeWorkspaceFolders] Workspace folders: [${possibleRepositoryFolders.map(p => p.uri.fsPath).join(', ')}]`);
 			await Promise.all(possibleRepositoryFolders.map(p => this.openRepository(p.uri.fsPath)));
 		}
@@ -504,7 +502,6 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			this.logger.warn(`[Model][onDidChangeWorkspaceFolders] Error: ${err}`);
 		}
 	}
-
 
 	private async onDidChangeWorkspaceTrustedFolders(): Promise<void> {
 		try {
