@@ -755,6 +755,31 @@ export function onPromiseSettled(promise: Promise<unknown>, callback: () => void
 	};
 }
 
+/**
+ * Who to tell once a question carousel or plan review settles, as each widget that shows its chat can show a copy of it. Keyed
+ * by the request, which is shared by all renderers rather than owned by one, so an entry goes with its request, and each
+ * listener with the copy that added it.
+ */
+const inputRequestSettledListeners = new WeakMap<IChatQuestionCarousel | IChatPlanReview, Set<() => void>>();
+
+function onInputRequestSettled(request: IChatQuestionCarousel | IChatPlanReview, listener: () => void): IDisposable {
+	let listeners = inputRequestSettledListeners.get(request);
+	if (!listeners) {
+		listeners = new Set();
+		inputRequestSettledListeners.set(request, listeners);
+	}
+	listeners.add(listener);
+	return toDisposable(() => { inputRequestSettledListeners.get(request)?.delete(listener); });
+}
+
+function fireInputRequestSettled(request: IChatQuestionCarousel | IChatPlanReview): void {
+	const listeners = inputRequestSettledListeners.get(request);
+	inputRequestSettledListeners.delete(request);
+	for (const listener of listeners ?? []) {
+		listener();
+	}
+}
+
 export interface IChatRendererDelegate {
 	container: HTMLElement;
 	/** Lazily provides an anchor that clips content overlays below floating UI such as the sticky header. */
@@ -5237,6 +5262,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				remove();
 			}
 		};
+		// Settled through a renderer, such as one whose widget shows the chat too, also where the request has no completion
+		watch.add(onInputRequestSettled(request, settle));
 		if (request instanceof ChatQuestionCarouselData || request instanceof ChatPlanReviewData) {
 			// The pending request outlives this copy, such as a widget closed before it is answered: only a stub stays with it
 			watch.add(onPromiseSettled(request.completion.p, settle));
@@ -6020,6 +6047,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			// Clear from input part (clear only the submitted carousel by its key)
 			widget?.input.clearQuestionCarousel(undefined, carouselKey);
+			fireInputRequestSettled(carousel);
 			this.refreshProgressAfterInteraction(context, templateData);
 		};
 
@@ -6038,6 +6066,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 				this.chatService.notifyQuestionCarouselAnswer(context.element.requestId, carousel.resolveId, undefined);
 				this.pendingQuestionCarousels.get(context.element.sessionResource)?.clear();
+				fireInputRequestSettled(carousel);
 			}
 
 			// Clear the carousel from the input area once it has been answered or when the
@@ -6182,6 +6211,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				review.completion.complete(result);
 			}
 			widget?.input.clearPlanReview(undefined, reviewKey);
+			fireInputRequestSettled(review);
 			this.refreshProgressAfterInteraction(context, templateData);
 		};
 
@@ -6194,6 +6224,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (review instanceof ChatPlanReviewData) {
 				review.completion.complete(undefined);
 			}
+			fireInputRequestSettled(review);
 		}
 		// Always clear the docked widget once the response is complete —
 		// `isUsed` may already be true if the response was cancelled (see

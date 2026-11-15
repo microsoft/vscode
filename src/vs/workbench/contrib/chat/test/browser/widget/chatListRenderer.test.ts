@@ -6917,6 +6917,8 @@ suite('ChatListRenderer', () => {
 		}
 		/** Which widgets dock the question or plan review of `key` in their input now. */
 		const dockedIn = (key: string) => names.filter(name => questions.get(name)!.has(key) || plans.get(name)!.has(key));
+		/** The keys of the questions and plan reviews that `name` docks in its input now. */
+		const keysIn = (name: string) => [...questions.get(name)!.keys(), ...plans.get(name)!.keys()];
 		/** How the copy docked in `name`'s input submits the question or plan review of `key`, kept also once that copy goes. */
 		const questionIn = (name: string, key: string) => questions.get(name)!.get(key)!.submit;
 		const planIn = (name: string, key: string) => plans.get(name)!.get(key)!.submit;
@@ -6926,7 +6928,7 @@ suite('ChatListRenderer', () => {
 			undock(plans.get(name)!, undefined);
 			sessions.set(name, other);
 		};
-		return { chatWidgetService, widgets, dockedIn, questionIn, planIn, showChat, clears, focused, toolCarousels };
+		return { chatWidgetService, widgets, dockedIn, keysIn, questionIn, planIn, showChat, clears, focused, toolCarousels };
 	}
 
 	test('a question shows in the input of the widget whose list renders it, also while another widget registered first shows the same chat', async () => {
@@ -6981,6 +6983,26 @@ suite('ChatListRenderer', () => {
 			notified: 1,
 			next: ['a', 'b'],
 		});
+	});
+
+	test('a question without a resolve id that two widgets show is answered once: answering it in one removes it from the other, whose late answer changes nothing', async () => {
+		const session = URI.from({ scheme: 'vscode-chat-session', path: '/two-widgets-plain' });
+		const { chatWidgetService, widgets, dockedIn, keysIn, questionIn } = createInputRequestWidgets(session, ['a', 'b']);
+		const { model, request, renderer, template, node, createRenderer } = createPersistentProgressRenderer({ sessionResource: session, chatWidgetService, getWidget: () => widgets.get('a') });
+		const other = createRenderer(() => widgets.get('b'), dom.append(mainWindow.document.body, dom.$('.interactive-session')));
+		const question: IChatQuestionCarousel = { kind: 'questionCarousel', questions: [{ id: 'q1', type: 'text', title: 'Choose a direction' }], allowSkip: true };
+		model.acceptResponseProgress(request, question);
+		renderer.renderElement(node, 0, template);
+		other.renderer.renderElement(node, 0, other.template);
+		const [key] = keysIn('a');
+		const shown = dockedIn(key);
+		const lateInB = questionIn('b', key);
+
+		await questionIn('a', key)(new Map([['q1', 'Weave']]), true);
+		const removed = dockedIn(key);
+		await lateInB(new Map([['q1', 'Knit']]), true);
+
+		assert.deepStrictEqual({ shown, removed, answers: question.data }, { shown: ['a', 'b'], removed: [], answers: { q1: 'Weave' } });
 	});
 
 	test('a plan review that two widgets show is settled once: approving it in one removes it from the other, whose late choice changes neither the result nor what the agent got', async () => {
