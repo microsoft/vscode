@@ -6,9 +6,10 @@
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { strictEquals } from '../../../../../base/common/equals.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -24,7 +25,7 @@ import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { IAllowedFolderPresentation } from '../chat/sessionWorkspacePicker.js';
 import { IEditorWindowComposerFoldersService } from '../editorWindow/editorWindowComposerFolders.js';
 import { IAgentHostWorktreeSessionSource, IAgentHostWorktreeSessionSources } from '../../../chat/browser/agentSessions/agentHost/agentHostWorktreeSessionSources.js';
-import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 
@@ -171,30 +172,42 @@ export class AgentHostWorktreeSessionLayerSource extends Disposable implements I
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
-		// As any session it knows is added, removed or changes, also one outside the listed ones (getAllSessions), and as a
-		// session comes to work elsewhere, such as in the worktree its first request created
-		const sessionsChanged = observableSignalFromEvent(this, _sessionsManagementService.onDidChangeSession);
-		// Only as where they work changes, not as they change otherwise, such as their status, which reads no folders again
+		// Read again as sessions are added or removed, also one outside the listed ones (getAllSessions), as a provider
+		// invalidates what it lists (an empty batch), or as it replaces a session by a new object of it, such as a committed
+		// draft, which it reports as changed; not as a session it reads changes otherwise, which its own observables tell
+		let tracked = new Set<ISession>();
+		const membershipChanged = observableSignalFromEvent(this, Event.filter(_sessionsManagementService.onDidChangeSession, changes => !changes.length || changes.some(change => change.kind !== 'changed' || !tracked.has(change.session))));
+		// Where each session and chat works, by a key that changes only as where it works does: a busy session's updates, such
+		// as of its status or git state, make its workspaces anew without moving them, and stop at its own key
+		const directories = (workspace: ISessionWorkspace | undefined) => workspace?.folders.map(folder => folder.workingDirectory.toString()).join(',') ?? '';
+		const chatKeys = new WeakMap<IChat, IObservable<string>>();
+		const chatKey = (session: ISession, chat: IChat) => {
+			let key = chatKeys.get(chat);
+			if (!key) {
+				// Every folder it works in, which the worktrees count; the first is where it follows
+				key = derivedOpts({ owner: this, equalsFn: strictEquals }, reader => `${chat.resource.toString()}=${directories(chat.workspace.read(reader) ?? session.workspace.read(reader))}`);
+				chatKeys.set(chat, key);
+			}
+			return key;
+		};
+		const sessionKeys = new WeakMap<ISession, IObservable<string>>();
+		const sessionKey = (session: ISession) => {
+			let key = sessionKeys.get(session);
+			if (!key) {
+				const own = derivedOpts({ owner: this, equalsFn: strictEquals }, reader => `*=${directories(session.workspace.read(reader))}`);
+				key = derivedOpts({ owner: this, equalsFn: strictEquals }, reader => session.providerId !== LOCAL_AGENT_HOST_PROVIDER_ID || session.isArchived.read(reader)
+					? ''
+					: [...session.chats.read(reader).map(chat => chatKey(session, chat).read(reader)), own.read(reader)].join('\n'));
+				sessionKeys.set(session, key);
+			}
+			return key;
+		};
 		let known: string | undefined;
 		this._register(autorun(reader => {
-			sessionsChanged.read(reader);
-			const working: string[] = [];
-			const directories = (workspace: ISessionWorkspace | undefined) => workspace?.folders.map(folder => folder.workingDirectory.toString()).join(',') ?? '';
-			for (const session of _sessionsManagementService.getAllSessions()) {
-				const local = session.providerId === LOCAL_AGENT_HOST_PROVIDER_ID && !session.isArchived.read(reader);
-				const sessionWorkspace = session.workspace.read(reader);
-				for (const chat of session.chats.read(reader)) {
-					const chatWorkspace = chat.workspace.read(reader);
-					if (local) {
-						// Every folder it works in, which the worktrees count; the first is where it follows
-						working.push(`${chat.resource.toString()}=${directories(chatWorkspace ?? sessionWorkspace)}`);
-					}
-				}
-				if (local) {
-					working.push(`*=${directories(sessionWorkspace)}`);
-				}
-			}
-			const key = working.join('\n');
+			membershipChanged.read(reader);
+			const sessions = _sessionsManagementService.getAllSessions();
+			tracked = new Set(sessions);
+			const key = sessions.map(session => sessionKey(session).read(reader)).filter(Boolean).join('\n');
 			if (known !== undefined && key !== known) {
 				this._onDidChange.fire();
 			}
