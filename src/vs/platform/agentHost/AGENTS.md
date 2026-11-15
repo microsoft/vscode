@@ -680,6 +680,8 @@ Each additional chat is backed by a fresh top-level SDK session (`sdkSessionId =
 
 ### Copilot (`node/copilot/copilotAgent.ts`)
 
+SDK `session.error` events with an `agentId` belong to that child. Route them only through its tracked tool-call identity; if the child is unmapped, retain diagnostics without emitting a root chat error or ending the root turn. Child failures do not finalize root tool-call accounting.
+
 `AgentConfigurationService.copilotM365EnabledAtStartup` captures the validated `m365Enabled` root value once after loading persisted configuration. Only `true` enables it; missing or invalid values leave it off. The root value remains live requested configuration, while the effective value stays fixed for that Agent Host lifetime. A new host reads the persisted request; restarting VS Code recreates the local host. Reloading a window, connecting another client, or restarting only the Copilot SDK runtime does not recapture the value in an existing host. This is a host-lifetime snapshot, not a separate application-lifetime latch, and does not initiate account discovery, choose a service or migrate history.
 
 Copilot also has no AH-session container:
