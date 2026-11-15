@@ -1606,8 +1606,29 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	/** Reports the chat its widget shows now, such as the session that its first request made, which the user did not pick. */
+	private readonly localChatCommit = this._register(new MutableDisposable());
+
+	/**
+	 * A new Local chat keeps its model as its first request is accepted, so no change of the shown model reports its commit:
+	 * the first request added to it does ({@link shownSession}, `commit`).
+	 */
+	private trackLocalChatCommit(): void {
+		const model = this._widget?.viewModel?.model;
+		if (!model || getChatSessionType(model.sessionResource) !== localChatSessionType || model.getRequests().length > 0) {
+			this.localChatCommit.clear();
+			return;
+		}
+		this.localChatCommit.value = model.onDidChange(e => {
+			if (e.kind === 'addRequest' && this._widget?.viewModel?.model === model) {
+				this.localChatCommit.clear();
+				this.updateShownSession('commit');
+			}
+		});
+	}
+
 	private onDidChangeShownModel(e: IChatWidgetViewModelChangeEvent): void {
 		this.updateShownSession(e.committed ? 'commit' : undefined);
+		this.trackLocalChatCommit();
 	}
 
 	/** Reports the chat that the view shows now ({@link shownSession}), as its widget's chat changes. */

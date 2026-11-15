@@ -27,6 +27,8 @@ export interface IChatViewSessionsListControl extends IDisposable {
 	hasFocusOrSelection(): boolean;
 	/** The sessions of the Chat view's own list that have focus, which actions of that list act on. */
 	getFocus(): IAgentSession[];
+	/** Opens the list's find, as Find of the Chat view's sessions toolbar does, which a list without a header of its own keeps. */
+	openFind(): void;
 }
 
 /** A sessions list of the Chat view, with how the Chat view shows it. */
