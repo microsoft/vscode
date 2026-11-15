@@ -234,7 +234,12 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 		const registration = { host };
 		this.registrations.push(registration);
 		this.updateHostInUse();
-		this.claim(host);
+		// A host that shows no chat yet does not take the chat that the Chat view shows, when it leaves that chat to the Chat view
+		const shown = this.latest.get();
+		const shownResource = shown.host === this.chatViewHost && !shown.newChat ? shown.host.shownSession?.get()?.resource : undefined;
+		if (!shownResource || host.shownSession?.get() || host.canShow?.(shownResource) !== false) {
+			this.claim(host);
+		}
 		const tracking = this.trackShownSession(host);
 		return toDisposable(() => {
 			tracking.dispose();
