@@ -81,6 +81,7 @@ import { resetShownWarnings } from '../../../common/chatPermissionWarnings.js';
 import { IOpenSettingsOptions, IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import '../../../browser/agentSessions/agentHost/media/agentHostChatInputPicker.css';
 import '../../../browser/widget/media/chat.css';
+import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -294,7 +295,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			},
 		});
 		instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, { resolve: () => undefined });
-		instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: 'test', folders: [] }) });
+		instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => (testIWorkspace({ id: 'test', folders: [] })) });
 		instantiationService.set(IWorkspaceTrustManagementService, store.add(new TestWorkspaceTrustManagementService()));
 		instantiationService.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined, getDefaultFolder: () => undefined });
 		const resolvedRefreshes: Record<string, unknown>[] = [];

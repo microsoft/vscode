@@ -43,7 +43,7 @@ import { IChatSessionsService, isAgentHostTarget, isLocalAgentHostTarget, Sessio
 import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
 import { ChatInputNotificationSeverity, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
-import { OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, ChatAgentLocation, ChatConfiguration, CopilotHarnessIntroductionMode, getCopilotHarnessIntroductionMode, getOpenInAgentsTitleBarHoverCardDesign } from '../../common/constants.js';
+import { AGENTS_LAUNCHER_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_AGENTS_WINDOW_COMMAND_ID, ChatAgentLocation, ChatConfiguration, CopilotHarnessIntroductionMode, getCopilotHarnessIntroductionMode, getOpenInAgentsTitleBarHoverCardDesign } from '../../common/constants.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { logExperimentTrigger, logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
@@ -260,6 +260,23 @@ export class ResetCopilotHarnessIntroductionAction extends Action2 {
 
 	override run(accessor: ServicesAccessor): void {
 		accessor.get(IStorageService).remove(COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY, StorageScope.APPLICATION);
+	}
+}
+
+export class AgentsLauncherAction extends Action2 {
+	constructor() {
+		super({
+			id: AGENTS_LAUNCHER_COMMAND_ID,
+			title: localize2('agentsLauncher', "Show Agents Launcher"),
+			category: CHAT_CATEGORY,
+			precondition: ContextKeyExpr.and(OPEN_AGENTS_WINDOW_PRECONDITION, ChatContextKeys.enabled),
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		ensureAgentModeEnabled(accessor.get(IConfigurationService));
+		await accessor.get(INativeHostService).showAgentsLauncher();
 	}
 }
 

@@ -30,7 +30,7 @@ suite('AI customization shortcuts header', () => {
 	const invalidateToken = (name: string) => container.style.setProperty(name, `var(${name})`);
 
 	setup(() => {
-		container = DOM.append(mainWindow.document.body, DOM.$('div'));
+		container = DOM.append(mainWindow.document.body, DOM.$('.monaco-workbench.hc-black'));
 		container.style.cssText = 'position: fixed; top: 0; left: 0; width: 300px; height: 200px; z-index: 10000;';
 		disposables.add(toDisposable(() => container.remove()));
 
@@ -101,6 +101,7 @@ suite('AI customization shortcuts header', () => {
 		for (const token of ['--vscode-spacing-size40', '--vscode-spacing-size60', '--vscode-spacing-size100', '--vscode-cornerRadius-small', '--vscode-strokeThickness']) {
 			invalidateToken(token);
 		}
+		header.click();
 		header.classList.add('hovered');
 		const headerStyle = mainWindow.getComputedStyle(header);
 		const hoverStyle = mainWindow.getComputedStyle(header, '::before');
@@ -109,12 +110,14 @@ suite('AI customization shortcuts header', () => {
 			padding: [headerStyle.paddingTop, headerStyle.paddingRight],
 			insets: [hoverStyle.left, hoverStyle.right],
 			radius: hoverStyle.borderTopLeftRadius,
-			outline: [hoverStyle.outlineStyle, hoverStyle.outlineWidth, hoverStyle.outlineOffset],
+			outline: [headerStyle.outlineStyle, headerStyle.outlineWidth, headerStyle.outlineOffset],
+			fillOutline: hoverStyle.outlineStyle,
 		}, {
 			padding: ['6px', '10px'],
 			insets: ['4px', '4px'],
 			radius: '4px',
 			outline: ['dashed', '1px', '-1px'],
+			fillOutline: 'none',
 		});
 	});
 
@@ -134,13 +137,16 @@ suite('AI customization shortcuts header', () => {
 		const hoverStyle = mainWindow.getComputedStyle(header, '::before');
 		const themed = colors();
 		const background = hoverStyle.backgroundColor;
-		const outline = [hoverStyle.outlineStyle, hoverStyle.outlineColor];
+		const headerStyle = mainWindow.getComputedStyle(header);
+		const outline = [headerStyle.outlineStyle, headerStyle.outlineColor];
+		const fillOutline = hoverStyle.outlineStyle;
 		invalidateToken('--vscode-list-hoverForeground');
 		const fallback = colors();
 
-		assert.deepStrictEqual({ background, outline, themed, fallback }, {
+		assert.deepStrictEqual({ background, outline, fillOutline, themed, fallback }, {
 			background: 'rgb(240, 240, 240)',
 			outline: ['dashed', 'rgb(255, 0, 0)'],
+			fillOutline: 'none',
 			themed: { label: 'rgb(0, 0, 0)', count: 'rgb(0, 0, 0)', chevron: 'rgb(0, 0, 0)', chevronOpacity: '1' },
 			fallback: { label: 'rgb(255, 255, 255)', count: 'rgb(200, 200, 200)', chevron: 'rgb(200, 200, 200)', chevronOpacity: '1' },
 		});
@@ -152,37 +158,53 @@ suite('AI customization shortcuts header', () => {
 			this.skip();
 		}
 
-		header.classList.add('hovered');
 		container.style.setProperty('--vscode-focusBorder', 'rgb(0, 0, 255)');
 
-		// Avoid inheriting focus-visible from a previously focused test element.
-		const activeElement = mainWindow.document.activeElement;
-		if (activeElement instanceof HTMLElement) {
-			activeElement.blur();
+		for (const theme of ['hc-black', 'hc-light']) {
+			container.classList.remove('hc-black', 'hc-light');
+			container.classList.add(theme);
+			if (header.ariaExpanded === 'true') {
+				header.click();
+			}
+			header.classList.remove('hovered');
+
+			// Avoid inheriting focus-visible from a previously focused test element.
+			const activeElement = mainWindow.document.activeElement;
+			if (activeElement instanceof HTMLElement) {
+				activeElement.blur();
+			}
+			const pointerFocus = { preventScroll: true, focusVisible: false };
+			header.focus(pointerFocus);
+			const unhoveredBoundary = mainWindow.getComputedStyle(header).outlineStyle;
+			header.classList.add('hovered');
+			const pointer = {
+				focused: mainWindow.document.activeElement === header,
+				focusVisible: header.matches(':focus-visible'),
+				outline: [mainWindow.getComputedStyle(header).outlineStyle, mainWindow.getComputedStyle(header).outlineColor],
+				fillOutline: mainWindow.getComputedStyle(header, '::before').outlineStyle,
+			};
+
+			header.click();
+			const expanded = {
+				outline: [mainWindow.getComputedStyle(header).outlineStyle, mainWindow.getComputedStyle(header).outlineColor],
+				fillOutline: mainWindow.getComputedStyle(header, '::before').outlineStyle,
+			};
+			header.blur();
+			const keyboardFocus = { preventScroll: true, focusVisible: true };
+			header.focus(keyboardFocus);
+			const keyboard = {
+				focused: mainWindow.document.activeElement === header,
+				focusVisible: header.matches(':focus-visible'),
+				outline: [mainWindow.getComputedStyle(header).outlineStyle, mainWindow.getComputedStyle(header).outlineColor],
+				fillOutline: mainWindow.getComputedStyle(header, '::before').outlineStyle,
+			};
+
+			assert.deepStrictEqual({ unhoveredBoundary, pointer, expanded, keyboard }, {
+				unhoveredBoundary: 'none',
+				pointer: { focused: true, focusVisible: false, outline: ['dashed', 'rgb(255, 0, 0)'], fillOutline: 'none' },
+				expanded: { outline: ['solid', 'rgb(255, 0, 0)'], fillOutline: 'none' },
+				keyboard: { focused: true, focusVisible: true, outline: ['solid', 'rgb(0, 0, 255)'], fillOutline: 'none' },
+			}, theme);
 		}
-		const pointerFocus = { preventScroll: true, focusVisible: false };
-		header.focus(pointerFocus);
-		const pointer = {
-			focused: mainWindow.document.activeElement === header,
-			focusVisible: header.matches(':focus-visible'),
-			headerOutline: mainWindow.getComputedStyle(header).outlineStyle,
-			hoverOutline: mainWindow.getComputedStyle(header, '::before').outlineStyle,
-		};
-
-		header.blur();
-		const keyboardFocus = { preventScroll: true, focusVisible: true };
-		header.focus(keyboardFocus);
-		const keyboard = {
-			focused: mainWindow.document.activeElement === header,
-			focusVisible: header.matches(':focus-visible'),
-			headerOutline: mainWindow.getComputedStyle(header).outlineStyle,
-			headerOutlineColor: mainWindow.getComputedStyle(header).outlineColor,
-			hoverOutline: mainWindow.getComputedStyle(header, '::before').outlineStyle,
-		};
-
-		assert.deepStrictEqual({ pointer, keyboard }, {
-			pointer: { focused: true, focusVisible: false, headerOutline: 'none', hoverOutline: 'dashed' },
-			keyboard: { focused: true, focusVisible: true, headerOutline: 'solid', headerOutlineColor: 'rgb(0, 0, 255)', hoverOutline: 'none' },
-		});
 	});
 });

@@ -571,7 +571,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			const isDraft = drafts.some(candidate => isEqual(URI.parse(candidate.uri), uri));
 			const extensionId = extensionIds.get(agent);
 			const extensionLabel = extensionId
-				? localize('agentSource.extension', "Extension: {0}", extensionLabels.get(ExtensionIdentifier.toKey(extensionId)) ?? extensionId)
+				? localize('agentSource.extension', "Extension: {0}", extensionLabels.get(ExtensionIdentifier.toKey(extensionId)) ?? origins.get(agent)?.extensionLabel ?? extensionId)
 				: undefined;
 			const draftContainers = !published && isDraft
 				? containers.filter(candidate => {
@@ -660,6 +660,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			uri: origin.uri,
 			source: origin.source,
 			extensionId: origin.extensionId,
+			extensionLabel: origin.extensionLabel,
 			pluginUri: origin.pluginUri,
 		};
 	}

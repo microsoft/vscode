@@ -370,16 +370,19 @@ suite('Automations Contribution', () => {
 			});
 		}
 
-		test('opens Automations when an accepted request has no correlated run', async () => {
-			const { state, run } = setup();
-			await run();
-			await state.choices[0].run();
-			assert.deepStrictEqual({
-				labels: state.choices.map(choice => choice.label),
-				sessions: state.openedSessions,
-				views: state.openedViews,
-			}, { labels: ['Show Automations'], sessions: [], views: [AUTOMATIONS_CUSTOM_VIEW_ID] });
-		});
+		for (const kind of ['accepted', 'queued'] as const) {
+			test(`opens Automations for ${kind} requests without owning a session`, async () => {
+				const { state, run } = setup();
+				state.dispatch = kind === 'queued' ? { kind, run: { ...automationRun, status: 'completed', sessionResource: undefined } } : { kind };
+				await run();
+				await state.choices[0].run();
+				assert.deepStrictEqual({
+					labels: state.choices.map(choice => choice.label),
+					sessions: state.openedSessions,
+					views: state.openedViews,
+				}, { labels: ['Show Automations'], sessions: [], views: [AUTOMATIONS_CUSTOM_VIEW_ID] });
+			});
+		}
 
 		test('dismisses the notification after exactly ten seconds', async () => {
 			const clock = useFakeTimers();

@@ -7,6 +7,7 @@ import { DeferredPromise } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter } from '../../../base/common/event.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { Iterable } from '../../../base/common/iterator.js';
 import { isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { app, BrowserWindow, IpcMainEvent, net, powerMonitor, systemPreferences, WebContents } from 'electron';
 import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
@@ -23,11 +24,12 @@ import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
+import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { AgentHostStartError, IAgentHostConnection, IAgentHostShutdownRequest, IAgentHostStarter, IAgentHostStartRequest, isFatalAgentHostStartError, toFatalAgentHostStartError } from '../common/agent.js';
 import { AgentHostOsSessionEnd, AgentHostProcessExitDiagnosticsCollector, IAgentHostExitContext, IAgentHostProcessMemorySample, isAgentHostDiagnosticsMarker } from '../common/agentHostProcessExit.js';
 import { buildAgentHostTelemetryIdEnv, IAgentHostForwardedTelemetryIds } from '../common/agentHostTelemetryEnv.js';
 import { AgentHostLaunchKind, AgentHostLaunchKindEnvVar, telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostIpcChannels, AgentHostOTelCaptureContentSettingId, AgentHostOTelCaptureIdentitySettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelPolicyIpcChannel, AgentHostOTelPolicyState, AgentHostRestartIpcChannel, AgentHostWillRestartIpcChannel, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostManagementService, IAgentHostOTelSettings, readAgentHostOTelPolicySettings } from '../common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostIpcChannels, AgentHostMainProcessConnectionContext, AgentHostOTelCaptureContentSettingId, AgentHostOTelCaptureIdentitySettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelPolicyIpcChannel, AgentHostOTelPolicyState, AgentHostRestartIpcChannel, AgentHostWillRestartIpcChannel, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostManagementService, IAgentHostOTelSettings, readAgentHostOTelPolicySettings } from '../common/agentService.js';
 import { ChatProvidersSettingId } from '../common/agentHostChatProviders.js';
 import { deepClone } from '../../../base/common/objects.js';
 import '../common/agentHostStarter.config.contribution.js';
@@ -77,6 +79,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		@ILifecycleMainService private readonly _lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IWindowsMainService private readonly _windowsMainService: IWindowsMainService,
 	) {
 		super();
 
@@ -204,6 +207,8 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		// reuses the same persisted machineId/sqmId/devDeviceId instead of
 		// recomputing them live (which can diverge). See `agentHostTelemetryEnv`.
 		const telemetryIdEnv = buildAgentHostTelemetryIdEnv(this._telemetryIds);
+		// Unexpected exits are reported as `agentHost.processError` with exit diagnostics,
+		// so the generic `utilityprocesscrash` event would only duplicate them.
 		const utilityProcess = new UtilityProcess(this._logService, NullTelemetryService, this._lifecycleMainService);
 		this.utilityProcess = utilityProcess;
 		const exitDiagnostics = new AgentHostProcessExitDiagnosticsCollector(utilityProcess, {
@@ -239,7 +244,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			}
 
 			const port = utilityProcess.connect();
-			const client = new MessagePortClient(port, 'agentHost');
+			const client = new MessagePortClient(port, AgentHostMainProcessConnectionContext);
 			const managementService = ProxyChannel.toService<IAgentHostManagementService>(client.getChannel(AgentHostIpcChannels.Management));
 
 			const store = new DisposableStore();
@@ -351,9 +356,15 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 			quitRequested: this._lifecycleMainService.quitRequested,
 			lifecyclePhase: this._lifecycleMainService.phase,
 			windowCount: BrowserWindow.getAllWindows().length,
+			agentsWindowConnected: this._isAgentsWindowConnected(),
 			osSessionEnd: this._osSessionEnd?.reason ?? 'none',
 			...(this._osSessionEnd ? { msSinceOsSessionEnd: Math.max(0, exitTime - this._osSessionEnd.time) } : {}),
 		};
+	}
+
+	/** Whether an Agents window that requested a connection to the agent host is still open. */
+	private _isAgentsWindowConnected(): boolean {
+		return Iterable.some(this._windowSenders.values(), sender => !sender.isDestroyed() && !!this._windowsMainService.getWindowByWebContents(sender)?.config?.isSessionsWindow);
 	}
 
 	private async _resolveShellEnv(): Promise<typeof process.env> {

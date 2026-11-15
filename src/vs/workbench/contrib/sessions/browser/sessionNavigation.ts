@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, observableValue, transaction } from '../../../../base/common/observable.js';
 import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -29,6 +29,7 @@ export interface ISessionOpener {
 	openSession(sessionResource: URI, options?: { preserveFocus?: boolean; source?: 'navigation' }): Promise<void>;
 	openChat(session: ISession, chatResource: URI): Promise<void>;
 	openNewSession(): Promise<void>;
+	openSavedDraft?(draftId: string, token: CancellationToken): Promise<boolean>;
 }
 
 /**
@@ -39,6 +40,8 @@ export class SessionsNavigation extends Disposable {
 
 	/** Identity of the entry the cursor currently points at. */
 	private readonly _currentKey = observableValue<string | undefined>(this, undefined);
+	private readonly _currentDraftId = observableValue<string | undefined>(this, undefined);
+	private readonly _draftNavigation = this._register(new MutableDisposable<CancellationTokenSource>());
 
 	private _pendingOpen: { readonly intent: SessionNavigationIntent; readonly token: CancellationToken } | undefined;
 
@@ -121,6 +124,7 @@ export class SessionsNavigation extends Disposable {
 
 	/** Records an explicit opening even when the displayed destination has not changed. */
 	recordOpened(entry: SessionRecencyEntry): void {
+		this.cancelPendingDraftOpen();
 		this._pendingOpen = undefined;
 		transaction(tx => {
 			this._recency.markOpened(entry, tx);
@@ -128,10 +132,29 @@ export class SessionsNavigation extends Disposable {
 		});
 	}
 
+	setCurrentDraftId(draftId: string | undefined, preserveCurrentEntry = false): void {
+		const previous = this._getNewSessionEntry();
+		transaction(tx => {
+			this._currentDraftId.set(draftId, tx);
+			if (!preserveCurrentEntry && this._currentKey.get() === getRecencyEntryKey(previous)) {
+				const entry = this._getNewSessionEntry();
+				this._recency.replace(previous, entry, tx);
+				this._currentKey.set(getRecencyEntryKey(entry), tx);
+			}
+		});
+	}
+
+	recordNewSessionOpened(): void {
+		this.recordOpened(this._getNewSessionEntry());
+	}
+
 	/** Defers recording intermediate session/chat selections until the destination is ready. */
 	beginSessionOpen(intent: SessionNavigationIntent, token: CancellationToken): { complete(): void; cancel(): void } {
 		// Reactive fallbacks retain the initiating operation's history semantics.
 		const navigationIntent = intent === 'automatic' ? this._pendingOpen?.intent ?? intent : intent;
+		if (navigationIntent !== 'history') {
+			this.cancelPendingDraftOpen();
+		}
 		const opening = { intent: navigationIntent, token };
 		this._pendingOpen = opening;
 		return {
@@ -161,11 +184,23 @@ export class SessionsNavigation extends Disposable {
 	}
 
 	async goBack(): Promise<void> {
+		this.cancelPendingDraftOpen();
 		await this._navigate(1);
 	}
 
 	async goForward(): Promise<void> {
+		this.cancelPendingDraftOpen();
 		await this._navigate(-1);
+	}
+
+	cancelPendingDraftOpen(): void {
+		this._draftNavigation.value?.cancel();
+		this._draftNavigation.clear();
+	}
+
+	private _getNewSessionEntry(): SessionRecencyEntry {
+		const draftId = this._currentDraftId.get();
+		return draftId === undefined ? { kind: 'newSession' } : { kind: 'newSession', draftId };
 	}
 
 	private _getActiveEntry(reader?: IReader): SessionRecencyEntry {
@@ -177,7 +212,7 @@ export class SessionsNavigation extends Disposable {
 		const pane = this._activePane.read(reader);
 		const session = pane?.session.read(reader);
 		if (!pane || !session || session.status.read(reader) === SessionStatus.Untitled) {
-			return { kind: 'newSession' };
+			return this._getNewSessionEntry();
 		}
 
 		const chat = pane.chat.read(reader);
@@ -254,8 +289,40 @@ export class SessionsNavigation extends Disposable {
 					continue;
 				}
 			} else if (entry.kind === 'newSession') {
+				const previousKey = this._currentKey.get();
+				const source = new CancellationTokenSource();
+				this._draftNavigation.value = source;
+				const navigation = this.beginSessionOpen('history', source.token);
 				this._currentKey.set(key, undefined);
-				await this._opener.openNewSession();
+				let opened = false;
+				let failed = false;
+				try {
+					if (entry.draftId !== undefined) {
+						opened = await this._opener.openSavedDraft?.(entry.draftId, source.token) ?? false;
+					} else {
+						await this._opener.openNewSession();
+						opened = true;
+					}
+				} catch (error) {
+					failed = true;
+					this._logService.warn('[SessionNavigation] opening draft failed', error);
+				} finally {
+					navigation.cancel();
+					if (this._draftNavigation.value === source) {
+						this._draftNavigation.clear();
+					}
+				}
+				if (source.token.isCancellationRequested || this._currentKey.get() !== key) {
+					return;
+				}
+				if (!opened) {
+					this._currentKey.set(previousKey, undefined);
+					if (failed) {
+						return;
+					}
+					this._recency.remove(e => getRecencyEntryKey(e) === key);
+					continue;
+				}
 			} else {
 				const session = this._sessionsManagementService.getSession(entry.sessionResource);
 				if (!session) {
@@ -276,6 +343,11 @@ export class SessionsNavigation extends Disposable {
 			}
 			return;
 		}
+	}
+
+	override dispose(): void {
+		this.cancelPendingDraftOpen();
+		super.dispose();
 	}
 }
 

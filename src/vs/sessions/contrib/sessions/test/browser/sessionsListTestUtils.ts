@@ -28,6 +28,7 @@ import { IDeletedSessionGroups, ISessionGroup, ISessionGroupAppearance, ISession
 import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortEntry, SessionSortMode } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
 import { DefaultSessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/defaultSessionsListPresentation.js';
+import { IPinnedCanvasService } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { ISessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -37,7 +38,7 @@ import { IChat, ISession, ISessionCapabilities, ISessionChangesSummary, SessionS
 import { ISessionComparison, ISessionComparisonService } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { IDeleteChatOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { getSessionApplication } from '../../../../../workbench/services/sessions/common/sessionApplication.js';
-import { ITestSessionWithChat, stubSessionHostsFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, stubSessionHostsFromSessionsService, testGridPanes, stubSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
 
@@ -59,6 +60,7 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 	}
 	override readonly onDidChangeSessions = Event.None;
 	override readonly onDidDeleteSession = Event.None;
+	override readonly onDidReplaceSession = Event.None;
 	override canMoveChat(_session: ISession, _chat: IChat): boolean { return false; }
 	override canMoveSessionUnder(_session: ISession): boolean { return false; }
 	sessions: ISession[];
@@ -340,9 +342,9 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const sectionReorders: IListHarness['sectionReorders'] = [];
 
 	instantiationService.stub(ISessionsManagementService, managementService);
-	instantiationService.stub(ISessionsListPresentation, new DefaultSessionsListPresentation());
+	instantiationService.stub(ISessionsListPresentation, new DefaultSessionsListPresentation(new class extends mock<IPinnedCanvasService>() { }()));
 	instantiationService.stub(ICommandService, commandService);
-	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+	stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 		readonly gridShown = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
 		override readonly slotPanes = testGridPanes(this.gridShown);
 		readonly activeSession = options.activeSession ?? constObservable<ITestSessionWithChat | undefined>(undefined);
@@ -434,6 +436,14 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 			appearanceChanges.fire({ groupsChanged: false, membershipChanged: new Set() });
 		}
 		override getGroups() { return [...groups]; }
+		override setGroupColor(groupId: string, color: string | undefined): void {
+			const index = groups.findIndex(group => group.id === groupId);
+			if (index < 0) {
+				throw new Error(`Unknown test group: ${groupId}`);
+			}
+			groups[index] = { ...groups[index], color };
+			appearanceChanges.fire({ groupsChanged: true, membershipChanged: new Set() });
+		}
 		override getTree() { return new SessionGroupTree(groups); }
 		override getGroup(groupId: string) { return groups.find(group => group.id === groupId); }
 		override getGroupOfSession(sessionId: string) { return memberships.get(sessionId); }

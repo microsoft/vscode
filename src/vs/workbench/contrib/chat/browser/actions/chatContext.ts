@@ -110,7 +110,6 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(FileContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ChatInstructionsPickerPick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(OpenEditorContextValuePick)));
-		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ScreenshotContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(SessionReferenceContextPickerPick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(GitHubContextValuePick, 'issue')));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(GitHubContextValuePick, 'pullRequest')));
@@ -538,7 +537,7 @@ export class TerminalContext implements IChatContextValueItem {
 	}
 }
 
-class ScreenshotContextValuePick implements IChatContextValueItem {
+export class ScreenshotContextValuePick implements IChatContextValueItem {
 
 	readonly type = 'valuePick';
 	readonly icon = Codicon.deviceCamera;
@@ -554,9 +553,19 @@ class ScreenshotContextValuePick implements IChatContextValueItem {
 		return !!widget.attachmentCapabilities.supportsImageAttachments && !!widget.input.selectedLanguageModel.get()?.metadata.capabilities?.vision;
 	}
 
-	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {
+	async asAttachment(_widget: IChatWidget): Promise<IChatRequestVariableEntry | undefined> {
 		const blob = await this._hostService.getScreenshot();
 		return blob && convertBufferToScreenshotVariable(blob);
+	}
+}
+
+export class BrowserScreenshotContextContribution extends Disposable {
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IChatContextPickService contextPickService: IChatContextPickService,
+	) {
+		super();
+		this._register(contextPickService.registerChatContextItem(instantiationService.createInstance(ScreenshotContextValuePick)));
 	}
 }
 

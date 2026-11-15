@@ -48,6 +48,7 @@ import { MISSION_CONTROL_AHP_LOG_ID } from '../../common/missionControlEnvironme
 import { IAgentHostChatOwnershipService } from '../agentHostChatOwnershipService.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { AgentHostAhpJsonlLoggingEnabledConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
+import { localProcessPathStyle } from '../../common/agentHostPathStyle.js';
 
 interface IMissionControlHostOptions {
 	readonly hostLaunchKind: AgentHostLaunchKind;
@@ -430,6 +431,7 @@ export class MissionControlHost extends Disposable {
 			relay,
 			{
 				hostLaunchKind: this._options.hostLaunchKind,
+				environment: { pathStyle: localProcessPathStyle },
 				allowExtensionMethods: true,
 				scopedRelayCredentials: true,
 				resolveRelayCredentials: useLocalCredentials ? (principal, resource) => {

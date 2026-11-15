@@ -7,8 +7,9 @@ import { nativeImage, screen, WebContentsView, webContents } from 'electron';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { Schemas } from '../../../base/common/network.js';
 import { BrowserViewDevToolsDockSide, composeDevToolsScreenshot } from '../common/browserViewCompositor.js';
-import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation, getBrowserViewPopupAction } from '../common/browserView.js';
+import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, remoteUrlToFileUrl, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation, getBrowserViewPopupAction, BROWSER_REMOTE_FILE_SCHEMES, getBrowserViewPathComparer } from '../common/browserView.js';
 import { BrowserViewEmulator } from './browserViewEmulator.js';
 import { BrowserViewInspector } from './browserViewInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -167,6 +168,12 @@ export class BrowserView extends Disposable {
 			// Passing an `undefined` webContents triggers an error in Electron.
 			...(options?.webContents ? { webContents: options.webContents } : {})
 		});
+		this._updateBackgroundThrottling();
+		this._register(this.onDidChangeAudiences(() => this._updateBackgroundThrottling()));
+		this._register(this.onDidChangeOwner(() => this._updateBackgroundThrottling()));
+		// Electron only keeps a never-shown view rendering if the setting is applied once its frame exists,
+		// so re-apply it whenever a new document is ready (this also covers renderer swaps on navigation).
+		this._view.webContents.on('dom-ready', () => this._updateBackgroundThrottling());
 		if (this.session.network) {
 			this._view.webContents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
 		}
@@ -705,6 +712,15 @@ export class BrowserView extends Disposable {
 		}
 	}
 
+	/**
+	 * Views shared with agents must keep rendering while hidden so that rAF-based
+	 * automation (e.g. Playwright's stability checks) doesn't stall. Other views stay throttled.
+	 */
+	private _updateBackgroundThrottling(): void {
+		const sharedWithAgent = this._owner.type === 'agent' || this._audiences.some(audience => audience.type === 'agent');
+		this._view.webContents.setBackgroundThrottling(!sharedWithAgent);
+	}
+
 	setAudiences(audiences: readonly IBrowserViewAudience[]): void {
 		if (audiences.length === this._audiences.length && audiences.every(audience => this._audiences.some(candidate => equalsBrowserViewAudience(candidate, audience)))) {
 			return;
@@ -792,6 +808,10 @@ export class BrowserView extends Disposable {
 	 * Load a URL in this view
 	 */
 	async loadURL(url: string): Promise<void> {
+		url = remoteUrlToFileUrl(this.session.network, url);
+		if (this._isUnservedRemoteFileUrl(url)) {
+			return;
+		}
 		if (this._redirectPinnedNavigation(url)) {
 			return;
 		}
@@ -802,8 +822,14 @@ export class BrowserView extends Disposable {
 		await this._view.webContents.loadURL(url);
 	}
 
+	/** Without a network a remote resource's `file:` URL would be read from this machine's disk, so it isn't loaded. */
+	private _isUnservedRemoteFileUrl(url: string): boolean {
+		const scheme = this.associatedResource?.scheme;
+		return !this.session.network && BROWSER_REMOTE_FILE_SCHEMES.includes(scheme!) && url.startsWith(`${Schemas.file}:`);
+	}
+
 	private _redirectPinnedNavigation(url: string): boolean {
-		if (!this.associatedResource || isBrowserViewAssociatedResourceNavigation(this.associatedResource, url)) {
+		if (!this.associatedResource || isBrowserViewAssociatedResourceNavigation(this.associatedResource, url, this.session.network, getBrowserViewPathComparer(this.session.isPathCaseSensitive))) {
 			return false;
 		}
 

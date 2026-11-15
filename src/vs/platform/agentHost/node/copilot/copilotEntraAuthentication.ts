@@ -20,7 +20,6 @@ import { IAgentHostAuthenticationService, type IAgentHostAuthCredential } from '
 
 interface IEntraAuthority {
 	readonly accountId: string;
-	readonly username?: string;
 }
 
 interface IEntraTokenChallenge {
@@ -28,7 +27,7 @@ interface IEntraTokenChallenge {
 	pending: boolean;
 }
 
-const discoveryResource: ProtectedResourceMetadata = {
+export const copilotEntraDiscoveryMetadata: ProtectedResourceMetadata = {
 	resource: copilotEntraDiscoveryResource,
 	authorization_servers: [copilotEntraAuthorizationServer],
 	scopes_supported: ['User.Read'],
@@ -60,11 +59,10 @@ export class CopilotEntraAuthentication extends Disposable {
 		}));
 		if (this._authenticationService.onDidAuthenticate) {
 			this._register(this._authenticationService.onDidAuthenticate(request => {
-				if (request.resource === copilotEntraDiscoveryResource && !this._authority.get()
-					&& this._requirements.get().some(requirement => requirement.resource.resource === copilotEntraDiscoveryResource)) {
-					const account = this._authenticationService.getAuthCredential({ resource: copilotEntraDiscoveryResource, scopes: discoveryResource.scopes_supported })?.account;
+				if (request.resource === copilotEntraDiscoveryResource && !this._authority.get()) {
+					const account = this._authenticationService.getAuthCredential({ resource: copilotEntraDiscoveryResource, scopes: copilotEntraDiscoveryMetadata.scopes_supported })?.account;
 					if (account?.providerId === 'microsoft') {
-						this._authority.set({ accountId: account.accountId, ...(account.label !== undefined ? { username: account.label } : {}) }, undefined);
+						this._authority.set({ accountId: account.accountId }, undefined);
 					}
 				}
 				if (this.getCredential(request.resource, request.scopes ?? [])) {
@@ -78,16 +76,16 @@ export class CopilotEntraAuthentication extends Disposable {
 		const authority = this._authority.read(reader);
 		const requirements = this._requirements.read(reader);
 		return [
-			...(authority ? [discoveryResource] : []),
+			...(authority ? [copilotEntraDiscoveryMetadata] : []),
 			...requirements.map(requirement => requirement.resource).filter(resource => !authority || resource.resource !== copilotEntraDiscoveryResource),
 		];
 	}
 
-	async authenticate(params: AuthenticateParams): Promise<boolean> {
+	async authenticate(params: AuthenticateParams, resource?: ProtectedResourceMetadata): Promise<boolean> {
 		if (params.target || !isEntraCredentialResource(params.resource)) {
 			return false;
 		}
-		this.validateAuthentication(params);
+		this.validateAuthentication(params, resource);
 		if (!params.token) {
 			this.revoke();
 			return true;
@@ -95,7 +93,7 @@ export class CopilotEntraAuthentication extends Disposable {
 		return true;
 	}
 
-	validateAuthentication(params: AuthenticateParams): void {
+	validateAuthentication(params: AuthenticateParams, resource?: ProtectedResourceMetadata): void {
 		if (params.target || !isEntraCredentialResource(params.resource)) {
 			return;
 		}
@@ -103,14 +101,36 @@ export class CopilotEntraAuthentication extends Disposable {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential authority is unavailable.');
 		}
 		if (params.token) {
-			this.validateCredential(params);
+			this.validateCredential(params, resource);
 		}
 	}
 
-	private validateCredential(params: AuthenticateParams): void {
+	/** Accepts an explicit identity handoff before starting the runtime login flow. */
+	authorizeDiscovery(params: AuthenticateParams): string {
+		if (!params.token || params.target || this._store.isDisposed) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential authority is unavailable.');
+		}
+		const account = validateEntraCredential(params, copilotEntraDiscoveryMetadata);
+		validateEntraAccount(account.accountId, this._authority.get()?.accountId);
+		if (this.getCredential(params.resource, params.scopes ?? [])?.token !== params.token) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential authority is unavailable.');
+		}
+		return account.accountId;
+	}
+
+	validateSelection(params: AuthenticateParams, resource: ProtectedResourceMetadata): void {
+		const authority = this._authority.get();
+		const credential = this.getCredential(params.resource, params.scopes ?? []);
+		if (!params.token || params.target || !authority || credential?.token !== params.token) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Microsoft credential authority is unavailable.');
+		}
+		validateEntraAccount(validateEntraCredential(params, { ...resource, scopes_supported: [...credential.scopes] }).accountId, authority.accountId);
+	}
+
+	private validateCredential(params: AuthenticateParams, advertisedResource?: ProtectedResourceMetadata): void {
 		const authority = this._authority.get();
 		const isDiscovery = params.resource === copilotEntraDiscoveryResource;
-		const resource = this.getProtectedResources().find(resource => resource.resource === params.resource);
+		const resource = advertisedResource ?? this.getProtectedResources().find(resource => resource.resource === params.resource);
 		const account = validateEntraCredential(params, resource);
 		validateEntraAccount(account.accountId, authority?.accountId);
 		if (this._tokenChallenges.get(params.resource)?.rejectedToken === params.token) {
@@ -127,7 +147,7 @@ export class CopilotEntraAuthentication extends Disposable {
 		}
 		this.clearAuthority();
 		// Like a cleared GitHub token, advertise the loss so a client that still holds the credential can re-supply it.
-		this.requireCredential(discoveryResource, AuthRequiredReason.Expired);
+		this.requireCredential(copilotEntraDiscoveryMetadata, AuthRequiredReason.Expired);
 		this._onDidRevoke.fire();
 	}
 
@@ -255,12 +275,12 @@ function resolveEntraIdentity(request: Extract<EntraTokenProviderArgs, { kind: '
 	if (request.reason === 'forceInteractive') {
 		return undefined;
 	}
-	return { kind: 'identity', accountId: authority.accountId, ...(authority.username !== undefined ? { username: authority.username } : {}) };
+	return { kind: 'identity', accountId: authority.accountId };
 }
 
-function copilotEntraResourceForRequest(request: EntraTokenProviderArgs): ProtectedResourceMetadata | undefined {
+export function copilotEntraResourceForRequest(request: EntraTokenProviderArgs): ProtectedResourceMetadata | undefined {
 	if (request.kind === 'identity') {
-		return discoveryResource;
+		return copilotEntraDiscoveryMetadata;
 	}
 	if (request.tenant !== undefined && request.tenant !== 'organizations') {
 		return undefined;
