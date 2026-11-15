@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { SinonSpy, spy } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
@@ -19,6 +20,7 @@ import { IAgentHostService } from '../../../../../../platform/agentHost/common/a
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { AccountClient } from '../../../../../../platform/github/common/account/accountClient.js';
 import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
+import { IApiRequestProvider } from '../../../../../../platform/github/common/client/request.js';
 import { GitHubService } from '../../../../../../platform/github/common/githubService.js';
 import { GitHubAuthorizationContext, GitHubCredentialChange, GitHubRequestError } from '../../../../../../platform/github/common/githubTypes.js';
 import { ConnectorCatalog, ConnectorPlugin } from '../../../../../../platform/github/common/connectors/connectors.js';
@@ -71,6 +73,7 @@ suite('CopilotConnectorsService', () => {
 	function createFixture(responses: Array<{ readonly status?: number; readonly body?: unknown; readonly ready?: Promise<void> | (() => Promise<void>); readonly headers?: Record<string, string> }>, enabled = true, enterprise = false) {
 		const requestLifetime = store.add(new DisposableStore());
 		const requests: Array<{ readonly type: string | undefined; readonly url: string; readonly data: string | undefined }> = [];
+		const requestSpies = new Map<IApiRequestProvider, SinonSpy<Parameters<IApiRequestProvider['request']>, ReturnType<IApiRequestProvider['request']>>>();
 		const requestTokens: CancellationToken[] = [];
 		const authorizationHeaders: (string | undefined)[] = [];
 		const validators: (string | null)[] = [];
@@ -196,6 +199,12 @@ suite('CopilotConnectorsService', () => {
 				const reference = scope.acquireClient({
 					authorization, apiBaseUri: 'https://api.github.com', graphQlUri: 'https://api.github.com/graphql',
 				});
+				const provider = reference.object.connectors!;
+				if (!requestSpies.has(provider)) {
+					const requestSpy = spy(provider, 'request');
+					store.add(toDisposable(() => requestSpy.restore()));
+					requestSpies.set(provider, requestSpy);
+				}
 				leases.acquired++;
 				return new AccountClient(authorization, reference.object, toDisposable(() => { reference.dispose(); leases.released++; }));
 			}
@@ -213,6 +222,7 @@ suite('CopilotConnectorsService', () => {
 		));
 		return {
 			service, requests, requestTokens, authorizationHeaders, opened, configurationService, authenticationCalls, consentCalls, signInCalls, authenticationService, defaultAccountService,
+			get apiRequests() { return [...requestSpies.values()].flatMap(requestSpy => requestSpy.getCalls().map(call => call.args[0])); },
 			gitHubService, grants, leases, validators,
 			invalidateClient: () => invalidatedGrants.fire({ providerId: 'github', sessionIds: ['session'] }),
 			initialAccount, initialSession, accountChanged, sessionsChanged, reconciliations, reconciliationNames, agentHostService, telemetryService,
@@ -1316,8 +1326,16 @@ suite('CopilotConnectorsService', () => {
 			{ body: catalogResponse('connected') },
 		]);
 		await fixture.service.connect('mail', CancellationToken.None);
-		assert.deepStrictEqual({ methods: fixture.requests.map(request => request.type), opened: fixture.opened, status: fixture.service.connectors[0].connectionStatus }, {
+		assert.deepStrictEqual({
+			methods: fixture.requests.map(request => request.type), opened: fixture.opened, status: fixture.service.connectors[0].connectionStatus,
+			metadata: fixture.apiRequests.map(request => ({ caller: request.options?.caller, priority: request.options?.priority })),
+		}, {
 			methods: ['GET', 'PUT', 'GET'], opened: [], status: 'connected',
+			metadata: [
+				{ caller: 'copilotConnectors.query', priority: undefined },
+				{ caller: 'copilotConnectors.connect', priority: undefined },
+				{ caller: 'copilotConnectors.query', priority: 'mutationReconciliation' },
+			],
 		});
 	});
 
@@ -1613,6 +1631,7 @@ suite('CopilotConnectorsService', () => {
 
 		assert.deepStrictEqual({
 			requests: fixture.requests.map(request => ({ type: request.type, url: request.url })),
+			metadata: fixture.apiRequests.map(request => ({ caller: request.options?.caller, priority: request.options?.priority })),
 			status: fixture.service.connectors[0]?.connectionStatus,
 			disconnected,
 			reconciliations: fixture.reconciliations.length,
@@ -1633,6 +1652,11 @@ suite('CopilotConnectorsService', () => {
 			}],
 			status: 'not_connected',
 			disconnected: ['mail'],
+			metadata: [
+				{ caller: 'copilotConnectors.query', priority: undefined },
+				{ caller: 'copilotConnectors.disconnect', priority: undefined },
+				{ caller: 'copilotConnectors.query', priority: 'mutationReconciliation' },
+			],
 			reconciliations: 2,
 			telemetry: [{
 				name: 'copilotConnectors.catalogSnapshot',

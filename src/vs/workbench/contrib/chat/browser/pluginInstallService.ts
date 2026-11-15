@@ -17,6 +17,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { RequestPriority } from '../../../../platform/github/common/types.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
@@ -433,12 +434,12 @@ export class PluginInstallService implements IPluginInstallService {
 		return { reference, configPath: trimmed };
 	}
 
-	updatePlugin(plugin: IMarketplacePlugin, silent?: boolean, token: CancellationToken = CancellationToken.None): Promise<boolean> {
+	updatePlugin(plugin: IMarketplacePlugin, silent?: boolean, token: CancellationToken = CancellationToken.None, priority?: RequestPriority): Promise<boolean> {
 		const key = JSON.stringify([plugin.marketplaceReference.canonicalId, plugin.name]);
-		return this._updateSequencer.queue(key, () => this._updatePlugin(plugin, silent, token));
+		return this._updateSequencer.queue(key, () => this._updatePlugin(plugin, silent, token, priority));
 	}
 
-	private async _updatePlugin(plugin: IMarketplacePlugin, silent: boolean | undefined, token: CancellationToken): Promise<boolean> {
+	private async _updatePlugin(plugin: IMarketplacePlugin, silent: boolean | undefined, token: CancellationToken, priority?: RequestPriority): Promise<boolean> {
 		if (this._pluginMarketplaceService.isStrictMarketplacePolicyActive() && !this._pluginMarketplaceService.isMarketplaceTrusted(plugin.marketplaceReference)) {
 			this._notificationService.notify({
 				severity: Severity.Warning,
@@ -461,6 +462,7 @@ export class PluginInstallService implements IPluginInstallService {
 		const moved = installed !== undefined && !isEqual(installed.pluginUri, pluginUri);
 		if (moved && kind !== PluginSourceKind.RelativePath) {
 			await this._pluginRepositoryService.ensurePluginSource(plugin, {
+				priority,
 				failureLabel: plugin.name,
 				marketplaceType: plugin.marketplaceType,
 				token,
@@ -469,6 +471,7 @@ export class PluginInstallService implements IPluginInstallService {
 		}
 
 		const changed = await this._pluginRepositoryService.updatePluginSource(plugin, {
+			priority,
 			pluginName: plugin.name,
 			failureLabel: plugin.name,
 			marketplaceType: plugin.marketplaceType,
@@ -529,6 +532,7 @@ export class PluginInstallService implements IPluginInstallService {
 
 					try {
 						const changed = await this._pluginRepositoryService.pullRepository(ref, {
+							priority: options.automatic ? 'background' : undefined,
 							pluginName: ref.displayLabel,
 							failureLabel: ref.displayLabel,
 							marketplaceType: entry.plugin.marketplaceType,
@@ -585,7 +589,7 @@ export class PluginInstallService implements IPluginInstallService {
 					}
 
 					try {
-						const changed = await this.updatePlugin(livePlugin, options.silent, token);
+						const changed = await this.updatePlugin(livePlugin, options.silent, token, options.automatic ? 'background' : undefined);
 						if (changed) {
 							updatedNames.push(livePlugin.name);
 						}

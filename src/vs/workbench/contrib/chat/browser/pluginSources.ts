@@ -16,6 +16,7 @@ import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { RequestPriority } from '../../../../platform/github/common/types.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
@@ -88,7 +89,7 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 		const label = this._displayLabel(descriptor);
 
 		if (repoExists) {
-			await this._checkoutRevision(repoDir, descriptor, options?.failureLabel ?? label);
+			await this._checkoutRevision(repoDir, descriptor, options?.failureLabel ?? label, undefined, options?.priority);
 			return this.getInstallUri(cacheRoot, descriptor);
 		}
 
@@ -97,9 +98,9 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 		const git = descriptor as IGitHubPluginSource | IGitUrlPluginSource;
 		const ref = git.sha ?? git.ref;
 
-		await this._cloneRepository(repoDir, this._cloneUrl(descriptor), progressTitle, failureLabel, ref);
+		await this._cloneRepository(repoDir, this._cloneUrl(descriptor), progressTitle, failureLabel, ref, options?.priority);
 		if (!git.sha || (await this._pluginGit.revParse(repoDir, 'HEAD')).toLowerCase() !== git.sha.trim().toLowerCase()) {
-			await this._checkoutRevision(repoDir, descriptor, failureLabel);
+			await this._checkoutRevision(repoDir, descriptor, failureLabel, undefined, options?.priority);
 		}
 		return this.getInstallUri(cacheRoot, descriptor);
 	}
@@ -123,12 +124,12 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 				if (git.sha) {
 					const headBefore = await this._pluginGit.revParse(repoDir, 'HEAD').catch(() => undefined);
 					await this._pluginGit.fetch(repoDir, cts?.token);
-					await this._checkoutRevision(repoDir, descriptor, failureLabel, cts?.token);
+					await this._checkoutRevision(repoDir, descriptor, failureLabel, cts?.token, options?.priority);
 					const headAfter = await this._pluginGit.revParse(repoDir, 'HEAD').catch(() => undefined);
 					changed = headBefore !== headAfter;
 				} else {
-					changed = await this._pluginGit.pull(repoDir, cts?.token);
-					await this._checkoutRevision(repoDir, descriptor, failureLabel, cts?.token);
+					changed = await this._pluginGit.pull(repoDir, cts?.token, options?.priority);
+					await this._checkoutRevision(repoDir, descriptor, failureLabel, cts?.token, options?.priority);
 				}
 				return changed;
 			};
@@ -166,7 +167,7 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 
 	// -- internal helpers ---
 
-	private async _cloneRepository(repoDir: URI, cloneUrl: string, progressTitle: string, failureLabel: string, ref?: string): Promise<void> {
+	private async _cloneRepository(repoDir: URI, cloneUrl: string, progressTitle: string, failureLabel: string, ref?: string, priority?: RequestPriority): Promise<void> {
 		const cts = new CancellationTokenSource();
 		try {
 			await this._progressService.withProgress(
@@ -178,7 +179,7 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 				},
 				async () => {
 					await this._fileService.createFolder(dirname(repoDir));
-					await this._pluginGit.cloneRepository(cloneUrl, repoDir, ref, cts.token);
+					await this._pluginGit.cloneRepository(cloneUrl, repoDir, ref, cts.token, priority);
 				},
 				() => cts.dispose(true),
 			);
@@ -194,7 +195,7 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 		}
 	}
 
-	private async _checkoutRevision(repoDir: URI, descriptor: IPluginSourceDescriptor, failureLabel: string, token?: CancellationToken): Promise<void> {
+	private async _checkoutRevision(repoDir: URI, descriptor: IPluginSourceDescriptor, failureLabel: string, token?: CancellationToken, priority?: RequestPriority): Promise<void> {
 		const git = descriptor as IGitHubPluginSource | IGitUrlPluginSource;
 		if (!git.sha && !git.ref) {
 			return;
@@ -202,11 +203,11 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 
 		try {
 			if (git.sha) {
-				await this._pluginGit.checkoutCommit(repoDir, git.sha, token);
+				await this._pluginGit.checkoutCommit(repoDir, git.sha, token, priority);
 				return;
 			}
 			// git.ref is guaranteed non-nullish by the guard above
-			await this._pluginGit.checkout(repoDir, git.ref!, undefined, token);
+			await this._pluginGit.checkout(repoDir, git.ref!, undefined, token, priority);
 		} catch (err) {
 			this._logService.error(`[${this.kind}] Failed to checkout revision for '${failureLabel}':`, err);
 			this._notificationService.notify({

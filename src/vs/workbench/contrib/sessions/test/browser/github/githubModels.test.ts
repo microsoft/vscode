@@ -461,10 +461,12 @@ suite('GitHubPullRequestReviewThreadsModel', () => {
 			commentBody: comment.body,
 			postReviewCommentCalls: mockFetcher.postReviewCommentCalls,
 			threads: model.reviewThreads.get().map(thread => thread.id),
+			priorities: mockFetcher.priorities,
 		}, {
 			commentBody: 'LGTM',
 			postReviewCommentCalls: [{ body: 'LGTM', inReplyTo: 100 }],
 			threads: ['thread-100'],
+			priorities: ['mutationReconciliation'],
 		});
 	});
 
@@ -490,7 +492,7 @@ suite('GitHubPullRequestReviewThreadsModel', () => {
 			postReviewCommentCalls: [{ body: 'LGTM', inReplyTo: 100 }],
 			threads: ['thread-200'],
 			getReviewThreadsCalls: 3,
-			priorities: ['background', 'interactive', 'interactive'],
+			priorities: ['background', 'mutationReconciliation', 'mutationReconciliation'],
 		});
 	});
 
@@ -524,10 +526,12 @@ suite('GitHubPullRequestReviewThreadsModel', () => {
 			resolveThreadCalls: mockFetcher.resolveThreadCalls,
 			getReviewThreadsCalls: mockFetcher.getReviewThreadsCalls,
 			threads: model.reviewThreads.get(),
+			priorities: mockFetcher.priorities,
 		}, {
 			resolveThreadCalls: [{ threadId: 'thread-100' }],
 			getReviewThreadsCalls: 1,
 			threads: [],
+			priorities: ['mutationReconciliation'],
 		});
 	});
 
@@ -548,10 +552,12 @@ suite('GitHubPullRequestReviewThreadsModel', () => {
 			resolveThreadCalls: mockFetcher.resolveThreadCalls,
 			threads: model.reviewThreads.get().map(thread => thread.id),
 			getReviewThreadsCalls: mockFetcher.getReviewThreadsCalls,
+			priorities: mockFetcher.priorities,
 		}, {
 			resolveThreadCalls: [{ threadId: 'thread-100' }],
 			threads: [],
-			getReviewThreadsCalls: 2,
+			getReviewThreadsCalls: 3,
+			priorities: ['interactive', 'mutationReconciliation', 'mutationReconciliation'],
 		});
 	});
 
@@ -837,7 +843,7 @@ suite('GitHubPullRequestCIModel', () => {
 		}, {
 			checks: [GitHubCheckConclusion.Success],
 			getCheckRunsCalls: 3,
-			priorities: ['background', 'interactive', 'interactive'],
+			priorities: ['background', 'mutationReconciliation', 'mutationReconciliation'],
 		});
 	});
 

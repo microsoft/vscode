@@ -57,7 +57,7 @@ const createValue = { name: definition.name, prompt: definition.prompt, descript
 const reconciliationMessage = 'The automation request may have been accepted. Refresh automations before submitting again.';
 
 class TestApi extends mock<IAutomationsClient>() {
-	readonly priorities: { method: string; priority: RequestPriority | undefined }[] = [];
+	readonly priorities: { method: string; caller: string | undefined; priority: RequestPriority | undefined }[] = [];
 	readonly calls: { method: string; account: string; repository: typeof repository; token: AbortSignal }[] = [];
 	readonly automationEnabled = new Map<string, boolean>();
 	readonly allowReadAccessTriggers = new Map<string, boolean>();
@@ -103,8 +103,8 @@ class TestApi extends mock<IAutomationsClient>() {
 	}
 
 	override async listRuns(_id: string, _signal: AbortSignal, options?: TaskListOptions): Promise<PaginatedResponse<ListTasksResponse>> {
-		const { priority, ...requestOptions } = options ?? {};
-		this.priorities.push({ method: 'history', priority });
+		const { priority, caller, ...requestOptions } = options ?? {};
+		this.priorities.push({ method: 'history', caller, priority });
 		assert.deepStrictEqual(requestOptions, { query: { per_page: 50, page: 1, sort: 'created_at', direction: 'desc', is_archived: false } });
 		const error = this.historyErrors.get(_id);
 		if (error) {
@@ -114,7 +114,7 @@ class TestApi extends mock<IAutomationsClient>() {
 	}
 
 	async getTask(options?: ApiRequestOptions): Promise<Task> {
-		this.priorities.push({ method: 'task', priority: options?.priority });
+		this.priorities.push({ method: 'task', caller: options?.caller, priority: options?.priority });
 		this.maxActiveDetails = Math.max(this.maxActiveDetails, ++this.activeDetails);
 		await this.detailStarted.complete();
 		try {
@@ -125,7 +125,7 @@ class TestApi extends mock<IAutomationsClient>() {
 	}
 
 	override async getConfiguration(ref: RepositoryRef, token: AbortSignal, options?: ApiRequestOptions): Promise<AutomationRepositoryConfiguration> {
-		this.priorities.push({ method: 'capability', priority: options?.priority });
+		this.priorities.push({ method: 'capability', caller: options?.caller, priority: options?.priority });
 		this.calls.push({ method: 'capability', account: this.accountName, repository: ref, token });
 		const result = this.manageability.get(ref.repo) ?? true;
 		await this.manageabilityStarted.complete();
@@ -141,8 +141,8 @@ class TestApi extends mock<IAutomationsClient>() {
 	}
 
 	override async list(ref: RepositoryRef, token: AbortSignal, options?: ListAutomationsOptions): Promise<PaginatedResponse<ListRepoAutomationsResponse>> {
-		const { priority, ...requestOptions } = options ?? {};
-		this.priorities.push({ method: 'list', priority });
+		const { priority, caller, ...requestOptions } = options ?? {};
+		this.priorities.push({ method: 'list', caller, priority });
 		assert.deepStrictEqual(requestOptions, { query: { page: 1, per_page: 100 }, maxPages: 10 });
 		this.calls.push({ method: 'list', account: this.accountName, repository: ref, token });
 		const result = this.definitions.get(ref.repo) ?? [definition];
@@ -155,7 +155,7 @@ class TestApi extends mock<IAutomationsClient>() {
 	}
 
 	override async get(ref: RepositoryRef, id: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<AutomationDetail> {
-		this.priorities.push({ method: 'get', priority: options?.priority });
+		this.priorities.push({ method: 'get', caller: options?.caller, priority: options?.priority });
 		this.detailCalls.push({ id, signal });
 		if (this.detailResult) {
 			return this.detailResult(id, signal);
@@ -209,8 +209,9 @@ suite('GitHubCloudAutomationStore', () => {
 					override readonly authorization = { providerId: 'github', sessionId: selected.sessionId, scopes: ['repo'] };
 					override readonly automations = api;
 					override readonly repositories = upcastDeepPartial<IRepositoriesClient>({
-						get: async (repository: RepositoryRef, token: AbortSignal) => {
+						get: async (repository: RepositoryRef, token: AbortSignal, options?: ApiRequestOptions) => {
 							api.metadataCalls.push({ repository, token });
+							api.priorities.push({ method: 'repository', caller: options?.caller, priority: options?.priority });
 							await api.metadataStarted.complete();
 							const result = api.privateRepositories.get(repository.repo) ?? true;
 							if (result instanceof Error) {
@@ -263,12 +264,12 @@ suite('GitHubCloudAutomationStore', () => {
 			await store.refresh(options);
 			await store.refreshHistory(options);
 			assert.deepStrictEqual(api.priorities, ['capability', 'list', 'get', 'history', 'task'].map(method => ({
-				method, priority: background ? 'background' : undefined,
+				method, caller: 'cloudAutomations', priority: background ? 'background' : undefined,
 			})));
 
 			api.priorities.length = 0;
 			await store.create(workspace, createValue);
-			assert.deepStrictEqual(api.priorities, [{ method: 'capability', priority: undefined }]);
+			assert.deepStrictEqual(api.priorities, [{ method: 'capability', caller: 'cloudAutomations', priority: undefined }]);
 		});
 	}
 
@@ -280,7 +281,11 @@ suite('GitHubCloudAutomationStore', () => {
 		assert.deepStrictEqual({
 			target: target.get(), calls: api.calls.map(call => call.method), entries: store.entries.get(),
 			cached: target === store.getWorkspaceTarget(URI.file('/repo')),
-		}, { target: { workspace, repositoryLabel: 'microsoft/vscode-internalbacklog', allowReadAccessTriggers: false }, calls: ['capability'], entries: [], cached: true });
+			priorities: api.priorities,
+		}, {
+			target: { workspace, repositoryLabel: 'microsoft/vscode-internalbacklog', allowReadAccessTriggers: false }, calls: ['capability'], entries: [], cached: true,
+			priorities: ['repository', 'capability'].map(method => ({ method, caller: 'cloudAutomations', priority: 'background' })),
+		});
 	});
 
 	test('background configuration 404 invalidates an existing workspace target without poisoning readiness', async () => {

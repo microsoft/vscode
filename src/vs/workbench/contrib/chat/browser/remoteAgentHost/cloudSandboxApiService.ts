@@ -453,7 +453,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			}
 			const client = store.add(await this._githubService.acquireAccountApiClient(this._authenticationProviderId, authentication, signal));
 			requested = true;
-			connection = await client.tasks.connectFeed(signal, { caller: 'mc.sessionFeed.connect' });
+			connection = await client.tasks.connectFeed(signal, { caller: 'mc.sessionFeed.connect', priority: 'background' });
 			const current = await raceCancellationError(this._resolveGitHubSession(), requestToken);
 			if (!current || current.account.id !== authentication.account.id) {
 				throw new CancellationError();
@@ -537,7 +537,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	async getEnvironment(environmentId: string, token: CancellationToken): Promise<ICloudSandboxEnvironment> {
-		const environment = await this._withApiClient(token, { caller: 'mc.environmentClient.get', priority: 'interactive' },
+		const environment = await this._withApiClient(token, { caller: 'mc.environmentClient.get' },
 			(client, signal, options) => client.environments.get(environmentId, signal, options),
 			{ action: 'get' });
 		// `status` comes from heartbeat age: a stale one means `/connect` will attempt a resume and
@@ -557,7 +557,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		if (!options?.refresh && cached) {
 			return cached;
 		}
-		const environments = await this._withApiClient(token, { caller: 'mc.environmentClient.list', priority: 'interactive' },
+		const environments = await this._withApiClient(token, { caller: 'mc.environmentClient.list' },
 			(client, signal, options) => client.environments.list(signal, options),
 			{ action: 'list environments' });
 		const values = environments.map(({ id, name, kind, status }) => ({ id, name, kind, status }));
@@ -732,7 +732,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			try {
 				telemetry.listOperationCount = (telemetry.listOperationCount ?? 0) + 1;
 				const response = await this._withApiClient(token, {
-					caller: 'mc.taskClient.list', priority: options?.trigger === 'manual' ? 'interactive' : 'background',
+					caller: 'mc.taskClient.list', priority: options?.trigger === 'manual' ? undefined : 'background',
 				}, (client, signal, requestOptions) => client.tasks.list(signal, {
 					...requestOptions, query, maxPages: DISCOVERY_TASK_SCAN_MAX_PAGES, pageLimitBehavior: 'returnPartial',
 				}), { authentication: session });
@@ -1004,7 +1004,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			const source = new CancellationTokenSource(this._lifetimeToken);
 			this._sessionResolutionSources.set(taskId, source);
 			const pending = raceCancellationError((async () => {
-				const full = await this._withApiClient(source.token, { caller: 'mc.taskClient.get', priority: 'interactive' },
+				const full = await this._withApiClient(source.token, { caller: 'mc.taskClient.get' },
 					(client, signal, options) => client.tasks.get(taskId, signal, options), { authentication });
 				if (source.token.isCancellationRequested || generation !== this._accountGeneration || this._store.isDisposed) {
 					throw new CancellationError();
@@ -1565,7 +1565,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	async listModels(token: CancellationToken): Promise<ICloudSandboxModelCatalog> {
-		const catalog = await this._withApiClient(token, { caller: 'mc.models.list', priority: 'interactive' },
+		const catalog = await this._withApiClient(token, { caller: 'mc.models.list' },
 			(client, signal, options) => client.missionControlModels.list(signal, options),
 			{ action: 'model catalog' });
 		const models: SessionModelInfo[] = [];

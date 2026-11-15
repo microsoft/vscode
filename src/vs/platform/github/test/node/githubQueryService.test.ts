@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { hasKey } from '../../../../base/common/types.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { waitForState } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -121,6 +122,7 @@ suite('GitHubQueryService', () => {
 		readonly clock: FakeScheduler;
 		readonly credentials: TestCredentialService;
 		readonly service: GitHubQueryService;
+		readonly transport: GitHubTransport;
 	} {
 		const account = { host: new URL(server.apiBaseUrl).host, accountId: '101' };
 		const ref = { ...account, owner: 'octo', repo: 'repo' };
@@ -137,7 +139,7 @@ suite('GitHubQueryService', () => {
 			capabilityService,
 			new NullLogService(),
 		));
-		return { account, ref, clock, credentials, service };
+		return { account, ref, clock, credentials, service, transport };
 	}
 
 	function graphQLRepository(): object {
@@ -173,11 +175,17 @@ suite('GitHubQueryService', () => {
 					'query HydrateGitHubResources($owner0: String!, $repo0: String!) { r0: repository(owner: $owner0, name: $repo0) { nameWithOwner primaryLanguage { name } stargazerCount } rateLimit { limit remaining used resetAt } }'),
 				response: gitHubGraphQLResponse({ r0: graphQLRepository() }),
 			}));
-			const { ref, service } = setup(server);
+			const { ref, service, transport } = setup(server);
+			const request = spy(transport, 'graphql');
+			disposables.add(toDisposable(() => request.restore()));
 			const subscription = disposables.add(service.subscribeRepository(ref, { priority: 'visible' }));
 			await service.hydrateResources([{ kind: 'repository', ref }], signal());
-			assert.deepStrictEqual(subscription.resource.state.get().value, {
-				nameWithOwner: 'octo/repo', language: 'TypeScript', stars: 42,
+			assert.deepStrictEqual({
+				repository: subscription.resource.state.get().value,
+				requests: request.getCalls().map(call => ({ priority: call.args[6], caller: call.args[7]?.caller })),
+			}, {
+				repository: { nameWithOwner: 'octo/repo', language: 'TypeScript', stars: 42 },
+				requests: [{ priority: 'visible', caller: 'github.query' }],
 			});
 			server.assertSatisfied();
 		});

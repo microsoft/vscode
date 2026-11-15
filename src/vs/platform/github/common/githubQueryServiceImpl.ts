@@ -325,7 +325,7 @@ export class GitHubQueryService extends Disposable implements GitHubQueryApi {
 						query,
 						variables,
 						combinedSignal,
-						'interactive',
+						'visible',
 						{ caller: 'github.query' },
 					);
 					throwGraphQLErrors(response.errors);

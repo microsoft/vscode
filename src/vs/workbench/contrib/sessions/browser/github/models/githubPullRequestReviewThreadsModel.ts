@@ -133,7 +133,7 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 	 */
 	async postReviewComment(body: string, inReplyTo: number): Promise<IGitHubPRComment> {
 		const comment = await this._fetcher.postReviewComment(this.owner, this.repo, this.prNumber, body, inReplyTo, this._token);
-		await this.refresh(true);
+		await this.refresh(true, { priority: 'mutationReconciliation' });
 		return comment;
 	}
 
@@ -142,7 +142,7 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 	 */
 	async resolveThread(threadId: string): Promise<void> {
 		await this._fetcher.resolveThread(this.owner, this.repo, threadId, this._token);
-		await this.refresh(true);
+		await this.refresh(true, { priority: 'mutationReconciliation' });
 	}
 
 	/**

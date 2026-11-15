@@ -352,7 +352,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 
 		const reviewThreadsRef = this._gitHubService.createPullRequestReviewThreadsModelReference(owner, repo, number);
 		try {
-			await reviewThreadsRef.object.refresh(true);
+			await reviewThreadsRef.object.refresh(true, { priority: 'mutationReconciliation' });
 		} finally {
 			reviewThreadsRef.dispose();
 		}

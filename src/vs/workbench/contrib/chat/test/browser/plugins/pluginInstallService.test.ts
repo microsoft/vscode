@@ -92,6 +92,7 @@ suite('PluginInstallService', () => {
 		cleanupPluginSourceCalls: { plugin: IMarketplacePlugin; otherInstalledDescriptors: readonly IPluginSourceDescriptor[] }[];
 		recordInstalledPlugins: boolean;
 		ensurePluginSourceDescriptors: IPluginSourceDescriptor[];
+		ensurePluginSourceOptions: (IEnsureRepositoryOptions | undefined)[];
 		singlePluginManifestDirectories: URI[];
 		fetchedMarketplacePlugins: IMarketplacePlugin[];
 		fetchMarketplaceCalls: string[][];
@@ -148,6 +149,7 @@ suite('PluginInstallService', () => {
 			cleanupPluginSourceCalls: [],
 			recordInstalledPlugins: false,
 			ensurePluginSourceDescriptors: [],
+			ensurePluginSourceOptions: [],
 			singlePluginManifestDirectories: [],
 			fetchedMarketplacePlugins: [],
 			fetchMarketplaceCalls: [],
@@ -323,8 +325,9 @@ suite('PluginInstallService', () => {
 				const key = descriptor.kind;
 				return state.pluginSourceInstallUris.get(key) ?? URI.file(`/cache/agentPlugins/${key}/default`);
 			},
-			ensurePluginSource: async (plugin: IMarketplacePlugin) => {
+			ensurePluginSource: async (plugin: IMarketplacePlugin, options?: IEnsureRepositoryOptions) => {
 				state.ensurePluginSourceDescriptors.push(plugin.sourceDescriptor);
+				state.ensurePluginSourceOptions.push(options);
 				return state.onEnsurePluginSource ? state.onEnsurePluginSource() : state.ensurePluginSourceResult;
 			},
 			updatePluginSource: async (plugin: IMarketplacePlugin, options?: IPullRepositoryOptions) => {
@@ -1200,12 +1203,22 @@ suite('PluginInstallService', () => {
 					installed: state.installedPlugins,
 					removed: state.removedPluginUris,
 					fetchOptions: state.fetchMarketplaceOptions,
+					priorities: {
+						marketplace: state.pullRepositoryCalls.map(call => call.options?.priority),
+						ensure: state.ensurePluginSourceOptions.map(options => options?.priority),
+						update: state.updatePluginSourceCalls.map(call => call.options?.priority),
+					},
 				}, {
 					result: { updatedNames: [plugin.name], failedNames: [] },
 					ensured: [livePlugin.sourceDescriptor],
 					installed: [{ pluginUri: newUri, plugin: livePlugin }],
 					removed: [oldUri.toString()],
 					fetchOptions: [{ refresh: true, priority: automatic ? 'background' : undefined }],
+					priorities: {
+						marketplace: [automatic ? 'background' : undefined],
+						ensure: [automatic ? 'background' : undefined],
+						update: [automatic ? 'background' : undefined],
+					},
 				});
 			});
 		}

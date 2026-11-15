@@ -178,23 +178,23 @@ export class MainThreadGitHub extends Disposable implements MainThreadGitHubShap
 	}
 
 	async $getGitHubRepositoryViewerInfo(handle: number, repository: RepositoryRef, token: CancellationToken): Promise<GitHubResultDto<RepositoryViewerInfo | null>> {
-		return this._runAuthenticated(handle, token, (client, signal, options) => client.repositories.getViewerInfo(validateRequest(repository, parseRepositoryRef), signal, options));
+		return this._runAuthenticated(handle, token, (client, signal, options) => client.repositories.getViewerInfo(validateRequest(repository, parseRepositoryRef), signal, { ...options, priority: 'background' }));
 	}
 
 	async $listGitHubRulesetConnection(handle: number, repository: RepositoryRef, after: string | undefined, maxPages: number | undefined, token: CancellationToken): Promise<GitHubResultDto<Connection<RepositoryRulesetNode> | null>> {
 		return this._runAuthenticated(handle, token, (client, signal, options) => client.repositories.listRulesetConnection(validateRequest(repository, parseRepositoryRef), signal, {
-			...options, query: { first: 100, after: validateRequest(after, parse.optional(parse.nonEmptyString)) }, maxPages,
+			...options, priority: 'background', query: { first: 100, after: validateRequest(after, parse.optional(parse.nonEmptyString)) }, maxPages,
 		}));
 	}
 
 	async $listGitHubAssignableUsers(handle: number, repository: RepositoryRef, token: CancellationToken): Promise<GitHubResultDto<Connection<RepositoryAssignableUser> | null>> {
 		return this._runAuthenticated(handle, token, (client, signal, options) => client.repositories.listAssignableUsers(validateRequest(repository, parseRepositoryRef), signal, {
-			...options, query: { first: 100 },
+			...options, priority: 'enrichment', query: { first: 100 },
 		}));
 	}
 
 	async $getGitHubCommitAuthor(handle: number, repository: RepositoryRef, ref: string, token: CancellationToken): Promise<GitHubResultDto<RepositoryCommitAuthor | null>> {
-		return this._runAuthenticated(handle, token, (client, signal, options) => client.repositories.getCommitAuthor(validateRequest(repository, parseRepositoryRef), validateRequest(ref, parse.nonEmptyString), signal, options));
+		return this._runAuthenticated(handle, token, (client, signal, options) => client.repositories.getCommitAuthor(validateRequest(repository, parseRepositoryRef), validateRequest(ref, parse.nonEmptyString), signal, { ...options, priority: 'enrichment' }));
 	}
 
 	private async _acquire(

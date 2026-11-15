@@ -12,6 +12,7 @@ import { IObservable, constObservable, derived, observableValue } from '../../..
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -172,10 +173,12 @@ suite('CodeReviewService', () => {
 		nextError: Error | undefined;
 		getReviewThreadsGate: DeferredPromise<void> | undefined;
 		getReviewThreadsCalls = 0;
+		readonly requestOptions: (ApiRequestOptions | undefined)[] = [];
 		resolveThreadCalls: { threadId: string }[] = [];
 
-		override async getReviewThreads(_owner: string, _repo: string, _prNumber: number): Promise<IGitHubPullRequestReviewThread[]> {
+		override async getReviewThreads(...args: Parameters<GitHubPRFetcher['getReviewThreads']>): Promise<IGitHubPullRequestReviewThread[]> {
 			this.getReviewThreadsCalls++;
+			this.requestOptions.push(args[4]);
 			const result = this.nextThreads;
 			await this.getReviewThreadsGate?.p;
 			if (this.nextError) {
@@ -407,6 +410,7 @@ suite('CodeReviewService', () => {
 			nonDiffTargets: await service.getPRReviewCommentTargets(session, URI.file('/workspace/src/a.ts'), new Range(20, 1, 20, 1), currentContent),
 			postedReviewComments: gitHubService.postedReviewComments,
 			threadRefreshes: gitHubService.reviewThreadsFetcher.getReviewThreadsCalls,
+			threadRequestOptions: gitHubService.reviewThreadsFetcher.requestOptions,
 		}, {
 			pullRequests: [{ owner: 'owner', repo: 'repo', number: 1 }],
 			pullRequestModelCallsAfterChoices: 0,
@@ -432,6 +436,7 @@ suite('CodeReviewService', () => {
 				pendingReview: { id: 42, nodeId: 'PRR_pending' },
 			}],
 			threadRefreshes: 1,
+			threadRequestOptions: [{ priority: 'mutationReconciliation' }],
 		});
 	});
 

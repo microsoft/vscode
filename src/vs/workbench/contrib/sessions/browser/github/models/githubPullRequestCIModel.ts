@@ -291,7 +291,7 @@ export class GitHubPullRequestCIModel extends Disposable {
 			return;
 		}
 		await this._fetcher.rerunFailedJobs(this.owner, this.repo, runId, this._token);
-		await this.refresh(true);
+		await this.refresh(true, { priority: 'mutationReconciliation' });
 	}
 
 	/**
