@@ -228,9 +228,7 @@ interface PreviousRegion {
 	line: number; // start line of the region. Only used for marker regions.
 }
 
-const MAX_FOLDING_REGIONS = 0xFFFF;
 const MAX_LINE_NUMBER = 0xFFFFFF;
-const MASK_INDENT = 0xFF000000;
 
 class RangesCollector {
 	private readonly _startIndexes: number[];
@@ -303,38 +301,9 @@ class FoldingRegions {
 	private readonly _startIndexes: Uint32Array;
 	private readonly _endIndexes: Uint32Array;
 
-	private _parentsComputed: boolean;
-
 	constructor(startIndexes: Uint32Array, endIndexes: Uint32Array) {
 		this._startIndexes = startIndexes;
 		this._endIndexes = endIndexes;
-		this._parentsComputed = false;
-		// this.ensureParentIndices();
-	}
-
-	private ensureParentIndices() {
-		if (!this._parentsComputed) {
-			this._parentsComputed = true;
-			const parentIndexes: number[] = [];
-			const isInsideLast = (startLineNumber: number, endLineNumber: number) => {
-				const index = parentIndexes[parentIndexes.length - 1];
-				return this.getStartLineNumber(index) <= startLineNumber && this.getEndLineNumber(index) >= endLineNumber;
-			};
-			for (let i = 0, len = this._startIndexes.length; i < len; i++) {
-				const startLineNumber = this._startIndexes[i];
-				const endLineNumber = this._endIndexes[i];
-				if (startLineNumber > MAX_LINE_NUMBER || endLineNumber > MAX_LINE_NUMBER) {
-					throw new Error('startLineNumber or endLineNumber must not exceed ' + MAX_LINE_NUMBER);
-				}
-				while (parentIndexes.length > 0 && !isInsideLast(startLineNumber, endLineNumber)) {
-					parentIndexes.pop();
-				}
-				const parentIndex = parentIndexes.length > 0 ? parentIndexes[parentIndexes.length - 1] : -1;
-				parentIndexes.push(i);
-				this._startIndexes[i] = startLineNumber + ((parentIndex & 0xFF) << 24);
-				this._endIndexes[i] = endLineNumber + ((parentIndex & 0xFF00) << 16);
-			}
-		}
 	}
 
 	public get length(): number {
@@ -347,52 +316,5 @@ class FoldingRegions {
 
 	public getEndLineNumber(index: number): number {
 		return this._endIndexes[index] & MAX_LINE_NUMBER;
-	}
-
-	public getParentIndex(index: number) {
-		this.ensureParentIndices();
-		const parent = ((this._startIndexes[index] & MASK_INDENT) >>> 24) + ((this._endIndexes[index] & MASK_INDENT) >>> 16);
-		if (parent === MAX_FOLDING_REGIONS) {
-			return -1;
-		}
-		return parent;
-	}
-
-	public contains(index: number, line: number) {
-		return this.getStartLineNumber(index) <= line && this.getEndLineNumber(index) >= line;
-	}
-
-	private findIndex(line: number) {
-		let low = 0, high = this._startIndexes.length;
-		if (high === 0) {
-			return -1; // no children
-		}
-		while (low < high) {
-			const mid = Math.floor((low + high) / 2);
-			if (line < this.getStartLineNumber(mid)) {
-				high = mid;
-			} else {
-				low = mid + 1;
-			}
-		}
-		return low - 1;
-	}
-
-	public findRange(line: number): number {
-		let index = this.findIndex(line);
-		if (index >= 0) {
-			const endLineNumber = this.getEndLineNumber(index);
-			if (endLineNumber >= line) {
-				return index;
-			}
-			index = this.getParentIndex(index);
-			while (index !== -1) {
-				if (this.contains(index, line)) {
-					return index;
-				}
-				index = this.getParentIndex(index);
-			}
-		}
-		return -1;
 	}
 }

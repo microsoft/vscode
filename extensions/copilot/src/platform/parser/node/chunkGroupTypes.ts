@@ -109,12 +109,3 @@ export class QueryMatchTree<DetailType extends DetailBlock> {
 	}
 
 }
-
-/**
- * A tree of block names that would appear in semantic chunks.
- */
-
-export interface BlockNameNode {
-	name: string;
-	children: BlockNameNode[];
-}

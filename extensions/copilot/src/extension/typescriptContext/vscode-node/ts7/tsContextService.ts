@@ -17,7 +17,7 @@ import * as protocol from '../../common/serverProtocol';
 import { ContextItemResultBuilder, ResolvedRunnableResult } from '../types';
 import { AbstractTSLanguageContextService, currentTokenBudget } from '../tsContextService';
 import { computeContext as computeServerContext } from './api';
-import { CharacterBudget, ComputeContextSession, ContextResult, RequestContext as ServerRequestContext, TokenBudgetExhaustedError } from './contextProvider';
+import { CharacterBudget, ComputeContextSession, ContextResult, RequestContext as ServerRequestContext } from './contextProvider';
 import { CancellationTokenWithTimer, OperationCanceledException } from './typescripts';
 import { TypeScript7Api } from './ts7Api';
 
@@ -259,7 +259,7 @@ export class TS7LanguageContextService extends AbstractTSLanguageContextService 
 						if (token.isCancellationRequested) {
 							throw error;
 						}
-					} else if (!(error instanceof TokenBudgetExhaustedError)) {
+					} else {
 						throw error;
 					}
 				}

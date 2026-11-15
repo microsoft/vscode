@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IndentationTree, isBlank, isLine, isTop, isVirtual, JsonStable, LineNode } from './classes';
+import { IndentationTree, isBlank, isLine, isTop, isVirtual, LineNode } from './classes';
 import { foldTree } from './manipulation';
 
 /**
@@ -101,30 +101,6 @@ export function describeTree<L>(tree: IndentationTree<L>, indent = 0): string {
 		return `${prefix}blank(${labelString ?? ''})`;
 	} else {
 		return `${prefix}lnode(${tree.indentation}, ${labelString}, ${JSON.stringify(tree.sourceLine)}, ${children})`;
-	}
-}
-
-/**
- * Return a string that mimics the call that would construct the tree
- * This is less readable than describeTree, but useful to write code.
- */
-export function encodeTree<T extends JsonStable>(tree: IndentationTree<T>, indent = ''): string {
-	const labelString = tree.label === undefined ? '' : `, ${JSON.stringify(tree.label)}`;
-
-	const subString =
-		!isBlank(tree) && tree.subs.length > 0
-			? `[\n${tree.subs.map(node => encodeTree(node, indent + '  ')).join(', \n')}\n${indent}]`
-			: '[]';
-
-	switch (tree.type) {
-		case 'blank':
-			return `${indent}blankNode(${tree.lineNumber}${labelString})`;
-		case 'top':
-			return `topNode(${subString}${labelString})`;
-		case 'virtual':
-			return `${indent}virtualNode(${tree.indentation}, ${subString}${labelString})`;
-		case 'line':
-			return `${indent}lineNode(${tree.indentation}, ${tree.lineNumber}, "${tree.sourceLine}", ${subString}${labelString})`;
 	}
 }
 

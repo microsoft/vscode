@@ -285,14 +285,6 @@ export abstract class FileRepresentation implements IDisposable {
 	abstract getText(): Promise<string>;
 
 	protected abstract getStats(): Promise<{ size: number; mtime: number }>;
-
-	/**
-	 * Get an id that quickly lets you check if a file has changed.
-	 */
-	async getFastContentVersionId(): Promise<string> {
-		const stats = await this.getStats();
-		return `${stats.size}-${stats.mtime}`;
-	}
 }
 
 interface FileTruncationInfo {

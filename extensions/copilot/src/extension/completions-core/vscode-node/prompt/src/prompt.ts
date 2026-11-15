@@ -33,9 +33,6 @@ export const DEFAULT_PROMPT_ALLOCATION_PERCENT = {
 	volatileContext: 15,
 } as const;
 
-export type PromptComponentId = keyof typeof DEFAULT_PROMPT_ALLOCATION_PERCENT;
-export type PromptComponentAllocation = Record<PromptComponentId, number>;
-
 /**
  * Information about a document, not including the offset.
  */

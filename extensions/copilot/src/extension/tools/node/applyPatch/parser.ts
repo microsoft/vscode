@@ -97,39 +97,6 @@ interface FuzzMatch {
 	fuzz: Fuzz;
 }
 
-export function assemble_changes(
-	orig: Record<string, string | null>,
-	updatedFiles: Record<string, string | null>,
-): Commit {
-	const commit: Commit = { changes: {} };
-	for (const [p, newContent] of Object.entries(updatedFiles)) {
-		const oldContent = orig[p];
-		if (oldContent === newContent) {
-			continue;
-		}
-		if (oldContent !== undefined && newContent !== undefined) {
-			commit.changes[p] = {
-				type: ActionType.UPDATE,
-				oldContent,
-				newContent,
-			};
-		} else if (newContent !== undefined) {
-			commit.changes[p] = {
-				type: ActionType.ADD,
-				newContent,
-			};
-		} else if (oldContent !== undefined) {
-			commit.changes[p] = {
-				type: ActionType.DELETE,
-				oldContent,
-			};
-		} else {
-			throw new Error('Unexpected state in assemble_changes');
-		}
-	}
-	return commit;
-}
-
 // -----------------------------------------------------------------------------
 // Patch‑related structures
 // -----------------------------------------------------------------------------

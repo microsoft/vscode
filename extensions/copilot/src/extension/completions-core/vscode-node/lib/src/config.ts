@@ -6,7 +6,6 @@ import { packageJson } from '../../../../../platform/env/common/packagejson';
 import { createServiceIdentifier } from '../../../../../util/common/services';
 import { ServicesAccessor } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { CopilotConfigPrefix } from './constants';
-import { Filter } from './experiments/filters';
 import { Emitter, Event } from './util/event';
 
 export { packageJson };
@@ -376,8 +375,6 @@ export type EditorInfo = NameAndVersion & {
 };
 
 export type EditorPluginInfo = NameAndVersion;
-
-export type EditorPluginFilter = { filter: Filter; value: string; isVersion?: boolean };
 
 export function formatNameAndVersion({ name, version }: NameAndVersion): string {
 	return `${name}/${version}`;

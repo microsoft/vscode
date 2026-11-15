@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { splitLines } from '../../../../../util/vs/base/common/strings';
-import { Position } from '../../../../../util/vs/editor/common/core/position';
 import { Range } from '../../../../../util/vs/editor/common/core/range';
 import { TextLength } from '../../../../../util/vs/editor/common/core/text/textLength';
 
@@ -91,23 +89,6 @@ export function lengthDiffNonNegative(length1: Length, length2: Length): Length 
 	}
 }
 
-export function lengthLessThan(length1: Length, length2: Length): boolean {
-	// First, compare line counts, then column counts.
-	return (length1 as any as number) < (length2 as any as number);
-}
-
-export function lengthLessThanEqual(length1: Length, length2: Length): boolean {
-	return (length1 as any as number) <= (length2 as any as number);
-}
-
-export function lengthGreaterThanEqual(length1: Length, length2: Length): boolean {
-	return (length1 as any as number) >= (length2 as any as number);
-}
-
-export function positionToLength(position: Position): Length {
-	return toLength(position.lineNumber - 1, position.column - 1);
-}
-
 export function lengthsToRange(lengthStart: Length, lengthEnd: Length): Range {
 	const l = lengthStart as any as number;
 	const lineCount = Math.floor(l / factor);
@@ -118,9 +99,4 @@ export function lengthsToRange(lengthStart: Length, lengthEnd: Length): Range {
 	const colCount2 = l2 - lineCount2 * factor;
 
 	return new Range(lineCount + 1, colCount + 1, lineCount2 + 1, colCount2 + 1);
-}
-
-export function lengthOfString(str: string): Length {
-	const lines = splitLines(str);
-	return toLength(lines.length - 1, lines[lines.length - 1].length);
 }

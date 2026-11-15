@@ -459,9 +459,4 @@ export class RenameSuggestionsProvider implements vscode.NewSymbolNamesProvider 
 			}
 		);
 	}
-
-	public static _determinePrefix(name: string): string | undefined {
-		const prefix = name.match(/^([\\.\\$\\_]+)/)?.[0];
-		return prefix;
-	}
 }

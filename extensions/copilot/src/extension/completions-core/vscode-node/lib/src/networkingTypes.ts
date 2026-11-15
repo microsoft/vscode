@@ -52,5 +52,3 @@ export interface IHeaders extends Iterable<[string, string]> {
 export interface IAbortSignal extends Pick<EventTarget, 'addEventListener' | 'removeEventListener'> {
 	readonly aborted: boolean;
 }
-
-export type ReqHeaders = { [key: string]: string };

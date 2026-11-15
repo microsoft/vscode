@@ -120,17 +120,6 @@ export interface ChatSessionMetadataFile {
 	modified?: number;
 }
 
-/**
- * One line in `~/.copilot/vscode.session.worktree.jsonl`. Maps a session id
- * to the path of its worktree so folder → session lookups work even when the
- * session has been evicted from the bulk metadata cache.
- */
-export interface WorktreeSessionEntry {
-	readonly id: string;
-	readonly path: string;
-	readonly created: number;
-}
-
 export const IChatSessionMetadataStore = createServiceIdentifier<IChatSessionMetadataStore>('IChatSessionMetadataStore');
 
 export interface IChatSessionMetadataStore {

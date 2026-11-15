@@ -143,5 +143,3 @@ export function vscodeToTreeSitterOffsetRange(range: Range, document: TextDocume
 export function treeSitterOffsetRangeToVSCodeRange(document: TextDocumentSnapshot, range: TreeSitterOffsetRange): vscode.Range {
 	return new Range(document.positionAt(range.startIndex), document.positionAt(range.endIndex));
 }
-
-export type NodeToDocumentContext = parser.NodeToDocumentContext;

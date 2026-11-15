@@ -436,7 +436,7 @@ export const functionQuery: LanguageQueryMap = q({
 	]
 });
 
-export const docCommentQueries: LanguageQueryMap = q({
+q({
 	[WASMLanguage.JavaScript]: [
 		treeSitterQuery.javascript`((comment) @comment
 			(#match? @comment "^\\\\/\\\\*\\\\*")) @docComment`

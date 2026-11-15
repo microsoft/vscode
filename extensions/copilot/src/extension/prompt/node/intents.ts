@@ -210,19 +210,6 @@ export interface IIntentInvocation extends Partial<IResponseProcessor> {
 	getAdditionalVariables?(context: IBuildPromptContext): ChatVariablesCollection | undefined;
 }
 
-export class NullIntentInvocation implements IIntentInvocation {
-
-	constructor(
-		readonly intent: IIntent,
-		readonly location: ChatLocation,
-		readonly endpoint: IChatEndpoint
-	) { }
-
-	async buildPrompt(): Promise<RenderPromptResult> {
-		return nullRenderPromptResult();
-	}
-}
-
 export interface IResponseProcessorContext {
 	/**
 	 * The chat session id

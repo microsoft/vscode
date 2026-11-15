@@ -279,10 +279,6 @@ class RunnableResultManager implements vscode.Disposable {
 		return this.requestInfo?.path ?? [0];
 	}
 
-	public getRunnableResult(id: protocol.ContextRunnableResultId): ResolvedRunnableResult | undefined {
-		return this.results.get(id);
-	}
-
 	public getCachedRunnableResults(document: vscode.TextDocument, position: vscode.Position, emitMode?: protocol.EmitMode): ResolvedRunnableResult[] {
 		const results: ResolvedRunnableResult[] = [];
 		if (this.requestInfo?.document !== document.uri.toString()) {

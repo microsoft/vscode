@@ -63,10 +63,6 @@ export class TimeTravelScheduler implements Scheduler {
 		return this.queue.length > 0;
 	}
 
-	getScheduledTasks(): readonly ScheduledTask[] {
-		return this.queue.toSortedArray();
-	}
-
 	runNext(): ScheduledTask | undefined {
 		const task = this.queue.removeMin();
 		if (task) {
@@ -335,7 +331,6 @@ interface PriorityQueue<T> {
 	remove(value: T): void;
 
 	removeMin(): T | undefined;
-	toSortedArray(): T[];
 }
 
 class SimplePriorityQueue<T> implements PriorityQueue<T> {
@@ -366,16 +361,6 @@ class SimplePriorityQueue<T> implements PriorityQueue<T> {
 	removeMin(): T | undefined {
 		this.ensureSorted();
 		return this.items.shift();
-	}
-
-	getMin(): T | undefined {
-		this.ensureSorted();
-		return this.items[0];
-	}
-
-	toSortedArray(): T[] {
-		this.ensureSorted();
-		return [...this.items];
 	}
 
 	private ensureSorted() {

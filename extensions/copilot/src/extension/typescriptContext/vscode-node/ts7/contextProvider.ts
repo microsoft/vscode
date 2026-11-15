@@ -701,16 +701,9 @@ export interface ProviderComputeContext {
 
 export type ContextProviderFactory = (node: Node, tokenInfo: tss.TokenInfo, context: ProviderComputeContext) => ContextProvider | undefined;
 
-export class TokenBudgetExhaustedError extends Error {
-	constructor() {
-		super('Budget exhausted');
-	}
-}
-
 export class CharacterBudget {
 	private charBudget: number;
 	private readonly lowWaterMark: number;
-	private itemRejected: boolean = false;
 
 	constructor(budget: number, lowWaterMark: number = 256) {
 		this.charBudget = budget;
@@ -722,30 +715,11 @@ export class CharacterBudget {
 	}
 
 	public hasRoom(chars: number): boolean {
-		const result = this.charBudget - this.lowWaterMark >= chars;
-		if (!result) {
-			this.itemRejected = true;
-		}
-		return result;
+		return this.charBudget - this.lowWaterMark >= chars;
 	}
 
 	public isExhausted(): boolean {
 		return this.charBudget <= 0;
-	}
-
-	public wasItemRejected(): boolean {
-		return this.itemRejected;
-	}
-
-	public throwIfExhausted(): void {
-		if (this.isExhausted()) {
-			throw new TokenBudgetExhaustedError();
-		}
-	}
-
-	public spentAndThrowIfExhausted(chars: number): void {
-		this.spent(chars);
-		this.throwIfExhausted();
 	}
 }
 

@@ -8,7 +8,7 @@ import * as l10n from '@vscode/l10n';
 import { createReadStream } from 'node:fs';
 import { devNull } from 'node:os';
 import { createInterface } from 'node:readline';
-import type { ChatCustomAgent, ChatRequest, ChatSessionItem } from 'vscode';
+import type { ChatCustomAgent, ChatSessionItem } from 'vscode';
 import { IChatDebugFileLoggerService } from '../../../../platform/chat/common/chatDebugFileLoggerService';
 import { ModelDetailsInfo } from '../../../../platform/chat/common/chatModelDetails';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
@@ -103,7 +103,6 @@ export interface ICopilotCLISessionItem {
 	readonly status?: ChatSessionStatus;
 	readonly workingDirectory?: Uri;
 }
-export type ExtendedChatRequest = ChatRequest & { prompt: string };
 export type ISessionOptions = {
 	model?: string;
 	reasoningEffort?: string;
@@ -1469,10 +1468,6 @@ function labelFromPrompt(prompt: string): string {
 export class Mutex {
 	private _locked = false;
 	private readonly _acquireQueue: (() => void)[] = [];
-
-	isLocked(): boolean {
-		return this._locked;
-	}
 
 	// Acquire the lock; resolves with a release function you MUST call.
 	acquire(token: CancellationToken): Promise<IDisposable | undefined> {

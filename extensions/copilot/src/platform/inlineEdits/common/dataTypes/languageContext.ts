@@ -130,9 +130,3 @@ function serializeDiagnostic(diagnostic: Diagnostic, resource?: Uri): Serialized
 	}
 	return result;
 }
-
-export function serializeFileDiagnostics(diagnostics: [Uri, Diagnostic[]][]): SerializedDiagnostic[] {
-	return diagnostics.flatMap(([resource, diags]) =>
-		diags.map(diagnostic => serializeDiagnostic(diagnostic, resource))
-	);
-}

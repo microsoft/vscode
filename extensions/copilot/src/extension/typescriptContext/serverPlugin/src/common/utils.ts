@@ -486,23 +486,3 @@ export class LRUCache<K, V> extends Cache<K, V> {
 		return this;
 	}
 }
-
-export class MRUCache<K, V> extends Cache<K, V> {
-
-	constructor(limit: number, ratio: number = 1) {
-		super(limit, ratio);
-	}
-
-	protected override trim(newSize: number) {
-		this.trimNew(newSize);
-	}
-
-	override set(key: K, value: V): this {
-		if (this._limit <= this.size && !this.has(key)) {
-			this.trim(Math.round(this._limit * this._ratio) - 1);
-		}
-
-		super.set(key, value);
-		return this;
-	}
-}

@@ -18,11 +18,6 @@ import { Diagnostic, DiagnosticSeverity } from '../../../vscodeTypes';
 import { PromptTags } from './tags';
 import { CurrentDocument } from './xtabCurrentDocument';
 
-export interface LintDiagnosticsContext {
-	readonly diagnostics: readonly Diagnostic[];
-	readonly cursorLineNumber: number;
-}
-
 export class LintErrors {
 
 	private _previousFormttedDiagnostics: readonly DiagnosticDataWithDistance[] | undefined;

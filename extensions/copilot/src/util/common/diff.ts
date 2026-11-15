@@ -42,20 +42,6 @@ export class DiffChange {
 		this.modifiedStart = modifiedStart;
 		this.modifiedLength = modifiedLength;
 	}
-
-	/**
-	 * The end point (exclusive) of the change in the original sequence.
-	 */
-	public getOriginalEnd() {
-		return this.originalStart + this.originalLength;
-	}
-
-	/**
-	 * The end point (exclusive) of the change in the modified sequence.
-	 */
-	public getModifiedEnd() {
-		return this.modifiedStart + this.modifiedLength;
-	}
 }
 
 export interface ISequence {
@@ -75,27 +61,6 @@ export class LineSequence implements ISequence {
 			elements[i] = this.trimWhitespace ? this.lines[i].trim() : this.lines[i];
 		}
 		return elements;
-	}
-
-	public getCharCount(): number {
-		let cnt = 0;
-		for (const line of this.lines) {
-			cnt += line.length;
-		}
-		return cnt;
-	}
-}
-
-export class CharSequence implements ISequence {
-
-	private readonly _chars: string[];
-
-	constructor(str: string) {
-		this._chars = str.split('');
-	}
-
-	public getElements(): string[] {
-		return this._chars;
 	}
 }
 

@@ -116,12 +116,3 @@ class SnippyTelemetry extends CodeQuoteTelemetry {
 }
 
 export const snippyTelemetry = new SnippyTelemetry();
-
-/** @public KEEPING FOR TESTS */
-export class NoopTelemetryReporter extends CodeQuoteTelemetry {
-	constructor(baseKey = '') {
-		super(baseKey);
-	}
-	telemetry(...args: Parameters<typeof telemetry>) { }
-	telemetryError(...args: Parameters<typeof telemetryError>) { }
-}

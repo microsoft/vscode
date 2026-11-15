@@ -581,10 +581,6 @@ export abstract class ChatTelemetry<C extends IDocumentContext | undefined = IDo
 
 	protected abstract _sendResponseInternalTelemetryEvent(responseType: ChatFetchResponseType, response: string): void;
 
-	protected _getTelemetryData<T extends TelemetryData>(ctor: new (...args: any[]) => T): T | undefined {
-		return <T>this._genericTelemetryData.find(d => d instanceof ctor);
-	}
-
 }
 
 export class PanelChatTelemetry extends ChatTelemetry<IDocumentContext | undefined> {

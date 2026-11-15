@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PriorityQueue } from '../../util/priorityQueue';
-import { DEFAULT_ELISION_MARKER, getAvailableNodeId, NodeCostFunction } from './utils';
+import { DEFAULT_ELISION_MARKER, getAvailableNodeId } from './utils';
 
 export type NodeId = number;
 
@@ -319,39 +319,3 @@ function recursivelyRender(
 	renderedNodes.set(node.id, node);
 	return true;
 }
-
-/**
- * Freeze a tree of virtual nodes into RenderNodes, using a given cost function and elision marker.
- *
- * Optionally, make use a cache (such as an LRUCacheMap) mapping IDs to RenderNodes. When we encounter a cached ID,
- * we return the cached RenderNode without recursing further. For this to behave as expected, the IVirtualNodes
- * *must* change their ID whenever their subtree changes.
- */
-export function snapshot(
-	node: IVirtualNode,
-	costFunction: NodeCostFunction,
-	elisionMarker: string = DEFAULT_ELISION_MARKER
-): RenderNode {
-	const children = node.children.map(child => snapshot(child, costFunction, elisionMarker));
-	elisionMarker = node.elisionMarker ?? elisionMarker;
-	const cost = costFunction(node);
-	const renderNode: RenderNode = createRenderNode({
-		...node,
-		children,
-		cost,
-		weight: 0,
-		elisionMarker: node.elisionMarker ?? elisionMarker,
-	});
-	return renderNode;
-}
-
-export const EMPTY_NODE: RenderNode = {
-	id: getAvailableNodeId(),
-	text: [''],
-	children: [],
-	cost: 0,
-	weight: 0,
-	elisionMarker: '',
-	canMerge: true,
-	requireRenderedChild: false,
-};
