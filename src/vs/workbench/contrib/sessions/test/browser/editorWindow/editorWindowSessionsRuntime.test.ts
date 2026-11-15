@@ -355,7 +355,7 @@ suite('EditorWindowSessionsService', () => {
 		assert.deepStrictEqual(opened, ['b']);
 	});
 
-	test('a chat open whose session still prepares is superseded by a later open, and supersedes an earlier one, by the sessions service and the navigation host alike, so the user\'s latest pick shows', async () => {
+	test('a chat open whose session still prepares is superseded by a later open, also of a quick chat, and supersedes an earlier one, by the sessions service and the navigation host alike, so the user\'s latest pick shows', async () => {
 		const a: ISession = { ...buildTestSession({ id: 'a', title: 'A' }).session, loading: constObservable(false) };
 		const b: ISession = { ...buildTestSession({ id: 'b', title: 'B' }).session, loading: constObservable(false) };
 		const run = async (kind: 'service' | 'navigation host') => {
@@ -365,7 +365,7 @@ suite('EditorWindowSessionsService', () => {
 			instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({}));
 			instantiationService.stub(ICommandService, upcastPartial<ICommandService>({}));
 			const presenterService = disposables.add(instantiationService.createInstance(EditorWindowSessionsPresenterService));
-			const registration = presenterService.registerPresenter(upcastPartial<IEditorWindowSessionsPresenter>({ openChat: async (session, chat) => { shown.push(`${session.sessionId}${chat ? ' chat' : ''}`); }, isShowing: () => false }));
+			const registration = presenterService.registerPresenter(upcastPartial<IEditorWindowSessionsPresenter>({ openChat: async (session, chat) => { shown.push(`${session.sessionId}${chat ? ' chat' : ''}`); }, openComposer: async () => { shown.push('composer'); }, isShowing: () => false }));
 			instantiationService.stub(IEditorWindowSessionsPresenterService, presenterService);
 			instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({}));
 			instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
@@ -396,19 +396,24 @@ suite('EditorWindowSessionsService', () => {
 
 			const bySession = await supersededBy(() => host.openSession(b.resource));
 			const byChat = await supersededBy(() => host.openChat(b, b.mainChat.get().resource));
-			// A session whose open still prepares does not show over a chat opened later
-			preparingA = new DeferredPromise<void>();
-			const openingA = host.openSession(a.resource);
-			await timeout(0);
-			await host.openChat(b, b.mainChat.get().resource);
-			preparingA.complete();
-			await openingA;
-			const overSessionOpen = shown.splice(0);
+			const byQuickChat = host instanceof EditorWindowSessionsService ? await supersededBy(async () => { host.openQuickChat(); }) : ['composer'];
+			// A session whose open still prepares does not show over a chat or a quick chat opened later
+			const sessionOpenSupersededBy = async (later: () => Promise<void>) => {
+				preparingA = new DeferredPromise<void>();
+				const openingA = host.openSession(a.resource);
+				await timeout(0);
+				await later();
+				preparingA.complete();
+				await openingA;
+				return shown.splice(0);
+			};
+			const overSessionOpen = await sessionOpenSupersededBy(() => host.openChat(b, b.mainChat.get().resource));
+			const quickChatOverSessionOpen = host instanceof EditorWindowSessionsService ? await sessionOpenSupersededBy(async () => { host.openQuickChat(); }) : ['composer'];
 			registration.dispose();
-			return { bySession, byChat, overSessionOpen };
+			return { bySession, byChat, byQuickChat, overSessionOpen, quickChatOverSessionOpen };
 		};
 
-		const expected = { bySession: ['b'], byChat: ['b chat'], overSessionOpen: ['b chat'] };
+		const expected = { bySession: ['b'], byChat: ['b chat'], byQuickChat: ['composer'], overSessionOpen: ['b chat'], quickChatOverSessionOpen: ['composer'] };
 		assert.deepStrictEqual({ service: await run('service'), navigationHost: await run('navigation host') }, { service: expected, navigationHost: expected });
 	});
 });
