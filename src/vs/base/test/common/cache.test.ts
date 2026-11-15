@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../common/async.js';
-import { Cache, LRUCachedFunction } from '../../common/cache.js';
+import { Cache, CachedFunction, LRUCachedFunction } from '../../common/cache.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Cache', () => {
@@ -113,5 +113,31 @@ suite('Cache', () => {
 
 		assert.strictEqual(cached.get(undefined), 'is-undefined');
 		assert.strictEqual(callCount, 3);
+	});
+
+	test('CachedFunction with custom cache key and cachedValues map', () => {
+		let callCount = 0;
+		const cached = new CachedFunction(
+			{ getCacheKey: (item: { id: string }) => item.id },
+			(item: { id: string; name: string }) => {
+				callCount++;
+				return item.name.toUpperCase();
+			}
+		);
+
+		const first = { id: 'a', name: 'apple' };
+		const second = { id: 'a', name: 'apricot' };
+		const third = { id: 'b', name: 'banana' };
+
+		assert.strictEqual(cached.get(first), 'APPLE');
+		assert.strictEqual(callCount, 1);
+
+		assert.strictEqual(cached.get(second), 'APPLE');
+		assert.strictEqual(callCount, 1);
+
+		assert.strictEqual(cached.get(third), 'BANANA');
+		assert.strictEqual(callCount, 2);
+
+		assert.strictEqual(cached.cachedValues.size, 2);
 	});
 });
