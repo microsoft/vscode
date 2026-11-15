@@ -9,12 +9,11 @@ import { IAccessibleViewImplementation } from '../../../../../platform/accessibi
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { FocusedViewContext, IsSessionsWindowContext } from '../../../../common/contextkeys.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../common/chatSessionCommands.js';
 import { RENAME_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { SessionsListNotificationFocused } from '../views/sessionsListNotification.js';
-import { SessionsView, SessionsViewId } from '../views/sessionsView.js';
+import { getSessionsViewResolver, SessionsViewId } from '../views/sessionsView.js';
 
 /**
  * The accessibility help of the Sessions view of an editor window, where its sessions open in the chat area beside it. The
@@ -27,12 +26,12 @@ export class SessionsViewAccessibilityHelp implements IAccessibleViewImplementat
 	readonly when = ContextKeyExpr.and(FocusedViewContext.isEqualTo(SessionsViewId), IsSessionsWindowContext.negate(), SessionsListNotificationFocused.negate());
 
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider {
-		const viewsService = accessor.get(IViewsService);
+		const getSessionsView = getSessionsViewResolver(accessor);
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.SessionsView,
 			{ type: AccessibleViewType.Help },
 			() => getSessionsViewAccessibilityHelpContent(),
-			() => viewsService.getViewWithId<SessionsView>(SessionsViewId)?.focus(),
+			() => getSessionsView()?.focus(),
 			AccessibilityVerbositySettingId.SessionsView,
 		);
 	}

@@ -51,12 +51,12 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 			return;
 		}
 
-		const scoped = instantiationService.invokeFunction(accessor => createEditorWindowSessionsScope(this, accessor.get(IWorkspaceContextService)));
-		this.registerView(scoped);
-		this._register(registerEditorWindowSessionsList(instantiationService, registerAgentsViewNewSessionActions));
 		// Accessibility help, as the window starts: help registered once the view shows would not be installed anymore
 		this._register(registerSessionsListAccessibilityHelp());
 		this._register(AccessibleViewRegistry.register(new SessionsViewAccessibilityHelp()));
+		const scoped = instantiationService.invokeFunction(accessor => createEditorWindowSessionsScope(this, accessor.get(IWorkspaceContextService)));
+		this.registerView(scoped);
+		this._register(registerEditorWindowSessionsList(instantiationService, registerAgentsViewNewSessionActions));
 
 		instantiationService.invokeFunction(accessor => {
 			// The sessions it lists are known while it or the chat part shows
