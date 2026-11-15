@@ -267,11 +267,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		this._register(confirmWidget.onDidClick(({ button, isTouchClick }) => {
 			button.data();
 			if (!isTouchClick) {
-				if (this.context.focusInput) {
-					this.context.focusInput();
-				} else {
-					this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
-				}
+				this.focusChatInput();
 			}
 		}));
 
@@ -305,6 +301,15 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 	 */
 	protected useAllowOnceAsPrimary(): boolean {
 		return false;
+	}
+
+	/** Focuses the input of the widget that shows this chat's input requests, such as the one whose list renders this. */
+	protected focusChatInput(): void {
+		if (this.context.focusInput) {
+			this.context.focusInput();
+		} else {
+			this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
+		}
 	}
 
 	protected abstract createContentElement(): HTMLElement | string;
