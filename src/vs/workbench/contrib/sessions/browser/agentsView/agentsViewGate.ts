@@ -34,6 +34,7 @@ import { registerSessionsListAccessibilityHelp, registerSessionsListActions, reg
 import { SessionsViewAccessibilityHelp } from './sessionsViewAccessibilityHelp.js';
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ISessionsViewOptions, SessionsView, SessionsViewId } from '../views/sessionsView.js';
+import { SessionsGrouping } from '../views/sessionsList.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { AGENTS_VIEW_CONTAINER_ID, AGENTS_VIEW_SETUP_VIEW_ID, AgentsViewAvailable, AgentsViewNeedsSetup, AgentsViewWhen } from './agentsView.js';
 import { AgentsViewSetupPane } from './agentsViewSetupPane.js';
@@ -42,6 +43,12 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 
 const AGENTS_VIEW_TITLE = localize2('agentsView.title', "Sessions");
+
+/**
+ * The groupings the Sessions view of an editor window offers: all of them, also {@link SessionsGrouping.Worktree}, which
+ * the Agents window does not offer. Until one is chosen, it shows Inbox or Workspace, as the Inbox setting says.
+ */
+const AGENTS_VIEW_SESSIONS_GROUPINGS: ISessionsViewOptions['groupings'] = { offered: Object.values(SessionsGrouping) };
 
 /** The container of the Sessions view in an editor window, whose title shows the actions of the sessions header. */
 class AgentsViewPaneContainer extends ViewPaneContainer {
@@ -55,7 +62,7 @@ class AgentsViewPaneContainer extends ViewPaneContainer {
 	}
 
 	protected override createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewPane {
-		const sessionsViewOptions: IViewletViewOptions & ISessionsViewOptions = { ...options, headerInTitle: true, showCustomizations: false, scoped: this.scoped };
+		const sessionsViewOptions: IViewletViewOptions & ISessionsViewOptions = { ...options, headerInTitle: true, showCustomizations: false, scoped: this.scoped, groupings: AGENTS_VIEW_SESSIONS_GROUPINGS };
 		return super.createView(viewDescriptor, sessionsViewOptions);
 	}
 }
