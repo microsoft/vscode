@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
@@ -13,7 +13,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { identityAgentHostResourceUriMapper } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentSessionMetadata } from '../../../../../../../platform/agentHost/common/agentService.js';
-import { withSessionMultiRootMetadata, withSessionWorkspaceless } from '../../../../../../../platform/agentHost/common/state/sessionState.js';
+import { type INotification } from '../../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ROOT_STATE_URI, SessionStatus, withSessionMultiRootMetadata, withSessionWorkspaceless } from '../../../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../../platform/workspace/common/workspace.js';
@@ -44,8 +45,9 @@ suite('AgentHostSessionListStore - project root', () => {
 			onDidChangeWorkspaceFolders: Event.None,
 			onDidChangeWorkbenchState: Event.None,
 		}));
+		const onDidNotification = store.add(new Emitter<INotification>());
 		const connection: IAgentHostSessionListConnection = {
-			onDidNotification: Event.None,
+			onDidNotification: onDidNotification.event,
 			resourceUris: identityAgentHostResourceUriMapper,
 			listSessions: async () => [...sessions],
 			disposeChat: async () => { },
@@ -55,6 +57,7 @@ suite('AgentHostSessionListStore - project root', () => {
 		const list = store.add(instantiationService.createInstance(AgentHostSessionListStore, connection, { matchProjectRoot }));
 		return {
 			matchProjectRoot,
+			notify: (notification: INotification) => onDidNotification.fire(notification),
 			shown: () => list.getSessions('copilot').map(entry => entry.rawId).sort(),
 			settle: async () => {
 				await new Promise<void>(resolve => setTimeout(resolve, 0));
@@ -163,6 +166,32 @@ suite('AgentHostSessionListStore - project root', () => {
 		await settle();
 
 		assert.deepStrictEqual({ off, on: shown() }, { off: ['other-repository'], on: [] });
+	});
+
+	test('while matching by project root, a session added or changed by the host is listed by its first folder as a listed one is: a folder appended later changes nothing, another first folder narrows the list', async () => {
+		const aph = URI.file('/work/agent-host-protocol.worktrees/chat-summary-docs').toString();
+		const vscode = URI.file('/work/vscode.worktrees/sync-docs').toString();
+		const { matchProjectRoot, notify, shown, settle } = createList([
+			sessionWithChats('listed', ['/work/agent-host-protocol.worktrees/chat-summary-docs'], '/work/agent-host-protocol'),
+			sessionWithChats('in-vscode', ['/work/vscode/src'], '/work/vscode'),
+		]);
+		matchProjectRoot.set(true, undefined);
+		await settle();
+		const log = [shown().join(',')];
+		const resource = (id: string) => URI.from({ scheme: 'copilot', path: `/${id}` }).toString();
+		notify({ type: 'root/sessionAdded', channel: ROOT_STATE_URI, summary: { resource: resource('added'), provider: 'copilot', title: 'Added', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), workingDirectories: [aph, vscode] } });
+		log.push(shown().join(','));
+		// Nested chats add folders: of the window's repository to one of another, of another repository to one of the window's
+		for (const id of ['listed', 'added']) {
+			notify({ type: 'root/sessionSummaryChanged', channel: ROOT_STATE_URI, session: resource(id), changes: { workingDirectories: [aph, vscode, URI.file('/work/vscode/src').toString()] } });
+		}
+		notify({ type: 'root/sessionSummaryChanged', channel: ROOT_STATE_URI, session: resource('in-vscode'), changes: { workingDirectories: [URI.file('/work/vscode/src').toString(), aph] } });
+		log.push(shown().join(','));
+		// Its first folder, and so its project, become of another repository
+		notify({ type: 'root/sessionSummaryChanged', channel: ROOT_STATE_URI, session: resource('in-vscode'), changes: { workingDirectories: [aph, URI.file('/work/vscode/src').toString()], project: { uri: URI.file('/work/agent-host-protocol').toString(), displayName: 'agent-host-protocol' } } });
+		log.push(shown().join(','));
+
+		assert.deepStrictEqual(log, ['in-vscode', 'in-vscode', 'in-vscode', '']);
 	});
 
 	test('while matching by project root, a session is listed in the window of its first folder or its project, not of a later folder of it, and as before without a workspace or folder', async () => {
