@@ -23,6 +23,9 @@ export enum ExpTreatmentVariables {
 
 	MaxPromptCompletionTokens = 'maxpromptcompletionTokens', // the maximum tokens of the prompt and completion
 
+	StableContextPercent = 'copilotstablecontextpercent',
+	VolatileContextPercent = 'copilotvolatilecontextpercent',
+
 	/**
 	 * Flags that control the enablement of the related files extensibility for various languages in VSCode.
 	 */
@@ -48,6 +51,8 @@ export enum ExpTreatmentVariables {
 	 */
 	CSharpContextProviderParams = 'copilotcsharpcontextproviderparams',
 
+	JavaContextProviderParams = 'copilotjavacontextproviderparams',
+
 	/**
 	 * Values to control the MultiLanguageContextProvider parameters.
 	 */
@@ -62,6 +67,9 @@ export enum ExpTreatmentVariables {
 	 * Controls the delay to apply to debouncing of completion requests.
 	 */
 	CompletionsDebounce = 'copilotcompletionsdebounce',
+
+	ElectronFetcher = 'copilotelectronfetcher',
+	FetchFetcher = 'copilotfetchfetcher',
 
 	/**
 	 * Sets the timeout for waiting for async completions in flight before
