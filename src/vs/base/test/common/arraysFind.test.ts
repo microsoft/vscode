@@ -64,5 +64,17 @@ suite('Arrays', () => {
 
 		// Subrange [0, 4) contains [1, 4, 5, 7]; none are >= 50
 		assert.strictEqual(findFirstIdxMonotonous(array, n => n >= 50, 0, 4), -1);
+
+		// Match exactly at start of subrange
+		assert.strictEqual(findFirstIdxMonotonous(array, n => n >= 55, 4, 8), 4);
+
+		// Match in middle of subrange
+		assert.strictEqual(findFirstIdxMonotonous(array, n => n >= 59, 2, 7), 5);
+
+		// Match at last valid subrange element (index 7 is < 8)
+		assert.strictEqual(findFirstIdxMonotonous(array, n => n >= 61, 0, 8), 7);
+
+		// Element 64 is at index 8, excluded by endIdxEx = 8
+		assert.strictEqual(findFirstIdxMonotonous(array, n => n >= 64, 0, 8), -1);
 	});
 });
