@@ -5849,8 +5849,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}));
 
 		// Re-render when the session the main window shows changes: chat windows, which are other windows, do not select theirs.
+		// The list renders and selects the session it shows first as it is created, below.
+		let initialShown = true;
 		this._register(autorun(reader => {
 			const shown = this._mainWindowShown.read(reader);
+			if (initialShown) {
+				initialShown = false;
+				return;
+			}
 			this.activeSessionUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
 				if (this.visible) {
 					this.update();

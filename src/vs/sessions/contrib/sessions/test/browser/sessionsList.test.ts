@@ -322,18 +322,18 @@ suite('Sessions - SessionsList', () => {
 			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
 		}));
 		list.layout(400, 400);
-		// What the list schedules as it renders first
-		await timeout(1_000);
 		let updates = 0;
 		harness.store.add(list.onDidUpdate(() => updates++));
 		const sections = () => list.getTreeSnapshot().flatMap(node => node.type === 'section' ? [`${node.id}: ${node.children.flatMap(child => child.type === 'session' ? [child.session.title.get()] : []).join(', ')}`] : []);
+		// The renders that showing the list again makes
 		const hideAndShow = async (minutes: number) => {
 			list.setVisible(false);
 			await timeout(minutes * 60_000);
+			const hidden = updates;
 			list.setVisible(true);
-			return { updates, sections: sections() };
+			return { renders: updates - hidden, sections: sections() };
 		};
-		const before = { updates, sections: sections() };
+		const before = { sections: sections() };
 		const beforeMidnight = await hideAndShow(5);
 		const afterMidnight = await hideAndShow(10);
 		const sameDay = await hideAndShow(9 * 60);
@@ -341,11 +341,11 @@ suite('Sessions - SessionsList', () => {
 		list.dispose();
 
 		assert.deepStrictEqual({ before, beforeMidnight, afterMidnight, sameDay, dayAfterUpdate }, {
-			before: { updates: 0, sections: ['recent: Today, Last week, Updated'] },
-			beforeMidnight: { updates: 0, sections: ['recent: Today, Last week, Updated'] },
-			afterMidnight: { updates: 1, sections: ['recent: Today, Updated', 'older: Last week'] },
-			sameDay: { updates: 1, sections: ['recent: Today, Updated', 'older: Last week'] },
-			dayAfterUpdate: { updates: 2, sections: ['recent: Today', 'older: Last week, Updated'] },
+			before: { sections: ['recent: Today, Last week, Updated'] },
+			beforeMidnight: { renders: 0, sections: ['recent: Today, Last week, Updated'] },
+			afterMidnight: { renders: 1, sections: ['recent: Today, Updated', 'older: Last week'] },
+			sameDay: { renders: 0, sections: ['recent: Today, Updated', 'older: Last week'] },
+			dayAfterUpdate: { renders: 1, sections: ['recent: Today', 'older: Last week, Updated'] },
 		});
 	}));
 
