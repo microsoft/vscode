@@ -24,6 +24,8 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { registerSessionsListAccessibilityHelp, registerSessionsListActions } from '../../browser/views/sessionsListActions.js';
 
 suite('EditorWindowSessionsList', () => {
 
@@ -113,4 +115,21 @@ suite('EditorWindowSessionsList', () => {
 	function localize2Value(value: string) {
 		return { value, original: value, toString: () => value };
 	}
+
+	test('the accessibility help of the sessions list\'s Undo notice registers once while any holder holds it, also the list\'s actions, and goes with the last', () => {
+		const helps = () => AccessibleViewRegistry.getImplementations().filter(help => help.name === 'sessions-list-notification').length;
+		// The Agents window's list, which other tests load, may hold it for good
+		const before = helps();
+		const first = registerSessionsListAccessibilityHelp();
+		const actions = registerSessionsListActions();
+		const second = registerSessionsListAccessibilityHelp();
+		const held = helps();
+		first.dispose();
+		first.dispose();
+		second.dispose();
+		const heldByActions = helps();
+		actions.dispose();
+
+		assert.deepStrictEqual({ held, heldByActions, afterDispose: helps() }, { held: 1, heldByActions: 1, afterDispose: before });
+	});
 });
