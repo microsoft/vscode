@@ -5472,6 +5472,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 			isSearching: () => this.searchFilter.isSearching,
 			// Showing no chats of a session that has some makes its row stand for the whole session.
 			didFilter: () => this.syncCollapsedSessionIds(),
+			didClose: () => {
+				// Consume a pending shown-chat update now, so its later reveal cannot reopen a collapsed section.
+				this.activeSessionUpdate.clear();
+				this.update();
+				if (!this.syncActiveChatSelection(this._mainWindowShown.get(), true)) {
+					this.clearFocus();
+				}
+			},
 			getResults: () => this.getSearchResults(),
 		}, {
 			findWidgetContainer: this.options.findWidgetContainer,
@@ -6976,38 +6984,44 @@ export class SessionsList extends Disposable implements ISessionsList {
 		});
 	}
 
-	private syncActiveChatSelection(shown: IShownChat | undefined): void {
+	/** Restores the shown chat's row, optionally preserving collapsed ancestors when cancelling search. */
+	private syncActiveChatSelection(shown: IShownChat | undefined, preserveCollapsed = false): boolean {
 		if (!shown) {
-			return;
+			return false;
 		}
 		const session = this.sessions.find(candidate => candidate.sessionId === shown.session.sessionId);
 		if (!session) {
-			return;
+			return false;
 		}
 		const activeChat = shown.chat;
 		const chatRow = this.findChatRow(session, activeChat.resource);
-		if (!chatRow) {
-			const tree = this.getTree(session);
-			if (tree.hasElement(session)) {
-				tree.setFocus([session]);
-				tree.setSelection([session]);
-			}
-			return;
+		const item = chatRow?.chatItem ?? session;
+		const tree = this.getTree(item);
+		if (!tree.hasElement(item)) {
+			return false;
 		}
-		const { parent, chatItem } = chatRow;
-		const tree = this.getTree(chatItem);
-		if (parent) {
+		if (preserveCollapsed) {
+			// Check before revealing: reveal expands ancestors, and even a hidden row's logical focus can handle Enter.
+			for (let parent = tree.getParentElement(item); parent; parent = tree.getParentElement(parent)) {
+				if (tree.isCollapsed(parent)) {
+					return false;
+				}
+			}
+		} else if (chatRow?.parent) {
 			const previousSuspendCollapseStatePersistence = this.suspendCollapseStatePersistence;
 			this.suspendCollapseStatePersistence = true;
 			try {
-				tree.expand(parent);
+				tree.expand(chatRow.parent);
 			} finally {
 				this.suspendCollapseStatePersistence = previousSuspendCollapseStatePersistence;
 			}
 		}
-		this.revealActiveItem(chatItem);
-		tree.setFocus([chatItem]);
-		tree.setSelection([chatItem]);
+		if (chatRow || preserveCollapsed) {
+			this.revealActiveItem(item);
+		}
+		tree.setFocus([item]);
+		tree.setSelection([item]);
+		return true;
 	}
 
 	private revealActiveItem(element: SessionListItem): void {

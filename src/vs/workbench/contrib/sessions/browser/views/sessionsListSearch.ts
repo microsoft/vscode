@@ -246,6 +246,8 @@ export interface ISessionsListFindControllerDelegate {
 	isSearching(): boolean;
 	/** Called after the tree filtered its rows by a changed pattern. */
 	didFilter(): void;
+	/** Restores row focus after the search filter is removed, before DOM focus returns to the trees. */
+	didClose(): void;
 	/** What the search shows. */
 	getResults(): ISessionsListSearchResults;
 }
@@ -303,9 +305,9 @@ export class SessionsListFindController<T> extends AbstractFindController<T, Fuz
 		if (!this.isOpened()) {
 			return;
 		}
-		const focusedTree = this.focusedTree;
 		super.close();
-		focusedTree.domFocus();
+		this.delegate.didClose();
+		this.focusedTree.domFocus();
 	}
 
 	protected applyPattern(): void {
