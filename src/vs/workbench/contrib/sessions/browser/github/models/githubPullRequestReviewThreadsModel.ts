@@ -83,10 +83,10 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 		}));
 	}
 
-	/** Forced refreshes wait for the current scan to avoid reusing its pre-mutation response. */
+	/** Refreshes review threads. */
 	refresh(force = false, options?: ApiRequestOptions): Promise<void> {
 		if (force && this._refreshPromise) {
-			return this._refreshPromise.then(() => this.refresh(true, options));
+			return this.refresh(false, options).then(() => this.refresh(true, options));
 		}
 
 		const priority = options?.priority ?? 'interactive';
@@ -133,7 +133,7 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 	 */
 	async postReviewComment(body: string, inReplyTo: number): Promise<IGitHubPRComment> {
 		const comment = await this._fetcher.postReviewComment(this.owner, this.repo, this.prNumber, body, inReplyTo, this._token);
-		await this.refresh(true, { priority: 'mutationReconciliation' });
+		await this.refresh(true);
 		return comment;
 	}
 
@@ -142,7 +142,7 @@ export class GitHubPullRequestReviewThreadsModel extends Disposable {
 	 */
 	async resolveThread(threadId: string): Promise<void> {
 		await this._fetcher.resolveThread(this.owner, this.repo, threadId, this._token);
-		await this.refresh(true, { priority: 'mutationReconciliation' });
+		await this.refresh(true);
 	}
 
 	/**

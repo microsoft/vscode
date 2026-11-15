@@ -461,12 +461,10 @@ suite('GitHubPullRequestReviewThreadsModel', () => {
 			commentBody: comment.body,
 			postReviewCommentCalls: mockFetcher.postReviewCommentCalls,
 			threads: model.reviewThreads.get().map(thread => thread.id),
-			priorities: mockFetcher.priorities,
 		}, {
 			commentBody: 'LGTM',
 			postReviewCommentCalls: [{ body: 'LGTM', inReplyTo: 100 }],
 			threads: ['thread-100'],
-			priorities: ['mutationReconciliation'],
 		});
 	});
 
@@ -491,8 +489,8 @@ suite('GitHubPullRequestReviewThreadsModel', () => {
 		}, {
 			postReviewCommentCalls: [{ body: 'LGTM', inReplyTo: 100 }],
 			threads: ['thread-200'],
-			getReviewThreadsCalls: 2,
-			priorities: ['background', 'mutationReconciliation'],
+			getReviewThreadsCalls: 3,
+			priorities: ['background', 'interactive', 'interactive'],
 		});
 	});
 
@@ -526,12 +524,10 @@ suite('GitHubPullRequestReviewThreadsModel', () => {
 			resolveThreadCalls: mockFetcher.resolveThreadCalls,
 			getReviewThreadsCalls: mockFetcher.getReviewThreadsCalls,
 			threads: model.reviewThreads.get(),
-			priorities: mockFetcher.priorities,
 		}, {
 			resolveThreadCalls: [{ threadId: 'thread-100' }],
 			getReviewThreadsCalls: 1,
 			threads: [],
-			priorities: ['mutationReconciliation'],
 		});
 	});
 
@@ -552,12 +548,10 @@ suite('GitHubPullRequestReviewThreadsModel', () => {
 			resolveThreadCalls: mockFetcher.resolveThreadCalls,
 			threads: model.reviewThreads.get().map(thread => thread.id),
 			getReviewThreadsCalls: mockFetcher.getReviewThreadsCalls,
-			priorities: mockFetcher.priorities,
 		}, {
 			resolveThreadCalls: [{ threadId: 'thread-100' }],
 			threads: [],
 			getReviewThreadsCalls: 2,
-			priorities: ['interactive', 'mutationReconciliation'],
 		});
 	});
 
@@ -820,8 +814,7 @@ suite('GitHubPullRequestCIModel', () => {
 	});
 
 	test('rerunFailedCheck refreshes after an in-progress refresh completes', async () => {
-		const requiredRefreshes: boolean[] = [];
-		const model = store.add(new GitHubPullRequestCIModel('owner', 'repo', 1, 'abc', mockFetcher, logService, storageService, checksSource(undefined, requiredRefreshes)));
+		const model = acquireModel();
 		mockFetcher.nextChecks = [
 			{ id: 1, name: 'build', status: GitHubCheckStatus.Completed, conclusion: GitHubCheckConclusion.Failure, startedAt: undefined, completedAt: undefined, detailsUrl: 'https://github.com/owner/repo/actions/runs/12345/job/67890' },
 		];
@@ -841,12 +834,10 @@ suite('GitHubPullRequestCIModel', () => {
 			checks: model.checks.get().map(check => check.conclusion),
 			getCheckRunsCalls: mockFetcher.getCheckRunsCalls,
 			priorities: mockFetcher.priorities,
-			requiredRefreshes,
 		}, {
 			checks: [GitHubCheckConclusion.Success],
-			getCheckRunsCalls: 2,
-			priorities: ['background', 'mutationReconciliation'],
-			requiredRefreshes: [false, true, false],
+			getCheckRunsCalls: 3,
+			priorities: ['background', 'interactive', 'interactive'],
 		});
 	});
 

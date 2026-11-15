@@ -181,16 +181,15 @@ export class GitHubPullRequestCIModel extends Disposable {
 		return new Map();
 	}
 
-	/** Forced refreshes wait for the current scan to avoid reusing its pre-mutation response. */
+	/** Refreshes CI checks. */
 	refresh(force = false, options?: ApiRequestOptions): Promise<void> {
-		if (force && this._refreshPromise) {
-			return this._refreshPromise.then(() => this.refresh(true, options));
-		}
-
 		if (!this._requiredChecksSubscription.value) {
 			this._subscribeRequiredChecks();
 		} else if (force) {
 			void this._requiredChecksHandle?.refresh(true, this._token).catch(error => this._logRequiredChecksError(error));
+		}
+		if (force && this._refreshPromise) {
+			return this.refresh(false, options).then(() => this.refresh(true, options));
 		}
 
 		const priority = options?.priority ?? 'interactive';
@@ -292,7 +291,7 @@ export class GitHubPullRequestCIModel extends Disposable {
 			return;
 		}
 		await this._fetcher.rerunFailedJobs(this.owner, this.repo, runId, this._token);
-		await this.refresh(true, { priority: 'mutationReconciliation' });
+		await this.refresh(true);
 	}
 
 	/**
