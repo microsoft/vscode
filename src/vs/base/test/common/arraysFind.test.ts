@@ -65,6 +65,9 @@ suite('Arrays', () => {
 		// Subrange [0, 4) contains [1, 4, 5, 7]; none are >= 50
 		assert.strictEqual(findFirstIdxMonotonous(array, n => n >= 50, 0, 4), -1);
 
+		// Subrange [2, 5) contains [5, 7, 55]; none are >= 60
+		assert.strictEqual(findFirstIdxMonotonous(array, n => n >= 60, 2, 5), -1);
+
 		// Match exactly at start of subrange
 		assert.strictEqual(findFirstIdxMonotonous(array, n => n >= 55, 4, 8), 4);
 
