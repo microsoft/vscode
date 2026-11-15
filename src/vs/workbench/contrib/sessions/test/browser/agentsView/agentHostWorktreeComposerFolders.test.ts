@@ -474,6 +474,33 @@ suite('AgentHostWorktreeComposerFolders', () => {
 		assert.deepStrictEqual({ replaced, moved, chatAdded, staleMoved, archived: changes }, { replaced: 0, moved: 1, chatAdded: 2, staleMoved: 2, archived: 3 });
 	});
 
+	test('the session layer\'s source tells as a session it reads is archived or unarchived, or gains or loses a chat that works elsewhere, without another event', () => {
+		const workspace = (path: string) => upcastPartial<ISessionWorkspace>({ folders: [{ root: URI.file('/work/vscode'), workingDirectory: URI.file(path), name: 'vscode', description: undefined }] });
+		const chat = (path: string) => upcastPartial<IChat>({ resource: URI.from({ scheme: 'ahp-chat', path }), workspace: observableValue('workspace', workspace(`/work/vscode.worktrees${path}`)) });
+		const first = chat('/first');
+		const chats = observableValue<readonly IChat[]>('chats', [first]);
+		const isArchived = observableValue('archived', false);
+		const session = upcastPartial<ISession>({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, isArchived, workspace: observableValue('workspace', workspace('/work/vscode')), chats });
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ onDidChangeSession: Event.None, getAllSessions: () => [session], getSessionForChatResource: () => undefined }));
+		const source = store.add(instantiationService.createInstance(AgentHostWorktreeSessionLayerSource));
+		const log: string[] = [];
+		const all = () => source.getWorkingDirectories().map(uri => uri.path).join(' ');
+		store.add(source.onDidChange(() => log.push(all())));
+
+		isArchived.set(true, undefined);
+		isArchived.set(false, undefined);
+		chats.set([first, chat('/second')], undefined);
+		chats.set([first], undefined);
+
+		assert.deepStrictEqual(log, [
+			'',
+			'/work/vscode /work/vscode.worktrees/first',
+			'/work/vscode /work/vscode.worktrees/first /work/vscode.worktrees/second',
+			'/work/vscode /work/vscode.worktrees/first',
+		]);
+	});
+
 	test('the session layer\'s source tells as a session comes to work in a new worktree in a folder other than its first', () => {
 		const folder = (path: string) => ({ root: URI.file(path), workingDirectory: URI.file(path), name: path, description: undefined });
 		const sessionWorkspace = observableValue<ISessionWorkspace | undefined>('workspace', upcastPartial<ISessionWorkspace>({ folders: [folder('/work/other'), folder('/work/vscode')] }));
