@@ -507,6 +507,29 @@ suite('Workbench layout chat part', () => {
 				restored: { hiddenByChat: true, editor: false, chat: true, panel: true },
 			});
 		});
+
+		test('a reload without a chat part, with the secondary side bar maximized, keeps the editor area hidden until it is restored', () => {
+			const before = createGridLayout(configuration);
+			before.layout.setEditorHiddenByChat(true);
+			before.layout.toggleMaximizedAuxiliaryBar();
+			const { layout } = createGridLayout({ ...configuration, chat: undefined }, before.save());
+			const reloaded = state(layout);
+			layout.toggleMaximizedAuxiliaryBar();
+			assert.deepStrictEqual({ reloaded, restored: state(layout) }, {
+				reloaded: { hiddenByChat: false, editor: false, chat: false, panel: false },
+				restored: { hiddenByChat: false, editor: true, chat: false, panel: true },
+			});
+		});
+
+		test('focus goes to the chat part, not the hidden editor area', () => {
+			const { layout } = createGridLayout(configuration);
+			const focused: Parts[] = [];
+			Object.assign(layout, { focusPart: (part: Parts) => focused.push(part) });
+			layout.focus();
+			layout.setEditorHiddenByChat(true);
+			layout.focus();
+			assert.deepStrictEqual(focused, [Parts.EDITOR_PART, Parts.CHAT_PART]);
+		});
 	});
 
 	test('a chat part hidden for a maximized panel shows after a reload when the panel no longer opens maximized there, as for a justified bottom panel', () => {
