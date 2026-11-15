@@ -255,6 +255,23 @@ suite('ChatViewHostService', () => {
 		assert.deepStrictEqual(steps, [true, true, false]);
 	});
 
+	test('registering a host that shows no chat yet does not take a new chat of New Chat that the Chat view shows and the host leaves to it, until a chat opens in the host', async () => {
+		const { service, view, shownSession, showView } = createService();
+		showView();
+		const localDraft = URI.parse('vscode-chat-session://local/draft');
+		// The Chat view starts a new chat of its own, such as New Session of a sessions list, and shows it
+		Object.assign(view, { newChat: async () => { shownSession.set({ resource: localDraft, reason: 'open' }, undefined); return true; } });
+		await service.newChat(undefined, { ownChat: true });
+		const steps = [service.chatViewHosts.get()];
+		const registration = service.registerHost({ ...upcastPartial<IChatViewHost>({}), canShow: resource => resource.scheme !== localDraft.scheme, openSession: async () => undefined });
+		steps.push(service.chatViewHosts.get());
+		await service.openSession(URI.parse('agent-host-copilot:/session'));
+		steps.push(service.chatViewHosts.get());
+		registration.dispose();
+
+		assert.deepStrictEqual(steps, [true, true, false]);
+	});
+
 	test('the shown chat is the one of the host that shows the chat: the Chat view\'s for the chats a registered host leaves to it, until a host restores another', async () => {
 		const { service, widget, shownSession, showView } = createService();
 		const shown = () => { const value = service.shownSession.get(); return value && `${value.resource.scheme} ${value.reason}`; };
