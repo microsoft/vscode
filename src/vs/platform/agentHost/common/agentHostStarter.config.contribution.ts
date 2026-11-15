@@ -237,7 +237,7 @@ configurationRegistry.registerConfiguration({
 		...artifactToolsConfigurationProperties,
 		[CanvasesEnabledSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.canvases.enabled', "Controls whether Agent Host Copilot sessions can open Canvases with interactive content in the Agents Window and the Editor Window. Sessions on remote agent hosts also require `#{0}#`, so canvas pages load through the agent host's network. Newly created sessions pick up changes to this setting.", 'workbench.browser.enableRemoteProxy'),
+			markdownDescription: nls.localize('chat.canvases.enabled', "Controls whether Agent Host Copilot sessions can open Canvases with interactive content in the Agents Window and the Editor Window. Sessions on remote agent hosts also require `#{0}#`, so canvas pages load through the agent host's network. Running sessions pick up changes to this setting when they next send a request or open a canvas.", 'workbench.browser.enableRemoteProxy'),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview'],
