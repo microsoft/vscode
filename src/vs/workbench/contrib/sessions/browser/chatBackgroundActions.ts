@@ -23,7 +23,7 @@ import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { INewSessionInAgentsWindowOptions } from '../../chat/common/chatSessionsService.js';
 import { AgentsChatPartVisibleContext } from './agentsView/agentsChatPartActions.js';
 import { AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, chatBackgroundImageExtensions, chatBackgroundImageLayoutValues, ChatBackgroundImageLayout, chatBackgroundPresets, getChatBackgroundPresetLabel, ISessionsChatBackgroundService, SessionsChatBackgroundPreset } from './chatBackgroundService.js';
-import { AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING, ToggleChatBackgroundTintAction } from './chatBackgroundTint.js';
+import { AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING, CHAT_BACKGROUND_CHAT_CONTEXT_MENU_WHEN, ToggleChatBackgroundTintAction } from './chatBackgroundTint.js';
 import { Menus } from './menus.js';
 import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, NEW_SESSION_ACTION_ID } from '../common/chatConstants.js';
 import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../common/contextkeys.js';
@@ -161,7 +161,7 @@ class SetChatBackgroundAction extends Action2 {
 				id: MenuId.ChatContext,
 				group: 'zz_background',
 				order: 1,
-				when: ContextKeyExpr.and(CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN, ChatContextKeys.contextMenuIsBackground),
+				when: ContextKeyExpr.and(CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN, CHAT_BACKGROUND_CHAT_CONTEXT_MENU_WHEN),
 			}],
 		});
 	}
@@ -272,7 +272,7 @@ class ChangeChatBackgroundLayoutAction extends Action2 {
 				id: MenuId.ChatContext,
 				group: 'zz_background',
 				order: 2,
-				when: ContextKeyExpr.and(CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_LAYOUT_WHEN, ChatContextKeys.contextMenuIsBackground),
+				when: ContextKeyExpr.and(CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_LAYOUT_WHEN, CHAT_BACKGROUND_CHAT_CONTEXT_MENU_WHEN),
 			}],
 		});
 	}

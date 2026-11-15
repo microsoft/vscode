@@ -128,6 +128,23 @@ suite('Agents Chat Part - chat background', () => {
 		});
 	});
 
+	test('the context menu of a chat offers the chat background\'s commands in the Agents window and in the chat area, not in another chat of an editor window whose chat area shows', () => {
+		const commands = ['workbench.action.chat.changeAgentSessionsBackground', 'workbench.action.chat.changeAgentSessionsBackgroundLayout', 'workbench.action.chat.toggleAgentSessionsBackgroundTint'];
+		const menu = MenuRegistry.getMenuItems(MenuId.ChatContext).filter(isIMenuItem);
+		const shown = (values: Record<string, ContextKeyValue>) => commands.map(id => !!menu.find(item => item.command.id === id)?.when?.evaluate({ getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T }));
+		const background = { 'chatIsEnabled': true, 'sessionsChatBackgroundAvailable': true, 'sessionsChatBackgroundImageConfigured': true, 'chatContextMenuIsBackground': true };
+
+		assert.deepStrictEqual({
+			chatArea: shown({ ...background, agentsChatPartVisible: true, inAgentsChatPart: true }),
+			agentsWindow: shown({ ...background, isSessionsWindow: true }),
+			otherChat: shown({ ...background, agentsChatPartVisible: true }),
+		}, {
+			chatArea: [true, true, true],
+			agentsWindow: [true, true, true],
+			otherChat: [false, false, false],
+		});
+	});
+
 	test('an editor window has the chat background\'s settings and tint while its chat area is enabled, also beside the hold of an Agents window, and none of a tint saved while it is not', async () => {
 		const registered = () => !!Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()['chat.agentSessions.preferredDarkBackgroundImage'];
 		const enabled = observableValue('enabled', false);
