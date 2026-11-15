@@ -477,7 +477,9 @@ export class SessionsView extends ViewPane {
 			() => this.sessionsControl?.refresh(),
 			() => !this.sessionsControl || this.sessionsControl.scrollTop === 0,
 		));
-		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(SessionsList, this.sessionsControlContainer, {
+		// In the view's context, so that its keys, such as `inSessionsView`, apply in the list, also where a host embeds the view
+		const listInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
+		const sessionsControl = this.sessionsControl = this._register(listInstantiationService.createInstance(SessionsList, this.sessionsControlContainer, {
 			pendingSections: derived(this, reader => {
 				const claimedDraftIds = this.scheduledChatsService.claimedDraftIds.read(reader);
 				const drafts = this.sessionDraftsService.sections.read(reader)
