@@ -1671,6 +1671,7 @@ suite('ChatWidget', () => {
 			renderChatSuggestNextWidget: () => { },
 			bodyDimension: { width: 100, height: 100 },
 			_inputVisible: true,
+			_inputVisibleObs: observableValue('inputVisible', true),
 			inputPartDisposable: { value: { height: observableValue('inputHeight', 10), element: { offsetHeight: 10 }, setVisible: () => { } } },
 			listContainer: mainWindow.document.createElement('div'),
 			welcomeMessageContainer: mainWindow.document.createElement('div'),
@@ -1783,6 +1784,7 @@ suite('ChatWidget', () => {
 		} = Object.assign(Object.create(ChatWidget.prototype), {
 			_readOnly: false,
 			_draftOnly: draftOnly,
+			_inputVisibleObs: observableValue('inputVisible', true),
 			_visible: constObservable(false),
 			_readOnlyContextKey: { set: () => { } },
 			policyRequiresAgentHost: constObservable(false),
