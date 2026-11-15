@@ -281,6 +281,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			const contextKeyService = this._contextKeyService.createOverlay([
 				...Object.entries(data.context),
 				[webviewIdContext, this.providedViewType],
+				['webviewReadonly', !!this._options.readOnly],
 			]);
 			contextMenuService.showContextMenu({
 				menuId: MenuId.WebviewContext,

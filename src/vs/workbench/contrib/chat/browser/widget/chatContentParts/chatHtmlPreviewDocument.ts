@@ -148,6 +148,7 @@ export function getHtmlPreviewWebviewOptions(title: string): WebviewInitInfo {
 		title,
 		providedViewType: 'vscode.chat.htmlPreview',
 		options: {
+			readOnly: true,
 			disableServiceWorker: true,
 			includeHorizontalScrollbarInContentHeight: true,
 			tryRestoreScrollPosition: false,

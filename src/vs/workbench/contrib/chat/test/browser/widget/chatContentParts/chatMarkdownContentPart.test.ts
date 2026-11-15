@@ -1308,6 +1308,7 @@ suite('ChatMarkdownContentPart', () => {
 			assert.deepStrictEqual({
 				previews: webviews.length,
 				contentOptions: webviews[0].init.contentOptions,
+				readOnly: webviews[0].init.options.readOnly,
 				serviceWorkerDisabled: webviews[0].init.options.disableServiceWorker,
 				title: webviews[0].init.title,
 				heading: document.querySelector('h2')?.textContent,
@@ -1320,6 +1321,7 @@ suite('ChatMarkdownContentPart', () => {
 			}, {
 				previews: 1,
 				contentOptions: { allowScripts: false, allowForms: false, enableCommandUris: false, localResourceRoots: [] },
+				readOnly: true,
 				serviceWorkerDisabled: true,
 				title: 'HTML preview for code block 1',
 				heading: 'Quarterly report',
@@ -1641,13 +1643,14 @@ suite('ChatMarkdownContentPart', () => {
 				inlineDisposed: webviews[0].webview.disposed,
 				expandedDisposed: webviews[1].webview.disposed,
 				contentOptions: webviews[1].init.contentOptions,
+				readOnly: webviews[1].init.options.readOnly,
 				find: webviews[1].init.options.enableFindWidget,
 				heading: document.querySelector('h1')?.textContent,
 				scripts: document.scripts.length,
 			}, {
 				count: 3, reused: true, reusedAfterRecycling: true, editor: true, editorDisposed: false, inlineDisposed: true, expandedDisposed: false,
 				contentOptions: { allowScripts: false, allowForms: false, enableCommandUris: false, localResourceRoots: [] },
-				find: true, heading: 'Review', scripts: 0,
+				readOnly: true, find: true, heading: 'Review', scripts: 0,
 			});
 		});
 

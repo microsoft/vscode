@@ -25,8 +25,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
@@ -48,6 +49,7 @@ import { SASH_GRIPPERS_HIDDEN_ATTRIBUTE, SashGrippersController } from '../../..
 import { WebviewThemeDataProvider } from '../../browser/themeing.js';
 import { WebviewElement } from '../../browser/webviewElement.js';
 import { WebviewOptions } from '../../browser/webview.js';
+import '../../browser/webview.contribution.js';
 import { FromWebviewMessage, ToWebviewMessage } from '../../browser/webviewMessages.js';
 import { asWebviewUri, WebviewMouseActivity, webviewMouseActivityEvent, webviewRootResourceAuthority } from '../../common/webview.js';
 
@@ -189,6 +191,27 @@ suite('WebviewElement', () => {
 		assert.deepStrictEqual(result, [
 			{ menuId: MenuId.WebviewContext, actions: ['test.preview'] },
 			{ menuId: MenuId.WebviewContext, actions: undefined },
+		]);
+	});
+
+	test('read-only context menus keep Copy but omit Cut and Paste without changing ordinary webviews', async () => {
+		const result = [];
+		for (const readOnly of [true, false, undefined]) {
+			const { webview, port, contextMenus, instantiationService } = await createWebview(undefined, 'browser', true, mainWindow, undefined, { readOnly });
+			webview.setContextKeyService(store.add(instantiationService.createInstance(ContextKeyService)));
+			for (const preventDefaultContextMenuItems of [false, true]) {
+				await sendWebviewMessage(webview, port, 'did-context-menu', { clientX: 20, clientY: 30, context: { preventDefaultContextMenuItems } });
+				const menu = contextMenus[contextMenus.length - 1];
+				result.push(MenuRegistry.getMenuItems(MenuId.WebviewContext)
+					.filter(isIMenuItem)
+					.filter(item => item.group === '5_cutcopypaste' && (!item.when || menu.contextKeyService!.contextMatchesRules(item.when)))
+					.map(item => item.command.id));
+			}
+		}
+		assert.deepStrictEqual(result, [
+			['editor.action.clipboardCopyAction'], [],
+			['editor.action.clipboardCutAction', 'editor.action.clipboardCopyAction', 'editor.action.clipboardPasteAction'], [],
+			['editor.action.clipboardCutAction', 'editor.action.clipboardCopyAction', 'editor.action.clipboardPasteAction'], [],
 		]);
 	});
 
