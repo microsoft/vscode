@@ -4821,6 +4821,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return ids;
 	});
 	private visible = true;
+	/** Whether something the list shows changed while it was hidden, which it skips rendering until it shows again. */
+	private changedWhileHidden = false;
+	/** Until when what the list rendered last holds, as its sections and caps also follow the time: see {@link getRenderValidUntil}. */
+	private renderValidUntil = Number.POSITIVE_INFINITY;
 	private readonly onboardingTarget = observableValue<ISessionOnboardingTarget | undefined>(this, undefined);
 	readonly filters: SessionsListFilters;
 	private _excludeArchived: boolean;
@@ -5182,6 +5186,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 					this.nestedSessionOrderUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
 						if (this.visible) {
 							this.update();
+						} else {
+							this.changedWhileHidden = true;
 						}
 					});
 				}
@@ -5769,6 +5775,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 				} else {
 					this.scheduleListUpdate(true);
 				}
+			} else {
+				this.changedWhileHidden = true;
 			}
 			// A removed session may have been the last one in its workspace.
 			// Garbage-collect manual order / promotion entries for identities
@@ -5786,12 +5794,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.expandPinnedSectionForNewPins(e);
 			if (this.visible) {
 				this.update();
+			} else {
+				this.changedWhileHidden = true;
 			}
 		}));
 
 		this._register(this._sessionGroupsService.onDidChange(e => {
 			if (this.visible) {
 				this.update();
+			} else {
+				this.changedWhileHidden = true;
 			}
 			// Garbage-collect manual order / promotion entries when groups are
 			// deleted or nested, since the order only keeps top-level headers.
@@ -5806,12 +5818,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._register(this._sessionSectionOrderService.onDidChange(() => {
 			if (this.visible) {
 				this.update();
+			} else {
+				this.changedWhileHidden = true;
 			}
 		}));
 
 		this._register(this._agentHostFilterService.onDidChange(() => {
 			if (this.visible) {
 				this.scheduleListUpdate();
+			} else {
+				this.changedWhileHidden = true;
 			}
 		}));
 		this._register(this.filters.onDidChange(() => this.update()));
@@ -5833,12 +5849,20 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}));
 
 		// Re-render when the session the main window shows changes: chat windows, which are other windows, do not select theirs.
+		// The list renders and selects the session it shows first as it is created, below.
+		let initialShown = true;
 		this._register(autorun(reader => {
 			const shown = this._mainWindowShown.read(reader);
+			if (initialShown) {
+				initialShown = false;
+				return;
+			}
 			this.activeSessionUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
 				if (this.visible) {
 					this.update();
 					this.syncActiveChatSelection(shown);
+				} else {
+					this.changedWhileHidden = true;
 				}
 			});
 		}));
@@ -5871,6 +5895,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 				this.sessionGroupLimit.set(limit, undefined);
 				if (this.visible) {
 					this.update();
+				} else {
+					this.changedWhileHidden = true;
 				}
 			}
 		});
@@ -5887,6 +5913,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 					} else {
 						this.update();
 					}
+				} else {
+					this.changedWhileHidden = true;
 				}
 			});
 		}
@@ -5895,6 +5923,27 @@ export class SessionsList extends Disposable implements ISessionsList {
 	refresh(): void {
 		this.refreshPending = true;
 		this.update();
+	}
+
+	/**
+	 * Until when the sections and caps of the list hold as it renders them now: they also follow the time, without an event
+	 * as it passes, such as a session moving from Recent to Older at midnight, a session updated in the last day staying
+	 * Recent (see `RECENTLY_UPDATED_SESSION_THRESHOLD_MS`), or a workspace updated in the last days staying uncapped (see
+	 * `FOUR_DAYS_MS`).
+	 */
+	private getRenderValidUntil(): number {
+		const now = new Date();
+		let validUntil = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
+		for (const session of this.sessions) {
+			const updated = session.updatedAt.get().getTime();
+			// The first moment after each threshold, as the list counts a session updated exactly at the threshold as within it
+			for (const boundary of [updated + RECENTLY_UPDATED_SESSION_THRESHOLD_MS + 1, updated + FOUR_DAYS_MS + 1]) {
+				if (boundary > now.getTime() && boundary < validUntil) {
+					validUntil = boundary;
+				}
+			}
+		}
+		return validUntil;
 	}
 
 	private refreshSessions(): void {
@@ -5913,8 +5962,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 				this.sessionChatsUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
 					if (this.visible) {
 						this.update();
+					} else {
+						this.changedWhileHidden = true;
 					}
 				});
+			} else if (initialized) {
+				this.changedWhileHidden = true;
 			}
 			initialized = true;
 		});
@@ -5930,6 +5983,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.refreshPending = false;
 			this.refreshSessions();
 		}
+		this.renderValidUntil = this.getRenderValidUntil();
 		const activeSession = this._mainWindowShown.get()?.session;
 		const onboardingSession = this.onboardingTarget.get()?.session;
 		const grouping = this.options.grouping();
@@ -7249,7 +7303,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.updateArchiveDemand();
 		this.updateInboxDemand();
 		if (this.visible) {
-			this.refresh();
+			// Shown again, the list keeps its rows: it renders again only what changed while hidden, and the inbox observes
+			// its sessions' attention again, which it stops observing while hidden
+			if (this.changedWhileHidden || this.isInboxLayout() || Date.now() >= this.renderValidUntil) {
+				this.changedWhileHidden = false;
+				this.refresh();
+			}
 		} else {
 			this.inboxObserver.clear();
 		}
