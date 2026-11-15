@@ -17,6 +17,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../../platf
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { registerSessionsListConfiguration } from '../../../browser/sessionsConfiguration.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IChatViewHostService } from '../../../../chat/browser/chatViewHost.js';
@@ -30,7 +31,6 @@ import { TestStorageService } from '../../../../../test/common/workbenchTestServ
 import { AgentsChatViewHost } from '../../../browser/agentsView/agentsChatViewHost.js';
 import { IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { IEditorWindowSessionsRuntime } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
-import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../../common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { SessionChangesEditorInput } from '../../../../sessionChanges/browser/sessionChangesEditorInput.js';
