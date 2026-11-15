@@ -77,6 +77,8 @@ export class OpenAgentHostFolderPickerAction extends Action2 {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
 					ChatContextKeyExprs.isAgentHostSession,
+					// Of the local agent host only: a remote agent host's session works where its own host says
+					ContextKeyExpr.regex(ChatContextKeys.chatSessionType.key, /^agent-host-/),
 					ContextKeyExpr.equals(`config.${ChatConfiguration.EditorWindowEnableWorktree}`, true),
 					WorkbenchStateContext.isEqualTo('folder'),
 					RemoteNameContext.isEqualTo(''),
