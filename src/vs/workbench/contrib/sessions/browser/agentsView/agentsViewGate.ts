@@ -30,7 +30,9 @@ import { ChatViewOpenKeybindings } from '../../../chat/browser/chat.js';
 import { CHAT_OPEN_ACTION_ID } from '../../../chat/browser/actions/chatActions.js';
 import { IEditorWindowChatPartService } from './agentsChatPartContribution.js';
 import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessionsRuntime.js';
-import { registerSessionsListActions, registerSessionsListReadStateMenus, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
+import { registerSessionsListAccessibilityHelp, registerSessionsListActions, registerSessionsListReadStateMenus, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
+import { SessionsViewAccessibilityHelp } from './sessionsViewAccessibilityHelp.js';
+import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ISessionsViewOptions, SessionsView, SessionsViewId } from '../views/sessionsView.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { AGENTS_VIEW_CONTAINER_ID, AGENTS_VIEW_SETUP_VIEW_ID, AgentsViewAvailable, AgentsViewNeedsSetup, AgentsViewWhen } from './agentsView.js';
@@ -80,6 +82,9 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 
 		// The settings of the list and of the sessions it opens, as the Agents window has them
 		this._register(registerSessionsListConfiguration());
+		// Accessibility help, as the window starts: help registered once the view shows would not be installed anymore
+		this._register(registerSessionsListAccessibilityHelp());
+		this._register(AccessibleViewRegistry.register(new SessionsViewAccessibilityHelp()));
 		// The actions of the list and of the sessions it shows, once the Sessions view or the chat part first shows
 		this.registerOnFirstShown(instantiationService, () => {
 			this._register(registerSessionsListActions());

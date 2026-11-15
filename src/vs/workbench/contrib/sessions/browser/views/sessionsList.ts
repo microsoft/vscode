@@ -4901,6 +4901,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 	get element(): HTMLElement { return this.listContainer; }
 	get scrollTop(): number { return this.tree.scrollTop; }
 
+	/** Describes the list to screen readers beyond its label, such as how to open accessibility help. */
+	setAriaDescription(description: string | undefined): void {
+		if (description) {
+			this.tree.getHTMLElement().setAttribute('aria-description', description);
+		} else {
+			this.tree.getHTMLElement().removeAttribute('aria-description');
+		}
+	}
+
 	private isCompact(): boolean {
 		return (this.options.compact?.() ?? false) && !IsPhoneLayoutContext.getValue(this.contextKeyService);
 	}
