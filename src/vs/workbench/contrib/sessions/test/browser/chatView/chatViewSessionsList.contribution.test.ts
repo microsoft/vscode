@@ -46,6 +46,7 @@ import { SessionGroupToolbarMenuId, SessionItemContextMenuId, SessionSectionTool
 import { ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { EditorWindowSessionsPresenterService, IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { EditorWindowSessionsService } from '../../../browser/agentsView/editorWindowSessionsService.js';
+import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { ChatViewSessionsListProvider } from '../../../browser/agentsView/chatViewSessionsList.js';
 import { SessionsView } from '../../../browser/views/sessionsView.js';
 import { IEditorWindowSessionsRuntime } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
@@ -355,6 +356,7 @@ suite('ChatViewSessionsGate', () => {
 		instantiationService.stub(IEditorWindowSessionsPresenterService, presenterService);
 		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({}));
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }));
 		// The list's sessions service of an editor window, which its rows open sessions and chats with
 		const sessionsService = disposables.add(instantiationService.createInstance(EditorWindowSessionsService));
 		const main = upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/main') });
