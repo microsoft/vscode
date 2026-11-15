@@ -31,6 +31,8 @@ export interface IChatEditorComposer {
 	readonly draftHost: INewSessionDraftHost;
 	/** What the composer shows: its draft, or the session of the request it sent until that ends. */
 	readonly session: IObservable<ISession | undefined>;
+	/** Closes the composer where it shows, such as from its session header. */
+	readonly close?: () => void;
 }
 
 /**
@@ -163,7 +165,7 @@ export class ChatEditorContent extends Disposable {
 		if (this._hostOptions?.showComposerHeader) {
 			store.add(autorun(reader => {
 				if (!this._content.read(reader)) {
-					this._header.setDraftSession(composer.session.read(reader));
+					this._header.setDraftSession(composer.session.read(reader), composer.close);
 				}
 			}));
 			store.add(toDisposable(() => {
