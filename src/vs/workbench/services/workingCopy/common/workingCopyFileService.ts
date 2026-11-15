@@ -434,13 +434,22 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 				if (move) {
 					stats.push(await this.fileService.move(source, target, overwrite));
 				} else {
+
+					// Remember whether the target existed upfront: when the
+					// copy is cancelled before any content was transferred, a
+					// pre-existing target must not be deleted by the cleanup
+					const targetExisted = await this.fileService.exists(target);
+
+					let copyStarted = false;
 					try {
-						stats.push(await this.fileService.copy(source, target, overwrite, undefined, token));
+						stats.push(await this.fileService.copy(source, target, overwrite, () => copyStarted = true, token));
 					} catch (error) {
 
-						// Best effort cleanup of a partially copied
-						// target when the copy was cancelled
-						if (isCancellationError(error)) {
+						// Best effort cleanup of a partially copied target
+						// when the copy was cancelled, unless the target
+						// existed before and the copy never got to transfer
+						// any content to it
+						if (isCancellationError(error) && (!targetExisted || copyStarted)) {
 							try {
 								await this.fileService.del(target, { recursive: true });
 							} catch (error) {

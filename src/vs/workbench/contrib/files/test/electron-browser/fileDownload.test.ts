@@ -11,7 +11,7 @@ import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ISaveDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IFileOpenOptions, IFileService } from '../../../../../platform/files/common/files.js';
+import { IFileOpenOptions, IFileService, IStat } from '../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -68,6 +68,9 @@ class BlockingInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 	openBarrier: DeferredPromise<void> | undefined;
 	readonly onOpen = new DeferredPromise<void>();
 
+	statBarrier: DeferredPromise<void> | undefined;
+	readonly onStat = new DeferredPromise<void>();
+
 	override async open(resource: URI, opts: IFileOpenOptions): Promise<number> {
 		if (!this.onOpen.isSettled) {
 			this.onOpen.complete();
@@ -76,6 +79,18 @@ class BlockingInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 		await this.openBarrier?.p;
 
 		return super.open(resource, opts);
+	}
+
+	override async stat(resource: URI): Promise<IStat> {
+		if (this.statBarrier) {
+			if (!this.onStat.isSettled) {
+				this.onStat.complete();
+			}
+
+			await this.statBarrier.p;
+		}
+
+		return super.stat(resource);
 	}
 }
 
@@ -157,5 +172,25 @@ suite('Files - FileDownload', () => {
 		await downloadPromise;
 
 		assert.strictEqual(await fileService.exists(destination), false);
+	});
+
+	test('cancelling a download before any content was transferred keeps an existing destination', async () => {
+		const destination = URI.file('/downloads/a.txt');
+		await fileService.writeFile(destination, VSBuffer.fromString('precious'));
+		dialogService.setSaveDialogResult(destination);
+
+		sourceProvider.statBarrier = new DeferredPromise<void>();
+
+		const downloadPromise = download.download([createExplorerItem(URI.from({ scheme: sourceScheme, path: '/folder/a.txt' }), false)]);
+
+		// Cancel while the download is still resolving the source
+		// and has not made any changes to the destination yet
+		await sourceProvider.onStat.p;
+		progressService.cancel();
+		sourceProvider.statBarrier.complete();
+
+		await downloadPromise;
+
+		assert.strictEqual((await fileService.readFile(destination)).value.toString(), 'precious');
 	});
 });

@@ -1559,7 +1559,20 @@ export class FileService extends Disposable implements IFileService {
 	private async doPipeBufferedToUnbuffered(sourceProvider: IFileSystemProviderWithOpenReadWriteCloseCapability, source: URI, targetProvider: IFileSystemProviderWithFileReadWriteCapability, target: URI, progress?: IFileCopyProgressCallback, token?: CancellationToken): Promise<void> {
 
 		// Read buffer via stream buffered
-		const buffer = await streamToBuffer(this.readFileBuffered(sourceProvider, source, token ?? CancellationToken.None));
+		let buffer: VSBuffer;
+		try {
+			buffer = await streamToBuffer(this.readFileBuffered(sourceProvider, source, token ?? CancellationToken.None));
+		} catch (error) {
+
+			// reading wraps errors into `FileOperationError`, but
+			// cancellation must surface as `CancellationError` so
+			// that callers can tell the two cases apart
+			if (token?.isCancellationRequested) {
+				throw new CancellationError();
+			}
+
+			throw error;
+		}
 
 		if (token?.isCancellationRequested) {
 			throw new CancellationError();

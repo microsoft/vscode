@@ -929,14 +929,22 @@ export class FileDownload {
 				return;
 			}
 
+			// Remember whether the destination existed upfront: when the
+			// download is cancelled before any content was transferred, a
+			// pre-existing destination must not be deleted by the cleanup
+			const destinationExisted = await this.fileService.exists(destination);
+
 			// Perform download, reporting progress as bytes are being copied.
 			// The file service reports the total number of bytes copied per
 			// file, so we keep track of the last reported value per file to
 			// compute the delta.
 			const reporter = new TransferProgressReporter(filesTotal, totalBytes, downloadProgressMessages, progress);
 			const lastBytesCopied = new ResourceMap<number>();
+			let downloadStarted = false;
 			try {
 				await this.fileService.copy(explorerItem.resource, destination, true, ({ resource, bytesCopied }) => {
+					downloadStarted = true;
+
 					let last = lastBytesCopied.get(resource);
 					if (last === undefined) {
 						reporter.startFile();
@@ -951,12 +959,16 @@ export class FileDownload {
 					throw error;
 				}
 
-				// Best effort cleanup of partially downloaded
-				// files and folders when the user canceled
-				try {
-					await this.fileService.del(destination, { recursive: true });
-				} catch (error) {
-					this.logService.warn(error);
+				// Best effort cleanup of partially downloaded files and
+				// folders when the user canceled, unless the destination
+				// existed before and the copy never got to transfer any
+				// content to it
+				if (!destinationExisted || downloadStarted) {
+					try {
+						await this.fileService.del(destination, { recursive: true });
+					} catch (error) {
+						this.logService.warn(error);
+					}
 				}
 			} finally {
 				reporter.flush();

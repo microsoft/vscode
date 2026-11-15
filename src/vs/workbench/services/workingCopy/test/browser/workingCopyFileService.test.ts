@@ -145,8 +145,16 @@ suite('WorkingCopyFileService', () => {
 		readonly deleted: URI[] = [];
 		copyToken: CancellationToken | undefined = undefined;
 
-		override async copy(_source: URI, _target: URI, _overwrite?: boolean, _progress?: IFileCopyProgressCallback, token?: CancellationToken): Promise<IFileStatWithMetadata> {
+		constructor(private readonly emitProgress: boolean) {
+			super();
+		}
+
+		override async copy(source: URI, _target: URI, _overwrite?: boolean, progress?: IFileCopyProgressCallback, token?: CancellationToken): Promise<IFileStatWithMetadata> {
 			this.copyToken = token;
+
+			if (this.emitProgress) {
+				progress?.({ resource: source, bytesCopied: 1 });
+			}
 
 			throw new CancellationError();
 		}
@@ -157,7 +165,7 @@ suite('WorkingCopyFileService', () => {
 	}
 
 	test('copy - cancellation is forwarded to the file service and cleans up the target', async function () {
-		const fileService = new CopyCancellationTestFileService();
+		const fileService = new CopyCancellationTestFileService(true);
 		const testInstantiationService = workbenchInstantiationService(undefined, disposables);
 		testInstantiationService.stub(IFileService, fileService);
 		const service = disposables.add(testInstantiationService.createInstance(WorkingCopyFileService));
@@ -181,8 +189,29 @@ suite('WorkingCopyFileService', () => {
 		cts.dispose();
 	});
 
+	test('copy - cancellation before any content was copied keeps an existing target', async function () {
+		const fileService = new CopyCancellationTestFileService(false);
+		const testInstantiationService = workbenchInstantiationService(undefined, disposables);
+		testInstantiationService.stub(IFileService, fileService);
+		const service = disposables.add(testInstantiationService.createInstance(WorkingCopyFileService));
+
+		const cts = new CancellationTokenSource();
+		let error: Error | undefined = undefined;
+		try {
+			await service.copy([{ file: { source: toResource.call(this, '/path/file.txt'), target: toResource.call(this, '/path/file_target.txt') } }], cts.token);
+		} catch (e) {
+			error = e;
+		}
+
+		assert.ok(error);
+		assert.ok(isCancellationError(error));
+		assert.deepStrictEqual(fileService.deleted, []);
+
+		cts.dispose();
+	});
+
 	test('copy - cancelled token prevents the copy from starting', async function () {
-		const fileService = new CopyCancellationTestFileService();
+		const fileService = new CopyCancellationTestFileService(false);
 		const testInstantiationService = workbenchInstantiationService(undefined, disposables);
 		testInstantiationService.stub(IFileService, fileService);
 		const service = disposables.add(testInstantiationService.createInstance(WorkingCopyFileService));
