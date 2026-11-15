@@ -33,7 +33,7 @@ import { SessionsWindowNotifier } from './sessionsWindowNotifier.js';
 import { AutomationSessionsListingContribution } from './automationSessionsListing.js';
 import { SessionsUnattendedRestartParticipant } from './sessionsUnattendedRestart.js';
 import '../../../../workbench/contrib/sessions/browser/sessionAttentionService.js';
-import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT, USE_WORKTREE_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT, SessionsChatTabsMode, SessionsSidebarCustomizationsCategories, USE_WORKTREE_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { sessionsListConfigurationProperties } from '../../../../workbench/contrib/sessions/browser/sessionsConfiguration.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
@@ -115,6 +115,18 @@ export const sessionsConfiguration = {
 			tags: ['experimental'],
 			markdownDescription: localize('sessions.sidebar.customizationsAtBottom', "Controls whether Customizations remains a separate section below the Sessions list instead of joining the separate navigation list above the Sessions header. Only applies when `#sessions.sidebar.separateNavigation#` is enabled."),
 			default: false,
+			experiment: { mode: 'auto' },
+		},
+		[SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING]: {
+			type: 'string',
+			enum: [SessionsSidebarCustomizationsCategories.All, SessionsSidebarCustomizationsCategories.Reduced],
+			enumDescriptions: [
+				localize('sessions.sidebar.customizationsCategories.all', "Show all customization categories."),
+				localize('sessions.sidebar.customizationsCategories.reduced', "Show Overview, Plugins, MCP Servers, Skills, and Instructions. More shows the other categories, and Less hides them again."),
+			],
+			tags: ['experimental'],
+			description: localize('sessions.sidebar.customizationsCategories', "Controls which customization categories the Customizations section below the Sessions list shows."),
+			default: SessionsSidebarCustomizationsCategories.Reduced,
 			experiment: { mode: 'auto' },
 		},
 		[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING],
