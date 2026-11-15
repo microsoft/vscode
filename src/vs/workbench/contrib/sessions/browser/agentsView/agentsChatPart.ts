@@ -22,6 +22,7 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { GroupIdentifier, IEditorPane } from '../../../../common/editor.js';
 import { GroupDirection, IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { getEditorWindowComposerTarget } from '../editorWindow/editorWindowSessionsPresenter.js';
@@ -242,6 +243,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	private readonly _chatTabsMode: IObservable<string>;
 	/** The tabs closing that show a chat, not a new-session composer: closing the last of them in Single shows a composer. */
 	private readonly _closingChatTabs = new WeakSet<EditorInput>();
+	/** The latest open of each group, by the group's id: see {@link _open}. */
+	private readonly _openGenerations = new Map<GroupIdentifier, number>();
 	/** Whether it closes all its chats, or its part closes: no composer shows in their place then. */
 	private _closingAll = false;
 	private readonly _partStore = this._register(new DisposableStore());
@@ -546,9 +549,14 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		// Why it shows, from before the tab can activate as it opens, which reports it as it does
 		const request = { reason: getChatViewHostOpenReason(options) };
 		this._pendingOpens.set(chat.input, request);
+		// Its open is the group's latest until another opens there, which supersedes it, such as one that cancels it
+		const generation = (this._openGenerations.get(group.id) ?? 0) + 1;
+		this._openGenerations.set(group.id, generation);
+		const isCurrentOpen = () => this._openGenerations.get(group.id) === generation && group.activeEditor === chat.input;
 		let unconsumed = false;
+		let pane: IEditorPane | undefined;
 		try {
-			await this._editorService.openEditor(chat.input, { pinned: true, preserveFocus: options?.preserveFocus }, group);
+			pane = await this._editorService.openEditor(chat.input, { pinned: true, preserveFocus: options?.preserveFocus }, group);
 		} finally {
 			// Not taken as the tab activated: it was the active tab already, unless a later open of it supersedes this one
 			unconsumed = this._pendingOpens.get(chat.input) === request;
@@ -556,8 +564,10 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 				this._pendingOpens.delete(chat.input);
 			}
 		}
-		if (this._isSingle()) {
-			await this._replaceOthers(group, chat.input);
+		// Only an open that showed its chat, and that no later open superseded, replaces the others: a superseded one, which can
+		// still resolve after the later one showed its chat, would close that
+		if (this._isSingle() && pane && isCurrentOpen()) {
+			await this._replaceOthers(group, chat.input, isCurrentOpen);
 		}
 		this.composers.didOpen([chat.chat.get()]);
 		// Opened again while it is the active tab, such as a tab the user picks in a sessions list: reported again
@@ -578,8 +588,12 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	 * In Single, it shows one chat at a time, as a preview: the chat it opens replaces the others of its group, but a
 	 * new-session composer that closing would lose something of, as a chat window replaces only a composer that is untouched.
 	 */
-	private async _replaceOthers(group: IEditorGroup, input: EditorInput): Promise<void> {
+	private async _replaceOthers(group: IEditorGroup, input: EditorInput, isCurrent: () => boolean): Promise<void> {
 		for (const editor of group.editors.filter(editor => editor !== input && !this._keepsComposer(editor))) {
+			// Until a later open supersedes it, also while it closes the others
+			if (!isCurrent()) {
+				return;
+			}
 			await group.closeEditor(editor);
 		}
 	}

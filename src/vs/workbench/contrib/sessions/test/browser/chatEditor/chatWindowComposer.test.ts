@@ -603,6 +603,25 @@ suite('Chat window composer', () => {
 		});
 	});
 
+	test('a composer whose empty input submits is not idle, nor pristine, from the user\'s submit, before its send attempt, until the submit ends: what closes idle composers leaves it', () => {
+		const store = disposables.add(new DisposableStore());
+		const { createComposer } = createServices(store);
+		const composer = store.add(createComposer());
+		const state = () => ({ idle: composer.isIdle(), pristine: composer.isPristine() });
+
+		const before = state();
+		// Submitted from an empty input: its checks, such as for its session to be ready or the host's confirmation, are under way
+		const submitting = composer.input.beginSubmit();
+		const whileSubmitting = state();
+		submitting.dispose();
+
+		assert.deepStrictEqual({ before, whileSubmitting, after: state() }, {
+			before: { idle: true, pristine: true },
+			whileSubmitting: { idle: false, pristine: false },
+			after: { idle: true, pristine: true },
+		});
+	});
+
 	test('the composers of chat windows are stored as the state is saved, not as their input changes, with what they aim for, their group, their input and a send that did not end; they restore as a composer with that input or with what the send sent, or as the session a send started; a discarded composer and a malformed entry are not stored', async () => {
 		const store = disposables.add(new DisposableStore());
 		const started = createSession('started', { folder: '/repo', status: constObservable(SessionStatus.Completed) });
