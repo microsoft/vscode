@@ -76,5 +76,15 @@ suite('Arrays', () => {
 
 		// Element 64 is at index 8, excluded by endIdxEx = 8
 		assert.strictEqual(findFirstIdxMonotonous(array, n => n >= 64, 0, 8), -1);
+
+		// Zero-length subrange where startIdx === endIdxEx
+		assert.strictEqual(findFirstIdxMonotonous(array, n => n >= 0, 3, 3), -1);
+
+		// Empty array
+		assert.strictEqual(findFirstIdxMonotonous([], n => n >= 0), -1);
+
+		// Full array default boundaries
+		assert.strictEqual(findFirstIdxMonotonous(array, n => n >= 60), 6);
+		assert.strictEqual(findFirstIdxMonotonous(array, n => n >= 100), -1);
 	});
 });
