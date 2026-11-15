@@ -94,4 +94,24 @@ suite('Cache', () => {
 		assert.strictEqual(cached.get({ id: undefined, data: 99 }), 10);
 		assert.strictEqual(callCount, 1);
 	});
+
+	test('LRUCachedFunction alternating between undefined and defined keys', () => {
+		let callCount = 0;
+		const cached = new LRUCachedFunction((arg: string | undefined) => {
+			callCount++;
+			return arg === undefined ? 'is-undefined' : `str:${arg}`;
+		});
+
+		assert.strictEqual(cached.get(undefined), 'is-undefined');
+		assert.strictEqual(callCount, 1);
+
+		assert.strictEqual(cached.get(undefined), 'is-undefined');
+		assert.strictEqual(callCount, 1);
+
+		assert.strictEqual(cached.get('first'), 'str:first');
+		assert.strictEqual(callCount, 2);
+
+		assert.strictEqual(cached.get(undefined), 'is-undefined');
+		assert.strictEqual(callCount, 3);
+	});
 });
