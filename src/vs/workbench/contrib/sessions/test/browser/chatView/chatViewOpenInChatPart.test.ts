@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -23,7 +23,7 @@ import { ContextKeyService } from '../../../../../../platform/contextkey/browser
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { IViewDescriptorService } from '../../../../../common/views.js';
+import { IViewDescriptor, IViewDescriptorService, ViewContainer } from '../../../../../common/views.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
@@ -75,6 +75,16 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		const chatViewHosts = observableValue('chatViewHosts', false);
 		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ chatViewHosts }));
 		instantiationService.stub(IConfigurationService, configurationService);
+		const containerChanged = store.add(new Emitter<{ views: IViewDescriptor[]; from: ViewContainer; to: ViewContainer }>());
+		let chatViewContainer = ChatViewContainerId;
+		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({
+			onDidChangeContainer: containerChanged.event,
+			getViewContainerByViewId: () => upcastPartial<ViewContainer>({ id: chatViewContainer }),
+		}));
+		const moveChatView = (id: string) => {
+			chatViewContainer = id;
+			containerChanged.fire({ views: [upcastPartial<IViewDescriptor>({ id: ChatViewId })], from: upcastPartial<ViewContainer>({}), to: upcastPartial<ViewContainer>({ id }) });
+		};
 
 		store.add(instantiationService.createInstance(ChatViewOpenInChatPartContribution));
 		const state = () => ({
@@ -82,7 +92,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			runtime: runtimeOptions.map(o => o.viewIds),
 			runtimeHeld,
 		});
-		return { state, configurationService, contextKeyService, chatPartOptions, sessionsList, chatViewHosts };
+		return { state, configurationService, contextKeyService, chatPartOptions, sessionsList, chatViewHosts, moveChatView };
 	}
 
 	test('registers nothing in remote and Agents windows', () => {
@@ -162,6 +172,19 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		assert.deepStrictEqual(steps, [false, true, false]);
 	});
 
+	test('hides Maximize for the container that now holds the Chat view, not its default one', async () => {
+		const { contextKeyService, moveChatView } = setup({ setting: true });
+		const active = ActiveAuxiliaryContext.bindTo(contextKeyService);
+		const hidden = () => contextKeyService.getContextKeyValue(AuxiliaryBarMaximizeHiddenContext.key);
+		active.set(ChatViewContainerId);
+		const steps = [hidden()];
+		moveChatView('other');
+		steps.push(hidden());
+		active.set('other');
+		steps.push(hidden());
+		assert.deepStrictEqual(steps, [true, false, true]);
+	});
+
 	test('is off while agents are disabled, as the chat part\'s host cannot show chats then', () => {
 		assert.strictEqual(setup({ setting: true, agentEnabled: false }).chatPartOptions[0].enabled.get(), false);
 	});
@@ -196,7 +219,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 
 			const chatView = { loadSession: async (resource: URI) => { calls.push(`chat view loads ${resource.scheme}`); }, shownSession: constObservable(undefined), reportShown: () => { }, focusInput: () => { }, widget: undefined };
 			stub(IViewsService, { openView: (async () => chatView) as unknown as IViewsService['openView'], isViewVisible: () => false, onDidChangeViewVisibility: Event.None, getViewWithId: (() => null) as IViewsService['getViewWithId'] });
-			stub(IViewDescriptorService, { getViewLocationById: () => null });
+			stub(IViewDescriptorService, { getViewLocationById: () => null, getViewContainerByViewId: () => null, onDidChangeContainer: Event.None });
 			stub(IWorkbenchLayoutService, { setChatPartAnchor: () => { }, onDidChangePartVisibility: Event.None, isVisible: () => false, setPartHidden: () => { } });
 			stub(IProgressService, {});
 			stub(IContextKeyService, contextKeyService);

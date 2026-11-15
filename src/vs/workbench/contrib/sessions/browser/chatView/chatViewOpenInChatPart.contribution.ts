@@ -14,8 +14,9 @@ import { observableConfigValue } from '../../../../../platform/observable/common
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ActiveAuxiliaryContext, AuxiliaryBarMaximizeHiddenContext } from '../../../../common/contextkeys.js';
+import { IViewDescriptorService } from '../../../../common/views.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { ChatViewContainerId, ChatViewId } from '../../../chat/browser/chat.js';
+import { ChatViewId } from '../../../chat/browser/chat.js';
 import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
 import { IChatViewSessionsListService } from '../../../chat/browser/widgetHosts/viewPane/chatViewSessionsList.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
@@ -63,6 +64,7 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatViewSessionsListService private readonly _sessionsListService: IChatViewSessionsListService,
 		@IChatViewHostService chatViewHostService: IChatViewHostService,
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 	) {
 		super();
 
@@ -105,9 +107,12 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		const hidden = AuxiliaryBarMaximizeHiddenContext.bindTo(this._contextKeyService);
 		const activeAuxiliaryKeys = new Set([ActiveAuxiliaryContext.key]);
 		const activeAuxiliary = observableFromEvent(this, Event.filter(this._contextKeyService.onDidChangeContext, e => e.affectsSome(activeAuxiliaryKeys)), () => this._contextKeyService.getContextKeyValue<string>(ActiveAuxiliaryContext.key));
+		// The Chat view can live in another container than its default one
+		const chatViewContainer = observableFromEvent(this, Event.filter(this._viewDescriptorService.onDidChangeContainer, e => e.views.some(view => view.id === ChatViewId)), () => this._viewDescriptorService.getViewContainerByViewId(ChatViewId)?.id);
 		this._register(autorun(reader => {
 			const sessionsOnly = this._sessionsListService.sessionsOnly.read(reader);
-			hidden.set(sessionsOnly && activeAuxiliary.read(reader) === ChatViewContainerId);
+			const container = chatViewContainer.read(reader);
+			hidden.set(sessionsOnly && container !== undefined && activeAuxiliary.read(reader) === container);
 		}));
 		this._register(toDisposable(() => hidden.reset()));
 	}
