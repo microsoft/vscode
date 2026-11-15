@@ -241,4 +241,36 @@ suite('SessionsListingScopeFilter', () => {
 			subfolderWindow: ['inSubfolder'],
 		});
 	});
+
+	test('a session is in the scope by its main chat\'s folders, its first one only while the main chat has the session\'s, not by the folders its other chats add, unless its main chat has none', () => {
+		const folderOf = (path: string, root: string, repository?: string) => ({ root: URI.file(root), workingDirectory: URI.file(path), name: path, description: undefined, gitRepository: repository ? upcastPartial<ISessionGitRepository>({ uri: URI.file(repository), workTreeUri: undefined }) : undefined });
+		const workspaceOf = (id: string, folders: ReturnType<typeof folderOf>[]): ISessionWorkspace => ({ ...buildTestWorkspace(id), folders });
+		// As agent-host sessions report them: the session's folders are its main chat's first, then those its other chats add.
+		// A main chat that sets no folders of its own has the session's workspace object, else one of its own folders, and none
+		// while it has no folder.
+		const sessionOf = (id: string, folders: ReturnType<typeof folderOf>[], mainChatFolders: ReturnType<typeof folderOf>[] | 'session' = 'session'): ISession => {
+			const built = buildTestSession({ id, title: id }).session;
+			const sessionWorkspace = workspaceOf(id, folders);
+			const mainChatWorkspace = mainChatFolders === 'session' ? sessionWorkspace : mainChatFolders.length ? workspaceOf(id, mainChatFolders) : undefined;
+			const mainChat = { ...built.mainChat.get(), workspace: constObservable<ISessionWorkspace | undefined>(mainChatWorkspace) };
+			return { ...built, mainChat: constObservable(mainChat), workspace: constObservable<ISessionWorkspace | undefined>(sessionWorkspace) };
+		};
+		const otherWorktree = folderOf('/work/aph.worktrees/docs-33abcbc0', '/work/aph', '/work/aph');
+		const scopeWorktree = folderOf('/work/vscode.worktrees/sync-docs', '/work/vscode', '/work/vscode');
+		const sessions = [
+			// The user's session: its main chat works in another repository's worktree, a nested chat in a worktree of the scope
+			// folder, with the main chat having the session's folders, or its own
+			sessionOf('nestedChatInScope', [otherWorktree, scopeWorktree]),
+			sessionOf('nestedChatInScopeMainChatOwnFolder', [otherWorktree, scopeWorktree], [otherWorktree]),
+			sessionOf('mainChatOwnSecondFolderInScope', [otherWorktree, scopeWorktree], [otherWorktree, scopeWorktree]),
+			sessionOf('mainChatInScopeWorktree', [scopeWorktree, otherWorktree]),
+			sessionOf('mainChatInScope', [folderOf('/work/vscode/src', '/work/vscode/src'), folderOf('/elsewhere/repo', '/elsewhere/repo')]),
+			// A main chat without a folder: the folders its other chats add place the session
+			sessionOf('mainChatWithoutFolder', [otherWorktree, scopeWorktree], []),
+			sessionOf('elsewhere', [otherWorktree]),
+		];
+		const filter = disposables.add(new SessionsListingScopeFilter({ folders: constObservable([URI.file('/work/vscode')]) }, () => sessions, Event.None));
+
+		assert.deepStrictEqual(filter.getSessions().map(session => session.sessionId).sort(), ['mainChatInScope', 'mainChatInScopeWorktree', 'mainChatOwnSecondFolderInScope', 'mainChatWithoutFolder']);
+	});
 });
