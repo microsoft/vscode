@@ -75,12 +75,12 @@ export class SendLaterAction extends Action2 {
 			category: CHAT_CATEGORY,
 			icon: Codicon.clock,
 			f1: true,
-			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, ChatInputCanScheduleContext, ChatContextKeys.inputHasSendableContent, ChatContextKeys.inputBlocked.negate()),
+			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, ChatInputCanScheduleContext, ChatContextKeys.inputHasSendableContent, ChatContextKeys.inputBlocked.negate(), ChatContextKeys.currentlyEditing.negate(), ChatContextKeys.currentlyEditingInput.negate()),
 			menu: {
 				id: MenuId.ChatExecuteSecondary,
 				group: 'navigation',
 				order: 99,
-				when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${SESSIONS_SEND_LATER_ENABLED_SETTING}`, true), ChatInputCanScheduleContext),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${SESSIONS_SEND_LATER_ENABLED_SETTING}`, true), ChatInputCanScheduleContext, ChatContextKeys.currentlyEditing.negate(), ChatContextKeys.currentlyEditingInput.negate()),
 			},
 		});
 	}

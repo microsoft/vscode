@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { ConfigurationScope, IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from './views/sessionsList.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { AutomationSessionsListMode, ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, USE_WORKTREE_SETTING } from '../common/sessionConfig.js';
@@ -105,3 +107,27 @@ export const sessionsListConfigurationProperties = {
 		description: localize('sessions.useWorktree', "Controls whether New Worktree is checked for a workspace that has not started a session before. Each workspace otherwise uses the choice from its last started session."),
 	},
 } satisfies IStringDictionary<IConfigurationPropertySchema>;
+
+let sessionsListConfiguration: IConfigurationNode | undefined;
+let sessionsListConfigurationHolds = 0;
+
+/**
+ * Registers the settings of the sessions list and of the sessions it opens, as the Agents window registers them, for as long
+ * as anything of an editor window needs them: the sessions list, and the chat part, whose header sets one of them. They
+ * register once, however many hold them.
+ */
+export function registerSessionsListConfiguration(): IDisposable {
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	if (sessionsListConfigurationHolds++ === 0) {
+		// Of a copy of the properties: the registry drops a property that another node registers already, such as the Agents
+		// window's, from the node it registers, which must not change the shared properties
+		sessionsListConfiguration = { id: 'sessionsList', properties: { ...sessionsListConfigurationProperties } };
+		configurationRegistry.registerConfiguration(sessionsListConfiguration);
+	}
+	return toDisposable(() => {
+		if (--sessionsListConfigurationHolds === 0 && sessionsListConfiguration) {
+			configurationRegistry.deregisterConfigurations([sessionsListConfiguration]);
+			sessionsListConfiguration = undefined;
+		}
+	});
+}
