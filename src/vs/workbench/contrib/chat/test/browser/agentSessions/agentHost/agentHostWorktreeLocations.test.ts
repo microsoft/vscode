@@ -252,9 +252,11 @@ suite('AgentHostWorktreeLocations', () => {
 		let changes = 0;
 		store.add(service.onDidChangeLocations(() => changes++));
 		const feature = URI.file('/work/vscode.worktrees/feature');
+		// Asked again as the locations change, as whoever shows them does: resolving lists the sessions, then they are offered
 		const state = async () => {
 			await tick();
-			return { offered: paths(await service.getLocations(primary, CancellationToken.None)), resolved: (await provider.resolveLocation(primary, feature, CancellationToken.None))?.uri.path, changes };
+			const resolved = (await provider.resolveLocation(primary, feature, CancellationToken.None))?.uri.path;
+			return { offered: paths(await service.getLocations(primary, CancellationToken.None)), resolved, changes };
 		};
 		const beforeStart = await state();
 		provider.changeRootState(advertising('copilotcli'));
@@ -337,6 +339,37 @@ suite('AgentHostWorktreeLocations', () => {
 			listingsOnChange: 1,
 			recovered: ['/work/vscode.worktrees/feature'],
 			listings: 2,
+		});
+	});
+
+	test('after a listing that failed, lists again only as a folder is asked about, not as the local agent host\'s state changes, also where each change is asked about again', async () => {
+		// Every listing fails, as long as the agent host cannot list its sessions
+		const options = { listFailures: 6 };
+		const provider = createProvider([session('/work/vscode.worktrees/feature', '/work/vscode')], options);
+		const service = createService(provider);
+		await provider.provideLocations(primary, CancellationToken.None);
+		await tick();
+		// Whoever shows the locations asks again as they change
+		let changes = 0;
+		store.add(service.onDidChangeLocations(() => {
+			changes++;
+			void service.getLocations(primary, CancellationToken.None);
+		}));
+		// Such as its terminals, configuration or active sessions changing: the same agents
+		for (let change = 0; change < 5; change++) {
+			provider.changeRootState(advertising('copilotcli'));
+			await tick();
+		}
+		const unrelated = { changes, listings: provider.listings() };
+		options.listFailures = 0;
+		const changed = Event.toPromise(service.onDidChangeLocations);
+		await provider.provideLocations(primary, CancellationToken.None);
+		await changed;
+
+		assert.deepStrictEqual({ unrelated, listings: provider.listings(), offered: paths(await provider.provideLocations(primary, CancellationToken.None)) }, {
+			unrelated: { changes: 0, listings: 1 },
+			listings: 2,
+			offered: ['/work/vscode.worktrees/feature'],
 		});
 	});
 
