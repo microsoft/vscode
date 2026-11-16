@@ -93,7 +93,7 @@ import { IChatOutputPartStateCache, IOutputPartState } from '../../../browser/wi
 import { ChatSystemNotificationContentPart } from '../../../browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
 import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { IChatMarkdownAnchorService } from '../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
-import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatConfirmation, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatMcpServersStartingSlow, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatSubagentToolInvocationData, IChatTask, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatConfirmation, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatMcpServersStartingSlow, IChatPlanReview, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatSubagentToolInvocationData, IChatTask, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
@@ -7102,6 +7102,52 @@ suite('ChatListRenderer', () => {
 			});
 		});
 	}
+
+	/** The chat service's answers to questions, which `answer` tells as the chat service does. */
+	function hearQuestionAnswers(chatService: IChatService) {
+		const answers = store.add(new Emitter<{ readonly requestId: string; readonly resolveId: string; readonly answers: IChatQuestionAnswers | undefined }>());
+		Reflect.set(chatService, 'onDidReceiveQuestionCarouselAnswer', answers.event);
+		return answers;
+	}
+
+	test('an extension question answered before another widget that shows the chat renders it shows as settled there', async () => {
+		const session = URI.from({ scheme: 'vscode-chat-session', path: '/answered-before' });
+		const { chatWidgetService, widgets, questionIn } = createInputRequestWidgets(session, ['a', 'b']);
+		const a = createPersistentProgressRenderer({ sessionResource: session, chatWidgetService, getWidget: () => widgets.get('a') });
+		hearQuestionAnswers(a.instantiationService.get(IChatService));
+		const question: IChatQuestionCarousel = { kind: 'questionCarousel', questions: [{ id: 'q1', type: 'text', title: 'Choose a direction' }], allowSkip: true, resolveId: 'before' };
+		a.model.acceptResponseProgress(a.request, question);
+		a.renderer.renderElement(a.node, 0, a.template);
+		await questionIn('a', 'before')(new Map([['q1', 'Weave']]), true);
+
+		const b = a.createRenderer(() => widgets.get('b'), ownedHost());
+		b.renderer.renderElement(a.node, 0, b.template);
+
+		assert.deepStrictEqual({ pending: inline(b.template), settled: !!b.template.value.querySelector('.chat-question-carousel-used') }, { pending: false, settled: true });
+	});
+
+	test('an extension question that another widget renders in its list settles there as the chat service hears its answer, its own only, while its part lives', async () => {
+		const session = URI.from({ scheme: 'vscode-chat-session', path: '/heard' });
+		const { chatWidgetService, widgets } = createInputRequestWidgets(session, ['a', 'b']);
+		const a = createPersistentProgressRenderer({ sessionResource: session, chatWidgetService, getWidget: () => widgets.get('a') });
+		const b = a.createRenderer(() => widgets.get('b'), ownedHost());
+		const answers = hearQuestionAnswers(a.instantiationService.get(IChatService));
+		const question: IChatQuestionCarousel = { kind: 'questionCarousel', questions: [{ id: 'q1', type: 'text', title: 'Choose a direction' }], allowSkip: true, resolveId: 'heard' };
+		a.model.acceptResponseProgress(a.request, question);
+		await renderAgain(a.node, a, b);
+		const listening = answers.hasListeners();
+
+		// Answered where the renderers do not see it, such as by voice, which marks it used and tells the chat service
+		question.isUsed = true;
+		answers.fire({ requestId: a.request.id, resolveId: 'other', answers: undefined });
+		answers.fire({ requestId: 'another-request', resolveId: 'heard', answers: undefined });
+		await timeout(0);
+		const othersHeard = inline(b.template);
+		answers.fire({ requestId: a.request.id, resolveId: 'heard', answers: { q1: 'Weave' } });
+		await timeout(0);
+
+		assert.deepStrictEqual({ listening, othersHeard, settled: inline(b.template), listeningAfter: answers.hasListeners() }, { listening: true, othersHeard: true, settled: false, listeningAfter: false });
+	});
 
 	for (const names of [['view', 'editor'], ['editor']]) {
 		test(`a pending question and plan review dock again in a widget that shows the chat again, such as a chat editor shown again, without rendering the rest of the row again (${names.length} widgets)`, async () => {
