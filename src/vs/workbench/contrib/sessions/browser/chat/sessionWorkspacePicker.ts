@@ -64,7 +64,7 @@ import { type IResolvedFolderWorkspace, SessionWorkspaceFallback } from './sessi
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX, ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX, getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
-import { getNoWorkspaceChoicePresentation, getNoWorkspaceDescription } from './noWorkspaceChoice.js';
+import { getNoWorkspaceChoicePresentation } from './noWorkspaceChoice.js';
 import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
 import { getEnvironmentWorkspaceProvider, ISessionCreationEnvironment, resolveEnvironmentWorkspace } from './sessionEnvironmentPicker.js';
 
@@ -2357,7 +2357,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	/** Puts the No Workspace choice before `items`, when the composer offers one. */
-	private _withNoWorkspaceItem(items: IActionListItem<IWorkspacePickerItem>[], separate = true): IActionListItem<IWorkspacePickerItem>[] {
+	private _withNoWorkspaceItem(items: IActionListItem<IWorkspacePickerItem>[]): IActionListItem<IWorkspacePickerItem>[] {
 		const noWorkspaceOption = this._getNoWorkspaceOption();
 		const hideNoWorkspaceOption = this._activeTriggerElement
 			? this._triggerOptions.get(this._activeTriggerElement)?.hideNoWorkspaceOption === true
@@ -2388,7 +2388,7 @@ export class WorkspacePicker extends Disposable {
 				? { preserveVerticalPosition: true, alignToAnchorTop: true }
 				: undefined,
 		};
-		return items.length > 0 && separate
+		return items.length > 0
 			? [noWorkspace, { kind: ActionListItemKind.Separator, label: '' }, ...items]
 			: [noWorkspace, ...items];
 	}
@@ -2398,13 +2398,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	protected _getNoWorkspaceLabel(): string {
-		// Beside a window's folders, by what it is rather than as a chat
-		return this._getAllowedFolders() ? localize('workspacePicker.restrictedNoWorkspace', "No Workspace") : getNoWorkspaceChoicePresentation(undefined).label;
-	}
-
-	/** What No Workspace is, beside a window's folders: for screen readers and on hover. */
-	private _getRestrictedNoWorkspaceDescription(): string | undefined {
-		return this._getAllowedFolders() ? localize('workspacePicker.restrictedNoWorkspaceDescription', "No workspace: start the session in a temporary directory") : undefined;
+		return getNoWorkspaceChoicePresentation(undefined).label;
 	}
 
 	private _getSelectedNoWorkspaceLabel(): string {
@@ -2520,10 +2514,9 @@ export class WorkspacePicker extends Disposable {
 					: label && label !== emptyLabel
 						? localize('workspacePicker.categorySelectionAriaLabel', "{0}: {1}", options.label ?? options.ariaLabel, label)
 						: options.ariaLabel);
-			// What it is, a folder, a worktree, New Worktree or No Workspace, by name for screen readers
-			const chipDescription = chip?.description ?? (noWorkspaceSelected ? this._getRestrictedNoWorkspaceDescription() : undefined);
-			if (chipDescription && badgeCount === 0) {
-				trigger.setAttribute('aria-label', chipDescription);
+			if (chip && badgeCount === 0) {
+				// What it is, a folder, a worktree or New Worktree, by name for screen readers
+				trigger.setAttribute('aria-label', chip.description);
 			}
 			if (reflectsWorkspace) {
 				this._setTriggerReadOnly(trigger, readOnly);
@@ -2895,8 +2888,8 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	/**
-	 * The items of a picker restricted to its allowed folders ({@link IWorkspacePickerOptions.allowedFolders}): No Workspace,
-	 * the folders, New Worktree and the worktrees, with no recent workspace and no browse action. Undefined for a picker that is not.
+	 * The items of a picker restricted to its allowed folders ({@link IWorkspacePickerOptions.allowedFolders}): the folders,
+	 * New Worktree and the worktrees, with no recent workspace, no browse action and no No Workspace. Undefined for a picker that is not.
 	 */
 	protected _buildRestrictedItems(): IActionListItem<IWorkspacePickerItem>[] | undefined {
 		const allowedFolders = this._getAllowedFolders();
@@ -2906,14 +2899,13 @@ export class WorkspacePicker extends Disposable {
 		this._resolveSelectedAllowedFolder();
 		const folders = this._buildAllowedFolderItems(allowedFolders);
 		if (!folders.some(folder => folder.kind)) {
-			return this._withItemIcons(this._withNewWorktreeItem(this._withNoWorkspaceItem(folders.map(folder => folder.item))));
+			return this._withItemIcons(this._withNewWorktreeItem(folders.map(folder => folder.item)));
 		}
 
-		// No Workspace, the folder and New Worktree first, each with what it does below its name, as the Agents window's
-		// isolation picker shows them; then the worktrees under Worktrees
+		// The folder and New Worktree first, each with what it does below its name, as the Agents window's isolation picker
+		// shows them; then the worktrees under Worktrees
 		const sections = groupFolderLocations(folders.map(folder => ({ item: folder.item, kind: folder.kind ?? 'folder', current: folder.current })));
-		const items = this._withNoWorkspaceItem(sections.filter(section => section.kind !== 'worktree').flatMap(section => section.items).map(item => ({ ...item, detail: getFolderLocationDetail() })), false)
-			.map(item => item.item?.id === 'workspacePicker.chat' ? { ...item, detail: getNoWorkspaceDescription() } : item);
+		const items: IActionListItem<IWorkspacePickerItem>[] = sections.filter(section => section.kind !== 'worktree').flatMap(section => section.items).map(item => ({ ...item, detail: getFolderLocationDetail() }));
 		const newWorktreeItem = this._getNewWorktreeItem();
 		if (newWorktreeItem) {
 			items.push({ ...newWorktreeItem, detail: getNewWorktreeDetail() });
@@ -3010,10 +3002,7 @@ export class WorkspacePicker extends Disposable {
 
 	/** What the chip of a picker restricted to a window's folder and its worktrees shows, by name: for its hover. */
 	getSelectedLocationDescription(): string | undefined {
-		if (this._getNoWorkspaceOption()?.isSelected) {
-			return this._getRestrictedNoWorkspaceDescription();
-		}
-		const selected = this._selectedResolved;
+		const selected = this._getNoWorkspaceOption()?.isSelected ? undefined : this._selectedResolved;
 		return selected && this._getLocationChip(selected.workspace, selected.providerId)?.description;
 	}
 
