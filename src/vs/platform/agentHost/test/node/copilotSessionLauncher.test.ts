@@ -630,8 +630,10 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		let attachedSession: CopilotSession | undefined;
 		let sessionClosed = false;
 		const services = new ServiceCollection(
-			[INativeEnvironmentService, upcastPartial<INativeEnvironmentService>({ appBundleRoot })],
-			[ISessionSandboxPathService, new class extends mock<ISessionSandboxPathService>() { }()],
+			[INativeEnvironmentService, upcastPartial<INativeEnvironmentService>({ appRoot: appBundleRoot, appBundleRoot })],
+			[ISessionSandboxPathService, new class extends mock<ISessionSandboxPathService>() {
+				override async load(): Promise<void> { }
+			}()],
 			[IWorkspaceSandboxPathService, new WorkspaceSandboxPathService(store.add(new AgentHostStorageService(undefined, logService)))],
 			[IAgentConfigurationService, configuration],
 			[IAgentHostStateManager, manager],
@@ -671,7 +673,13 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				attachedSession = session;
 			},
 		};
-		return { manager, configuration, owner, updates, commands, launcher, plan, runtime, sandbox, raw, logService, set sessionClosed(value: boolean) { sessionClosed = value; }, set sandboxUpdateError(error: Error | undefined) { sandboxUpdateError = error; }, get sandboxState() { return readSessionSandboxState(manager.getSessionState(owner)); }, get disconnected() { return disconnected; }, get captured() { return captured; } };
+		const preparedLauncher = {
+			launch: async (plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime) => {
+				await sandbox.prepare();
+				return launcher.launch(plan, runtime);
+			},
+		};
+		return { manager, configuration, owner, updates, commands, launcher: preparedLauncher, plan, runtime, sandbox, raw, logService, set sessionClosed(value: boolean) { sessionClosed = value; }, set sandboxUpdateError(error: Error | undefined) { sandboxUpdateError = error; }, get sandboxState() { return readSessionSandboxState(manager.getSessionState(owner)); }, get disconnected() { return disconnected; }, get captured() { return captured; } };
 	}
 
 	test('a sandbox update failing after shutdown does not broadcast a policy conflict', async () => {

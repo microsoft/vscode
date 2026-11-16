@@ -9,7 +9,7 @@ import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { spy, stub } from 'sinon';
 import { createHash } from 'crypto';
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
@@ -1442,6 +1442,7 @@ function progressUpdatesTriggers(telemetryService: TestExperimentTriggerTelemetr
 
 async function createAgentSession(disposables: DisposableStore, options?: {
 	copilotHome?: string;
+	appRoot?: string;
 	appBundleRoot?: string;
 	getSessionPathRoots?: () => readonly ISessionPathRoot[];
 	clientSnapshot?: IActiveClientSnapshot;
@@ -1954,6 +1955,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	services.set(IAgentHostPromptCache, new AgentHostPromptCache(stateManager));
 	const environmentService = {
 		_serviceBrand: undefined,
+		appRoot: options?.appRoot ?? options?.appBundleRoot,
 		appBundleRoot: options?.appBundleRoot,
 		userHome: URI.file('/mock-home'),
 		tmpDir: URI.file('/mock-tmp'),
@@ -17099,14 +17101,28 @@ suite('CopilotAgentSession', () => {
 
 		for (const platform of ['linux', 'darwin', 'win32'] as const) {
 			for (const resume of [false, true]) {
-				test(`sandbox launch and first turn: grants read-only access to application and applied plugin resources on ${platform} (resume=${resume})`, async () => {
-					const appBundleRoot = URI.file(platform === 'darwin' ? '/Applications/Code.app/Contents' : platform === 'win32' ? 'C:\\Program Files\\Code' : '/usr/share/code').fsPath;
+				test(`sandbox launch and first turn: grants application and plugin resources without portable storage on ${platform} (resume=${resume})`, async () => {
+					const appBundleRoot = platform === 'darwin' ? '/Applications/Code.app/Contents' : mkdtempSync(join(tmpdir(), 'copilot-portable-app-'));
+					let appRoot = platform === 'darwin' ? join(appBundleRoot, 'Resources', 'app') : appBundleRoot;
+					let applicationReadPaths = [URI.file(appBundleRoot).fsPath];
+					if (platform !== 'darwin') {
+						disposables.add(toDisposable(() => rmSync(appBundleRoot, { recursive: true, force: true })));
+						const runtimeDirectory = platform === 'win32' ? join(appBundleRoot, 'commit-hash') : appBundleRoot;
+						appRoot = join(runtimeDirectory, 'resources', 'app');
+						const executable = join(appBundleRoot, platform === 'win32' ? 'Code.exe' : 'code');
+						mkdirSync(appRoot, { recursive: true });
+						mkdirSync(join(appBundleRoot, 'data', 'user-data'), { recursive: true });
+						writeFileSync(join(appBundleRoot, 'data', 'user-data', 'state.vscdb'), 'private fixture data');
+						writeFileSync(executable, '');
+						applicationReadPaths = [appRoot, executable].map(path => URI.file(path).fsPath);
+					}
 					const pluginDir = URI.file('/extensions/fixture extension/plugin');
 					const resourceDir = URI.file('/plugins/projected');
 					const snapshot = createPluginSnapshot(pluginDir, resourceDir, URI.from({ scheme: Schemas.vscodeRemote, authority: 'other-host', path: '/plugins/remote' }));
 					const { session, runtime, mockSession } = await createAgentSession(disposables, {
 						platform,
 						resume,
+						appRoot,
 						appBundleRoot,
 						clientSnapshot: {
 							...snapshot,
@@ -17122,7 +17138,7 @@ suite('CopilotAgentSession', () => {
 						launchFilesystem: launchConfig?.userPolicy?.filesystem,
 						firstTurnConfig: mockSession.sandboxConfigUpdates.at(-1),
 					}, {
-						launchFilesystem: { readonlyPaths: [appBundleRoot, TEST_SESSION_ATTACHMENTS_DIR, pluginDir.fsPath, resourceDir.fsPath].map(native) },
+						launchFilesystem: { readonlyPaths: [...applicationReadPaths, TEST_SESSION_ATTACHMENTS_DIR, pluginDir.fsPath, resourceDir.fsPath].map(native) },
 						firstTurnConfig: launchConfig,
 					});
 				});

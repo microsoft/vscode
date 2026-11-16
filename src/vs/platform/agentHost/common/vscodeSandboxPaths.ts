@@ -7,7 +7,7 @@ import { URI } from '../../../base/common/uri.js';
 import { SESSION_ATTACHMENTS_DIRNAME } from './sessionDataService.js';
 
 interface IVSCodeSandboxReadRoots {
-	readonly appBundleRoot?: string;
+	readonly applicationReadRoots?: readonly URI[];
 	/** Data directories whose attachment snapshots are readable: the chat's session, its own storage and where it came from. */
 	readonly sessionDataDirectories?: readonly URI[];
 	readonly terminalOutputDirectory?: URI;
@@ -17,7 +17,7 @@ interface IVSCodeSandboxReadRoots {
 /** Grants application contents and session resources without exposing the session database or other host storage. */
 export function getVSCodeSandboxReadRoots(options: IVSCodeSandboxReadRoots): URI[] {
 	return [
-		...(options.appBundleRoot ? [URI.file(options.appBundleRoot)] : []),
+		...(options.applicationReadRoots ?? []),
 		...(options.sessionDataDirectories ?? []).map(directory => URI.joinPath(directory, SESSION_ATTACHMENTS_DIRNAME)),
 		...(options.terminalOutputDirectory ? [options.terminalOutputDirectory] : []),
 		...(options.shellInitDirectory ? [options.shellInitDirectory] : []),
