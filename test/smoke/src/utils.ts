@@ -39,7 +39,8 @@ export function latestUserInputCarriesTag(body: unknown, scenarioTag: string): b
 			continue;
 		}
 		const text = getMessageText((item as Record<string, unknown>).content);
-		if (!text.replace(/<system_reminder>[\s\S]*?<\/system_reminder>/g, '').trim()) {
+		const withoutReminders = text.replace(/<system_reminder>[\s\S]*?<\/system_reminder>/g, '');
+		if (withoutReminders !== text && !withoutReminders.trim()) {
 			continue;
 		}
 		return text.includes(scenarioTag);
