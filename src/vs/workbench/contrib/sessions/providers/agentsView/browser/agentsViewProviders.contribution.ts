@@ -6,7 +6,8 @@
 import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
-import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
+import { InstantiationType } from '../../../../../../platform/instantiation/common/extensions.js';
+import { registerEditorWindowSessionsSingleton } from '../../../browser/editorWindow/editorWindowSessionsServices.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IDevContainerAgentHostService } from '../../../common/devContainerAgentHostService.js';
 import { IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
@@ -99,5 +100,5 @@ export class AgentsViewProvidersService extends Disposable implements IAgentsVie
 	}
 }
 
-registerSingleton(IDevContainerAgentHostService, DevContainerAgentHostService, InstantiationType.Delayed);
-registerSingleton(IAgentsViewProvidersService, AgentsViewProvidersService, InstantiationType.Delayed);
+registerEditorWindowSessionsSingleton(IDevContainerAgentHostService, DevContainerAgentHostService, InstantiationType.Delayed);
+registerEditorWindowSessionsSingleton(IAgentsViewProvidersService, AgentsViewProvidersService, InstantiationType.Delayed);

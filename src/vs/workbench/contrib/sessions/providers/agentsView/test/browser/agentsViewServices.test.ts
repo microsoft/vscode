@@ -6,7 +6,14 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { getSingletonServiceDescriptors } from '../../../../../../../platform/instantiation/common/extensions.js';
-import { _util, ServiceIdentifier } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { _util, createDecorator, ServiceIdentifier } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { isDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { SyncDescriptor } from '../../../../../../../platform/instantiation/common/descriptors.js';
+import { InstantiationService } from '../../../../../../../platform/instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../../../../../platform/instantiation/common/serviceCollection.js';
+import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { getEditorWindowSessionsSingletons } from '../../../../browser/editorWindow/editorWindowSessionsServices.js';
+import { ISessionAttentionService } from '../../../../common/sessionAttentionService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { EditorWindowMainSessionHost } from '../../../../browser/agentsView/editorWindowMainSessionHost.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
@@ -61,10 +68,67 @@ const CORE_SERVICES = new Set([
 	'workspaceContextService', 'workspacesService', 'workspaceTrustManagementService', 'workspaceTrustRequestService',
 ]);
 
+/**
+ * The services that an editor window provides without its sessions code, which the workbench test services do not: those
+ * of core features, such as chat, MCP and extensions. Each is an inert stub; the sessions services only need them to exist.
+ */
+const STUBBED_CORE_SERVICES = [
+	'IChatService', 'IChatWidgetHistoryService', 'IMcpService', 'agentHostCustomizationService', 'chatSessionsService', 'chatViewHostService',
+	'commandService', 'customizationHarnessService', 'extensionManifestPropertiesService', 'extensionsWorkbenchService', 'gitHubService', 'onboardingScenarioService',
+	'remoteAgentHostService', 'viewsService',
+];
+
+/** A stand-in that answers every member with itself, called or not: events and observables of it never fire or change. */
+function inertStub(): object {
+	const stub: object = new Proxy(function () { }, {
+		get: (_target, property) => property === Symbol.iterator ? function* () { }
+			: property === Symbol.toPrimitive ? () => 0
+				: property === 'then' ? undefined
+					: stub,
+		apply: () => stub,
+	});
+	return stub;
+}
+
 suite('Editor window sessions services', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('creates every sessions service an editor window registers, with the services the window provides and none only the Agents window registers', () => {
+		// What an editor window provides besides its sessions services; the services that other test files load, such as
+		// the Agents window's, are not provided, so a service the editor window lacks fails as it would in the window
+		const base = workbenchInstantiationService(undefined, disposables);
+		for (const name of STUBBED_CORE_SERVICES) {
+			base.stub(createDecorator(name), inertStub());
+		}
+		const registered = getSingletonServiceDescriptors();
+		const descriptorOf = (id: unknown) => registered.find(([candidate]) => candidate === id)?.[1];
+		const singletons = [
+			...getEditorWindowSessionsSingletons(),
+			// Registered by its module, which the Agents window loads too
+			{ id: ISessionAttentionService, ctor: descriptorOf(ISessionAttentionService)!.ctor },
+		];
+		// Created as they are injected, not as they are first used, so that none is created after the test ends
+		const services = new ServiceCollection();
+		for (const { id, ctor } of singletons) {
+			services.set(id, new SyncDescriptor(ctor, [], false));
+		}
+		const instantiationService = disposables.add(new InstantiationService(services, true, base));
+
+		const failures: string[] = [];
+		for (const { id, ctor } of singletons) {
+			try {
+				const instance = instantiationService.createInstance(ctor as new () => unknown);
+				if (isDisposable(instance)) {
+					instance.dispose();
+				}
+			} catch (error) {
+				failures.push(`${id}: ${(error as Error).message}`);
+			}
+		}
+
+		assert.deepStrictEqual(failures, []);
+	});
 	test('an editor window registers every sessions service that its sessions list and chats depend on', () => {
 		const registered = new Map(getSingletonServiceDescriptors().map(([id, descriptor]) => [id.toString(), descriptor]));
 		const missing = new Set<string>();
