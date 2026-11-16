@@ -9360,26 +9360,35 @@ suite('SessionsManagementService', () => {
 			};
 		}
 
-		function multiChatSession(id: string, chats: IChat[]): ISession {
+		function multiChatSession(id: string, chats: IChat[], status?: SessionStatus): ISession {
 			return stubSession({
 				sessionId: id,
 				providerId: 'test',
+				...(status === undefined ? {} : { status: constObservable(status) }),
 				chats: constObservable(chats),
 				mainChat: constObservable(chats[0]),
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			});
 		}
 
-		function setup(sessions: ISession[]) {
+		function setup(sessions: ISession[], storage?: InMemoryStorageService) {
 			const provider = new class extends TestSessionsProvider {
 				constructor() { super(sessions[0]); }
 				override getSessions(): ISession[] { return sessions; }
 			};
-			return createSessionsManagementService(sessions[0], disposables, provider);
+			return createSessionsManagementService(sessions[0], disposables, provider, undefined, undefined, undefined, undefined, storage);
 		}
 
 		const closedTitles = (view: SessionsService) =>
 			(view.activePane.get()?.tabs.closedChats.get() ?? []).map(c => c.title.get());
+
+		/** The titles of the chats of `session` saved as closed, as a reload restores them. */
+		const savedClosedTitles = async (storage: InMemoryStorageService, session: ISession) => {
+			await storage.flush();
+			const states = JSON.parse(storage.get('agentSessions.activeSessionStates', StorageScope.WORKSPACE) ?? '[]') as { sessionResource: string; closedChatResources?: string[] }[];
+			const closed = states.find(state => state.sessionResource === session.resource.toString())?.closedChatResources ?? [];
+			return session.chats.get().filter(c => closed.includes(c.resource.toString())).map(c => c.title.get());
+		};
 
 		test('the active side chat is restored after switching sessions', async () => {
 			const sessionA = multiChatSession('A', [chat('mainA'), chat('sideA', SessionStatus.Completed, ChatOriginKind.SideChat)]);
@@ -9461,6 +9470,32 @@ suite('SessionsManagementService', () => {
 			assert.deepStrictEqual({ moved, opened: grid() }, {
 				moved: { visible: [undefined], active: undefined, tabs: undefined },
 				opened: { visible: ['A'], active: 'A', tabs: ['subagentA'] },
+			});
+		});
+
+		test('a session whose main chat is closed leaves the grid when its only other chat moves into a chat window', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('b')]);
+			const [mainA, chatB] = sessionA.chats.get();
+			const { view } = setup([sessionA]);
+			await view.openSession(sessionA.resource);
+			await view.closeChat(activeSessionOf(view)!, mainA, { allowMainChat: true });
+			disposables.add(chatHostOpeners.get(view)!.register({
+				showsChat: shown => shown.toString() === chatB.resource.toString(),
+				reveal: async () => { },
+				openBeside: async () => { },
+				close: async () => ({ restore: async () => { } }),
+			}));
+			const grid = () => {
+				const active = view.activePane.get();
+				return { visible: slotSessionsOf(view).map(session => session?.sessionId), active: activeSessionOf(view)?.sessionId, tabs: active?.session.get() ? active.tabs.visibleChatTabs.get().map(chat => chat.title.get()) : undefined };
+			};
+			const before = grid();
+
+			disposables.add(view.hideChatFromGrid(sessionA, chatB.resource));
+
+			assert.deepStrictEqual({ before, moved: grid() }, {
+				before: { visible: ['A'], active: 'A', tabs: ['b'] },
+				moved: { visible: [undefined], active: undefined, tabs: undefined },
 			});
 		});
 
@@ -9836,9 +9871,10 @@ suite('SessionsManagementService', () => {
 		});
 
 		test('a closed main chat stays closed after switching away and back, until its session opens from its row', async () => {
-			const sessionA = multiChatSession('A', [chat('mainA'), chat('b')]);
-			const sessionB = multiChatSession('B', [chat('mainB')]);
-			const { view } = setup([sessionA, sessionB]);
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('b')], SessionStatus.Completed);
+			const sessionB = multiChatSession('B', [chat('mainB')], SessionStatus.Completed);
+			const storage = disposables.add(new InMemoryStorageService());
+			const { view } = setup([sessionA, sessionB], storage);
 			const [mainA] = sessionA.chats.get();
 			const grid = () => ({ closed: closedTitles(view), active: activeChatOf(view)?.title.get() });
 			const switchAwayAndBack = async (options?: IOpenSessionOptions) => {
@@ -9846,37 +9882,44 @@ suite('SessionsManagementService', () => {
 				await view.openSession(sessionA.resource, options);
 			};
 
+			// Saving state in between would write the closed chats from the grid and hide a missing sync.
 			await view.openSession(sessionA.resource);
 			await view.closeChat(activeSessionOf(view)!, mainA, { allowMainChat: true });
 			const closed = grid();
 			await switchAwayAndBack();
-			const switchedBack = grid();
+			const switchedBack = { ...grid(), saved: await savedClosedTitles(storage, sessionA) };
 			await switchAwayAndBack({ forceMainChat: true });
-			const fromItsRow = grid();
+			const fromItsRow = { ...grid(), saved: await savedClosedTitles(storage, sessionA) };
 			await switchAwayAndBack();
 
 			assert.deepStrictEqual({ closed, switchedBack, fromItsRow, switchedBackAgain: grid() }, {
 				closed: { closed: ['mainA'], active: 'b' },
-				switchedBack: { closed: ['mainA'], active: 'b' },
-				fromItsRow: { closed: [], active: 'mainA' },
+				switchedBack: { closed: ['mainA'], active: 'b', saved: ['mainA'] },
+				fromItsRow: { closed: [], active: 'mainA', saved: [] },
 				switchedBackAgain: { closed: [], active: 'mainA' },
 			});
 		});
 
 		test('a closed main chat that opens again stays open after switching away and back', async () => {
-			const sessionA = multiChatSession('A', [chat('mainA'), chat('b')]);
-			const sessionB = multiChatSession('B', [chat('mainB')]);
-			const { view } = setup([sessionA, sessionB]);
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('b')], SessionStatus.Completed);
+			const sessionB = multiChatSession('B', [chat('mainB')], SessionStatus.Completed);
+			const storage = disposables.add(new InMemoryStorageService());
+			const { view } = setup([sessionA, sessionB], storage);
 			const [mainA] = sessionA.chats.get();
 
 			await view.openSession(sessionA.resource);
 			await view.closeChat(activeSessionOf(view)!, mainA, { allowMainChat: true });
-			const closed = closedTitles(view);
+			const closed = { closed: closedTitles(view), saved: await savedClosedTitles(storage, sessionA) };
 			await view.openChat(sessionA, mainA.resource);
+			const reopened = { closed: closedTitles(view), saved: await savedClosedTitles(storage, sessionA) };
 			await view.openSession(sessionB.resource);
 			await view.openSession(sessionA.resource);
 
-			assert.deepStrictEqual({ closed, reopened: closedTitles(view) }, { closed: ['mainA'], reopened: [] });
+			assert.deepStrictEqual({ closed, reopened, switchedBack: closedTitles(view) }, {
+				closed: { closed: ['mainA'], saved: ['mainA'] },
+				reopened: { closed: [], saved: [] },
+				switchedBack: [],
+			});
 		});
 
 		test('a closed chat stays closed across a restart', async () => {
@@ -10197,6 +10240,47 @@ suite('SessionsManagementService', () => {
 				beforeSave: main.resource.toString(),
 				afterSaveBeforeCatalog: main.resource.toString(),
 				afterCatalog: side.resource.toString(),
+			});
+		});
+
+		test('a closed main chat hides again when the chat the session was left on appears after the session', async () => {
+			const main = chat('main');
+			const side = chat('side', SessionStatus.Completed, ChatOriginKind.SideChat);
+			const storage = disposables.add(new InMemoryStorageService());
+			const sessionWith = (chats: IObservable<readonly IChat[]>) => stubSession({
+				sessionId: 'delayed-closed-main',
+				providerId: 'test',
+				status: constObservable(SessionStatus.Completed),
+				chats,
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+
+			const firstSession = sessionWith(constObservable([main, side]));
+			const first = setup([firstSession], storage).view;
+			await first.openSession(firstSession.resource);
+			await first.openChat(firstSession, side.resource);
+			await first.closeChat(activeSessionOf(first)!, main, { allowMainChat: true });
+			await storage.flush();
+			first.dispose();
+
+			const chats = observableValue<readonly IChat[]>('delayedChats', [main]);
+			const restoredSession = sessionWith(chats);
+			const second = setup([restoredSession], storage).view;
+			await second.restoreVisibleSessions();
+			const shown = () => ({
+				tabs: second.activePane.get()?.tabs.visibleChatTabs.get().map(c => c.title.get()),
+				closed: closedTitles(second),
+				activeChat: activeChatOf(second)?.title.get(),
+			});
+			const beforeCatalog = shown();
+
+			chats.set([main, side], undefined);
+
+			assert.deepStrictEqual({ beforeCatalog, afterCatalog: shown(), saved: await savedClosedTitles(storage, restoredSession) }, {
+				beforeCatalog: { tabs: ['main'], closed: [], activeChat: 'main' },
+				afterCatalog: { tabs: ['side'], closed: ['main'], activeChat: 'side' },
+				saved: ['main'],
 			});
 		});
 	});

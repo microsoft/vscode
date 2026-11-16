@@ -881,6 +881,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 					this._pendingRestoredChatResources.delete(activeSession.resource);
 					this._visibility.openChat(activeSession, chat);
 					this._visibility.setActiveChat(activeSession, chat);
+					this._hideRestoredMainChat(activeSession, chat);
 				}
 			}));
 		}
@@ -1504,6 +1505,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 			sessionResource: session.resource.toString(),
 			closedChatResources: closedChatResources.size ? [...closedChatResources] : undefined,
 		});
+	}
+
+	/**
+	 * The chat a session was left on can load after the session: until then its main chat shows, closed or not, as the only
+	 * chat there is. Once that chat shows, a main chat that was closed hides again, unless it was opened since.
+	 */
+	private _hideRestoredMainChat(session: ISession, shownChat: IChat): void {
+		const mainChat = session.mainChat.get();
+		if (this.uriIdentityService.extUri.isEqual(shownChat.resource, mainChat.resource)
+			|| !this._sessionStates.get(session.resource)?.closedChatResources?.includes(mainChat.resource.toString())) {
+			return;
+		}
+		this._visibility.closeChat(session, mainChat, { allowMainChat: true });
 	}
 
 	private _applyActiveChatSelection(session: ISession, options: IOpenSessionOptions | undefined): void {
@@ -2303,11 +2317,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	hideChatFromGrid(session: ISession, chat: URI): IDisposable {
-		const hold = this._visibility.hideChatFromGrid(session.sessionId, chat);
-		// The session leaves the grid too when that was the only chat it shows there. Subagent chats it does not show as
+		// The session leaves the grid too when that is the only chat it shows there. Subagent chats it does not show as
 		// tabs do not keep it there: they open on demand. Only its own slot leaves: its chats in panes of their own stay.
+		// Read before the hold: with the chat gone, a closed main chat shows again as the chat left, and would keep the session.
 		const slot = this._slotPaneOf(session.sessionId);
 		const onlyChat = !!slot && slot.tabs.visibleChatTabs.get().every(tab => this.uriIdentityService.extUri.isEqual(tab.resource, chat));
+		const hold = this._visibility.hideChatFromGrid(session.sessionId, chat);
 		if (onlyChat) {
 			this._cancelRestore();
 			this._startOpenSession();
