@@ -14,6 +14,7 @@ import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/con
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IsSessionsWindowContext, RemoteNameContext, WorkbenchStateContext } from '../../../../../common/contextkeys.js';
 import { CHAT_CATEGORY } from '../../actions/chatActions.js';
+import { IChatViewNewChatTarget } from '../../chatViewHost.js';
 import { ChatSessionPosition, getResourceForNewChatSession, openChatSession } from '../../chatSessions/chatSessions.contribution.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
@@ -56,9 +57,23 @@ export async function prepareNewAgentHostChat(
 	provisional: IAgentHostUntitledProvisionalSessionService,
 	notificationService: INotificationService,
 ): Promise<URI | undefined> {
+	return (await prepareNewAgentHostChatTarget(resource, placement, folderService, provisional, notificationService))?.resource;
+}
+
+/**
+ * Like {@link prepareNewAgentHostChat}, but also resolves to the target of the prepared chat: for a new worktree, the folder
+ * that its configuration was prepared in, read together with that configuration, so that both are of the same folder.
+ */
+async function prepareNewAgentHostChatTarget(
+	resource: URI,
+	placement: NewAgentHostChatPlacement,
+	folderService: IAgentHostNewSessionFolderService,
+	provisional: IAgentHostUntitledProvisionalSessionService,
+	notificationService: INotificationService,
+): Promise<{ readonly resource: URI; readonly target: IChatViewNewChatTarget } | undefined> {
 	if (placement === 'noWorkspace') {
 		folderService.setNoWorkspace(resource);
-		return resource;
+		return { resource, target: { placement } };
 	}
 	folderService.setNewWorktree(resource);
 	for (let attempt = 0; attempt < CONFIGURATION_ATTEMPTS && !provisional.getPreparedSessionConfig(resource); attempt++) {
@@ -69,9 +84,11 @@ export async function prepareNewAgentHostChat(
 		}
 	}
 	const config = provisional.getPreparedSessionConfig(resource);
+	// Read in the same turn: the provisional service holds the configuration only while the folder it was prepared in still is
+	const folder = folderService.resolveNewSessionPrimary(resource);
 	const isolation = config && getSessionIsolationProperty(config.schema);
 	if (isolation && (isolation.schema.enum ?? []).includes('worktree') && config.values[isolation.key] === 'worktree') {
-		return resource;
+		return { resource, target: { placement, folder } };
 	}
 	abandonNewAgentHostChat(resource, folderService, provisional);
 	notificationService.warn(config
@@ -120,13 +137,8 @@ async function openLocalAgentHostChat(accessor: ServicesAccessor, placement: New
 	const openOptions = { type: contribution.type, displayName: contribution.displayName, position: ChatSessionPosition.Sidebar };
 	const folderService = accessor.get(IAgentHostNewSessionFolderService);
 	const provisional = accessor.get(IAgentHostUntitledProvisionalSessionService);
-	const resource = await prepareNewAgentHostChat(getResourceForNewChatSession(openOptions), placement, folderService, provisional, notificationService);
-	if (!resource) {
-		return undefined;
-	}
-	// A new worktree of the folder its configuration was prepared in, which the host's composer needs
-	const target = placement === 'worktree' ? { placement, folder: folderService.resolveNewSessionPrimary(resource) } : { placement };
-	return openPreparedAgentHostChat(resource, () => instantiationService.invokeFunction(accessor => openChatSession(accessor, { ...openOptions, sessionResource: resource, target })), folderService, provisional);
+	const prepared = await prepareNewAgentHostChatTarget(getResourceForNewChatSession(openOptions), placement, folderService, provisional, notificationService);
+	return prepared && openPreparedAgentHostChat(prepared.resource, () => instantiationService.invokeFunction(accessor => openChatSession(accessor, { ...openOptions, sessionResource: prepared.resource, target: prepared.target })), folderService, provisional);
 }
 
 export class NewChatInWorktreeAction extends Action2 {

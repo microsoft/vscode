@@ -14,7 +14,7 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
-import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 import { IChat, ISession, ISessionType } from '../../../../../services/sessions/common/session.js';
@@ -29,17 +29,28 @@ import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsV
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { SessionConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { NewChatInWorktreeAction, NewChatWithoutWorkspaceAction } from '../../../../chat/browser/agentSessions/agentHost/agentHostNewChatActions.js';
-import { IAgentHostNewSessionFolderService } from '../../../../chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
-import { IAgentHostUntitledProvisionalSessionService } from '../../../../chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
-import { IAgentHostImportConversationStore } from '../../../../chat/browser/agentSessions/agentHost/agentHostImportConversationStore.js';
+import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../../chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import { AgentHostUntitledProvisionalSessionService, IAgentHostUntitledProvisionalSessionService } from '../../../../chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from '../../../../chat/browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../../chat/common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../../chat/common/customizationHarnessService.js';
 import { ILanguageModelToolsService } from '../../../../chat/common/tools/languageModelToolsService.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
+import { extUri } from '../../../../../../base/common/resources.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IAgentHostActiveClientService } from '../../../../chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 
 suite('AgentsChatViewHost', () => {
 
@@ -423,6 +434,102 @@ suite('AgentsChatViewHost', () => {
 			noWorkspace: { opened: true, targets: [{ folder: undefined, placement: undefined }], errors: 0, cleanup: [] },
 			// No folder to make a worktree of: it starts nothing, and forgets the new chat
 			worktreeWithoutFolder: { opened: false, targets: [], errors: 1, cleanup: ['clear', 'release'] },
+		});
+	});
+
+	test('with the chat area on, New Chat in Worktree and New Chat (No Workspace) start through the real folder and provisional services, and the chat they prepared is forgotten once the host releases its model', async () => {
+		const folder = URI.file('/repo');
+		const onDidDisposeSession = store.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' | 'disposed' }>());
+		// As the chat service does: the session goes once the last reference to its model goes
+		const chatService = upcastPartial<IChatService>({
+			onDidDisposeSession: onDidDisposeSession.event,
+			onDidCreateModel: Event.None,
+			acquireOrLoadSession: async resource => upcastPartial<IChatModelReference>({ dispose: () => onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' }) }),
+		});
+		const resolution = (resource: URI) => ({
+			connection: upcastPartial<IAgentConnection>({ resolveSessionConfig: async () => ({ schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } } as SessionConfigSchema, values: { isolation: 'worktree' } }) }),
+			connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY,
+			backendSession: resource.with({ scheme: 'copilotcli' }),
+		});
+		const connections = new ResourceMap<ReturnType<typeof resolution>>();
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IChatService, chatService);
+		instantiationService.stub(IAgentHostService, upcastPartial<IAgentHostService>({ rootState: upcastPartial<IAgentHostService['rootState']>({ onDidChange: Event.None }), onAgentHostStart: Event.None }));
+		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
+			onDidChangeSessionResolution: Event.None,
+			// The same connection for a session each time, as the provisional service checks it is still current
+			resolveSessionResource: resource => {
+				let resolved = connections.get(resource);
+				if (!resolved) {
+					resolved = resolution(resource);
+					connections.set(resource, resolved);
+				}
+				return resolved;
+			},
+		}));
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
+			onDidChangeWorkspaceFolders: Event.None,
+			getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [upcastPartial<IWorkspaceFolder>({ uri: folder })] }),
+		}));
+		instantiationService.stub(IWorkspaceTrustManagementService, upcastPartial<IWorkspaceTrustManagementService>({
+			onDidChangeTrust: Event.None,
+			onDidChangeTrustedFolders: Event.None,
+			isWorkspaceTrusted: () => true,
+			getUriTrustInfo: async uri => ({ uri, trusted: true }),
+		}));
+		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
+		instantiationService.stub(IAgentHostImportConversationStore, new AgentHostImportConversationStore());
+		instantiationService.stub(IAgentHostActiveClientService, upcastPartial<IAgentHostActiveClientService>({}));
+		const folderService = store.add(instantiationService.createInstance(AgentHostNewSessionFolderService));
+		instantiationService.stub(IAgentHostNewSessionFolderService, folderService);
+		const provisional = store.add(instantiationService.createInstance(AgentHostUntitledProvisionalSessionService));
+		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, provisional);
+
+		interface IProvisionalMaps { readonly [name: string]: ResourceMap<unknown> }
+		const maps = provisional as unknown as IProvisionalMaps;
+		const retained = (resource: URI) => ({
+			seeded: folderService.isNewWorktree(resource) || folderService.isNoWorkspace(resource),
+			maps: ['_preparedConfigs', '_resolvedConfigs', '_resolvedConfigRequestSeq', '_resolvedConfigConnections', '_sessionCreationMetadata'].filter(name => maps[name].has(resource)),
+		});
+		let started: URI | undefined;
+		const composers: unknown[] = [];
+		const { host, calls } = createHost({
+			chatService,
+			chatPart: {
+				openComposer: async target => {
+					// What the new chat holds while the composer aimed at it shows, before the host releases its model
+					composers.push({ folder: target?.folderUri?.path, placement: target?.placement, ...retained(started!) });
+				},
+			},
+		});
+		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ startSession: (resource, options) => { started = resource; return host.startSession(resource, options); } }));
+		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({}));
+		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ getChatSessionContribution: () => upcastPartial<ResolvedChatSessionsExtensionPoint>({ type: SessionType.AgentHostCopilot, displayName: 'Copilot' }) }));
+		instantiationService.stub(IAgentHostEnablementService, upcastPartial<IAgentHostEnablementService>({ enabled: constObservable(true) }));
+		instantiationService.stub(IEditorGroupsService, {});
+		instantiationService.stub(IEditorService, {});
+		instantiationService.stub(ICustomizationHarnessService, {});
+		instantiationService.stub(ILanguageModelToolsService, {});
+		const run = async (id: string) => {
+			const opened = await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
+			return { opened: !!opened, afterRelease: retained(started!) };
+		};
+
+		const results = { worktree: await run(NewChatInWorktreeAction.ID), noWorkspace: await run(NewChatWithoutWorkspaceAction.ID) };
+
+		assert.deepStrictEqual({ results, composers, errors: calls.filter(call => call.startsWith('error')).length }, {
+			results: {
+				worktree: { opened: true, afterRelease: { seeded: false, maps: [] } },
+				noWorkspace: { opened: true, afterRelease: { seeded: false, maps: [] } },
+			},
+			composers: [
+				{ folder: '/repo', placement: 'worktree', seeded: true, maps: ['_preparedConfigs', '_resolvedConfigConnections'] },
+				{ folder: undefined, placement: undefined, seeded: true, maps: [] },
+			],
+			errors: 0,
 		});
 	});
 
