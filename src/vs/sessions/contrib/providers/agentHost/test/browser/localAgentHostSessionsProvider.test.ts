@@ -2646,6 +2646,23 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(observed, [undefined, 'agent-host-claude:/late-creator#ahp-chat%3A%2F%2Fdefault%2FY2xhdWRlOi9sYXRlLWNyZWF0b3I', 'agent-host-claude:/late-creator']);
 	}));
 
+	test('a creation reference to a session whose provider this client does not know has no creator, instead of failing', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('created-elsewhere'));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(candidate => candidate.resource.path === '/created-elsewhere')!;
+
+		// Such as a session that a session of another client created
+		fireSessionMetaChanged(agentHost, 'created-elsewhere', withSessionCreationReference(undefined, {
+			session: 'ahp-session:/3938d3e8-ee14-4e4e-9b5c-863cea0f3413',
+			chat: 'ahp-chat:/3938d3e8-ee14-4e4e-9b5c-863cea0f3413',
+			turnId: 'turn-1',
+		}));
+
+		assert.deepStrictEqual({ createdBySession: session.createdBySession?.get(), sessions: provider.getSessions().length }, { createdBySession: undefined, sessions: 1 });
+	}));
+
 	test('remote creation provenance is not remapped onto the child host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('remote-created'));
 		const provider = createProvider(disposables, agentHost);
