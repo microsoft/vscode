@@ -287,6 +287,26 @@ const modelRouterExample = [
 	'      - why is token usage higher in treatment?',
 ].join('\n');
 
+const modelRouterNamedRoutesExample = [
+	'version: 1',
+	'display-name: Workday',
+	'description: Opus for feature work and bug fixes, Haiku for quick questions.',
+	'routes:                     # the first one is used when the router can\'t tell',
+	'  - name: feature',
+	'    model: [claude-opus-5.5, claude-opus-5]',
+	'    when: Building something new or changing behavior across files, such as a feature, prototype or refactor.',
+	'    effort: high',
+	'    guidance: Plan first. Before you finish, have the code-review agent check the change and run the unit-tests skill.',
+	'  - name: bugfix',
+	'    model: claude-opus-5.5',
+	'    when: Something is broken, such as a failing test, a crash or a reported issue.',
+	'    effort: medium',
+	'    guidance: Reproduce the failure before changing code. Add a test that fails without the fix.',
+	'  - name: quick',
+	'    model: claude-haiku-5.5',
+	'    when: Questions, lookups, explanations, small one-file edits and git chores.',
+].join('\n');
+
 const modelRouterSkillContent = `# Model router
 
 A model router is a YAML file that VS Code lists as a model in the model picker. When a chat uses it, each turn asks a decision model which route fits the request and runs the turn on that route's model. Use this skill to create, edit or fix one.
@@ -303,14 +323,31 @@ A model router is a YAML file that VS Code lists as a model in the model picker.
 ${modelRouterExample}
 \`\`\`
 
-- \`model\` is a Copilot model id, or \`<vendor>/<id>\` for a model on the user's own key (for example \`anthropic/claude-haiku-4-5\`; add the group, \`<vendor>/<group>/<id>\`, if two match). A list is tried in order and the first available model is used. Each model may appear in only one route.
-- \`when\` says which requests the route is for. The decision model sees only the user's message, so describe **the work a request involves**, not just its topic: "Building or changing things over many steps, such as …" routes far better than "Planning and design". Name concrete kinds of requests, and add 2 or 3 \`examples\` in the user's own words, including short ones like "prototype this". Avoid a catch-all first route ("explanations", "questions"): short messages often start long investigations.
+- \`model\` is a Copilot model id, or \`<vendor>/<id>\` for a model on the user's own key (for example \`anthropic/claude-haiku-4-5\`; add the group, \`<vendor>/<group>/<id>\`, if two match). A list is tried in order and the first available model is used. Each model may appear in only one route, unless the routes have names (see below).
+- \`when\` says which requests the route is for. The decision model sees the user's message and a few facts about it, never the code, so describe **the work a request involves**, not just its topic: "Building or changing things over many steps, such as …" routes far better than "Planning and design". Name concrete kinds of requests, and add 2 or 3 \`examples\` in the user's own words, including short ones like "prototype this". Avoid a catch-all first route ("explanations", "questions"): short messages often start long investigations.
+- The facts the decision is given besides the message: what is attached (how many images, documents, selections and so on, and how many lines are selected), Plan or Autopilot mode, the custom agent the user chose, the workspace's name and GitHub repository, how many files have uncommitted changes when there are ten or more, whether the branch has an open pull request, and each model's cost and context window. A \`when\` can refer to them, such as "Anything sent in Plan mode", "Requests with an image attached" or "Work on a tree with many changed files".
 - Put first the model the user wants when the router can't tell which route fits: usually their strongest everyday model, not the cheapest.
 - Keep \`guidance\` for rules that apply to every request; a line like "prefer the cheapest model" pulls almost every request to the first route.
 - Put short hand-off replies in the examples of the route that should do the work, such as "fix it (after finding the cause)" or "do that and open a PR" under the building route. On their own they read like quick chores.
 - \`effort\` levels: none, minimal, low, medium, high, xhigh, max, ultra. Only levels the model supports work; the check reports the rest. \`auto\` lets the router choose per request; \`off\` leaves each model's default and ignores route \`effort\`.
 - \`switching: first-turn\`, the default, picks a model and effort on the first turn and keeps them; \`auto\` may also switch later when the work clearly changes.
 - Keys \`subagents\`, \`phases\` and \`mid-turn\` are reserved for later versions and ignored.
+- \`display-name\` (optional) is the name the model picker and the chat show in place of the file name.
+- \`context-size: long\` (optional, on a route or for the whole router) runs a model on its larger context window when it has one; \`default\` uses its standard one. The check lists each model's \`contextSizes\`, and \`longContextCostsMore\` when the larger one is billed at a higher rate. Without the key each model keeps its own default. A chat that is on a long window stays on one.
+
+## Named routes and guidance
+
+A route can have a \`name\`, and \`guidance\` that says how the user wants that kind of work done:
+
+\`\`\`yaml
+${modelRouterNamedRoutesExample}
+\`\`\`
+
+- \`name\` (optional) is what the chat shows for the route: lowercase letters, digits and single hyphens, each used once. Routes with a name may use the same model, for example the same model at two effort levels; a route without one may not share its model.
+- \`guidance\` on a route (optional, at most 4000 characters) is given to the chat's main agent, not to the decision model. Write it as instructions for that kind of work: the steps to take, and the skills and custom agents to use, by name. The agent already has the user's skills and custom agents, so naming one is enough; a custom agent runs on the model its own file names, else the chat's.
+- A chat gets the guidance of the route its first message is routed to, and keeps it. So \`switching: auto\` can't be used when a route has \`guidance\`. A router chosen in a chat that already has messages picks models but brings no guidance; it is also lost when VS Code restarts. Start a new chat to get it.
+- One route is enough when it has \`guidance\`.
+- The router's own \`guidance\`, at the top of the file, is different: it is for the routing decision.
 
 ## YAML rules
 

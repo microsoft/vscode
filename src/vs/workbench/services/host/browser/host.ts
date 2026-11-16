@@ -169,9 +169,9 @@ export interface IHostService {
 	//#region Screenshots
 
 	/**
-	 * Captures a screenshot.
+	 * Captures a screenshot of the main window, or of the given window where supported.
 	 */
-	getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined>;
+	getScreenshot(rect?: IRectangle, targetWindow?: Window): Promise<VSBuffer | undefined>;
 
 	//#endregion
 

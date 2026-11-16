@@ -18,7 +18,8 @@ import { toRemoteAgentHostSessionType } from '../../../../platform/agentHost/com
 import { buildExternalOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { AgentHostByokLmHandler } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostByokLmHandler.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
@@ -41,6 +42,7 @@ import { getNonArchivedSessionListCount } from '../../../../workbench/contrib/se
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { getAgentsWindowWorkspaceArgumentKind, getAgentsWindowWorkspaceArgumentRemoteKind, resolveAgentsWindowFolderIntent } from '../browser/agentsWindowOpenIntent.js';
 import { findSessionForOpenSessionLink } from '../browser/openSessionLinkOpener.contribution.js';
+import { getChatWindowLinkSource, IChatWindowLinkSource, openLinkedChatInChatWindow, resolveLinkedChat } from '../browser/chatLinkRouting.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { AgentsWindowWorkspaceHandoff } from '../browser/agentsWindowWorkspaceHandoff.js';
 import { SessionsWorkspaceSelectionTelemetry } from '../../sessions/browser/sessionsWorkspaceSelectionTelemetry.js';
@@ -54,6 +56,7 @@ import './chatBackgroundTool.contribution.js';
 import { ScreenshotWindowToolContribution } from '../browser/screenshotWindowTool.js';
 import { ISession, isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
 import { IRemoteWorkspaceHandoffService, RemoteAgentHostHandoffResult } from '../../../common/remoteWorkspaceHandoff.js';
+import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { getRemoteName } from '../../../../platform/remote/common/remoteHosts.js';
 
 /** Revokes editor request ownership when the next request is submitted here. */
@@ -112,9 +115,11 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		@IProductService private readonly productService: IProductService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IRemoteWorkspaceHandoffService private readonly remoteWorkspaceHandoffService: IRemoteWorkspaceHandoffService,
+		@IChatWindowService private readonly chatWindowService: IChatWindowService,
 	) {
 		super();
-		this._workspaceHandoff = this._register(instantiationService.createInstance(AgentsWindowWorkspaceHandoff));
+		// Session providers register in contributions instantiated after restore.
+		this._workspaceHandoff = this._register(instantiationService.createInstance(AgentsWindowWorkspaceHandoff, Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).whenRestored));
 		this._invitationOnboarding = this._register(instantiationService.createInstance(AgentsWindowInvitationOnboarding));
 		const handleSelectAgentsFolder = (_: unknown, ...args: unknown[]) => {
 			this._workspaceHandoff.cancel();
@@ -259,6 +264,11 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 	private async openExistingSession(sessionResource: URI, token: CancellationToken, remoteAuthority?: string): Promise<'unsupported' | undefined> {
 		this.logService.info(`[AgentsHandoff] openExistingSession: target=${sessionResource.toString()}`);
 
+		const backendSession = parseOpenSessionLinkUri(sessionResource);
+		// The chat window that has focus as the link arrives is the one it was activated in, such as from its canvas:
+		// read it before waiting, as focus can move meanwhile. No chat window has focus while another app has it.
+		const linkSource = backendSession && getChatWindowLinkSource(this.chatWindowService.activeWindow, this.configurationService);
+
 		// Wait until initial restore has started so opening the target can cancel it,
 		// without delaying the handoff until the intentionally deferred Eventually phase.
 		await raceCancellation(this.lifecycleService.when(LifecyclePhase.Restored), token);
@@ -267,9 +277,8 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		}
 		this.logService.info('[AgentsHandoff] reached LifecyclePhase.Restored');
 
-		const backendSession = parseOpenSessionLinkUri(sessionResource);
 		if (backendSession) {
-			await this.sessionsPartService.getProgressIndicator().showWhile(this.resolveAndOpenSessionLink(sessionResource, backendSession, token));
+			await this.sessionsPartService.getProgressIndicator().showWhile(this.resolveAndOpenSessionLink(sessionResource, backendSession, token, linkSource));
 			return undefined;
 		}
 
@@ -293,7 +302,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		return undefined;
 	}
 
-	private async resolveAndOpenSessionLink(sessionLink: URI, backendSession: URI, token: CancellationToken): Promise<void> {
+	private async resolveAndOpenSessionLink(sessionLink: URI, backendSession: URI, token: CancellationToken, linkSource: IChatWindowLinkSource | undefined): Promise<void> {
 		const authority = parseOpenSessionLinkConnectionAuthority(sessionLink);
 		const session = await this.waitForSessionLinkAvailable(backendSession, token, undefined, authority);
 		if (token.isCancellationRequested) {
@@ -322,12 +331,17 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			}
 		}
 
-		const chatId = parseOpenSessionLinkChatId(sessionLink);
-		const chatResource = chatId ? session.resource.with({ fragment: chatId }) : session.mainChat.get().resource;
+		const chatResource = await resolveLinkedChat(this.agentHostConnectionsService, session, parseOpenSessionLinkChatId(sessionLink));
 		if (token.isCancellationRequested) {
 			return;
 		}
 		this.logService.info(`[AgentsHandoff] linked session available; opening ${chatResource.toString()}`);
+		if (linkSource && await openLinkedChatInChatWindow(this.chatWindowService, linkSource, session, chatResource, false)) {
+			return;
+		}
+		if (token.isCancellationRequested) {
+			return;
+		}
 		await this.sessionsService.openChat(session, chatResource, { source: 'link' });
 	}
 
@@ -392,11 +406,10 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 	 * Returns `'unsupported'` when this window does not share that agent host.
 	 */
 	private async resolveAndOpenRemoteSession(editorSessionResource: URI, remoteAuthority: string, token: CancellationToken): Promise<'unsupported' | undefined> {
-		// Only a tunnel's editor windows share their agent host with this window. Elsewhere, the editor's VS Code server
-		// runs its own agent host, with a session registry separate from that of the agent host this window starts.
-		// The window's folder is selected instead, without a notification.
-		if (getRemoteName(remoteAuthority) !== 'tunnel') {
-			this.logService.info(`[AgentsHandoff] sessions of ${getRemoteName(remoteAuthority)} windows are not shared with this window`);
+		// Unsupported remotes fall back to their source folder without a notification.
+		const remoteName = getRemoteName(remoteAuthority);
+		if (remoteName !== 'tunnel' && remoteName !== 'ssh-remote' && remoteName !== 'wsl') {
+			this.logService.info(`[AgentsHandoff] sessions of ${remoteName} windows are not shared with this window`);
 			return 'unsupported';
 		}
 		let host: RemoteAgentHostHandoffResult;
@@ -418,7 +431,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			return undefined;
 		}
 		if (!host.sharesEditorWindowAgentHost()) {
-			this.notificationService.warn(localize('agentsHandoff.remoteSessionOtherHost', "The session of your remote window can't be opened in the Agents Window, because the Agents Window is connected to a different agent host on the tunnel's machine than your remote window."));
+			this.notificationService.warn(localize('agentsHandoff.remoteSessionOtherHost', "The session of your remote window can't be opened in the Agents Window, because the Agents Window is connected to a different agent host on the remote machine than your remote window."));
 			return 'unsupported';
 		}
 		const sessionResource = editorSessionResource.with({ scheme: sessionType });

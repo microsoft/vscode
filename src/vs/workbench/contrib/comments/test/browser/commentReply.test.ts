@@ -11,7 +11,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
-import { CommentInput, CommentThread } from '../../../../../editor/common/languages.js';
+import { Comment, CommentInput, CommentThread } from '../../../../../editor/common/languages.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { createCodeEditorServices, instantiateTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
@@ -26,6 +26,7 @@ import { SimpleCommentEditor } from '../../browser/simpleCommentEditor.js';
 
 suite('CommentReply', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const existingComment: Comment = { body: 'Existing comment', uniqueIdInThread: 1, userName: 'Reviewer' };
 
 	teardown(() => sinon.restore());
 
@@ -54,7 +55,7 @@ suite('CommentReply', () => {
 		instantiationService.stub(IMenuService, new TestMenuService());
 		instantiationService.stub(IContextMenuService, {});
 		const thread = new class extends mock<CommentThread<IRange>>() {
-			override readonly comments = hasExistingComments ? [{ body: 'Existing comment', uniqueIdInThread: 1, userName: 'Reviewer' }] : [];
+			override comments: ReadonlyArray<Comment> | undefined = hasExistingComments ? [existingComment] : [];
 			override readonly canReply = true;
 			override readonly onDidChangeInput = onDidChangeInput.event;
 		};
@@ -126,5 +127,32 @@ suite('CommentReply', () => {
 			hasReplyButton: !!container.querySelector('.review-thread-reply-button'),
 			value: model.getValue()
 		}, { expanded: [true, true, true], hasReplyButton: true, value: '' });
+	});
+
+	test('collapses an untouched reply area when a new thread receives its first comments', async () => {
+		const { reply, container, model, thread } = await createReply(false);
+		const formContainer = container.querySelector('.comment-form-container')!;
+		const expanded = [formContainer.classList.contains('expand')];
+		thread.comments = [existingComment];
+		reply.updateCommentThread(thread);
+		expanded.push(formContainer.classList.contains('expand'));
+
+		assert.deepStrictEqual({
+			expanded,
+			hasReplyButton: !!container.querySelector('.review-thread-reply-button'),
+			value: model.getValue()
+		}, { expanded: [true, false], hasReplyButton: true, value: '' });
+	});
+
+	test('keeps a draft expanded when a new thread receives its first comments', async () => {
+		const { reply, container, model, thread } = await createReply(false);
+		model.setValue('Draft comment');
+		thread.comments = [existingComment];
+		reply.updateCommentThread(thread);
+
+		assert.deepStrictEqual({
+			expanded: container.querySelector('.comment-form-container')!.classList.contains('expand'),
+			value: model.getValue()
+		}, { expanded: true, value: 'Draft comment' });
 	});
 });

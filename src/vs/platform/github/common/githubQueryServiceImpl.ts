@@ -649,8 +649,12 @@ export class GitHubQueryService extends Disposable implements GitHubQueryApi {
 		this._logService.debug(`[GitHubQueryService] Handling credential invalidation (${event.reason}) for ${this._entries.size} resource(s)`);
 		for (const entry of [...this._entries]) {
 			if (!event.credential || sameAccount(entry.ref, event.credential)) {
-				if (event.reason === 'replacement' || event.reason === 'authentication') {
+				if (event.reason === 'replacement' || event.reason === 'authentication' || event.reason === 'reauthorization') {
 					const current = entry.state.get();
+					// A reauthorized credential keeps what it already observed; only a failed entity may now succeed.
+					if (event.reason === 'reauthorization' && current.status !== 'error') {
+						continue;
+					}
 					entry.state.set({
 						...current,
 						status: current.value ? 'stale' : 'missing',

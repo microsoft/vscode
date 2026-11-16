@@ -95,6 +95,11 @@ export class ExperimentExposureTracker {
 			// Exposure logging must never break a flag read.
 		}
 	}
+
+	/** Forgets past exposures, so that the next read of each flag exposes it under a new assignment. */
+	reset(): void {
+		this._exposed.clear();
+	}
 }
 
 export function exposureValueType(value: TreatmentValue): 'bool' | 'number' | 'string' {
@@ -138,8 +143,9 @@ export function exposureTelemetryProperties(exposure: IExperimentExposure): Tele
 }
 
 /**
- * Sends `exposure` to GitHub and Microsoft telemetry. Both carry the shared
- * `abexp.assignmentcontext` property.
+ * Sends `exposure` to Microsoft telemetry, and to GitHub telemetry when it has a tracking ID.
+ * Both carry the shared `abexp.assignmentcontext` property. Without a tracking ID (signed out),
+ * the Microsoft event also omits the senders' cached `common.tid`.
  */
 export function sendExperimentExposureTelemetry(telemetryService: Pick<ITelemetryService, 'sendTelemetryEvent'>, exposure: IExperimentExposure): void {
 	/* __GDPR__
@@ -158,7 +164,12 @@ export function sendExperimentExposureTelemetry(telemetryService: Pick<ITelemetr
 			"sdk_version": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The exposure implementation's version." }
 		}
 	*/
-	telemetryService.sendTelemetryEvent(EXP_EXPOSURE_EVENT, { github: true, microsoft: true }, exposureTelemetryProperties(exposure));
+	const properties = exposureTelemetryProperties(exposure);
+	if (exposure.trackingId) {
+		telemetryService.sendTelemetryEvent(EXP_EXPOSURE_EVENT, { github: true, microsoft: true }, properties);
+	} else {
+		telemetryService.sendTelemetryEvent(EXP_EXPOSURE_EVENT, { github: false, microsoft: true }, { ...properties, 'common.tid': '' });
+	}
 }
 
 /**

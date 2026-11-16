@@ -447,13 +447,13 @@ suite('GitHubService', () => {
 				status: 429, headers: { 'Retry-After': '5' },
 			}));
 			token = 'superseded-token';
-			const obsolete = assert.rejects(client.credentials.getCredential(signal()), { kind: 'authentication' });
+			const obsolete = client.credentials.getCredential(signal());
 			await timeout(1);
 			token = 'latest-token';
 			const replacement = client.credentials.getCredential(signal());
-			await obsolete;
+			const parked = await obsolete;
 			await replacement;
-			assert.deepStrictEqual(tokens, ['Bearer first-token', 'Bearer latest-token']);
+			assert.deepStrictEqual({ tokens, parked: parked.token }, { tokens: ['Bearer first-token', 'Bearer latest-token'], parked: 'latest-token' });
 		} finally {
 			service.dispose();
 		}

@@ -113,7 +113,7 @@ export interface ITabDescriptor {
  * running it does not change the active tab.
  */
 export interface ITabBarAction {
-	/** Stable identifier, used as the button's `data-id` for tests. */
+	/** Stable identifier for the action button. */
 	readonly id: string;
 	readonly icon: ThemeIcon;
 	readonly tooltip: string;
@@ -123,6 +123,8 @@ export interface ITabBarAction {
 	readonly useManagedHover?: boolean;
 	/** When true, the button renders in its pressed state. */
 	readonly checked?: boolean;
+	/** Keep focus on this action when a visible popup is rebuilt. */
+	readonly preserveFocus?: boolean;
 	/** When set, the button is disabled and its managed hover explains why instead of showing {@link tooltip}. */
 	readonly disabledReason?: string;
 	/** Attaches consumer-owned behavior for this rendered button's lifetime. */
@@ -280,6 +282,10 @@ export class TabbedActionListWidget extends Disposable {
 	 */
 	show<T>(options: ITabbedActionListShowOptions<T>): void {
 		const isSwap = this.isVisible;
+		const focusedElement = dom.getActiveElement();
+		const focusedAction = isSwap && dom.isHTMLElement(focusedElement) && this._contextViewService.getContextViewElement().contains(focusedElement)
+			? options.tabBarActions?.find(action => action.preserveFocus && action.id === focusedElement.dataset.id)
+			: undefined;
 		if (isSwap) {
 			this._swappingTab = true;
 			this._activePopup.value = undefined;
@@ -559,12 +565,16 @@ export class TabbedActionListWidget extends Disposable {
 					}, dom.getWindow(tabBar)));
 					renderDisposables.add(tabBarObserver.observe(tabBar));
 				}
+				let tabBarActionToFocus: HTMLElement | undefined;
 				for (const tabAction of options.tabBarActions ?? []) {
 					const container = tabAction.alignEnd ? tabBar : tabStrip;
 					const button = dom.append(container, dom.$('button.tabbed-action-list-tabbar-action'));
 					button.classList.toggle('align-end', !!tabAction.alignEnd);
 					button.classList.toggle('checked', !!tabAction.checked);
 					button.dataset.id = tabAction.id;
+					if (tabAction === focusedAction) {
+						tabBarActionToFocus = button;
+					}
 					button.ariaLabel = tabAction.tooltip;
 					// `aria-disabled` rather than `disabled`, so the button stays focusable and hoverable to explain why.
 					const disabledReason = tabAction.disabledReason;
@@ -590,6 +600,12 @@ export class TabbedActionListWidget extends Disposable {
 						dom.EventHelper.stop(e, true);
 						if (!disabledReason) {
 							tabAction.run();
+						}
+					}));
+					renderDisposables.add(dom.addStandardDisposableListener(button, dom.EventType.KEY_DOWN, e => {
+						if (e.equals(KeyCode.Enter)) {
+							dom.EventHelper.stop(e, true);
+							button.click();
 						}
 					}));
 					if (tabAction.render) {
@@ -937,7 +953,9 @@ export class TabbedActionListWidget extends Disposable {
 				renderDisposables.add(this._animateTabResize(radio, options.tabs, tabBoxes, tabTexts));
 				this._previousTabBoxes = tabBoxes;
 				this._previousTabTexts = tabTexts;
-				if (body.inert) {
+				if (tabBarActionToFocus) {
+					tabBarActionToFocus.focus();
+				} else if (body.inert) {
 					options.focusFooter?.();
 				} else if (emptyBody) {
 					// The list is not in the DOM at all, so focusing it would drop focus
@@ -970,6 +988,13 @@ export class TabbedActionListWidget extends Disposable {
 					if (e.keyCode === KeyCode.Enter && listNavigation) {
 						dom.EventHelper.stop(e, true);
 						list.acceptSelected();
+						return;
+					}
+					if (e.equals(KeyCode.Space) && listNavigation && !onEditable && target && list.domNode.contains(target)) {
+						dom.EventHelper.stop(e, true);
+						if (!list.toggleFocusedSection()) {
+							list.acceptSelected();
+						}
 						return;
 					}
 					if (e.keyCode === KeyCode.UpArrow && listNavigation) {

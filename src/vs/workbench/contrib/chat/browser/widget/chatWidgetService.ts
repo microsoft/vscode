@@ -16,10 +16,10 @@ import { IEditorGroup, IEditorGroupsService, isEditorGroup } from '../../../../s
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
-import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService, IQuickChatService, isIChatViewViewContext } from '../chat.js';
+import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService, IQuickChatService, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
+import { IChatViewHostService } from '../chatViewHost.js';
 import { ChatEditor, IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
-import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 
 export class ChatWidgetService extends Disposable implements IChatWidgetService {
 
@@ -54,6 +54,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		@IEditorService private readonly editorService: IEditorService,
 		@IChatService private readonly chatService: IChatService,
 		@ILogService private readonly logService: ILogService,
+		@IChatViewHostService private readonly chatViewHostService: IChatViewHostService,
 	) {
 		super();
 	}
@@ -87,11 +88,16 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 
 	async revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined> {
 		const last = this.lastFocusedWidget;
-		if (last && await this.reveal(last, preserveFocus)) {
+		// The Chat view's widgets are shown by the host of its chats, which may have replaced the Chat view: what it shows is the result
+		if (last && !(isIChatViewViewContext(last.viewContext) && last.viewContext.viewId === ChatViewId) && await this.reveal(last, preserveFocus)) {
 			return last;
 		}
 
-		return (await this.viewsService.openView<ChatViewPane>(ChatViewId, !preserveFocus))?.widget;
+		return this.revealChatView(preserveFocus);
+	}
+
+	revealChatView(preserveFocus?: boolean): Promise<IChatWidget | undefined> {
+		return this.chatViewHostService.reveal(preserveFocus);
 	}
 
 	async reveal(widget: IChatWidget, preserveFocus?: boolean): Promise<boolean> {
@@ -103,11 +109,24 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		}
 
 		if (isIChatViewViewContext(widget.viewContext)) {
+			if (widget.viewContext.viewId === ChatViewId) {
+				return !!await this.chatViewHostService.reveal(preserveFocus);
+			}
 			const view = await this.viewsService.openView(widget.viewContext.viewId, !preserveFocus);
 			if (!preserveFocus) {
 				view?.focus();
 			}
 			return !!view;
+		}
+
+		// A chat widget that is hosted outside of the chat view and chat editors,
+		// such as the session chat of the Agents window, has nothing to open when
+		// it is already showing.
+		if (widget.visible && widget.location === ChatAgentLocation.Chat && isIChatResourceViewContext(widget.viewContext) && !widget.viewContext.isQuickChat && !widget.viewContext.isInlineChat) {
+			if (!preserveFocus) {
+				widget.focusInput();
+			}
+			return true;
 		}
 
 		return false;
@@ -138,17 +157,11 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 				return undefined;
 			}
 
-			// Load this session in chat view (preferred)
+			// Load this session in the host of the Chat view's chats (preferred)
 			if (target === ChatViewPaneTarget || typeof target === 'undefined') {
-				const chatView = await this.viewsService.openView<ChatViewPane>(ChatViewId, !options?.preserveFocus);
-				if (chatView) {
-					await chatView.loadSession(sessionResource, options?.sessionTypeSelectionReason);
-					if (!options?.preserveFocus) {
-						chatView.focusInput();
-					}
-				}
+				const widget = await this.chatViewHostService.openSession(sessionResource, { preserveFocus: options?.preserveFocus, sessionTypeSelectionReason: options?.sessionTypeSelectionReason });
 				this.logService.trace(`[ChatWidgetService] openSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} path=view`);
-				return chatView?.widget;
+				return widget;
 			}
 
 			// Open in chat editor
@@ -167,14 +180,10 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 	}
 
 	private async revealSessionIfAlreadyOpen(sessionResource: URI, options?: IChatEditorOptions): Promise<IChatWidget | undefined> {
-		// Already open in chat view?
-		const chatView = this.viewsService.getViewWithId<ChatViewPane>(ChatViewId);
-		if (chatView?.widget.viewModel?.sessionResource && isEqual(chatView.widget.viewModel.sessionResource, sessionResource)) {
-			const view = await this.viewsService.openView(ChatViewId, !options?.preserveFocus);
-			if (!options?.preserveFocus) {
-				view?.focus();
-			}
-			return chatView.widget;
+		// Already open in the host of the Chat view's chats?
+		const hostWidget = await this.chatViewHostService.revealIfShowing(sessionResource, options);
+		if (hostWidget) {
+			return hostWidget;
 		}
 
 		// Already open in an editor?

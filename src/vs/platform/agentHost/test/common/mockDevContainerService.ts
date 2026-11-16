@@ -5,7 +5,7 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import type { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport } from '../../common/devContainerAgentHost.js';
+import type { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport, IDevContainerAgentHostUserStateReport } from '../../common/devContainerAgentHost.js';
 import type { IRelayMessage } from '../../common/relayTransport.js';
 
 export class MockDevContainerService extends Disposable implements IDevContainerAgentHostMainService {
@@ -22,6 +22,8 @@ export class MockDevContainerService extends Disposable implements IDevContainer
 	readonly onDidOutput = this.output.event;
 	readonly sandboxSupport = this._register(new Emitter<IDevContainerAgentHostSandboxSupport>());
 	readonly onDidChangeSandboxSupport = this.sandboxSupport.event;
+	readonly userState = this._register(new Emitter<IDevContainerAgentHostUserStateReport>());
+	readonly onDidReportUserState = this.userState.event;
 	readonly connects: IDevContainerAgentHostConfig[] = [];
 	readonly disconnects: string[] = [];
 	readonly stops: string[] = [];

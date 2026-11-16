@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -19,7 +20,7 @@ import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/w
 import { IMenuItem, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
-import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
+import { ChatRequestSlashPromptPart, ChatRequestTextPart, IParsedChatRequest } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
 import { ChatModel, ChatRequestModel, ChatRequestSource, IChatRequestModeInfo, IChatRequestModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ChatListWidget } from '../../../../contrib/chat/browser/widget/chatListWidget.js';
@@ -81,6 +82,7 @@ export interface IFixtureFileChange {
 
 export interface IFixtureMessage {
 	readonly user: string; // user prompt text
+	readonly parts?: IParsedChatRequest['parts'];
 	readonly variables?: readonly IChatRequestVariableEntry[];
 	readonly timestamp?: number;
 	readonly modeInfo?: IChatRequestModeInfo;
@@ -445,7 +447,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 
 	for (const message of options.messages) {
 		const request = model.addRequest(
-			makeUserMessage(message.user),
+			message.parts ? { text: message.user, parts: message.parts } : makeUserMessage(message.user),
 			{ variables: message.variables ?? [] },
 			0,
 			message.modeInfo,
@@ -1734,18 +1736,27 @@ interface IVerbosityComparisonOptions {
 	readonly expand?: boolean;
 	/** Names the running tool call with a file link, which renders beside the section's header button. */
 	readonly linkedTitle?: boolean;
+	/** Names the running tool call with a file pill, which must not make the header taller than a plain title. */
+	readonly filePillTitle?: boolean;
 	/** Ends the running response with reasoning that has a summary heading. */
 	readonly reasoningLast?: boolean;
+	/** Ends the running response with reasoning that has no summary heading, and a first line longer than the header's row. */
+	readonly unheadedReasoningLast?: boolean;
 }
 
 async function renderPersistentVerbosityComparison(context: ComponentFixtureContext, verbosity: ChatProgressVerbosity, complete: boolean, options: IVerbosityComparisonOptions = {}): Promise<void> {
-	const patchComplete = complete || !!options.reasoningLast;
-	const runningPatchMessage = options.linkedTitle ? 'Updating [progress.ts](file:///workspace/src/progress.ts)' : 'Updating the progress renderer...';
+	const lastReasoning = options.reasoningLast ? '**Checking the related tests**\nConfirm the tests cover the tool and reasoning paths.'
+		: options.unheadedReasoningLast ? 'The tool and reasoning paths share one renderer, so the related tests should cover both of them before the header changes how it names what the response is doing.\n\nThen update the tests.'
+			: undefined;
+	const patchComplete = complete || lastReasoning !== undefined;
+	const runningPatchMessage = options.filePillTitle ? 'Updating [progress.ts](file:///workspace/src/progress.ts?vscodeLinkType=file)'
+		: options.linkedTitle ? 'Updating [progress.ts](file:///workspace/src/progress.ts)' : 'Updating the progress renderer...';
 	await renderChatWidget(context, {
 		width: 620,
 		height: 340,
 		listHeight: 340,
 		inputVisible: false,
+		additionalServices: options.filePillTitle ? reg => reg.defineInstance(IFileService, context.disposableStore.add(new TestFileService())) : undefined,
 		persistentProgress: ChatProgressAnimation.Draw,
 		persistentProgressVerbosity: verbosity,
 		thinkingStyle: ThinkingDisplayMode.Collapsed,
@@ -1757,7 +1768,7 @@ async function renderPersistentVerbosityComparison(context: ComponentFixtureCont
 				{ kind: 'tool', toolId: 'read_file', displayName: 'Read file', invocationMessage: 'Read `src/progress.ts`', complete: true },
 				{ kind: 'tool', toolId: 'search_workspace', displayName: 'Search workspace', invocationMessage: 'Found 12 progress renderer tests', complete: true },
 				{ kind: 'tool', toolId: 'apply_patch', displayName: 'Apply patch', invocationMessage: patchComplete ? 'Updated the progress renderer' : runningPatchMessage, complete: patchComplete },
-				...(options.reasoningLast ? [{ kind: 'thinking' as const, text: '**Checking the related tests**\nConfirm the tests cover the tool and reasoning paths.' }] : []),
+				...(lastReasoning !== undefined ? [{ kind: 'thinking' as const, text: lastReasoning }] : []),
 				...(complete ? [{ kind: 'markdown' as const, text: 'Updated the progress renderer and checked the related tests.' }] : []),
 			],
 			responseComplete: complete,
@@ -2529,10 +2540,7 @@ const CODE_BLOCK_IN_LIST: IFixtureMessage[] = [
 	},
 ];
 
-/**
- * A request whose pasted image and file are shown as pills inline with its
- * text, see `chat.inlineAttachments.enabled`, optionally in a custom chat font.
- */
+/** A request with image and file pills, a slash command and text, optionally in a custom chat font. */
 async function renderInlineAttachmentPills(context: ComponentFixtureContext, chatFont?: IChatWidgetFixtureOptions['chatFont']): Promise<void> {
 	const canvas = dom.$<HTMLCanvasElement>('canvas');
 	canvas.width = 48;
@@ -2548,15 +2556,21 @@ async function renderInlineAttachmentPills(context: ComponentFixtureContext, cha
 	canvasContext.fillRect(6, 14, 36, 4);
 	canvasContext.fillRect(6, 22, 18, 4);
 	const imageBytes = Uint8Array.from(atob(canvas.toDataURL('image/png').split(',')[1]), character => character.charCodeAt(0));
+	const text = 'Pasted Image /explain #file:index.ts in detail';
 
 	await renderChatWidget(context, {
 		messages: [{
-			user: 'Why does #file:index.ts look different from Pasted Image?',
+			user: text,
+			parts: [
+				new ChatRequestTextPart(new OffsetRange(0, 13), new Range(1, 1, 1, 14), text.slice(0, 13)),
+				new ChatRequestSlashPromptPart(new OffsetRange(13, 21), new Range(1, 14, 1, 22), 'explain'),
+				new ChatRequestTextPart(new OffsetRange(21, text.length), new Range(1, 22, 1, text.length + 1), text.slice(21)),
+			],
 			variables: [
 				{ kind: 'file', id: 'file:///repo/src/index.ts', name: 'index.ts', value: URI.file('/repo/src/index.ts') },
 				{ kind: 'image', id: 'pasted-image', name: 'Pasted Image', value: imageBytes, mimeType: 'image/png', isPasted: true },
 			],
-			assistant: [{ kind: 'markdown', text: 'Both pills should center their label vertically.' }],
+			assistant: [{ kind: 'markdown', text: 'Attachment pills and slash commands should be level, with their labels on the baseline of the request text.' }],
 		}],
 		height: 200,
 		listHeight: 200,
@@ -2755,14 +2769,15 @@ async function renderDisabledPetResizeObserverProbe(context: ComponentFixtureCon
 	status.textContent = 'Completed disabled pet observer probe';
 }
 
-async function renderPendingDivider(context: ComponentFixtureContext, kind: ChatRequestQueueKind, isSystemInitiated = false): Promise<void> {
+async function renderPendingDivider(context: ComponentFixtureContext, kind: ChatRequestQueueKind, isSystemInitiated = false, scheduledWidth?: number): Promise<void> {
 	await renderChatWidget(context, {
+		width: scheduledWidth,
 		messages: [{
 			user: 'Review the current changes',
 			assistant: [{ kind: 'thinking', text: 'Reviewing the workspace changes.' }],
 			responseComplete: false,
 		}],
-		onRendered: ({ model, listWidget }) => {
+		onRendered: ({ model, viewModel, listWidget }) => {
 			const pendingRequest = new ChatRequestModel({
 				session: model,
 				message: makeUserMessage(isSystemInitiated ? 'Check for new system notifications' : 'Summarize the findings'),
@@ -2770,6 +2785,15 @@ async function renderPendingDivider(context: ComponentFixtureContext, kind: Chat
 				isSystemInitiated,
 			});
 			model.addPendingRequest(pendingRequest, kind, { isSystemInitiated });
+			if (scheduledWidth !== undefined) {
+				viewModel.setScheduledRequests([{
+					id: 'scheduled-follow-up',
+					text: 'Check the review feedback tomorrow and summarize any remaining changes.',
+					description: 'Scheduled for Nov 13, 2026, 10:00 AM PST',
+					attachments: ['review-notes.md'],
+					actions: ['Preview', 'Send Now', 'Reschedule...', 'Edit', 'Cancel Schedule'].map(label => toAction({ id: label, label, run: () => { } })),
+				}]);
+			}
 			listWidget.refresh();
 			listWidget.scrollToEnd();
 		},
@@ -2807,6 +2831,13 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	PendingToolApproval: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
 	PendingTerminalApprovalWithIntention: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TERMINAL_APPROVAL_WITH_INTENTION, sideChatSupported: true }) }),
 	PendingMessages: defineThemedFixtureGroup({
+		Scheduled: defineComponentFixture({
+			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+			render: context => renderPendingDivider(context, ChatRequestQueueKind.Steering, false, 600),
+		}),
+		ScheduledNarrow: defineComponentFixture({
+			render: context => renderPendingDivider(context, ChatRequestQueueKind.Steering, false, 320),
+		}),
 		Queued: defineComponentFixture({
 			labels: { kind: 'screenshot', blocksCi: true },
 			expectedVisualDescriptions: ['A pending message appears below a sentence-case "Queued" divider while an earlier response is still running.'],
@@ -2838,7 +2869,9 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 			CompactCompleted: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Compact, true) }),
 			ConversationStreaming: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false) }),
 			ConversationStreamingLinkedTitle: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false, { linkedTitle: true }) }),
+			ConversationStreamingFilePillTitle: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false, { filePillTitle: true }) }),
 			ConversationStreamingReasoning: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false, { reasoningLast: true }) }),
+			ConversationStreamingUnheadedReasoning: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false, { unheadedReasoningLast: true }) }),
 			ConversationCompleted: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, true) }),
 			ConversationExpanded: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, true, { expand: true }) }),
 		}),

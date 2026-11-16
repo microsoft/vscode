@@ -24,8 +24,8 @@ import { IsSessionsWindowContext } from '../../../../../../workbench/common/cont
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { SessionUsesExperimentalComposerLayoutContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { bindSessionHostScopeContext, createMainWindowInstantiationService, createSessionHostServices, InSessionHostScopeContext, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
-import '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostAgentPicker.js';
-import '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
+import '../../browser/agentHostAgentPicker.contribution.js';
+import '../../browser/agentHostSessionConfigPicker.contribution.js';
 
 /** The pickers of the session a chat input shows, contributed to the workbench's chat input menus. */
 const PICKERS = new Set([

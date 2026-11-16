@@ -5,10 +5,11 @@
 
 import { Gesture } from '../../../../base/browser/touch.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { derived, IObservable, observableFromEvent, waitForState } from '../../../../base/common/observable.js';
 import { isMobile, isWeb, locale } from '../../../../base/common/platform.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
@@ -174,6 +175,7 @@ class AhpMcpAppCallTransport extends Disposable implements IMcpAppCallTransport 
 	private readonly _onNotification = this._register(new Emitter<{ readonly method: string; readonly params?: unknown }>());
 	readonly onNotification: Event<{ readonly method: string; readonly params?: unknown }> = this._onNotification.event;
 	private readonly _connectionListener = this._register(new MutableDisposable());
+	private readonly _disposeToken = cancelOnDispose(this._store);
 	private _connection: IAgentConnection | undefined;
 
 	constructor(
@@ -182,8 +184,8 @@ class AhpMcpAppCallTransport extends Disposable implements IMcpAppCallTransport 
 		@IAgentHostConnectionsService private readonly _agentHostConnectionsService: IAgentHostConnectionsService,
 	) {
 		super();
-		this._updateConnection();
 		this._register(this._agentHostConnectionsService.onDidChangeConnections(() => this._updateConnection()));
+		this._updateConnection();
 	}
 
 	private _updateConnection(): void {
@@ -220,9 +222,33 @@ class AhpMcpAppCallTransport extends Disposable implements IMcpAppCallTransport 
 		}
 	}
 
-	async loadResource(_token: CancellationToken): Promise<IMcpAppResourceContent> {
-		const result = await this._getConnection().handleMcpRequest(this._channel, 'resources/read', { uri: this._uiData.resourceUri }) as MCP.ReadResourceResult;
-		return readResourceContentToHtml(result.contents);
+	async loadResource(token: CancellationToken): Promise<IMcpAppResourceContent> {
+		const disposables = new DisposableStore();
+		const cancellation = disposables.add(new CancellationTokenSource(token));
+		disposables.add(this._disposeToken.onCancellationRequested(() => cancellation.cancel()));
+		try {
+			if (token.isCancellationRequested || this._disposeToken.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			const availableConnection = observableFromEvent(this, this._agentHostConnectionsService.onDidChangeConnections, () => {
+				this._updateConnection();
+				return this._connection;
+			});
+			let connection: IAgentConnection | undefined;
+			do {
+				await waitForState(availableConnection, connection => !!connection, undefined, cancellation.token);
+				if (cancellation.token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				this._updateConnection();
+				connection = this._connection;
+			} while (!connection);
+			const result = await connection.handleMcpRequest(this._channel, 'resources/read', { uri: this._uiData.resourceUri }) as MCP.ReadResourceResult;
+			return readResourceContentToHtml(result.contents);
+		} finally {
+			cancellation.cancel();
+			disposables.dispose();
+		}
 	}
 
 	async callTool(params: MCP.CallToolRequestParams, _token: CancellationToken): Promise<MCP.CallToolResult> {

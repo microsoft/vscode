@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as eslint from 'eslint';
-import type * as ESTree from 'estree';
-import type { TSESTree } from '@typescript-eslint/utils';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 import minimatch from 'minimatch';
 import { posix, relative, resolve } from 'path';
 import { createImportRuleListener } from './utils.ts';
@@ -58,9 +56,9 @@ const stringOrStrings = {
  * extensionless TypeScript imports. Relative specifiers are resolved by path arithmetic instead, and bare specifiers,
  * such as packages and tsconfig path aliases, are not checked.
  */
-export default new class NoRestrictedZoneImports implements eslint.Rule.RuleModule {
+export default new class NoRestrictedZoneImports implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		type: 'problem',
 		messages: {
 			restricted: 'Unexpected path "{{specifier}}" imported in restricted zone.{{suffix}}',
@@ -93,8 +91,9 @@ export default new class NoRestrictedZoneImports implements eslint.Rule.RuleModu
 		}],
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		const options = context.options[0] as Options | undefined;
+	create(context: Context): Visitor {
+		// `Options` has no index signature, so it doesn't overlap with JSON values
+		const options = context.options[0] as unknown as Options | undefined;
 		if (!options) {
 			return {};
 		}
@@ -106,7 +105,7 @@ export default new class NoRestrictedZoneImports implements eslint.Rule.RuleModu
 		}
 
 		const directory = posix.dirname(filename);
-		const checkImport = (node: TSESTree.Node | ESTree.Node | null | undefined): void => {
+		const checkImport = (node: ESTree.Node | null | undefined): void => {
 			if (node?.type !== 'Literal' || typeof node.value !== 'string' || !node.loc || !isRelative(node.value)) {
 				return;
 			}

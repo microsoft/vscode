@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatGroupDropTarget.css';
-import { $, addDisposableListener, DragAndDropObserver, EventHelper, EventType, getWindow } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, DragAndDropObserver, EventHelper, EventType, getWindow, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { assertReturnsDefined } from '../../../../../base/common/types.js';
@@ -12,7 +12,8 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { activeContrastBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../../../platform/theme/common/themeService.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../common/theme.js';
-import { getChatReferenceDropClipPath, IDraggedSessionChat, isChatReferenceInputDrop } from '../dnd.js';
+import { IDraggedSessionChat } from '../dnd.js';
+import { InputDropTargetHints, isInputDropTarget } from '../../../../browser/dnd.js';
 
 /** Zone of a target group where a dragged chat can be dropped. */
 export type ChatDropZone = 'left' | 'right' | 'top' | 'bottom' | 'center';
@@ -48,6 +49,7 @@ class ChatGroupDropOverlay extends Themable {
 
 	private _container: HTMLElement | undefined;
 	private _overlay: HTMLElement | undefined;
+	private _inputHints: InputDropTargetHints | undefined;
 
 	private _currentZone: ChatDropZone | undefined;
 
@@ -76,7 +78,6 @@ class ChatGroupDropOverlay extends Themable {
 
 	private _create(event: DragEvent): void {
 		const container = this._container = $('div', { id: ChatGroupDropOverlay.OVERLAY_ID });
-		container.style.clipPath = getChatReferenceDropClipPath(this._targetElement, event);
 
 		this._targetElement.appendChild(container);
 		this._targetElement.classList.add('chat-group-dragged-over');
@@ -87,6 +88,9 @@ class ChatGroupDropOverlay extends Themable {
 
 		this._overlay = $('.chat-group-drop-overlay-indicator');
 		container.appendChild(this._overlay);
+
+		this._inputHints = this._register(new InputDropTargetHints(this._targetElement, container));
+		this._inputHints.update(event);
 
 		this._registerListeners(container);
 		this.updateStyles();
@@ -107,12 +111,19 @@ class ChatGroupDropOverlay extends Themable {
 	private _registerListeners(container: HTMLElement): void {
 		this._register(new DragAndDropObserver(container, {
 			onDragOver: e => {
+				// An input that takes the drag takes it once the drag moves over it: the overlay, which covers the input
+				// until then, goes away.
+				if (isHTMLElement(e.target) && isInputDropTarget(e.target, e, this._targetElement)) {
+					this.dispose();
+					return;
+				}
+
 				if (!this._isChatDrag(e)) {
 					this._hideOverlay();
 					return;
 				}
 
-				container.style.clipPath = getChatReferenceDropClipPath(this._targetElement, e);
+				this._inputHints?.update(e);
 				this._positionOverlay(e.clientX, e.clientY);
 
 				if (this._cleanupOverlayScheduler.isScheduled()) {
@@ -279,7 +290,8 @@ export class ChatGroupDropTarget extends Themable {
 
 	private _onDragEnter(event: DragEvent): void {
 		this._counter++;
-		if (isChatReferenceInputDrop(event)) {
+		// An input under the drag that takes it, such as a chat input that attaches the dragged chat, takes it here.
+		if (isHTMLElement(event.target) && isInputDropTarget(event.target, event)) {
 			this._disposeOverlay();
 			this._updateContainer(false);
 			return;

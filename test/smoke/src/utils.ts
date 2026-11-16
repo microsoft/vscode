@@ -14,6 +14,7 @@ export interface MockLlmServer {
 	readonly url: string;
 	requestCount(): number;
 	getRequests(): readonly { readonly path: string; readonly method: string; readonly body: unknown }[];
+	closeConnections(): void;
 	close(): Promise<void>;
 }
 

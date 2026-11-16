@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RuleTester } from 'eslint';
 import { suite, test } from 'node:test';
+import { RuleTester } from 'oxlint/plugins-dev';
 import { resolve } from 'path';
-import tseslint from 'typescript-eslint';
 import rule from '../code-run-with-faked-timers-whole-test.ts';
 
 RuleTester.describe = suite;
@@ -17,7 +16,7 @@ const imports = `import { runWithFakedTimers } from '../../../base/test/common/t
 const code = (body: string) => imports + body;
 const errors = (...messageIds: string[]) => messageIds.map(messageId => ({ messageId }));
 
-new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-run-with-faked-timers-whole-test', rule, {
+new RuleTester({ languageOptions: { sourceType: 'module' } }).run('code-run-with-faked-timers-whole-test', rule, {
 	valid: [
 		// whole test body
 		{ filename, code: code(`test('x', () => runWithFakedTimers({}, async () => { setup(); await run(); assert.ok(1); }));`) },

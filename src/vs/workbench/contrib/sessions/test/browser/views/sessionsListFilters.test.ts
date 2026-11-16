@@ -9,9 +9,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { getSessionApplication } from '../../../../../services/sessions/common/sessionApplication.js';
-import { ISession, ISessionEnvironment } from '../../../../../services/sessions/common/session.js';
-import { buildTestSession } from '../../common/testSessionBuilder.js';
-import { getSessionFilterOptions, sessionFilterKey, SessionsListFilters } from '../../../browser/views/sessionsListFilters.js';
+import { ISession, ISessionEnvironment, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
+import { buildTestSession, buildTestWorkspace } from '../../common/testSessionBuilder.js';
+import { getInboxWorkspaceFilter, getInboxWorkspaceOptions, getSessionFilterOptions, sessionFilterKey, SessionsListFilters } from '../../../browser/views/sessionsListFilters.js';
 
 suite('SessionsListFilters', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -20,6 +20,102 @@ suite('SessionsListFilters', () => {
 	function createFilters(storage = store.add(new InMemoryStorageService())): SessionsListFilters {
 		return store.add(new SessionsListFilters(storage, store.add(new NullLogService())));
 	}
+
+	test('scheduled-only filtering persists and participates in reset and undo', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const filters = createFilters(storage);
+		filters.setScheduledOnly(true);
+		const restored = createFilters(storage);
+		const persisted = restored.isScheduledOnly();
+		const undo = restored.capture();
+		restored.reset();
+		const reset = restored.isScheduledOnly();
+		undo();
+		assert.deepStrictEqual({ persisted, reset, undone: restored.isScheduledOnly() }, { persisted: true, reset: false, undone: true });
+	});
+
+	test('Inbox scope distinguishes exact workspaces and environments without separating harnesses', () => {
+		const filters = createFilters();
+		const sessions = [
+			buildTestSession({ id: 'local', title: 'Local', workspace: 'app' }).session,
+			buildTestSession({ id: 'claude', title: 'Claude', workspace: 'app', harness: 'claude' }).session,
+			buildTestSession({ id: 'other-folder', title: 'Other folder', workspace: 'app', workspaceFolders: ['other/app'] }).session,
+			buildTestSession({ id: 'remote', title: 'Remote', workspace: 'app', environment: 'ssh:work' }).session,
+		];
+		const visible = () => sessions.filter(session => filters.matchesInboxScope(session)).map(session => session.sessionId);
+		const all = visible();
+		filters.setInboxEnvironment({ id: 'ssh:work', label: 'Work' });
+		const environmentOnly = visible();
+		filters.setInboxEnvironment(undefined);
+		filters.setInboxWorkspace(getInboxWorkspaceFilter(sessions[0]));
+		const workspaceOnly = visible();
+		filters.setInboxEnvironment({ id: 'local', label: 'This Computer' });
+		const combined = visible();
+		const resetWorkspace = filters.setInboxEnvironment({ id: 'ssh:work', label: 'Work' });
+		assert.deepStrictEqual({
+			all, environmentOnly, workspaceOnly, combined, resetWorkspace, afterEnvironmentChange: visible(),
+			options: getInboxWorkspaceOptions(sessions).map(option => [option.environment, option.resource]),
+		}, {
+			all: ['local', 'claude', 'other-folder', 'remote'],
+			environmentOnly: ['remote'],
+			workspaceOnly: ['local', 'claude'],
+			combined: ['local', 'claude'],
+			resetWorkspace: true,
+			afterEnvironmentChange: ['remote'],
+			options: [
+				['local', 'file:///home/user/projects/app'],
+				['ssh:work', 'file:///home/user/projects/app'],
+				['local', 'file:///home/user/projects/other/app'],
+			],
+		});
+	});
+
+	test('Inbox scope persists, resets and restores independently of ordinary environment filters', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const filters = createFilters(storage);
+		const session = buildTestSession({ id: 'app', title: 'App', workspace: 'app' }).session;
+		filters.setExcluded({ kind: 'environment', id: 'local' }, true);
+		filters.setInboxWorkspace(getInboxWorkspaceFilter(session));
+		filters.setInboxEnvironment({ id: 'local', label: 'This Computer' });
+		const reloaded = createFilters(storage);
+		const scope = reloaded.inboxScope;
+		const undo = reloaded.capture();
+		reloaded.reset();
+		const reset = { scope: reloaded.inboxScope, ordinary: reloaded.matches(session) };
+		undo();
+		const restored = { scope: reloaded.inboxScope, ordinary: reloaded.matches(session), inbox: reloaded.matches(session, true) && reloaded.matchesInboxScope(session) };
+		reloaded.setInboxWorkspace(undefined);
+		reloaded.setInboxEnvironment(undefined);
+		const scopeReset = { scope: createFilters(storage).inboxScope, ordinary: reloaded.matches(session) };
+		const newEnvironment = buildTestSession({ id: 'new-host', title: 'New host', environment: 'new-host' }).session;
+		assert.deepStrictEqual({ reset, restored, scopeReset, newEnvironmentMatchesAll: reloaded.matchesInboxScope(newEnvironment) }, {
+			reset: { scope: {}, ordinary: true },
+			restored: { scope, ordinary: false, inbox: true },
+			scopeReset: { scope: {}, ordinary: false },
+			newEnvironmentMatchesAll: true,
+		});
+	});
+
+	test('No Workspace excludes hydrating sessions and workspace options react to metadata', () => {
+		const filters = createFilters();
+		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', undefined);
+		const pending = { ...buildTestSession({ id: 'pending', title: 'Pending' }).session, workspace, isQuickChat: constObservable(false) };
+		const quick = buildTestSession({ id: 'quick', title: 'Quick', isQuickChat: true }).session;
+		const options: string[][] = [];
+		store.add(autorun(reader => {
+			options.push(getInboxWorkspaceOptions([pending, quick], undefined, reader).map(option => option.label));
+		}));
+		filters.setInboxWorkspace('none');
+		const before = [pending, quick].filter(session => filters.matchesInboxScope(session)).map(session => session.sessionId);
+		workspace.set(buildTestWorkspace('app'), undefined);
+		filters.setInboxWorkspace(getInboxWorkspaceFilter(pending));
+		workspace.set(undefined, undefined);
+		const absent = filters.matchesInboxScope(pending);
+		workspace.set(buildTestWorkspace('app'), undefined);
+		assert.deepStrictEqual({ before, options, absent, restored: filters.matchesInboxScope(pending) }, {
+			before: ['quick'], options: [[], ['app'], [], ['app']], absent: false, restored: true,
+		});
+	});
 
 	test('always offers the three harnesses, This Computer and Cloud, and their VS Code application choices', () => {
 		assert.deepStrictEqual(getSessionFilterOptions([], [], listAll), [
@@ -190,6 +286,37 @@ suite('SessionsListFilters', () => {
 			optedIn: ['cloud/slack', 'cloud/github/autopilot'],
 			reset: defaults,
 		});
+	});
+
+	test('persists, resets, and restores the show automation runs choice', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const filters = createFilters(storage);
+		const initial = filters.isShowAutomationRuns();
+		filters.setShowAutomationRuns(true);
+		const restored = createFilters(storage);
+		const reloaded = restored.isShowAutomationRuns();
+		const restore = restored.capture();
+		restored.reset();
+		const reset = restored.isShowAutomationRuns();
+		restore();
+
+		assert.deepStrictEqual({ initial, reloaded, reset, undo: restored.isShowAutomationRuns() }, {
+			initial: false,
+			reloaded: true,
+			reset: false,
+			undo: true,
+		});
+	});
+
+	test('tracks the show automation runs choice through a reader', () => {
+		const filters = createFilters();
+		const states: boolean[] = [];
+		store.add(autorun(reader => states.push(filters.isShowAutomationRuns(reader))));
+
+		filters.setShowAutomationRuns(true);
+		filters.setShowAutomationRuns(false);
+
+		assert.deepStrictEqual(states, [false, true, false]);
 	});
 
 	test('keeps cached application groups when a remote disconnects and tracks metadata hydration', () => {

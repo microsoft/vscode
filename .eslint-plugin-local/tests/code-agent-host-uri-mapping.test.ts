@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ESLint, RuleTester } from 'eslint';
+import { RuleTester } from 'oxlint/plugins-dev';
+import { getRepositoryFileRules } from '../../build/lib/oxlintConfig.ts';
 import { suite, test } from 'node:test';
 import { posix } from 'path';
-import tseslint from 'typescript-eslint';
 import rule from '../code-agent-host-uri-mapping.ts';
 
 RuleTester.describe = suite;
@@ -21,7 +21,7 @@ const featureFiles = [
 const agentHostFilename = `${repositoryRoot}/${featureFiles[0]}`;
 const otherFilename = `${repositoryRoot}/src/vs/workbench/contrib/files/browser/consumer.ts`;
 
-new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-agent-host-uri-mapping', rule, {
+new RuleTester({ languageOptions: { sourceType: 'module', parserOptions: { lang: 'ts' } } }).run('code-agent-host-uri-mapping', rule, {
 	valid: [
 		{
 			name: 'owning connection resource mappers',
@@ -120,8 +120,7 @@ new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-agent
 });
 
 test('agent-host URI mapping ratchet is scoped to workbench and sessions', async () => {
-	const eslint = new ESLint({ cwd: repositoryRoot });
 	const filenames = [...featureFiles, 'src/vs/workbench/contrib/files/browser/consumer.ts', 'src/vs/platform/agentHost/common/agentHostUri.ts'];
-	const configurations = await Promise.all(filenames.map(filename => eslint.calculateConfigForFile(filename)));
-	assert.deepStrictEqual(configurations.map(configuration => configuration.rules['local/code-agent-host-uri-mapping']), [[2], [2], [2], undefined]);
+	const configurations = await Promise.all(filenames.map(filename => getRepositoryFileRules(filename)));
+	assert.deepStrictEqual(configurations.map(configuration => configuration?.['local/code-agent-host-uri-mapping']), [['error'], ['error'], ['error'], undefined]);
 });

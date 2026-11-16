@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { isCancellationError } from '../../../../base/common/errors.js';
+import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { localize2 } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService, type IActionViewItemFactory } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -23,7 +23,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ChatContextKeyExprs, ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IRemoteTunnelStartOptions, RemoteTunnelCommandIds } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 import { RemoteConnectionsActionViewItem } from './toggleRemoteConnectionsActionViewItem.js';
-import { getRemoteTunnelAccessState, RemoteConnectionsToggleResult } from './remoteConnectionsSharing.js';
+import { getRemoteConnectionsToggleFailure, getRemoteTunnelAccessState, RemoteConnectionsFailureReason, RemoteConnectionsToggleResult } from './remoteConnectionsSharing.js';
 
 export const TUNNEL_HOST_SHARING_KEY = 'tunnelHostSharing';
 export const TUNNEL_HOST_SHARING_CONTEXT = new RawContextKey<boolean>(TUNNEL_HOST_SHARING_KEY, false);
@@ -39,17 +39,24 @@ export async function executeToggleRemoteConnections(accessor: ServicesAccessor,
 		const logService = accessor.get(ILogService);
 		const notificationService = accessor.get(INotificationService);
 		const enabled = sharingService.state.get() !== 'disabled';
-		try {
-			if (!enabled) {
+		const fail = (error: unknown, reason: RemoteConnectionsFailureReason) => {
+			logService.error('Failed to toggle GitHub environment sharing', error);
+			notificationService.error(enabled
+				? localize('tunnelHost.disableSharingFailed', "Failed to disable GitHub environment sharing: {0}", getErrorMessage(error))
+				: localize('tunnelHost.enableSharingFailed', "Failed to enable GitHub environment sharing: {0}", getErrorMessage(error)));
+			return getRemoteConnectionsToggleFailure(error, reason);
+		};
+		if (!enabled) {
+			try {
 				await remoteTunnelService.stopTunnel();
+			} catch (error) {
+				return isCancellationError(error) ? 'canceled' : fail(error, 'stopDevTunnel');
 			}
+		}
+		try {
 			await sharingService.setEnabled(!enabled);
 		} catch (error) {
-			if (!isCancellationError(error)) {
-				logService.error('Failed to toggle GitHub environment sharing', error);
-				notificationService.error(error);
-				return 'failed';
-			}
+			return isCancellationError(error) ? 'canceled' : fail(error, 'unknown');
 		}
 		return 'completed';
 	}
@@ -115,7 +122,7 @@ export class TunnelHostContribution extends Disposable implements IWorkbenchCont
 		const viewItemFactory: IActionViewItemFactory = (action, _options, instantiationService) => {
 			return instantiationService.createInstance(RemoteConnectionsActionViewItem, action, true, {});
 		};
-		this._register(actionViewItemService.register(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID, viewItemFactory, this.remoteTunnelService.onDidChangeTunnelStatus));
+		this._register(actionViewItemService.register(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID, viewItemFactory));
 		void this._loadState();
 	}
 

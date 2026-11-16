@@ -195,7 +195,7 @@ suite('GitHubResourceDetails', () => {
 		const target = { owner: 'microsoft', repo: 'vscode', number: 1 };
 		const issue: IGitHubIssueHoverModel = { title: 'Live title', body: '', state: 'open', author: { login: 'author' } };
 		const cases = [
-			{ state: 'open', stateReason: undefined, icon: 'issue-opened', color: 'charts.green' },
+			{ state: 'open', stateReason: undefined, icon: 'issues', color: 'charts.green' },
 			{ state: 'closed', stateReason: 'completed', icon: 'issue-closed', color: 'charts.purple' },
 			{ state: 'closed', stateReason: 'not_planned', icon: 'issue-closed', color: 'descriptionForeground' },
 			{ state: 'closed', stateReason: 'duplicate', icon: 'issue-closed', color: 'descriptionForeground' },

@@ -6,6 +6,7 @@
 import { alert } from '../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../base/common/keyCodes.js';
+import { assertReturnsDefined } from '../../base/common/types.js';
 import { localize, localize2 } from '../../nls.js';
 import { Categories } from '../../platform/action/common/actionCommonCategories.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
@@ -24,9 +25,81 @@ import { SessionsWelcomeVisibleContext, DesktopLayoutContext, IsPhoneLayoutConte
 import { MenuActivityBarSize } from '../../workbench/browser/parts/activitybar/menuActivityBar.js';
 import { setSessionActivityBarSize } from '../../workbench/browser/parts/sessions/sessionActivityBarHost.js';
 import { IStorageService } from '../../platform/storage/common/storage.js';
-import { CustomViewVisibleContext, SessionActivityBarLayoutActionsContext } from '../common/agentsWindowContextKeys.js';
+import { CustomViewVisibleContext, SessionActivityBarDockedContext, SessionActivityBarLayoutActionsContext } from '../common/agentsWindowContextKeys.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
-import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING, SESSIONS_FLOATING_DETAILS_SETTING, SESSIONS_DETAILS_POSITION_SETTING } from '../../workbench/contrib/sessions/common/sessionConfig.js';
+
+for (const id of [AgentsWindowMenus.TitleBarContext, Menus.SessionsEditorTitle, MenuId.MenubarAppearanceMenu]) {
+	MenuRegistry.appendMenuItem(id, {
+		title: localize('detailsPosition', "Details Position"),
+		submenu: Menus.DetailsPosition,
+		group: '3_workbench_layout_move',
+		order: 7,
+		when: ContextKeyExpr.and(DesktopLayoutContext, IsPhoneLayoutContext.negate()),
+	});
+}
+
+for (const [position, title, menuTitle] of [
+	['left', localize2('detailsLeft', "Move Details Left"), localize('detailsPositionLeft', "Left")],
+	['right', localize2('detailsRight', "Move Details Right"), localize('detailsPositionRight', "Right")],
+	['top', localize2('detailsTop', "Move Details Above Editor"), localize('detailsPositionAbove', "Above Editor")],
+	['bottom', localize2('detailsBottom', "Move Details Below Editor"), localize('detailsPositionBelow', "Below Editor")],
+] as const) {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: `workbench.action.agentSessions.detailsPosition.${position}`,
+				title,
+				category: Categories.View,
+				f1: true,
+				precondition: ContextKeyExpr.and(DesktopLayoutContext, IsPhoneLayoutContext.negate()),
+				toggled: ContextKeyExpr.and(
+					ContextKeyExpr.equals(`config.${SESSIONS_DETAILS_POSITION_SETTING}`, position),
+					ContextKeyExpr.notEquals(`config.${SESSIONS_FLOATING_DETAILS_SETTING}`, true),
+				),
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const configurationService = accessor.get(IConfigurationService);
+			await configurationService.updateValue(SESSIONS_DETAILS_POSITION_SETTING, position);
+			await configurationService.updateValue(SESSIONS_FLOATING_DETAILS_SETTING, false);
+		}
+	});
+	MenuRegistry.appendMenuItem(Menus.DetailsPosition, {
+		command: {
+			...assertReturnsDefined(MenuRegistry.getCommand(`workbench.action.agentSessions.detailsPosition.${position}`)),
+			title: menuTitle,
+		},
+		order: position === 'top' ? 1 : position === 'bottom' ? 2 : position === 'left' ? 3 : 4,
+	});
+}
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.agentSessions.toggleFloatingDetails',
+			title: localize2('floatingDetails', "Floating Details Panel"),
+			category: Categories.View,
+			f1: true,
+			precondition: ContextKeyExpr.and(DesktopLayoutContext, IsPhoneLayoutContext.negate()),
+			toggled: ContextKeyExpr.equals(`config.${SESSIONS_FLOATING_DETAILS_SETTING}`, true),
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		return configurationService.updateValue(SESSIONS_FLOATING_DETAILS_SETTING, !configurationService.getValue<boolean>(SESSIONS_FLOATING_DETAILS_SETTING));
+	}
+});
+
+MenuRegistry.appendMenuItem(Menus.DetailsPosition, {
+	command: {
+		...assertReturnsDefined(MenuRegistry.getCommand('workbench.action.agentSessions.toggleFloatingDetails')),
+		title: localize('detailsPositionFloating', "Floating"),
+	},
+	order: 5,
+});
 
 MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarContext, {
 	title: localize('layoutDensity', "Layout Density"),
@@ -279,7 +352,7 @@ MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarAccessibility, {
 });
 
 // The Session Activity Bar hosts these toggles in place of the title bar while it shows its layout actions.
-const titleBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate(), SessionActivityBarLayoutActionsContext.negate());
+const titleBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate(), SessionActivityBarLayoutActionsContext.negate(), SessionActivityBarDockedContext.negate());
 const sessionActivityBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionActivityBarLayoutActionsContext);
 
 const showPanelCommand = {

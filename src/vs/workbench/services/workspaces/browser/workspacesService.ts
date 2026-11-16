@@ -72,9 +72,10 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 		const workspace = this.contextService.getWorkspace();
 		const remoteAuthority = this.environmentService.remoteAuthority;
 		switch (this.contextService.getWorkbenchState()) {
-			case WorkbenchState.FOLDER:
-				this.addRecentlyOpened([{ folderUri: workspace.folders[0].uri, remoteAuthority }]);
+			case WorkbenchState.FOLDER: {
+				this.addRecentlyOpened([{ folderUri: workspace.uri ?? workspace.folders[0].uri, remoteAuthority }]);
 				break;
+			}
 			case WorkbenchState.WORKSPACE:
 				this.addRecentlyOpened([{ workspace: { id: workspace.id, configPath: workspace.configuration! }, remoteAuthority }]);
 				break;

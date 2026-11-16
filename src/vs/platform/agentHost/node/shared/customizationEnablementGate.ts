@@ -6,6 +6,7 @@
 import { URI } from '../../../../base/common/uri.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
+import { readRuntimePluginEnablement } from '../../common/meta/pluginEnablementMeta.js';
 import { CustomizationEnablementKind, CustomizationType, type ChildCustomization, type ClientPluginCustomization, type Customization, type CustomizationEnablement, type McpServerCustomization, type PluginCustomization, type SkillCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../agentHostCustomizationEnablementService.js';
 
@@ -22,6 +23,7 @@ export function targetForPlugin(plugin: PluginCustomization): ICustomizationEnab
 		name: plugin.name,
 		source: URI.parse(plugin.uri),
 		isClientBundled: true,
+		runtimeOwned: readRuntimePluginEnablement(plugin) !== undefined,
 	};
 }
 
@@ -116,7 +118,10 @@ export function resolveCustomizationEnablement(
 		if (customization.type !== CustomizationType.Plugin) {
 			return customization;
 		}
-		const pluginResolution = applyResolution(customization, applyClientGlobal(service, session, targetForPlugin(customization), clientPlugins?.get(customization.uri)?.enablement));
+		const runtimeEnablement = readRuntimePluginEnablement(customization);
+		const pluginResolution = runtimeEnablement
+			? { customization, pending: runtimeEnablement.effectiveEnabled === undefined }
+			: applyResolution(customization, applyClientGlobal(service, session, targetForPlugin(customization), clientPlugins?.get(customization.uri)?.enablement));
 		pending ||= pluginResolution.pending;
 		if (pluginResolution.pending) {
 			pendingCustomizationIds.add(customization.id);
@@ -158,15 +163,18 @@ export function isCustomizationSdkEligible(resolved: IResolvedCustomizationEnabl
  * Resolves every MCP server's SDK enablement, failing closed for an unresolved
  * decision or an ineligible containing plugin.
  */
-export function getSdkMcpServerEnablement(resolved: IResolvedCustomizationEnablement): ReadonlyMap<string, boolean> {
+export function getSdkMcpServerEnablement(resolved: IResolvedCustomizationEnablement, options?: { readonly ignoreRuntimeOwnedParents?: boolean }): ReadonlyMap<string, boolean> {
 	const result = new Map<string, boolean>();
 	for (const customization of resolved.customizations) {
 		if (customization.type === CustomizationType.McpServer) {
 			result.set(customization.id, isCustomizationSdkEligible(resolved, customization) && isCustomizationEnabled(customization));
 			continue;
 		}
-		const containerEnabled = isCustomizationSdkEligible(resolved, customization)
-			&& (customization.type === CustomizationType.Directory ? customization.enabled : isCustomizationEnabled(customization));
+		const ignoreParent = options?.ignoreRuntimeOwnedParents === true
+			&& customization.type === CustomizationType.Plugin
+			&& readRuntimePluginEnablement(customization) !== undefined;
+		const containerEnabled = ignoreParent || (isCustomizationSdkEligible(resolved, customization)
+			&& (customization.type === CustomizationType.Directory ? customization.enabled : isCustomizationEnabled(customization)));
 		for (const child of customization.children ?? []) {
 			if (child.type === CustomizationType.McpServer) {
 				result.set(child.id, containerEnabled && isCustomizationSdkEligible(resolved, child) && isCustomizationEnabled(child));

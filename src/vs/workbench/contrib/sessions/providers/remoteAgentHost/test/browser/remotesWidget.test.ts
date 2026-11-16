@@ -51,6 +51,7 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	readonly copiedAddresses: string[] = [];
 	readonly locationChanges: string[] = [];
 	readonly serverUpdates: string[] = [];
+	readonly gitHubEnvironmentChanges: { id: string; shared: boolean }[] = [];
 	readonly tunnelDeletions: string[] = [];
 	readonly sshDeletions: string[] = [];
 	copyFailure: Error | undefined;
@@ -103,6 +104,12 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 		this.serverUpdates.push(id);
 		await this.pendingManagement?.p;
 		this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, connectionStatus: RemoteAgentHostConnectionStatus.connected } : remote), undefined);
+	}
+
+	async setSharedAsGitHubEnvironment(id: string, shared: boolean): Promise<void> {
+		this.gitHubEnvironmentChanges.push({ id, shared });
+		await this.pendingManagement?.p;
+		this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, gitHubEnvironment: shared ? { state: 'enabled' } : undefined } : remote), undefined);
 	}
 
 	async deleteTunnel(id: string): Promise<void> {
@@ -747,6 +754,40 @@ suite('RemotesWidget', () => {
 		assert.deepStrictEqual(labels, [null, null, 'Update Server for Build server', null, null]);
 	});
 
+	test('GitHub environment action offers Stop Sharing once the remote is shared', async () => {
+		const { parent, model } = createWidget();
+		model.remotes.set(model.remotes.get().map(remote => remote.id === 'ssh:build' ? { ...remote, canShareAsGitHubEnvironment: true } : remote), undefined);
+		const action = () => [...parent.querySelectorAll<HTMLElement>('[data-remote-id="ssh:build"] .remotes-actions-column [role="button"]')]
+			.find(button => button.getAttribute('aria-label')?.includes('GitHub'))!;
+		const state = () => ({ label: action().getAttribute('aria-label'), disabled: action().getAttribute('aria-disabled'), pressed: action().getAttribute('aria-pressed') });
+		const states = [state()];
+		action().click();
+		await timeout(0);
+		states.push(state());
+		model.remotes.set(model.remotes.get().map(remote => remote.id === 'ssh:build' ? { ...remote, gitHubEnvironment: { state: 'connecting' } } : remote), undefined);
+		states.push(state());
+		model.remotes.set(model.remotes.get().map(remote => remote.id === 'ssh:build' ? { ...remote, gitHubEnvironment: { state: 'error', error: 'Denied' } } : remote), undefined);
+		states.push(state());
+		action().click();
+		await timeout(0);
+		states.push(state());
+		model.remotes.set(model.remotes.get().map(remote => remote.id === 'ssh:build' ? { ...remote, gitHubEnvironment: { state: 'unavailable', unavailableReason: 'account' } } : remote), undefined);
+		states.push(state());
+		action().click();
+		await timeout(0);
+		assert.deepStrictEqual({ states, changes: model.gitHubEnvironmentChanges }, {
+			states: [
+				{ label: 'Share Build server as GitHub Environment', disabled: null, pressed: null },
+				{ label: 'Stop Sharing Build server as GitHub Environment', disabled: null, pressed: null },
+				{ label: 'Sharing Build server as a GitHub environment...', disabled: 'true', pressed: null },
+				{ label: 'Stop Sharing Build server as GitHub Environment', disabled: null, pressed: null },
+				{ label: 'Share Build server as GitHub Environment', disabled: null, pressed: null },
+				{ label: 'Build server is shared as a GitHub environment by another GitHub account.', disabled: 'true', pressed: null },
+			],
+			changes: [{ id: 'ssh:build', shared: true }, { id: 'ssh:build', shared: false }],
+		});
+	});
+
 	test('Update Server supports keyboard activation, blocks duplicates and restores focus when it disappears', async () => {
 		const { parent, model } = createWidget();
 		model.remotes.set([{
@@ -1291,7 +1332,7 @@ suite('RemotesWidget', () => {
 			tooltip: hoverContents.get(connection),
 			infoIcons: row.querySelectorAll('.codicon-info').length,
 			addressColumns: parent.querySelectorAll('.remotes-address-column').length,
-			accessibleView: widget.getAccessibilityContent().includes('Desktop. Status: Offline. Start the owning application.'),
+			accessibleView: widget.getAccessibilityContent().includes('Desktop. Status: Host offline. Start the owning application.'),
 		};
 		model.remotes.set(model.remotes.get().map(remote => ({ ...remote, unavailableReason: undefined })), undefined);
 		assert.deepStrictEqual({
@@ -1299,7 +1340,7 @@ suite('RemotesWidget', () => {
 			available: parent.querySelector('[data-remote-id] .remotes-connection-state')?.textContent,
 			tableFocused: dom.getActiveElement() === table,
 		}, {
-			offline: { connection: 'Offline', tooltip: 'Start the owning application.', infoIcons: 0, addressColumns: 0, accessibleView: true },
+			offline: { connection: 'Host offline', tooltip: 'Start the owning application.', infoIcons: 0, addressColumns: 0, accessibleView: true },
 			available: 'Disconnected', tableFocused: true,
 		});
 	});
@@ -1317,18 +1358,30 @@ suite('RemotesWidget', () => {
 			{ ...offline, connectionStatus: RemoteAgentHostConnectionStatus.connecting },
 			{ ...offline, connectionStatus: RemoteAgentHostConnectionStatus.reconnecting },
 		];
+		const status = () => {
+			const state = parent.querySelector('[data-remote-id] .remotes-connection-state');
+			const icon = [...state?.querySelector('.remotes-connection-icon')?.classList ?? []].filter(name => name.startsWith('codicon-')).join(' ');
+			return `${state?.textContent} (${icon})`;
+		};
 		const observed = states.map(remote => {
 			model.remotes.set([remote], undefined);
-			return parent.querySelector('[data-remote-id] .remotes-connection-state')?.textContent;
+			return status();
 		});
 		model.remotes.set([{ ...offline, connectionStatus: RemoteAgentHostConnectionStatus.connected }], undefined);
 		model.pendingConnection = new DeferredPromise<void>();
 		getConnectionAction(parent, offline.id).click();
-		observed.push(parent.querySelector('[data-remote-id] .remotes-connection-state')?.textContent);
+		observed.push(status());
 		await model.pendingConnection.complete();
 		await timeout(0);
-		observed.push(parent.querySelector('[data-remote-id] .remotes-connection-state')?.textContent);
-		assert.deepStrictEqual(observed, ['Offline', 'Connected', 'Connecting', 'Disconnected', 'Disconnecting', 'Offline']);
+		observed.push(status());
+		assert.deepStrictEqual(observed, [
+			'Host offline (codicon-circle-slash)',
+			'Connected (codicon-plug)',
+			'Connecting (codicon-loading codicon-modifier-spin)',
+			'Disconnected (codicon-debug-disconnect)',
+			'Disconnecting (codicon-loading codicon-modifier-spin)',
+			'Host offline (codicon-circle-slash)',
+		]);
 	});
 
 	test('Rename is reachable and operable through toolbar keyboard navigation', async () => {

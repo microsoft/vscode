@@ -79,6 +79,31 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
+	test('replays whether a native view call named a file or a directory', async () => {
+		const views: Record<string, { readonly viewType?: string; readonly success?: boolean }> = {
+			file: { viewType: 'file' },
+			directory: { viewType: 'directory' },
+			failed: { viewType: 'file', success: false },
+			unreported: {},
+		};
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'message', content: 'Read files' } },
+			...Object.entries(views).flatMap(([toolCallId, { viewType, success = true }]): ISessionEvent[] => [
+				{ type: 'tool.execution_start', data: { toolCallId, toolName: 'view', arguments: { path: `/workspace/${toolCallId}` } } },
+				{ type: 'tool.execution_complete', data: { toolCallId, success, toolTelemetry: viewType ? { properties: { viewType } } : undefined } },
+			]),
+		];
+		const types = await Promise.all([undefined, new Set<string>()].map(async clientToolNames => {
+			const result = await mapSessionEvents(session, undefined, toSessionEvents(events), { clientToolNames });
+			return result.turns.flatMap(turn => turn.responseParts.flatMap(part =>
+				part.kind === ResponsePartKind.ToolCall ? [readToolCallMeta(part.toolCall)['vscode.viewedResourceType']] : []));
+		}));
+		assert.deepStrictEqual(types, [
+			[undefined, undefined, undefined, undefined],
+			['file', 'directory', undefined, undefined],
+		]);
+	});
+
 	test('replays available MCP links through the recorded server channel', async () => {
 		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
 			{ type: 'user.message', data: { content: 'Read resources' } },
@@ -2564,6 +2589,25 @@ suite('mapSessionEvents — history replay', () => {
 			}
 		}
 	}
+
+	test('a message the host sent for an automation, an agent or itself starts a turn, unlike a runtime injection', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'automation-event', data: { content: 'Run the nightly task', source: 'automation-ahp-automation:/nightly', clientTurnId: 'turn-1' } },
+			{ type: 'assistant.message', data: { content: 'Done.', toolRequests: [] } },
+			{ type: 'user.message', id: 'injected-event', data: { content: 'Continue', source: 'system' } },
+			{ type: 'user.message', id: 'agent-event', data: { content: 'Review this', source: 'agent-copilot:/coordinator', clientTurnId: 'turn-2' } },
+			{ type: 'user.message', id: 'injected-agent-event', data: { content: 'Injected context', source: 'agent' } },
+			{ type: 'user.message', id: 'system-event', data: { content: 'Continue in the requested workspace.', source: 'system', clientTurnId: 'turn-3' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, message: turn.message.text })), [
+			{ id: 'automation-event', message: 'Run the nightly task' },
+			{ id: 'agent-event', message: 'Review this' },
+			{ id: 'system-event', message: 'Continue in the requested workspace.' },
+		]);
+	});
 
 	test('synthetic user messages do not start a new turn', async () => {
 		const events: ISessionEvent[] = [

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { IMarkdownString, MarkdownString } from '../../common/htmlContent.js';
+import * as marked from '../../common/marked/marked.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 import { URI } from '../../common/uri.js';
 
@@ -174,6 +175,20 @@ suite('MarkdownString', () => {
 				'```\n```\n````\n````',
 				'`````'
 			].join('\n')}\n`);
+		});
+
+		test('escape fence indented by up to three spaces', () => {
+			// Such a line closes a fence too, so render the block to check that all of the code stays in it.
+			const codes = [
+				'echo\n ```\nafter',
+				'echo\n  ```\nafter',
+				'echo\n   ```\nafter',
+				'```\n   ````\nafter',
+			];
+			assert.deepStrictEqual(
+				codes.map(code => marked.parser(marked.lexer(new MarkdownString().appendCodeblock('', code).value))),
+				codes.map(code => `<pre><code>${code}\n</code></pre>\n`),
+			);
 		});
 	});
 

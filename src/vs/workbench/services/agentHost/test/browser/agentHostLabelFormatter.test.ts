@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AGENT_HOST_LABEL_FORMATTER, agentHostLabelFormatter, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
@@ -14,6 +13,7 @@ import { TestContextService, TestStorageService } from '../../../../test/common/
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { PathStyle } from '../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 
 suite('AgentHost label formatter', () => {
 
@@ -38,7 +38,7 @@ suite('AgentHost label formatter', () => {
 
 	test('a Windows host renders paths natively, so they match the `file:` side of a diff', () => {
 		const labelService = createLabelService();
-		disposables.add(labelService.registerFormatter(agentHostLabelFormatter(LOCAL_AGENT_HOST_AUTHORITY, OperatingSystem.Windows)));
+		disposables.add(labelService.registerFormatter(agentHostLabelFormatter(LOCAL_AGENT_HOST_AUTHORITY, PathStyle.Windows)));
 
 		// Agent host URIs carry a lower-cased drive letter because they
 		// round-trip through `URI.toString()` on the way to the client
@@ -49,18 +49,18 @@ suite('AgentHost label formatter', () => {
 
 	test('a POSIX host renders paths natively', () => {
 		const labelService = createLabelService();
-		disposables.add(labelService.registerFormatter(agentHostLabelFormatter(LOCAL_AGENT_HOST_AUTHORITY, OperatingSystem.Linux)));
+		disposables.add(labelService.registerFormatter(agentHostLabelFormatter(LOCAL_AGENT_HOST_AUTHORITY, PathStyle.Posix)));
 
 		const wrapped = toAgentHostUri(URI.from({ scheme: 'session-db', path: '/home/user/repo/src/app.ts' }), LOCAL_AGENT_HOST_AUTHORITY);
 
 		assert.strictEqual(labelService.getUriLabel(wrapped), '/home/user/repo/src/app.ts');
 	});
 
-	test('a host of unknown operating system renders the path losslessly', () => {
+	test('a host of unknown path style renders the path losslessly', () => {
 		const labelService = createLabelService();
 
 		// `/c:/…` is a valid POSIX path too, so without knowing the host's
-		// operating system neither form may be rewritten
+		// path style neither form may be rewritten
 		const windowsUri = toAgentHostUri(URI.from({ scheme: 'session-db', path: '/c:/Code/repo/src/app.ts' }), 'remotehost');
 		const posixUri = toAgentHostUri(URI.from({ scheme: 'session-db', path: '/home/user/repo/src/app.ts' }), 'remotehost');
 

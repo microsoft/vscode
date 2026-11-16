@@ -8,6 +8,10 @@ parameters:
   - name: os
     type: string
     default: ''
+  # Condition of the steps, for example to skip them when the job starts from a workspace image
+  - name: condition
+    type: string
+    default: succeeded()
 
 # Restores the pnpm store of the job's platform from the pipeline cache before the dependencies are
 # installed. The first step points pnpm at the cached folder for the later steps of the job
@@ -27,6 +31,8 @@ steps:
   - script: node build/azure-pipelines/common/computePnpmStoreCacheKey.ts ${{ parameters.keyArgs }}
     displayName: Prepare pnpm store cache key
     continueOnError: true
+    ${{ if ne(parameters.condition, 'succeeded()') }}:
+      condition: ${{ parameters.condition }}
 
   - task: Cache@2
     inputs:
@@ -34,6 +40,8 @@ steps:
       restoreKeys: '"pnpm_store" | .build/pnpmstorebase'
       path: $(PNPM_CONFIG_STORE_DIR)
       cacheHitVar: PNPM_STORE_RESTORED
+    ${{ if ne(parameters.condition, 'succeeded()') }}:
+      condition: ${{ parameters.condition }}
     # AcesShared agents download the default 64 KB dedup chunks of large entries at ~7 MB/s, with
     # request timeouts, against ~40 MB/s for the 1 MB chunks of pipeline artifacts. These agent
     # knobs make the post-job step save new entries with 1 MB chunks, and restores follow the
@@ -44,4 +52,13 @@ steps:
         OVERRIDE_PIPELINE_ARTIFACT_CHUNKSIZE: Dedup1024K
     displayName: Restore pnpm store cache
     retryCountOnTaskFailure: 2
+    continueOnError: true
+
+  # The store is saved without its links to projects (see prune-pnpm-store.yml), unless a pnpm
+  # command after the prune adds one, like the `pnpm deploy` into a temporary folder that packages
+  # Copilot (extensions/copilot/script/build/packageVsix.ts). Its folder is gone by the save, and on
+  # Windows the cache restores that link as a file link, which `pnpm store prune` fails to remove
+  # (os error 267). The job's installations add their own links, so remove the restored ones.
+  - script: node build/azure-pipelines/common/removePnpmStoreProjects.ts
+    displayName: Remove project links of the restored pnpm store
     continueOnError: true

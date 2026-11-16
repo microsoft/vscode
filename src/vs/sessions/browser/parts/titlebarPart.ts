@@ -26,6 +26,7 @@ import { Parts, IWorkbenchLayoutService, LayoutSettings, ModernUIDensity } from 
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
+import { MenuId } from '../../../platform/actions/common/actions.js';
 import { MenuWorkbenchButtonBar } from '../../../platform/actions/browser/buttonbar.js';
 import { IEditorGroupsContainer } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
@@ -350,6 +351,16 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
+		// Extension contributed actions (before right toolbar)
+		const extensionActionsContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-extension-actions-container'));
+		const extensionActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, extensionActionsContainer, MenuId.AgentsTitleBar, {
+			hoverDelegate,
+			contextMenu: AgentsWindowMenus.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: 'titlePart.extensions',
+			toolbarOptions: { primaryGroup: () => true },
+		}));
+
 		// The layout actions of a window with layout modes (before right toolbar), such as a chat window: its Layout menu and
 		// the buttons of its actions, which the user shows and hides from the context menu of the toolbar.
 		const windowLayoutContainer = this.showsWindowLayoutActions ? prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-window-layout-container')) : undefined;
@@ -386,11 +397,12 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		updateScreenReaderButtonBar();
 
 		this.overflowManagedToolBarElements.push(screenReaderToolBarElement);
-		this.rightToolBarElements.push(...[screenReaderToolBarElement, sessionActionsContainer, windowLayoutContainer, rightToolbarContainer].filter(isDefined));
+		this.rightToolBarElements.push(...[screenReaderToolBarElement, sessionActionsContainer, windowLayoutContainer, extensionActionsContainer, rightToolbarContainer].filter(isDefined));
 		this.updateLastRightToolBar();
 		this.registerOverflowManagedToolBar(centerActionsContainer, centerActionsToolBar);
 		this.registerOverflowManagedToolBar(centerNavContainer, centerNavToolBar);
 		this.registerOverflowManagedToolBar(rightToolbarContainer, rightToolBar);
+		this.registerOverflowManagedToolBar(extensionActionsContainer, extensionActionsToolBar);
 		this.registerOverflowManagedToolBar(sessionActionsContainer, sessionActionsToolBar);
 		if (windowLayoutContainer && windowLayoutToolBar) {
 			this.registerOverflowManagedToolBar(windowLayoutContainer, windowLayoutToolBar);
@@ -460,6 +472,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	private updateTitleBarToolBarOverflow(): void {
+		const hasWindowControls = Array.from(this.rightContent.children).some(element => element.classList.contains('window-controls-container') && element.clientWidth > 0);
+		this.rightContent.classList.toggle('has-window-controls', hasWindowControls);
 		this.updateOverflowingToolBars();
 		this.updateLastRightToolBar();
 	}
@@ -515,7 +529,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	focus(): void {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		(this.element.querySelector('[tabindex]:not([tabindex="-1"])') as HTMLElement | null)?.focus();
 	}
 

@@ -114,6 +114,7 @@ suite('GitHub API compatibility', () => {
 		const item = {
 			id: 1, node_id: 'R_1', name: 'repo', full_name: 'owner/repo', owner: null,
 			private: false, html_url: 'https://github.com/owner/repo', url: 'https://api.github.com/repos/owner/repo',
+			clone_url: 'https://github.com/owner/repo.git', ssh_url: 'git@github.com:owner/repo.git',
 			description: null, fork: false, default_branch: 'main', language: null, stargazers_count: 0, score: 1,
 		};
 		const response = { items: [item], total_count: 1, incomplete_results: false };

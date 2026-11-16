@@ -27,6 +27,14 @@ function isLocal(version: string): boolean {
 }
 
 /**
+ * Whether a dependency links to a project of the workspace, which has no entries in `packages` and
+ * `snapshots`. A `file:` dependency has entries (`name@file:path`).
+ */
+function isLink(version: string): boolean {
+	return version.startsWith('link:');
+}
+
+/**
  * Returns the `snapshots` key of a dependency: `name@version`, or the version itself for an npm
  * alias (`npm:other@^1` is locked as `other@1.2.3`). Both may end with resolved peers in parentheses.
  */
@@ -39,12 +47,24 @@ function toPackageKey(snapshotKey: string): string {
 }
 
 /**
- * Updates the chat-lib project (importer `chatLibImporterId`) of Copilot's lockfile after the
+ * Splits the contents of a `pnpm-lock.yaml` file into the lockfile of the projects, which is the
+ * last YAML document, and the documents before it, which lock the pnpm version that
+ * `packageManager` pins (https://pnpm.io/lockfile). `leadingDocuments` ends with the `---` line
+ * that starts the lockfile of the projects, and is empty if the file has a single document.
+ */
+export function splitLockfileDocuments(content: string): { leadingDocuments: string; lockfile: string } {
+	const lastSeparator = [...content.matchAll(/^---(?:\r?\n|$)/gm)].at(-1);
+	const end = lastSeparator ? lastSeparator.index + lastSeparator[0].length : 0;
+	return { leadingDocuments: content.substring(0, end), lockfile: content.substring(end) };
+}
+
+/**
+ * Updates the chat-lib project (importer `chatLibImporterId`) of the repository's lockfile after the
  * extraction changed the dependencies in chat-lib's `package.json` to Copilot's, without resolving
- * anything: chat-lib is a member of Copilot's pnpm workspace, so both share one lockfile.
+ * anything: chat-lib and Copilot are members of the root pnpm workspace, so both share one lockfile.
  *
- * - Each changed dependency is locked to the version that Copilot's own project (importer `.`)
- *   locks. Its entries are already in the lockfile.
+ * - Each changed dependency is locked to the version that Copilot's project (importer
+ *   `copilotImporterId`) locks. Its entries are already in the lockfile.
  * - Removed dependencies are dropped, and so is every entry that no project uses anymore.
  *
  * Throws if Copilot's project doesn't lock a changed dependency, or if an entry is missing.
@@ -53,11 +73,11 @@ function toPackageKey(snapshotKey: string): string {
  * @param removed The dependencies that were removed from chat-lib's `package.json`.
  * @returns The number of dependencies locked to Copilot's version.
  */
-export function lockChatLibDependencies(lockfile: PnpmLockfile, chatLibImporterId: string, changed: ReadonlyMap<string, DependencyKind>, removed: ReadonlySet<string>): number {
-	const copilotImporter = lockfile.importers['.'] ?? {};
+export function lockChatLibDependencies(lockfile: PnpmLockfile, copilotImporterId: string, chatLibImporterId: string, changed: ReadonlyMap<string, DependencyKind>, removed: ReadonlySet<string>): number {
+	const copilotImporter = lockfile.importers[copilotImporterId] ?? {};
 	const chatLibImporter = lockfile.importers[chatLibImporterId];
 	if (!chatLibImporter) {
-		throw new Error(`Copilot's pnpm-lock.yaml has no project ${chatLibImporterId}.`);
+		throw new Error(`pnpm-lock.yaml has no project ${chatLibImporterId}.`);
 	}
 	const packages = lockfile.packages ??= {};
 	const snapshots = lockfile.snapshots ??= {};
@@ -71,7 +91,7 @@ export function lockChatLibDependencies(lockfile: PnpmLockfile, chatLibImporterI
 	for (const [name, kind] of changed) {
 		const dependency = dependencyKinds.map(section => copilotImporter[section]?.[name]).find(entry => entry);
 		if (!dependency || isLocal(dependency.version)) {
-			throw new Error(`Copilot's pnpm-lock.yaml doesn't lock a version of ${name} that chat-lib can use${dependency ? ` (${dependency.version})` : ''}.`);
+			throw new Error(`Copilot's project in pnpm-lock.yaml doesn't lock a version of ${name} that chat-lib can use${dependency ? ` (${dependency.version})` : ''}.`);
 		}
 		for (const section of dependencyKinds) {
 			if (section !== kind) {
@@ -91,7 +111,7 @@ export function lockChatLibDependencies(lockfile: PnpmLockfile, chatLibImporterI
 	const missing: string[] = [];
 	const pending = Object.values(lockfile.importers)
 		.flatMap(importer => dependencyKinds.flatMap(kind => Object.entries(importer[kind] ?? {})))
-		.filter(([, dependency]) => !isLocal(dependency.version))
+		.filter(([, dependency]) => !isLink(dependency.version))
 		.map(([name, dependency]) => toSnapshotKey(name, dependency.version));
 	while (pending.length > 0) {
 		const key = pending.pop()!;
@@ -106,14 +126,14 @@ export function lockChatLibDependencies(lockfile: PnpmLockfile, chatLibImporterI
 		}
 		for (const dependencies of [snapshot.dependencies, snapshot.optionalDependencies]) {
 			for (const [name, version] of Object.entries(dependencies ?? {})) {
-				if (!isLocal(version)) {
+				if (!isLink(version)) {
 					pending.push(toSnapshotKey(name, version));
 				}
 			}
 		}
 	}
 	if (missing.length > 0) {
-		throw new Error(`Copilot's pnpm-lock.yaml has no entries for ${missing.sort().join(', ')}.`);
+		throw new Error(`pnpm-lock.yaml has no entries for ${missing.sort().join(', ')}.`);
 	}
 	const reachablePackages = new Set([...reachable].map(toPackageKey));
 	for (const key of Object.keys(snapshots)) {

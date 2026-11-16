@@ -9,6 +9,8 @@ import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { DeferredPromise, SequencerByKey, timeout } from '../../../../base/common/async.js';
 import { join } from '../../../../base/common/path.js';
+import { isWindows } from '../../../../base/common/platform.js';
+import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
@@ -58,6 +60,9 @@ class RecordingWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	}
 	override async readSessionWorktreeForRemoval(sessionUri: URI): Promise<IRecordedWorktree | undefined> {
 		return this.sessions.get(sessionUri.toString());
+	}
+	override async recordAdoptedWorktreeMetadata(session: URI, metadata: { readonly branchName: string; readonly baseBranch: string | undefined; readonly worktreePath: URI; readonly repositoryRoot: URI; readonly managedCleanup?: boolean }): Promise<void> {
+		this.sessions.set(session.toString(), { repositoryRoot: metadata.repositoryRoot, worktree: metadata.worktreePath, branchName: metadata.branchName, managedCleanup: metadata.managedCleanup });
 	}
 	override async readDetachedWorktreeForRemoval(handle: string): Promise<IRecordedWorktree | undefined> {
 		return this.detached.get(handle);
@@ -136,7 +141,7 @@ suite('AgentHostWorktreeCleanupService', () => {
 		const roots = [repository, managed, external];
 		const head = { branch };
 		const gitService = upcastPartial<IAgentHostGitService>({
-			getRepositoryRoot: async candidate => candidate.toString() === repository.toString() ? repository : undefined,
+			getRepositoryRoot: async candidate => extUriBiasedIgnorePathCase.isEqualOrParent(candidate, managed) ? managed : extUriBiasedIgnorePathCase.isEqual(candidate, repository) ? repository : undefined,
 			getWorktreeRoots: async () => roots,
 			getCurrentBranchName: async () => head.branch,
 			getWorktrees: async () => roots.map(path => ({ path, branchName: head.branch })),
@@ -169,6 +174,152 @@ suite('AgentHostWorktreeCleanupService', () => {
 			values: { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([URI.joinPath(worktree.worktree, 'src').toString()]), [AH_META_IS_ARCHIVED_DB_KEY]: archived ? 'true' : '' },
 		});
 	}
+
+	test('explicit cleanup durably adopts an existing managed worktree used with Branch isolation', async () => {
+		const { database, cleanup, worktree, repository, managed } = await createManagedInventory();
+		worktree.sessions.clear();
+		await useWorktree(database, SESSION, { repositoryRoot: repository, worktree: managed, branchName: 'agents/recovered' }, true);
+		await cleanup.requestSessionWorktreeRemoval(SESSION, 'commit');
+		const afterArchive = await pending(database);
+		const status = await cleanup.sessionWorktreeCleanup(SESSION, true);
+		const requests = (await database.listPendingWorktreeRemovals()).map(removal => ({
+			kind: removal.kind, ownerSession: removal.ownerSession, repository: removal.repositoryRoot, worktree: removal.worktreePath, branch: removal.branch, mode: removal.mode,
+		}));
+		await cleanup.runPass();
+		await cleanup.restoreSessionWorktree(SESSION);
+		assert.deepStrictEqual({ afterArchive, status, requests, recorded: worktree.sessions.get(SESSION.toString()), calls: worktree.calls, pending: await pending(database) }, {
+			afterArchive: [],
+			status: { state: 'pending' },
+			requests: [{
+				kind: 'detached', ownerSession: SESSION.toString(), repository: repository.toString(), worktree: managed.toString(), branch: 'agents/recovered', mode: 'commit',
+			}],
+			recorded: { repositoryRoot: repository, worktree: managed, branchName: 'agents/recovered', managedCleanup: true },
+			calls: [`remove:${managed.toString()}:commit:agents/recovered`, `recreate:${sessionId}`],
+			pending: [],
+		});
+	});
+
+	test('restoring an adopted Branch-isolated session cancels its pending removal', async () => {
+		const { database, cleanup, worktree, repository, managed } = await createManagedInventory();
+		worktree.sessions.clear();
+		await useWorktree(database, SESSION, { repositoryRoot: repository, worktree: managed, branchName: 'agents/recovered' }, true);
+		await cleanup.sessionWorktreeCleanup(SESSION, true);
+		const state = await database.readSessionState(SESSION.toString());
+		assert.ok(state);
+		await database.writeSessionState(SESSION.toString(), state.header.revision, { values: { [AH_META_IS_ARCHIVED_DB_KEY]: '' }, folders: [], chats: [], markPayloadDirty: false });
+		await cleanup.restoreSessionWorktree(SESSION);
+		await cleanup.runPass();
+		assert.deepStrictEqual({ calls: worktree.calls, pending: await pending(database) }, { calls: [`recreate:${sessionId}`], pending: [] });
+	});
+
+	test('adopted Branch-isolated worktree cleanup waits for other sessions and detached references', async () => {
+		const { database, cleanup, worktree, repository, managed } = await createManagedInventory();
+		const recorded = { repositoryRoot: repository, worktree: managed, branchName: 'agents/recovered' };
+		worktree.sessions.clear();
+		await useWorktree(database, SESSION, recorded, true);
+		await useWorktree(database, OTHER_SESSION, recorded);
+		const status = await cleanup.sessionWorktreeCleanup(SESSION, true);
+		await cleanup.runPass();
+		const whileSessionInUse = { calls: [...worktree.calls], pending: await pending(database) };
+		const state = await database.readSessionState(OTHER_SESSION.toString());
+		assert.ok(state);
+		await database.writeSessionState(OTHER_SESSION.toString(), state.header.revision, { values: { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }, folders: [], chats: [], markPayloadDirty: false });
+		worktree.retainedDetachedPaths.push(managed);
+		await cleanup.sessionWorktreeCleanup(SESSION, true);
+		await cleanup.requestSessionWorktreeRemoval(SESSION, 'commit');
+		await cleanup.runPass();
+		const whileDetachedInUse = { calls: [...worktree.calls], pending: await pending(database) };
+		worktree.retainedDetachedPaths.length = 0;
+		await cleanup.runPass();
+		assert.deepStrictEqual({ status, whileSessionInUse, whileDetachedInUse, calls: worktree.calls, pending: await pending(database) }, {
+			status: { state: 'inUse' },
+			whileSessionInUse: { calls: [], pending: ['detached:commit:0'] },
+			whileDetachedInUse: { calls: [], pending: ['detached:commit:0'] },
+			calls: [`remove:${managed.toString()}:commit:agents/recovered`],
+			pending: [],
+		});
+	});
+
+	test('preflights all unrecorded roots before recording recovery or scheduling removal', async () => {
+		const { database, cleanup, worktree, repository, managed, roots, gitService } = await createManagedInventory();
+		const second = URI.joinPath(managed, '..', 'second');
+		await fs.mkdir(second.fsPath);
+		roots.push(second);
+		gitService.getRepositoryRoot = async candidate => roots.find(root => extUriBiasedIgnorePathCase.isEqualOrParent(candidate, root));
+		worktree.sessions.clear();
+		await useWorktree(database, SESSION, { repositoryRoot: repository, worktree: managed, branchName: 'agents/recovered' }, true);
+		const state = await database.readSessionState(SESSION.toString());
+		assert.ok(state);
+		await database.writeSessionState(SESSION.toString(), state.header.revision, { values: { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([managed.toString(), second.toString()]) }, folders: [], chats: [], markPayloadDirty: false });
+		await assert.rejects(cleanup.sessionWorktreeCleanup(SESSION, true), /additional worktrees without recovery records/);
+		await cleanup.runPass();
+		assert.deepStrictEqual({ recovery: [...worktree.sessions], pending: await pending(database), calls: worktree.calls }, { recovery: [], pending: [], calls: [] });
+	});
+
+	test('preparation recognizes recorded roots after working-directory URI serialization', async () => {
+		const { database, cleanup, worktree } = create(undefined, undefined, upcastPartial<IAgentHostGitService>({
+			getRepositoryRoot: async () => { throw new Error('A recorded worktree must not be rediscovered'); },
+		}));
+		const root = {
+			repositoryRoot: URI.file(isWindows ? 'C:\\repo' : '/repo'),
+			worktree: URI.file(isWindows ? 'C:\\repo.worktrees\\recorded' : '/repo.worktrees/recorded'),
+			branchName: 'agents/recorded',
+		};
+		worktree.sessions.set(SESSION.toString(), root);
+		await useWorktree(database, SESSION, root, true);
+		await cleanup.prepareSessionWorktreeCleanup(SESSION);
+		await cleanup.prepareSessionWorktreeCleanup(SESSION);
+		assert.deepStrictEqual({ pending: await pending(database), calls: worktree.calls }, { pending: [], calls: [] });
+	});
+
+	test('prepares Branch recovery before archiving the last native owner of a shared checkout', async () => {
+		const { database, cleanup, worktree, repository, managed } = await createManagedInventory();
+		const root = { repositoryRoot: repository, worktree: managed, branchName: 'agents/recovered' };
+		worktree.sessions.set(SESSION.toString(), root);
+		await useWorktree(database, SESSION, root);
+		await useWorktree(database, OTHER_SESSION, root);
+		await cleanup.prepareSessionWorktreeCleanup(SESSION);
+		await cleanup.prepareSessionWorktreeCleanup(OTHER_SESSION);
+		const prepared = { branchRecovery: worktree.sessions.get(OTHER_SESSION.toString()), pending: await pending(database) };
+		for (const session of [OTHER_SESSION, SESSION]) {
+			const state = await database.readSessionState(session.toString());
+			assert.ok(state);
+			await database.writeSessionState(session.toString(), state.header.revision, { values: { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }, folders: [], chats: [], markPayloadDirty: false });
+			await cleanup.requestSessionWorktreeRemoval(session, 'commit');
+			await cleanup.runPass();
+		}
+		await cleanup.restoreSessionWorktree(OTHER_SESSION);
+		assert.deepStrictEqual({ prepared, restored: worktree.calls.at(-1), pending: await pending(database) }, {
+			prepared: { branchRecovery: { ...root, managedCleanup: true }, pending: [] },
+			restored: 'recreate:other', pending: [],
+		});
+	});
+
+	test('adopted Branch-isolated worktree cleanup revalidates the branch and retains its failure', async () => {
+		const { database, cleanup, worktree, repository, managed, head } = await createManagedInventory();
+		worktree.sessions.clear();
+		await useWorktree(database, SESSION, { repositoryRoot: repository, worktree: managed, branchName: head.branch }, true);
+		await cleanup.sessionWorktreeCleanup(SESSION, true);
+		head.branch = 'agents/replaced';
+		await cleanup.runPass();
+		assert.deepStrictEqual({ status: await cleanup.sessionWorktreeCleanup(SESSION, false), calls: worktree.calls, pending: await pending(database) }, {
+			status: { state: 'failed', message: 'The worktree branch changed. Refresh the worktree inventory before cleanup.' },
+			calls: [], pending: ['detached:commit:1'],
+		});
+	});
+
+	test('explicit Branch-isolated cleanup does not adopt a non-agent branch or an unmanaged checkout', async () => {
+		const { database, cleanup, worktree, repository, managed, head, gitService } = await createManagedInventory('feature/user-work');
+		worktree.sessions.clear();
+		await useWorktree(database, SESSION, { repositoryRoot: repository, worktree: managed, branchName: head.branch }, true);
+		const nonAgent = await cleanup.sessionWorktreeCleanup(SESSION, true);
+		head.branch = 'agents/recovered';
+		gitService.getWorktrees = async () => [{ path: managed, branchName: head.branch }];
+		const primary = await cleanup.sessionWorktreeCleanup(SESSION, true);
+		assert.deepStrictEqual({ nonAgent, primary, calls: worktree.calls, pending: await pending(database) }, {
+			nonAgent: { state: 'unknown' }, primary: { state: 'unknown' }, calls: [], pending: [],
+		});
+	});
 
 	test('inventories only registered managed worktrees, excluding the primary, container, CLI roots, and symlinks', async () => {
 		const { cleanup, repository, managed, external, roots } = await createManagedInventory();
