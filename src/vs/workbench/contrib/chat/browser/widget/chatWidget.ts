@@ -502,6 +502,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _instructionFilesCheckPromise: Promise<boolean> | undefined;
 	/** The empty-chat content of the selected agent (its `welcome`), shown instead of the default one. */
 	private _agentWelcome: Omit<IChatViewWelcomeContent, 'additionalMessage'> | undefined;
+	/** The selected agent's `first-message`, shown as an agent message in the empty chat instead of any welcome. */
+	private _agentFirstMessage: HTMLElement | undefined;
 	private _instructionFilesExist: boolean | undefined;
 
 	private _isRenderingWelcome = false;
@@ -1729,7 +1731,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			const numItems = this.viewModel?.getItems().length ?? 0;
-			if (!numItems) {
+			if (!numItems && this._agentFirstMessage) {
+				if (this._agentFirstMessage.parentElement !== this.welcomeMessageContainer) {
+					this.welcomePart.clear();
+					dom.clearNode(this.welcomeMessageContainer);
+					dom.append(this.welcomeMessageContainer, this._agentFirstMessage);
+				}
+			} else if (!numItems) {
 				const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
 				let additionalMessage: string | IMarkdownString | undefined;
 				if (this.chatEntitlementService.anonymous && !this.chatEntitlementService.sentiment.completed) {
@@ -3601,6 +3609,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	setAgentWelcome(content: Omit<IChatViewWelcomeContent, 'additionalMessage'> | undefined): void {
 		this._agentWelcome = content;
 		this.welcomeMessageContainer?.classList.toggle('chat-agent-welcome', !!content);
+		this.renderWelcomeViewContentIfNeeded();
+	}
+
+	setAgentFirstMessage(element: HTMLElement | undefined): void {
+		if (this._agentFirstMessage === element) {
+			return;
+		}
+		this._agentFirstMessage?.remove();
+		this._agentFirstMessage = element;
+		this.welcomeMessageContainer?.classList.toggle('chat-agent-first-message', !!element);
+		if (!element) {
+			// Force the default welcome to render again.
+			this.welcomePart.clear();
+		}
 		this.renderWelcomeViewContentIfNeeded();
 	}
 

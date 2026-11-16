@@ -98,6 +98,7 @@ export namespace PromptHeaderAttributes {
 	export const commands = 'commands';
 	export const startForm = 'start-form';
 	export const welcome = 'welcome';
+	export const firstMessage = 'first-message';
 }
 
 export class PromptHeader {

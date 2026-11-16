@@ -551,6 +551,8 @@ export interface IChatWidget {
 	getInput(): string;
 	/** Replaces the empty chat's welcome content, e.g. with the selected agent's own (`undefined` restores the default). */
 	setAgentWelcome?(content: Omit<IChatViewWelcomeContent, 'additionalMessage'> | undefined): void;
+	/** Shows an element as the selected agent's first message in the empty chat, instead of any welcome. */
+	setAgentFirstMessage?(element: HTMLElement | undefined): void;
 	refreshParsedInput(): void;
 	/** Floats persistent input content and reserves matching space below the transcript. */
 	setPersistentContentHeight(height: number | undefined): void;

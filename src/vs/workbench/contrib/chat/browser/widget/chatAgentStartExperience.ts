@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from '../../../../../base/browser/dom.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -14,6 +16,8 @@ import { MenuId, MenuRegistry } from '../../../../../platform/actions/common/act
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatQuestion, IChatQuestionAnswerValue } from '../../common/chatService/chatService.js';
@@ -59,6 +63,13 @@ interface IAgentStartExperience {
 	readonly startForm: IAgentStartForm | undefined;
 	/** Markdown for the empty chat; `command:<name>` links run the agent's own commands. */
 	readonly welcome: string | undefined;
+	readonly firstMessage: IAgentFirstMessage | undefined;
+}
+
+/** An agent message shown in the empty chat, with buttons that run the agent's own commands (the first is primary). */
+interface IAgentFirstMessage {
+	readonly markdown: string;
+	readonly buttons: readonly string[];
 }
 
 /** The VS Code command behind an agent command: a valid command URI path, so welcome links can run it. */
@@ -75,11 +86,13 @@ export class ChatAgentStartExperienceContribution extends Disposable implements 
 	private readonly _commandRegistrations = new Map<string, { definition: IAgentCommand; readonly registration: IDisposable }>();
 	/** Widgets whose current (empty) chat already got the start form, by the chat's session. */
 	private readonly _formShown = new WeakMap<IChatWidget, string>();
+	private readonly _firstMessages = this._register(new DisposableMap<IChatWidget>());
 
 	constructor(
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -106,6 +119,7 @@ export class ChatAgentStartExperienceContribution extends Disposable implements 
 		const uri = mode.uri?.get();
 		if (!uri || mode.isBuiltin) {
 			widget.setAgentWelcome?.(undefined);
+			this._setFirstMessage(widget, undefined);
 			return;
 		}
 		const experience = await this._read(mode.name.get(), uri);
@@ -118,9 +132,43 @@ export class ChatAgentStartExperienceContribution extends Disposable implements 
 			icon: Codicon.chatSparkle,
 			message: this._welcomeMarkdown(experience, widget.viewModel?.sessionResource),
 		} : undefined);
+		this._setFirstMessage(widget, experience.firstMessage && this._renderFirstMessage(experience, experience.firstMessage, widget));
 		if (experience.startForm) {
 			this._showStartForm(widget, experience.startForm);
 		}
+	}
+
+	private _setFirstMessage(widget: IChatWidget, rendered: { element: HTMLElement; store: DisposableStore } | undefined): void {
+		this._firstMessages.deleteAndDispose(widget);
+		if (rendered) {
+			this._firstMessages.set(widget, rendered.store);
+		}
+		widget.setAgentFirstMessage?.(rendered?.element);
+	}
+
+	/** Renders like a chat response: markdown, then a row of command buttons as in `ChatCommandButtonContentPart`. */
+	private _renderFirstMessage(experience: IAgentStartExperience, message: IAgentFirstMessage, widget: IChatWidget): { element: HTMLElement; store: DisposableStore } {
+		const store = new DisposableStore();
+		const element = dom.$('.interactive-item-container.interactive-response.chat-agent-first-message-item');
+		const header = dom.append(element, dom.$('.header'));
+		const user = dom.append(header, dom.$('.user'));
+		dom.append(user, dom.$('.avatar-container', undefined, dom.$('.avatar.codicon-avatar', undefined, dom.$(ThemeIcon.asCSSSelector(Codicon.chatSparkle)))));
+		dom.append(user, dom.$('h3.username', undefined, experience.agentName));
+		const value = dom.append(element, dom.$('.value'));
+		const markdown = store.add(this._markdownRendererService.render(new MarkdownString(message.markdown, { supportThemeIcons: true })));
+		markdown.element.classList.add('rendered-markdown');
+		value.appendChild(markdown.element);
+
+		const commands = message.buttons.map(name => experience.commands.find(command => command.name === name)).filter((command): command is IAgentCommand => !!command);
+		if (commands.length) {
+			const row = dom.append(value, dom.$('.chat-command-button'));
+			commands.forEach((command, index) => {
+				const button = store.add(new Button(row, { ...defaultButtonStyles, supportIcons: true, secondary: index > 0 }));
+				button.label = command.icon ? `$(${command.icon}) ${command.label}` : command.label;
+				store.add(button.onDidClick(() => this._commandService.executeCommand(agentCommandId(experience.agentName, command.name), { widget })));
+			});
+		}
+		return { element, store };
 	}
 
 	/** Trusts exactly the agent's own commands, and passes them the chat they were clicked in. */
@@ -145,7 +193,7 @@ export class ChatAgentStartExperienceContribution extends Disposable implements 
 		}
 		const commands = toArray(toJson(header.getAttribute(PromptHeaderAttributes.commands)?.value)).map(asAgentCommand).filter((command): command is IAgentCommand => !!command);
 		const form = toJson(header.getAttribute(PromptHeaderAttributes.startForm)?.value);
-		return { agentName, commands, startForm: asStartForm(form), welcome: asString(toJson(header.getAttribute(PromptHeaderAttributes.welcome)?.value)) };
+		return { agentName, commands, startForm: asStartForm(form), welcome: asString(toJson(header.getAttribute(PromptHeaderAttributes.welcome)?.value)), firstMessage: asFirstMessage(toJson(header.getAttribute(PromptHeaderAttributes.firstMessage)?.value)) };
 	}
 
 	private _registerCommand(agentName: string, definition: IAgentCommand): void {
@@ -258,6 +306,18 @@ function asAgentCommand(value: unknown): IAgentCommand | undefined {
 	const prompt = typeof raw.prompt === 'string' ? raw.prompt : undefined;
 	const command = asString(raw.command);
 	return name && label && (prompt !== undefined || command) ? { name, label, icon: asString(raw.icon), prompt, send: raw.send === 'true', command } : undefined;
+}
+
+function asFirstMessage(value: unknown): IAgentFirstMessage | undefined {
+	if (typeof value === 'string') {
+		return asString(value) ? { markdown: value, buttons: [] } : undefined;
+	}
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	const markdown = asString(raw.markdown);
+	return markdown ? { markdown, buttons: toArray(raw.buttons).map(asString).filter((name): name is string => !!name) } : undefined;
 }
 
 function asStartForm(value: unknown): IAgentStartForm | undefined {
