@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../base/common/observable.js';
+import { autorun, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { getWorktreeFilterKey, getWorktreeSessionToOpen, IWorktreeFilterSession, WorktreeLastSessions } from '../../../../../platform/agentHost/common/sessionWorktreeFolders.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatViewHostService } from '../chatViewHost.js';
@@ -27,7 +27,10 @@ export class AgentSessionsWorktreeOpener extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+		// Also as where the shown session works becomes known or changes, which it can after it shows, such as after its first request
+		const sessionsChanged = observableSignalFromEvent(this, this._agentSessionsService.model.onDidChangeSessions);
 		this._register(autorun(reader => {
+			sessionsChanged.read(reader);
 			const shown = this._chatViewHostService.shownSession.read(reader);
 			const session = shown && this._describe(this._agentSessionsService.getSession(shown.resource));
 			if (session?.worktree) {

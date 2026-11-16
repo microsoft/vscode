@@ -1380,6 +1380,7 @@ suite('AgentSessions', () => {
 			instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
 				override readonly model = new class extends mock<IAgentSessionsService['model']>() {
 					override get sessions() { return modelSessions; }
+					override readonly onDidChangeSessions = onDidChangeModelSessions.event;
 				}();
 				override getSession(resource: URI) { return modelSessions.find(session => session.resource.toString() === resource.toString()); }
 			}());
@@ -1417,6 +1418,38 @@ suite('AgentSessions', () => {
 				alreadyShown: [],
 				fallback: ['newer', 'newer'],
 			});
+		});
+
+		test('remembers the session shown of a worktree folder also once where it works becomes known after it shows', async () => {
+			const inFolder = (name: string, path: string | undefined, created: number) => createSession({ resource: URI.parse(`test://${name}`), metadata: path ? { workingDirectoryPath: path } : undefined, timing: { created, lastRequestStarted: undefined, lastRequestEnded: undefined } });
+			// Shown before its first request made known where it works
+			const started = inFolder('started', undefined, 10);
+			const newer = inFolder('newer', '/work/vscode.worktrees/first', 20);
+			const elsewhere = inFolder('elsewhere', '/work/vscode.worktrees/second', 30);
+			modelSessions = [started, newer, elsewhere];
+			const shown = observableValue<IChatViewHostShownSession | undefined>('shown', { resource: started.resource, reason: 'open' });
+			instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ shownSession: shown }));
+			instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+				override readonly model = new class extends mock<IAgentSessionsService['model']>() {
+					override get sessions() { return modelSessions; }
+					override readonly onDidChangeSessions = onDidChangeModelSessions.event;
+				}();
+				override getSession(resource: URI) { return modelSessions.find(session => session.resource.toString() === resource.toString()); }
+			}());
+			const opened: string[] = [];
+			class RecordingOpener extends AgentSessionsWorktreeOpener {
+				protected override async openAgentSession(session: IAgentSession): Promise<void> {
+					opened.push(session.resource.authority);
+				}
+			}
+			const opener = disposables.add(instantiationService.createInstance(RecordingOpener));
+			const known = inFolder('started', '/work/vscode.worktrees/first', 10);
+			modelSessions = [known, newer, elsewhere];
+			onDidChangeModelSessions.fire();
+			shown.set({ resource: elsewhere.resource, reason: 'open' }, undefined);
+			await opener.open(getWorktreeFilterKey(URI.file('/work/vscode.worktrees/first')));
+
+			assert.deepStrictEqual(opened, ['started']);
 		});
 
 		test('shows all worktree folders for the hidden folders that earlier builds stored', () => {

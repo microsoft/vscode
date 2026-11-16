@@ -25,6 +25,7 @@ import { autorun, constObservable, derived, IObservable, IReader, ISettableObser
 import { isLinux, isMacintosh, isWindows, OS } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { getWorktreeFilterKey } from '../../../../../platform/agentHost/common/sessionWorktreeFolders.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -3909,6 +3910,29 @@ suite('Sessions - SessionsList', () => {
 				createWorktreeSession('lower', { workingDirectory: 'file:///c:/work/repo' }, 2),
 			]);
 			assert.deepStrictEqual(sections.map(section => section.sessions.map(session => session.sessionId)), isLinux ? [['upper'], ['lower']] : [['upper', 'lower']]);
+		});
+
+		test('applies a selected worktree folder only where the list offers the Worktrees filter, as an editor window does and the Agents window does not', () => {
+			const visible = (offersWorktreeFilter: boolean | undefined, select = true) => {
+				const harness = createListHarness(disposables, worktreeSessions());
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(400, 1400), {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Updated,
+					offersWorktreeFilter,
+					onSessionOpen: () => { },
+				}));
+				list.layout(1400, 400);
+				if (select) {
+					list.filters.setSelectedWorktree(getWorktreeFilterKey(URI.parse('file:///work/repo.worktrees/a')));
+				}
+				return list.getVisibleSessions().map(session => session.sessionId).sort();
+			};
+
+			assert.deepStrictEqual({ editorWindow: visible(undefined), agentsWindow: visible(false) }, {
+				// Sessions without a local folder are never hidden
+				editorWindow: ['cloud', 'feature-a', 'feature-a-2'],
+				agentsWindow: visible(false, false),
+			});
 		});
 
 		test('shows the list by worktree, with the full path in a section\'s label for screen readers, and searches within it', async () => {

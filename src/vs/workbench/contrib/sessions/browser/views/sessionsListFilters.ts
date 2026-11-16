@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { getComparisonKey } from '../../../../../base/common/resources.js';
@@ -206,33 +206,42 @@ export function getWorktreeFilterKeys(sessions: readonly ISession[], isSessionLi
 
 /**
  * Opens a session of the worktree folder the user picks in the Worktrees filter, unless the shown session works in it already:
- * the one of it shown last, else its most recent session that is not archived.
+ * the one of it shown last, else its most recent session that is not archived. As a click in the list, it first asks
+ * `canOpen`, such as whether its folder is trusted, and opens nothing where refused, or where a later pick or another change
+ * of the filters came meanwhile.
  */
 export class SessionsWorktreeOpener extends Disposable {
 
 	private readonly _lastSessions = new WorktreeLastSessions();
+	/** Increases with each pick and each change of the filters: an open asked for before does not apply. */
+	private _generation = 0;
 
 	constructor(
 		private readonly _shown: IObservable<ISession | undefined>,
 		private readonly _sessions: () => readonly ISession[],
+		private readonly _canOpen: (session: ISession) => Promise<boolean>,
 		private readonly _open: (session: ISession) => void,
+		onDidChangeFilters: Event<void>,
 	) {
 		super();
+		this._register(onDidChangeFilters(() => this._generation++));
 		this._register(autorun(reader => {
+			// Also as the shown session's workspace becomes known or changes, which it can after it shows
 			const shown = this._shown.read(reader);
-			const worktree = shown && getWorktreeFilterSession(shown).worktree;
-			if (shown && worktree) {
-				this._lastSessions.remember(worktree, shown.sessionId);
+			const folder = shown && getSessionWorktreeFilterFolder(shown, reader);
+			if (shown && folder) {
+				this._lastSessions.remember(getWorktreeFilterKey(folder.folder), shown.sessionId);
 			}
 		}));
 	}
 
-	open(worktree: string): void {
+	async open(worktree: string): Promise<void> {
+		const generation = ++this._generation;
 		const shown = this._shown.get();
 		const sessions = this._sessions();
-		const pick = getWorktreeSessionToOpen(worktree, shown && getWorktreeFilterSession(shown), sessions.map(getWorktreeFilterSession), this._lastSessions.get(worktree));
+		const pick = getWorktreeSessionToOpen(worktree, shown && getWorktreeFilterSession(shown), sessions.map(session => getWorktreeFilterSession(session)), this._lastSessions.get(worktree));
 		const session = pick && sessions.find(candidate => candidate.sessionId === pick.id);
-		if (session) {
+		if (session && await this._canOpen(session) && generation === this._generation) {
 			this._open(session);
 		}
 	}

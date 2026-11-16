@@ -4595,6 +4595,8 @@ interface ISessionsListControlBaseOptions {
 	 * omitted, opens are not gated.
 	 */
 	canOpenSession?(session: ISession): Promise<boolean>;
+	/** Whether the Worktrees filter applies, as it does outside the Agents window. Defaults to `true`. */
+	readonly offersWorktreeFilter?: boolean;
 	onChatOpen?(session: ISession, chat: IChat, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
 
 	/**
@@ -5997,7 +5999,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// Scope to the selected host's providers; an empty set (a declared
 		// group with no members yet) matches nothing rather than everything.
 		let filtered = this.sessions.filter(session => this.isSessionListed(session));
-		const availableWorktrees = getWorktreeFilterKeys(filtered, () => true);
+		// The Worktrees filter is of an editor window: in the Agents window, a folder selected there selects nothing
+		const availableWorktrees = this.options.offersWorktreeFilter === false ? new Set<string>() : getWorktreeFilterKeys(filtered, () => true);
 		const scopedProviderIds = this._agentHostFilterService.selectedHost?.providerIds;
 		if (scopedProviderIds) {
 			const scoped = new Set(scopedProviderIds);

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../../../base/common/event.js';
 import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -61,7 +62,7 @@ suite('SessionsListFilters', () => {
 		});
 	});
 
-	test('picking a worktree folder opens the session of it shown last, else its most recent one not archived, and nothing while the shown one works in it', () => {
+	test('picking a worktree folder opens the session of it shown last, else its most recent one not archived, and nothing while the shown one works in it', async () => {
 		const inFolder = (id: string, path: string, minutesAgo: number, isArchived = false): ISession => {
 			const root = URI.file(path);
 			const workspace: ISessionWorkspace = {
@@ -81,28 +82,28 @@ suite('SessionsListFilters', () => {
 		const first = getSessionFilterOptions(sessions, [], listAll).find(option => option.filter.kind === 'worktree' && option.label === 'first')!.filter.id;
 		const shown = observableValue<ISession | undefined>('shown', main);
 		const opened: string[] = [];
-		const opener = store.add(new SessionsWorktreeOpener(shown, () => sessions, session => opened.push(session.sessionId)));
+		const opener = store.add(new SessionsWorktreeOpener(shown, () => sessions, async () => true, session => opened.push(session.sessionId), Event.None));
 
-		opener.open(first);
+		await opener.open(first);
 		const mostRecent = [...opened];
 		// The user shows the older one of the folder, then another folder's
 		shown.set(older, undefined);
 		shown.set(second, undefined);
-		opener.open(first);
+		await opener.open(first);
 		const remembered = opened.slice(mostRecent.length);
 		shown.set(newer, undefined);
-		opener.open(first);
+		await opener.open(first);
 		const alreadyShown = opened.slice(mostRecent.length + remembered.length);
 		// The remembered one is archived, then works in another folder: the folder's most recent one opens instead
 		shown.set(older, undefined);
 		shown.set(second, undefined);
 		olderArchived.set(true, undefined);
-		opener.open(first);
+		await opener.open(first);
 		olderArchived.set(false, undefined);
 		const movedRoot = URI.file('/work/vscode.worktrees/second');
 		const moved = { ...older, workspace: constObservable<ISessionWorkspace>({ uri: movedRoot, label: 'older', icon: Codicon.folder, requiresWorkspaceTrust: false, isVirtualWorkspace: false, folders: [{ root: movedRoot, workingDirectory: movedRoot, name: 'older', description: undefined, gitRepository: undefined }] }) };
 		sessions.splice(sessions.indexOf(older), 1, moved);
-		opener.open(first);
+		await opener.open(first);
 
 		assert.deepStrictEqual({ mostRecent, remembered, alreadyShown, fallback: opened.slice(mostRecent.length + remembered.length + alreadyShown.length) }, {
 			mostRecent: ['newer'],
@@ -110,6 +111,30 @@ suite('SessionsListFilters', () => {
 			alreadyShown: [],
 			fallback: ['newer', 'newer'],
 		});
+	});
+
+	test('remembers the session shown of a worktree folder also once its workspace becomes known after it shows', async () => {
+		const workspaceOf = (path: string): ISessionWorkspace => {
+			const root = URI.file(path);
+			return { uri: root, label: 'first', icon: Codicon.folder, requiresWorkspaceTrust: false, isVirtualWorkspace: false, folders: [{ root, workingDirectory: root, name: 'first', description: undefined, gitRepository: undefined }] };
+		};
+		const inFolder = (id: string, path: string | undefined, minutesAgo: number): ISession & { readonly hydrate: (path: string) => void } => {
+			const workspace = observableValue<ISessionWorkspace | undefined>(`workspace-${id}`, path ? workspaceOf(path) : undefined);
+			return { ...buildTestSession({ id, title: id, minutesAgo }).session, workspace, hydrate: folder => workspace.set(workspaceOf(folder), undefined) };
+		};
+		// Shown before its workspace is known, as a restored session is
+		const hydrating = inFolder('hydrating', undefined, 30);
+		const newer = inFolder('newer', '/work/vscode.worktrees/first', 10);
+		const elsewhere = inFolder('elsewhere', '/work/vscode.worktrees/second', 5);
+		const sessions = [hydrating, newer, elsewhere];
+		const shown = observableValue<ISession | undefined>('shown', hydrating);
+		const opened: string[] = [];
+		const opener = store.add(new SessionsWorktreeOpener(shown, () => sessions, async () => true, session => opened.push(session.sessionId), Event.None));
+		hydrating.hydrate('/work/vscode.worktrees/first');
+		shown.set(elsewhere, undefined);
+		await opener.open(getSessionFilterOptions(sessions, [], listAll).find(option => option.filter.kind === 'worktree' && option.label === 'first')!.filter.id);
+
+		assert.deepStrictEqual(opened, ['hydrating']);
 	});
 
 	test('shows the sessions of all worktree folders or of the one selected, until All Worktrees or reset, and all where the selected or a stored hidden folder is not offered', () => {
