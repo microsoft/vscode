@@ -15,7 +15,7 @@ suite('ExtHostTask', () => {
 	test('TaskHandleDTO preserves task type', () => {
 		const task = new types.Task(
 			{ type: 'custom-type' },
-			{ uri: URI.file('/workspace'), name: 'workspace', index: 0 },
+			{ uri: URI.file('/workspace'), name: 'workspace', index: 0, locations: [] },
 			'my-task',
 			'custom-source'
 		);

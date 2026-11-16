@@ -57,7 +57,7 @@ suite('ExtHostFileSystemEventService', () => {
 		// Default: no PathCaseSensitive capability → ignoreCase=true for string patterns
 
 		const workspace: Pick<IExtHostWorkspace, 'getWorkspaceFolder'> = {
-			getWorkspaceFolder: () => ({ uri: URI.file('/workspace'), name: 'test', index: 0 })
+			getWorkspaceFolder: () => ({ uri: URI.file('/workspace'), name: 'test', index: 0, locations: [] })
 		};
 
 		const service = new ExtHostFileSystemEventService(protocol, new NullLogService(), undefined!);
@@ -85,7 +85,7 @@ suite('ExtHostFileSystemEventService', () => {
 		fileSystemInfo.$acceptProviderInfos(URI.file('/'), FileSystemProviderCapabilities.PathCaseSensitive);
 
 		const workspace: Pick<IExtHostWorkspace, 'getWorkspaceFolder'> = {
-			getWorkspaceFolder: () => ({ uri: URI.file('/workspace'), name: 'test', index: 0 })
+			getWorkspaceFolder: () => ({ uri: URI.file('/workspace'), name: 'test', index: 0, locations: [] })
 		};
 
 		const service = new ExtHostFileSystemEventService(protocol, new NullLogService(), undefined!);
@@ -123,7 +123,7 @@ suite('ExtHostFileSystemEventService', () => {
 		fileSystemInfo.$acceptProviderInfos(URI.file('/'), FileSystemProviderCapabilities.FileReadWrite); // no PathCaseSensitive → ignoreCase=true
 
 		const workspace: Pick<IExtHostWorkspace, 'getWorkspaceFolder'> = {
-			getWorkspaceFolder: () => ({ uri: URI.file('/workspace'), name: 'test', index: 0 })
+			getWorkspaceFolder: () => ({ uri: URI.file('/workspace'), name: 'test', index: 0, locations: [] })
 		};
 
 		const configProvider = {

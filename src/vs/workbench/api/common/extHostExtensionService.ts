@@ -20,6 +20,7 @@ import { ExtHostStorage, IExtHostStorage } from './extHostStorage.js';
 import { ExtHostWorkspace, IExtHostWorkspace } from './extHostWorkspace.js';
 import { MissingExtensionDependency, ActivationKind, checkProposedApiEnabled, isProposedApiEnabled, ExtensionActivationReason } from '../../services/extensions/common/extensions.js';
 import { ExtensionDescriptionRegistry, IActivationEventsReader } from '../../services/extensions/common/extensionDescriptionRegistry.js';
+import { IWorkspaceFolderData } from '../../../platform/workspace/common/workspace.js';
 import * as errors from '../../../base/common/errors.js';
 import type * as vscode from 'vscode';
 import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
@@ -686,7 +687,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		return eagerExtensionsActivation;
 	}
 
-	private _handleWorkspaceContainsEagerExtensions(folders: ReadonlyArray<vscode.WorkspaceFolder>): Promise<void> {
+	private _handleWorkspaceContainsEagerExtensions(folders: ReadonlyArray<IWorkspaceFolderData>): Promise<void> {
 		if (folders.length === 0) {
 			return Promise.resolve(undefined);
 		}
@@ -698,7 +699,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		).then(() => { });
 	}
 
-	private async _handleWorkspaceContainsEagerExtension(folders: ReadonlyArray<vscode.WorkspaceFolder>, desc: IExtensionDescription): Promise<void> {
+	private async _handleWorkspaceContainsEagerExtension(folders: ReadonlyArray<IWorkspaceFolderData>, desc: IExtensionDescription): Promise<void> {
 		if (this.isActivated(desc.identifier)) {
 			return;
 		}

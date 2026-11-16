@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../base/common/errors.js';
+import { isCancellationError, onUnexpectedError } from '../../../base/common/errors.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
 import { isNative } from '../../../base/common/platform.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -23,13 +23,16 @@ import { IFileQueryBuilderOptions, ITextQueryBuilderOptions, QueryBuilder } from
 import { IEditorService, ISaveEditorsResult } from '../../services/editor/common/editorService.js';
 import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from '../../services/search/common/search.js';
 import { IWorkspaceEditingService } from '../../services/workspaces/common/workspaceEditing.js';
-import { ExtHostContext, ExtHostWorkspaceShape, ITextSearchComplete, IWorkspaceData, MainContext, MainThreadWorkspaceShape, ResourceTrustRequestOptionsDto } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostWorkspaceShape, ITextSearchComplete, IWorkspaceData, IWorkspaceFolderLocationDto, MainContext, MainThreadWorkspaceShape, ResourceTrustRequestOptionsDto } from '../common/extHost.protocol.js';
 import { IEditSessionIdentityService } from '../../../platform/workspace/common/editSessions.js';
 import { EditorResourceAccessor, SaveReason, SideBySideEditor } from '../../common/editor.js';
 import { coalesce } from '../../../base/common/arrays.js';
 import { ICanonicalUriService } from '../../../platform/workspace/common/canonicalUri.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { ITextFileService } from '../../services/textfile/common/textfiles.js';
+import { IWorkspaceFolderLocationService } from '../../../platform/workspace/common/folderLocations.js';
+import { basename } from '../../../base/common/resources.js';
+import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace extends Disposable implements MainThreadWorkspaceShape {
@@ -37,6 +40,7 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 	private readonly _activeCancelTokens: { [id: number]: CancellationTokenSource } = Object.create(null);
 	private readonly _proxy: ExtHostWorkspaceShape;
 	private readonly _queryBuilder: QueryBuilder;
+	private readonly _locationResolves = this._register(new DisposableMap<string, CancellationTokenSource>());
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -55,6 +59,8 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
+		@IWorkspaceFolderLocationService private readonly _folderLocationService: IWorkspaceFolderLocationService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this._queryBuilder = this._instantiationService.createInstance(QueryBuilder);
@@ -64,9 +70,15 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 		// from the extension host. So initialize now knowing that `rootPath` is undefined.
 		if (workspace.configuration && !isNative && !fileService.hasProvider(workspace.configuration)) {
 			this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this.isWorkspaceTrusted());
+			this._updateFolderLocations();
 		} else {
-			this._contextService.getCompleteWorkspace().then(workspace => this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this.isWorkspaceTrusted()));
+			this._contextService.getCompleteWorkspace().then(workspace => {
+				this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this.isWorkspaceTrusted());
+				this._updateFolderLocations();
+			});
 		}
+		this._register(this._folderLocationService.onDidChangeLocation(() => this._updateFolderLocations()));
+		this._register(this._folderLocationService.onDidChangeProviders(() => this._updateFolderLocations()));
 		this._register(this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this));
 		this._register(this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this));
 		this._register(this._workspaceTrustManagementService.onDidChangeTrust(this._onDidGrantWorkspaceTrust, this));
@@ -127,6 +139,57 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 
 	private _onDidChangeWorkspace(): void {
 		this._proxy.$acceptWorkspaceData(this.getWorkspaceData(this._contextService.getWorkspace()));
+		this._updateFolderLocations();
+	}
+
+	/**
+	 * Resolves the locations of every workspace folder and pushes them to the extension host.
+	 * A newer resolve of a folder cancels the one in flight, and results of cancelled resolves are dropped.
+	 */
+	private _updateFolderLocations(): void {
+		if (!this._contextService.hasWorkspaceData()) {
+			return;
+		}
+		const workspace = this._contextService.getWorkspace();
+		const singleFolder = !workspace.configuration && !!workspace.uri && workspace.folders.length === 1;
+		const current = new Set<string>();
+		for (const folder of workspace.folders) {
+			// at an alternate location the folder URI is the location, the identity of the workspace is the primary
+			const primary = singleFolder ? workspace.uri! : folder.uri;
+			const key = folder.uri.toString();
+			current.add(key);
+			const cts = new CancellationTokenSource();
+			this._locationResolves.set(key, cts); // disposes (and cancels) the previous one
+			this._resolveFolderLocations(folder.uri, primary, singleFolder, cts.token).then(locations => {
+				if (!cts.token.isCancellationRequested) {
+					this._proxy.$acceptWorkspaceFolderLocations([{ folder: folder.uri, locations }]);
+				}
+			}, error => {
+				if (!isCancellationError(error)) {
+					onUnexpectedError(error);
+				}
+			});
+		}
+		for (const key of [...this._locationResolves.keys()]) {
+			if (!current.has(key)) {
+				this._locationResolves.deleteAndDispose(key);
+			}
+		}
+	}
+
+	private async _resolveFolderLocations(folderUri: URI, primary: URI, resolveAlternates: boolean, token: CancellationToken): Promise<IWorkspaceFolderLocationDto[]> {
+		const extUri = this._uriIdentityService.extUri;
+		const alternates = resolveAlternates ? await this._folderLocationService.getLocations(primary, token) : [];
+		const locations: IWorkspaceFolderLocationDto[] = [{ uri: primary, label: basename(primary), isPrimary: true, isCurrent: extUri.isEqual(primary, folderUri) }];
+		for (const alternate of alternates) {
+			if (!extUri.isEqual(alternate.uri, primary)) {
+				locations.push({ uri: alternate.uri, label: alternate.label, description: alternate.description, isPrimary: false, isCurrent: extUri.isEqual(alternate.uri, folderUri) });
+			}
+		}
+		if (!locations.some(location => location.isCurrent)) {
+			locations.push({ uri: folderUri, label: basename(folderUri), isPrimary: false, isCurrent: true });
+		}
+		return locations;
 	}
 
 	private getWorkspaceData(workspace: IWorkspace): IWorkspaceData | null {

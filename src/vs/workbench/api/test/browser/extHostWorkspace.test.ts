@@ -45,7 +45,7 @@ function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData,
 
 suite('ExtHostWorkspace', function () {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertAsRelativePath(workspace: ExtHostWorkspace, input: string, expected: string, includeWorkspace?: boolean) {
 		const actual = workspace.getRelativePath(input, includeWorkspace);
@@ -268,6 +268,60 @@ suite('ExtHostWorkspace', function () {
 		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar3'), 0), aWorkspaceFolderData(URI.parse('foo:bar'), 1)] });
 
 		assert.notStrictEqual(firstFolder, ws.workspace!.folders[0]);
+	});
+
+	test('Workspace folder locations default to the folder itself', function () {
+		const ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0, 'bar')] }, new NullLogService());
+
+		assert.deepStrictEqual(ws.getWorkspaceFolders()![0].locations.map(l => ({ uri: l.uri.toString(), label: l.label, isPrimary: l.isPrimary, isCurrent: l.isCurrent })), [
+			{ uri: 'foo:bar', label: 'bar', isPrimary: true, isCurrent: true }
+		]);
+	});
+
+	test('Workspace folder locations are updated in place and fire an event once per change', function () {
+		const ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0, 'bar')] }, new NullLogService());
+		const folder = ws.getWorkspaceFolders()![0];
+
+		const events: string[][] = [];
+		store.add(ws.onDidChangeWorkspaceFolderLocations(e => events.push(e.workspaceFolders.map(f => f.uri.toString()))));
+
+		const dto = [{
+			folder: URI.parse('foo:bar'),
+			locations: [
+				{ uri: URI.parse('foo:bar'), label: 'main', isPrimary: true, isCurrent: true },
+				{ uri: URI.parse('foo:wt'), label: 'wt', description: 'feature', isPrimary: false, isCurrent: false }
+			]
+		}];
+		ws.$acceptWorkspaceFolderLocations(dto);
+		ws.$acceptWorkspaceFolderLocations(dto);
+
+		assert.strictEqual(ws.getWorkspaceFolders()![0], folder);
+		assert.deepStrictEqual(folder.locations.map(l => ({ uri: l.uri.toString(), label: l.label, description: l.description, isPrimary: l.isPrimary, isCurrent: l.isCurrent })), [
+			{ uri: 'foo:bar', label: 'main', description: undefined, isPrimary: true, isCurrent: true },
+			{ uri: 'foo:wt', label: 'wt', description: 'feature', isPrimary: false, isCurrent: false }
+		]);
+		assert.deepStrictEqual(events, [['foo:bar']]);
+
+		ws.$acceptWorkspaceFolderLocations([{ folder: URI.parse('foo:bar'), locations: [dto[0].locations[0], { ...dto[0].locations[1], isCurrent: true }] }]);
+		assert.deepStrictEqual(events, [['foo:bar'], ['foo:bar']]);
+	});
+
+	test('Workspace folder locations are kept when the folder is reused and ignore unknown folders', function () {
+		const ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0, 'bar')] }, new NullLogService());
+		const folder = ws.getWorkspaceFolders()![0];
+		const events: number[] = [];
+		store.add(ws.onDidChangeWorkspaceFolderLocations(() => events.push(1)));
+
+		ws.$acceptWorkspaceFolderLocations([
+			{ folder: URI.parse('foo:unknown'), locations: [{ uri: URI.parse('foo:unknown'), label: 'x', isPrimary: true, isCurrent: true }] },
+			{ folder: URI.parse('foo:bar'), locations: [{ uri: URI.parse('foo:bar'), label: 'main', isPrimary: true, isCurrent: true }, { uri: URI.parse('foo:wt'), label: 'wt', isPrimary: false, isCurrent: false }] }
+		]);
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:other'), 0), aWorkspaceFolderData(URI.parse('foo:bar'), 1, 'bar')] });
+
+		assert.strictEqual(ws.getWorkspaceFolders()![1], folder);
+		assert.strictEqual(folder.locations.length, 2);
+		assert.strictEqual(ws.getWorkspaceFolders()![0].locations.length, 1);
+		assert.strictEqual(events.length, 1);
 	});
 
 	test('updateWorkspaceFolders - invalid arguments', function () {

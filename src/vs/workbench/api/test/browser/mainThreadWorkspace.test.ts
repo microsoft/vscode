@@ -14,6 +14,9 @@ import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 import { IFileQuery, ISearchService } from '../../../services/search/common/search.js';
 import { workbenchInstantiationService } from '../../../test/browser/workbenchTestServices.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { Event } from '../../../../base/common/event.js';
+import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
+import { IWorkspaceFolderLocationsDto } from '../../common/extHost.protocol.js';
 
 suite('MainThreadWorkspace', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -26,6 +29,11 @@ suite('MainThreadWorkspace', () => {
 
 		configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		configService.setUserConfiguration('search', {});
+		instantiationService.stub(IWorkspaceFolderLocationService, {
+			onDidChangeLocation: Event.None,
+			onDidChangeProviders: Event.None,
+			getLocations: async () => []
+		});
 	});
 
 	test('simple', () => {
@@ -41,7 +49,7 @@ suite('MainThreadWorkspace', () => {
 			}
 		});
 
-		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
+		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { }, $acceptWorkspaceFolderLocations: () => { } })));
 		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: 'foo', disregardSearchExcludeSettings: true }, CancellationToken.None);
 	});
 
@@ -64,7 +72,7 @@ suite('MainThreadWorkspace', () => {
 			}
 		});
 
-		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
+		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { }, $acceptWorkspaceFolderLocations: () => { } })));
 		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '', disregardSearchExcludeSettings: true }, CancellationToken.None);
 	});
 
@@ -85,7 +93,7 @@ suite('MainThreadWorkspace', () => {
 			}
 		});
 
-		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
+		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { }, $acceptWorkspaceFolderLocations: () => { } })));
 		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '', disregardSearchExcludeSettings: true, disregardExcludeSettings: true }, CancellationToken.None);
 	});
 
@@ -107,7 +115,7 @@ suite('MainThreadWorkspace', () => {
 			}
 		});
 
-		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
+		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { }, $acceptWorkspaceFolderLocations: () => { } })));
 		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '', disregardExcludeSettings: true, disregardSearchExcludeSettings: false }, CancellationToken.None);
 	});
 
@@ -121,7 +129,7 @@ suite('MainThreadWorkspace', () => {
 			}
 		});
 
-		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
+		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { }, $acceptWorkspaceFolderLocations: () => { } })));
 		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '', excludePattern: [{ pattern: 'exclude/**' }], disregardSearchExcludeSettings: true }, CancellationToken.None);
 	});
 	test('Valid revived URI after moving to EH', () => {
@@ -140,7 +148,22 @@ suite('MainThreadWorkspace', () => {
 			}
 		});
 
-		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
+		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { }, $acceptWorkspaceFolderLocations: () => { } })));
 		return mtw.$startFileSearch(uriComponents, { filePattern: '*.md' }, CancellationToken.None);
+	});
+
+	test('pushes the locations of the workspace folders to the extension host', async () => {
+		const pushed: IWorkspaceFolderLocationsDto[][] = [];
+		disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({
+			$initializeWorkspace: () => { },
+			$acceptWorkspaceFolderLocations: (data: IWorkspaceFolderLocationsDto[]) => { pushed.push(data); }
+		})));
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.ok(pushed.length > 0);
+		for (const [data] of pushed) {
+			assert.strictEqual(data.locations.filter(l => l.isCurrent).length, 1);
+			assert.strictEqual(data.locations[0].isPrimary, true);
+		}
 	});
 });
