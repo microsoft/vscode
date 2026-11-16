@@ -59,7 +59,7 @@ import { IChatMovedEvent, ISessionChatMoveDestination, type IForkChatOptions, ty
 import { SessionsManagementService } from '../../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
 import { VisibleSessions } from '../../../../../workbench/services/sessions/browser/visibleSessions.js';
 import { ISessionsManagementService, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, INewSessionDraftSlot, ISendRequestSentEvent, trackNewSessionRequestEnd, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ISessionsService, SessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IOpenSessionOptions, ISessionsService, SessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionGridState } from '../../../../../workbench/browser/parts/sessions/sessionGridState.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../../../../workbench/contrib/sessions/browser/sessionOpenTelemetryService.js';
 import { ISessionGridSlot, ISessionsPartService, SessionGridRequest } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
@@ -9835,6 +9835,50 @@ suite('SessionsManagementService', () => {
 			assert.deepStrictEqual(closedTitles(view), ['side']);
 		});
 
+		test('a closed main chat stays closed after switching away and back, until its session opens from its row', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('b')]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view } = setup([sessionA, sessionB]);
+			const [mainA] = sessionA.chats.get();
+			const grid = () => ({ closed: closedTitles(view), active: activeChatOf(view)?.title.get() });
+			const switchAwayAndBack = async (options?: IOpenSessionOptions) => {
+				await view.openSession(sessionB.resource);
+				await view.openSession(sessionA.resource, options);
+			};
+
+			await view.openSession(sessionA.resource);
+			await view.closeChat(activeSessionOf(view)!, mainA, { allowMainChat: true });
+			const closed = grid();
+			await switchAwayAndBack();
+			const switchedBack = grid();
+			await switchAwayAndBack({ forceMainChat: true });
+			const fromItsRow = grid();
+			await switchAwayAndBack();
+
+			assert.deepStrictEqual({ closed, switchedBack, fromItsRow, switchedBackAgain: grid() }, {
+				closed: { closed: ['mainA'], active: 'b' },
+				switchedBack: { closed: ['mainA'], active: 'b' },
+				fromItsRow: { closed: [], active: 'mainA' },
+				switchedBackAgain: { closed: [], active: 'mainA' },
+			});
+		});
+
+		test('a closed main chat that opens again stays open after switching away and back', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('b')]);
+			const sessionB = multiChatSession('B', [chat('mainB')]);
+			const { view } = setup([sessionA, sessionB]);
+			const [mainA] = sessionA.chats.get();
+
+			await view.openSession(sessionA.resource);
+			await view.closeChat(activeSessionOf(view)!, mainA, { allowMainChat: true });
+			const closed = closedTitles(view);
+			await view.openChat(sessionA, mainA.resource);
+			await view.openSession(sessionB.resource);
+			await view.openSession(sessionA.resource);
+
+			assert.deepStrictEqual({ closed, reopened: closedTitles(view) }, { closed: ['mainA'], reopened: [] });
+		});
+
 		test('a closed chat stays closed across a restart', async () => {
 			const mainA = chat('mainA');
 			const chatB = chat('b');
@@ -9876,6 +9920,47 @@ suite('SessionsManagementService', () => {
 			const second = makeView();
 			await second.restoreVisibleSessions();
 			assert.deepStrictEqual((second.activePane.get()?.tabs.closedChats.get() ?? []).map(c => c.title.get()), ['b']);
+		});
+
+		test('a closed main chat stays closed across a restart', async () => {
+			const mainA = chat('mainA');
+			const chatB = chat('b');
+			const sessionA = stubSession({
+				sessionId: 'A', providerId: 'test',
+				status: constObservable(SessionStatus.Completed),
+				chats: constObservable([mainA, chatB]),
+				mainChat: constObservable(mainA),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+			const storage = disposables.add(new InMemoryStorageService());
+			const provider = new class extends TestSessionsProvider {
+				constructor() { super(sessionA); }
+				override getSessions(): ISession[] { return [sessionA]; }
+			};
+			const makeView = () => {
+				const instantiationService = disposables.add(new TestInstantiationService());
+				instantiationService.stub(IStorageService, storage);
+				instantiationService.stub(ILogService, new NullLogService());
+				instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
+				instantiationService.stub(ISessionsProvidersService, new TestSessionsProvidersService([provider]));
+				instantiationService.stub(IUriIdentityService, { extUri: extUriBiasedIgnorePathCase });
+				instantiationService.stub(IChatWidgetService, new TestChatWidgetService());
+				instantiationService.stub(IProgressService, new TestProgressService());
+				instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+					override readonly onDidSubmitRequest = Event.None;
+				});
+				const service = disposables.add(instantiationService.createInstance(SessionsManagementService));
+				return createView(instantiationService, service, disposables);
+			};
+
+			const first = makeView();
+			await first.openSession(sessionA.resource);
+			await first.closeChat(activeSessionOf(first)!, mainA, { allowMainChat: true });
+			await storage.flush();
+
+			const second = makeView();
+			await second.restoreVisibleSessions();
+			assert.deepStrictEqual({ closed: closedTitles(second), active: activeChatOf(second)?.title.get() }, { closed: ['mainA'], active: 'b' });
 		});
 
 		test('a chat closed in a non-active session stays closed across a restart', async () => {

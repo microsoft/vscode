@@ -1106,7 +1106,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		);
 	});
 
-	const closeOthersHelp = 'To close every other chat tab in the tab row at once, focus a chat tab, open its context menu<keybinding:editor.action.showContextMenu>, and choose Close Others. The main chat stays open. Chats closed this way are not offered by Reopen Closed Chat or Session; reopen them from the Chats menu. A new chat that was never sent is deleted.';
+	const closeOthersHelp = 'To close every other chat tab in the tab row at once, focus a chat tab, open its context menu<keybinding:editor.action.showContextMenu>, and choose Close Others. This includes the main chat. Chats closed this way are not offered by Reopen Closed Chat or Session; reopen them from the Chats menu, or open the main chat from its row in the Sessions list. A new chat that was never sent is deleted.';
 
 	for (const { configuredValue, expectedConversation, expectedListAction, expectedGroupCloseHelp, expectedCloseOthersHelp } of [
 		{ configuredValue: undefined, expectedConversation: 'show multiple tabs', expectedListAction: 'show a chat as the session view', expectedGroupCloseHelp: true, expectedCloseOthersHelp: undefined },

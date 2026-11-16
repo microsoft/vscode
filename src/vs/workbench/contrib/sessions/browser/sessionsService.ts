@@ -28,7 +28,7 @@ import { ensureSessionWorktreesTrusted } from '../../../services/sessions/browse
 import { ClosedItemHistory } from './closedItemHistory.js';
 import { SessionNavigationIntent, SessionsNavigation } from './sessionNavigation.js';
 import { SessionsRecencyHistory } from '../../../services/sessions/browser/sessionsRecencyHistory.js';
-import { VisibleSessions } from '../../../services/sessions/browser/visibleSessions.js';
+import { IVisibleChatCloseOptions, VisibleSessions } from '../../../services/sessions/browser/visibleSessions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ISessionsPartService, SessionGridRequest } from '../../../services/sessions/browser/sessionsPartService.js';
 import { IChatHostClosedChat, IChatHostOpener, IChatHostOpenerService } from '../../../services/sessions/browser/chatHostOpener.js';
@@ -127,7 +127,7 @@ export interface IOpenNewSessionResult {
 }
 
 /** Options for {@link ISessionsService.closeChat}. */
-export interface ICloseChatOptions {
+export interface ICloseChatOptions extends IVisibleChatCloseOptions {
 	/**
 	 * Do not remember the chat as the most recently closed item. Used by batch
 	 * closes (e.g. "Close All Chats" and "Close Others"), where remembering just
@@ -312,7 +312,8 @@ export interface ISessionsService extends ISessionGridPanes {
 
 	/**
 	 * Close a chat from the session view. The chat is hidden from the tab strip
-	 * and can be reopened from the session header's chats dropdown.
+	 * and can be reopened from the session header's chats dropdown. The main chat
+	 * only closes with {@link ICloseChatOptions.allowMainChat}.
 	 */
 	closeChat(session: ISession, chat: IChat, options?: ICloseChatOptions): Promise<void>;
 
@@ -1338,7 +1339,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._startOpenSession();
 		// Closing hides the chat from the tab strip; it stays reopenable from the
 		// session header's chats dropdown.
-		this._visibility.closeChat(session, chat);
+		this._visibility.closeChat(session, chat, options);
 		this._setChatVisibilityState(session, chat, false);
 		if (!options?.skipHistory) {
 			this._closedItems.recordClosedChat(session, chat.resource);
@@ -1440,10 +1441,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 	 * it survives switching the session out of the grid (which disposes its
 	 * slot state) and reloads. Done synchronously on the close/open action rather
 	 * than reactively from `closedChats`, which would depend on the session's
-	 * chats being loaded. The main chat can never be closed and is ignored.
+	 * chats being loaded. The main chat hides only when the view model agrees, so
+	 * it follows that instead, see {@link _syncMainChatVisibilityState}.
 	 */
 	private _setChatVisibilityState(session: ISession, chat: IChat, visible: boolean): void {
 		if (this.uriIdentityService.extUri.isEqual(chat.resource, session.mainChat.get().resource)) {
+			this._syncMainChatVisibilityState(session);
 			return;
 		}
 		const existing = this._sessionStates.get(session.resource);
@@ -1466,6 +1469,41 @@ export class SessionsService extends Disposable implements ISessionsService {
 			closedChatResources: closedChatResources.size ? [...closedChatResources] : undefined,
 			openedChatResources: openedChatResources.size ? [...openedChatResources] : undefined,
 		});
+		// Closing the last other chat falls back to the main chat, which shows as a tab again.
+		this._syncMainChatVisibilityState(session);
+	}
+
+	/**
+	 * Persist whether the main chat is hidden from the tab strip as the view model has it: it hides
+	 * only when asked to and another chat remains, and shows again once it is the chat shown.
+	 */
+	private _syncMainChatVisibilityState(session: ISession): void {
+		const { extUri } = this.uriIdentityService;
+		const mainResource = session.mainChat.get().resource;
+		const slot = this._slotPaneOf(session.sessionId);
+		// The closed chats the view model reports are those of the chats loaded so far.
+		if (slot && session.chats.get().some(chat => extUri.isEqual(chat.resource, mainResource))) {
+			this._setMainChatHidden(session, slot.tabs.closedChats.get().some(chat => extUri.isEqual(chat.resource, mainResource)));
+		}
+	}
+
+	private _setMainChatHidden(session: ISession, hidden: boolean): void {
+		const existing = this._sessionStates.get(session.resource);
+		const mainResource = session.mainChat.get().resource.toString();
+		const closedChatResources = new Set(existing?.closedChatResources);
+		if (closedChatResources.has(mainResource) === hidden) {
+			return;
+		}
+		if (hidden) {
+			closedChatResources.add(mainResource);
+		} else {
+			closedChatResources.delete(mainResource);
+		}
+		this._sessionStates.set(session.resource, {
+			...existing,
+			sessionResource: session.resource.toString(),
+			closedChatResources: closedChatResources.size ? [...closedChatResources] : undefined,
+		});
 	}
 
 	private _applyActiveChatSelection(session: ISession, options: IOpenSessionOptions | undefined): void {
@@ -1478,8 +1516,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 		const mainChat = session.mainChat.get();
 		this._visibility.setActiveChat(session, mainChat);
+		// Selecting the main chat shows it as a tab again, also in a session that is not in the grid yet.
+		this._setMainChatHidden(session, false);
 		this._sessionStates.set(session.resource, {
-			...state,
+			...this._sessionStates.get(session.resource),
 			sessionResource: session.resource.toString(),
 			activeChatResource: mainChat.resource.toString(),
 			activeChatOrigin: mainChat.origin?.kind,

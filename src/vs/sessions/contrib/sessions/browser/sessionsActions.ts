@@ -12,6 +12,7 @@ import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { IExtUri } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
@@ -1240,14 +1241,16 @@ MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 /**
  * Closes `chats` of `session` as one gesture, so they are not offered to Reopen
  * Closed Chat or Session: that would reopen only the last chat of the batch.
- * An untitled draft has nothing to reopen, so it is deleted.
+ * An untitled draft has nothing to reopen, so it is deleted. The main chat, when
+ * listed, is hidden like the others: deleting it would delete the session.
  */
-async function closeChatsTogether(sessionsService: ISessionsService, sessionsManagementService: ISessionsManagementService, session: ISession, chats: readonly IChat[]): Promise<void> {
+async function closeChatsTogether(sessionsService: ISessionsService, sessionsManagementService: ISessionsManagementService, extUri: IExtUri, session: ISession, chats: readonly IChat[]): Promise<void> {
+	const mainResource = session.mainChat.get().resource;
 	for (const chat of chats) {
-		if (chat.status.get() === SessionStatus.Untitled) {
+		if (chat.status.get() === SessionStatus.Untitled && !extUri.isEqual(chat.resource, mainResource)) {
 			await sessionsManagementService.deleteChat(session, chat.resource, { skipConfirmation: true });
 		} else {
-			await sessionsService.closeChat(session, chat, { skipHistory: true });
+			await sessionsService.closeChat(session, chat, { skipHistory: true, allowMainChat: true });
 		}
 	}
 }
@@ -1292,16 +1295,16 @@ registerAction2(class CloseAllChatsAction extends Action2 {
 		const { pane, session } = target;
 
 		const mainResource = session.mainChat.get().resource;
-		await closeChatsTogether(sessionsService, sessionsManagementService, session, pane.tabs.openChats.get().filter(chat => !extUri.isEqual(chat.resource, mainResource)));
+		await closeChatsTogether(sessionsService, sessionsManagementService, extUri, session, pane.tabs.openChats.get().filter(chat => !extUri.isEqual(chat.resource, mainResource)));
 	}
 });
 
 // Close Others acts on the tabs of the strip it is run from, as it does in an
-// editor group, and keeps the chat of the tab and the main chat, which a tab
-// cannot close. When the chat its host shows is one it closes, it selects the
-// kept chat first: closing would otherwise fall back to the parent of a side
-// chat or to a chat of another group. Any other selection stays, including an
-// active main chat.
+// editor group, and keeps only the chat of the tab: the main chat closes too,
+// and comes back from the sidebar or the chats menu. When the chat its host
+// shows is one it closes, it selects the kept chat first: closing would
+// otherwise fall back to the parent of a side chat or to a chat of another
+// group. Any other selection stays.
 registerAction2(class CloseOtherChatsAction extends Action2 {
 	constructor() {
 		super({
@@ -1321,15 +1324,14 @@ registerAction2(class CloseOtherChatsAction extends Action2 {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const extUri = accessor.get(IUriIdentityService).extUri;
-		const mainResource = session.mainChat.get().resource;
-		const chats = stripChats.filter(chat => !extUri.isEqual(chat.resource, keptChat.resource) && !extUri.isEqual(chat.resource, mainResource));
+		const chats = stripChats.filter(chat => !extUri.isEqual(chat.resource, keptChat.resource));
 		const host = resolveCommandOriginHost(accessor, [session, keptChat, hostContext]);
 		const shownChat = host?.chat.get();
 		if (host && shownChat && chats.some(chat => extUri.isEqual(chat.resource, shownChat.resource))) {
 			// Awaited because closing a chat cancels a selection still in flight.
 			await sessionsService.openChat(session, keptChat.resource, { from: host });
 		}
-		await closeChatsTogether(sessionsService, sessionsManagementService, session, chats);
+		await closeChatsTogether(sessionsService, sessionsManagementService, extUri, session, chats);
 	}
 });
 

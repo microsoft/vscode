@@ -1715,7 +1715,7 @@ suite('Sessions - Actions', () => {
 		]);
 	});
 
-	test('Close Others closes the other chats of the strip but the main chat, in one batch Reopen Closed Chat does not offer', async () => {
+	test('Close Others closes every other chat of the strip, the main chat included, in one batch Reopen Closed Chat does not offer', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const { session } = createTestSession('close-others');
 		const mainChat = session.mainChat.get();
@@ -1726,7 +1726,7 @@ suite('Sessions - Actions', () => {
 		const operations: string[] = [];
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override async closeChat(_session: ISession, chat: IChat, options?: ICloseChatOptions): Promise<void> {
-				operations.push(`close:${chat.resource.toString()}:skipHistory=${options?.skipHistory}`);
+				operations.push(`close:${chat.resource.toString()}:skipHistory=${options?.skipHistory}:allowMainChat=${options?.allowMainChat}`);
 			}
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
@@ -1744,17 +1744,43 @@ suite('Sessions - Actions', () => {
 		await command.handler(instantiationService, session, keptChat, undefined, undefined);
 
 		assert.deepStrictEqual(operations, [
-			`close:${otherChat.resource.toString()}:skipHistory=true`,
+			`close:${mainChat.resource.toString()}:skipHistory=true:allowMainChat=true`,
+			`close:${otherChat.resource.toString()}:skipHistory=true:allowMainChat=true`,
 			`delete:${draftChat.resource.toString()}:skipConfirmation=true`,
 		]);
 	});
 
+	test('Close Others hides an untitled main chat instead of deleting it, which would delete the session', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const { session: model } = createTestSession('close-others-untitled-main');
+		const mainChat: IChat = { ...model.mainChat.get(), status: constObservable(SessionStatus.Untitled) };
+		const session: ISession = { ...model, mainChat: constObservable(mainChat) };
+		const keptChat: IChat = { ...mainChat, resource: URI.parse('test-chat://kept'), title: constObservable('kept'), status: constObservable(SessionStatus.Completed) };
+		const operations: string[] = [];
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override async closeChat(_session: ISession, chat: IChat, options?: ICloseChatOptions): Promise<void> {
+				operations.push(`close:${chat.resource.toString()}:allowMainChat=${options?.allowMainChat}`);
+			}
+		});
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override async deleteChat(_session: ISession, chatResource: URI): Promise<boolean> {
+				operations.push(`delete:${chatResource.toString()}`);
+				return true;
+			}
+		});
+		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
+
+		await CommandsRegistry.getCommand(CLOSE_OTHER_CHATS_COMMAND_ID)!.handler(instantiationService, session, keptChat, undefined, [mainChat, keptChat]);
+
+		assert.deepStrictEqual(operations, [`close:${mainChat.resource.toString()}:allowMainChat=true`]);
+	});
+
 	// `beside` stands for a chat of another group of the pane: it is listed last, so closing the shown chat falls back to it.
 	for (const scenario of [
-		{ name: 'selects the kept chat before it closes the chat the pane shows, so the pane does not fall back to a chat of another group', shown: 'closing', expected: { shown: 'kept', operations: ['open:kept', 'close:closing'] } },
-		{ name: 'keeps the main chat selected', shown: 'main', expected: { shown: 'main', operations: ['close:closing'] } },
-		{ name: 'keeps the chat of the tab selected', shown: 'kept', expected: { shown: 'kept', operations: ['close:closing'] } },
-		{ name: 'keeps a chat of another group selected', shown: 'beside', expected: { shown: 'beside', operations: ['close:closing'] } },
+		{ name: 'selects the kept chat before it closes the chat the pane shows, so the pane does not fall back to a chat of another group', shown: 'closing', expected: { shown: 'kept', operations: ['open:kept', 'close:main', 'close:closing'] } },
+		{ name: 'selects the kept chat before it closes the main chat the pane shows', shown: 'main', expected: { shown: 'kept', operations: ['open:kept', 'close:main', 'close:closing'] } },
+		{ name: 'keeps the chat of the tab selected', shown: 'kept', expected: { shown: 'kept', operations: ['close:main', 'close:closing'] } },
+		{ name: 'keeps a chat of another group selected', shown: 'beside', expected: { shown: 'beside', operations: ['close:main', 'close:closing'] } },
 	] as const) {
 		test(`Close Others ${scenario.name}`, async () => {
 			const { session: model } = createTestSession('close-others-selection');
@@ -1778,9 +1804,9 @@ suite('Sessions - Actions', () => {
 					grid.openChat(target, chat);
 					grid.setActiveChat(target, chat);
 				}
-				override async closeChat(target: ISession, chat: IChat): Promise<void> {
+				override async closeChat(target: ISession, chat: IChat, options?: ICloseChatOptions): Promise<void> {
 					operations.push(`close:${chat.resource.authority}`);
-					grid.closeChat(target, chat);
+					grid.closeChat(target, chat, options);
 				}
 			});
 			instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
@@ -1788,7 +1814,7 @@ suite('Sessions - Actions', () => {
 
 			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(CLOSE_OTHER_CHATS_COMMAND_ID)!.handler(accessor, session, chats.kept, host.commandContext, [chats.main, chats.kept, chats.closing]));
 
-			assert.deepStrictEqual({ shown: pane.chat.get()?.resource.authority, operations }, scenario.expected);
+			assert.deepStrictEqual({ shown: pane.chat.get()?.resource.authority, tabs: pane.tabs.visibleChatTabs.get().map(chat => chat.resource.authority), operations }, { ...scenario.expected, tabs: ['kept', 'beside'] });
 		});
 	}
 

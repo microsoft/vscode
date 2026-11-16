@@ -1286,11 +1286,11 @@ suite('Sessions - ChatCompositeBar', () => {
 			secondary: menuLabels(tabs[1]),
 		}, {
 			main: ['Close Others', 'separator', 'Mark as Unread'],
-			secondary: ['Close', 'separator', 'Rename...', 'Delete...'],
+			secondary: ['Close', 'Close Others', 'separator', 'Rename...', 'Delete...'],
 		});
 	});
 
-	test('offers Close Others on a chat tab only while another tab besides the main chat can be closed', async () => {
+	test('offers Close Others on a chat tab while another tab of the strip can be closed, the main chat included', async () => {
 		const { chats, commandService, container, contextMenuService, session } = createHarness(disposables);
 		mainWindow.document.body.appendChild(container);
 
@@ -1303,22 +1303,24 @@ suite('Sessions - ChatCompositeBar', () => {
 			return contextMenuService.delegate?.getActions().find(action => action.id === CLOSE_OTHER_CHATS_COMMAND_ID);
 		};
 
-		// The main chat is the only other tab, and no tab closes it.
-		const offeredWithMainChatOnly = closeOthersOf(tabsOf()[1]) !== undefined;
-
+		const offeredWithTwoTabs = tabsOf().map(tab => closeOthersOf(tab)?.label);
 		chats.set([mainChat, secondaryChat, thirdChat], undefined);
-		const offered = tabsOf().map(tab => closeOthersOf(tab)?.label);
+		const offeredWithThreeTabs = tabsOf().map(tab => closeOthersOf(tab)?.label);
 		for (const tab of tabsOf()) {
 			await closeOthersOf(tab)?.run();
 		}
+		// Nothing is left to close on a lone tab.
+		chats.set([secondaryChat], undefined);
+		const offeredOnLoneTab = tabsOf().map(tab => closeOthersOf(tab)?.label);
 
-		assert.deepStrictEqual({ offeredWithMainChatOnly, offered, commandCalls: commandService.calls }, {
-			offeredWithMainChatOnly: false,
-			offered: ['Close Others', 'Close Others', 'Close Others'],
+		assert.deepStrictEqual({ offeredWithTwoTabs, offeredWithThreeTabs, offeredOnLoneTab, commandCalls: commandService.calls }, {
+			offeredWithTwoTabs: ['Close Others', 'Close Others'],
+			offeredWithThreeTabs: ['Close Others', 'Close Others', 'Close Others'],
+			offeredOnLoneTab: [undefined],
 			commandCalls: [
 				{ commandId: CLOSE_OTHER_CHATS_COMMAND_ID, args: [session, mainChat, testPaneContext, [secondaryChat, thirdChat]] },
-				{ commandId: CLOSE_OTHER_CHATS_COMMAND_ID, args: [session, secondaryChat, testPaneContext, [thirdChat]] },
-				{ commandId: CLOSE_OTHER_CHATS_COMMAND_ID, args: [session, thirdChat, testPaneContext, [secondaryChat]] },
+				{ commandId: CLOSE_OTHER_CHATS_COMMAND_ID, args: [session, secondaryChat, testPaneContext, [mainChat, thirdChat]] },
+				{ commandId: CLOSE_OTHER_CHATS_COMMAND_ID, args: [session, thirdChat, testPaneContext, [mainChat, secondaryChat]] },
 			],
 		});
 	});
@@ -1332,6 +1334,7 @@ suite('Sessions - ChatCompositeBar', () => {
 
 		assert.deepStrictEqual(contextMenuService.delegate?.getActions().map(action => action instanceof Separator ? 'separator' : action.label), [
 			'Close',
+			'Close Others',
 			'separator',
 			'Copy Link',
 			'separator',
@@ -1366,13 +1369,13 @@ suite('Sessions - ChatCompositeBar', () => {
 			{
 				archived: false,
 				actionId: ARCHIVE_CHAT_COMMAND_ID,
-				menuIds: [CLOSE_CHAT_COMMAND_ID, 'separator', ARCHIVE_CHAT_COMMAND_ID, 'separator', RENAME_CHAT_COMMAND_ID, 'sessionCompositeBar.deleteChat'],
+				menuIds: [CLOSE_CHAT_COMMAND_ID, CLOSE_OTHER_CHATS_COMMAND_ID, 'separator', ARCHIVE_CHAT_COMMAND_ID, 'separator', RENAME_CHAT_COMMAND_ID, 'sessionCompositeBar.deleteChat'],
 				commandIds: [ARCHIVE_CHAT_COMMAND_ID],
 			},
 			{
 				archived: true,
 				actionId: UNARCHIVE_CHAT_COMMAND_ID,
-				menuIds: [CLOSE_CHAT_COMMAND_ID, 'separator', UNARCHIVE_CHAT_COMMAND_ID, 'separator', RENAME_CHAT_COMMAND_ID, 'sessionCompositeBar.deleteChat'],
+				menuIds: [CLOSE_CHAT_COMMAND_ID, CLOSE_OTHER_CHATS_COMMAND_ID, 'separator', UNARCHIVE_CHAT_COMMAND_ID, 'separator', RENAME_CHAT_COMMAND_ID, 'sessionCompositeBar.deleteChat'],
 				commandIds: [UNARCHIVE_CHAT_COMMAND_ID],
 			},
 		]);

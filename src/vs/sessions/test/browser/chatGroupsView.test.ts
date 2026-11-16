@@ -2368,7 +2368,7 @@ suite('Sessions - ChatGroupsView', () => {
 				sessionActiveChat: session.activeChat.get().resource.toString(),
 				groupActiveChat: view['_activeGroup']?.activeResourceId.get(),
 			}, {
-				closedChats: [child.resource.toString()],
+				closedChats: [main.resource.toString(), child.resource.toString()],
 				sessionActiveChat: kept.resource.toString(),
 				groupActiveChat: kept.resource.toString(),
 			});

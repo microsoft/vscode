@@ -648,14 +648,14 @@ export class ChatCompositeBar extends Disposable {
 				await this._commandService.executeCommand(CLOSE_CHAT_COMMAND_ID, ...sessionMenuArgs(session, chat, this._sessionHost));
 			}
 		}));
-		// The tabs of this strip other than the main chat's, which no tab closes, and this one.
-		const getOtherClosableChats = () => session && delegate
-			? delegate.chats.get().filter(other => !isEqual(other.resource, chat.resource) && !isEqual(other.resource, session.mainChat.get().resource))
+		// The tabs of this strip other than this one.
+		const getOtherChats = () => session && delegate
+			? delegate.chats.get().filter(other => !isEqual(other.resource, chat.resource))
 			: [];
 		const closeOthersAction = this._tabDisposables.add(new Action(CLOSE_OTHER_CHATS_COMMAND_ID, localize('chatTab.closeOthers', "Close Others"), undefined, true, async () => {
 			if (session) {
 				this._cancelTabEditing();
-				await this._commandService.executeCommand(CLOSE_OTHER_CHATS_COMMAND_ID, ...sessionMenuArgs(session, chat, this._sessionHost), getOtherClosableChats());
+				await this._commandService.executeCommand(CLOSE_OTHER_CHATS_COMMAND_ID, ...sessionMenuArgs(session, chat, this._sessionHost), getOtherChats());
 			}
 		}));
 		const markReadAction = this._tabDisposables.add(new Action(MARK_SESSION_READ_COMMAND_ID, localize('chatTab.markRead', "Mark as Read"), undefined, true, async () => {
@@ -717,7 +717,7 @@ export class ChatCompositeBar extends Disposable {
 					return Separator.join(
 						[
 							...(!isMainChat && session ? [closeAction] : []),
-							...(getOtherClosableChats().length > 0 ? [closeOthersAction] : []),
+							...(getOtherChats().length > 0 ? [closeOthersAction] : []),
 						],
 						[
 							...(canSetReadState ? [chat.isRead.get() ? markUnreadAction : markReadAction] : []),
