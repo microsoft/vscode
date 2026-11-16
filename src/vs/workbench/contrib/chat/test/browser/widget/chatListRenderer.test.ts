@@ -1206,36 +1206,45 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
-	test('a scheduled message open in the chat input shows Editing, without its actions or an inline editor', () => {
-		const { disposables, configurationService, viewModel, renderer, template, node } = createPersistentProgressRenderer({ rendererOptions: { editable: true } });
-		configurationService.setUserConfiguration('chat.editRequests', 'inline');
-		let edits = 0;
+	test('scheduled inline editing retains attachments and offers Cancel and Save for with a time dropdown', async () => {
+		const { disposables, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+		const saved: string[] = [];
+		let cancelled = 0;
+		let timeAnchor: HTMLElement | undefined;
 		let inlineInputRequested = false;
-		disposables.add(renderer.onDidRerender(item => { inlineInputRequested ||= item === template; }));
-		const edit = disposables.add(new Action('edit', 'Edit', ThemeIcon.asClassName(Codicon.edit), true, async () => { edits++; }));
-		viewModel.setScheduledRequests([{
-			id: 'later', text: 'Original', description: 'Tomorrow', runAt: '2099-01-15T10:00:00Z', attachments: ['notes.txt'], actions: [edit], editAction: edit,
-			editing: {
-				text: 'Edited', runAt: '2099-01-15T10:00:00Z', description: 'Tomorrow',
-				selectTime: toAction({ id: 'time', label: 'Time', run: async () => { } }), save: async () => { }, cancel: () => { },
-			},
-		}]);
+		disposables.add(renderer.onDidRerender(item => { inlineInputRequested = item === template; }));
+		const editing = {
+			text: 'Original', runAt: '2099-01-15T10:00:00Z', description: 'Tomorrow 10:00 AM',
+			selectTime: toAction({ id: 'time', label: 'Time', run: async (anchor?: HTMLElement) => { timeAnchor = anchor; editing.runAt = '2099-01-16T10:00:00Z'; } }),
+			save: async () => { saved.push(editing.text, editing.runAt); },
+			cancel: () => { cancelled++; },
+		};
+		viewModel.setScheduledRequests([{ id: 'later', text: 'Original', description: 'Tomorrow', attachments: ['notes.txt'], actions: [], editing }]);
 		renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
-		const content = template.value.querySelector<HTMLElement>('.rendered-markdown')!;
-		content.click();
-		content.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		editing.text = 'Edited\nmessage';
+		const timeButton = template.requestTimestampContainer.querySelector<HTMLElement>('.scheduled-request-edit-time')!;
+		const saveButton = template.requestTimestampContainer.querySelector<HTMLElement>('.scheduled-request-save-label')!;
+		const cancelButton = template.requestTimestampContainer.querySelector<HTMLElement>('.scheduled-request-cancel')!;
+		cancelButton.focus();
+		cancelButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+		const saveReachedByKeyboard = mainWindow.document.activeElement === saveButton;
+		saveButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+		const timeReachedByKeyboard = mainWindow.document.activeElement === timeButton;
+		timeButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		await timeout(0);
+		saveButton.click();
+		await timeout(0);
+		cancelButton.click();
 		assert.deepStrictEqual({
-			header: template.value.querySelector('.scheduled-request-header')?.textContent,
-			text: template.value.querySelector('.scheduled-request-text')?.textContent,
-			attachments: template.value.querySelector('.scheduled-request-attachments')?.textContent,
-			editing: template.rowContainer.classList.contains('scheduled-request-editing'),
-			toolbar: !!template.rowContainer.querySelector('.scheduled-request-actions'),
-			editor: !!template.rowContainer.querySelector('.monaco-button, textarea'),
-			clickable: content.classList.contains('clickable'),
-			edits, inlineInputRequested,
+			text: editing.text, timeAnchored: timeAnchor === timeButton, inlineInputRequested, saved, cancelled,
+			saveReachedByKeyboard, timeReachedByKeyboard, saveLabel: saveButton.textContent,
+			attachments: template.requestTimestampContainer.querySelector('.scheduled-request-attachments')?.textContent,
+			hoverToolbar: !!template.rowContainer.querySelector('.scheduled-request-actions'),
 		}, {
-			header: 'Editing', text: 'Original', attachments: 'Attachments: notes.txt', editing: true,
-			toolbar: false, editor: false, clickable: false, edits: 0, inlineInputRequested: false,
+			text: 'Edited\nmessage', timeAnchored: true, inlineInputRequested: true,
+			saved: ['Edited\nmessage', '2099-01-16T10:00:00Z'], cancelled: 1,
+			saveReachedByKeyboard: true, timeReachedByKeyboard: true, saveLabel: 'Save for Tomorrow 10:00 AM',
+			attachments: 'Attachments: notes.txt', hoverToolbar: false,
 		});
 		disposables.dispose();
 	});
@@ -1280,6 +1289,33 @@ suite('ChatListRenderer', () => {
 		assert.deepStrictEqual({
 			text: content.textContent, visible: mainWindow.getComputedStyle(content).display !== 'none',
 		}, { text: 'TomorrowScheduled message', visible: true });
+		disposables.dispose();
+	});
+
+	test('scheduled inline save controls fit at narrow and wide widths', () => {
+		const { disposables, viewModel, container, renderer, template, node } = createPersistentProgressRenderer();
+		viewModel.setScheduledRequests([{
+			id: 'later', text: 'Original', description: 'Tomorrow', attachments: [], actions: [],
+			editing: {
+				text: 'Edited message', runAt: '2099-01-15T10:00:00Z', description: 'November 12, 2099 at 6:44 PM',
+				selectTime: toAction({ id: 'time', label: 'Time', run: async () => { } }), save: async () => { }, cancel: () => { },
+			},
+		}]);
+		for (const width of [900, 300, 900]) {
+			container.style.width = `${width}px`;
+			renderer.layout(width);
+			renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
+			const editor = template.requestTimestampContainer.querySelector<HTMLElement>('.scheduled-request-editor')!;
+			const bounds = editor.getBoundingClientRect();
+			const buttons = [...editor.querySelectorAll<HTMLElement>('.monaco-button')];
+			const controls = buttons.map(button => button.getBoundingClientRect());
+			assert.deepStrictEqual({
+				width, visible: bounds.width > 0,
+				interactive: buttons.every(button => mainWindow.getComputedStyle(button).pointerEvents === 'auto'),
+				sameRow: controls.every(control => control.top === controls[0].top),
+				fits: controls.every(control => control.left >= bounds.left && control.right <= bounds.right),
+			}, { width, visible: true, interactive: true, sameRow: true, fits: true });
+		}
 		disposables.dispose();
 	});
 

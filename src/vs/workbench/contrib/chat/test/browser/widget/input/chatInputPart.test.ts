@@ -70,8 +70,6 @@ import { Target } from '../../../../common/promptSyntax/promptTypes.js';
 import '../../../../../../browser/media/style.css';
 import '../../../../browser/widget/media/chat.css';
 import { IChatSessionFileChange2 } from '../../../../../../common/chatSessionFileChange.js';
-import type { IChatScheduledRequestEditing } from '../../../../common/model/chatViewModel.js';
-import type { IChatModelInputState } from '../../../../common/model/chatModel.js';
 
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -309,34 +307,6 @@ suite('ChatInputPart', () => {
 			});
 		});
 	}
-
-	test('an edited scheduled message keeps the input while the chat draft changes, and the latest draft comes back', () => {
-		const writes: string[] = [];
-		const editing = upcastPartial<IChatScheduledRequestEditing>({ text: 'Scheduled message' });
-		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
-			_isSyncingToOrFromInputModel: false,
-			_scheduledRequestEdit: { editing, draft: { inputText: 'Old draft', attachments: [], selections: [], contrib: {} } },
-			_currentModeObservable: { get: () => ({ id: ChatModeKind.Agent }) },
-			_currentLanguageModel: { get: () => undefined },
-			_modelSelectionDiagnostics: { report: () => { } },
-			_attachmentModel: { attachments: [], clear: () => writes.push('attachments'), clearAndSetContext: () => writes.push('attachments') },
-			_inputEditor: { setValue: (value: string) => writes.push(value), setSelections: () => { }, getModel: () => null },
-			_widget: { contribs: [{ setInputState: () => writes.push('references') }] },
-			_syncTextDebounced: { cancel: () => { } },
-			configurationService: { getValue: () => true },
-			container: dom.$('div'),
-			scheduledRequestEditToolbar: { update: () => { } },
-		});
-		// Another message's recovery, or a remote draft sync, writes the chat's draft while the message is open.
-		const sync = Reflect.get(ChatInputPart.prototype, '_syncFromModel') as (this: ChatInputPart, state: IChatModelInputState | undefined, resource: URI) => void;
-		sync.call(input, upcastPartial<IChatModelInputState>({ inputText: 'Recovered request', attachments: [], selections: [], contrib: {}, mode: { id: ChatModeKind.Agent, kind: ChatModeKind.Agent } }), URI.parse('chat:/session'));
-		const whileEditing = writes.splice(0);
-		input.setScheduledRequestEditing(undefined);
-		assert.deepStrictEqual({ whileEditing, afterEditing: writes }, {
-			whileEditing: [],
-			afterEditing: ['attachments', 'Recovered request', 'references'],
-		});
-	});
 
 	test('a suppressed input rejects requests routed by other renderers without resolving them', () => {
 		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), { options: { renderInputRequests: false } });

@@ -291,10 +291,9 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			const requests = this.items.read(reader).filter(item => item.conversation
 				&& isEqual(item.conversation.sessionResource, currentSession?.resource)
 				&& isEqual(item.conversation.chatResource, resource));
-			// Only for the chat the input is showing, so an edit never opens in an input that is moving between chats.
-			widget.setScheduledRequests(isEqual(widget.viewModel?.sessionResource, resource) ? requests : []);
+			widget.viewModel?.setScheduledRequests(isEqual(widget.viewModel.sessionResource, resource) ? requests : []);
 		}));
-		store.add(toDisposable(() => widget.setScheduledRequests([])));
+		store.add(toDisposable(() => widget.viewModel?.setScheduledRequests([])));
 		const busy = observableValue(this, false);
 		let compositionId = generateUuid();
 		const available = derived(this, reader => {
@@ -777,7 +776,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			},
 		};
 		this.editingRequest.set({ id: automation.id, state }, undefined);
-		// Editing happens in the chat's own input, so an edit started elsewhere (the sessions list) opens the chat.
+		// Editing from the sessions-list card opens the prompt in its original chat.
 		const conversation = automation.conversation ?? handoff?.conversation;
 		const session = conversation && this.sessionsManagementService.getSession(conversation.sessionResource);
 		if (conversation && session && ![...this.chatInputs.keys()].some(widget => widget.visible && isEqual(widget.viewModel?.sessionResource, conversation.chatResource))) {

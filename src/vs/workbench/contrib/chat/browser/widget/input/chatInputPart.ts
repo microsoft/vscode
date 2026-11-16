@@ -119,8 +119,7 @@ import { ChatInputStateOrigin, IChatModel, IChatModelInputState, IChatRequestMod
 import { getRegisteredLanguageModels, isInConversationModelChoice, ModelSelectionReason, resolveConfiguredModel, resolveModelIdentifierFromLanguageModels, RestoredModelReason } from '../../../common/modelSelection.js';
 import { filterModelsForSession, getNextModelInCycle, hasModelsTargetingSession, isModelHiddenInPicker, isModelSupportedForInlineChat, isModelSupportedForMode, isNewConversation, isSessionStarted, mergeModelsWithCache, shouldDropAgnosticDraftModel, shouldResetOnModelListChange, shouldRestorePerTypeModelOnSessionSwitch } from './chatInputModelUtils.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../../common/model/chatUri.js';
-import { IChatResponseViewModel, IChatScheduledRequestEditing, isResponseVM } from '../../../common/model/chatViewModel.js';
-import { ChatScheduledRequestEditToolbar } from './chatScheduledRequestEditToolbar.js';
+import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { IChatLayoutService } from '../../../common/widget/chatLayoutService.js';
@@ -636,9 +635,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private contextUsageWidgetContainer!: HTMLElement;
 	private contextUsageWidgetHome!: HTMLElement;
 	private inputEditorTrailingSpace = 0;
-	private scheduledRequestEditToolbar!: ChatScheduledRequestEditToolbar;
-	/** The scheduled message open in place of the draft, which stays the chat's draft until the edit ends. */
-	private _scheduledRequestEdit: { readonly editing: IChatScheduledRequestEditing; draft: IChatModelInputState } | undefined;
 	private readonly _contextUsageDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	get inputContainerElement(): HTMLElement | undefined {
@@ -651,41 +647,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	placeContextUsageWidget(container?: HTMLElement): void {
 		(container ?? this.contextUsageWidgetHome).append(this.contextUsageWidgetContainer);
-	}
-
-	/**
-	 * Opens a scheduled message in place of the draft, with Cancel and Save in place of Send. The draft stays the chat's
-	 * draft while the message is open, and comes back when `undefined` ends the edit.
-	 */
-	setScheduledRequestEditing(editing: IChatScheduledRequestEditing | undefined): void {
-		const current = this._scheduledRequestEdit;
-		if (current?.editing !== editing) {
-			this._scheduledRequestEdit = undefined;
-			if (current) {
-				this._applyDraft(current.draft);
-			}
-			if (editing) {
-				const draft = this.getCurrentInputState();
-				this._scheduledRequestEdit = { editing, draft };
-				this._applyDraft({
-					inputText: editing.text,
-					attachments: editing.input?.attachments ?? [],
-					selections: [],
-					contrib: { [ChatDynamicVariableModel.ID]: editing.input?.references ?? [] },
-				});
-			}
-			this.container.classList.toggle('editing-scheduled-request', !!editing);
-		}
-		this.scheduledRequestEditToolbar.update(editing);
-	}
-
-	private _applyDraft(draft: Pick<IChatModelInputState, 'inputText' | 'attachments' | 'selections' | 'contrib'>): void {
-		this._attachmentModel.clearAndSetContext(...draft.attachments);
-		this.setValue(draft.inputText, false);
-		if (draft.selections.length) {
-			this._inputEditor.setSelections(draft.selections);
-		}
-		this._widget?.contribs.forEach(contrib => contrib.setInputState?.(draft.contrib));
 	}
 
 	/** Reserves horizontal space at the trailing edge of the input editor. */
@@ -2230,31 +2191,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				});
 			}
 
-			const scheduledEdit = this._scheduledRequestEdit;
-			if (scheduledEdit) {
-				// The scheduled message keeps the input; the chat's draft changes underneath it and comes back afterward.
-				scheduledEdit.draft = {
-					...scheduledEdit.draft,
-					inputText: state?.inputText ?? '',
-					attachments: state?.attachments ?? [],
-					selections: state?.selections ?? [],
-					contrib: state?.contrib ?? {},
-				};
-			} else {
-				// Sync attachments
-				const currentAttachments = this._attachmentModel.attachments;
-				if (!state) {
-					this._attachmentModel.clear();
-				} else if (!arraysEqual(currentAttachments, state.attachments)) {
-					this._attachmentModel.clearAndSetContext(...state.attachments);
-				}
+			// Sync attachments
+			const currentAttachments = this._attachmentModel.attachments;
+			if (!state) {
+				this._attachmentModel.clear();
+			} else if (!arraysEqual(currentAttachments, state.attachments)) {
+				this._attachmentModel.clearAndSetContext(...state.attachments);
+			}
 
-				// Sync input text
-				if (this._inputEditor) {
-					this._inputEditor.setValue(state?.inputText || '');
-					if (state?.selections.length) {
-						this._inputEditor.setSelections(state.selections);
-					}
+			// Sync input text
+			if (this._inputEditor) {
+				this._inputEditor.setValue(state?.inputText || '');
+				if (state?.selections.length) {
+					this._inputEditor.setSelections(state.selections);
 				}
 			}
 
@@ -2268,7 +2217,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 			}
 
-			if (state && !scheduledEdit) {
+			if (state) {
 				this._widget?.contribs.forEach(contrib => {
 					contrib.setInputState?.(state.contrib);
 				});
@@ -2684,13 +2633,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Get the current input state for history
 	 */
 	public getCurrentInputState(): IChatModelInputState {
-		const state = this._getEditorInputState();
-		const draft = this._scheduledRequestEdit?.draft;
-		// While a scheduled message is open in the input, the chat's draft is the one it replaced.
-		return draft ? { ...state, inputText: draft.inputText, attachments: draft.attachments, selections: draft.selections, contrib: draft.contrib } : state;
-	}
-
-	private _getEditorInputState(): IChatModelInputState {
 		const mode = this._currentModeObservable.get();
 		const selectedModel = this._currentLanguageModel.get();
 		const state: IChatModelInputState = {
@@ -2872,7 +2814,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	async showPreviousValue(): Promise<void> {
-		if (this.history.isAtStart() || this._scheduledRequestEdit) {
+		if (this.history.isAtStart()) {
 			return;
 		}
 
@@ -2884,7 +2826,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	async showNextValue(): Promise<void> {
-		if (this.history.isAtEnd() || this._scheduledRequestEdit) {
+		if (this.history.isAtEnd()) {
 			return;
 		}
 
@@ -4560,7 +4502,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		this.executeToolbar.getElement().classList.add('chat-execute-toolbar');
 		this.executeToolbar.context = createChatInputToolbarContext(widget);
-		this.scheduledRequestEditToolbar = this._register(this.instantiationService.createInstance(ChatScheduledRequestEditToolbar, toolbarsContainer, () => widget.acceptInput(), () => this.focus()));
 		// The lone dictation / Voice Mode control drops its circular border and
 		// only regains it when both share the row (see the matching rules in
 		// chat.css). Count the voice-input actions from the toolbar's action
