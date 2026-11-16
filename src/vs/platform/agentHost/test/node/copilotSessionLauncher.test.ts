@@ -4386,6 +4386,27 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
+	test('places memories in user messages only for the user-prompt memory mode, and reports eligibility for memory-enabled launches', async () => {
+		const store = disposables.add(new DisposableStore());
+		const launch = async (values: SchemaValues<typeof copilotCliConfigSchema.definition>, isEphemeral?: boolean) => {
+			let eligible: boolean | undefined;
+			const config = await buildResumeConfig(createLauncher(store, values), { id: 'gpt-5' }, undefined, undefined, { setMemoryModeEligible: value => { eligible = value; } }, { isEphemeral });
+			return { memory: config.memory, eligible };
+		};
+
+		assert.deepStrictEqual({
+			unset: await launch({}),
+			systemPrompt: await launch({ [CopilotCliConfigKey.MemoryMode]: 'system-prompt' }),
+			userPrompt: await launch({ [CopilotCliConfigKey.MemoryMode]: 'user-prompt' }),
+			ephemeralUserPrompt: await launch({ [CopilotCliConfigKey.MemoryMode]: 'user-prompt' }, true),
+		}, {
+			unset: { memory: { enabled: true }, eligible: true },
+			systemPrompt: { memory: { enabled: true }, eligible: true },
+			userPrompt: { memory: { enabled: true, mode: 'user-prompt' }, eligible: true },
+			ephemeralUserPrompt: { memory: { enabled: false }, eligible: false },
+		});
+	});
+
 	test('configures the stability-ordered system prompt feature flag', async () => {
 		const store = disposables.add(new DisposableStore());
 		const disabled = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
