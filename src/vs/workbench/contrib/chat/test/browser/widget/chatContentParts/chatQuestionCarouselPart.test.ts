@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { isSafari } from '../../../../../../../base/browser/browser.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
+import { HoverPosition } from '../../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -262,6 +263,45 @@ suite('ChatQuestionCarouselPart', () => {
 					'https://example.com/detailed',
 				],
 			});
+		});
+
+		test('shows option hovers to the side so they do not cover the next option', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'singleSelect',
+					title: 'Choose one',
+					options: [{ id: 'a', label: 'Single A', value: 'a' }, { id: 'b', label: 'Single B', value: 'b' }]
+				},
+				{
+					id: 'q2',
+					type: 'multiSelect',
+					title: 'Choose many',
+					options: [{ id: 'c', label: 'Multi C', value: 'c' }, { id: 'd', label: 'Multi D', value: 'd' }]
+				}
+			]);
+			const optionHovers: { content: unknown; hoverPosition: HoverPosition | undefined }[] = [];
+
+			createWidget(carousel, undefined, mainWindow.document.body, instantiationService => {
+				instantiationService.stub(IHoverService, {
+					...NullHoverService,
+					setupDelayedHover: (...args: Parameters<IHoverService['setupDelayedHover']>) => {
+						const options = typeof args[1] === 'function' ? args[1]() : args[1];
+						if (args[0] instanceof HTMLElement && args[0].classList.contains('chat-question-list-item')) {
+							optionHovers.push({ content: options.content, hoverPosition: options.position?.hoverPosition });
+						}
+						return NullHoverService.setupDelayedHover(...args);
+					}
+				});
+			});
+			widget.navigateToNextQuestion();
+
+			assert.deepStrictEqual(optionHovers, [
+				{ content: 'Single A', hoverPosition: HoverPosition.RIGHT },
+				{ content: 'Single B', hoverPosition: HoverPosition.RIGHT },
+				{ content: 'Multi C', hoverPosition: HoverPosition.RIGHT },
+				{ content: 'Multi D', hoverPosition: HoverPosition.RIGHT },
+			]);
 		});
 
 		for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
