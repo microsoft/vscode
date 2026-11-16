@@ -52,7 +52,7 @@ suite('TypeScript 7 connection', () => {
 		]);
 	});
 
-	test('skips extensions without an API and reconnects whenever the language server initializes', async () => {
+	test('skips extensions without an API and reconnects whenever the language server initializes again', async () => {
 		const logService = new RecordingLogService();
 		const extensionApi = new TestExtensionApi();
 		const connector = new TestConnector();
@@ -65,7 +65,6 @@ suite('TypeScript 7 connection', () => {
 			steps.push({ connected: await connection.getApi() !== undefined, reconnects });
 		};
 
-		await step();
 		extensionApi.initialize(createSdk('7.1.0', 'first'));
 		await step();
 		extensionApi.initialize(createSdk('7.1.0', 'second'));
@@ -75,7 +74,6 @@ suite('TypeScript 7 connection', () => {
 
 		assert.deepStrictEqual({ steps, connected: connector.connected, closed: connector.closed, warnings: logService.warnings.length }, {
 			steps: [
-				{ connected: false, reconnects: 0 },
 				{ connected: true, reconnects: 0 },
 				{ connected: true, reconnects: 1 },
 				{ connected: false, reconnects: 2 },
@@ -83,6 +81,26 @@ suite('TypeScript 7 connection', () => {
 			connected: ['first', 'second'],
 			closed: ['first', 'second'],
 			warnings: 1,
+		});
+	});
+
+	test('tells callers that found no API to get it again when the language server initializes', async () => {
+		const extensionApi = new TestExtensionApi();
+		const connector = new TestConnector();
+		const connection = store.add(new TypeScript7Connection(new RecordingLogService(), () => [{ activate: async () => extensionApi }], connector.connect));
+		// Like the registration of the TypeScript context provider, which checks once and again when told to.
+		let retry: Promise<API<true> | undefined> | undefined;
+		store.add(connection.onDidReconnect(() => {
+			retry = connection.getApi();
+		}));
+
+		const first = await connection.getApi();
+		extensionApi.initialize(createSdk('7.1.0', 'late'));
+
+		assert.deepStrictEqual({ first, retried: await retry !== undefined, connected: connector.connected }, {
+			first: undefined,
+			retried: true,
+			connected: ['late'],
 		});
 	});
 });

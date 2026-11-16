@@ -25,6 +25,10 @@ export class TypeScript7Api implements vscode.Disposable {
 	private readonly connection: TypeScript7Connection;
 	private disposed: boolean = false;
 
+	/**
+	 * Fires when the language server initializes after the first {@link getApi} call, for example when it restarts or
+	 * starts late. Callers need to get the API again, also if they didn't get one before.
+	 */
 	public readonly onDidReconnect: vscode.Event<void>;
 
 	constructor(logService: ILogService) {
@@ -179,11 +183,11 @@ export class TypeScript7Connection implements vscode.Disposable {
 	}
 
 	private reconnect(): void {
-		// The language server can initialize while we are still connecting. Bump the generation so that connect
-		// picks up the new SDK, but only tell consumers when an established connection went away.
-		const hadApi = this.api !== undefined;
+		// Bump the generation so that a connect in progress picks up the new SDK. Callers that asked for the API need
+		// to ask again, even if they didn't get one. That excludes the initialization that the TypeScript 7 extension
+		// replays while we subscribe, which happens during the first getApi call.
 		this.resetApi();
-		if (hadApi) {
+		if (this.subscribed) {
 			this.onDidReconnectEmitter.fire();
 		}
 	}
