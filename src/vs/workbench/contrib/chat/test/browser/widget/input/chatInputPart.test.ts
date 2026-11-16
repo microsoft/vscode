@@ -74,8 +74,8 @@ import { IChatSessionFileChange2 } from '../../../../../../common/chatSessionFil
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const busy of [false, true]) {
-		test(`send dropdown shares the queue control and routes actions with busy=${busy}`, async () => {
+	for (const { busy, extra } of [{ busy: false, extra: false }, { busy: true, extra: false }, { busy: false, extra: true }]) {
+		test(`send dropdown shares the queue control and routes actions with busy=${busy}, extra=${extra}`, async () => {
 			const instantiationService = workbenchInstantiationService(undefined, store);
 			const config = new TestConfigurationService({ [ChatConfiguration.RequestQueueingDefaultAction]: 'queue' });
 			const contextKeyService = store.add(new ContextKeyService(config));
@@ -111,6 +111,9 @@ suite('ChatInputPart', () => {
 				},
 			});
 			store.add(MenuRegistry.appendMenuItem(MenuId.ChatExecuteSecondary, { command: { id: 'test.sendLater', title: 'Send Later...', icon: Codicon.clock } }));
+			if (extra) {
+				store.add(MenuRegistry.appendMenuItem(MenuId.ChatExecuteSecondary, { command: { id: 'test.other', title: 'Other' } }));
+			}
 			const send = instantiationService.createInstance(MenuItemAction, { id: 'test.send', title: 'Send', icon: Codicon.arrowUpCompact }, undefined, { shouldForwardArgs: true }, undefined, undefined);
 			const queue = store.add(new Action('test.queue', 'Queue'));
 			const item = store.add(instantiationService.createInstance(ChatQueuePickerActionItem, busy ? queue : send, busy ? {} : { primaryAction: instantiationService.createInstance(MenuEntryActionViewItem, send, {}) }));
@@ -145,8 +148,8 @@ suite('ChatInputPart', () => {
 			}, {
 				sharedControl: true, circularSend: false, nestedButtons: 0,
 				dropdownFocused: true, primaryFocused: true,
-				labels: busy ? ['Stop and Send', 'Add to Queue', 'Steer with Message', 'Send Later...'] : ['Send Later...'],
-				sendLaterIcon: { id: Codicon.clock.id, hidden: false },
+				labels: busy ? ['Stop and Send', 'Add to Queue', 'Steer with Message', 'Send Later...'] : extra ? ['Other', 'Send Later...'] : [],
+				sendLaterIcon: busy || extra ? { id: Codicon.clock.id, hidden: false } : undefined,
 				primaryIcon: { fontSize: busy ? '16px' : '12px', fontWeight: '400' },
 				calls: [{ id: busy ? ChatQueueMessageAction.ID : 'test.send', args: busy ? [] : [context] }, { id: 'test.sendLater', args: [context] }],
 			});

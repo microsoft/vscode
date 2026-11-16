@@ -13,14 +13,13 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../..
 import { parse, stringify } from '../../../../base/common/marshalling.js';
 import { equals, stableStringify } from '../../../../base/common/objects.js';
 import { autorun, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
-import { basename, isEqual } from '../../../../base/common/resources.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { Message, MessageKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { validateAutomationRunAt } from '../../../../platform/agentHost/common/automationRequest.js';
@@ -29,6 +28,7 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ChatInteractivity, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 import { ChatDynamicVariableModel } from '../../chat/browser/attachments/chatDynamicVariables.js';
@@ -52,6 +52,7 @@ import { ISessionsService } from './sessionsService.js';
 import { IPendingSessionItem } from './views/pendingSessions.js';
 import { IChatScheduledRequest, IChatScheduledRequestEditing } from '../../chat/common/model/chatViewModel.js';
 import { pickScheduledChatTime } from './scheduledChatTimePicker.js';
+import { ScheduledChatEditorInput } from './scheduledChatEditor.js';
 
 const handoffStorageKey = 'sessions.scheduledChatHandoffs';
 const receiptStorageKey = 'sessions.scheduledChatReceipts';
@@ -139,7 +140,6 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		@ISessionDraftsService private readonly draftsService: ISessionDraftsService,
 		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IFileService private readonly fileService: IFileService,
@@ -147,6 +147,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		@IChatService private readonly chatService: IChatService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionGroupsService groupsService: ISessionGroupsService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 		const configured = observableConfigValue(SESSIONS_SEND_LATER_ENABLED_SETTING, false, configurationService);
@@ -222,6 +223,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 						text: automation.request?.text ?? automation.prompt,
 						attachments: automation.request?.attachments?.map(attachment => attachment.label) ?? [],
 						conversation,
+						runAt: automation.enabled && !automation.readOnlyReason && !automation.oneTimeRunId ? automation.schedule.runAt : undefined,
 						description: automation.readOnlyReason ?? (automation.oneTimeRunId
 							? runs.find(run => run.id === automation.oneTimeRunId)?.errorMessage ?? localize('scheduledChat.startedOrFailed', "Starting or needs attention")
 							: automation.enabled ? localize('scheduledChat.at', "Scheduled for {0}", formatTime(automation.schedule.runAt)) : localize('scheduledChat.cancelled', "Not scheduled")),
@@ -232,7 +234,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 						harness: handoff?.target.harness,
 						applicationId: handoff?.target.applicationId,
 						isQuickChat: automation.target.kind === 'quickChat',
-						open: async () => { if (conversation) { this.startEditing(automation); } else { await this.cancel(automation, true); } },
+						open: async () => { if (conversation) { this.startEditing(automation); } else { await this.preview(automation); } },
 						editAction: conversation ? editAction : undefined,
 						editing: requestEditing,
 						actions: requestEditing ? [
@@ -683,18 +685,17 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 
 	private async preview(automation: IAutomationDescriptor): Promise<void> {
 		this.assertEnabled();
-		await this.dialogService.prompt({
-			message: automation.name,
-			detail: [
-				localize('scheduledChat.previewTime', "Scheduled: {0}", formatTime(automation.schedule.runAt)),
-				localize('scheduledChat.previewTarget', "Target: {0}", automation.target.kind === 'workspace' ? basename(automation.target.folderUri) : localize('scheduledChat.noWorkspace', "No Workspace")),
-				localize('scheduledChat.previewModel', "Model: {0}", automation.sessionTemplate?.modelId ?? localize('scheduledChat.defaultModel', "Provider Default")),
-				localize('scheduledChat.previewAttachments', "Attachments: {0}", automation.request?.attachments?.map(attachment => attachment.label).join(', ') || localize('scheduledChat.noAttachments', "None")),
-				'', automation.prompt,
-			].join('\n'),
-			buttons: [],
-			cancelButton: localize('scheduledChat.close', "Close"),
-		});
+		const existing = this.editorService.editors.find(editor => editor instanceof ScheduledChatEditorInput && editor.id === automation.id);
+		const editor = existing ?? new ScheduledChatEditorInput(automation.id, this.items.map(items => items.find(item => item.id === automation.id)), automation.name);
+		try {
+			if (!await this.editorService.openEditor(editor, { pinned: true, revealIfOpened: true })) {
+				throw new Error(localize('scheduledChat.openFailed', "Could not open the scheduled request."));
+			}
+		} finally {
+			if (!this.editorService.editors.includes(editor)) {
+				editor.dispose();
+			}
+		}
 	}
 
 	private async sendNow(automation: IAutomationDescriptor): Promise<void> {

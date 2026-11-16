@@ -2749,8 +2749,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputContainer = dom.$('.chat-edit-input-container');
 		item.requestTimestampContainer.before(this.inputContainer);
 		this.createInput(this.inputContainer, undefined, store);
+		if (this._respondent) {
+			this.input.setModelSessionTypeOverride({ sessionType: this._respondent.respondent.modelSessionType }, this._respondent.resource);
+		}
 		this.input.setChatMode(this.inputPart.currentModeObs.get().id);
 		this.input.setPermissionLevel(this.inputPart.currentModeInfo.permissionLevel ?? ChatPermissionLevel.Default);
+		if (this._scheduledRequestEdit && this.inputPart.currentLanguageModel) {
+			void this.input.requestModelByIdentifier(this.inputPart.currentLanguageModel, this.inputPart.getModelConfiguration(this.inputPart.currentLanguageModel));
+		}
 		this.input.setEditing(true, type);
 		this._onDidChangeActiveInputEditor.fire();
 	}

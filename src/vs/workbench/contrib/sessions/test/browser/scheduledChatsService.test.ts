@@ -15,12 +15,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IPickOptions, IQuickInputHideEvent, IQuickInputService, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ITextDiffEditorPane } from '../../../../common/editor.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IChatDraft } from '../../../chat/common/attachments/chatDraft.js';
@@ -36,6 +37,7 @@ import { IAutomationDescriptor, IAutomationRun } from '../../../chat/common/auto
 import { AutomationMutationGuard, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../chat/common/automations/automationsEnabled.js';
 import { IScheduledChatRequestOptions, ScheduledChatsService } from '../../browser/scheduledChatsService.js';
+import { ScheduledChatEditorInput } from '../../browser/scheduledChatEditor.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
 import { ISessionDraftsService } from '../../browser/sessionDraftsService.js';
 import { ISessionGroupsService } from '../../browser/sessionGroupsService.js';
@@ -66,6 +68,7 @@ suite('Scheduled chat handoffs', () => {
 		});
 		const calls: string[] = [];
 		const openedDrafts: Parameters<ISessionDraftsService['open']>[] = [];
+		const openedEditors: ScheduledChatEditorInput[] = [];
 		const loadedChats: URI[] = [];
 		const openedChats: URI[] = [];
 		const recoveredInputs: Parameters<IChatModel['inputModel']['setState']>[0][] = [];
@@ -191,9 +194,7 @@ suite('Scheduled chat handoffs', () => {
 			new class extends mock<IChatEntitlementService>() {
 				override readonly sentiment = {};
 				override readonly onDidChangeSentiment = Event.None;
-			}, quickInput, new class extends TestDialogService {
-				override async confirm(): Promise<never> { throw new Error('Scheduling must not open a confirmation dialog'); }
-			}(), storage,
+			}, quickInput, storage,
 			new class extends mock<ITextModelService>() { }, new class extends mock<IFileService>() { },
 			new class extends mock<IWorkingCopyService>() { override isDirty() { return false; } },
 			new class extends mock<IChatService>() {
@@ -228,9 +229,19 @@ suite('Scheduled chat handoffs', () => {
 						calls.push('group');
 					}
 				}
-			}));
+			}, upcastPartial<IEditorService>({
+				editors: openedEditors,
+				openEditor: async (editor, options) => {
+					assert.ok(editor instanceof ScheduledChatEditorInput);
+					assert.deepStrictEqual(options, { pinned: true, revealIfOpened: true });
+					if (!openedEditors.includes(editor)) {
+						openedEditors.push(disposables.add(editor));
+					}
+					return upcastPartial<ITextDiffEditorPane>({});
+				},
+			})));
 		return {
-			service, storage, config, calls, openedDrafts, loadedChats, openedChats, recoveredInputs, requests, automations, runs, sessions, sessionsChanged, memberships, pickerAnchors,
+			service, storage, config, calls, openedDrafts, openedEditors, loadedChats, openedChats, recoveredInputs, requests, automations, runs, sessions, sessionsChanged, memberships, pickerAnchors,
 			set customTime(value: boolean) { customTime = value; },
 			get picks() { return picks; },
 			set failCreate(value: boolean) { failCreate = value; },
@@ -677,7 +688,7 @@ suite('Scheduled chat handoffs', () => {
 			if (complete) {
 				fixture.automations.set(fixture.automations.get().map(automation => ({ ...automation, oneTimeDispatchedAt: '2026-01-01T00:00:00.000Z' })), undefined);
 			} else {
-				await fixture.service.items.get()[0].open();
+				await fixture.service.items.get()[0].actions.find(action => action.id === 'sessions.scheduled.edit')!.run();
 			}
 			const handoffs = parse(fixture.storage.get('sessions.scheduledChatHandoffs', StorageScope.PROFILE)!).handoffs;
 			const receipts = parse(fixture.storage.get('sessions.scheduledChatReceipts', StorageScope.PROFILE)!).receipts;
@@ -771,31 +782,51 @@ suite('Scheduled chat handoffs', () => {
 	});
 
 	for (const savedDrafts of [true, false]) {
-		test(`opening a scheduled draft cancels and restores it with saved drafts ${savedDrafts ? 'enabled' : 'disabled'}`, async () => {
+		test(`opening a scheduled draft preserves its schedule and reuses its editor with saved drafts ${savedDrafts ? 'enabled' : 'disabled'}`, async () => {
 			const fixture = create(true, savedDrafts);
 			await fixture.service.schedule(input, target, session, 'composition');
-			const creationId = fixture.automations.get()[0].creationId;
+			const original = fixture.automations.get()[0];
+			fixture.occupied = true;
+			await fixture.service.items.get()[0].open();
 			await fixture.service.items.get()[0].open();
 			assert.deepStrictEqual({
-				calls: fixture.calls, remaining: fixture.service.items.get(), openedDrafts: fixture.openedDrafts,
+				calls: fixture.calls, remaining: fixture.service.items.get().map(item => item.id), openedDrafts: fixture.openedDrafts,
+				unchanged: fixture.automations.get()[0] === original,
+				editors: fixture.openedEditors.map(editor => ({ id: editor.id, text: editor.item.get()?.text, description: editor.item.get()?.description })),
 			}, {
-				calls: savedDrafts ? ['disable', 'save', 'delete', 'open'] : ['disable', 'recover', 'delete'],
-				remaining: [], openedDrafts: savedDrafts ? [[creationId, { removeFromDrafts: true }]] : [],
+				calls: [], remaining: [original.id], openedDrafts: [], unchanged: true,
+				editors: [{ id: original.id, text: input.inputText, description: fixture.service.items.get()[0].description }],
 			});
 		});
 	}
+
+	test('an open scheduled draft follows rescheduling and dispatch without changing the automation', async () => {
+		const fixture = create();
+		await fixture.service.schedule(input, target, session, 'composition');
+		await fixture.service.items.get()[0].open();
+		const editor = fixture.openedEditors[0];
+		const original = fixture.automations.get()[0];
+		const updated = { ...original, prompt: 'Updated', request: { ...original.request!, text: 'Updated' }, schedule: { ...original.schedule, runAt: '2099-01-15T10:00:00Z' } };
+		fixture.automations.set([updated], undefined);
+		const beforeDispatch = { text: editor.item.get()?.text, description: editor.item.get()?.description };
+		fixture.automations.set([{ ...updated, oneTimeDispatchedAt: new Date().toISOString() }], undefined);
+		assert.deepStrictEqual({ beforeDispatch, afterDispatch: editor.item.get(), calls: fixture.calls }, {
+			beforeDispatch: { text: 'Updated', description: `Scheduled for ${new Date(updated.schedule.runAt).toLocaleString(undefined, { timeZoneName: 'short' })}` },
+			afterDispatch: undefined, calls: [],
+		});
+	});
 
 	test('with saved drafts disabled an occupied composer leaves cancelled content recoverable', async () => {
 		const fixture = create(true, false);
 		await fixture.service.schedule(input, target, session, 'composition');
 		fixture.occupied = true;
-		await assert.rejects(async () => fixture.service.items.get()[0].open(), /Composer occupied/);
+		await assert.rejects(async () => fixture.service.items.get()[0].actions.find(action => action.id === 'sessions.scheduled.edit')!.run(), /Composer occupied/);
 		assert.deepStrictEqual({
 			calls: fixture.calls, enabled: fixture.automations.get()[0].enabled,
 			retained: !!fixture.storage.get('sessions.scheduledChatHandoffs', StorageScope.PROFILE),
 		}, { calls: ['disable', 'recover'], enabled: false, retained: true });
 		fixture.occupied = false;
-		await fixture.service.items.get()[0].open();
+		await fixture.service.items.get()[0].actions.find(action => action.id === 'sessions.scheduled.edit')!.run();
 		assert.deepStrictEqual({ calls: fixture.calls, remaining: fixture.service.items.get() }, {
 			calls: ['disable', 'recover', 'recover', 'delete'], remaining: [],
 		});

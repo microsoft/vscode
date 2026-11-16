@@ -18,6 +18,7 @@ import { ActionRunner, IAction, toAction } from '../../../../../base/common/acti
 import { coalesce, distinct } from '../../../../../base/common/arrays.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { fromNow } from '../../../../../base/common/date.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { canceledName } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -2394,7 +2395,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.scheduledRequestAnchor = content;
 		const header = dom.append(content, dom.$('.scheduled-request-header'));
 		dom.append(header, dom.$('span.codicon.codicon-clock', { 'aria-hidden': 'true' }));
-		dom.append(header, dom.$('span.scheduled-request-description', undefined, element.description));
+		const description = dom.append(header, dom.$('span.scheduled-request-description', undefined, element.description));
+		if (element.runAt) {
+			this.renderScheduledRequestTime(element.runAt, description, store, label => description.textContent = label);
+		}
 		const toolbarContainer = dom.append(templateData.rowContainer, dom.$('.request-hover.scheduled-request-actions'));
 		store.add(toDisposable(() => toolbarContainer.remove()));
 		const toolbar = store.add(this.instantiationService.createInstance(WorkbenchToolBar, toolbarContainer, {
@@ -2456,9 +2460,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		const buttons = store.add(new ButtonBar(dom.append(container, dom.$('.scheduled-request-editor-actions'))));
 		const time = buttons.addButton({ ...defaultButtonStyles, secondary: true, supportIcons: true, title: editing.description });
-		time.label = `$(clock) ${editing.description}`;
 		time.element.classList.add('scheduled-request-edit-time');
-		time.element.setAttribute('aria-label', localize('scheduledRequestEditTime', "Change send time, {0}", editing.description));
+		this.renderScheduledRequestTime(editing.runAt, time.element, store, label => {
+			time.label = `$(clock) ${label}`;
+			time.element.setAttribute('aria-label', localize('scheduledRequestEditTime', "Change send time, {0}", label));
+		});
 		const save = buttons.addButton({ ...defaultButtonStyles });
 		save.label = localize('scheduledRequestSave', "Save");
 		const cancel = buttons.addButton({ ...defaultButtonStyles, secondary: true });
@@ -2487,6 +2493,30 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			save.enabled = cancel.enabled = time.enabled = !editing.isSaving?.read(reader);
 		}));
 		this._onDidRerender.fire(templateData);
+	}
+
+	private renderScheduledRequestTime(runAt: string, element: HTMLElement, store: DisposableStore, render: (label: string) => void): void {
+		const targetWindow = dom.getWindow(element);
+		const timestamp = Date.parse(runAt);
+		let previousLabel: string | undefined;
+		const update = () => {
+			const remaining = timestamp - Date.now();
+			const label = remaining <= 0 ? localize('scheduledRequestDue', "Waiting to send")
+				: remaining < 60_000 ? localize('scheduledRequestSoon', "Sends in less than a minute")
+				: localize('scheduledRequestRelativeTime', "Sends {0}", fromNow(timestamp, false, true));
+			if (label !== previousLabel) {
+				previousLabel = label;
+				render(label);
+			}
+		};
+		update();
+		const updateVisible = () => {
+			if (!targetWindow.document.hidden) {
+				update();
+			}
+		};
+		store.add(new dom.WindowIntervalTimer(element)).cancelAndSet(updateVisible, 60_000);
+		store.add(dom.addDisposableListener(targetWindow.document, 'visibilitychange', updateVisible));
 	}
 
 	private focusScheduledRequest(templateData: IChatListItemTemplate, element: HTMLElement): void {
