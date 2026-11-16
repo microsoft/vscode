@@ -1481,6 +1481,20 @@ function createByokLanguageModelTestData(groupName?: string): { languageModels: 
 	};
 }
 
+/** BYOK test data with an OpenRouter model and a model of the host's own whose ids clash once the provider is dropped. */
+function createClashingByokLanguageModelTestData(byokModelId: string, hostModelId: string): ReturnType<typeof createByokLanguageModelTestData> {
+	const byok = createByokLanguageModelTestData();
+	return {
+		...byok,
+		languageModels: new Map([
+			...byok.languageModels,
+			[`openrouter/${byokModelId}`, upcastPartial<ILanguageModelChatMetadata>({ name: 'My Model', id: byokModelId, vendor: 'openrouter', isBYOK: true })],
+			[`agent-host-copilot:openrouter/${byokModelId}`, upcastPartial<ILanguageModelChatMetadata>({ name: 'My Model', id: `openrouter/${byokModelId}`, vendor: 'agent-host-copilot', modelGroup: { id: 'openrouter' }, byokModelIdentifier: `openrouter/${byokModelId}` })],
+			[`agent-host-copilot:${hostModelId}`, upcastPartial<ILanguageModelChatMetadata>({ name: 'Host Model', id: hostModelId, vendor: 'agent-host-copilot' })],
+		]),
+	};
+}
+
 function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string; acceptedConfirmationData: unknown[]; metadata: Record<string, unknown>; isSystemInitiated: boolean; agentHostMessageOrigin: IChatAgentRequest['agentHostMessageOrigin']; modeInstructions: IChatAgentRequest['modeInstructions'] }> = {}): IChatAgentRequest {
 	return upcastPartial<IChatAgentRequest>({
 		sessionResource: overrides.sessionResource ?? URI.from({ scheme: 'untitled', path: '/chat-1' }),
@@ -10608,6 +10622,39 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(result.details, 'Custom Endpoint/My Endpoint/Custom Model • 1 credit');
 		}));
 
+		for (const { name, provider, byokModelId, hostModelId, expected } of [
+			{
+				name: 'live Copilot BYOK turn reporting its bare model id is not attributed to a host model with the same id', provider: 'copilotcli', byokModelId: 'gpt-6-luna', hostModelId: 'gpt-6-luna',
+				expected: { details: 'OpenRouter/My Model', actualModelId: 'agent-host-copilot:openrouter/gpt-6-luna', tokenRows: ['My Model'] },
+			},
+			{
+				name: 'live Copilot BYOK turn reporting its bare model id is not attributed to a host model with its dotted id', provider: 'copilotcli', byokModelId: 'claude-haiku-5-5', hostModelId: 'claude-haiku-5.5',
+				expected: { details: 'OpenRouter/My Model', actualModelId: 'agent-host-copilot:openrouter/claude-haiku-5-5', tokenRows: ['My Model'] },
+			},
+			{
+				name: 'live turn of another agent is attributed to the model it reported, also when that is the tail of the model it selected', provider: 'claude', byokModelId: 'gpt-6-luna', hostModelId: 'gpt-6-luna',
+				expected: { details: 'Host Model', actualModelId: 'agent-host-copilot:gpt-6-luna', tokenRows: ['Host Model'] },
+			},
+		]) {
+			test(name, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { ...createClashingByokLanguageModelTestData(byokModelId, hostModelId), provider });
+
+				const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+					userSelectedModelId: `agent-host-copilot:openrouter/${byokModelId}`,
+				});
+
+				fire({ type: 'chat/usage', session, turnId, usage: { model: byokModelId, inputTokens: 100, _meta: { turnTokenTotals: [{ model: byokModelId, inputTokens: 100, cachedTokens: 0, outputTokens: 0 }] } } } as ChatAction);
+				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+
+				const result = await turnPromise;
+				const usage = collected.flat().findLast(part => part.kind === 'usage');
+
+				assert.deepStrictEqual({
+					details: result.details, actualModelId: usage?.actualModelId, tokenRows: usage?.modelTotals?.map(total => total.model),
+				}, expected);
+			}));
+		}
+
 		test('cancelled turn still returns model credit details from accumulated usage', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ name: 'Opus 4.7', pricing: '15x' })],
@@ -14884,6 +14931,34 @@ suite('AgentHostChatContribution', () => {
 				return session.history.filter(item => item.type === 'response').map(item => item.details);
 			};
 			assert.deepStrictEqual(await footers(), ['Copilot Fusion Max • 15.5 credits', 'Copilot Fusion High • 15.5 credits']);
+		});
+
+		test('restored Copilot turns reporting the same bare model id are each attributed to the model they selected', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables, { ...createClashingByokLanguageModelTestData('gpt-6-luna', 'gpt-6-luna'), provider: 'copilotcli' });
+			const sessionUri = AgentSession.uri('copilotcli', 'sess-byok-clash');
+			const turn = (id: string, model: string | undefined): Turn => ({
+				id, state: TurnState.Complete, responseParts: [], usage: { model: 'gpt-6-luna', inputTokens: 100 },
+				message: { text: id, origin: { kind: MessageKind.User }, ...(model ? { model: { id: model } } : {}) },
+			});
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({
+					resource: sessionUri.toString(), provider: 'copilotcli', title: 'Test',
+					status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [turn('unselected', undefined), turn('host', 'gpt-6-luna'), turn('byok', 'openrouter/gpt-6-luna')],
+			});
+
+			const session = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/sess-byok-clash' }), CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			assert.deepStrictEqual(session.history.flatMap(item => item.type === 'response' ? [{
+				details: item.details, actualModelId: item.parts.find(part => part.kind === 'usage')?.actualModelId,
+			}] : []), [
+				{ details: 'Host Model', actualModelId: 'agent-host-copilot:gpt-6-luna' },
+				{ details: 'Host Model', actualModelId: 'agent-host-copilot:gpt-6-luna' },
+				{ details: 'OpenRouter/My Model', actualModelId: 'agent-host-copilot:openrouter/gpt-6-luna' },
+			]);
 		});
 
 		test('history requests get per-turn model selection from usage or message model', async () => {
