@@ -9,6 +9,7 @@ import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { readCustomizationOrganizationMeta } from '../../common/meta/customizationOrganizationMeta.js';
 import { readRuntimePluginEnablement } from '../../common/meta/pluginEnablementMeta.js';
 import { X509Certificate } from 'crypto';
 import { rootCertificates } from 'tls';
@@ -3203,6 +3204,41 @@ suite('CopilotAgent', () => {
 			global: [[false, undefined], [true, undefined], [false, undefined]],
 			peer: [[false, true], [true, undefined], [false, undefined]],
 			root: URI.file('/plugins/spark'),
+		});
+	});
+
+	test('publishes what the organization requires from the chat inventory, which global plugin records omit', async () => {
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
+		const required = URI.file('/sdk-installed/required');
+		const own = URI.file('/sdk-installed/own');
+		for (const root of [required, own]) {
+			await fileService.writeFile(URI.joinPath(root, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"plugin"}'));
+		}
+		const client = new TestCopilotClient([]);
+		// The global inventory lists a plugin that managed settings require as an ordinary installation,
+		// and omits a required plugin that could not be installed.
+		client.pluginInstallations = [
+			{ id: 'required', name: 'required', marketplace: 'enterprise', enabled: false, rootPath: required.fsPath },
+			{ id: 'own', name: 'own', marketplace: 'public', enabled: true, rootPath: own.fsPath },
+		];
+		const agent = createTestAgent(disposables, { fileService, copilotClient: client, rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false } });
+		afterTest(() => disposeAgent(agent));
+		const session = AgentSession.uri('copilotcli', 'managed-inventory');
+		setDefaultSessionStub(agent, 'managed-inventory', {
+			listInstalledPlugins: async () => [
+				{ ...client.pluginInstallations[0], enabled: true, managed: true, managedDesiredEnabled: true, installed: true },
+				client.pluginInstallations[1],
+				{ id: 'missing', name: 'missing', marketplace: 'enterprise', enabled: false, managed: true, managedDesiredEnabled: true, installed: false },
+			],
+		});
+		const customizations = await agent['_getOrCreateActiveClient'](session, URI.file('/workspace')).pluginController.getCustomizationsSettled();
+		assert.deepStrictEqual(Object.fromEntries(customizations.filter(item => item.type === CustomizationType.Plugin).map(plugin => {
+			const runtime = readRuntimePluginEnablement(plugin);
+			return [plugin.name, { load: plugin.load?.kind, global: runtime?.globalEnabled, effective: runtime?.effectiveEnabled, required: runtime?.managedDesiredEnabled, organization: readCustomizationOrganizationMeta(plugin) }];
+		})), {
+			required: { load: CustomizationLoadStatus.Loaded, global: false, effective: true, required: true, organization: undefined },
+			own: { load: CustomizationLoadStatus.Loaded, global: true, effective: true, required: undefined, organization: undefined },
+			missing: { load: CustomizationLoadStatus.Error, global: undefined, effective: undefined, required: undefined, organization: { requiredEnabled: true } },
 		});
 	});
 

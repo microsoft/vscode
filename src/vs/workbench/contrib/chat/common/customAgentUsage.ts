@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../base/common/event.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 const CUSTOM_AGENT_USE_COUNT_STORAGE_KEY = 'chat.customAgentUsage.count';
@@ -23,6 +25,13 @@ export class CustomAgentUsage {
 	/** When a request was last submitted with a custom agent, in milliseconds since the epoch. */
 	get lastUsed(): number | undefined {
 		return this.storageService.getNumber(CUSTOM_AGENT_LAST_USED_STORAGE_KEY, StorageScope.APPLICATION_SHARED);
+	}
+
+	onDidChangeLastUsed(store: DisposableStore): Event<number | undefined> {
+		return Event.map(
+			this.storageService.onDidChangeValue(StorageScope.APPLICATION_SHARED, CUSTOM_AGENT_LAST_USED_STORAGE_KEY, store),
+			() => this.lastUsed,
+		);
 	}
 
 	recordUse(timestamp = Date.now()): void {
