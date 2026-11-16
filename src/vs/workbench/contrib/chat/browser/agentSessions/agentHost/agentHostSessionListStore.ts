@@ -560,13 +560,14 @@ export class AgentHostSessionListStore extends Disposable {
 
 	/**
 	 * Whether a session's project, the root it was started from, is the primary location of the folder of a single-folder
-	 * window. A project only inside it, such as a nested repository, is not. The folder can be at another location, such as a linked checkout, while its sessions are
-	 * those of its primary location: they stay listed, and removing one from the list would dispose the content of its
-	 * chats that are open, which turns them read-only.
+	 * window while its folder is at another location, such as a linked checkout: the sessions of the primary location stay
+	 * listed, and removing one from the list would dispose the content of its chats that are open, which turns them
+	 * read-only. A project only inside the primary location, such as a nested repository, is not it, and at the primary
+	 * location itself a session is listed by its working directory only.
 	 */
 	private _matchesPrimaryLocation(summary: SessionSummary): boolean {
 		const workspace = this._workspaceContextService.getWorkspace();
-		if (workspace.configuration || !workspace.uri || workspace.folders.length !== 1 || !summary.project?.uri) {
+		if (workspace.configuration || !workspace.uri || workspace.folders.length !== 1 || !summary.project?.uri || extUriBiasedIgnorePathCase.isEqual(workspace.folders[0].uri, workspace.uri)) {
 			return false;
 		}
 		const project = URI.parse(summary.project.uri);

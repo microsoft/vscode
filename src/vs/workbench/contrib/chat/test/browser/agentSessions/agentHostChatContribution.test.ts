@@ -7323,7 +7323,7 @@ suite('AgentHostChatContribution', () => {
 				onDidChangeWorkbenchState: Event.None,
 			});
 
-			agentHostService.addSession({ session: AgentSession.uri('copilot', 'primary'), startTime: 1000, modifiedTime: 2000, summary: 'In the folder', workingDirectories: [URI.file('/workspace/root/sub')] });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'primary'), startTime: 1000, modifiedTime: 2000, summary: 'In the folder', workingDirectories: [URI.file('/workspace/root/sub')], project: { uri: primary, displayName: 'root' } });
 			agentHostService.addSession({ session: AgentSession.uri('copilot', 'checkout'), startTime: 1000, modifiedTime: 3000, summary: 'In the checkout', workingDirectories: [checkout], project: { uri: primary, displayName: 'root' } });
 			agentHostService.addSession({ session: AgentSession.uri('copilot', 'nested'), startTime: 1000, modifiedTime: 1200, summary: 'Nested repository', workingDirectories: [URI.file('/other/nested')], project: { uri: URI.file('/workspace/root/nested'), displayName: 'nested' } });
 			agentHostService.addSession({ session: AgentSession.uri('copilot', 'elsewhere'), startTime: 1000, modifiedTime: 1500, summary: 'Elsewhere', workingDirectories: [URI.file('/other/place')], project: { uri: URI.file('/other'), displayName: 'other' } });
@@ -7343,12 +7343,12 @@ suite('AgentHostChatContribution', () => {
 			onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
 			await timeout(0);
 
-			// Removing a session from the list disposes the content of its chats that are open, which turns them read-only
+			// The sessions of the primary location stay listed while the folder is at the checkout, and the session of the checkout is only listed there
 			assert.deepStrictEqual({ atPrimary, atCheckout, back: labels(), removed }, {
-				atPrimary: ['In the checkout', 'In the folder'],
+				atPrimary: ['In the folder'],
 				atCheckout: ['In the checkout', 'In the folder'],
-				back: ['In the checkout', 'In the folder'],
-				removed: [],
+				back: ['In the folder'],
+				removed: ['/checkout'],
 			});
 		});
 
@@ -7370,7 +7370,7 @@ suite('AgentHostChatContribution', () => {
 				onDidChangeWorkbenchState: onDidChangeWorkbenchState.event,
 			});
 
-			agentHostService.addSession({ session: AgentSession.uri('copilot', 'primary'), startTime: 1000, modifiedTime: 2000, summary: 'In the folder', workingDirectories: [URI.file('/workspace/root/sub')] });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'primary'), startTime: 1000, modifiedTime: 2000, summary: 'In the folder', workingDirectories: [URI.file('/workspace/root/sub')], project: { uri: primary, displayName: 'root' } });
 			agentHostService.addSession({ session: AgentSession.uri('copilot', 'multi-root'), startTime: 1000, modifiedTime: 2500, summary: 'Multi-root in the folder', workingDirectories: [URI.file('/workspace/root/sub')], project: { uri: primary, displayName: 'root' }, _meta: withSessionMultiRootMetadata(undefined, { workspaceFile: URI.file('/workspace/other.code-workspace').toString() }) });
 			agentHostService.addSession({ session: AgentSession.uri('copilot', 'checkout'), startTime: 1000, modifiedTime: 3000, summary: 'In the checkout', workingDirectories: [checkout], project: { uri: primary, displayName: 'root' } });
 
