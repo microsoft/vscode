@@ -615,6 +615,7 @@ export class CodeSnippetBuilder extends ProgramContext implements SnippetProvide
 	private readonly lines: string[];
 	private source: string | undefined;
 	private readonly additionalSources: Set<string>;
+	private indent: number = 0;
 
 	private readonly context: RequestContext;
 	private readonly symbols: Symbols;
@@ -636,6 +637,15 @@ export class CodeSnippetBuilder extends ProgramContext implements SnippetProvide
 			return { skip: true };
 		}
 		return result;
+	}
+
+
+	protected increaseIndent(): void {
+		this.indent++;
+	}
+
+	protected decreaseIndent(): void {
+		this.indent--;
 	}
 
 	protected getProgram(): tt.Program {
@@ -684,7 +694,11 @@ export class CodeSnippetBuilder extends ProgramContext implements SnippetProvide
 		if (lines.length === 0) {
 			return;
 		}
-		this.lines.push(...lines);
+		if (this.indent === 0) {
+			this.lines.push(...lines);
+		} else {
+			this.lines.push(...lines.map(line => `${'\t'.repeat(this.indent)}${line}`));
+		}
 	}
 
 	public addClassSymbol(clazz: tt.Symbol, name: string, includeSuperClasses: boolean = true, includePrivates: boolean = false): void {
@@ -804,7 +818,11 @@ export class CodeSnippetBuilder extends ProgramContext implements SnippetProvide
 				session.cacheCode(emitter.key, { value: lines, uri, additionalUris });
 			}
 		}
-		this.lines.push(...lines);
+		if (this.indent === 0) {
+			this.lines.push(...lines);
+		} else {
+			this.lines.push(...lines.map(line => `${'\t'.repeat(this.indent)}${line}`));
+		}
 		this.addSource(uri);
 		this.addAdditionalSource(additionalUris);
 	}

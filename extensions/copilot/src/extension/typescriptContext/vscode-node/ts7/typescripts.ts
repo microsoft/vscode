@@ -6,24 +6,29 @@
 import { createHash } from 'node:crypto';
 import type * as vscode from 'vscode';
 
-import { Symbol as NativeSymbol, SymbolFlags, type NodeHandle, type Project, type Type, type DocumentPosition } from '@typescript/native/async';
+import { Symbol as NativeSymbol, SymbolFlags, type NodeHandle, type Program, type Project, type Type, type DocumentPosition } from '@typescript/native/async';
 import {
 	findPrecedingToken,
 	getTokenAtPosition,
 	isAsExpression,
+	isBlock,
 	isClassDeclaration,
 	isInterfaceDeclaration,
+	isModuleBlock,
 	isNonNullExpression,
 	isParenthesizedExpression,
 	isPartiallyEmittedExpression,
 	isSatisfiesExpression,
+	isSourceFile,
 	isTypeAliasDeclaration,
 	isTypeAssertion,
+	isTypeReferenceNode,
 	isExpressionWithTypeArguments,
 	SyntaxKind,
 	type Expression,
 	type Node,
 	type SourceFile,
+	type TypeNode,
 	type DeclarationBase
 } from '@typescript/native/ast';
 
@@ -84,6 +89,9 @@ export class Symbols {
 		return this.project;
 	}
 
+	public getProgram(): Program {
+		return this.project.program;
+	}
 
 	public getTypeChecker(): Project['checker'] {
 		return this.project.checker;
@@ -117,6 +125,15 @@ export class Symbols {
 			return (checker as unknown as CheckerWithSymbolsInScope).getSymbolsInScope(location, meaning);
 		}
 		return [];
+	}
+
+	public async getAliasedSymbol(symbol: NativeSymbol): Promise<NativeSymbol | undefined> {
+		return Symbols.isAlias(symbol) ? this.getLeafSymbol(symbol) : symbol;
+	}
+
+	public async getAliasedSymbolAtLocation(node: Node): Promise<NativeSymbol | undefined> {
+		const symbol = await this.getSymbolAtLocation(node);
+		return symbol === undefined ? undefined : this.getAliasedSymbol(symbol);
 	}
 
 	public async getLeafSymbolAtLocation(node: Node): Promise<NativeSymbol | undefined> {
@@ -290,6 +307,9 @@ export class Symbols {
 		return symbol !== undefined && (symbol.flags & SymbolFlags.BlockScopedVariable) !== 0;
 	}
 
+	public static isConstructor(symbol: NativeSymbol | undefined): symbol is NativeSymbol {
+		return symbol !== undefined && (symbol.flags & SymbolFlags.Constructor) !== 0;
+	}
 
 	public static isMethod(symbol: NativeSymbol | undefined): symbol is NativeSymbol {
 		return symbol !== undefined && (symbol.flags & SymbolFlags.Method) !== 0;
@@ -327,11 +347,17 @@ export class Symbols {
 		return symbol !== undefined && (symbol.flags & SymbolFlags.Function) !== 0;
 	}
 
+	public static isValueModule(symbol: NativeSymbol | undefined): symbol is NativeSymbol {
+		return symbol !== undefined && (symbol.flags & SymbolFlags.ValueModule) !== 0;
+	}
 
 	public static isAlias(symbol: NativeSymbol | undefined): symbol is NativeSymbol {
 		return symbol !== undefined && (symbol.flags & SymbolFlags.Alias) !== 0;
 	}
 
+	public static isInternal(symbol: NativeSymbol): boolean {
+		return symbol.name === '__type' || symbol.name === '__class' || symbol.name === '__object';
+	}
 
 	private async collectTypeSymbols(result: NativeSymbol[], seen: Set<number>, type: Type): Promise<void> {
 		this.token.throwIfCancellationRequested();
@@ -363,6 +389,16 @@ export class Symbols {
 			}
 		}
 		return result;
+	}
+}
+
+export namespace Types {
+	export function isIntersection(type: Type): boolean {
+		return type.isIntersectionType();
+	}
+
+	export function isUnion(type: Type): boolean {
+		return type.isUnionType();
 	}
 }
 
@@ -399,6 +435,22 @@ namespace tss {
 	}
 
 	export namespace Nodes {
+		export function getChildren(node: Node): readonly Node[] {
+			if (isSourceFile(node)) {
+				return node.statements;
+			}
+			const result: Node[] = [];
+			node.forEachChild(child => {
+				result.push(child);
+				return undefined;
+			});
+			return result;
+		}
+
+		export function getTypeName(node: TypeNode): string | undefined {
+			return isTypeReferenceNode(node) ? node.typeName.getText() : undefined;
+		}
+
 		export function getParentOfKind(node: Node, kind: SyntaxKind): Node | undefined {
 			let current: Node | undefined = node;
 			while (current !== undefined) {
@@ -410,6 +462,16 @@ namespace tss {
 			return undefined;
 		}
 
+		export function getParentBlock(node: Node): Node | undefined {
+			let current: Node | undefined = node;
+			while (current !== undefined) {
+				if (isBlock(current) || isModuleBlock(current) || isSourceFile(current)) {
+					return current;
+				}
+				current = current.parent;
+			}
+			return undefined;
+		}
 
 		export function skipOuterExpressions(expression: Expression): Expression {
 			let current = expression;
