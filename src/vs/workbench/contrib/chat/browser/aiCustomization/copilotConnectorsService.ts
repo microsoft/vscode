@@ -23,7 +23,8 @@ import { gitHubCopilotResource } from '../../../../../platform/agentHost/common/
 import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
 import { ConnectorCatalog, ConnectorPlugin, copilotConnectorsScope, copilotCredentialBaselineScopes } from '../../../../../platform/github/common/connectors/connectors.js';
 import { deriveGitHubEndpoints } from '../../../../../platform/github/common/githubEndpoints.js';
-import { GitHubAuthorizationContext, GitHubRequestError, isEqualAuthorization } from '../../../../../platform/github/common/githubTypes.js';
+import { GitHubRequestError, isEqualAuthorization } from '../../../../../platform/github/common/githubTypes.js';
+import { RequestPriority } from '../../../../../platform/github/common/types.js';
 import { SchemaError } from '../../../../../platform/github/common/client/schema.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
@@ -35,7 +36,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
-import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
+import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../../../../services/github/common/githubService.js';
 
 const maxSearchQueryLength = 256;
 const maxSearchWords = 16;
@@ -403,14 +404,14 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		}
 	}
 
-	async refresh(token: CancellationToken): Promise<readonly ICopilotConnector[]> {
+	async refresh(token: CancellationToken, priority?: RequestPriority): Promise<readonly ICopilotConnector[]> {
 		if (!this.isEnabled()) {
 			return [];
 		}
 		const generation = ++this.refreshGeneration;
 		const operation = await this.createOperation(token);
 		try {
-			const { document, scoped } = await this.query(operation.token);
+			const { document, scoped } = await this.query(operation.token, priority);
 			if (operation.token.isCancellationRequested) {
 				throw new CancellationError();
 			}
@@ -508,7 +509,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		// that was already present before connecting) is only treated as terminal once this
 		// connect has been observed as `pending`; a new `error` is terminal immediately.
 		while (Date.now() < state.deadline) {
-			const refreshed = await this.refresh(token);
+			const refreshed = await this.refresh(token, 'mutationReconciliation');
 			const connector = refreshed.find(connector => connector.name === name);
 			switch (connector?.connectionStatus) {
 				case 'connected':
@@ -552,7 +553,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 				);
 				const deadline = Date.now() + connectionTimeout;
 				while (Date.now() < deadline) {
-					const connectors = await this.refresh(operation.token);
+					const connectors = await this.refresh(operation.token, 'mutationReconciliation');
 					if (!connectors.some(connector => connector.name === name && connector.connectionStatus === 'connected')) {
 						this._onDidDisconnect.fire(name);
 						return;
@@ -737,7 +738,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		};
 	}
 
-	private async query(token: CancellationToken): Promise<{ readonly document: ConnectorCatalog | undefined; readonly scoped: boolean }> {
+	private async query(token: CancellationToken, priority?: RequestPriority): Promise<{ readonly document: ConnectorCatalog | undefined; readonly scoped: boolean }> {
 		const authentication = await this.getAuthentication(token, false);
 		if (!authentication) {
 			return { document: undefined, scoped: false };
@@ -749,7 +750,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 				token,
 				(client, signal, deadline) => client.connectors.getCatalog(
 					signal,
-					{ caller: 'copilotConnectors.query', deadline }
+					{ caller: 'copilotConnectors.query', deadline, priority }
 				),
 				true
 			);
@@ -778,11 +779,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			throw connectorSignInRequired();
 		}
 		this._authorizationRequired = false;
-		const authorization: GitHubAuthorizationContext = {
-			providerId: authentication.account.authenticationProvider.id,
-			sessionId: selectedSession.id, accountId: selectedSession.account.id, scopes: selectedSession.scopes,
-			authorizationServer: selectedSession.authorizationServer?.toString(),
-		};
+		const authorization = toGitHubAuthorizationContext(authentication.account.authenticationProvider.id, selectedSession);
 		const lifetime = new DisposableStore();
 		const cancellation = lifetime.add(new CancellationTokenSource(token));
 		const deadline = Date.now() + requestTimeout;
@@ -794,7 +791,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			if (!client || !isEqualAuthorization(client.authorization, authorization)) {
 				const clientLifetime = new DisposableStore();
 				try {
-					const acquired = clientLifetime.add(await this.gitHubService.acquireAccountApiClient(authorization, signal));
+					const acquired = clientLifetime.add(await this.gitHubService.acquireAccountApiClient(authorization.providerId, selectedSession, signal));
 					signal.throwIfAborted();
 					const existing = this.apiClient.value?.object;
 					if (existing && isEqualAuthorization(existing.authorization, authorization)) {

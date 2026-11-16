@@ -8,6 +8,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyGateState } from '../../../../../services/policies/common/accountPolicyService.js';
 import { IReference, MutableDisposable, ReferenceCollection } from '../../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
 import { mockObject, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -91,6 +92,8 @@ suite('Chat move actions', () => {
 				return model;
 			},
 			focusInput() { },
+			shownSession: constObservable(undefined),
+			reportShown() { },
 		});
 		const viewsService = upcastPartial<IViewsService>({
 			openView: mockObject<IViewsService>()().openView.resolves(view),

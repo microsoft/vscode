@@ -112,13 +112,14 @@ suite('WorkspaceFolderLocationService', () => {
 		const before = decorator.getFolderLocationLabel(a);
 
 		service.setLocation(workspace.folders[0], { uri: a, label: 'A', description: 'x', providerId: 'x', builtIn: false });
+		const withDescription = decorator.getFolderLocationLabel(a);
 		const changed: string[] = [];
 		disposables.add(decorator.onDidChange(uri => changed.push(uri.path)));
 		service.setLocation(workspace.folders[0], { uri: a, label: 'A', providerId: 'x', builtIn: false });
 
 		assert.deepStrictEqual(
-			{ before, current: decorator.getFolderLocationLabel(a), byIdentity: decorator.getFolderLocationLabel(primary), other: decorator.getFolderLocationLabel(b), changed },
-			{ before: undefined, current: 'A', byIdentity: 'A', other: undefined, changed: ['/a'] });
+			{ before, withDescription, current: decorator.getFolderLocationLabel(a), byIdentity: decorator.getFolderLocationLabel(primary), other: decorator.getFolderLocationLabel(b), changed },
+			{ before: undefined, withDescription: 'A', current: 'A', byIdentity: 'A', other: undefined, changed: ['/a'] });
 	});
 
 	test('canSetLocation is true only for the folder of a local single-folder workspace', () => {

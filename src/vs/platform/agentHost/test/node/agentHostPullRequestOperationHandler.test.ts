@@ -338,7 +338,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 		override getProviderForSession() { return undefined; }
 		override getProviderForChat() { return undefined; }
 	}();
-	const utilityModelService = new AgentHostUtilityModelService(true, configurationService, copilotApiService, new NullByokLmBridgeRegistry(), providerService, stateManager, authenticationService, gitHubEndpointService, logService, createTestChatOwnershipService(stateManager), new class extends mock<IAgentHostSessionStateStore>() { override peek() { return undefined; } }());
+	const utilityModelService = new AgentHostUtilityModelService(true, configurationService, copilotApiService, new NullByokLmBridgeRegistry(), providerService, stateManager, authenticationService, gitHubEndpointService, logService, createTestChatOwnershipService(stateManager), new class extends mock<IAgentHostSessionStateStore>() { override peek() { return undefined; } }(), NullTelemetryService);
 	return {
 		handler: new AgentHostPullRequestOperationHandler(
 			options?.draft ?? false,
@@ -989,7 +989,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		const requests: { path: string; account: string }[] = [];
 		const authentication = disposables.add(new class extends AgentHostAuthenticationService {
 			override readonly onDidChangeAuthToken = changed.event;
-			override getAuthAccount() { return { providerId: 'github', accountId: selected }; }
+			override getAuthAccountId() { return selected; }
 			override getAuthToken() { return selected; }
 		}(new NullLogService()));
 		const service = disposables.add(new AgentHostGitHubService({
@@ -1701,7 +1701,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		let selected = 'account-a';
 		const authentication = disposables.add(new class extends AgentHostAuthenticationService {
 			override readonly onDidChangeAuthToken = changed.event;
-			override getAuthAccount() { return { providerId: 'github', accountId: selected }; }
+			override getAuthAccountId() { return selected; }
 			override getAuthToken() { return selected; }
 		}(new NullLogService()));
 		const requests: string[] = [];
@@ -1742,7 +1742,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			let token = 'first-token';
 			const authentication = disposables.add(new class extends AgentHostAuthenticationService {
 				override readonly onDidChangeAuthToken = changed.event;
-				override getAuthAccount() { return { providerId: 'github', accountId: 'repository-account' }; }
+				override getAuthAccountId() { return 'repository-account'; }
 				override getAuthToken() { return token; }
 			}(new NullLogService()));
 			const renewToken = () => {

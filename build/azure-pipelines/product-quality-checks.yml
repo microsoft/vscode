@@ -4,6 +4,12 @@ parameters:
   - name: VSCODE_PRIVILEGED_CONNECTIONS
     type: boolean
     default: true
+  # Whether to fail on an unreviewed contribution or forbidden module in the mobile web
+  # package (see build/next/MOBILE.md). Product builds keep the mobile package best-effort
+  # in their Web stage, so only product-build-ci.yml sets this.
+  - name: VSCODE_CHECK_MOBILE_BOUNDARY
+    type: boolean
+    default: false
 
 jobs:
   - job: Quality
@@ -398,6 +404,10 @@ jobs:
         env:
           GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Compile & Hygiene
+
+      - ${{ if eq(parameters.VSCODE_CHECK_MOBILE_BOUNDARY, true) }}:
+        - script: pnpm run check-mobile-boundary
+          displayName: Check mobile dependency boundary
 
       # Copilot has its own TypeScript projects and code style, which the steps above don't check (see
       # build/filters.ts). Like the build of the built-in Copilot (see copilot/builtin-steps.yml), the checks run after

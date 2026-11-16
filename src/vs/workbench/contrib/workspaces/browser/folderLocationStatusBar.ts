@@ -19,7 +19,6 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { AnchorPosition } from '../../../../base/common/layout.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
@@ -77,7 +76,6 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 	private readonly entry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly introductionReady = observableValue<boolean>(this, false);
 	private readonly introductionObservation = this._register(new MutableDisposable<DisposableStore>());
-	private primaryName: string | undefined;
 
 	constructor(
 		@IWorkspaceFolderLocationService private readonly folderLocationService: IWorkspaceFolderLocationService,
@@ -85,7 +83,6 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		@ILabelService private readonly labelService: ILabelService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IOnboardingScenarioService private readonly onboardingService: IOnboardingScenarioService
 	) {
 		super();
@@ -125,7 +122,6 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 	}
 
 	private createIntroductionStep(): ISpotlightStep {
-		const primaryName = this.primaryName ?? '';
 		const folder = this.contextService.getWorkspace().folders[0];
 		const locationText = (folder && this.labelService.getFolderLocationLabel(folder.uri)) ?? '';
 		return {
@@ -133,13 +129,9 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 			targetId: FOLDER_LOCATION_INTRODUCTION_TARGET_ID,
 			title: localize('folderLocationIntroductionTitle', "Folder Location"),
 			description: localize('folderLocationSwitched', "The folder is now at the location '{0}'. Files, search, terminals and extensions use this location.", locationText),
-			primaryAction: {
-				label: localize('returnToPrimaryNamed', "Return to {0}", primaryName),
-				run: () => this.commandService.executeCommand(RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID),
-				advance: true
-			},
 			endTourLabel: localize('gotIt', "Got It"),
 			focusEndTour: true,
+			hideNext: true,
 			placement: 'above',
 			missingTarget: { kind: 'abort' }
 		};
@@ -154,12 +146,10 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 			this.entry.clear();
 			this.introductionReady.set(false, undefined);
 			this.introductionObservation.clear();
-			this.primaryName = undefined;
 			return;
 		}
 
 		const primaryName = basename(identity);
-		this.primaryName = primaryName;
 		const props = {
 			name: localize('folderLocation', "Folder Location"),
 			text: `$(${location.icon?.id ?? Codicon.gitBranchCheckout.id}) ${location.label}`,

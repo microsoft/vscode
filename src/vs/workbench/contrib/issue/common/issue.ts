@@ -8,6 +8,7 @@ import { RepositoryRef } from '../../../../platform/github/common/client/types.j
 import { CreateIssueRequest } from '../../../../platform/github/common/core/issues.js';
 import { GitHubAuthorizationContext } from '../../../../platform/github/common/githubTypes.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { AuthenticationSession } from '../../../services/authentication/common/authentication.js';
 
 // Since data sent through the service is serialized to JSON, functions will be lost, so Color objects
 // should not be sent as their 'toString' method will be stripped. Instead convert to strings before sending.
@@ -173,7 +174,7 @@ export interface IIssueFormService {
 	closeReporter(): Promise<void>;
 	submitIssue(host: IIssueSubmissionHost, data: IssueReporterData, title: string, body: string, signal?: AbortSignal): Promise<boolean>;
 	searchGitHubIssues(repo: string, title: string, signal: AbortSignal): Promise<readonly ISimilarIssue[]>;
-	createGitHubIssue(authorization: GitHubAuthorizationContext, repository: RepositoryRef, request: CreateIssueRequest, signal: AbortSignal): Promise<string>;
+	createGitHubIssue(providerId: string, session: AuthenticationSession, repository: RepositoryRef, request: CreateIssueRequest, signal: AbortSignal): Promise<string>;
 }
 
 export interface ISimilarIssue {
