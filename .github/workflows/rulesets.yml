@@ -1,0 +1,41 @@
+name: Rulesets
+
+# Checks that the rulesets of the repository match the files of .github/rulesets, which a repository admin applies (see
+# .github/rulesets/README.md). It fails when a change to a file reached main without being applied, or a ruleset was
+# changed in the settings without changing its file. It runs without admin rights, so it can't compare bypass actors.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/rulesets/**
+      - .github/workflows/rulesets.yml
+  schedule:
+    - cron: '37 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check rulesets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # Also checks out the files at the root, such as .nvmrc
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/rulesets
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Check rulesets
+        run: node .github/rulesets/rulesets.ts check
+        env:
+          GH_TOKEN: ${{ github.token }}

@@ -36,7 +36,13 @@ agent host supervisor.
 
 Use `code agent host --github-environment --name <name>` to register an agent host as a GitHub environment. Like `code agent host`, it starts in the background by default; `--foreground` keeps it attached to the terminal. By default, it grants access to all accessible local drive roots on Windows and `/` on macOS and Linux, while keeping the launch directory as the shared project and default working directory. Network-backed Windows drives are not added automatically; inaccessible local drives are skipped with a warning. Automatically discovered grants are checked again when the agent host restarts, so a disconnected drive does not prevent registration.
 
+The server normalizes extended-prefix Windows drive roots from the CLI before checking their availability, while preserving extended-prefix directory paths.
+
 Background startup requires the GitHub credentials to be saved and readable by the detached supervisor. If credential persistence fails, use `--foreground` to keep the acquired credentials in memory without requiring them to be saved.
+
+Only one GitHub environment supervisor may run per server data directory. Repeated starts, including concurrent starts and `--foreground`, report an error instead of starting another host with the same environment identity. Stop the existing host with `code agent kill` before restarting it with different options, or use a separate `--server-data-dir` for an independent environment. Changing `--cli-data-dir` or `--user-data-dir` alone does not create an independent environment identity.
+
+On Windows, `code agent kill` forcefully terminates the selected supervisor and its process tree. A failed termination command reports an error instead of removing the host's discovery entry and reporting success.
 
 To restrict access, pass `--github-environment-root <directory>`. Repeat the option to grant multiple directories; explicit roots replace the default filesystem-wide grants and shared projects, with the first root as the default working directory.
 

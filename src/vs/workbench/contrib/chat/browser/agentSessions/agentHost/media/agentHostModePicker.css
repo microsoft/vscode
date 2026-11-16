@@ -150,10 +150,6 @@
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.monaco-workbench .monaco-action-bar:not(.vertical) .action-item .action-label.agent-host-mode-permissions-trigger:hover:not(.disabled) {
-	outline: none;
-}
-
 .agent-host-permissions-button .agent-host-mode-permission-summary {
 	margin-left: 0;
 }

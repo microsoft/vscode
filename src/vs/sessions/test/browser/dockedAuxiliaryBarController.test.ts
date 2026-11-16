@@ -59,7 +59,7 @@ suite('Sessions - Docked Details Position', () => {
 		const controller = store.add(new DockedAuxiliaryBarController(editor, auxiliaryBarPart, host, {
 			isEnabled: () => floating,
 			createController: () => new FloatingAuxiliaryBarController(editor, auxiliaryBarPart, {
-				getTitle: () => 'Files', getIcon: () => undefined, onDidChangeTitle: Event.None,
+				getTitle: () => 'Files', getIcon: () => undefined, isChangesViewActive: () => false, onDidChangeTitle: Event.None,
 				getWidth: () => 260, setWidth: () => { },
 				getHeight: () => 400, setHeight: () => { },
 				getContentHeight: () => undefined, onDidChangeContentHeight: Event.None, setSizeToContent: () => { },

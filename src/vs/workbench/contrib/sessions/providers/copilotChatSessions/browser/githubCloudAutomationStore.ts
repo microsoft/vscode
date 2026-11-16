@@ -113,9 +113,10 @@ export class GitHubCloudAutomationStore extends Disposable {
 				signal.throwIfAborted();
 				const repositoryState = resolvedRepository
 					? await this.withClient(signal, async (client, signal) => {
-						const metadata = await client.repositories.get(resolvedRepository, signal);
+						const options = { caller: 'cloudAutomations' };
+						const metadata = await client.repositories.get(resolvedRepository, signal, options);
 						const configuration = metadata.private
-							? await client.automations.getConfiguration(resolvedRepository, signal)
+							? await client.automations.getConfiguration(resolvedRepository, signal, options)
 							: undefined;
 						return { isPrivate: metadata.private, configuration };
 					})
@@ -191,9 +192,9 @@ export class GitHubCloudAutomationStore extends Disposable {
 		try {
 			this.requireAccount();
 			const { isPrivate, configuration } = await this.withClient(signal, async (client, signal) => {
-				const metadata = await client.repositories.get(repository, signal);
+				const metadata = await client.repositories.get(repository, signal, { caller: 'cloudAutomations' });
 				const configuration = metadata.private
-					? await client.automations.getConfiguration(repository, signal)
+					? await client.automations.getConfiguration(repository, signal, { caller: 'cloudAutomations' })
 					: undefined;
 				return { isPrivate: metadata.private, configuration };
 			});
@@ -236,7 +237,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		const signal = AbortSignal.any([this.lifetime.signal, CancellationToken.toAbortSignal(token, resources)]);
 		try {
 			this.requireAccount();
-			const configuration = await this.withClient(signal, (client, signal) => client.automations.getConfiguration(repository, signal));
+			const configuration = await this.withClient(signal, (client, signal) => client.automations.getConfiguration(repository, signal, { caller: 'cloudAutomations' }));
 			signal.throwIfAborted();
 			this.repositoryManageabilityFailures.delete(key);
 			this.setRepositoryConfiguration(key, configuration);
@@ -269,7 +270,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		void (async () => {
 			try {
 				this.requireAccount();
-				const groups = await this.withClient(signal, (client, signal) => client.automations.listTools(signal));
+				const groups = await this.withClient(signal, (client, signal) => client.automations.listTools(signal, { caller: 'cloudAutomations' }));
 				signal.throwIfAborted();
 				this.cachedTools.set({ kind: 'ready', groups }, undefined);
 			} catch (error) {
@@ -294,7 +295,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		void (async () => {
 			try {
 				this.requireAccount();
-				const definitions = await this.withClient(signal, (client, signal) => client.automations.listTriggers(signal));
+				const definitions = await this.withClient(signal, (client, signal) => client.automations.listTriggers(signal, { caller: 'cloudAutomations' }));
 				signal.throwIfAborted();
 				this.triggerCatalog.set({ kind: 'ready', definitions }, undefined);
 			} catch (error) {
@@ -331,7 +332,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 			this.state.set('loading', undefined);
 		}
 		const refresh = this.operations.queue(async () => {
-			await this.withClient(signal, (client, signal) => this.refreshRepositories(account, signal, client, options?.background ? { priority: 'background' } : undefined));
+			await this.withClient(signal, (client, signal) => this.refreshRepositories(account, signal, client, { caller: 'cloudAutomations', priority: options?.background ? 'background' : undefined }));
 			signal.throwIfAborted();
 			this.uncertain.set(false, undefined);
 		});
@@ -396,7 +397,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 			return await this.mutate(repository, async (client, ref, signal) => {
 				this.rememberRepositories(account.accountName, [repository], signal);
 				guard?.();
-				const definition = await client.automations.create(ref, value, signal);
+				const definition = await client.automations.create(ref, value, signal, { caller: 'cloudAutomations' });
 				return this.publish(repository, definition, signal);
 			}, CancellationToken.None, signal);
 		} catch (error) {
@@ -412,7 +413,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		return this.mutate(entry.repository, async (client, ref, signal) => {
 			let current: AutomationDetail;
 			try {
-				current = await client.automations.get(ref, entry.definition.id, signal);
+				current = await client.automations.get(ref, entry.definition.id, signal, { caller: 'cloudAutomations' });
 			} catch (error) {
 				if (!(error instanceof ApiRequestError) || error.statusCode !== 404) {
 					throw error;
@@ -426,7 +427,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 				return { entry: { repository: entry.repository, definition: current }, updated: false };
 			}
 			guard?.();
-			const definition = await client.automations.update(ref, current.id, value, signal);
+			const definition = await client.automations.update(ref, current.id, value, signal, { caller: 'cloudAutomations' });
 			return { entry: this.publish(entry.repository, definition, signal), updated: true };
 		});
 	}
@@ -434,7 +435,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 	async delete(entry: ICloudAutomationEntry, guard?: () => void): Promise<void> {
 		await this.mutate(entry.repository, async (client, ref, signal) => {
 			guard?.();
-			await client.automations.delete(ref, entry.definition.id, signal);
+			await client.automations.delete(ref, entry.definition.id, signal, { caller: 'cloudAutomations' });
 			this.removeEntry(entry, signal);
 		});
 	}
@@ -443,7 +444,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		await this.mutate(entry.repository, async (client, ref, signal) => {
 			let current: AutomationDetail;
 			try {
-				current = await client.automations.get(ref, entry.definition.id, signal);
+				current = await client.automations.get(ref, entry.definition.id, signal, { caller: 'cloudAutomations' });
 			} catch (error) {
 				if (!(error instanceof ApiRequestError) || error.statusCode !== 404) {
 					throw error;
@@ -453,18 +454,18 @@ export class GitHubCloudAutomationStore extends Disposable {
 			}
 			this.publish(entry.repository, current, signal);
 			guard?.();
-			await client.automations.dispatch(ref, current.id, { event: 'manual' }, signal);
+			await client.automations.dispatch(ref, current.id, { event: 'manual' }, signal, { caller: 'cloudAutomations' });
 		}, token);
 	}
 
 	async stop(entry: ICloudAutomationHistoryEntry): Promise<void> {
-		await this.mutate(entry.entry.repository, (client, _ref, signal) => client.tasks.abort(entry.task.id, signal));
+		await this.mutate(entry.entry.repository, (client, _ref, signal) => client.tasks.abort(entry.task.id, signal, { caller: 'cloudAutomations' }));
 	}
 
 	async refreshHistory(options?: IAutomationRefreshOptions): Promise<void> {
 		this.requireAccount();
 		const signal = this.lifetime.signal;
-		const requestOptions: ApiRequestOptions | undefined = options?.background ? { priority: 'background' } : undefined;
+		const requestOptions: ApiRequestOptions = { caller: 'cloudAutomations', priority: options?.background ? 'background' : undefined };
 		await this.operations.queue(async () => {
 			await this.withClient(signal, async (client, operationSignal) => {
 				const resources = new DisposableStore();
@@ -522,7 +523,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 			try {
 				const signal = AbortSignal.any([lifetime, CancellationToken.toAbortSignal(token, resources)]);
 				return await this.withClient(signal, async (client, signal) => {
-					const configuration = await client.automations.getConfiguration(repository, signal);
+					const configuration = await client.automations.getConfiguration(repository, signal, { caller: 'cloudAutomations' });
 					signal.throwIfAborted();
 					this.setRepositoryConfiguration(repositoryKey(repository), configuration);
 					if (!configuration.can_manage_automations) {
@@ -562,7 +563,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		});
 	}
 
-	private async refreshRepositories(account: IDefaultAccount, signal: AbortSignal, client: IGitHubAccountClient, options?: ApiRequestOptions): Promise<void> {
+	private async refreshRepositories(account: IDefaultAccount, signal: AbortSignal, client: IGitHubAccountClient, options: ApiRequestOptions): Promise<void> {
 		const repositories = this.readRepositories(account.accountName);
 		for (const repository of this.targetRepositories.values()) {
 			repositories.set(repositoryKey(repository), repository);
@@ -641,7 +642,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		}
 	}
 
-	private async listDefinitions(api: IAutomationsClient, repository: RepositoryRef, signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly AutomationDetail[]> {
+	private async listDefinitions(api: IAutomationsClient, repository: RepositoryRef, signal: AbortSignal, options: ApiRequestOptions): Promise<readonly AutomationDetail[]> {
 		const controller = new AbortController();
 		const operationSignal = AbortSignal.any([signal, controller.signal]);
 		try {

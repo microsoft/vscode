@@ -39,7 +39,7 @@ import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../common/theme.js';
 import { ChatContentMarkdownRenderer } from '../../../chat/browser/widget/chatContentMarkdownRenderer.js';
 import { chatPersistentContentVisibleClass, ChatWidget } from '../../../chat/browser/widget/chatWidget.js';
 import { SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING } from '../../../chat/browser/widget/chatOptions.js';
-import { IChatRespondent, isResponseSelectionSupported, setModelPreservingInputTypedWhileLoading } from '../../../chat/browser/chat.js';
+import { IChatRespondent, IChatWidget, isResponseSelectionSupported, setModelPreservingInputTypedWhileLoading } from '../../../chat/browser/chat.js';
 import { IChatOpen, IChatOpenDiagnosticsService } from '../../../chat/common/chatOpenDiagnosticsService.js';
 import { ChatSendResult, ElicitationState, IChatModelReference, IChatService, IChatToolInvocation, ResponseModelState } from '../../../chat/common/chatService/chatService.js';
 import { isChatTranscriptContextVariableEntry, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
@@ -50,6 +50,7 @@ import { ChatRequestTextPart } from '../../../chat/common/requestParser/chatPars
 import { Range } from '../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { IScheduledChatsService } from '../scheduledChatsService.js';
 import { getHarnessPresentationOrDefault, ISendRequestOptions, ISessionsProvider } from '../../common/sessionsProvider.js';
 import { ISessionsProvidersService, observeSessionSandboxToggle } from '../sessionsProvidersService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../chat/common/constants.js';
@@ -192,7 +193,7 @@ export class NewChatView extends AbstractChatView {
 	override readonly pickerVisibility: IObservable<ISessionPickerVisibility>;
 
 	private readonly _widget: NewChatWidget | NewChatInSessionWidget;
-	private readonly _isVisibleObs = observableValue(this, true);
+	private readonly _isVisibleObs = observableValue(this, false);
 
 	constructor(
 		isNewChatInSession: boolean,
@@ -289,6 +290,10 @@ export class NewChatView extends AbstractChatView {
 
 	override selectNoWorkspace(options?: ISelectNoWorkspaceOptions): WorkspaceSelectionResult {
 		return this._widget instanceof NewChatWidget ? this._widget.applyNoWorkspace(options) : 'notReady';
+	}
+
+	override get chatWidget(): IChatWidget | undefined {
+		return this._widget.chatWidget;
 	}
 
 	override prefillInput(text: string): void {
@@ -464,6 +469,7 @@ export class ChatView extends AbstractChatView {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IScheduledChatsService private readonly scheduledChatsService: IScheduledChatsService,
 		@ISessionComparisonService private readonly comparisonService: ISessionComparisonService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
@@ -511,6 +517,7 @@ export class ChatView extends AbstractChatView {
 				rendererOptions: {
 					renderInputRequests: options.inputOnly ? false : undefined,
 					renderHtmlPreviews: true,
+					renderNativeComponents: true,
 					referencesExpandedWhenEmptyResponse: false,
 					progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
 					contentHorizontalPadding: this._chatItemHorizontalPadding,
@@ -528,6 +535,12 @@ export class ChatView extends AbstractChatView {
 				inputPlaceholder: options.input?.placeholder,
 				inputEditorOptions: options.inputEditorOptions,
 				isSessionsWindow: true,
+				validateInput: query => {
+					if (this.scheduledChatsService.enabled.get() && query !== this._widget.getInput()) {
+						throw new Error(localize('chat.inputChangedBeforeSend', "The input changed while preparing this request. Review it before sending again."));
+					}
+					this.scheduledChatsService.assertChatInputUnscheduled(this._widget, query);
+				},
 				sandboxToggleChecked: observeSessionSandboxToggle(this._currentSessionObs, this._currentChatResourceObs, this.sessionsProvidersService),
 				transcriptTabIndex: -1,
 				enableFind: true,
@@ -640,6 +653,8 @@ export class ChatView extends AbstractChatView {
 			return isEqual(model?.sessionResource, this._currentChatResourceObs.read(reader))
 				&& !!model && !model.isReadOnly.read(reader) && !this.isLoadingTranscript.read(reader);
 		});
+		this._register(this.scheduledChatsService.registerChatInput(this._widget, this._currentSessionObs, this._currentChatResourceObs,
+			derived(this, reader => this._liveModelReady.read(reader) && !this.isInputBlocked.read(reader))));
 		this._register(this._widget.onDidChangeDraft(() => this._handleDraftInput()));
 		this._setupTranscriptPreparationProgress(chatModel);
 		this._setupInitialTranscriptContext(chatModel);
@@ -839,6 +854,10 @@ export class ChatView extends AbstractChatView {
 
 	/** The underlying chat widget. */
 	get widget(): ChatWidget {
+		return this._widget;
+	}
+
+	override get chatWidget(): IChatWidget | undefined {
 		return this._widget;
 	}
 
@@ -1697,6 +1716,10 @@ export class ChatViewFactory implements IChatViewFactory {
 
 	get inputEditorOptions(): IChatViewOptions['inputEditorOptions'] {
 		return this.viewOptions.inputEditorOptions;
+	}
+
+	get newSessionInput(): IChatViewOptions['newSessionInput'] {
+		return this.viewOptions.newSessionInput;
 	}
 
 	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions, instantiationService: IInstantiationService): AbstractChatView {

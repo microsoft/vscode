@@ -11,6 +11,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
+import { buildAnnotationsUri, isAnnotationsUri, parseAnnotationsUri } from '../../common/annotationsUri.js';
+import { resolveAgentHostSession } from '../../common/agentHostSubscriptionService.js';
 import { buildSessionChangesetUri, buildTurnChangesetUri } from '../../common/changesetUri.js';
 import { buildChatUri } from '../../common/state/sessionState.js';
 import { IAgentHostChatOwnershipService, type IChatOwnerChange, type IChatRegistration } from '../../node/agentHostChatOwnershipService.js';
@@ -22,6 +24,50 @@ suite('AgentHostSubscriptionService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => sinon.restore());
+
+	test('routes dedicated annotations without confusing host-wide channels or legacy session owners', () => {
+		const sessions = ['ahp-session:/standard', 'copilotcli:/retained', 'claude:/retained', 'codex:/retained'];
+		const channels = sessions.map(buildAnnotationsUri);
+		assert.deepStrictEqual({
+			schemes: channels.map(channel => URI.parse(channel).scheme),
+			distinct: new Set(channels).size,
+			owners: channels.map(channel => resolveAgentHostSession(URI.parse(channel), () => undefined)?.toString()),
+			parsed: channels.map(channel => parseAnnotationsUri(channel)?.sessionUri),
+			foreignChannel: isAnnotationsUri('ahp-annotations://another-host/reviews?scope=one'),
+			hostWideOwners: ['ahp-automations://', 'ahp-automation-run:/run', 'ahp-root://', 'ahp-terminal:/terminal'].map(channel => resolveAgentHostSession(URI.parse(channel), () => undefined)),
+		}, {
+			schemes: sessions.map(() => 'ahp-annotations'),
+			distinct: sessions.length,
+			owners: sessions,
+			parsed: sessions,
+			foreignChannel: true,
+			hostWideOwners: [undefined, undefined, undefined, undefined],
+		});
+	});
+
+	test('annotation subscriptions distinguish retained sessions with the same raw id', () => {
+		const subscriptions = disposables.add(new AgentHostSubscriptionService(new class extends mock<IAgentHostChatOwnershipService>() {
+			override readonly onDidRegisterChat = Event.None;
+			override readonly onDidChangeChatOwner = Event.None;
+		}()));
+		const first = URI.parse('copilotcli:/same-id');
+		const second = URI.parse('claude:/same-id');
+		const firstAnnotations = URI.parse(buildAnnotationsUri(first.toString()));
+		const secondAnnotations = URI.parse(buildAnnotationsUri(second.toString()));
+		subscriptions.addSubscriber(firstAnnotations, 'first-client');
+		const firstOnly = [subscriptions.hasSessionSubscribers(first), subscriptions.hasSessionSubscribers(second)];
+		subscriptions.addSubscriber(secondAnnotations, 'second-client');
+		subscriptions.removeSubscriber(firstAnnotations, 'first-client');
+		assert.deepStrictEqual({
+			firstOnly,
+			remaining: [subscriptions.hasSessionSubscribers(first), subscriptions.hasSessionSubscribers(second)],
+			owner: subscriptions.resolveSubscribedSession(secondAnnotations)?.toString(),
+		}, {
+			firstOnly: [true, false],
+			remaining: [false, true],
+			owner: second.toString(),
+		});
+	});
 
 	test('routes a chat and its retained terminal links to the chat\'s new owner after an owner change', () => {
 		const registrations = disposables.add(new Emitter<IChatRegistration>());

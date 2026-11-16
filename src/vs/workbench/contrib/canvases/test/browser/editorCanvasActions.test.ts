@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -22,6 +23,7 @@ import { IChatViewModel } from '../../../chat/common/model/chatViewModel.js';
 import { ChatNewCanvasMenuId, OPEN_EDITOR_CANVAS_COMMAND_ID, registerEditorCanvasActions, REOPEN_EDITOR_CANVAS_COMMAND_ID } from '../../browser/editorCanvasActions.js';
 import { getCanvasDefinitionInstanceId, ICanvasContext, ICanvasDefinition, ICanvasService } from '../../common/canvas.js';
 import { ICanvas } from '../../../../common/canvasReference.js';
+import { TestProgressService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('EditorCanvasActions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -82,11 +84,13 @@ suite('EditorCanvasActions', () => {
 			title: 'Counter',
 			source: undefined,
 		};
+		const icon = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 		const preview: ICanvas = {
 			resource: URI.parse('agent-host-canvas:/preview'),
 			instanceId: 'preview-secondary',
 			title: 'Preview',
 			source: URI.parse('https://example.test/preview'),
+			icon: URI.parse(icon),
 		};
 		const canvases = observableValue<readonly ICanvas[] | undefined>('canvases', [existing, unavailableProject, preview]);
 		const context: ICanvasContext = {
@@ -131,6 +135,7 @@ suite('EditorCanvasActions', () => {
 			widgetService,
 			new NullLogService(),
 			upcastPartial<INotificationService>({ error: () => undefined }),
+			new TestProgressService(),
 		);
 		await timeout(0);
 
@@ -158,6 +163,7 @@ suite('EditorCanvasActions', () => {
 			extensionSource: 'project',
 			displayName: 'Chart',
 			description: 'A chart.',
+			icon,
 			requiresInput: false,
 		}];
 		definitionsChanged.fire();
@@ -190,6 +196,7 @@ suite('EditorCanvasActions', () => {
 			revealed,
 			unchangedSubmenuRetained: unchangedSubmenus[0] === initialSubmenus[0],
 			refreshedTitles: refreshedItems.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value),
+			refreshedIcons: refreshedItems.map(item => ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : item.command.icon?.dark?.toString(true)),
 			uninitializedItems: uninitializedItems.length,
 			uninitializedSubmenus: uninitializedSubmenus.length,
 			disabledItems: disabledItems.length,
@@ -213,6 +220,7 @@ suite('EditorCanvasActions', () => {
 			revealed: ['agent-host-canvas:/user-counter', 'agent-host-canvas:/preview'],
 			unchangedSubmenuRetained: true,
 			refreshedTitles: ['Counter', 'Preview', 'Chart'],
+			refreshedIcons: ['preview', icon, icon],
 			uninitializedItems: 0,
 			uninitializedSubmenus: 0,
 			disabledItems: 0,
@@ -279,6 +287,7 @@ suite('EditorCanvasActions', () => {
 			widgetService,
 			new NullLogService(),
 			upcastPartial<INotificationService>({ error: () => undefined }),
+			new TestProgressService(),
 		);
 		await timeout(0);
 

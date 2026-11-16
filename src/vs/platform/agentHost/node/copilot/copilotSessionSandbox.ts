@@ -11,6 +11,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IEnvironmentService, INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentSandboxEnabledValue, normalizeSandboxFileSystemPath } from '../../../sandbox/common/settings.js';
@@ -27,6 +28,7 @@ import { SAVE_SESSION_SANDBOX_PATH, SAVE_WORKSPACE_SANDBOX_PATH, type ISandboxPa
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
 import { IAgentConfigurationService, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
+import { getApplicationSandboxReadRoots } from '../applicationSandboxPaths.js';
 import { getSessionSandboxConfig, getSessionSandboxOverrides } from '../sessionSandbox.js';
 import { ISessionSandboxPathService } from '../sessionSandboxPathService.js';
 import { getWorkspaceSandboxScopeId, IWorkspaceSandboxPathService } from '../workspaceSandboxPathService.js';
@@ -84,6 +86,7 @@ export class CopilotSessionSandbox extends Disposable {
 	private readonly _configSequencer = new Sequencer();
 	private readonly _diagnostics: CopilotSandboxDiagnostics;
 	private readonly _certificateDiagnostics: CopilotSandboxCertificateDiagnostics;
+	private _applicationReadRoots: readonly URI[] | undefined;
 	private _configUpdateDeferred = false;
 	private _workspacePathsLoadFailed = false;
 	private _disabledForSession = false;
@@ -100,6 +103,7 @@ export class CopilotSessionSandbox extends Disposable {
 		@IWorkspaceSandboxPathService private readonly _workspacePaths: IWorkspaceSandboxPathService,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 	) {
 		super();
 		this._diagnostics = this._register(instantiationService.createInstance(CopilotSandboxDiagnostics, _options.ownerSession.toString(), _options.getHostSupport, _options.platform));
@@ -118,6 +122,11 @@ export class CopilotSessionSandbox extends Disposable {
 
 	async prepare(): Promise<void> {
 		this._getWorkspacePaths();
+		if (!this._applicationReadRoots) {
+			this._applicationReadRoots = this._environmentService.appBundleRoot
+				? await getApplicationSandboxReadRoots(this._environmentService.appRoot, this._environmentService.appBundleRoot, this._options.platform)
+				: [];
+		}
 		await this._sessionPaths.load(this._options.ownerSession);
 	}
 
@@ -423,6 +432,7 @@ export class CopilotSessionSandbox extends Disposable {
 		const sandbox = getSessionSandboxConfig(this._configurationService, target, this._options.platform, this._getWorkspacePaths());
 		const policy = this._configurationService.getSessionSandboxPolicy(target.session);
 		const readonlyPaths = [...getVSCodeSandboxReadRoots({
+			applicationReadRoots: this._applicationReadRoots,
 			sessionDataDirectories: [this._options.ownerSession.toString(), this._options.storage.toString(), ...this._configurationService.getChatAttachmentScopes(target)]
 				.filter((scope, index, scopes) => scopes.indexOf(scope) === index)
 				.map(scope => this._sessionDataService.getSessionDataDir(URI.parse(scope))),

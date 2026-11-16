@@ -4,19 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
+import { timeout } from '../../../../../../../base/common/async.js';
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { isManagedHoverTooltipHTMLElement } from '../../../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { observableValue } from '../../../../../../../base/common/observable.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { HoverService } from '../../../../../../../platform/hover/browser/hoverService.js';
+import { ILayoutService } from '../../../../../../../platform/layout/browser/layoutService.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
-import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { IHoverService, WorkbenchHoverDelegate } from '../../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { TestFileService, workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../../browser/labels.js';
-import { ImageAttachmentWidget } from '../../../../browser/attachments/chatAttachmentWidgets.js';
+import { DefaultChatAttachmentWidget, ImageAttachmentWidget } from '../../../../browser/attachments/chatAttachmentWidgets.js';
+import { getGitHubIssueOrPullRequestAttachments } from '../../../../browser/widget/input/editor/chatPasteProviders.js';
+import { GitHubResourceDetailsResolver, LazyGitHubResourceState } from '../../../../../github/browser/githubResourceDetails.js';
+import { IGitHubIssueHoverModel } from '../../../../../github/browser/githubResourceHover.js';
+import { IWorkbenchGitHubService } from '../../../../../../services/github/common/githubService.js';
+import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
+import { IClipboardService } from '../../../../../../../platform/clipboard/common/clipboardService.js';
+import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { ChatAttachmentsContentPart } from '../../../../browser/widget/chatContentParts/chatAttachmentsContentPart.js';
 import { AgentHostCompletionReferenceKind, IChatRequestVariableEntry, OmittedState, toAgentHostCompletionVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../common/languageModels.js';
@@ -29,10 +48,271 @@ suite('ChatAttachmentsContentPart', () => {
 	setup(() => {
 		disposables = store.add(new DisposableStore());
 		instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IWorkbenchGitHubService, upcastPartial<IWorkbenchGitHubService>({ onDidChangeDefaultClient: Event.None }));
 	});
 
 	teardown(() => {
+		sinon.restore();
 		disposables.dispose();
+	});
+
+	suite('GitHub attachment previews', () => {
+		for (const delay of [500, 700]) {
+			test(`pointer previews use the configured ${delay}ms delay and replace the previous reference`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const fixture = dom.append(document.body, dom.$('div'));
+				disposables.add(toDisposable(() => fixture.remove()));
+				instantiationService.stub(IConfigurationService, new TestConfigurationService({ 'workbench.hover.delay': delay }));
+				instantiationService.stub(ILayoutService, {
+					activeContainer: fixture,
+					mainContainer: fixture,
+					getContainer: () => fixture,
+					onDidLayoutContainer: Event.None,
+				});
+				const hoverService = disposables.add(instantiationService.createInstance(HoverService));
+				disposables.add(toDisposable(() => hoverService.hideHover(true)));
+				instantiationService.stub(IHoverService, hoverService);
+				// Fake time starts inside the delegate's instant-hover grace period.
+				await timeout(1000);
+				const hoverDelegate = disposables.add(instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, {}));
+				const previews = [dom.$('div', undefined, 'First reference'), dom.$('div', undefined, 'Second reference')];
+				const createHover = sinon.stub(GitHubResourceDetailsResolver.prototype, 'createHover').callsFake((_identity, options) => ({
+					hover: { content: () => dom.$('div', undefined, 'Keyboard details') },
+					pillHover: { element: () => previews[options.target.number - 1], contentOwnsPadding: true },
+					prefetch: () => { },
+				}));
+				const labels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+				const widgets = [1, 2].map(number => disposables.add(instantiationService.createInstance(DefaultChatAttachmentWidget,
+					undefined, undefined, getGitHubIssueOrPullRequestAttachments(`https://github.com/microsoft/vscode/issues/${number}`)[0], undefined, undefined,
+					{ shouldFocusClearButton: false, supportsDeletion: true, hoverDelegate }, dom.append(fixture, dom.$('.chat-inline-attachment')), labels)));
+				widgets[0].element.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+				await timeout(delay - 1);
+				const beforeDeadline = previews[0].isConnected;
+				const resolvedBeforeDeadline = createHover.callCount;
+				await timeout(1);
+				const firstShown = previews[0].isConnected;
+				const contentOwnsPadding = !!previews[0].closest('.managed-hover-content-owns-padding');
+				widgets[0].element.dispatchEvent(new MouseEvent('mouseleave'));
+				widgets[1].element.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+				await timeout(0);
+				const secondShownForPointer = previews[1].isConnected;
+				widgets[1].element.dispatchEvent(new MouseEvent('mouseleave'));
+				const focusedElement = dom.getActiveElement();
+				widgets[0].previewHover?.show(false);
+				await timeout(0);
+				const keyboardShown = previews[0].isConnected;
+				const keyboardPreservedFocus = dom.getActiveElement() === focusedElement;
+				widgets[1].element.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+				await timeout(0);
+				assert.deepStrictEqual({
+					beforeDeadline,
+					resolvedBeforeDeadline,
+					firstShown,
+					contentOwnsPadding,
+					secondShownForPointer,
+					keyboardShown,
+					keyboardPreservedFocus,
+					firstDismissed: !previews[0].isConnected,
+					secondShown: previews[1].isConnected,
+				}, { beforeDeadline: false, resolvedBeforeDeadline: 0, firstShown: true, contentOwnsPadding: true, secondShownForPointer: true, keyboardShown: true, keyboardPreservedFocus: true, firstDismissed: true, secondShown: true });
+			}));
+		}
+
+		test('keeps the shared resolver cache across attachment widget recreation', async () => {
+			const resolver = disposables.add(instantiationService.createInstance(GitHubResourceDetailsResolver));
+			const state = observableValue<LazyGitHubResourceState<IGitHubIssueHoverModel>>(resolver, { status: 'idle' });
+			const issue: IGitHubIssueHoverModel = {
+				title: 'Cached issue',
+				body: 'Real details',
+				state: 'open',
+				author: { login: 'octocat' },
+				createdAt: '2026-11-03T00:00:00Z',
+			};
+			sinon.stub(resolver, 'getIssueState').returns(state);
+			sinon.stub(resolver, 'isFresh').callsFake(() => state.get().status === 'resolved');
+			const resolve = sinon.stub(resolver, 'resolveIssue').callsFake(async () => {
+				state.set({ status: 'resolved', value: issue }, undefined);
+				return issue;
+			});
+			const labels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+			const attachment = getGitHubIssueOrPullRequestAttachments('https://github.com/microsoft/vscode/issues/123')[0];
+			const createWidget = () => disposables.add(instantiationService.createInstance(DefaultChatAttachmentWidget,
+				undefined, undefined, attachment, undefined, undefined,
+				{ shouldFocusClearButton: false, supportsDeletion: true, gitHubResourceDetailsResolver: resolver }, dom.$('.chat-inline-attachment'), labels));
+			const first = createWidget();
+			const loading = first.getPreviewHoverContent();
+			const firstFallback = loading?.textContent;
+			await timeout(0);
+			first.dispose();
+			const second = createWidget();
+			const cached = second.getPreviewHoverContent();
+			let pointerContent: Promise<HTMLElement> | undefined;
+			instantiationService.stub(IHoverService, {
+				...NullHoverService,
+				setupManagedHover: (delegate, target, content) => {
+					const resolved = typeof content === 'function' ? content() : content;
+					assert.ok(isManagedHoverTooltipHTMLElement(resolved));
+					pointerContent = Promise.resolve(resolved.element(CancellationToken.None));
+					return NullHoverService.setupManagedHover(delegate, target, content);
+				},
+			});
+			const pointerWidget = createWidget();
+			const pointer = await pointerContent;
+			assert.deepStrictEqual({
+				firstFallback,
+				resolvedTitle: cached?.querySelector('.sessions-issue-hover-title')?.textContent?.replace(/\s+/g, ' ').trim(),
+				requests: resolve.callCount,
+				independentViews: pointer !== cached,
+				pointerTitle: pointer?.querySelector('.sessions-issue-hover-title')?.textContent?.replace(/\s+/g, ' ').trim(),
+			}, { firstFallback: 'Issue #123', resolvedTitle: 'Cached issue #123', requests: 1, independentViews: true, pointerTitle: 'Cached issue #123' });
+			pointerWidget.dispose();
+		});
+
+		for (const [path, kind] of [['issues', 'issue'], ['pull', 'pullRequest']] as const) {
+			test(`provides the lazy ${kind} preview only to inline attachments`, async () => {
+				const preview = dom.$('div', undefined, 'Preview title and status');
+				const render = sinon.spy(() => preview);
+				const createHover = sinon.stub(GitHubResourceDetailsResolver.prototype, 'createHover').returns({
+					hover: { content: render },
+					pillHover: { element: render },
+					prefetch: () => assert.fail('Attachments must not prefetch details'),
+				});
+				let pointerRegistrations = 0;
+				instantiationService.stub(IHoverService, {
+					...NullHoverService,
+					setupManagedHover: (delegate, target, content) => {
+						pointerRegistrations++;
+						return NullHoverService.setupManagedHover(delegate, target, content);
+					},
+				});
+				const labels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+				const attachment = getGitHubIssueOrPullRequestAttachments(`https://github.com/microsoft/vscode/${path}/123`)[0];
+				const copied: string[] = [];
+				const opened: { resource: string; options: Parameters<IOpenerService['open']>[1] }[] = [];
+				instantiationService.stub(IClipboardService, upcastPartial<IClipboardService>({ writeText: async text => { copied.push(text); } }));
+				instantiationService.stub(IOpenerService, upcastPartial<IOpenerService>({
+					open: async (resource, options) => {
+						opened.push({ resource: resource.toString(), options });
+						return true;
+					},
+				}));
+				const widget = disposables.add(instantiationService.createInstance(DefaultChatAttachmentWidget,
+					undefined, undefined, attachment, undefined, undefined,
+					{ shouldFocusClearButton: false, supportsDeletion: true }, dom.$('.chat-inline-attachment'), labels));
+				assert.deepStrictEqual({
+					createdAtRest: createHover.callCount,
+					renderedAtRest: render.callCount,
+					label: widget.label.element.textContent?.trim(),
+					pointerRegistrations,
+				}, {
+					createdAtRest: 0,
+					renderedAtRest: 0,
+					label: 'microsoft/vscode#123',
+					pointerRegistrations: 1,
+				});
+				const keyboardContent = widget.getPreviewHoverContent();
+				assert.deepStrictEqual({
+					kind: createHover.firstCall.args[1].kind,
+					target: createHover.firstCall.args[1].target,
+					keyboardContent,
+					supportsPreview: widget.supportsPreview,
+				}, {
+					kind,
+					target: { owner: 'microsoft', repo: 'vscode', number: 123 },
+					keyboardContent: preview,
+					supportsPreview: true,
+				});
+				createHover.lastCall.args[1].onDidClickBaseBranch('main');
+				createHover.lastCall.args[1].onDidClickHeadBranch('feature/preview');
+				createHover.lastCall.args[1].onDidClickReference();
+				assert.deepStrictEqual({ copied, opened }, {
+					copied: ['main', 'feature/preview'],
+					opened: [{ resource: `https://github.com/microsoft/vscode/${path}/123`, options: { openExternal: true } }],
+				});
+				opened.length = 0;
+				widget.element.click();
+				await timeout(0);
+				assert.deepStrictEqual(opened.map(item => item.resource), [`https://github.com/microsoft/vscode/${path}/123`]);
+				widget.dispose();
+			});
+
+			test(`preserves the ordinary non-inline ${kind} attachment tooltip`, () => {
+				const createHover = sinon.stub(GitHubResourceDetailsResolver.prototype, 'createHover');
+				let tooltipRegistrations = 0;
+				instantiationService.stub(IHoverService, {
+					...NullHoverService,
+					setupDelayedHover: () => {
+						tooltipRegistrations++;
+						return toDisposable(() => { });
+					},
+				});
+				const labels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+				const attachment = getGitHubIssueOrPullRequestAttachments(`https://github.com/microsoft/vscode/${path}/123`)[0];
+				assert.ok(attachment.kind === 'generic');
+				const widget = disposables.add(instantiationService.createInstance(DefaultChatAttachmentWidget,
+					undefined, undefined, { ...attachment, tooltip: new MarkdownString('Existing reference tooltip') }, undefined, undefined,
+					{ shouldFocusClearButton: false, supportsDeletion: true }, dom.$('div'), labels));
+				assert.deepStrictEqual({
+					supportsPreview: widget.supportsPreview,
+					preview: widget.getPreviewHoverContent(),
+					enrichmentCalls: createHover.callCount,
+					tooltipRegistrations,
+				}, { supportsPreview: false, preview: undefined, enrichmentCalls: 0, tooltipRegistrations: 1 });
+			});
+		}
+
+		for (const id of [
+			'ordinary',
+			'github-context:https://github.com/microsoft/vscode/pull/0',
+			'github-context:https://github.com/microsoft/vscode/pull/not-a-number',
+			'github-context:https://github.com/microsoft/vscode/discussions/123',
+			'github-context:https://example.com/microsoft/vscode/pull/123',
+			'github-context:https://example.com/artifact/123',
+		]) {
+			test(`does not preview an unsupported reference: ${id}`, () => {
+				const createHover = sinon.stub(GitHubResourceDetailsResolver.prototype, 'createHover');
+				const labels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+				const widget = disposables.add(instantiationService.createInstance(DefaultChatAttachmentWidget,
+					undefined, undefined, { kind: 'generic', id, name: 'Reference', value: id }, undefined, undefined,
+					{ shouldFocusClearButton: false, supportsDeletion: true }, dom.$('.chat-inline-attachment'), labels));
+				assert.deepStrictEqual({
+					supportsPreview: widget.supportsPreview,
+					preview: widget.getPreviewHoverContent(),
+					popup: widget.element.getAttribute('aria-haspopup'),
+					requested: createHover.callCount,
+				}, { supportsPreview: false, preview: undefined, popup: null, requested: 0 });
+			});
+		}
+
+		test('invalidates old-account content and reacquires the preview on reopening', () => {
+			const changed = disposables.add(new Emitter<void>());
+			instantiationService.stub(IWorkbenchGitHubService, upcastPartial<IWorkbenchGitHubService>({ onDidChangeDefaultClient: changed.event }));
+			const oldContent = dom.$('div');
+			const freshContent = dom.$('div', undefined, 'New account details');
+			const hide = sinon.spy();
+			instantiationService.stub(IHoverService, {
+				...NullHoverService,
+				setupManagedHover: (delegate, target, content) => ({ ...NullHoverService.setupManagedHover(delegate, target, content), hide }),
+			});
+			const createHover = sinon.stub(GitHubResourceDetailsResolver.prototype, 'createHover');
+			createHover.onFirstCall().returns({ hover: { content: () => oldContent }, pillHover: { element: () => oldContent }, prefetch: () => { } });
+			createHover.onSecondCall().returns({ hover: { content: () => freshContent }, pillHover: { element: () => freshContent }, prefetch: () => { } });
+			const labels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+			const widget = disposables.add(instantiationService.createInstance(DefaultChatAttachmentWidget,
+				undefined, undefined, getGitHubIssueOrPullRequestAttachments('https://github.com/microsoft/vscode/pull/123')[0], undefined, undefined,
+				{ shouldFocusClearButton: false, supportsDeletion: true }, dom.$('.chat-inline-attachment'), labels));
+			widget.getPreviewHoverContent();
+			let invalidated = 0;
+			disposables.add(widget.onDidChangePreview(() => {
+				invalidated++;
+			}));
+			changed.fire();
+			assert.deepStrictEqual({
+				freshContent: widget.getPreviewHoverContent() === freshContent,
+				invalidated,
+				hidden: hide.calledOnce,
+			}, { freshContent: true, invalidated: 1, hidden: true });
+		});
+
 	});
 
 	function createFileEntry(name: string, uri?: URI): IChatRequestVariableEntry {
@@ -414,6 +694,39 @@ suite('ChatAttachmentsContentPart', () => {
 				isAutoWarning: true,
 				hasWarningIcon: false,
 				hoverText: [`${instantiationService.get(ILabelService).getUriLabel(URI.file('/test/image.png'))}Image support depends on the model selected by Copilot Fusion.`],
+			});
+		});
+
+		test('should mark up an image of the input right away, also from its Mark Up button, and say so', () => {
+			const imageHoverContents = captureImageHovers();
+			const contextResourceLabels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+			let markUps = 0;
+			const widget = disposables.add(instantiationService.createInstance(
+				ImageAttachmentWidget,
+				undefined,
+				{ kind: 'image', id: 'screenshot', name: 'Screenshot', value: new Uint8Array([0x89, 0x50, 0x4E, 0x47]), mimeType: 'image/png' },
+				undefined,
+				{ shouldFocusClearButton: false, supportsDeletion: true, isCurrentInput: true, markUp: async () => { markUps++; } },
+				dom.$('div'),
+				contextResourceLabels
+			));
+			widget.element.click();
+			widget.element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+			const markUpButton = widget.element.querySelector<HTMLElement>('.chat-attached-context-mark-up-button');
+			markUpButton?.click();
+			// A double click on the button does not also open the pill.
+			markUpButton?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual({
+				markUps,
+				ariaLabel: widget.element.ariaLabel,
+				hoverText: imageHoverContents.map(content => content.textContent),
+				markUpButton: { icon: markUpButton?.classList.contains('codicon-edit-compact'), tabIndex: markUpButton?.tabIndex },
+			}, {
+				markUps: 3,
+				ariaLabel: 'Attached image, Screenshot. Press Enter to mark it up. (Delete)',
+				hoverText: ['Click to mark up this image.'],
+				markUpButton: { icon: true, tabIndex: -1 },
 			});
 		});
 

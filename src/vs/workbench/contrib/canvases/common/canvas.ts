@@ -12,13 +12,14 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { isCanvasIconDataUri } from '../../../../platform/agentHost/common/meta/agentCanvasIconMeta.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { EditorInputCapabilities, GroupIdentifier, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import type { IBrowserViewModel } from '../../browserView/common/browserView.js';
-import { canvasOwnerKey, ICanvas, ICanvasOwner, ICanvasReference } from '../../../common/canvasReference.js';
+import { canvasOwnerKey, ICanvas, ICanvasOpenOptions, ICanvasOwner, ICanvasReference } from '../../../common/canvasReference.js';
 
 /** Reveals a live canvas beside its owning chat, reopening its closed tab. Takes an {@link ICanvasReference}. */
 export const REVEAL_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.revealCanvas';
@@ -35,7 +36,14 @@ export interface ICanvasDefinition {
 	readonly displayName: string;
 	readonly description: string;
 	readonly inputSchema?: unknown;
+	/** The canvas's icon as its host sends it, a PNG data URI; read it with {@link getCanvasIconUri}. */
+	readonly icon?: string;
 	readonly requiresInput: boolean;
+}
+
+/** The icon of a canvas as a URI, when `icon` is one a client can show: a bounded PNG data URI, never a host path. */
+export function getCanvasIconUri(icon: string | undefined): URI | undefined {
+	return isCanvasIconDataUri(icon) ? URI.parse(icon) : undefined;
 }
 
 /** `undefined` is unsettled; an array, including an empty one, is authoritative. */
@@ -51,7 +59,7 @@ export interface ICanvasDefinitionProvider {
 	readonly onDidChangeDefinitions: Event<void>;
 	/** Returns `undefined` while unsettled, then fires {@link onDidChangeDefinitions} when an authoritative snapshot is available. */
 	listCanvases(options?: ICanvasListOptions): Promise<CanvasDefinitionSnapshot>;
-	openCanvas(canvas: ICanvasDefinition, instanceId: string): Promise<void>;
+	openCanvas(canvas: ICanvasDefinition, instanceId: string, options?: ICanvasOpenOptions): Promise<void>;
 }
 
 export interface ICanvasReopenTarget {
@@ -287,7 +295,7 @@ const CANVAS_INSTANCE_ID_MAX_LENGTH = 128;
 
 /** Produces the stable instance identifier of the first canvas opened directly from a registered canvas type. */
 export function getCanvasDefinitionInstanceId(canvas: Pick<ICanvasDefinition, 'extensionId' | 'canvasId'>): string {
-	const raw = `${canvas.extensionId}\u0000${canvas.canvasId}`;
+	const raw = `${canvas.extensionId}-${canvas.canvasId}`;
 	const normalized = raw
 		.replace(/[^A-Za-z0-9._-]+/g, '-')
 		.replace(/^[._-]+/, '')
@@ -436,7 +444,7 @@ export class CanvasInput extends EditorInput {
 	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.ForceReveal; }
 	override getName(): string { return this.canvas.get()?.title ?? localize('canvas.editorName', "Canvas"); }
 	override getDescription(): undefined { return undefined; }
-	override getIcon(): ThemeIcon { return Codicon.preview; }
+	override getIcon(): ThemeIcon | URI { return this.canvas.get()?.icon ?? Codicon.preview; }
 	override getTitle(verbosity?: Verbosity): string {
 		const name = this.getName();
 		return verbosity === Verbosity.LONG ? `${name} - ${this.getReopenInstructions()}` : name;
@@ -480,7 +488,8 @@ export class CanvasInput extends EditorInput {
 			this.canvas.set(canvas, tx);
 			this.membershipPending.set(membershipPending, tx);
 		});
-		if (previous?.title !== canvas?.title) {
+		// Icons are data URIs, whose path holds the whole image.
+		if (previous?.title !== canvas?.title || previous?.icon?.path !== canvas?.icon?.path) {
 			this._onDidChangeLabel.fire();
 		}
 	}

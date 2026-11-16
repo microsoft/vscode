@@ -11,7 +11,7 @@ import { getBaseLayerHoverDelegate } from '../../../../../base/browser/ui/hover/
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { DeferredPromise, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, errorHandler } from '../../../../../base/common/errors.js';
 import { createErrorWithActions, isErrorWithActions } from '../../../../../base/common/errorMessage.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -36,9 +36,16 @@ import { WelcomeName } from '../../../../../workbench/contrib/sessions/browser/c
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
+import { IUsersClient, User } from '../../../../../platform/github/common/core/users.js';
+import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
+import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import type { ISessionOptionsIconOnlyPickers } from '../../../../../workbench/contrib/sessions/browser/chat/iconOnlySessionPickers.js';
 import { getNewSessionWelcomePhrases } from '../../../../../workbench/contrib/sessions/common/welcomePhrases.js';
 import { SessionInputPickerVisibility } from '../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
@@ -77,6 +84,7 @@ import { SessionConfigSchema } from '../../../../../platform/agentHost/common/st
 import { ISessionHost, ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
 import { ITestSessionWithChat, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISavedSessionDraft, ISavedSessionDraftTarget } from '../../../../../workbench/contrib/sessions/common/savedSessionDrafts.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -270,18 +278,19 @@ const refreshGitHubProfileName = Reflect.get(WelcomeName.prototype, '_refreshGit
 	readonly _store: { readonly isDisposed: boolean };
 	_githubProfileAccountKey: string | undefined;
 	readonly _githubProfileName: ReturnType<typeof observableValue<string | undefined>>;
-	readonly configurationService: { getValue<T>(key: string): T };
+	readonly configurationService: { getValue<T>(key: string): T | undefined };
 	readonly defaultAccountService: {
 		currentDefaultAccount: { readonly authenticationProvider: { readonly id: string; readonly enterprise: boolean }; readonly sessionId: string } | null;
 		getDefaultAccount(): Promise<{ readonly authenticationProvider: { readonly id: string; readonly enterprise: boolean }; readonly sessionId: string } | null>;
 	};
+	readonly logService: Pick<ILogService, 'warn'>;
 	_fetchGitHubProfileName(providerId: string, enterprise: boolean, sessionId: string): Promise<string | undefined>;
 }) => Promise<void>;
 const fetchGitHubProfileName = Reflect.get(WelcomeName.prototype, '_fetchGitHubProfileName') as (this: {
-	readonly authenticationService: { getSessions(): Promise<readonly never[]> };
-	readonly defaultAccountService: { resolveGitHubUrl(path: string): URI | undefined };
-	readonly requestService: { request(): Promise<never> };
-	readonly logService: { warn(message: string): void };
+	readonly authenticationService: Pick<IAuthenticationService, 'getSessions'>;
+	readonly defaultAccountService: Pick<IDefaultAccountService, 'resolveGitHubUrl'>;
+	readonly gitHubService: Pick<IWorkbenchGitHubService, 'acquireAccountApiClient'>;
+	readonly logService: Pick<ILogService, 'warn'>;
 }, providerId: string, enterprise: boolean, sessionId: string) => Promise<string | undefined>;
 
 interface IPromptOptionsWorkspaceHarness {
@@ -330,7 +339,7 @@ interface ISendHarness {
 	_lastBackgroundSentSessionResource?: URI;
 	_lastBackgroundSendOptions?: ISendRequestOptions;
 	readonly _newChatInput?: Pick<SharedChatInputComposer, 'hasInput'>;
-	readonly notificationService: { error(message: string | Error): void; info?(message: string): void };
+	readonly notificationService: { error(message: string | Error): void; info?(message: string): void; prompt?: INotificationService['prompt'] };
 	readonly _pendingBackgroundSends: { set(key: object, value: IDisposable): void; deleteAndDispose(key: object): void };
 	readonly recentWorkspacesService: { restoreDismissedWorkspace(folderUri: URI): void };
 	readonly newSessionComposerService: { notifyWillSendRequest(options: ISendRequestOptions, selection: IWorkspaceSelectionSnapshot | undefined): void };
@@ -366,7 +375,7 @@ interface ISendHarness {
 		} | undefined;
 	};
 	readonly sessionComparisonService?: { startComparison(options: IStartSessionComparisonOptions): Promise<{ readonly id: string; readonly participants: readonly { readonly role: SessionComparisonParticipantRole; readonly sessionResource?: URI }[] }> };
-	readonly sessionsService?: { unsetNewSession(): void; openSession(resource: URI, options: { readonly source: 'chat' }): Promise<void> };
+	readonly sessionsService?: { unsetNewSession(): void; openSession(resource: URI, options: IOpenSessionOptions): Promise<void> };
 	readonly commandService?: { executeCommand(commandId: string, ...args: unknown[]): Promise<unknown> };
 	readonly logService: { error(message: string, ...args: unknown[]): void };
 	_getComparisonBranch?(session: ISession): string | undefined;
@@ -536,7 +545,7 @@ const getNoWorkspaceOption = Reflect.get(NewChatWidget.prototype, '_getNoWorkspa
 const getWorkspaceRoots = Reflect.get(NewChatWidget.prototype, '_getWorkspaceRoots') as (this: IWorkspaceRootsHarness, session: ISession) => readonly URI[];
 const canSendRequestToWorkspace = Reflect.get(NewChatWidget.prototype, '_canSendRequestToWorkspace') as (this: ICanSendRequestToWorkspaceHarness, session: ISession, environment: ISessionCreationEnvironment, reader: IReader) => boolean;
 const restoreNoWorkspaceDraft = Reflect.get(NewChatWidget.prototype, '_restoreNoWorkspaceDraft') as (this: IRestoreNoWorkspaceDraftHarness) => Promise<void>;
-const handleWorkspaceSelection = Reflect.get(NewChatWidget.prototype, '_handleWorkspaceSelection') as (this: IHandleWorkspaceSelectionHarness, folderUri: URI | undefined) => Promise<void>;
+const handleWorkspaceSelection = Reflect.get(NewChatWidget.prototype, '_handleWorkspaceSelection') as (this: IHandleWorkspaceSelectionHarness, folderUri: URI | undefined, notByUser?: boolean) => Promise<void>;
 const onWorkspaceSelected = Reflect.get(NewChatWidget.prototype, '_onWorkspaceSelected') as (this: IClearWorkspaceHarness, folderUri: URI | undefined) => Promise<void>;
 const getWorkspaceOptOutTarget = Reflect.get(NewChatWidget.prototype, '_getWorkspaceOptOutTarget') as (
 	this: { readonly sessionsManagementService: Pick<ISessionsManagementService, 'isQuickChatTargetAvailable' | 'getQuickChatSessionTypes'> },
@@ -574,6 +583,181 @@ function createHarness(
 
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('saved draft navigation captures only when the shown input hides, not on host disposal or send', () => {
+		const hostVisible = observableValue('hostVisible', true);
+		const inputVisible = observableValue('inputVisible', false);
+		const composer = { isSending: false };
+		let captures = 0;
+		const stowed: boolean[] = [];
+		const harness = {
+			options: { hostVisible, inputVisible },
+			_savedDraftComposer: composer,
+			_captureSavedDraftTarget: () => { captures++; },
+			sessionDraftsService: {
+				stowAndClear: (value: typeof composer) => {
+					stowed.push(value === composer);
+				},
+			},
+			notificationService: { error: (error: Error) => { throw error; } },
+		};
+		const track = Reflect.get(NewChatWidget.prototype, '_trackSavedDraftVisibility') as (this: typeof harness) => IDisposable;
+		disposables.add(track.call(harness));
+		hostVisible.set(false, undefined);
+		hostVisible.set(true, undefined);
+		inputVisible.set(true, undefined);
+		inputVisible.set(false, undefined);
+		hostVisible.set(false, undefined);
+		inputVisible.set(true, undefined);
+		hostVisible.set(true, undefined);
+		hostVisible.set(false, undefined);
+		hostVisible.set(true, undefined);
+		composer.isSending = true;
+		inputVisible.set(false, undefined);
+		assert.deepStrictEqual({ captures, stowed }, {
+			captures: 1, stowed: [true],
+		});
+	});
+
+	suite('saved draft restoration', () => {
+		function createHarness(session: ISession) {
+			let input: IChatDraft = { inputText: 'previous input', attachments: [] };
+			let inputEnabled = true;
+			const focusStates: boolean[] = [];
+			const configured: ISession[] = [];
+			const harness = {
+				_store: disposables.add(new DisposableStore()),
+				_restoringSavedDraft: observableValue('restoring', false),
+				_savedDraftTargetUnavailable: observableValue('unavailable', false),
+				_pendingPreferredUpgrade: disposables.add(new MutableDisposable<IDisposable>()),
+				_newSessionCreation: disposables.add(new MutableDisposable<IDisposable>()),
+				_pendingWorkspaceCreation: Promise.resolve(),
+				_savedDraftComposer: { id: 'previous', target: {} as ISavedSessionDraftTarget },
+				_newChatInput: {
+					setInputEnabled: (enabled: boolean) => { inputEnabled = enabled; },
+					setDraft: (draft: IChatDraft) => { input = draft; },
+					focus: () => { focusStates.push(inputEnabled); },
+				},
+				storageService: disposables.add(new InMemoryStorageService()),
+				sessionsProvidersService: { getProvider: () => ({ sessionTypes: [{ id: 'agent' }] }) },
+				_environments: constObservable<readonly ISessionCreationEnvironment[]>([]),
+				_pickedEnvironment: observableValue<ISessionCreationEnvironment | undefined>('environment', undefined),
+				_workspacePicker: { ...workspaceIdentity(), setSelectedWorkspace: () => { } },
+				sessionsService: {
+					openNewSession: async () => ({ session }),
+					openQuickChat: () => session,
+				},
+				sessionsManagementService: {
+					configureNewSessionDraft: async (value: ISession) => { configured.push(value); },
+				},
+			};
+			const restore = Reflect.get(NewChatWidget.prototype, '_restoreSavedDraft') as (this: typeof harness, draft: ISavedSessionDraft, token?: CancellationToken, preserveFocus?: boolean) => Promise<void>;
+			return {
+				harness, configured, focusStates,
+				input: () => input,
+				restore: (draft: ISavedSessionDraft, token?: CancellationToken, preserveFocus?: boolean) => restore.call(harness, draft, token, preserveFocus),
+			};
+		}
+
+		const requested = URI.file('/requested');
+		const draft: ISavedSessionDraft = {
+			id: 'requested', revision: 'revision', createdAt: 1, updatedAt: 1,
+			input: { inputText: 'saved input', attachments: [] },
+			target: { providerId: 'provider', sessionTypeId: 'agent', folderUri: requested },
+		};
+
+		test('startup cannot seed or capture the picker default while recovering a saved target', async () => {
+			const session = {
+				sessionId: 'picker-default', providerId: 'provider', sessionType: 'agent',
+				status: constObservable(SessionStatus.Untitled),
+				modelId: constObservable('user-model'), mode: constObservable(undefined),
+				application: constObservable({ id: 'test' }),
+			};
+			const composer = { target: draft.target, isRestoring: true };
+			const seeded: URI[] = [];
+			const harness = {
+				_savedDraftComposer: composer,
+				_restoringSavedDraft: constObservable(false),
+				_savedDraftTargetUnavailable: constObservable(false),
+				_session: constObservable(session),
+				_workspacePicker: { selectedFolderUri: URI.file('/picker-default') },
+				_syncWorkspacePickerFromActiveSession: () => false,
+				_createNewSession: (folder: URI) => { seeded.push(folder); },
+				_environment: constObservable(undefined),
+				sessionsProvidersService: { getProvider: () => undefined },
+			};
+			const capture = Reflect.get(NewChatWidget.prototype, '_captureSavedDraftTarget') as (this: typeof harness) => void;
+			const restoreNoWorkspace = Reflect.get(NewChatWidget.prototype, '_restoreNoWorkspaceDraft') as (this: typeof harness) => Promise<void>;
+			seedWorkspaceDraft.call(harness);
+			await restoreNoWorkspace.call(harness);
+			capture.call(harness);
+			const startupTarget = composer.target;
+			composer.isRestoring = false;
+			harness._workspacePicker.selectedFolderUri = URI.file('/user-picked');
+			capture.call(harness);
+			assert.deepStrictEqual({ seeded, startupTarget, userTarget: composer.target.folderUri }, {
+				seeded: [], startupTarget: draft.target, userTarget: URI.file('/user-picked'),
+			});
+		});
+
+		test('restoring the singleton backup does not move focus', async () => {
+			const session = upcastPartial<ISession>({
+				providerId: 'provider', sessionType: 'agent',
+				isQuickChat: constObservable(true),
+				workspace: constObservable(undefined),
+			});
+			const fixture = createHarness(session);
+			await fixture.restore({ ...draft, target: { ...draft.target, folderUri: undefined } }, CancellationToken.None, true);
+			assert.deepStrictEqual({ input: fixture.input(), focusStates: fixture.focusStates, unavailable: fixture.harness._savedDraftTargetUnavailable.get() }, {
+				input: draft.input, focusStates: [], unavailable: false,
+			});
+		});
+
+		for (const matches of [false, true]) {
+			for (const quickChat of [false, true]) {
+				test(`validates the restored target before enabling Send (quick chat: ${quickChat}, matches: ${matches})`, async () => {
+					const session = upcastPartial<ISession>({
+						providerId: 'provider', sessionType: 'agent',
+						isQuickChat: constObservable(quickChat && matches),
+						workspace: constObservable(upcastPartial<ISessionWorkspace>({
+							folders: [{ root: matches ? requested : URI.file('/previous'), workingDirectory: requested, name: 'workspace', description: undefined }],
+						})),
+					});
+					const fixture = createHarness(session);
+					const restoring = fixture.restore({ ...draft, target: { ...draft.target, folderUri: quickChat ? undefined : requested } });
+					if (matches) {
+						await restoring;
+					} else {
+						await assert.rejects(restoring, /workspace is unavailable/);
+					}
+					assert.deepStrictEqual({
+						configured: fixture.configured.length,
+						unavailable: fixture.harness._savedDraftTargetUnavailable.get(),
+						input: fixture.input(),
+						focusStates: fixture.focusStates,
+					}, { configured: matches ? 1 : 0, unavailable: !matches, input: draft.input, focusStates: matches ? [true] : [] });
+				});
+			}
+
+		}
+
+		test('cancelling before target restoration preserves the previous input and Send availability', async () => {
+			const fixture = createHarness(upcastPartial<ISession>({}));
+			const pending = new DeferredPromise<void>();
+			fixture.harness._pendingWorkspaceCreation = pending.p;
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const restoring = fixture.restore(draft, cancellation.token);
+			cancellation.cancel();
+			pending.complete();
+			await restoring;
+			assert.deepStrictEqual({
+				id: fixture.harness._savedDraftComposer.id,
+				input: fixture.input().inputText,
+				unavailable: fixture.harness._savedDraftTargetUnavailable.get(),
+				restoring: fixture.harness._restoringSavedDraft.get(),
+			}, { id: 'previous', input: 'previous input', unavailable: false, restoring: false });
+		});
+	});
 
 	test('builds customization target labels from the selected environment, workspace, and harness', () => {
 		const root = URI.file('/workspace');
@@ -2797,6 +2981,7 @@ suite('NewChatWidget', () => {
 					return currentDefaultAccount;
 				},
 			},
+			logService: { warn: () => assert.fail('Unexpected profile warning') },
 			async _fetchGitHubProfileName(providerId: string, _enterprise: boolean, sessionId: string) {
 				profileRequests.push(`${providerId}:${sessionId}`);
 				return 'Octo Cat';
@@ -2840,6 +3025,7 @@ suite('NewChatWidget', () => {
 				get currentDefaultAccount() { return currentDefaultAccount; },
 				async getDefaultAccount() { return currentDefaultAccount; },
 			},
+			logService: { warn: () => assert.fail('Unexpected profile warning') },
 			_fetchGitHubProfileName(providerId: string) {
 				return providerId === 'github' ? githubProfile.p : enterpriseProfile.p;
 			},
@@ -2848,10 +3034,10 @@ suite('NewChatWidget', () => {
 		const publicRefresh = refreshGitHubProfileName.call(harness);
 		currentDefaultAccount = { authenticationProvider: { id: 'github-enterprise', enterprise: true }, sessionId: 'shared-session' };
 		const enterpriseRefresh = refreshGitHubProfileName.call(harness);
-		githubProfile.complete('Public Name');
-		await publicRefresh;
 		enterpriseProfile.complete('Enterprise Name');
 		await enterpriseRefresh;
+		githubProfile.complete('Public Name');
+		await publicRefresh;
 
 		assert.deepStrictEqual({
 			accountKey: harness._githubProfileAccountKey,
@@ -2874,8 +3060,8 @@ suite('NewChatWidget', () => {
 				},
 			},
 			defaultAccountService: { resolveGitHubUrl: () => undefined },
-			requestService: {
-				async request() {
+			gitHubService: {
+				async acquireAccountApiClient() {
 					profileRequests++;
 					throw new Error('Unexpected profile request');
 				},
@@ -2889,6 +3075,176 @@ suite('NewChatWidget', () => {
 			profileRequests: 0,
 			warnings: ['Failed to fetch GitHub profile name because the enterprise URL is unavailable.'],
 		});
+	});
+
+	suite('GitHub welcome profile', () => {
+		const selectedSession: AuthenticationSession = {
+			id: 'welcome-selected-session',
+			account: { id: 'welcome-account', label: 'Welcome Account' },
+			scopes: ['read:user'],
+			accessToken: 'selected-token',
+		};
+
+		function createProfileHarness(session: AuthenticationSession, getAuthenticated: IUsersClient['getAuthenticated']) {
+			const sessions: AuthenticationSession[] = [
+				{ ...session, id: 'other-account-session', account: { id: 'other-account', label: 'Other Account' }, scopes: ['repo'] },
+				{ ...session, id: 'broader-session', scopes: ['repo', 'read:user'] },
+				session,
+			];
+			const authenticationRequests: Parameters<IAuthenticationService['getSessions']>[] = [];
+			const acquisitions: { providerId: string; session: AuthenticationSession }[] = [];
+			const warnings: { message: string; error: Error | undefined }[] = [];
+			let clientDisposals = 0;
+			const harness: ThisParameterType<typeof fetchGitHubProfileName> = {
+				authenticationService: {
+					async getSessions(...args) {
+						authenticationRequests.push(args);
+						return sessions;
+					},
+				},
+				defaultAccountService: { resolveGitHubUrl: () => session.authorizationServer?.toString() },
+				gitHubService: {
+					async acquireAccountApiClient(...args) {
+						assert.ok(args.length === 3);
+						const [providerId, session] = args;
+						acquisitions.push({ providerId, session });
+						return upcastPartial<IGitHubAccountClient>({
+							users: upcastPartial<IUsersClient>({ getAuthenticated }),
+							dispose: () => { clientDisposals++; },
+						});
+					},
+				},
+				logService: { warn: (message, error?: Error) => warnings.push({ message, error }) },
+			};
+			return { harness, sessions, authenticationRequests, acquisitions, warnings, get clientDisposals() { return clientDisposals; } };
+		}
+
+		for (const { providerId, issuer } of [
+			{ providerId: 'github', issuer: undefined },
+			{ providerId: 'github', issuer: URI.parse('https://github.com/login/oauth') },
+			{ providerId: 'github-enterprise', issuer: URI.parse('https://tenant.ghe.com') },
+		]) {
+			test(`uses the exact selected ${providerId} grant with issuer ${issuer ?? 'unset'}`, async () => {
+				const session = { ...selectedSession, authorizationServer: issuer };
+				let disposalsWhileReading: number | undefined;
+				const state = createProfileHarness(session, async () => {
+					await timeout(0);
+					disposalsWhileReading = state.clientDisposals;
+					return upcastPartial<User>({ name: '  Octo Cat  ' });
+				});
+
+				const profileName = await fetchGitHubProfileName.call(state.harness, providerId, providerId === 'github-enterprise', session.id);
+
+				assert.deepStrictEqual({
+					profileName,
+					authenticationRequests: state.authenticationRequests,
+					acquisitions: state.acquisitions,
+					disposalsWhileReading,
+					clientDisposals: state.clientDisposals,
+					warnings: state.warnings,
+				}, {
+					profileName: 'Octo Cat',
+					authenticationRequests: [[providerId, [], { silent: true }]],
+					acquisitions: [{ providerId, session }],
+					disposalsWhileReading: 0,
+					clientDisposals: 1,
+					warnings: [],
+				});
+			});
+		}
+
+		test('does not replace a missing selected session with another grant', async () => {
+			const state = createProfileHarness(selectedSession, async () => {
+				throw new Error('Unexpected profile request');
+			});
+			state.sessions.pop();
+
+			const profileName = await fetchGitHubProfileName.call(state.harness, 'github', false, selectedSession.id);
+
+			assert.deepStrictEqual({ profileName, acquisitions: state.acquisitions, warnings: state.warnings }, {
+				profileName: undefined,
+				acquisitions: [],
+				warnings: [],
+			});
+		});
+
+		for (const name of ['Octo Cat', undefined]) {
+			test(`evicts failed lookups and caches a successful ${name ? 'named' : 'nameless'} profile`, async () => {
+				const session = { ...selectedSession, id: name ? 'welcome-cache-name' : 'welcome-cache-empty' };
+				const started = new DeferredPromise<void>();
+				const interrupted = new DeferredPromise<User>();
+				let profileRequests = 0;
+				const state = createProfileHarness(session, async () => {
+					if (++profileRequests === 1) {
+						void started.complete();
+						return interrupted.p;
+					}
+					return upcastPartial<User>({ name });
+				});
+				const account = { authenticationProvider: { id: 'github', enterprise: false }, sessionId: session.id };
+				const configurationService = new TestConfigurationService({ [NEW_SESSION_WELCOME_NAME_SETTING]: '' });
+				disposables.add(configurationService.onDidChangeConfigurationEmitter);
+				const harness: ThisParameterType<typeof refreshGitHubProfileName> = {
+					_githubProfileAccountKey: undefined,
+					_githubProfileName: observableValue<string | undefined>('githubProfileName', undefined),
+					enabled: constObservable(true),
+					_store: { isDisposed: false },
+					configurationService,
+					defaultAccountService: {
+						currentDefaultAccount: account,
+						async getDefaultAccount() { return account; },
+					},
+					logService: state.harness.logService,
+					_fetchGitHubProfileName: (providerId, enterprise, sessionId) => fetchGitHubProfileName.call(state.harness, providerId, enterprise, sessionId),
+				};
+
+				const refreshes = [refreshGitHubProfileName.call(harness), refreshGitHubProfileName.call(harness)];
+				await started.p;
+				const renewedSession = { ...session, accessToken: 'renewed-token' };
+				state.sessions[state.sessions.indexOf(session)] = renewedSession;
+				await interrupted.error(new GitHubRequestError('GitHub credential generation was superseded', 'unknown'));
+				await Promise.all(refreshes);
+				const afterFailure = { profileName: harness._githubProfileName.get(), profileRequests, clientDisposals: state.clientDisposals };
+
+				await refreshGitHubProfileName.call(harness);
+				await refreshGitHubProfileName.call(harness);
+
+				assert.deepStrictEqual({
+					afterFailure,
+					profileName: harness._githubProfileName.get(),
+					profileRequests,
+					acquisitions: state.acquisitions,
+					clientDisposals: state.clientDisposals,
+					warnings: state.warnings,
+				}, {
+					afterFailure: { profileName: undefined, profileRequests: 1, clientDisposals: 1 },
+					profileName: name,
+					profileRequests: 2,
+					acquisitions: [{ providerId: 'github', session }, { providerId: 'github', session: renewedSession }],
+					clientDisposals: 2,
+					warnings: [{ message: 'Failed to fetch GitHub profile name.', error: undefined }],
+				});
+			});
+		}
+
+		for (const failure of ['acquisition', 'profile'] as const) {
+			test(`propagates ${failure} errors and releases any acquired client`, async () => {
+				const error = new Error('GitHub profile unavailable');
+				let profileRequests = 0;
+				const state = createProfileHarness(selectedSession, async () => { profileRequests++; throw error; });
+				if (failure === 'acquisition') {
+					state.harness.gitHubService.acquireAccountApiClient = async () => { throw error; };
+				}
+
+				await assert.rejects(fetchGitHubProfileName.call(state.harness, 'github', false, selectedSession.id), error);
+
+				assert.deepStrictEqual({ profileRequests, clientDisposals: state.clientDisposals, warnings: state.warnings }, {
+					profileRequests: failure === 'profile' ? 1 : 0,
+					clientDisposals: failure === 'profile' ? 1 : 0,
+					warnings: [],
+				});
+			});
+		}
 	});
 
 	test('replays a provider change that arrives while creating the draft', async () => {
@@ -4064,12 +4420,16 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	for (const [backgroundSend, inboxSelected] of [[false, false], [false, true], [true, false]]) {
-		test(`confirms background sends based on grouping and reseeds the workspace (always background: ${backgroundSend}, Inbox selected: ${inboxSelected})`, async () => {
+	for (const [backgroundSend, inboxSelected, openFails] of [[false, false, false], [false, true, false], [true, false, false], [false, true, true]]) {
+		test(`notifies background sends and reseeds the workspace, preserving hosted status (always background: ${backgroundSend}, Inbox selected: ${inboxSelected}, open fails: ${openFails})`, async () => {
 			const onDidSendRequest = disposables.add(new Emitter<ISendRequestSentEvent>());
 			const pendingSends = disposables.add(new DisposableMap<object, IDisposable>());
 			const folderUri = URI.file('/dismissed');
 			const restored: URI[] = [];
+			const notifications: Parameters<INotificationService['prompt']>[] = [];
+			const opened: { resource: URI; options: IOpenSessionOptions }[] = [];
+			const openError = new Error('Session no longer available');
+			const errors: Error[] = [];
 			const session = upcastPartial<ISession>({ sessionId: 'draft' });
 			const sentSession = upcastPartial<ISession>({ resource: URI.parse('test-session:/started') });
 			let sentOptions: ISendRequestOptions | undefined;
@@ -4080,7 +4440,19 @@ suite('NewChatWidget', () => {
 				_backgroundSend: backgroundSend,
 				_backgroundSendStatus: observableValue<string | undefined>('sendStatus', undefined),
 				_newChatInput: { hasInput: false },
-				notificationService: { error: () => assert.fail('Unexpected error') },
+				notificationService: {
+					error: () => assert.fail('Unexpected error'),
+					prompt: (...args) => { notifications.push(args); return upcastPartial<ReturnType<INotificationService['prompt']>>({}); },
+				},
+				sessionsService: {
+					unsetNewSession: () => assert.fail('Unexpected navigation'),
+					openSession: async (resource, options) => {
+						opened.push({ resource, options });
+						if (openFails) {
+							throw openError;
+						}
+					},
+				},
 				_pendingBackgroundSends: pendingSends,
 				recentWorkspacesService: { restoreDismissedWorkspace: uri => restored.push(uri) },
 				_session: constObservable(session),
@@ -4099,16 +4471,28 @@ suite('NewChatWidget', () => {
 				_createNewSession: async () => { picker.selectedFolderUri = URI.file('/different-workspace'); },
 			};
 			await send.call(harness, 'hello', undefined, backgroundSend ? undefined : true);
-			const beforeSuccess = { restored: [...restored], status: harness._backgroundSendStatus?.get() };
+			const beforeSuccess = { restored: [...restored], status: harness._backgroundSendStatus?.get(), notifications: notifications.length };
 			onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: { query: 'unrelated' } }));
-			const afterUnrelatedSend = { restored: [...restored], status: harness._backgroundSendStatus?.get() };
+			const afterUnrelatedSend = { restored: [...restored], status: harness._backgroundSendStatus?.get(), notifications: notifications.length };
 			assert.ok(sentOptions);
 			onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: sentOptions, session: sentSession }));
-			assert.deepStrictEqual({ beforeSuccess, afterUnrelatedSend, restored, pending: pendingSends.size, background: sentOptions.background, status: harness._backgroundSendStatus?.get(), resource: harness._lastBackgroundSentSessionResource }, {
-				beforeSuccess: { restored: [], status: undefined }, afterUnrelatedSend: { restored: [], status: undefined },
+			const openedBeforeAction = [...opened];
+			const previousHandler = errorHandler.getUnexpectedErrorHandler();
+			errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+			try {
+				await notifications[0]?.[2][0].run();
+			} finally {
+				errorHandler.setUnexpectedErrorHandler(previousHandler);
+			}
+			assert.deepStrictEqual({ beforeSuccess, afterUnrelatedSend, restored, pending: pendingSends.size, background: sentOptions.background, status: harness._backgroundSendStatus?.get(), resource: harness._lastBackgroundSentSessionResource, notifications: notifications.map(([severity, message, choices]) => ({ severity, message, choices: choices.map(choice => choice.label) })), openedBeforeAction, opened, errors }, {
+				beforeSuccess: { restored: [], status: undefined, notifications: 0 }, afterUnrelatedSend: { restored: [], status: undefined, notifications: 0 },
 				restored: [folderUri], pending: 0, background: true,
-				status: backgroundSend || inboxSelected ? 'Message sent' : undefined,
-				resource: backgroundSend || inboxSelected ? sentSession.resource : undefined,
+				status: backgroundSend ? 'Message sent' : undefined,
+				resource: backgroundSend ? sentSession.resource : undefined,
+				notifications: backgroundSend ? [] : [{ severity: Severity.Info, message: 'Message sent', choices: ['Open Session'] }],
+				openedBeforeAction: [],
+				opened: backgroundSend ? [] : [{ resource: sentSession.resource, options: { source: 'link', forceMainChat: true } }],
+				errors: openFails ? [openError] : [],
 			});
 		});
 	}
@@ -4370,8 +4754,8 @@ suite('NewChatWidget', () => {
 			});
 		});
 
-		for (const outcome of ['dispatched', 'rejected'] as const) {
-			test(`hands an Alt+Enter send to its host before sending it, and ${outcome === 'dispatched' ? 'clears its own status when the request fails' : 'cancels that when the send is rejected'}`, async () => {
+		for (const [outcome, requestedInBackground] of [['dispatched', true], ['rejected', true], ['dispatched', false], ['rejected', false]] as const) {
+			test(`hands ${requestedInBackground ? 'an Alt+Enter send' : 'an Enter send of a composer that sends in the background'} to its host before sending it, and ${outcome === 'dispatched' ? 'clears its own status when the request fails' : 'cancels that when the send is rejected'}`, async () => {
 				const replaced = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 				const ended = disposables.add(new Emitter<INewSessionRequestEndedEvent>());
 				const pending = disposables.add(new DisposableMap<object, IDisposable>());
@@ -4384,6 +4768,7 @@ suite('NewChatWidget', () => {
 				const attachment = upcastPartial<IChatRequestVariableEntry>({ id: 'file', name: 'file' });
 				let trackedWhenSent: number | undefined;
 				const harness: ISendHarness = {
+					_backgroundSend: !requestedInBackground,
 					_draftHost: host(slot, [], tracked),
 					_backgroundSendStatus: status,
 					_newChatInput: { hasInput: false },
@@ -4415,7 +4800,7 @@ suite('NewChatWidget', () => {
 					_clearBackgroundSendOnFailure: (...args) => clearBackgroundSendOnFailure.apply(harness, args),
 				};
 
-				const result = await send.call(harness, 'hello', [attachment], true);
+				const result = await send.call(harness, 'hello', [attachment], requestedInBackground || undefined);
 				status.set('Pending', undefined);
 				const latest = tracked[0]?.send.isLatest();
 				replaced.fire({ from: draft, to: prepared });
@@ -4426,7 +4811,7 @@ suite('NewChatWidget', () => {
 				assert.deepStrictEqual({
 					result,
 					trackedWhenSent,
-					tracked: tracked.map(({ send, cancelled }) => ({ session: send.session.sessionId, query: send.query, attachedContext: send.attachedContext, cancelled })),
+					tracked: tracked.map(({ send, cancelled }) => ({ session: send.session.sessionId, query: send.query, attachedContext: send.attachedContext, requestedInBackground: send.requestedInBackground, cancelled })),
 					latest,
 					statusAfterOther,
 					status: status.get(),
@@ -4435,7 +4820,7 @@ suite('NewChatWidget', () => {
 				}, outcome === 'dispatched' ? {
 					result: true,
 					trackedWhenSent: 1,
-					tracked: [{ session: 'draft', query: 'hello', attachedContext: [attachment], cancelled: false }],
+					tracked: [{ session: 'draft', query: 'hello', attachedContext: [attachment], requestedInBackground, cancelled: false }],
 					latest: true,
 					statusAfterOther: 'Pending',
 					status: undefined,
@@ -4444,7 +4829,7 @@ suite('NewChatWidget', () => {
 				} : {
 					result: false,
 					trackedWhenSent: 1,
-					tracked: [{ session: 'draft', query: 'hello', attachedContext: [attachment], cancelled: true }],
+					tracked: [{ session: 'draft', query: 'hello', attachedContext: [attachment], requestedInBackground, cancelled: true }],
 					latest: true,
 					statusAfterOther: 'Pending',
 					status: 'Pending',
@@ -5540,6 +5925,32 @@ suite('NewChatWidget', () => {
 			beforeResumedTimeout: 'Message sentOpen Session', afterResumedTimeout: '', resource: undefined, preservesHeight: true,
 		});
 	}));
+
+	test('a workspace selection the user did not make leaves focus in the input being typed in', async () => {
+		const input = append(mainWindow.document.body, $('input'));
+		const button = append(mainWindow.document.body, $('button'));
+		disposables.add(toDisposable(() => { input.remove(); button.remove(); }));
+		const run = async (notByUser: boolean, focused: HTMLElement) => {
+			let focusCalls = 0;
+			focused.focus();
+			await handleWorkspaceSelection.call(upcastPartial<IHandleWorkspaceSelectionHarness>({
+				_environment: constObservable(undefined),
+				_workspaceOptOutEnabled: constObservable(false),
+				_newChatInput: { focus: () => focusCalls++ },
+				_isCurrentWorkspaceSelection: () => true,
+			}), URI.file('/handed-off'), notByUser);
+			return focusCalls;
+		};
+		assert.deepStrictEqual({
+			byUserWhileTyping: await run(false, input),
+			notByUserWhileTyping: await run(true, input),
+			notByUserWhileNotTyping: await run(true, button),
+		}, {
+			byUserWhileTyping: 1,
+			notByUserWhileTyping: 0,
+			notByUserWhileNotTyping: 1,
+		});
+	});
 
 	for (const origin of [
 		WorkspaceSelectionOrigin.None, WorkspaceSelectionOrigin.CheckedWorkspace, WorkspaceSelectionOrigin.AgentsRecent,

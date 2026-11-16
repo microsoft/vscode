@@ -29,8 +29,6 @@ import { ICompletionsFetchService } from '../../src/platform/nesFetch/common/com
 import { CompletionsFetchService } from '../../src/platform/nesFetch/node/completionsFetchServiceImpl';
 import { IReleaseNotesService } from '../../src/platform/releaseNotes/common/releaseNotesService';
 import { ReleaseNotesService } from '../../src/platform/releaseNotes/vscode/releaseNotesServiceImpl';
-import { IDocsSearchClient } from '../../src/platform/remoteSearch/common/codeOrDocsSearchClient';
-import { DocsSearchClient } from '../../src/platform/remoteSearch/node/codeOrDocsSearchClientImpl';
 import { IReviewService } from '../../src/platform/review/common/reviewService';
 import { constructGlobalStateMemento, MockExtensionContext } from '../../src/platform/test/node/extensionContext';
 import { TestingServiceCollection } from '../../src/platform/test/node/services';
@@ -228,7 +226,6 @@ export async function createSimulationAccessor(
 	}
 
 	testingServiceCollection.define(IEmbeddingsComputer, new SyncDescriptor(RemoteEmbeddingsComputer));
-	testingServiceCollection.define(IDocsSearchClient, new SyncDescriptor(DocsSearchClient));
 	testingServiceCollection.define(IChunkingEndpointClient, new SyncDescriptor(ChunkingEndpointClientImpl));
 
 	const useRemoteEmbeddingsIndexCache = opts.languageModelCacheMode === CacheMode.Disable;

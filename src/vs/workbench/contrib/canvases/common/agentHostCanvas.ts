@@ -11,15 +11,19 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
+import { getCanvasUri } from '../../../../platform/agentHost/common/agentHostProtocolTransition.js';
 import { getInlineToolInput, parsePartialToolInput } from '../../../../platform/agentHost/common/partialToolInput.js';
+import { readCanvasIcon } from '../../../../platform/agentHost/common/meta/agentCanvasIconMeta.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { CanvasReference, CanvasState } from '../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { CanvasRegistryStatus, type CanvasRegistryState, type CanvasesState } from '../../../../platform/agentHost/common/state/protocol/channels-canvases/state.js';
 import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { ActiveTurn, ChatState, ResponsePartKind, RootState, StateComponents, ToolCallStatus, Turn } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { type CanvasDefinitionSnapshot, ICanvasContext, ICanvasDefinition, ICanvasDefinitionProvider, type ICanvasListOptions, ICanvasOpenRequest } from './canvas.js';
-import { ICanvas, ICanvasOwner } from '../../../common/canvasReference.js';
+import { openCanvasWithExtensionConsent } from './agentHostCanvasConsent.js';
+import { type CanvasDefinitionSnapshot, getCanvasIconUri, ICanvasContext, ICanvasDefinition, ICanvasDefinitionProvider, type ICanvasListOptions, ICanvasOpenRequest } from './canvas.js';
+import { ICanvas, ICanvasOpenOptions, ICanvasOwner } from '../../../common/canvasReference.js';
 
 export class AgentHostCanvas implements ICanvas {
 	readonly resource: URI;
@@ -29,6 +33,7 @@ export class AgentHostCanvas implements ICanvas {
 	readonly source: URI | undefined;
 	readonly extensionId: string | undefined;
 	readonly canvasId: string | undefined;
+	readonly icon: URI | undefined;
 
 	constructor(
 		resource: URI,
@@ -41,9 +46,11 @@ export class AgentHostCanvas implements ICanvas {
 		this.canvasId = canvas?.canvasId;
 		this.title = canvas?.title ?? canvas?.extensionName ?? canvas?.canvasId ?? localize('canvas.pendingTitle', "Canvas");
 		this.status = canvas?.status;
-		if (canvas?.url !== undefined) {
+		this.icon = getCanvasIconUri(readCanvasIcon(canvas));
+		const uri = canvas && getCanvasUri(canvas);
+		if (uri !== undefined) {
 			try {
-				const source = URI.parse(canvas.url, true);
+				const source = URI.parse(uri, true);
 				if ((source.scheme === Schemas.http || source.scheme === Schemas.https) && source.authority) {
 					this.source = source;
 				} else {
@@ -142,6 +149,24 @@ export class AgentHostCanvases {
 		}
 		return getAgentHostCanvasDefinitions(registry);
 	}
+
+	async listDefinitions(session: URI, chat: URI, options?: ICanvasListOptions): Promise<CanvasDefinitionSnapshot> {
+		const definitions = this.listCanvases(options);
+		const connection = this.connection.get();
+		if (!definitions?.length || !connection?.listSessionCanvases) {
+			return definitions;
+		}
+		const nativeDefinitions = await connection.listSessionCanvases(session, chat);
+		return definitions.map(definition => {
+			const native = nativeDefinitions?.find(canvas => canvas.canvasId === definition.canvasId && canvas.extensionId === definition.extensionId);
+			return native ? {
+				...definition,
+				extensionSource: native.extensionSource,
+				...(native.extensionName !== undefined ? { extensionName: native.extensionName } : {}),
+				...(native.icon !== undefined ? { icon: native.icon } : {}),
+			} : definition;
+		});
+	}
 }
 
 export class AgentHostCanvasCollection extends Disposable {
@@ -152,6 +177,7 @@ export class AgentHostCanvasCollection extends Disposable {
 		private readonly connection: IAgentConnection,
 		private readonly agentProvider: string | undefined,
 		@ILogService private readonly logService: ILogService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 		this.rootState = connection.rootState ? observableFromSubscription(this, connection.rootState) : undefined;
@@ -192,20 +218,28 @@ export class AgentHostCanvasCollection extends Disposable {
 		const definitionProvider: ICanvasDefinitionProvider | undefined = supportsCommands && this.connection.openCanvas
 			? {
 				onDidChangeDefinitions: Event.any(Event.fromObservableLight(collection.registry), Event.fromObservableLight(collection.state.map(state => state instanceof Error ? state : undefined))),
-				listCanvases: async options => collection.listCanvases(options),
-				openCanvas: (canvas: ICanvasDefinition, instanceId: string) => {
+				listCanvases: options => collection.listDefinitions(owner.session, owner.chat, options),
+				openCanvas: (canvas: ICanvasDefinition, instanceId: string, options?: ICanvasOpenOptions) => {
+					if (this.connection.openSessionCanvas) {
+						return openCanvasWithExtensionConsent(this.dialogService, answer => this.connection.openSessionCanvas!(owner.session, {
+							canvasId: canvas.canvasId,
+							extensionId: canvas.extensionId,
+							instanceId,
+						}, owner.chat, answer), options);
+					}
 					const resource = collection.resource.get();
 					if (!resource) {
 						throw new Error(localize('canvas.collectionUnavailable', "The canvas collection is unavailable for this chat."));
 					}
 					const unavailable = canvases.get()?.find(candidate => candidate.source === undefined
 						&& candidate.instanceId === instanceId && candidate.extensionId === canvas.extensionId && candidate.canvasId === canvas.canvasId);
-					return this.connection.openCanvas!({
+					const params = {
 						channel: (unavailable?.resource ?? URI.from({ scheme: 'ahp-canvas', path: `/${generateUuid()}` })).toString(),
 						canvases: resource,
 						canvasId: canvas.canvasId,
 						extensionId: canvas.extensionId,
-					});
+					};
+					return this.connection.openCanvas!(params);
 				},
 			}
 			: undefined;

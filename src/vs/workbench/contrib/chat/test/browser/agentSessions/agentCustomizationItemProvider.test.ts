@@ -298,6 +298,14 @@ suite('AgentCustomizationItemProvider', () => {
 						type: CustomizationType.Plugin, id: name, uri: `file:///plugins/${name}`, name,
 						...(organization ? { _meta: withCustomizationOrganizationMeta(undefined, organization) } : {}),
 					})),
+					// A runtime-installed plugin states what the organization requires with its activation.
+					...([['runtime-required', true], ['runtime-blocked', false], ['runtime-unmanaged', undefined]] as const).map(([name, managedDesiredEnabled]): PluginCustomization => ({
+						type: CustomizationType.Plugin, id: name, uri: `file:///plugins/${name}`, name,
+						_meta: withRuntimePluginEnablement(undefined, {
+							provider: 'copilotcli', plugin: `${name}@enterprise`, globalEnabled: false, effectiveEnabled: managedDesiredEnabled ?? false,
+							repositorySupported: true, managedDesiredEnabled,
+						}),
+					})),
 				];
 			}
 		}
@@ -310,6 +318,9 @@ suite('AgentCustomizationItemProvider', () => {
 			{ key: 'required', organizationControl: { requiredEnabled: true } },
 			{ key: 'supplied', organizationControl: {} },
 			{ key: 'unmanaged', organizationControl: undefined },
+			{ key: 'runtime-required', organizationControl: { requiredEnabled: true } },
+			{ key: 'runtime-blocked', organizationControl: { requiredEnabled: false } },
+			{ key: 'runtime-unmanaged', organizationControl: undefined },
 			{ key: 'hook-0', organizationControl: { requiredEnabled: true } },
 			{ key: 'hook-1', organizationControl: {} },
 			{ key: 'hook-2', organizationControl: undefined },
@@ -540,10 +551,10 @@ suite('AgentCustomizationItemProvider', () => {
 		const result = await provider.provideCustomAgents(URI.parse('other-session:/opaque'), CancellationToken.None);
 		assert.deepStrictEqual(result.map(agent => {
 			const mode = new CustomChatMode(agent);
-			return { id: mode.id, name: mode.name.get(), source: mode.source?.label, storage: mode.source?.storage };
+			return { id: mode.id, name: mode.name.get(), source: mode.source?.label, storage: mode.source?.storage, sourceUri: agent.sourceUri?.toString() };
 		}), [
-			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[0].uri)).toString(), name: 'Reviewer', source: 'Extension: First Extension', storage: PromptsStorage.extension },
-			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[1].uri)).toString(), name: 'Reviewer', source: 'Extension: second', storage: PromptsStorage.extension },
+			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[0].uri)).toString(), name: 'Reviewer', source: 'Extension: First Extension', storage: PromptsStorage.extension, sourceUri: files[0].uri.toString() },
+			{ id: createAgentHostResourceUriMapper('remote').fromAgentHost(URI.parse(agents[1].uri)).toString(), name: 'Reviewer', source: 'Extension: second', storage: PromptsStorage.extension, sourceUri: files[1].uri.toString() },
 		]);
 	});
 
@@ -932,6 +943,40 @@ suite('AgentCustomizationItemProvider', () => {
 			{ type: PromptsType.instructions, name: 'Review Instructions', uri: workspaceInstructionsUri.toString() },
 			{ type: PromptsType.skill, name: 'Review Skill', uri: workspaceSkillUri.toString() },
 		]);
+	});
+
+	test('labels bundled extension customizations with the extension display name', async () => {
+		const bundleUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/bundle' });
+		const syncedSkillUri = URI.joinPath(bundleUri, 'skills', 'review', 'SKILL.md');
+		const extensionSkillUri = URI.file('/extensions/acme.acme-chat-kit/skills/review/SKILL.md');
+		const fileService = createInMemoryFileService(disposables, SYNCED_CUSTOMIZATION_SCHEME);
+		await fileService.writeFile(syncedSkillUri, VSBuffer.fromString('---\nname: Review Skill\ndescription: Reviews code\n---\nReview code.'));
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			{ clientId: 'vscode', resourceUris: createAgentHostResourceUriMapper('local') },
+			undefined,
+			syncedUri => isEqual(syncedUri, syncedSkillUri)
+				? { uri: extensionSkillUri, source: AICustomizationSources.extension, extensionId: 'acme.acme-chat-kit', extensionLabel: 'Acme Chat Kit' }
+				: undefined,
+			fileService,
+			new NullLogService(),
+			new NullAgentHostCustomizationService(),
+			makePromptsService(), labelService,
+		));
+		provider.setDraftCustomizations(observableValue<readonly ClientPluginCustomization[]>('draftCustomizations', [{
+			type: CustomizationType.Plugin,
+			id: bundleUri.toString(),
+			uri: bundleUri.toString(),
+			name: 'VS Code Standalone Customizations',
+			nonce: '1',
+		}]));
+
+		const items = await provider.provideChatSessionCustomizations(URI.parse('agent-host-copilotcli:///draft'), CancellationToken.None);
+		const normalized = new AICustomizationItemNormalizer(labelService, upcastPartial<IProductService>({})).normalizeItems(items, PromptsType.skill);
+
+		assert.deepStrictEqual(normalized.map(item => ({ uri: item.uri.toString(), origin: item.origin })), [{
+			uri: extensionSkillUri.toString(),
+			origin: { kind: 'extension', id: 'extension:acme.acme-chat-kit', label: 'Acme Chat Kit' },
+		}]);
 	});
 
 	test('surfaces session agents through directory customizations', async () => {

@@ -13,7 +13,7 @@
 # signing, publishing or release credentials. The shared templates drop every
 # step and job that references one of those connections when their
 # VSCODE_PRIVILEGED_CONNECTIONS parameter is false, which only this pipeline
-# passes:
+# and product-build-ci.yml (for the quality checks) pass:
 #
 #   git grep VSCODE_PRIVILEGED_CONNECTIONS -- build/azure-pipelines
 #

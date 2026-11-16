@@ -48,7 +48,7 @@ import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID } from '../.
 import { focusedSessionHostServiceOf, ITestSessionWithChat, sessionHostServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IFocusedSessionHostService, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { isEqual } from '../../../../../base/common/resources.js';
-import { getCanvasReferenceKey, ICanvas, ICanvasReference } from '../../../../../workbench/common/canvasReference.js';
+import { getCanvasReferenceKey, ICanvas, type ICanvasOpenOptions, ICanvasReference } from '../../../../../workbench/common/canvasReference.js';
 
 suite('SessionCanvasService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -123,7 +123,7 @@ suite('SessionCanvasService', () => {
 			description: 'Interactive preview.',
 			requiresInput: false,
 		};
-		const definitionOpens: { canvas: ISessionCanvasDefinition; instanceId: string }[] = [];
+		const definitionOpens: { canvas: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>; instanceId: string; options?: ICanvasOpenOptions }[] = [];
 		canvasDefinitions.set([definition], undefined);
 		const definitionListOptions: (ICanvasListOptions | undefined)[] = [];
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({
@@ -133,7 +133,7 @@ suite('SessionCanvasService', () => {
 				definitionListOptions.push(options);
 				return [definition];
 			},
-			openCanvas: async (_session, _chat, canvas, instanceId) => { definitionOpens.push({ canvas, instanceId }); },
+			openCanvas: async (_session, _chat, canvas, instanceId, options) => { definitionOpens.push({ canvas, instanceId, ...(options ? { options } : {}) }); },
 		});
 		const opened: CanvasInput[] = [];
 		const openOptions: unknown[] = [];
@@ -279,7 +279,7 @@ suite('SessionCanvasService', () => {
 		store.add(context.definitionProvider.onDidChangeDefinitions(() => changeCount++));
 		const definitions = await context.definitionProvider.listCanvases({ retry: true });
 		assert.ok(definitions);
-		await context.definitionProvider.openCanvas(definitions[0], 'preview-instance');
+		await context.definitionProvider.openCanvas(definitions[0], 'preview-instance', { retryDeniedConsent: true });
 		const beforeChange = changeCount;
 		harness.canvasDefinitions.set([], undefined);
 
@@ -292,7 +292,7 @@ suite('SessionCanvasService', () => {
 		}, {
 			frontendSessionResource: harness.session.resource.toString(),
 			definitions: [harness.definition],
-			definitionOpens: [{ canvas: harness.definition, instanceId: 'preview-instance' }],
+			definitionOpens: [{ canvas: harness.definition, instanceId: 'preview-instance', options: { retryDeniedConsent: true } }],
 			definitionListOptions: [{ retry: true }],
 			definitionsChanged: true,
 		});

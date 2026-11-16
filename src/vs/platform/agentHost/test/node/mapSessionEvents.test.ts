@@ -79,6 +79,31 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
+	test('replays whether a native view call named a file or a directory', async () => {
+		const views: Record<string, { readonly viewType?: string; readonly success?: boolean }> = {
+			file: { viewType: 'file' },
+			directory: { viewType: 'directory' },
+			failed: { viewType: 'file', success: false },
+			unreported: {},
+		};
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'message', content: 'Read files' } },
+			...Object.entries(views).flatMap(([toolCallId, { viewType, success = true }]): ISessionEvent[] => [
+				{ type: 'tool.execution_start', data: { toolCallId, toolName: 'view', arguments: { path: `/workspace/${toolCallId}` } } },
+				{ type: 'tool.execution_complete', data: { toolCallId, success, toolTelemetry: viewType ? { properties: { viewType } } : undefined } },
+			]),
+		];
+		const types = await Promise.all([undefined, new Set<string>()].map(async clientToolNames => {
+			const result = await mapSessionEvents(session, undefined, toSessionEvents(events), { clientToolNames });
+			return result.turns.flatMap(turn => turn.responseParts.flatMap(part =>
+				part.kind === ResponsePartKind.ToolCall ? [readToolCallMeta(part.toolCall)['vscode.viewedResourceType']] : []));
+		}));
+		assert.deepStrictEqual(types, [
+			[undefined, undefined, undefined, undefined],
+			['file', 'directory', undefined, undefined],
+		]);
+	});
+
 	test('replays available MCP links through the recorded server channel', async () => {
 		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
 			{ type: 'user.message', data: { content: 'Read resources' } },

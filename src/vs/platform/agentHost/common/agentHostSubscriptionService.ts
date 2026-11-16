@@ -61,6 +61,9 @@ export function resolveAgentHostSession(resource: URI, getChatOwner: AgentHostCh
 			return undefined;
 		}
 	}
+	if (sessionString === undefined && resource.scheme.startsWith('ahp-') && resource.scheme !== 'ahp-session') {
+		return undefined;
+	}
 	return resolveAgentHostRootSession(URI.parse(sessionString ?? resourceString));
 }
 
