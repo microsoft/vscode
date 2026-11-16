@@ -172,7 +172,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		this._isAgentModeEnabled = observableConfigValue(ChatConfiguration.AgentEnabled, true, this._configurationService);
 		this._isMcpDisabledByPolicy = observableFromEvent(this,
 			Event.filter(this._configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(mcpAccessConfig)),
-			() => this._configurationService.inspect<string>(mcpAccessConfig).policyValue === McpAccessValue.None);
+			() => this._configurationService.inspect<string>(mcpAccessConfig).policyValue === McpAccessValue.None).keepObserved(this._store);
 
 		this._register(this._contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this._toolContextKeys)) {
@@ -259,15 +259,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return true;
 	}
 
-	private isAllowedByPolicy(toolOrToolSet: IToolData | IToolSet, reader?: IReader): boolean {
-		return toolOrToolSet.source.type !== 'extension' || !(reader
+	private isAllowedByPolicy(toolOrToolSet: IToolData | IToolSet, reader?: IReader, useCachedPolicy = false): boolean {
+		return toolOrToolSet.source.type !== 'extension' || !(reader || useCachedPolicy
 			? this._isMcpDisabledByPolicy.read(reader)
 			: this._configurationService.inspect<string>(mcpAccessConfig).policyValue === McpAccessValue.None);
 	}
 
 	/** Applies enterprise policy and restricts agentic-loop tools to a read-only subset when agent mode is disabled. */
 	private isPermitted(toolOrToolSet: IToolData | ToolSet, reader?: IReader): boolean {
-		if (!this.isAllowedByPolicy(toolOrToolSet, reader)) {
+		if (!this.isAllowedByPolicy(toolOrToolSet, reader, true)) {
 			return false;
 		}
 
@@ -1826,7 +1826,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 		const result = new class extends ToolSet implements IDisposable {
 			override getTools(reader?: IReader): Iterable<IToolData> {
-				return Iterable.filter(super.getTools(reader), tool => that.isAllowedByPolicy(tool, reader));
+				return Iterable.filter(super.getTools(reader), tool => that.isAllowedByPolicy(tool, reader, true));
 			}
 
 			dispose(): void {
