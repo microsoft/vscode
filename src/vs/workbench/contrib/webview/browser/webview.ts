@@ -108,6 +108,7 @@ export interface WebviewOptions {
 
 	readonly tryRestoreScrollPosition?: boolean;
 	readonly retainContextWhenHidden?: boolean;
+	readonly autoCloseWhenDispose?: boolean;
 	transformCssVariables?(styles: WebviewStyles): WebviewStyles;
 
 	/** Host-owned actions prepended to this webview's context menu. */
