@@ -253,6 +253,46 @@ suite('Saved session draft lifecycle', () => {
 		assert.deepStrictEqual(ids, [true, false, false]);
 	});
 
+	test('restores the backed-up composer target before startup capture without opening other saved drafts', async () => {
+		const { service, storage, view, infoNotifications } = create();
+		const target = { folderUri: URI.file('/saved-workspace'), providerId: 'saved-provider', sessionTypeId: 'agent', configuration: { modelId: 'saved-model', branch: 'saved-branch' } };
+		const saved = service.save({ inputText: 'saved input', attachments: [] }, target);
+		service.save({ inputText: 'another draft', attachments: [] }, { folderUri: URI.file('/another-workspace') });
+		const input = { inputText: 'latest backed-up edit', attachments: [], references: undefined };
+		writeNewChatDraftState(storage, input, saved.id);
+		let opens = 0;
+		view.openNewSession = async () => {
+			opens++;
+			return { session: undefined, trustDeclined: false };
+		};
+		const opened: string[] = [];
+		disposables.add(service.onDidOpenDraft(id => opened.push(id)));
+		const composer = service.createComposer();
+		const restores: { id: string; inputText: string; target: ISavedSessionDraft['target']; preserveFocus: boolean | undefined }[] = [];
+		const restored = new DeferredPromise<void>();
+		view.setCurrentDraftId = () => {
+			if (!composer.isRestoring) {
+				restored.complete();
+			}
+		};
+		disposables.add(service.registerComposer(composer, async (draft, _token, preserveFocus) => {
+			restores.push({ id: draft.id, inputText: draft.input.inputText, target: draft.target, preserveFocus });
+			composer.updateInput(draft.input);
+		}, () => { }));
+		const restoringBeforeStartup = composer.isRestoring;
+		await restored.p;
+		const openedOnStartup = [...opened];
+		await service.open(saved.id);
+		const changedTarget = { ...target, folderUri: URI.file('/user-picked-workspace'), configuration: { modelId: 'user-picked-model', branch: 'user-picked-branch' } };
+		composer.target = changedTarget;
+		const changed = service.stow(composer);
+		assert.deepStrictEqual({ restoringBeforeStartup, restores, openedOnStartup, opens, target: changed?.target, input: changed?.input, infoNotifications }, {
+			restoringBeforeStartup: true,
+			restores: [{ id: saved.id, inputText: input.inputText, target, preserveFocus: true }],
+			openedOnStartup: [], opens: 0, target: changedTarget, input, infoNotifications: [],
+		});
+	});
+
 	test('selecting the already restored draft focuses it without rebuilding its target or replacing edits', async () => {
 		const { service, view } = create();
 		let opens = 0;
@@ -274,6 +314,34 @@ suite('Saved session draft lifecycle', () => {
 		await service.open(draft.id);
 		assert.deepStrictEqual({ opens, restores, focuses, input: composer.input.inputText }, {
 			opens: 1, restores: 1, focuses: 2, input: 'edited',
+		});
+	});
+
+	test('opening another draft cancels the recovered composer restoration', async () => {
+		const { service, storage, notifications } = create();
+		const first = service.save({ inputText: 'backed up', attachments: [] }, { folderUri: URI.file('/first') });
+		const second = service.save({ inputText: 'selected', attachments: [] }, { folderUri: URI.file('/second') });
+		writeNewChatDraftState(storage, first.input, first.id);
+		const composer = service.createComposer();
+		const started = new DeferredPromise<void>();
+		let cancelled = false;
+		disposables.add(service.registerComposer(composer, async (draft, token) => {
+			if (draft.id === first.id) {
+				await new Promise<void>(resolve => {
+					disposables.add(token!.onCancellationRequested(() => {
+						cancelled = true;
+						resolve();
+					}));
+					started.complete();
+				});
+				return;
+			}
+			composer.updateInput(draft.input);
+		}, () => { }));
+		await started.p;
+		await service.open(second.id);
+		assert.deepStrictEqual({ cancelled, input: composer.input.inputText, target: composer.target, restoring: composer.isRestoring, notifications }, {
+			cancelled: true, input: second.input.inputText, target: second.target, restoring: false, notifications: [],
 		});
 	});
 

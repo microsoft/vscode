@@ -651,11 +651,11 @@ suite('NewChatWidget', () => {
 					configureNewSessionDraft: async (value: ISession) => { configured.push(value); },
 				},
 			};
-			const restore = Reflect.get(NewChatWidget.prototype, '_restoreSavedDraft') as (this: typeof harness, draft: ISavedSessionDraft, token?: CancellationToken) => Promise<void>;
+			const restore = Reflect.get(NewChatWidget.prototype, '_restoreSavedDraft') as (this: typeof harness, draft: ISavedSessionDraft, token?: CancellationToken, preserveFocus?: boolean) => Promise<void>;
 			return {
 				harness, configured, focusStates,
 				input: () => input,
-				restore: (draft: ISavedSessionDraft, token?: CancellationToken) => restore.call(harness, draft, token),
+				restore: (draft: ISavedSessionDraft, token?: CancellationToken, preserveFocus?: boolean) => restore.call(harness, draft, token, preserveFocus),
 			};
 		}
 
@@ -665,6 +665,53 @@ suite('NewChatWidget', () => {
 			input: { inputText: 'saved input', attachments: [] },
 			target: { providerId: 'provider', sessionTypeId: 'agent', folderUri: requested },
 		};
+
+		test('startup cannot seed or capture the picker default while recovering a saved target', async () => {
+			const session = {
+				sessionId: 'picker-default', providerId: 'provider', sessionType: 'agent',
+				status: constObservable(SessionStatus.Untitled),
+				modelId: constObservable('user-model'), mode: constObservable(undefined),
+				application: constObservable({ id: 'test' }),
+			};
+			const composer = { target: draft.target, isRestoring: true };
+			const seeded: URI[] = [];
+			const harness = {
+				_savedDraftComposer: composer,
+				_restoringSavedDraft: constObservable(false),
+				_savedDraftTargetUnavailable: constObservable(false),
+				_session: constObservable(session),
+				_workspacePicker: { selectedFolderUri: URI.file('/picker-default') },
+				_syncWorkspacePickerFromActiveSession: () => false,
+				_createNewSession: (folder: URI) => { seeded.push(folder); },
+				_environment: constObservable(undefined),
+				sessionsProvidersService: { getProvider: () => undefined },
+			};
+			const capture = Reflect.get(NewChatWidget.prototype, '_captureSavedDraftTarget') as (this: typeof harness) => void;
+			const restoreNoWorkspace = Reflect.get(NewChatWidget.prototype, '_restoreNoWorkspaceDraft') as (this: typeof harness) => Promise<void>;
+			seedWorkspaceDraft.call(harness);
+			await restoreNoWorkspace.call(harness);
+			capture.call(harness);
+			const startupTarget = composer.target;
+			composer.isRestoring = false;
+			harness._workspacePicker.selectedFolderUri = URI.file('/user-picked');
+			capture.call(harness);
+			assert.deepStrictEqual({ seeded, startupTarget, userTarget: composer.target.folderUri }, {
+				seeded: [], startupTarget: draft.target, userTarget: URI.file('/user-picked'),
+			});
+		});
+
+		test('restoring the singleton backup does not move focus', async () => {
+			const session = upcastPartial<ISession>({
+				providerId: 'provider', sessionType: 'agent',
+				isQuickChat: constObservable(true),
+				workspace: constObservable(undefined),
+			});
+			const fixture = createHarness(session);
+			await fixture.restore({ ...draft, target: { ...draft.target, folderUri: undefined } }, CancellationToken.None, true);
+			assert.deepStrictEqual({ input: fixture.input(), focusStates: fixture.focusStates, unavailable: fixture.harness._savedDraftTargetUnavailable.get() }, {
+				input: draft.input, focusStates: [], unavailable: false,
+			});
+		});
 
 		for (const matches of [false, true]) {
 			for (const quickChat of [false, true]) {

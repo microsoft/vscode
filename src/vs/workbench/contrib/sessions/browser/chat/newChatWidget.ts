@@ -420,7 +420,8 @@ export class NewChatWidget extends Disposable {
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {
 			environment: this._environment,
 			environmentPickerEnabled,
-			canRestoreWorkspace: () => !this._isQuickChatComposer.get() || this._newChatInput?.canApplyWorkspaceDefault === true,
+			canRestoreWorkspace: () => !this._savedDraftComposer?.isRestoring && !this._savedDraftTargetUnavailable.get()
+				&& (!this._isQuickChatComposer.get() || this._newChatInput?.canApplyWorkspaceDefault === true),
 			onUserSelection: () => {
 				this._savedDraftTargetUnavailable.set(false, undefined);
 				newSessionComposerService.notifyUserWorkspaceSelection();
@@ -674,7 +675,7 @@ export class NewChatWidget extends Disposable {
 				this._captureSavedDraftTarget();
 			}));
 			savedDraftRegistration.value = this.sessionDraftsService.registerComposer(this._savedDraftComposer,
-				(draft, token) => this._restoreSavedDraft(draft, token),
+				(draft, token, preserveFocus) => this._restoreSavedDraft(draft, token, preserveFocus),
 				() => this._newChatInput.setDraft({ inputText: '', attachments: [] }),
 				() => this._newChatInput.focus());
 			this._register(this._trackSavedDraftVisibility());
@@ -1259,6 +1260,9 @@ export class NewChatWidget extends Disposable {
 	 * unless an active session already exists (then just sync the picker to it).
 	 */
 	private _seedWorkspaceDraft(): void {
+		if (this._savedDraftComposer?.isRestoring) {
+			return;
+		}
 		const restoredFolderUri = this._workspacePicker.selectedFolderUri;
 		if (this._syncWorkspacePickerFromActiveSession()) {
 			if (this._draftHost) {
@@ -1347,7 +1351,7 @@ export class NewChatWidget extends Disposable {
 	private _captureSavedDraftTarget(): void {
 		const composer = this._savedDraftComposer;
 		const session = this._session.get();
-		if (!composer || this._restoringSavedDraft.get() || this._savedDraftTargetUnavailable.get() || !session || isSessionCreated(session)) {
+		if (!composer || composer.isRestoring || this._restoringSavedDraft.get() || this._savedDraftTargetUnavailable.get() || !session || isSessionCreated(session)) {
 			return;
 		}
 		const provider = this.sessionsProvidersService.getProvider(session.providerId, session.sessionId);
@@ -1367,7 +1371,7 @@ export class NewChatWidget extends Disposable {
 		this._savedDraftTargetSessionId = session.sessionId;
 	}
 
-	private async _restoreSavedDraft(draft: ISavedSessionDraft, token: CancellationToken = CancellationToken.None): Promise<void> {
+	private async _restoreSavedDraft(draft: ISavedSessionDraft, token: CancellationToken = CancellationToken.None, preserveFocus = false): Promise<void> {
 		this._restoringSavedDraft.set(true, undefined);
 		this._pendingPreferredUpgrade.clear();
 		this._newSessionCreation.clear();
@@ -1430,7 +1434,9 @@ export class NewChatWidget extends Disposable {
 			this._restoringSavedDraft.set(false, undefined);
 			this._newChatInput.setInputEnabled(true);
 		}
-		this._newChatInput.focus();
+		if (!preserveFocus) {
+			this._newChatInput.focus();
+		}
 	}
 
 	private _seedRequestedTarget(target: INewSessionTarget): void {
@@ -1721,6 +1727,9 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private async _restoreNoWorkspaceDraft(): Promise<void> {
+		if (this._savedDraftComposer?.isRestoring) {
+			return;
+		}
 		// A hosted composer creates the drafts of what its host requests, and waits for its agent itself.
 		if (this._draftHost?.requestedTarget?.get()) {
 			return;
