@@ -10077,6 +10077,23 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('signals a runtime contribution reload for top-level skill, custom agent and MCP server reloads without the MCP skills flag', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		let reloads = 0;
+		let pluginChanges = 0;
+		disposables.add(session.onDidReloadRuntimeContributions(() => reloads++));
+		disposables.add(session.onDidChangeRuntimePlugins(() => pluginChanges++));
+
+		mockSession.fire('session.skills_loaded', { skills: [] }, { agentId: 'agent-1' });
+		mockSession.fire('session.custom_agents_updated', { agents: [], errors: [], warnings: [] }, { agentId: 'agent-1' });
+		mockSession.fire('session.mcp_servers_loaded', { servers: [] }, { agentId: 'agent-1' });
+		mockSession.fire('session.skills_loaded', { skills: [] });
+		mockSession.fire('session.custom_agents_updated', { agents: [], errors: [], warnings: [] });
+		mockSession.fire('session.mcp_servers_loaded', { servers: [] });
+
+		assert.deepStrictEqual({ reloads, pluginChanges }, { reloads: 3, pluginChanges: 0 });
+	});
+
 	test('`/review` invokes runtime command when listed', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		mockSession.commandListResult = {
