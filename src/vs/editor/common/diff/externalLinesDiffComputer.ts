@@ -28,7 +28,21 @@ function loadExternalModule(): Promise<ExternalDiffModule> {
 
 const externalComputers = new Map<boolean, Promise<ILinesDiffComputer>>();
 
-export function getExternalLinesDiffComputer(useWasm: boolean): Promise<ILinesDiffComputer> {
+let bundledComputer: ILinesDiffComputer | undefined;
+
+/**
+ * Makes `@vscode/diff` available without loading it from `node_modules` at runtime. The standalone editor calls this
+ * with the package's TypeScript backend, which its users' bundlers include like any other dependency. That backend
+ * is then used for `advanced-external` and `advanced-wasm`.
+ */
+export function setBundledExternalDiffComputer(computer: IExternalDiffComputer): void {
+	bundledComputer = new ExternalLinesDiffComputer(computer);
+}
+
+export function getExternalLinesDiffComputer(useWasm: boolean): ILinesDiffComputer | Promise<ILinesDiffComputer> {
+	if (bundledComputer) {
+		return bundledComputer;
+	}
 	let computer = externalComputers.get(useWasm);
 	if (!computer) {
 		computer = loadExternalModule().then(m => createExternalLinesDiffComputer(m, useWasm));

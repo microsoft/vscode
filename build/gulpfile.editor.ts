@@ -18,6 +18,7 @@ import * as monacoapi from './lib/monaco-api.ts';
 import * as fs from 'fs';
 import { createReporter } from './lib/reporter.ts';
 import monacoPackage from './monaco/package.json' with { type: 'json' };
+import rootPackage from '../package.json' with { type: 'json' };
 
 const root = path.dirname(import.meta.dirname);
 const standaloneEnumsPath = path.join(root, 'src/vs/editor/common/standalone/standaloneEnums.ts');
@@ -52,6 +53,7 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 			'vs/editor/editor.main.ts',
 			'vs/editor/editor.worker.start.ts',
 			'vs/editor/common/services/editorWebWorkerMain.ts',
+			'vs/editor/standalone/common/standaloneEditorWebWorkerMain.ts',
 		],
 		inlineEntryPoints: [
 			apiusages,
@@ -176,7 +178,9 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 
 				setUnsetField(json, 'dependencies', {
 					'marked': markedVersion,
-					'dompurify': dompurifyVersion
+					'dompurify': dompurifyVersion,
+					// Bundled by the standalone editor worker (vs/editor/standalone/common/bundledDiffComputer.ts).
+					'@vscode/diff': rootPackage.dependencies['@vscode/diff'],
 				});
 
 				data.contents = Buffer.from(JSON.stringify(json, null, '  '));

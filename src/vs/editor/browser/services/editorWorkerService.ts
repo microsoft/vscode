@@ -61,7 +61,7 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 
 	public static readonly workerDescriptor = new WebWorkerDescriptor({
 		esmModuleLocation: () => FileAccess.asBrowserUri('vs/editor/common/services/editorWebWorkerMain.js'),
-		esmModuleLocationBundler: () => new URL('../../common/services/editorWebWorkerMain.ts?esm', import.meta.url),
+		esmModuleLocationBundler: () => new URL('../../standalone/common/standaloneEditorWebWorkerMain.ts?esm', import.meta.url),
 		label: 'editorWorkerService'
 	});
 
