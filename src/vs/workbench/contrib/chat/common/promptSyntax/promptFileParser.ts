@@ -95,6 +95,8 @@ export namespace PromptHeaderAttributes {
 	export const deferredToolLoading = 'deferred-tool-loading';
 	export const strictToolsList = 'strict-tools-list';
 	export const includeCustomInstructions = 'include-custom-instructions';
+	export const commands = 'commands';
+	export const startForm = 'start-form';
 }
 
 export class PromptHeader {
