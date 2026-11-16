@@ -18,6 +18,11 @@ export type IEditorWindowComposerFolderOptions = Pick<IChatWindowComposerInit, '
 	 * offered by a link. Without it, they are the same only by their URIs.
 	 */
 	readonly isSameFolder?: (folder: URI, uri: URI) => boolean;
+	/**
+	 * Whether `uri` is inside the allowed folder `folder`, also by another form of either, such as a folder inside the real
+	 * path of a folder that is offered by a link. Without it, by their paths only.
+	 */
+	readonly isInFolder?: (folder: URI, uri: URI) => boolean;
 };
 
 /** A new-session composer that follows its host to another folder (see `ChatWindowComposerModel.retargetFolder`). */
@@ -43,9 +48,9 @@ export interface IEditorWindowComposerFoldersService {
 
 	/**
 	 * The allowed folder for a new session in `uri`, such as the folder of an existing session: the allowed folder that `uri`
-	 * is, by the equality of the options' provider (`isSameFolder`, which knows other forms of a folder, such as its real
-	 * path; without it, by URI only), else the allowed folder `uri` is inside, by path. `undefined` when it is none of them,
-	 * and `uri` itself while the composers may create sessions anywhere, without allowed folders.
+	 * is, else the allowed folder `uri` is inside, each as the options' provider tells (`isSameFolder` and `isInFolder`,
+	 * which know other forms of a folder, such as its real path; without them, by URI and by path only). `undefined` when
+	 * it is none of them, and `uri` itself while the composers may create sessions anywhere, without allowed folders.
 	 */
 	toAllowedFolder(uri: URI): URI | undefined;
 
@@ -97,8 +102,10 @@ export class EditorWindowComposerFoldersService implements IEditorWindowComposer
 		if (allowed.length === 0) {
 			return uri;
 		}
-		const isSameFolder = this._providedOptions.get()?.isSameFolder ?? ((folder: URI, other: URI) => extUri.isEqual(folder, other));
-		return allowed.find(folder => isSameFolder(folder, uri)) ?? allowed.find(folder => extUri.isEqualOrParent(uri, folder));
+		const provided = this._providedOptions.get();
+		const isSameFolder = provided?.isSameFolder ?? ((folder: URI, other: URI) => extUri.isEqual(folder, other));
+		const isInFolder = provided?.isInFolder ?? ((folder: URI, other: URI) => extUri.isEqualOrParent(other, folder));
+		return allowed.find(folder => isSameFolder(folder, uri)) ?? allowed.find(folder => isInFolder(folder, uri));
 	}
 
 	registerComposer(composer: IEditorWindowRetargetableComposer): IDisposable {
