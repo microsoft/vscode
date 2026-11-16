@@ -268,19 +268,7 @@ export class SessionHeaderBar extends Disposable {
 
 		this._register(addDisposableListener(this._container, EventType.DRAG_START, (e: DragEvent) => {
 			const session = this._session;
-			// Its title drags the editor that shows the chat, as the editor's drag handle, which fills the drag: the header
-			// only adds the session and its chat, on the drag's own data, so that the editor's drag stays as it is and the
-			// chat can also drop where chats do, such as into the main window's grid.
-			if (this._dragsEditor) {
-				if (session) {
-					fillSessionDataTransfer(e, session);
-					if (this._activeChat) {
-						fillSessionChatDragData(e, session.sessionId, this._activeChat.resource);
-					}
-				}
-				return;
-			}
-			if (!session || !e.dataTransfer || this._dragFromPaneEdge) {
+			if (this._dragFromPaneEdge || (!this._dragsEditor && (!session || !e.dataTransfer))) {
 				e.preventDefault();
 				return;
 			}
@@ -298,6 +286,22 @@ export class SessionHeaderBar extends Disposable {
 				return;
 			}
 
+			// The header drags the editor that shows the chat, as the editor's drag handle, which fills the drag: it only adds
+			// the session and its chat, on the drag's own data, so that the editor's drag stays as it is and the chat can
+			// also drop where chats do, such as into the main window's grid.
+			if (this._dragsEditor) {
+				if (session) {
+					fillSessionDataTransfer(e, session);
+					if (this._activeChat) {
+						fillSessionChatDragData(e, session.sessionId, this._activeChat.resource);
+					}
+				}
+				return;
+			}
+
+			if (!session || !e.dataTransfer) {
+				return;
+			}
 			if (this._actionsTargetChat) {
 				const chat = this._activeChat;
 				if (!chat) {
@@ -318,14 +322,14 @@ export class SessionHeaderBar extends Disposable {
 			this._sessionTransfer.clearData(DraggedSessionIdentifier.prototype);
 
 			// The header's own drag, of its session or of its chat, can open it in a window of its own
-			if (e.target === this._container && this._session) {
+			if (e.target === this._container && this._session && !this._dragsEditor) {
 				onDidEndSessionChatDrag(e, this._container, this._session, this._actionsTargetChat ? this._activeChat?.resource : undefined, this._titlePath);
 			}
 		}));
 	}
 
 	/**
-	 * Lets its title drag the editor that shows the chat, as the drag handle of that editor, such as in a chat window,
+	 * Lets it drag the editor that shows the chat, as the drag handle of that editor, such as in a chat window,
 	 * rather than the header dragging the session: the header then only adds the session and its chat to the drag.
 	 */
 	setDragsEditor(dragsEditor: boolean): void {

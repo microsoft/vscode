@@ -10,6 +10,7 @@ import { normalizeSandboxFileSystemPath, type IAgentSandboxUserConfiguredPaths }
 
 export const SAVE_SANDBOX_PATH = 'save-sandbox-path';
 export const SAVE_SESSION_SANDBOX_PATH = 'save-session-sandbox-path';
+export const SAVE_WORKSPACE_SANDBOX_PATH = 'save-workspace-sandbox-path';
 export const SESSION_SANDBOX_PATHS_CHANGED = 'sandboxPaths';
 export const SESSION_SANDBOX_PATHS_KEY = 'agentHost.sandboxPaths';
 
@@ -75,6 +76,13 @@ export function applySessionSandboxPathGrant(current: ISessionSandboxPaths, gran
 		readwritePaths: paths.readwritePaths ?? [],
 		removedReadonlyPaths: [...new Set([...current.removedReadonlyPaths, ...grant.removedReadonlyPaths ?? []])],
 	};
+}
+
+/** Removes exact personal read-only additions without changing inherited-path masks or writable grants. */
+export function removeSandboxReadonlyPaths(current: ISessionSandboxPaths, paths: readonly string[], os: OperatingSystem): ISessionSandboxPaths {
+	const removed = new Set(paths.map(path => normalizeSandboxFileSystemPath(path, os)));
+	const readonlyPaths = current.readonlyPaths.filter(path => !removed.has(normalizeSandboxFileSystemPath(path, os)));
+	return readonlyPaths.length === current.readonlyPaths.length ? current : { ...current, readonlyPaths };
 }
 
 /** Composes personal grants before managed lists are applied by the sandbox settings resolver. */

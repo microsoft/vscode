@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
+import type { Context, CreateRule, RuleMeta, Visitor } from '@oxlint/plugins';
 import { join, dirname } from 'path';
 import { createImportRuleListener } from './utils.ts';
 
-export default new class implements eslint.Rule.RuleModule {
+export default new class implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		messages: {
 			noDeepImportOfInternal: 'No deep import of internal modules allowed! Use a re-export from a non-internal module instead. Internal modules can only be imported by direct parents (any module in {{parentDir}}).'
 		},
@@ -26,7 +26,7 @@ export default new class implements eslint.Rule.RuleModule {
 		]
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 		const isInternalPart = getIsInternalPart(context.options[0] as Record<string, boolean>);
 		const importerModuleDir = dirname(context.filename);
 		const importerDirJoined = splitParts(importerModuleDir).join('/');

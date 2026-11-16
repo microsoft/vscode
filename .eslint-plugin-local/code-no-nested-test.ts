@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import type * as ESTree from 'estree';
+import type { Context, CreateRule, ESTree, RuleMeta, Scope, Visitor } from '@oxlint/plugins';
 
 const registrations = new Set(['test', 'it', 'suite', 'describe']);
 const testBodies = new Set(['test', 'it']);
@@ -14,9 +13,9 @@ const testBodies = new Set(['test', 'it']);
  * test body happens too late: Mocha silently drops it, so it never runs. This typically comes from
  * a misplaced closing brace.
  */
-export default new class NoNestedTest implements eslint.Rule.RuleModule {
+export default new class NoNestedTest implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		type: 'problem',
 		messages: {
 			nested: '`{{name}}` is declared inside the body of another test and will never run. Check for a misplaced closing brace.'
@@ -24,7 +23,7 @@ export default new class NoNestedTest implements eslint.Rule.RuleModule {
 		schema: []
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 		const sourceCode = context.sourceCode;
 
 		/**
@@ -49,7 +48,7 @@ export default new class NoNestedTest implements eslint.Rule.RuleModule {
 		 * This requires scope analysis, which is costly, so it is only checked after all syntactic conditions.
 		 */
 		function isFrameworkGlobal(node: ESTree.Node, name: string): boolean {
-			for (let scope: eslint.Scope.Scope | null = sourceCode.getScope(node); scope; scope = scope.upper) {
+			for (let scope: Scope | null = sourceCode.getScope(node); scope; scope = scope.upper) {
 				const variable = scope.set.get(name);
 				// Configured globals (`languageOptions.globals`, `/* global test */`) have no definitions.
 				if (variable && variable.defs.length > 0) {
@@ -60,7 +59,7 @@ export default new class NoNestedTest implements eslint.Rule.RuleModule {
 		}
 
 		function isInsideTestBody(node: ESTree.Node): boolean {
-			for (let fn: eslint.Rule.Node | null = (node as eslint.Rule.Node).parent; fn; fn = fn.parent) {
+			for (let fn: ESTree.Node | null = node.parent; fn; fn = fn.parent) {
 				const parent = fn.parent;
 				if ((fn.type === 'ArrowFunctionExpression' || fn.type === 'FunctionExpression')
 					&& parent?.type === 'CallExpression' && parent.arguments.includes(fn)) {

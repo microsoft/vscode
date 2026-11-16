@@ -50,6 +50,8 @@ export enum ChatConfiguration {
 	EnabledPlugins = 'chat.plugins.enabledPlugins',
 	AgentEnabled = 'chat.agent.enabled',
 	AgentsPickerInAttachContextMenu = 'sessions.chat.experimental.agentsPickerInAttachContextMenu',
+	/** Desktop only: lets chat attach a screenshot of the window of another app. */
+	AppWindowScreenshotsEnabled = 'chat.appWindowScreenshots.enabled',
 	PlanAgentDefaultModel = 'chat.planAgent.defaultModel',
 	ExploreAgentDefaultModel = 'chat.exploreAgent.defaultModel',
 	UtilityModel = 'chat.utilityModel',
@@ -78,6 +80,8 @@ export enum ChatConfiguration {
 	AutoApprovedUrls = 'chat.tools.urls.autoApprove',
 	EligibleForAutoApproval = 'chat.tools.eligibleForAutoApproval',
 	EnableMath = 'chat.math.enabled',
+	HtmlPreviewEnabled = 'chat.htmlPreview.enabled',
+	NativeComponentsEnabled = 'chat.nativeComponents.enabled',
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
 	ThinkingStyle = 'chat.agent.thinkingStyle',
 	ThinkingGenerateTitles = 'chat.agent.thinking.generateTitles',
@@ -162,6 +166,7 @@ export enum ChatConfiguration {
 	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
 	AgentsHandoffTipDelaySeconds = 'chat.agentsHandoffTip.delaySeconds',
 	BtwTipEnabled = 'chat.btwTip.enabled',
+	AutomateTipEnabled = 'chat.automateTip.enabled',
 	SendInBackgroundTipEnabled = 'chat.sendInBackgroundTip.enabled',
 	CopilotCliCommandEnabled = 'chat.copilotCliCommand.enabled',
 
@@ -774,6 +779,10 @@ export { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, getAgentHostSessionResource } from 
 
 export const OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openWorkspaceInAgentsWindow';
 export const OPEN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openAgentsWindow';
+/** Shows the Agents Launcher, a small floating composer that starts agent sessions in the background. */
+export const AGENTS_LAUNCHER_COMMAND_ID = 'workbench.action.agentsLauncher';
+/** Attaches a screenshot of the window of another app to chat. Desktop only; its keybinding can be made system-wide. */
+export const ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID = 'workbench.action.chat.attachAppWindowScreenshot';
 export { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY } from '../../../../platform/chat/common/agentsWindowInvitation.js';
 export const OPEN_AGENTS_WINDOW_PRECONDITION = ContextKeyExpr.and(
 	ChatEntitlementContextKeys.Setup.hidden.negate(),

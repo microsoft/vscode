@@ -33,6 +33,7 @@ import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/
 import { IMenuService, isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { AutomationDisableConditionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -254,7 +255,8 @@ suite('Automation dialog creation', () => {
 		const container = instantiationService.get(IWorkbenchLayoutService).activeContainer;
 		const buttons = Array.from(container.querySelectorAll<HTMLElement>('.automation-dialog-footer-actions .monaco-button'));
 		const saveButton = buttons.find(button => button.textContent === (options.existing ? 'Save' : 'Create'))!;
-		const cancelButton = buttons.find(button => button.textContent === 'Cancel')!;
+		const cancelButton = buttons.find(button => button.textContent === 'Cancel')
+			?? Array.from(container.querySelectorAll<HTMLElement>('.dialog-buttons .monaco-button')).find(button => button.textContent === 'Close')!;
 		disposables.add(toDisposable(() => cancelButton.click()));
 		const nameInput = container.querySelector<HTMLInputElement>('.automation-form-input-host input')!;
 		return {
@@ -1692,6 +1694,27 @@ suite('Automation dialog creation', () => {
 		await dialog.result;
 	});
 
+	test('one-time definitions cannot lose their captured request or timestamp through the recurring editor', async () => {
+		const existing: IAutomationDescriptor = {
+			id: 'once', name: 'Captured request', prompt: 'Review changes', enabled: true, createdAt: '', updatedAt: '',
+			target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' },
+			schedule: { interval: 'once', runAt: '2027-01-01T10:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+		};
+		let commits = 0;
+		const dialog = openDialog({ existing, commit: async () => { commits++; } });
+		const presentation = {
+			editable: !!dialog.container.querySelector('input, textarea, select'),
+			scheduleVisible: dialog.container.textContent?.includes(existing.schedule.runAt!),
+			promptVisible: dialog.container.textContent?.includes(existing.prompt),
+			saveButton: !!dialog.saveButton,
+		};
+		dialog.cancelButton.click();
+		assert.deepStrictEqual({ presentation, result: await dialog.result, commits }, {
+			presentation: { editable: false, scheduleVisible: true, promptVisible: true, saveButton: false },
+			result: undefined, commits: 0,
+		});
+	});
+
 	test('duplicating foreign-time-zone Weekdays requires choosing a supported schedule', async () => {
 		const automation: IAutomationDescriptor = {
 			id: 'foreign-weekdays', name: 'Weekday review', prompt: 'Review changes', enabled: true, createdAt: '', updatedAt: '',
@@ -3106,6 +3129,36 @@ suite('Automation dialog creation', () => {
 				kind: editing ? 'update' : 'create',
 				...(editing ? { id: existing.id } : {}),
 				value: { name: existing.name, prompt: existing.prompt, target: existing.target, schedule: existing.schedule, enabled: existing.enabled },
+			});
+		});
+	}
+
+	for (const editing of [false, true]) {
+		test(`preserves agent-configured end dates without exposing a field when ${editing ? 'editing' : 'duplicating'}`, async () => {
+			const existing: IAutomationDescriptor = {
+				id: 'dated', name: 'Nightly review', prompt: 'Review changes',
+				target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' },
+				schedule: { interval: 'hourly', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
+				enabled: true, createdAt: '', updatedAt: '',
+				disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2099-01-01T08:00:00Z' }],
+			};
+			const dialog = openDialog(editing ? { existing } : { initialValues: existing });
+			const hasEndDateInput = !!dialog.container.querySelector('input[type="datetime-local"]');
+			dialog.setName('Updated review');
+			dialog.saveButton.click();
+			const result = await dialog.result;
+			assert.deepStrictEqual({
+				hasEndDateInput,
+				kind: result?.kind,
+				enabled: result?.value.enabled,
+				disableConditions: result?.value.disableConditions,
+				name: result?.value.name,
+			}, {
+				hasEndDateInput: false,
+				kind: editing ? 'update' : 'create',
+				enabled: true,
+				disableConditions: editing ? undefined : existing.disableConditions,
+				name: 'Updated review',
 			});
 		});
 	}

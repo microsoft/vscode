@@ -1413,6 +1413,167 @@ suite('Chat window grid', () => {
 		assert.deepStrictEqual({ before, after: height() }, { before, after: before });
 	});
 
+	test('the terminals squeezed as a part shows in a window too short for their height take it back as the window grows', () => {
+		const { mode, grid, position, open, userResize, height } = setupWithTerminals();
+		position.set(ChatWindowTerminalPosition.UnderEditor, undefined);
+		open();
+		userResize(ChatWindowGridCell.Terminals, 'top', 400);
+		mode.set(ChatWindowLayoutMode.ChatOnly, undefined);
+		grid.layout(1000, 450);
+		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
+		const squeezed = height();
+		grid.layout(1000, 800);
+
+		assert.deepStrictEqual({ squeezed: squeezed < 400, grown: height(), saved: grid.exportSizes().terminals?.[ChatWindowGridCell.Terminals]?.height }, { squeezed: true, grown: 400, saved: 400 });
+	});
+
+	test('the terminals at their default height, squeezed as a part shows in a window too short for it, take it back as the window grows', () => {
+		const { mode, grid, position, open, height } = setupWithTerminals();
+		position.set(ChatWindowTerminalPosition.UnderEditor, undefined);
+		open();
+		const initial = height();
+		mode.set(ChatWindowLayoutMode.ChatOnly, undefined);
+		grid.layout(1000, 300);
+		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
+		const squeezed = height();
+		grid.layout(1000, 800);
+
+		assert.deepStrictEqual({ squeezed: squeezed < initial, grown: height(), saved: grid.exportSizes().terminals?.[ChatWindowGridCell.Terminals]?.height }, { squeezed: true, grown: initial, saved: undefined });
+	});
+
+	test('the terminals at their default height, not squeezed, keep their height as the window grows', () => {
+		const { grid, position, open, height } = setupWithTerminals();
+		position.set(ChatWindowTerminalPosition.UnderEditor, undefined);
+		open();
+		const initial = height();
+		const heights = [1000, 1200, 800].map(windowHeight => {
+			grid.layout(1000, windowHeight);
+			return height();
+		});
+
+		assert.deepStrictEqual(heights, [initial, initial, initial]);
+	});
+
+	test('the terminals a user dragged shorter, or that were never given a height, keep their height as the window grows', () => {
+		const { grid, position, open, userResize, height } = setupWithTerminals();
+		position.set(ChatWindowTerminalPosition.UnderEditor, undefined);
+		open();
+		const initial = height();
+		grid.layout(1000, 1000);
+		const untouched = height();
+		userResize(ChatWindowGridCell.Terminals, 'top', 400);
+		userResize(ChatWindowGridCell.Terminals, 'top', 250);
+		grid.layout(1000, 1200);
+
+		assert.deepStrictEqual({ untouched: untouched === initial, dragged: height() }, { untouched: true, dragged: 250 });
+	});
+
+	test('the terminals that take their height back as the window grows while a part is hidden keep it as that part shows', () => {
+		const { mode, grid, position, open, userResize, height } = setupWithTerminals();
+		position.set(ChatWindowTerminalPosition.UnderEditor, undefined);
+		open();
+		userResize(ChatWindowGridCell.Terminals, 'top', 400);
+		grid.layout(1000, 450);
+		const squeezed = height();
+		mode.set(ChatWindowLayoutMode.ChatOnly, undefined);
+		grid.layout(1000, 800);
+		mode.set(ChatWindowLayoutMode.SideBySide, undefined);
+
+		assert.deepStrictEqual({ squeezed: squeezed < 400, shown: height() }, { squeezed: true, shown: 400 });
+	});
+
+	test('the terminals in a row above a part, as a user arranged them, do not squeeze that part to take their height back', () => {
+		const { grid, position, open, userResize } = setupWithTerminals();
+		position.set(ChatWindowTerminalPosition.UnderEditor, undefined);
+		open();
+		userResize(ChatWindowGridCell.Terminals, 'top', 400);
+		grid.partGrid!.moveCell(ChatWindowGridCell.Main, { reference: ChatWindowGridCell.Chat, direction: Direction.Down });
+		grid.partGrid!.moveCell(ChatWindowGridCell.Terminals, { reference: ChatWindowGridCell.Chat, direction: Direction.Right });
+		grid.layout(1000, 450);
+		const main = grid.partGrid!.getCellSize(ChatWindowGridCell.Main).height;
+
+		assert.deepStrictEqual({ mainAtItsMinimum: main <= 50 }, { mainAtItsMinimum: false });
+	});
+
+	test('the terminals that shrank as a part was dropped at an edge of the window, or in a layout that does not grow the window, keep their height', () => {
+		const { grid, position, open, userResize, height } = setupWithTerminals();
+		position.set(ChatWindowTerminalPosition.UnderEditor, undefined);
+		open();
+		userResize(ChatWindowGridCell.Terminals, 'top', 400);
+		grid.partGrid!.moveCell(ChatWindowGridCell.Chat, { edge: Direction.Down });
+		const arranged = height();
+		grid.layout(1000, 800);
+		const same = height();
+		grid.layout(1200, 800);
+
+		assert.deepStrictEqual({ arranged: arranged < 400, same, widthOnly: height() }, { arranged: true, same: arranged, widthOnly: arranged });
+	});
+
+	test('the terminals at their default height, shrunk as a part was dropped at an edge of the window, take it back as the window grows', () => {
+		const { grid, position, open, height } = setupWithTerminals();
+		position.set(ChatWindowTerminalPosition.UnderEditor, undefined);
+		open();
+		const initial = height();
+		grid.partGrid!.moveCell(ChatWindowGridCell.Chat, { edge: Direction.Down });
+		const arranged = height();
+		grid.layout(1000, 1000);
+
+		assert.deepStrictEqual({ arranged: arranged < initial, grown: height() }, { arranged: true, grown: initial });
+	});
+
+	test('a row among the parts above the terminals gives room to them as a unit, in proportion to the parts beside it', () => {
+		const { grid, open, userResize, height } = setupWithTerminals();
+		open();
+		grid.partGrid!.moveCell(ChatWindowGridCell.Main, { edge: Direction.Up });
+		userResize(ChatWindowGridCell.Terminals, 'top', 300);
+		const heights = () => [ChatWindowGridCell.Main, ChatWindowGridCell.Chat].map(cell => grid.partGrid!.getCellSize(cell).height);
+		const before = heights();
+		grid.layout(1000, 400);
+		const squeezed = height() < 300;
+		grid.layout(1000, 800);
+
+		assert.deepStrictEqual({ squeezed, terminals: height(), parts: heights().map(size => Math.round(size / 10)) }, { squeezed: true, terminals: 300, parts: before.map(size => Math.round(size / 10)) });
+	});
+
+	test('with parts nested deeper than a row above them, the terminals take their height back as a plain resize does', () => {
+		const editor = new class extends mock<EditorInput>() {
+			override readonly typeId = 'testEditor';
+			override readonly resource = undefined;
+			override getName() { return 'file'; }
+		}();
+		const terminalsPart = createPartWithEditors('terminals');
+		terminalsPart.setEmpty(false);
+		const container = createAttachedContainer();
+		const grid = disposables.add(new ChatWindowGrid(container, { main: createPart('main'), chat: createPart('chat'), titleRow: createChrome(30), strip: createChrome(34), terminals: constObservable(terminalsPart.part) }, constObservable(ChatWindowLayoutMode.SideBySide), constObservable(0), undefined, constObservable(ChatWindowTerminalPosition.FullWidth), { createPart: () => ({ id: 'created', part: createPart('created') }) }, editorGroupsService));
+		grid.layout(1000, 800);
+		grid.partGrid!.moveEditorsIntoNewPart([{ editor, groupId: 1 }], { edge: Direction.Up }, { dropped: true });
+		grid.partGrid!.moveCell(ChatWindowGridCell.Main, { reference: 'created', direction: Direction.Left });
+		grid.partGrid!.moveCell(ChatWindowGridCell.Chat, { reference: 'created', direction: Direction.Down });
+		const arrangement = grid.partGrid!.describe();
+		drag(container, grid, ChatWindowGridCell.Terminals, 'top', 300);
+		const height = () => grid.partGrid!.getCellSize(ChatWindowGridCell.Terminals).height;
+		grid.layout(1000, 400);
+		const squeezed = height() < 300;
+		grid.layout(1000, 800);
+
+		assert.deepStrictEqual({ arrangement, squeezed, terminals: height() }, { arrangement: 'column(titleRow, row(column(row(main, column(created, chat)), terminals), strip))', squeezed: true, terminals: 300 });
+	});
+
+	test('in Stacked, the chat and the main part keep their shares as the terminals take their height back', () => {
+		const { mode, grid, position, open, userResize } = setupWithTerminals(ChatWindowLayoutMode.ChatOnly);
+		position.set(ChatWindowTerminalPosition.FullWidth, undefined);
+		open();
+		userResize(ChatWindowGridCell.Terminals, 'top', 400);
+		grid.layout(1000, 450);
+		mode.set(ChatWindowLayoutMode.Stacked, undefined);
+		const heights = () => [ChatWindowGridCell.Main, ChatWindowGridCell.Chat, ChatWindowGridCell.Terminals].map(cell => grid.partGrid!.getCellSize(cell).height);
+		const squeezed = heights();
+		grid.layout(1000, 800);
+		const grown = heights();
+
+		assert.deepStrictEqual({ squeezedTerminals: squeezed[2] < 400, terminals: grown[2], ratio: Math.round(grown[0] / grown[1] * 10) }, { squeezedTerminals: true, terminals: 400, ratio: Math.round(squeezed[0] / squeezed[1] * 10) });
+	});
+
 	test('a part hidden while the terminals open shows again at its share, beside the terminals at their height: the chat in Stacked, and the main part with the terminals under it', () => {
 		const roundTrip = (initial: ChatWindowLayoutMode, hiding: ChatWindowLayoutMode, position: ChatWindowTerminalPosition, cell: ChatWindowGridCell) => {
 			const { mode, position: terminalPosition, grid, open, height } = setupWithTerminals(initial);

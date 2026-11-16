@@ -13,6 +13,27 @@
 	border-radius: var(--vscode-cornerRadius-large);
 }
 
+.sessions-list-control .session-item .session-scheduled-indicator {
+	display: none;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	/* Match the adjacent action labels' icon width and horizontal padding. */
+	width: calc(var(--vscode-codiconFontSize) + var(--vscode-spacing-size60));
+	margin-right: var(--vscode-spacing-size40);
+	font-size: var(--vscode-codiconFontSize);
+	color: var(--vscode-descriptionForeground);
+
+	&.visible {
+		display: flex;
+		margin-left: auto;
+
+		+ .session-title-toolbar {
+			margin-left: 0;
+		}
+	}
+}
+
 .agent-sessions-navigation-container {
 	.monaco-list-row {
 		left: var(--vscode-spacing-size40);
@@ -359,7 +380,8 @@
 			display: block;
 		}
 
-		.session-external-application-badge-title {
+		.session-external-application-badge-title,
+		.session-scheduled-indicator.visible {
 			display: none;
 		}
 
@@ -789,32 +811,6 @@
 			}
 		}
 	}
-}
-
-.sessions-list-control .session-inline-actions {
-	display: flex;
-	align-items: center;
-	min-width: 0;
-	grid-column: 1 / -1;
-
-	.monaco-button {
-		width: auto;
-		min-width: 0;
-		max-width: 100%;
-		font-size: var(--vscode-fontSize-label1);
-		overflow: hidden;
-		white-space: nowrap;
-		text-overflow: ellipsis;
-	}
-
-	&[hidden] {
-		display: none;
-	}
-}
-
-.phone-layout .sessions-list-control .session-inline-actions .monaco-button {
-	min-height: 44px;
-	box-sizing: border-box;
 }
 
 .sessions-list-control.compact {
@@ -1447,6 +1443,7 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+		color: var(--session-group-interaction-foreground, var(--session-group-foreground, inherit));
 	}
 
 	.session-section-icon {
@@ -1555,7 +1552,28 @@
 
 .sessions-list-control {
 	.monaco-list-row:is(:hover, .hovered) .session-section .session-section-label,
-	.monaco-list-row.focused .session-section .session-section-label,
+	.monaco-list-row.focused .session-section .session-section-label {
+		color: var(--session-group-interaction-foreground, var(--session-group-hover-foreground, var(--vscode-strongForeground)));
+	}
+
+	.monaco-list .monaco-list-row.focused .session-section-label {
+		--session-group-interaction-foreground: var(--session-group-inactive-focus-foreground);
+	}
+
+	.monaco-list .monaco-list-row.selected .session-section-label {
+		--session-group-interaction-foreground: var(--session-group-inactive-selection-foreground);
+	}
+
+	.monaco-list:focus .monaco-list-row.focused .session-section-label,
+	.monaco-list.sticky-scroll-focused .monaco-tree-sticky-row.focused .session-section-label {
+		--session-group-interaction-foreground: var(--session-group-focus-foreground);
+	}
+
+	.monaco-list:focus .monaco-list-row.selected .session-section-label,
+	.monaco-list.sticky-scroll-focused .monaco-tree-sticky-row.selected .session-section-label {
+		--session-group-interaction-foreground: var(--session-group-selection-foreground);
+	}
+
 	.monaco-list-row:is(:hover, .hovered) .session-show-more-folders .session-show-more-label,
 	.monaco-list-row.focused .session-show-more-folders .session-show-more-label {
 		color: var(--vscode-strongForeground);

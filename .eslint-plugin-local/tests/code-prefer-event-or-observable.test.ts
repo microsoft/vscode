@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { ESLint, RuleTester, type Linter } from 'eslint';
 import { suite, test } from 'node:test';
+import { RuleTester } from 'oxlint/plugins-dev';
+import { getRepositoryFileRules } from '../../build/lib/oxlintConfig.ts';
 import { resolve } from 'path';
-import tseslint from 'typescript-eslint';
 import rule from '../code-prefer-event-or-observable.ts';
 
 RuleTester.describe = suite;
@@ -17,7 +17,7 @@ const checkPublicMethods = [{ checkPublicMethods: true }];
 const constructorErrors = [{ messageId: 'constructorCallback', data: { name: 'callback' } }];
 const methodErrors = [{ messageId: 'methodCallback', data: { name: 'callback' } }];
 
-new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-prefer-event-or-observable', rule, {
+new RuleTester({ languageOptions: { sourceType: 'module', parserOptions: { lang: 'ts' } } }).run('code-prefer-event-or-observable', rule, {
 	valid: [
 		`class C { constructor(value: string) {} }`,
 		`class C { constructor(service: IService) {} }`,
@@ -76,8 +76,8 @@ new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-prefe
 	constructor(callback: () => void, getValue: () => number) {}
 }`,
 			errors: [
-				{ messageId: 'constructorCallback', data: { name: 'callback' }, line: 2, column: 14 },
-				{ messageId: 'constructorCallback', data: { name: 'getValue' }, line: 2, column: 36 },
+				{ messageId: 'constructorCallback', data: { name: 'callback' }, line: 2, column: 13 },
+				{ messageId: 'constructorCallback', data: { name: 'getValue' }, line: 2, column: 35 },
 			],
 		},
 		{ code: `class C { run(callback: () => void) {} }`, errors: methodErrors },
@@ -94,6 +94,11 @@ new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-prefe
 		{ code: `class C { run: (callback: () => void) => void = callback => {}; }`, options: checkPublicMethods, errors: methodErrors },
 		{ code: `abstract class C { abstract run: (callback: () => void) => void; }`, options: checkPublicMethods, errors: methodErrors },
 		{
+			name: 'checks public methods by default when enabled',
+			code: `class C { constructor(callback: () => void) {} run(callback: () => void) {} }`,
+			errors: [...constructorErrors, ...methodErrors],
+		},
+		{
 			code: `class C { constructor(callback: () => void) {} run(callback: () => void) {} }`,
 			options: checkPublicMethods,
 			errors: [...constructorErrors, ...methodErrors],
@@ -107,41 +112,13 @@ new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-prefe
 });
 
 suite('code-prefer-event-or-observable configuration', () => {
-	const filePath = resolve(import.meta.dirname, '../../src/vs/workbench/common/example.ts');
-	const code = `class C { constructor(callback: () => void) {} run(callback: () => void) {} }`;
+	const severities = (files: string[]) => Promise.all(files.map(async file => (await getRepositoryFileRules(file))?.['local/code-prefer-event-or-observable']));
 
-	test('is opt-in and checks public methods by default when enabled', async () => {
-		const configurations: NonNullable<Linter.Config['rules']>[] = [
-			{},
-			{ 'local/code-prefer-event-or-observable': 'warn' },
-			{ 'local/code-prefer-event-or-observable': ['warn', { checkPublicMethods: false }] },
-			{ 'local/code-prefer-event-or-observable': ['warn', { checkPublicMethods: true }] },
-		];
-
-		assert.deepStrictEqual(await Promise.all(configurations.map(async rules => {
-			const eslint = new ESLint({ overrideConfig: [{ rules }] });
-			const results = await eslint.lintText(code, { filePath });
-			return results.flatMap(result => result.messages
-				.filter(message => message.ruleId === 'local/code-prefer-event-or-observable')
-				.map(message => ({ messageId: message.messageId, severity: message.severity })));
-		})), [
-			[],
-			[{ messageId: 'constructorCallback', severity: 1 }, { messageId: 'methodCallback', severity: 1 }],
-			[{ messageId: 'constructorCallback', severity: 1 }],
-			[{ messageId: 'constructorCallback', severity: 1 }, { messageId: 'methodCallback', severity: 1 }],
-		]);
-	});
-
-	test('can opt in an individual file with an ESLint directive', async () => {
-		const eslint = new ESLint();
-		const results = await eslint.lintText(`/* eslint local/code-prefer-event-or-observable: "warn" */\n${code}`, { filePath });
-		assert.deepStrictEqual(results.flatMap(result => result.messages
-			.filter(message => message.ruleId === 'local/code-prefer-event-or-observable')
-			.map(message => message.messageId)), ['constructorCallback', 'methodCallback']);
+	test('is opt-in', async () => {
+		assert.deepStrictEqual(await severities(['src/vs/workbench/common/example.ts']), [undefined]);
 	});
 
 	test('enforces errors only in migrated areas', async () => {
-		const eslint = new ESLint();
 		const files = [
 			'src/vs/workbench/api/browser/mainThreadMcp.ts',
 			'src/vs/workbench/api/common/extHostQuickOpen.ts',
@@ -154,23 +131,6 @@ suite('code-prefer-event-or-observable configuration', () => {
 			'src/vs/workbench/api/browser/mainThreadAuthentication.ts',
 			'src/vs/workbench/api/test/browser/mainThreadMcp.test.ts',
 		];
-		const errors = [{ messageId: 'constructorCallback', severity: 2 }, { messageId: 'methodCallback', severity: 2 }];
-		assert.deepStrictEqual(await Promise.all(files.map(async file => {
-			const results = await eslint.lintText(code, { filePath: resolve(import.meta.dirname, '../..', file) });
-			return results.flatMap(result => result.messages
-				.filter(message => message.ruleId === 'local/code-prefer-event-or-observable')
-				.map(message => ({ messageId: message.messageId, severity: message.severity })));
-		})), [
-			errors,
-			errors,
-			errors,
-			errors,
-			errors,
-			[],
-			[],
-			[],
-			[],
-			[],
-		]);
+		assert.deepStrictEqual(await severities(files), [['error'], ['error'], ['error'], ['error'], ['error'], undefined, undefined, undefined, undefined, undefined]);
 	});
 });

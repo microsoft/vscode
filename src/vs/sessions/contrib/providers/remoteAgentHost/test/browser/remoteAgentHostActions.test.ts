@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { OS } from '../../../../../../base/common/platform.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
@@ -16,7 +16,7 @@ import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
-import { ISSHRemoteAgentHostService, SSHAuthMethod, type ISSHAgentHostConfig } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { ISSHRemoteAgentHostService, SSHAuthMethod, type ISSHAgentHostConfig, type SSHAgentHostConnectionRequest } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -46,7 +46,7 @@ import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menu
 import '../../browser/missionControlAgentHost.contribution.js';
 import { getSessionCreationEnvironments } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionEnvironmentPicker.js';
 import { IWSLRemoteAgentHostService } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
-import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, QuickInputHideReason, type IQuickPick, type IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -246,6 +246,46 @@ suite('Remote Agent Host actions', () => {
 			});
 		});
 	}
+
+	test('configured SSH selection does not turn preflight settings into explicit connection overrides', async () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const accepted = store.add(new Emitter<void>());
+		const hidden = store.add(new Emitter<void>());
+		const requests: SSHAgentHostConnectionRequest[] = [];
+		instantiation.stub(IInstantiationService, instantiation);
+		instantiation.stub(ICommandService, {});
+		instantiation.stub(INotificationService, new TestNotificationService());
+		instantiation.stub(ITelemetryService, NullTelemetryService);
+		instantiation.stub(IRemoteAgentHostService, { connections: [] });
+		instantiation.stub(IQuickInputService, {
+			createQuickPick: <T extends IQuickPickItem>() => new class extends mock<IQuickPick<T>>() {
+				override items: readonly T[] = [];
+				override get selectedItems(): readonly T[] { return this.items.slice(0, 1); }
+				override readonly onDidChangeValue = Event.None;
+				override readonly onDidTriggerButton = Event.None;
+				override readonly onDidAccept = Event.map(accepted.event, () => ({ inBackground: false }));
+				override readonly onDidHide = Event.map(hidden.event, () => ({ reason: QuickInputHideReason.Gesture }));
+				override show(): void { accepted.fire(); }
+				override hide(): void { hidden.fire(); }
+				override dispose(): void { }
+			}(),
+		});
+		instantiation.stub(ISSHRemoteAgentHostService, {
+			listSSHConfigHosts: async () => ['myalias'],
+			resolveSSHConfig: async () => ({
+				hostname: 'old-target', user: 'old-user', port: 2222, identityFile: ['/old/key'],
+				identityAgent: '/old/agent', forwardAgent: true, userKnownHostsFiles: [], globalKnownHostsFiles: [],
+				strictHostKeyChecking: undefined,
+			}),
+			onDidReportConnectProgress: Event.None,
+			connect: async request => {
+				requests.push(request);
+				throw new CancellationError();
+			},
+		});
+		await instantiation.invokeFunction(accessor => CommandsRegistry.getCommand(RemoteAgentHostCommandIds.connectViaSSH)!.handler(accessor));
+		assert.deepStrictEqual(requests, [{ sshConfigHost: 'myalias', name: 'myalias' }]);
+	});
 
 	test('reuses an existing SSH connection when reopening the folder picker', async () => {
 		const instantiationService = store.add(new TestInstantiationService());

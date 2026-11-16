@@ -22,10 +22,8 @@ schedules:
       include:
         - main
 
-trigger:
-  batch: true
-  branches:
-    include: ["main", "release/*"]
+# The CI builds of main and release/* commits run in product-build-ci.yml.
+trigger: none
 
 parameters:
   - name: VSCODE_QUALITY
@@ -36,13 +34,6 @@ parameters:
       - exploration
       - insider
       - stable
-  - name: VSCODE_BUILD_TYPE
-    displayName: Build Type
-    type: string
-    default: Product
-    values:
-      - Product
-      - CI
   - name: VSCODE_BUILD_TITLE_PREFIX
     displayName: "Build Title Prefix"
     type: string
@@ -104,9 +95,9 @@ parameters:
     type: boolean
     default: true
   - name: VSCODE_BUILD_WEB_MOBILE
-    displayName: "Build the optional mobile web archive"
+    displayName: "🎯 Mobile"
     type: boolean
-    default: false
+    default: true
   - name: VSCODE_PUBLISH
     displayName: "Publish to builds.code.visualstudio.com"
     type: boolean
@@ -176,35 +167,34 @@ variables:
     value: ${{ or(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}
   - name: VSCODE_BUILD_STAGE_WEB
     value: ${{ eq(parameters.VSCODE_BUILD_WEB, true) }}
+  # The shared templates (and the quality checks at runtime) read this; CI builds
+  # run in product-build-ci.yml.
   - name: VSCODE_CIBUILD
-    value: ${{ or(in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI'), eq(parameters.VSCODE_BUILD_TYPE, 'CI')) }}
+    value: false
   # ARM32-only artifact runs do not exercise server-web.
   - name: VSCODE_ARTIFACT_SANITY_REQUIRES_WEB
     value: ${{ and(parameters.VSCODE_RUN_ARTIFACT_SANITY_TESTS, or(parameters.VSCODE_BUILD_MACOS, parameters.VSCODE_BUILD_MACOS_ARM64, parameters.VSCODE_BUILD_WIN32, parameters.VSCODE_BUILD_WIN32_ARM64, parameters.VSCODE_BUILD_LINUX, parameters.VSCODE_BUILD_LINUX_ARM64, parameters.VSCODE_BUILD_ALPINE, parameters.VSCODE_BUILD_ALPINE_ARM64)) }}
-  # Product architectures are split into their own stages. The existing Linux
-  # stage continues to hold the CI test jobs.
+  # Each architecture builds in its own stage.
   - name: VSCODE_BUILD_STAGE_LINUX_X64
-    value: ${{ and(eq(variables.VSCODE_CIBUILD, false), or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true))) }}
+    value: ${{ or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true)) }}
   - name: VSCODE_BUILD_STAGE_LINUX_ARM64
-    value: ${{ and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}
+    value: ${{ eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}
   - name: VSCODE_BUILD_STAGE_LINUX_ARMHF
-    value: ${{ and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}
-  # The Windows stage holds the x64 jobs (and the CI test jobs), the WindowsARM64
-  # stage the arm64 jobs, so that each stage lists its jobs in build order.
+    value: ${{ eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}
+  # The Windows stage holds the x64 jobs, the WindowsARM64 stage the arm64 jobs,
+  # so that each stage lists its jobs in build order.
   - name: VSCODE_BUILD_STAGE_WINDOWS
-    value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), and(eq(variables.VSCODE_CIBUILD, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true))) }}
+    value: ${{ eq(parameters.VSCODE_BUILD_WIN32, true) }}
   - name: VSCODE_BUILD_STAGE_WINDOWS_ARM64
-    value: ${{ and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
-  # Product architectures are split into their own stages. The existing macOS
-  # stage continues to hold the CI test jobs.
+    value: ${{ eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}
   - name: VSCODE_BUILD_STAGE_MACOS_X64
-    value: ${{ and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_MACOS, true)) }}
+    value: ${{ eq(parameters.VSCODE_BUILD_MACOS, true) }}
   - name: VSCODE_BUILD_STAGE_MACOS_ARM64
-    value: ${{ and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}
+    value: ${{ eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}
   - name: VSCODE_BUILD_STAGE_MACOS_UNIVERSAL
-    value: ${{ and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
+    value: ${{ and(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
   - name: VSCODE_PUBLISH
-    value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
+    value: ${{ eq(parameters.VSCODE_PUBLISH, true) }}
   - name: VSCODE_USE_PUBLISHING_POOLS
     value: ${{ and(eq(variables.VSCODE_PUBLISH, true), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}
   - name: VSCODE_WINDOWS_POOL
@@ -219,10 +209,6 @@ variables:
       value: 1es-ubuntu-22.04-x64
   - name: VSCODE_SCHEDULEDBUILD
     value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
-  # The day of the workspace images of the CI test jobs (see build/azure-pipelines/common/workspaceImage.ts):
-  # the first CI build of a day builds a new one. The same in every job of a run, unlike the clock.
-  - name: VSCODE_WORKSPACE_IMAGE_DAY
-    value: $[format('{0:yyyyMMdd}', pipeline.startTime)]
   - name: VSCODE_PUBLISH_COUNTER_PREFIX
     value: $[format('{0:yyyyMMdd}-{1}-{2}-{3}', pipeline.startTime, variables['VSCODE_QUALITY'], variables['VSCODE_PUBLISH'], variables['Build.SourceBranch'])]
   - name: VSCODE_PUBLISH_COUNTER
@@ -346,13 +332,10 @@ extends:
       networkIsolationPolicy: Permissive,CFSClean,CFSClean2,CFSClean3
     stages:
 
-      - ${{ if and(eq(parameters.VSCODE_BUILD_WEB_MOBILE, true), or(eq(variables.VSCODE_CIBUILD, true), ne(parameters.VSCODE_BUILD_WEB, true))) }}:
-        - 'Mobile web requires a Product build with VSCODE_BUILD_WEB=true': error
-
       # Reject at template expansion, before allocating agents. Web uploads the matching
       # commit's webview bootstrap assets even when VSCODE_PUBLISH is false.
-      - ${{ if and(eq(variables.VSCODE_ARTIFACT_SANITY_REQUIRES_WEB, true), or(eq(variables.VSCODE_CIBUILD, true), ne(parameters.VSCODE_BUILD_WEB, true))) }}:
-        - 'Server-web artifact sanity requires a Product build with VSCODE_BUILD_WEB=true (uploads webview assets to the CDN even with VSCODE_PUBLISH=false)': error
+      - ${{ if and(eq(variables.VSCODE_ARTIFACT_SANITY_REQUIRES_WEB, true), ne(parameters.VSCODE_BUILD_WEB, true)) }}:
+        - 'Server-web artifact sanity requires VSCODE_BUILD_WEB=true (uploads webview assets to the CDN even with VSCODE_PUBLISH=false)': error
 
       - stage: Quality
         dependsOn: []
@@ -361,10 +344,6 @@ extends:
           os: linux
         jobs:
           - template: build/azure-pipelines/product-quality-checks.yml@self
-            parameters:
-              # Batched CI builds check only the files that their commits change.
-              # Scheduled and manual builds check every file.
-              VSCODE_CHECK_CHANGED_FILES: ${{ eq(variables['Build.Reason'], 'BatchedCI') }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
@@ -374,36 +353,42 @@ extends:
             name: ${{ variables.VSCODE_WINDOWS_POOL }}
             os: windows
           jobs:
-            - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
-              - template: build/azure-pipelines/win32/product-build-win32-cli.yml@self
+            - template: build/azure-pipelines/win32/product-build-win32-cli.yml@self
+              parameters:
+                VSCODE_ARCH: x64
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_POOL_NAME: ${{ variables.VSCODE_WINDOWS_POOL }}
+
+            - template: build/azure-pipelines/win32/product-build-win32.yml@self
+              parameters:
+                VSCODE_ARCH: x64
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_RUN_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+
+            # Same test jobs as the Windows CI jobs of product-build-ci.yml
+            - ${{ if eq(parameters.VSCODE_STEP_ON_IT, false) }}:
+              - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
                 parameters:
                   VSCODE_ARCH: x64
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_POOL_NAME: ${{ variables.VSCODE_WINDOWS_POOL }}
-
-            - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-              - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
-                parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_JOB_NAME: UnitElectron
                   VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
                   VSCODE_TEST_IDS:
                     - unit-electron
-              - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
                 parameters:
+                  VSCODE_ARCH: x64
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_JOB_NAME: Unit
                   VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
                   VSCODE_TEST_IDS:
                     - unit-node
                     - unit-browser-chromium
-              - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
                 parameters:
+                  VSCODE_ARCH: x64
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_JOB_NAME: BrowserRemote
                   VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
                   VSCODE_TEST_IDS:
@@ -411,113 +396,42 @@ extends:
                     - integration-remote
                     - smoke-browser-chromium
                     - smoke-remote
-              - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
                 parameters:
+                  VSCODE_ARCH: x64
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_JOB_NAME: Integration
                   VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                   VSCODE_TEST_IDS:
                     - integration-electron
-              - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
                 parameters:
+                  VSCODE_ARCH: x64
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_JOB_NAME: AgentHostE2E
                   VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
                   VSCODE_TEST_IDS:
                     - integration-agent-host-e2e
-              - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
                 parameters:
+                  VSCODE_ARCH: x64
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_JOB_NAME: Smoke
                   VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
                   VSCODE_TEST_IDS:
                     - smoke-electron
                     - smoke-wsl-kerberos-proxy
                     - smoke-wsl-basic-proxy
-              - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+                    - smoke-wsl-basic-pac-proxy
+                  VSCODE_LINUX_X64_COMPILATION_ARTIFACT: ${{ eq(variables['VSCODE_BUILD_STAGE_LINUX_X64'], true) }}
+              - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
                 parameters:
+                  VSCODE_ARCH: x64
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_JOB_NAME: Copilot
                   VSCODE_JOB_DISPLAY_NAME: Copilot Tests
                   VSCODE_TEST_IDS:
                     - copilot
-
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32, true)) }}:
-              - template: build/azure-pipelines/win32/product-build-win32.yml@self
-                parameters:
-                  VSCODE_ARCH: x64
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_RUN_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-              # Same test jobs as the Windows CI jobs above
-              - ${{ if eq(parameters.VSCODE_STEP_ON_IT, false) }}:
-                - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
-                  parameters:
-                    VSCODE_ARCH: x64
-                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                    VSCODE_JOB_NAME: UnitElectron
-                    VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
-                    VSCODE_TEST_IDS:
-                      - unit-electron
-                - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
-                  parameters:
-                    VSCODE_ARCH: x64
-                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                    VSCODE_JOB_NAME: Unit
-                    VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
-                    VSCODE_TEST_IDS:
-                      - unit-node
-                      - unit-browser-chromium
-                - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
-                  parameters:
-                    VSCODE_ARCH: x64
-                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                    VSCODE_JOB_NAME: BrowserRemote
-                    VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
-                    VSCODE_TEST_IDS:
-                      - integration-browser-firefox
-                      - integration-remote
-                      - smoke-browser-chromium
-                      - smoke-remote
-                - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
-                  parameters:
-                    VSCODE_ARCH: x64
-                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                    VSCODE_JOB_NAME: Integration
-                    VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
-                    VSCODE_TEST_IDS:
-                      - integration-electron
-                - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
-                  parameters:
-                    VSCODE_ARCH: x64
-                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                    VSCODE_JOB_NAME: AgentHostE2E
-                    VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
-                    VSCODE_TEST_IDS:
-                      - integration-agent-host-e2e
-                - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
-                  parameters:
-                    VSCODE_ARCH: x64
-                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                    VSCODE_JOB_NAME: Smoke
-                    VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
-                    VSCODE_TEST_IDS:
-                      - smoke-electron
-                      - smoke-wsl-kerberos-proxy
-                      - smoke-wsl-basic-proxy
-                    VSCODE_LINUX_X64_COMPILATION_ARTIFACT: ${{ eq(variables['VSCODE_BUILD_STAGE_LINUX_X64'], true) }}
-                - template: build/azure-pipelines/win32/product-build-win32-test.yml@self
-                  parameters:
-                    VSCODE_ARCH: x64
-                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                    VSCODE_JOB_NAME: Copilot
-                    VSCODE_JOB_DISPLAY_NAME: Copilot Tests
-                    VSCODE_TEST_IDS:
-                      - copilot
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS_ARM64'], true) }}:
         - stage: WindowsARM64
@@ -560,7 +474,7 @@ extends:
                 VSCODE_RUN_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                 VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
 
-            # Same test jobs as the Linux CI jobs
+            # Same test jobs as the Linux CI jobs of product-build-ci.yml
             - ${{ if eq(parameters.VSCODE_STEP_ON_IT, false) }}:
               - template: build/azure-pipelines/linux/product-build-linux-test.yml@self
                 parameters:
@@ -663,97 +577,7 @@ extends:
                 VSCODE_ARCH: armhf
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-      - ${{ if and(eq(variables['VSCODE_BUILD_STAGE_LINUX'], true), eq(variables['VSCODE_CIBUILD'], true)) }}:
-        - stage: Linux
-          displayName: Linux X64
-          dependsOn: []
-          pool:
-            name: ${{ variables.VSCODE_UBUNTU_POOL }}
-            os: linux
-          jobs:
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], true), eq(parameters.VSCODE_BUILD_LINUX, true)) }}:
-              - template: build/azure-pipelines/linux/product-build-linux-cli.yml@self
-                parameters:
-                  VSCODE_ARCH: x64
-                  VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
-
-            - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-              # The test jobs start from its workspace image when the cache has one, without waiting for it
-              - template: build/azure-pipelines/linux/product-build-linux-workspace-image.yml@self
-                parameters:
-                  VSCODE_ARCH: x64
-                  NPM_ARCH: x64
-              - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
-                parameters:
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_WORKSPACE_IMAGE: use
-                  VSCODE_JOB_NAME: UnitElectron
-                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
-                  VSCODE_TEST_IDS:
-                    - unit-electron
-              - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
-                parameters:
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_WORKSPACE_IMAGE: use
-                  VSCODE_JOB_NAME: Unit
-                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
-                  VSCODE_TEST_IDS:
-                    - unit-node
-                    - unit-browser-chromium
-              - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
-                parameters:
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_WORKSPACE_IMAGE: use
-                  VSCODE_JOB_NAME: BrowserRemote
-                  VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
-                  VSCODE_TEST_IDS:
-                    - integration-browser-chromium
-                    - integration-remote
-                    - smoke-browser-chromium
-                    - smoke-remote
-              - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
-                parameters:
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_WORKSPACE_IMAGE: use
-                  VSCODE_JOB_NAME: Integration
-                  VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
-                  VSCODE_TEST_IDS:
-                    - integration-electron
-              - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
-                parameters:
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_WORKSPACE_IMAGE: use
-                  VSCODE_JOB_NAME: AgentHostE2E
-                  VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
-                  VSCODE_TEST_IDS:
-                    - integration-agent-host-e2e
-              - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
-                parameters:
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_WORKSPACE_IMAGE: use
-                  VSCODE_JOB_NAME: Smoke
-                  VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
-                  VSCODE_TEST_IDS:
-                    - smoke-electron
-              - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
-                parameters:
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_WORKSPACE_IMAGE: use
-                  VSCODE_JOB_NAME: Copilot
-                  VSCODE_JOB_DISPLAY_NAME: Copilot Tests
-                  VSCODE_TEST_IDS:
-                    - copilot
-
-      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
+      - ${{ if eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true) }}:
         - stage: Alpine
           dependsOn: []
           jobs:
@@ -777,85 +601,6 @@ extends:
                   VSCODE_ARCH: arm64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
-
-      - ${{ if and(eq(variables['VSCODE_BUILD_STAGE_MACOS'], true), eq(variables['VSCODE_CIBUILD'], true)) }}:
-        - stage: macOS
-          displayName: macOS ARM64
-          dependsOn: []
-          pool:
-            name: AcesShared
-            os: macOS
-            demands:
-              - ImageOverride -equals ACES_VM_SharedPool_Sequoia
-          variables:
-            BUILDSECMON_OPT_IN: true
-          jobs:
-            - ${{ if eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}:
-              - template: build/azure-pipelines/darwin/product-build-darwin-cli.yml@self
-                parameters:
-                  VSCODE_ARCH: arm64
-                  VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-
-            # The test jobs start from its workspace image when the cache has one, without waiting for it
-            - template: build/azure-pipelines/darwin/product-build-darwin-workspace-image.yml@self
-              parameters:
-                VSCODE_ARCH: arm64
-            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
-              parameters:
-                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                VSCODE_WORKSPACE_IMAGE: use
-                VSCODE_JOB_NAME: UnitElectron
-                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
-                VSCODE_TEST_IDS:
-                  - unit-electron
-            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
-              parameters:
-                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                VSCODE_WORKSPACE_IMAGE: use
-                VSCODE_JOB_NAME: Unit
-                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
-                VSCODE_TEST_IDS:
-                  - unit-node
-                  - unit-browser-webkit
-            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
-              parameters:
-                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                VSCODE_WORKSPACE_IMAGE: use
-                VSCODE_JOB_NAME: BrowserRemote
-                VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
-                VSCODE_TEST_IDS:
-                  - integration-browser-webkit
-                  - integration-remote
-                  - smoke-browser-chromium
-                  - smoke-remote
-            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
-              parameters:
-                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                VSCODE_WORKSPACE_IMAGE: use
-                VSCODE_JOB_NAME: Integration
-                VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
-                VSCODE_TEST_IDS:
-                  - integration-electron
-            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
-              parameters:
-                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                VSCODE_WORKSPACE_IMAGE: use
-                VSCODE_JOB_NAME: AgentHostE2E
-                VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
-                VSCODE_TEST_IDS:
-                  - integration-agent-host-e2e
-            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
-              parameters:
-                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                VSCODE_WORKSPACE_IMAGE: use
-                VSCODE_JOB_NAME: Smoke
-                VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
-                VSCODE_TEST_IDS:
-                  - smoke-electron
-                  - smoke-agents-pac-proxy
-                  - smoke-agents-kerberos-pac-proxy
-                  - smoke-agents-basic-proxy
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_X64'], true) }}:
         - stage: macOSX64
@@ -902,7 +647,7 @@ extends:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                 VSCODE_RUN_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
 
-            # Same test jobs as the macOS CI jobs
+            # Same test jobs as the macOS CI jobs of product-build-ci.yml
             - ${{ if eq(parameters.VSCODE_STEP_ON_IT, false) }}:
               - template: build/azure-pipelines/darwin/product-build-darwin-test.yml@self
                 parameters:
@@ -976,14 +721,22 @@ extends:
           jobs:
             - template: build/azure-pipelines/darwin/product-build-darwin-universal.yml@self
 
-      - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_STAGE_WEB'], true)) }}:
+      - ${{ if eq(variables['VSCODE_BUILD_STAGE_WEB'], true) }}:
         - stage: Web
           dependsOn: []
           jobs:
             - template: build/azure-pipelines/web/product-build-web.yml@self
               parameters:
                 VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
-                VSCODE_BUILD_WEB_MOBILE: ${{ parameters.VSCODE_BUILD_WEB_MOBILE }}
+
+      - ${{ if eq(parameters.VSCODE_BUILD_WEB_MOBILE, true) }}:
+        - stage: Mobile
+          dependsOn: []
+          jobs:
+            - template: build/azure-pipelines/web/product-build-web.yml@self
+              parameters:
+                VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
+                mobile: true
 
       - ${{ if eq(variables['VSCODE_PUBLISH'], true) }}:
         - stage: Publish
@@ -994,6 +747,7 @@ extends:
                 VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                 VSCODE_SCHEDULEDBUILD: ${{ variables.VSCODE_SCHEDULEDBUILD }}
                 VSCODE_POOL_NAME: ${{ variables.VSCODE_WINDOWS_POOL }}
+                VSCODE_BUILD_WEB_MOBILE: ${{ parameters.VSCODE_BUILD_WEB_MOBILE }}
 
       - ${{ if and(eq(variables['VSCODE_PUBLISH'], true), eq(variables['VSCODE_STEP_ON_IT'], false), parameters.VSCODE_RELEASE, eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_PRIVATE_BUILD'], false), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}:
         - stage: ApproveRelease
@@ -1024,7 +778,8 @@ extends:
                   parameters:
                     VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
 
-      - ${{ if and(eq(variables['VSCODE_PUBLISH'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], false)) }}:
+      # Azure rejects empty stages; Web and Mobile have no jobs in this native test matrix.
+      - ${{ if and(eq(variables['VSCODE_PUBLISH'], 'true'), eq(variables['VSCODE_STEP_ON_IT'], false), or(parameters.VSCODE_BUILD_MACOS, parameters.VSCODE_BUILD_MACOS_ARM64, parameters.VSCODE_BUILD_WIN32, parameters.VSCODE_BUILD_WIN32_ARM64, parameters.VSCODE_BUILD_ALPINE, parameters.VSCODE_BUILD_ALPINE_ARM64, parameters.VSCODE_BUILD_LINUX, parameters.VSCODE_BUILD_LINUX_ARM64, parameters.VSCODE_BUILD_LINUX_ARMHF)) }}:
         - stage: SanityTests
           displayName: Sanity Tests
           dependsOn:
@@ -1316,8 +1071,6 @@ extends:
               - macOSARM64
             - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS_UNIVERSAL'], true) }}:
               - macOSUniversal
-            - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-              - macOS
           variables:
             - name: BUILD_COMMIT
               value: $(Build.SourceVersion)
@@ -1478,8 +1231,6 @@ extends:
               - LinuxARM64
             - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX_ARMHF'], true) }}:
               - LinuxARMHF
-            - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-              - Linux
           variables:
             - name: BUILD_COMMIT
               value: $(Build.SourceVersion)
@@ -1569,16 +1320,15 @@ extends:
                     - vscode_client_linux_armhf_archive-unsigned
                     - vscode_client_linux_armhf_deb-package
 
-      - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
-        - stage: APIScan
-          dependsOn: []
-          pool:
-            name: ${{ variables.VSCODE_WINDOWS_POOL }}
-            os: windows
-          jobs:
-            - job: WindowsAPIScan
-              steps:
-                - template: build/azure-pipelines/win32/sdl-scan-win32.yml@self
-                  parameters:
-                    VSCODE_ARCH: x64
-                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+      - stage: APIScan
+        dependsOn: []
+        pool:
+          name: ${{ variables.VSCODE_WINDOWS_POOL }}
+          os: windows
+        jobs:
+          - job: WindowsAPIScan
+            steps:
+              - template: build/azure-pipelines/win32/sdl-scan-win32.yml@self
+                parameters:
+                  VSCODE_ARCH: x64
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}

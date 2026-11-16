@@ -13,6 +13,8 @@ import { StringSHA1 } from '../../../../../../base/common/hash.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { isObject } from '../../../../../../base/common/types.js';
+import type { AuthenticateResult } from '../../../../../../platform/agentHost/common/agent.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { AgentHostAuthenticationPendingError } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
@@ -41,7 +43,7 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { AuthenticationSession, getDynamicAuthenticationProviderId, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { CHAT_SETUP_ACTION_ID } from '../../actions/chatActions.js';
-import { IChatSetupResult } from '../../chatSetup/chatSetup.js';
+import { ChatSetupSource, IChatSetupCommandOptions, IChatSetupResult } from '../../chatSetup/chatSetup.js';
 import { reportAgentHostAuthRecovery, reportAgentHostAuthSignInResult, type AgentHostAuthSignInData, type AgentHostAuthTrigger } from './agentHostAuthTelemetry.js';
 
 /**
@@ -74,6 +76,12 @@ export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, m
 	}
 	const selectedModel = agent.models.find(candidate => candidate.id === model.id);
 	return !selectedModel || readAgentModelByokIdentifier(selectedModel) === undefined;
+}
+
+function assertAuthenticationAccepted(result: unknown): void {
+	if (isObject(result) && (result as Partial<AuthenticateResult>).authenticated === false) {
+		throw new Error(localize('agentHost.credentialRejected', "The agent host did not accept the authentication credential."));
+	}
 }
 
 interface IForwardedAuthenticationIdentity {
@@ -134,7 +142,7 @@ export class AgentHostAuthTokenCache {
 		}
 
 		const promise = (async () => {
-			await authenticate();
+			assertAuthenticationAccepted(await authenticate());
 			if (!this._isCurrentGeneration(key, globalGeneration, keyGeneration)) {
 				throw new CancellationError();
 			}
@@ -739,11 +747,11 @@ async function forwardAuthenticationToken(
 		const identity = session?.id && session.account ? { sessionId: session.id, accountId: session.account.id } : undefined;
 		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), authenticationAccountId(readAuthenticationAccount(request)), readAgentEntitlementHint(request), options.target, identity);
 	}
-	await options.authenticate(request);
+	assertAuthenticationAccepted(await options.authenticate(request));
 	return true;
 }
 
-function toAuthenticateRequest(
+export function toAuthenticateRequest(
 	resource: string,
 	scopes: readonly string[] | undefined,
 	session: IForwardedAuthenticationSession | undefined,
@@ -754,7 +762,6 @@ function toAuthenticateRequest(
 	const account = providerId && session?.account?.id ? {
 		providerId,
 		accountId: session.account.id,
-		...(providerId === 'microsoft' && session.account.label ? { label: session.account.label } : {}),
 		...(session.authorizationServer ? { authorizationServer: session.authorizationServer.toString() } : {}),
 	} : undefined;
 	return {
@@ -773,10 +780,7 @@ export async function resolveProtectedResourceAuthentication(
 	logPrefix: string,
 ): Promise<IAgentHostAuthenticateRequest | undefined> {
 	const logService = accessor.get(ILogService);
-	const resolution = await resolveSessionForProtectedResource(accessor.get(IAuthenticationService), accessor.get(IDefaultAccountService), logService, resource, {
-		logPrefix,
-		preferConnectorScopedSession: accessor.get(IConfigurationService).getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true,
-	});
+	const resolution = await resolveExistingProtectedResourceSession(accessor, resource, logPrefix);
 	if (resolution.kind === 'unavailable') {
 		if (resolution.reason === 'provider') {
 			throw new AgentHostAuthenticationPendingError(resource.resource);
@@ -789,6 +793,18 @@ export async function resolveProtectedResourceAuthentication(
 		return undefined;
 	}
 	return toAuthenticateRequest(resource.resource, resource.scopes_supported ?? [], resolution.session, resolution.providerId, resolution.entitlement);
+}
+
+/** Resolves existing authentication state without treating unavailable providers or session lookups as signed out. */
+export async function resolveProtectedResourceAuthenticationState(accessor: ServicesAccessor, resource: ProtectedResourceMetadata, logPrefix: string): Promise<AuthenticationSessionResolution['kind']> {
+	return (await resolveExistingProtectedResourceSession(accessor, resource, logPrefix)).kind;
+}
+
+function resolveExistingProtectedResourceSession(accessor: ServicesAccessor, resource: ProtectedResourceMetadata, logPrefix: string): Promise<AuthenticationSessionResolution> {
+	return resolveSessionForProtectedResource(accessor.get(IAuthenticationService), accessor.get(IDefaultAccountService), accessor.get(ILogService), resource, {
+		logPrefix,
+		preferConnectorScopedSession: accessor.get(IConfigurationService).getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true,
+	});
 }
 
 function throwIfAuthenticationStale(options: Pick<IAgentHostAuthenticationOptions, 'isCurrent'>): void {
@@ -986,6 +1002,9 @@ async function authenticateProtectedResourceWithServices(
 		logAuthenticationSessionResolution(logService, options.logPrefix, resource.resource, resolution);
 		return false;
 	}
+	if (resource.required === false && !await isGrantedByDefaultSignIn(authenticationService, defaultAccountService, logService, resource, resolution, options)) {
+		return false;
+	}
 
 	const authenticated = await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported ?? [], resolution.session, resolution.providerId, resolution.entitlement);
 	if (!authenticated) {
@@ -994,6 +1013,37 @@ async function authenticateProtectedResourceWithServices(
 	}
 	logService.info(`${options.logPrefix} Authenticating for resource: ${resource.resource}`);
 	return true;
+}
+
+/** Whether the default account's primary sign-in already grants an optional resource, so forwarding it needs no new consent. */
+async function isGrantedByDefaultSignIn(
+	authenticationService: IAuthenticationService,
+	defaultAccountService: IDefaultAccountService,
+	logService: ILogService,
+	resource: ProtectedResourceMetadata,
+	resolution: Extract<AuthenticationSessionResolution, { readonly kind: 'resolved' }>,
+	options: IResolvedAgentHostAuthenticationOptions,
+): Promise<boolean> {
+	const account = defaultAccountService.currentDefaultAccount;
+	if (!account || account.authenticationProvider.id !== resolution.providerId) {
+		logService.trace(`${options.logPrefix} Deferring optional authentication outside the default account: ${resource.resource}`);
+		return false;
+	}
+	const server = resource.authorization_servers?.[0];
+	const sessionOptions = {
+		account: resolution.session.account, silent: true,
+		authorizationServer: resolution.session.authorizationServer ?? (server ? URI.parse(server) : undefined),
+	};
+	const isGranted = (sessions: readonly AuthenticationSession[]) => sessions.some(session => session.id === account.sessionId && resource.scopes_supported?.every(scope => session.scopes.includes(scope)) !== false);
+	// A scoped query may only match exactly and an unscoped one may omit grants, so the primary sign-in is checked both ways.
+	const granted = isGranted(await authenticationService.getSessions(resolution.providerId, resource.scopes_supported ?? [], sessionOptions, true))
+		|| isGranted(await authenticationService.getSessions(resolution.providerId, undefined, sessionOptions, true));
+	throwIfAuthenticationStale(options);
+	throwIfDefaultAccountChanged(defaultAccountService, account);
+	if (!granted) {
+		logService.trace(`${options.logPrefix} Deferring optional permissions not supplied by the default sign-in: ${resource.resource}`);
+	}
+	return granted;
 }
 
 /**
@@ -1142,6 +1192,17 @@ export async function resolveAuthenticationInteractively(
 	return false;
 }
 
+/** Builds the shared setup options for granting an agent host's required GitHub Copilot scopes. */
+export function getAgentHostSignInOptions(scopes: readonly string[]): IChatSetupCommandOptions {
+	return {
+		telemetrySource: ChatSetupSource.AgentHost,
+		forceSignInDialog: true,
+		additionalScopes: scopes,
+		dialogTitle: localize('agentHost.signInDialogTitle', "Sign in to use GitHub Copilot"),
+		disableChatViewReveal: true,
+	};
+}
+
 async function forceAuthenticationInteractively(
 	authenticationService: IAuthenticationService,
 	defaultAccountService: IDefaultAccountService,
@@ -1159,14 +1220,7 @@ async function forceAuthenticationInteractively(
 	const data: AgentHostAuthSignInData = { trigger, result: 'failed', credentialChanged: undefined, sessionMatch: undefined };
 	try {
 		const scopes = resource.scopes_supported ?? [];
-		const setupResult = await commandService.executeCommand<IChatSetupResult>(CHAT_SETUP_ACTION_ID, undefined, {
-			telemetrySource: 'agentHost',
-			forceSignInDialog: true,
-			additionalScopes: scopes,
-			dialogTitle: localize('agentHost.signInDialogTitle', "Sign in to use GitHub Copilot"),
-			disableChatViewReveal: true,
-			returnResult: true,
-		});
+		const setupResult = await commandService.executeCommand<IChatSetupResult>(CHAT_SETUP_ACTION_ID, undefined, { ...getAgentHostSignInOptions(scopes), returnResult: true });
 		throwIfAuthenticationStale(options);
 		// Signing in replaces the default session, so only a sign-out or provider change is stale here.
 		if (defaultAccount && defaultAccountService.currentDefaultAccount?.authenticationProvider.id !== defaultAccount.authenticationProvider.id) {

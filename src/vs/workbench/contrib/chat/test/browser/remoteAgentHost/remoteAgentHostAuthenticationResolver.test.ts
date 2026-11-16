@@ -288,9 +288,15 @@ suite('RemoteAgentHostAuthenticationResolver', () => {
 		});
 	});
 
-	test('optional credentials remain on the ongoing authentication path after required bootstrap', async () => {
+	test('optional credentials granted by the default sign-in remain on the ongoing authentication path after required bootstrap', async () => {
 		const { resolver, instantiationService, extensions } = fixture();
 		await extensions.complete(true);
+		instantiationService.stub(IDefaultAccountService, {
+			currentDefaultAccount: {
+				sessionId: session.id, accountName: session.account.label, enterprise: false,
+				authenticationProvider: { id: 'test', name: 'Test', enterprise: false },
+			},
+		});
 		const optional = { ...resource, resource: 'https://api.example.com/optional', required: false };
 		const advertised = [{ ...agents[0], protectedResources: [resource, optional] }];
 		const initial = await resolver.resolve(advertised);

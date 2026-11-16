@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { getExtensionForMimeType, getMediaMime, normalizeMimeType } from '../../common/mime.js';
+import { getExtensionForMimeType, getMediaMime, getMediaOrTextMime, normalizeMimeType } from '../../common/mime.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Mime', () => {
@@ -36,6 +36,13 @@ suite('Mime', () => {
 
 	test('getMediaMime', () => {
 		assert.strictEqual(getMediaMime('profile.avif'), 'image/avif');
+	});
+
+	test('getMediaOrTextMime', () => {
+		assert.deepStrictEqual(
+			['a.json', 'a.js.map', 'a.pdf', 'a.wasm', 'a.woff2', 'a.ttf', 'a.otf', 'a.PDF', 'a.png', 'a.unknown'].map(getMediaOrTextMime),
+			['application/json', 'application/json', 'application/pdf', 'application/wasm', 'font/woff2', 'font/ttf', 'font/otf', 'application/pdf', 'image/png', undefined]
+		);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

@@ -90,12 +90,24 @@ suite('aiCustomizationManagementEditor', () => {
 		labels.push([input.getName(), input.getDescription()]);
 		input.setTargetLabels('Copilot', 'vscode');
 		labels.push([input.getName(), input.getDescription()]);
+		input.setTargetLabels('Copilot', 'vscode', 'Cloud');
+		labels.push([input.getName(), input.getDescription()]);
+		input.setTargetLabels('Copilot', undefined, 'hawks-mac-mini');
+		labels.push([input.getName(), input.getDescription()]);
+		input.setTargetLabels('', 'vscode');
+		labels.push([input.getName(), input.getDescription()]);
+		input.setTargetLabels('', '');
+		labels.push([input.getName(), input.getDescription()]);
 		input.setTargetLabels(undefined);
 		labels.push([input.getName(), input.getDescription()]);
 		assert.deepStrictEqual(labels, [
 			['Customizations', undefined],
 			['Customizations', '(Copilot)'],
 			['Customizations', '(Copilot · vscode)'],
+			['Customizations', '(Copilot · vscode · Cloud)'],
+			['Customizations', '(Copilot · hawks-mac-mini)'],
+			['Customizations', '(vscode)'],
+			['Customizations', undefined],
 			['Customizations', undefined],
 		]);
 	});
@@ -2112,6 +2124,27 @@ suite('aiCustomizationManagementEditor', () => {
 			afterProgrammaticSelection: 'connectorDetail',
 			afterUserSelection: 'list',
 			selected: section,
+		});
+	});
+
+	test('selecting a section by id moves focus into it unless focus is preserved', () => {
+		const editor = createTestEditor();
+		store.add(editor.editorPreviewDisposables);
+		const focused: AICustomizationManagementSection[] = [];
+		Object.assign(editor, {
+			sections: [{ id: AICustomizationManagementSection.Instructions }, { id: AICustomizationManagementSection.McpServers }],
+			sectionContextKey: { set() { } },
+			listWidget: { setSection: async () => { }, focusSearch: () => focused.push(AICustomizationManagementSection.Instructions) },
+			mcpListWidget: { setVisible() { }, focusSearch: () => focused.push(AICustomizationManagementSection.McpServers) },
+		});
+
+		editor.selectSectionById(AICustomizationManagementSection.Instructions);
+		editor.selectSectionById(AICustomizationManagementSection.McpServers);
+		editor.selectSectionById(AICustomizationManagementSection.Instructions, { preserveFocus: true });
+
+		assert.deepStrictEqual({ focused, selected: editor.selectedSection }, {
+			focused: [AICustomizationManagementSection.Instructions, AICustomizationManagementSection.McpServers],
+			selected: AICustomizationManagementSection.Instructions,
 		});
 	});
 

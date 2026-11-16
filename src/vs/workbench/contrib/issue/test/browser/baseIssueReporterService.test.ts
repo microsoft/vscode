@@ -25,6 +25,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { BaseIssueReporterService } from '../../browser/baseIssueReporterService.js';
 import { IIssueFormService, ISimilarIssue } from '../../common/issue.js';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 suite('BaseIssueReporterService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,6 +52,7 @@ suite('BaseIssueReporterService', () => {
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
 		store.add(toDisposable(() => iframe.remove()));
+		store.add(registerTestIframe(iframe));
 		const targetWindow = iframe.contentWindow;
 		assert.ok(targetWindow);
 		const title = $<HTMLInputElement>('input#issue-title');
@@ -153,9 +155,9 @@ suite('BaseIssueReporterService', () => {
 				createGitHubIssue: async (...args) => { requests.push(args); return currentIssue.html_url; },
 			});
 			const result = await reporter.submitToGitHub('Report title', 'Report body', { owner: 'publisher', repositoryName: 'extension' });
-			assert.deepStrictEqual({ result, requests: requests.map(([authorization, repository, request]) => [authorization, repository, request]), events, token: reporter.data.githubAccessToken }, {
+			assert.deepStrictEqual({ result, requests: requests.map(([providerId, session, repository, request]) => [providerId, session, repository, request]), events, token: reporter.data.githubAccessToken }, {
 				result: true,
-				requests: [[authorization, { owner: 'publisher', repo: 'extension' }, { title: 'Report title', body: 'Report body' }]],
+				requests: [['github', renewedSession, { owner: 'publisher', repo: 'extension' }, { title: 'Report title', body: 'Report body' }]],
 				events: [currentIssue.html_url, 'close'], token: renewedSession.accessToken,
 			});
 		});
@@ -201,7 +203,7 @@ suite('BaseIssueReporterService', () => {
 			const { reporter, events, errors } = createReporter(undefined, undefined, {
 				accessToken: selected.accessToken, authorization,
 				getSessions: async () => [selected],
-				createGitHubIssue: async (_authorization, _repository, _request, requestSignal) => {
+				createGitHubIssue: async (_providerId, _session, _repository, _request, requestSignal) => {
 					signal = requestSignal;
 					void started.complete();
 					await pending.p;

@@ -49,6 +49,7 @@ import { ChangesViewPane } from '../../../../../workbench/contrib/sessionChanges
 import { REVEAL_CI_CHECKS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
 import { GitHubCheckConclusion, GitHubCheckStatus } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import '../../../changes/browser/changesActions.js';
+import '../../../changes/browser/changesView.contribution.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { NewChangesTabAction, NewFileTabAction } from '../../../editor/browser/addTabActions.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';

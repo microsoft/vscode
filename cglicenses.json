@@ -1278,11 +1278,12 @@
 		]
 	},
 	{
-		// Reason: The OSS license check cannot find local license text for @eslint/compat,
-		// and ClearlyDefined has no coverage. Use the upstream Apache-2.0 license.
-		// Source: https://github.com/eslint/rewrite/blob/compat-v2.1.0/packages/compat/LICENSE
-		"name": "@eslint/compat",
-		"fullLicenseTextUri": "https://raw.githubusercontent.com/eslint/rewrite/compat-v2.1.0/packages/compat/LICENSE"
+		// Reason: The OSS license check cannot verify license text for @oxlint/plugins,
+		// and ClearlyDefined has no coverage. The package is part of the oxc repository,
+		// so use the upstream MIT license from the matching oxlint release.
+		// Source: https://github.com/oxc-project/oxc/blob/oxlint_v1.90.0/LICENSE
+		"name": "@oxlint/plugins",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/oxc-project/oxc/oxlint_v1.90.0/LICENSE"
 	},
 	{
 		// Reason: ClearlyDefined is unreachable in the OSS license check for oxlint.

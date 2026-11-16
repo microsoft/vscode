@@ -696,14 +696,23 @@ export class ChatPillsWidget extends Disposable {
 
 	/** Returns the rendered button for each pill. */
 	getPillElements(): readonly HTMLElement[] {
-		const elements: HTMLElement[] = [];
+		return this._getPillViewItems().flatMap(viewItem => viewItem.buttonElement ? [viewItem.buttonElement] : []);
+	}
+
+	/** Returns the rendered item for each pill, which spans its button and any segments joined to it. */
+	getPillItemElements(): readonly HTMLElement[] {
+		return this._getPillViewItems().flatMap(viewItem => viewItem.buttonElement && viewItem.element ? [viewItem.element] : []);
+	}
+
+	private _getPillViewItems(): readonly ChatPillActionViewItemBase[] {
+		const viewItems: ChatPillActionViewItemBase[] = [];
 		for (let index = 0; index < this._toolbar.getItemsLength(); index++) {
 			const viewItem = this._toolbar.getItemViewItem(index);
-			if (viewItem instanceof ChatPillActionViewItemBase && viewItem.buttonElement) {
-				elements.push(viewItem.buttonElement);
+			if (viewItem instanceof ChatPillActionViewItemBase) {
+				viewItems.push(viewItem);
 			}
 		}
-		return elements;
+		return viewItems;
 	}
 
 	focusFirst(): boolean {

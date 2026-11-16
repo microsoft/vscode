@@ -406,11 +406,10 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 	 * Returns `'unsupported'` when this window does not share that agent host.
 	 */
 	private async resolveAndOpenRemoteSession(editorSessionResource: URI, remoteAuthority: string, token: CancellationToken): Promise<'unsupported' | undefined> {
-		// Only a tunnel's editor windows share their agent host with this window. Elsewhere, the editor's VS Code server
-		// runs its own agent host, with a session registry separate from that of the agent host this window starts.
-		// The window's folder is selected instead, without a notification.
-		if (getRemoteName(remoteAuthority) !== 'tunnel') {
-			this.logService.info(`[AgentsHandoff] sessions of ${getRemoteName(remoteAuthority)} windows are not shared with this window`);
+		// Unsupported remotes fall back to their source folder without a notification.
+		const remoteName = getRemoteName(remoteAuthority);
+		if (remoteName !== 'tunnel' && remoteName !== 'ssh-remote' && remoteName !== 'wsl') {
+			this.logService.info(`[AgentsHandoff] sessions of ${remoteName} windows are not shared with this window`);
 			return 'unsupported';
 		}
 		let host: RemoteAgentHostHandoffResult;
@@ -432,7 +431,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			return undefined;
 		}
 		if (!host.sharesEditorWindowAgentHost()) {
-			this.notificationService.warn(localize('agentsHandoff.remoteSessionOtherHost', "The session of your remote window can't be opened in the Agents Window, because the Agents Window is connected to a different agent host on the tunnel's machine than your remote window."));
+			this.notificationService.warn(localize('agentsHandoff.remoteSessionOtherHost', "The session of your remote window can't be opened in the Agents Window, because the Agents Window is connected to a different agent host on the remote machine than your remote window."));
 			return 'unsupported';
 		}
 		const sessionResource = editorSessionResource.with({ scheme: sessionType });

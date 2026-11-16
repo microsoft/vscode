@@ -50,8 +50,9 @@
 	pointer-events: auto;
 }
 
+/* The pill fits in a row of the input, which sets the variable from its width, and shortens its label to fit. */
 .interactive-session .monaco-editor .chat-inline-attachment .chat-attached-context-attachment {
-	max-width: 240px;
+	max-width: min(240px, var(--chat-inline-attachment-max-width, 240px));
 }
 
 /*

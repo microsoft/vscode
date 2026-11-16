@@ -122,7 +122,7 @@ suite('SessionCanvasService', () => {
 			description: 'Interactive preview.',
 			requiresInput: false,
 		};
-		const definitionOpens: { canvas: ISessionCanvasDefinition; instanceId: string }[] = [];
+		const definitionOpens: { canvas: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>; instanceId: string }[] = [];
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({
 			onDidChangeSessions: sessionChanges.event,
 			onDidDeleteChat: chatDeleted.event,

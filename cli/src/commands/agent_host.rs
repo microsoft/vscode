@@ -1039,12 +1039,18 @@ impl ActiveAgentHost {
 	}
 
 	/// Populate the `--agent-host-bridge-*` fields on a [`CodeServerArgs`]
-	/// so the spawned VS Code server's `agentHostProxy` channel dials this
-	/// supervisor. Uses [`dial_host`] for the host so a supervisor bound
+	/// so a spawned VS Code server that predates registry discovery dials
+	/// this supervisor. Uses [`dial_host`] for the host so a supervisor bound
 	/// to a wildcard (`0.0.0.0` / `::`) is reached via loopback rather
-	/// than the wildcard itself.
+	/// than the wildcard itself. Those servers put the host into a `ws://`
+	/// URL, so IPv6 literals are bracketed.
 	pub fn apply_to_bridge(&self, csa: &mut CodeServerArgs) {
-		csa.agent_host_bridge_host = Some(self.dial_host().to_string());
+		let host = self.dial_host();
+		csa.agent_host_bridge_host = Some(if host.contains(':') && !host.starts_with('[') {
+			format!("[{host}]")
+		} else {
+			host.to_string()
+		});
 		csa.agent_host_bridge_port = Some(self.port);
 		csa.agent_host_bridge_connection_token = self.token.clone();
 	}
@@ -1365,6 +1371,32 @@ mod tests {
 			token: Some("tok".to_string()),
 			instance_id: "instance-existing".to_string(),
 		}
+	}
+
+	#[test]
+	fn apply_to_bridge_brackets_ipv6_hosts_for_legacy_server_urls() {
+		let bridge_host = |host: Option<&str>| {
+			let mut csa = CodeServerArgs::default();
+			ActiveAgentHost {
+				pid: 1,
+				host: host.map(str::to_string),
+				port: 9000,
+				token: None,
+			}
+			.apply_to_bridge(&mut csa);
+			csa.agent_host_bridge_host.unwrap()
+		};
+		assert_eq!(
+			[
+				Some("::1"),
+				Some("[::1]"),
+				Some("::"),
+				Some("127.0.0.1"),
+				None
+			]
+			.map(bridge_host),
+			["[::1]", "[::1]", "127.0.0.1", "127.0.0.1", "127.0.0.1"]
+		);
 	}
 
 	#[test]

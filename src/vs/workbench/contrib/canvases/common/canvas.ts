@@ -18,7 +18,7 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import type { IBrowserViewModel } from '../../browserView/common/browserView.js';
-import { canvasOwnerKey, ICanvas, ICanvasOwner, ICanvasReference } from '../../../common/canvasReference.js';
+import { canvasOwnerKey, ICanvas, ICanvasOpenOptions, ICanvasOwner, ICanvasReference } from '../../../common/canvasReference.js';
 
 /** Reveals a live canvas beside its owning chat, reopening its closed tab. Takes an {@link ICanvasReference}. */
 export const REVEAL_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.revealCanvas';
@@ -45,7 +45,7 @@ export interface ICanvasDefinitionProvider {
 	readonly onDidChangeDefinitions: Event<void>;
 	/** Returns `undefined` while unsettled, then fires {@link onDidChangeDefinitions} when an authoritative snapshot is available. */
 	listCanvases(): Promise<CanvasDefinitionSnapshot>;
-	openCanvas(canvas: ICanvasDefinition, instanceId: string): Promise<void>;
+	openCanvas(canvas: ICanvasDefinition, instanceId: string, options?: ICanvasOpenOptions): Promise<void>;
 }
 
 export interface ICanvasReopenTarget {

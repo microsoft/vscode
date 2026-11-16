@@ -5,10 +5,11 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
-import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
+import { captureCredentialSource, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
+import { AhpErrorCodes } from '../../common/state/sessionProtocol.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -363,6 +364,24 @@ class FollowingEnvelopeContribution extends TestContribution {
 
 	onDidDispatchAction(): void {
 		calls.push('followingEnvelope');
+	}
+}
+
+class ThrowingShutdownContribution extends TestContribution {
+	static readonly id = 'throwingShutdown';
+	readonly order = 20;
+
+	onWillShutdown(): void {
+		throw new Error('expected');
+	}
+}
+
+class FollowingShutdownContribution extends TestContribution {
+	static readonly id = 'followingShutdown';
+	readonly order = 21;
+
+	onWillShutdown(): void {
+		calls.push('followingShutdown');
 	}
 }
 
@@ -1711,6 +1730,182 @@ suite('AgentHostChatContributions', () => {
 		}, { sameConnection: true, credential: 'queued-rotated', actor: 'scoped-client' });
 	});
 
+	for (const sourceKind of ['closed connection', 'revoked snapshot'] as const) {
+		test(`queue drain forwards a non-renewable ${sourceKind} to the normal visible failure path`, async () => {
+			const queue = createQueueDrainContributions(disposables);
+			const resource = 'https://api.github.com';
+			queue.agent.getProtectedResources = () => [{ resource }];
+			let usable = true;
+			const scope = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }));
+			await scope.authenticate({ resource, token: 'original' }, [resource]);
+			const credentials = sourceKind === 'closed connection' ? scope : captureCredentialSource({
+				getCredential: () => ({ resource, token: 'original', revision: 1, expiresAt: undefined, isUsable: () => usable }),
+			}, [{ resource }]);
+			queue.stateManager.dispatchServerAction(queue.chat, chatTurnStarted('active', 'running', '2025-01-01T00:00:00.000Z'));
+			const action = queuedMessage('pending', 'pending work');
+			queue.stateManager.dispatchServerAction(queue.chat, action);
+			queue.service.didApplyClientAction({ ...appliedClientAction(queue.chat, queue.session, action), credentials });
+			scope.dispose();
+			usable = false;
+			queue.stateManager.dispatchServerAction(queue.chat, chatTurnComplete('active', 1));
+			queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'active', reason: { kind: 'success' } });
+			assert.deepStrictEqual({
+				admitted: queue.admitted.length,
+				originalSource: queue.admittedCredentials[0] === credentials,
+				pending: queue.stateManager.getChatState(queue.chat)?.queuedMessages,
+			}, { admitted: 1, originalSource: true, pending: undefined });
+			assert.throws(() => captureCredentialSource(queue.admittedCredentials[0]!, [{ resource }]), { code: AhpErrorCodes.AuthRequired });
+		});
+	}
+
+	for (const kind of [PendingMessageKind.Queued, PendingMessageKind.Steering]) {
+		test(`queue drain preserves disconnected ${kind} work and resumes once with a fresh sponsor`, async () => {
+			const queue = createQueueDrainContributions(disposables);
+			queue.setSteeringReady(false);
+			const resource = 'https://api.github.com';
+			queue.agent.getProtectedResources = () => [{ resource }];
+			const changed = disposables.add(new Emitter<void>());
+			let current: IAgentHostCredentialSource | undefined;
+			const source = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }, undefined, undefined, chat => {
+				assert.strictEqual(chat, queue.chat);
+				return { onDidChange: changed.event, resolve: () => current };
+			}));
+			await source.authenticate({ resource, token: 'original' }, [resource]);
+			current = source;
+			queue.stateManager.dispatchServerAction(queue.chat, chatTurnStarted('active', 'running', '2025-01-01T00:00:00.000Z'));
+			const action = { ...queuedMessage('pending', 'pending work'), kind };
+			queue.stateManager.dispatchServerAction(queue.chat, action);
+			queue.service.didApplyClientAction({ ...appliedClientAction(queue.chat, queue.session, action, 'original-client'), credentials: source });
+			source.dispose();
+			current = undefined;
+			queue.stateManager.dispatchServerAction(queue.chat, chatTurnComplete('active', 1));
+			queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'active', reason: { kind: 'success' } });
+			changed.fire();
+			const waiting = {
+				pending: queue.stateManager.getChatState(queue.chat)?.queuedMessages?.map(message => message.id),
+				active: queue.stateManager.getActiveTurnId(queue.chat),
+				admitted: queue.admitted.length,
+				telemetry: queue.telemetryService.events.length,
+			};
+			const fresh = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }));
+			current = fresh;
+			changed.fire();
+			const beforeAuthentication = queue.admitted.length;
+			await fresh.authenticate({ resource, token: 'fresh' }, [resource]);
+			changed.fire();
+			await fresh.authenticate({ resource, token: 'later-rotation' }, [resource]);
+			fresh.dispose();
+			changed.fire();
+			assert.deepStrictEqual({
+				waiting,
+				beforeAuthentication,
+				admitted: queue.admitted.map(turn => [turn.message.text, turn.clientId]),
+				captured: queue.admittedCredentials[0]?.getCredential({ resource })?.token,
+				pending: queue.stateManager.getChatState(queue.chat)?.queuedMessages,
+				listening: changed.hasListeners(),
+			}, {
+				waiting: { pending: ['pending'], active: undefined, admitted: 0, telemetry: 0 },
+				beforeAuthentication: 0,
+				admitted: [['pending work', 'original-client']],
+				captured: 'fresh',
+				pending: undefined,
+				listening: false,
+			});
+		});
+	}
+
+	test('queue drain waits for the principal resource even when the provider marks it optional', async () => {
+		const queue = createQueueDrainContributions(disposables);
+		const resource = 'https://api.github.com';
+		queue.agent.getProtectedResources = () => [{ resource, required: false }];
+		const changed = disposables.add(new Emitter<void>());
+		const principal = { apiOrigin: resource, userId: '123' };
+		const fresh = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }, principal));
+		const credentials: IAgentHostCredentialSource = {
+			principal,
+			getCredential: request => fresh.getCredential(request),
+			createQueuedCredentialSource: () => ({ onDidChange: changed.event, resolve: () => fresh }),
+		};
+		const action = queuedMessage('pending', 'pending work');
+		queue.stateManager.dispatchServerAction(queue.chat, action);
+		queue.service.didApplyClientAction({ ...appliedClientAction(queue.chat, queue.session, action), credentials });
+		const waiting = queue.stateManager.getChatState(queue.chat)?.queuedMessages?.map(message => message.id);
+		const before = queue.admitted.length;
+		await fresh.authenticate({ resource, token: 'principal-token' }, [resource]);
+		changed.fire();
+		assert.deepStrictEqual({
+			waiting, before, admitted: queue.admitted.length,
+			captured: queue.admittedCredentials[0]?.getCredential({ resource })?.token,
+		}, { waiting: ['pending'], before: 0, admitted: 1, captured: 'principal-token' });
+	});
+
+	for (const outcome of ['cancelled', 'error'] as const) {
+		for (const previouslyWaiting of [false, true]) {
+			test(`queue drain does not retry ${previouslyWaiting ? 'waiting' : 'unstarted'} messages on credential events after ${outcome}`, async () => {
+				const queue = createQueueDrainContributions(disposables);
+				const resource = 'https://api.github.com';
+				queue.agent.getProtectedResources = () => [{ resource }];
+				const changed = disposables.add(new Emitter<void>());
+				let current: IAgentHostCredentialSource | undefined = undefined;
+				const source = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }, undefined, undefined,
+					() => ({ onDidChange: changed.event, resolve: () => current })));
+				await source.authenticate({ resource, token: 'live' }, [resource]);
+				queue.stateManager.dispatchServerAction(queue.chat, chatTurnStarted('active', 'running', '2025-01-01T00:00:00.000Z'));
+				const action = queuedMessage('pending', 'pending work');
+				queue.stateManager.dispatchServerAction(queue.chat, action);
+				queue.service.didApplyClientAction({ ...appliedClientAction(queue.chat, queue.session, action), credentials: source });
+				if (previouslyWaiting) {
+					queue.stateManager.dispatchServerAction(queue.chat, chatTurnComplete('active', 1));
+					queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'active', reason: { kind: 'success' } });
+					queue.stateManager.dispatchServerAction(queue.chat, chatTurnStarted('active', 'new user request', '2025-01-01T00:00:01.000Z'));
+				}
+				const error = { errorType: 'requestFailed', message: 'failed' };
+				queue.stateManager.dispatchServerAction(queue.chat, outcome === 'cancelled'
+					? { type: ActionType.ChatTurnCancelled, turnId: 'active', duration: 1 }
+					: { type: ActionType.ChatError, turnId: 'active', duration: 1, part: { kind: ResponsePartKind.Error, error, resumable: false } });
+				queue.service.turnEnd({
+					session: queue.session, channel: queue.chat, turnId: 'active',
+					reason: outcome === 'cancelled' ? { kind: 'cancelled' } : { kind: 'error', error, resumable: false },
+				});
+				current = source;
+				changed.fire();
+				const paused = {
+					admitted: queue.admitted.length,
+					pending: queue.stateManager.getChatState(queue.chat)?.queuedMessages?.map(message => message.id),
+				};
+				queue.stateManager.dispatchServerAction(queue.chat, chatTurnStarted('retry', 'new user request', '2025-01-01T00:00:02.000Z'));
+				queue.stateManager.dispatchServerAction(queue.chat, chatTurnComplete('retry', 1));
+				queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'retry', reason: { kind: 'success' } });
+				assert.deepStrictEqual({ paused, admittedAfterUserRequest: queue.admitted.length }, {
+					paused: { admitted: 0, pending: ['pending'] }, admittedAfterUserRequest: 1,
+				});
+			});
+		}
+	}
+
+	for (const cleanup of ['message', 'chat'] as const) {
+		test(`queue drain releases pending credential listeners when the ${cleanup} is removed`, async () => {
+			const queue = createQueueDrainContributions(disposables);
+			const changed = disposables.add(new Emitter<void>());
+			const source = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }, undefined, undefined,
+				() => ({ onDidChange: changed.event, resolve: () => undefined })));
+			queue.stateManager.dispatchServerAction(queue.chat, chatTurnStarted('active', 'running', '2025-01-01T00:00:00.000Z'));
+			const action = queuedMessage('pending', 'pending work');
+			queue.stateManager.dispatchServerAction(queue.chat, action);
+			queue.service.didApplyClientAction({ ...appliedClientAction(queue.chat, queue.session, action), credentials: source });
+			const before = changed.hasListeners();
+			if (cleanup === 'message') {
+				const remove = { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Queued, id: action.id } as const;
+				queue.stateManager.dispatchServerAction(queue.chat, remove);
+				queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, remove));
+			} else {
+				queue.stateManager.removeSession(queue.session);
+			}
+			changed.fire();
+			assert.deepStrictEqual({ before, after: changed.hasListeners(), admitted: queue.admitted.length }, { before: true, after: false, admitted: 0 });
+		});
+	}
+
 	test('queue drain keeps per-message senders across removal and ignores duplicate handoff', () => {
 		const queue = createQueueDrainContributions(disposables);
 		queue.stateManager.dispatchServerAction(queue.chat, chatTurnStarted('active', 'Working', '2026-10-14T00:00:00.000Z'));
@@ -1923,6 +2118,30 @@ suite('AgentHostChatContributions', () => {
 			nextTurn: [{ text: 'Also update the docs', sender: 'client' }],
 			stillPending: undefined,
 		});
+	});
+
+	test('queue drain hands steering to the agent with the provenance of its author', () => {
+		const queue = createQueueDrainContributions(disposables);
+		const handedToAgent: unknown[] = [];
+		queue.agent.sendSteeringMessage = (_chat, message, _sender, provenance) => {
+			handedToAgent.push([message.id, provenance]);
+			return true;
+		};
+		startTurn(queue, 'active-turn');
+		sendSteering(queue, 'person', 'Also update the docs');
+		const delegated: IAppliedClientAction['action'] = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering,
+			id: 'coordinator',
+			message: { text: 'Check the tests', origin: { kind: MessageKind.Agent }, _meta: toAgentMessageDelegationMeta({ sourceSession: 'copilot:/coordinator', sourceChat: 'copilot:/coordinator/chat' }) },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, delegated);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, delegated));
+
+		assert.deepStrictEqual(handedToAgent, [
+			['person', { kind: 'user' }],
+			['coordinator', { kind: 'agent', id: 'copilot:/coordinator/chat' }],
+		]);
 	});
 
 	test('queue drain runs steering the agent hands back unsent as the next turn instead of dropping it', async () => {
@@ -3492,6 +3711,13 @@ suite('AgentHostChatContributions', () => {
 		contributions.didDispatchAction(dispatchedAction('agent-host-chat://test', 'agent-host-session://test', { type: ActionType.ChatQueuedMessagesReordered, order: [] }));
 
 		assert.deepStrictEqual(calls, ['followingEnvelope']);
+	});
+
+	test('isolates a throwing shutdown contribution', () => {
+		const contributions = disposables.add(createContributions(disposables, ThrowingShutdownContribution, FollowingShutdownContribution));
+		contributions.willShutdown();
+
+		assert.deepStrictEqual(calls, ['followingShutdown']);
 	});
 
 	test('passes envelope rejection reasons to contributions', () => {

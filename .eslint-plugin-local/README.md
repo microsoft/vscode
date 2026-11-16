@@ -1,6 +1,6 @@
-# Custom ESLint rules
+# Custom lint rules
 
-We use a set of custom [ESLint](http://eslint.org) to enforce repo specific coding rules and styles. These custom rules are run in addition to many standard ESLint rules we enable in the project. Some example custom rules includes:
+We use a set of custom lint rules, which [oxlint](https://oxc.rs/docs/guide/usage/linter.html) runs with its ESLint-compatible plugin API, to enforce repo specific coding rules and styles. These custom rules are run in addition to many standard ESLint rules we enable in the project. Some example custom rules includes:
 
 - Enforcing proper code layering
 - Preventing checking in of `test.only(...)`
@@ -11,6 +11,7 @@ Custom rules are mostly used for enforcing or banning certain coding patterns. W
 This doc provides a brief overview of how these rules are setup and how you can add a new one.
 
 # Resources
+- [Writing JS plugins for oxlint](https://oxc.rs/docs/guide/usage/linter/writing-js-plugins.html) — How oxlint runs ESLint-style rules, and which APIs it supports
 - [ESLint rules](https://eslint.org/docs/latest/extend/custom-rules) — General documentation about writing eslint rules
 - [TypeScript ASTs and eslint](https://typescript-eslint.io/blog/asts-and-typescript-eslint/) — Look at how ESLint works with TS programs
 - [ESTree selectors](https://eslint.org/docs/latest/extend/selectors)  — Info about the selector syntax rules use to target specific nodes in an AST. Works similarly to css selectors.
@@ -46,7 +47,7 @@ For example, here's a configuration that enables the no `test.only` rule in all 
 ```
 
 # Creating a new custom rule
-This walks through the steps to create a new eslint rule (see [AGENTS.md](AGENTS.md) for how to keep it fast):
+This walks through the steps to create a new lint rule (see [AGENTS.md](AGENTS.md) for how to keep it fast):
 
 1. Create a new rule file under `.eslint-plugin-local`. Generally you should call it `code-YOUR-RULE-NAME.ts`, for example, `.eslint-plugin-local/code-no-not-null-assertions-on-undefined-values.ts`
 
@@ -58,20 +59,20 @@ This walks through the steps to create a new eslint rule (see [AGENTS.md](AGENTS
     *  Licensed under the MIT License. See License.txt in the project root for license information.
     *--------------------------------------------------------------------------------------------*/
 
-    import * as eslint from 'eslint';
+    import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 
-    export = new class YourRuleName implements eslint.Rule.RuleModule {
+    export default new class YourRuleName implements CreateRule {
 
-        readonly meta: eslint.Rule.RuleMetaData = {
+        readonly meta: RuleMeta = {
             messages: {
                 customMessageName: 'message text shown in errors/warnings',
             },
             schema: false,
         };
 
-        create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+        create(context: Context): Visitor {
             return {
-                [SELECTOR]: (node: any) => {
+                [SELECTOR]: (node: ESTree.Node) => {
                     // Report errors if needed
                     return context.report({
                         node,
@@ -112,17 +113,19 @@ In these cases make sure to update the `meta.schema` property on your rule with 
 
 # Running the rules with oxlint
 
-CI and the pre-commit hook run the rules with [oxlint](https://oxc.rs/docs/guide/usage/linter.html), which is faster than ESLint. In the editor, the recommended oxc extension (`oxc.oxc-vscode`) runs them too, and the ESLint extension skips `src/` (see `eslint.options` in `.vscode/settings.json`). ESLint still runs them in the editor for the other folders and in the Copilot extension's `pnpm run lint`. `pnpm run oxlint` lints the full repository, the given files, or with `--changed-since <ref>` the files that changed since `ref`, and reports in ESLint's compact format, with ESLint's rule names.
+The rules run with [oxlint](https://oxc.rs/docs/guide/usage/linter.html): in CI, in the pre-commit hook, in the Copilot extension's `pnpm run lint`, in the editor with the recommended oxc extension (`oxc.oxc-vscode`), and in the rule tests, with oxlint's `RuleTester` (`oxlint/plugins-dev`). The rules use the ESLint-compatible plugin API of oxlint, with the types of `@oxlint/plugins` (import them with `import type`); no ESLint package is installed. `pnpm run oxlint` lints the full repository, the given files, or with `--changed-since <ref>` the files that changed since `ref`, and reports in ESLint's compact format.
 
-There is one configuration: [oxlint.config.ts](../oxlint.config.ts) converts `eslint.config.js` when oxlint loads it (see `build/lib/oxlintConfig.ts`). oxlint implements ESLint's core rules and the `@typescript-eslint` rules natively, and loads the other plugins as JS plugins, which run on one thread per process; `build/oxlint.ts` therefore splits a full run into several processes by folder, and lints the extensions that use type information in a separate process with `--type-aware`.
+There is one configuration: [oxlint.config.ts](../oxlint.config.ts) converts `eslint.config.js`, which keeps ESLint's flat configuration format (blocks of `files`, `ignores` and `rules`), when oxlint loads it (see `build/lib/oxlintConfig.ts`). oxlint implements ESLint's core rules and the `@typescript-eslint` and `jsdoc` rules natively, and loads the other plugins as JS plugins, which run on one thread per process; `build/oxlint.ts` therefore splits a full run into several processes by folder, and lints the extensions that use type information in a separate process with `--type-aware`. To check which rules apply to a file, tests use `getRepositoryFileRules` from `build/lib/oxlintConfig.ts`.
 
-So that configuration and disable directives work in both linters, `eslint.config.js` uses the names oxlint reports:
+`compat/` has our implementations of the rules of third-party ESLint plugins that oxlint does not implement, under the names that `eslint.config.js` and the disable directives use. Each implements only the options that `eslint.config.js` uses, and reports what the original reported:
 
-- `eslint-js/*` and `ts-eslint-js/*` are the ESLint and typescript-eslint rules that oxlint does not implement, such as `eslint-js/no-restricted-syntax` and `ts-eslint-js/naming-convention`. The adapters in `adapters/` load the original implementations for both linters. Add a rule there before using it.
-- `jsdoc-js/*` is `eslint-plugin-jsdoc`, because oxlint reserves `jsdoc` for its own implementation.
-- `@stylistic/*` replaces ESLint's deprecated formatting rules (`semi`, `no-extra-semi`, `comma-dangle`).
+- `eslint-js/*`: ESLint's `no-restricted-syntax` and `no-buffer-constructor`.
+- `ts-eslint-js/*`: typescript-eslint's `naming-convention` and `no-restricted-imports` (oxlint's own `no-restricted-imports` ignores the configured messages).
+- `header/header`: `eslint-plugin-header`.
+- `jsdoc-js/*`: the rules of `eslint-plugin-jsdoc` that oxlint does not implement (oxlint reserves `jsdoc` for its own).
+- `@stylistic/*`: `semi`, `no-extra-semi`, `comma-dangle` and `member-delimiter-style`.
 
-A rule of a plugin that oxlint cannot load fails the conversion, and a rule that oxlint does not know fails oxlint, so a rule never silently stops running. Plugins must be modules: oxlint cannot load plugins defined inline in `eslint.config.js`. oxlint does not support configuring rules in comments (`/* eslint rule: "warn" */`).
+A rule of a plugin that oxlint cannot load fails the conversion, and a rule that oxlint does not know fails oxlint, so a rule never silently stops running. oxlint does not support configuring rules in comments (`/* eslint rule: "warn" */`).
 
 ## Agent host metadata boundary
 

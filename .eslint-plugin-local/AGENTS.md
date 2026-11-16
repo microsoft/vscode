@@ -1,6 +1,6 @@
 # Writing lint rules
 
-See [README.md](README.md) for how to add a rule. The rules here run in oxlint (CI, pre-commit hook, `pnpm run oxlint`, the oxc editor extension), which loads them as ESLint-compatible JS plugins, and in ESLint (the editor outside `src/`, the Copilot extension's `pnpm run lint`, and the rule tests). A rule must report the same problems in both.
+See [README.md](README.md) for how to add a rule. The rules here run in oxlint (CI, the pre-commit hook, `pnpm run oxlint`, the oxc editor extension and the rule tests, through oxlint's `RuleTester`), which loads them as JS plugins. They use oxlint's ESLint-compatible rule API with the types of `@oxlint/plugins`, imported with `import type`, and `eslint.config.js` configures them. Don't add a dependency on ESLint packages.
 
 ## Keep rules fast
 
@@ -12,7 +12,7 @@ oxlint runs all JS plugin rules of a process on one thread, and the rules run on
 - **Read `node.loc` only to report.** oxlint computes locations on first access.
 - **Do per-options work once.** Rule options are the same object for every file: compile regular expressions and minimatch patterns once, at module level or in a `WeakMap` keyed by the options, and cache results that depend only on the options and a string.
 - **Do per-file work once, in `create()`.** Compute the file's relative path or layer there, not per import, and return `{}` when no check can apply to the file.
-- **Don't read files per file or per node.** Cache at module level. If the content can change while a long-lived ESLint server runs in the editor, read it again before reporting.
+- **Don't read files per file or per node.** Cache at module level. If the content can change while the oxc language server runs in the editor, read it again before reporting.
 
 ## Measure and verify
 
@@ -29,4 +29,4 @@ oxlint runs all JS plugin rules of a process on one thread, and the rules run on
   git checkout -- .   # restores the directives, and discards all other uncommitted changes
   ```
 
-  Then diff the two files. Both should list about ten thousand problems, and nothing should differ. The rule tests cover ESLint.
+  Then diff the two files. Both should list about ten thousand problems, and nothing should differ.

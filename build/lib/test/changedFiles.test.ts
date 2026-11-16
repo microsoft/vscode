@@ -127,10 +127,12 @@ suite('changedFiles', () => {
 		});
 
 		test('knows every extension that eslint.config.js lints with type information', async () => {
-			const { default: config } = await import(pathToFileURL(path.join(repositoryRoot, 'eslint.config.js')).href) as { default: { files?: string[]; languageOptions?: { parserOptions?: { project?: string | string[]; projectService?: unknown } } }[] };
+			const { default: config } = await import(pathToFileURL(path.join(repositoryRoot, 'eslint.config.js')).href) as { default: { files?: string[]; rules?: Record<string, unknown> }[] };
+			// The rules of eslint.config.js that need type information
+			const typeAwareRules = ['@typescript-eslint/prefer-optional-chain', '@typescript-eslint/prefer-readonly'];
 			const typeAwarePaths = config
-				.filter(entry => entry.languageOptions?.parserOptions?.project || entry.languageOptions?.parserOptions?.projectService)
-				.flatMap(entry => [...(entry.files ?? ['**']), ...[entry.languageOptions?.parserOptions?.project ?? []].flat()]);
+				.filter(entry => typeAwareRules.some(rule => entry.rules?.[rule] !== undefined && entry.rules[rule] !== 'off'))
+				.flatMap(entry => entry.files ?? ['**']);
 			assert.deepStrictEqual({
 				found: typeAwarePaths.length > 0,
 				uncovered: typeAwarePaths.filter(p => !typeAwareLintFolders.some(folder => p.startsWith(folder))),

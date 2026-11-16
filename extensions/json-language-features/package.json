@@ -221,8 +221,7 @@
     "@types/mocha": "^10.0.10",
     "@types/node": "24.x",
     "glob": "^5.0.13",
-    "mocha": "^10.8.2",
-    "tslib": "^2.6.3"
+    "mocha": "^10.8.2"
   },
   "repository": {
     "type": "git",

@@ -162,6 +162,10 @@ export class ConfigurationEditing {
 
 	async writeConfiguration(target: EditableConfigurationTarget, value: IConfigurationValue, options: IConfigurationEditingOptions = {}): Promise<void> {
 		const operation = this.getConfigurationEditOperation(target, value, options.scopes || {});
+		return this.queueWriteConfiguration(operation, options);
+	}
+
+	private queueWriteConfiguration(operation: IConfigurationEditOperation, options: IConfigurationEditingOptions): Promise<void> {
 		// queue up writes to prevent race conditions
 		return this.queue.queue(async () => {
 			try {
@@ -306,10 +310,7 @@ export class ConfigurationEditing {
 			this.notificationService.prompt(Severity.Error, error.message,
 				[{
 					label: nls.localize('saveAndRetry', "Save and Retry"),
-					run: () => {
-						const key = operation.key ? `${operation.workspaceStandAloneConfigurationKey}.${operation.key}` : operation.workspaceStandAloneConfigurationKey!;
-						this.writeConfiguration(operation.target, { key, value: operation.value }, { handleDirtyFile: 'save', scopes });
-					}
+					run: () => this.queueWriteConfiguration(operation, { handleDirtyFile: 'save', scopes })
 				},
 				{
 					label: openStandAloneConfigurationActionLabel,
@@ -320,7 +321,7 @@ export class ConfigurationEditing {
 			this.notificationService.prompt(Severity.Error, error.message,
 				[{
 					label: nls.localize('saveAndRetry', "Save and Retry"),
-					run: () => this.writeConfiguration(operation.target, { key: operation.key, value: operation.value }, { handleDirtyFile: 'save', scopes })
+					run: () => this.queueWriteConfiguration(operation, { handleDirtyFile: 'save', scopes })
 				},
 				{
 					label: nls.localize('open', "Open Settings"),
