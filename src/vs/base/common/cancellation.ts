@@ -63,7 +63,10 @@ export namespace CancellationToken {
 		}
 	}
 
-	/** Cancels when any input is cancelled; the lifetime owns the forwarding subscriptions. */
+	/**
+	 * Cancels when any input is cancelled; the lifetime owns the forwarding subscriptions.
+	 * A single distinct active input is returned directly and still reflects cancellation after lifetime disposal.
+	 */
 	export function any(tokens: readonly CancellationToken[], lifetime: DisposableStore): CancellationToken {
 		if (tokens.some(token => token.isCancellationRequested)) {
 			return Cancelled;
