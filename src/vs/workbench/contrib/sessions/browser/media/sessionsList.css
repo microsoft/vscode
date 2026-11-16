@@ -425,7 +425,7 @@
 		}
 	}
 
-	.session-section {
+	.session-section:not(.session-comparison-group) {
 		.session-section-label-container {
 			flex: 0 1 auto;
 		}

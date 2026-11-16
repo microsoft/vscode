@@ -6211,11 +6211,19 @@ suite('Sessions - SessionsList', () => {
 			restoredList.setItemCollapsed({ section: SessionInboxSection.ReadyForYou }, true);
 			harness.managementService.sessions = [];
 			restoredList.refresh();
+			const empty = {
+				...snapshot(restoredList),
+				message: restoredList.element.querySelector('.session-placeholder')?.textContent,
+			};
+			harness.managementService.sessions = [ready];
+			restoredList.refresh();
+			const repopulated = snapshot(restoredList);
+			restoredList.reveal(ready.resource);
+			restoredList.update();
+			const revealed = snapshot(restoredList);
+			restoredList.dispose();
 			assert.deepStrictEqual({
-				initial, keyboardCollapsed, updated, returned, restored, clicked, empty: {
-					...snapshot(restoredList),
-					message: restoredList.element.querySelector('.session-placeholder')?.textContent,
-				}
+				initial, keyboardCollapsed, updated, returned, restored, clicked, empty, repopulated, revealed, reloaded: snapshot(create()),
 			}, {
 				initial: { expanded: 'true', sessions: ['ready'] },
 				keyboardCollapsed: { expanded: 'false', sessions: [] },
@@ -6224,6 +6232,9 @@ suite('Sessions - SessionsList', () => {
 				restored: { expanded: 'false', sessions: [] },
 				clicked: { expanded: 'true', sessions: ['ready'] },
 				empty: { expanded: null, sessions: [], message: 'Your inbox is clear' },
+				repopulated: { expanded: 'false', sessions: [] },
+				revealed: { expanded: 'true', sessions: ['ready'] },
+				reloaded: { expanded: 'false', sessions: [] },
 			});
 		});
 
@@ -9478,30 +9489,38 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('keeps the comparison icon quiet at rest and aligned with the title', () => {
-			const { container } = renderComparison();
-			const parent = container.querySelector<HTMLElement>('.session-comparison-group')!;
-			const chevron = parent.querySelector<HTMLElement>('.session-section-chevron')!;
-			const label = parent.querySelector<HTMLElement>('.session-section-label')!;
-			const icon = parent.querySelector<HTMLElement>('.session-section-icon')!;
-			assert.deepStrictEqual({
-				chevronOpacity: mainWindow.getComputedStyle(chevron).opacity,
-				labelWeight: mainWindow.getComputedStyle(label).fontWeight,
-				iconTop: icon.getBoundingClientRect().top,
-				labelTop: label.getBoundingClientRect().top,
-				height: parent.getBoundingClientRect().height,
-				rowHeight: parent.closest('.monaco-list-row')!.getBoundingClientRect().height,
-				connector: mainWindow.getComputedStyle(parent, '::after').borderLeftWidth,
-			}, {
-				chevronOpacity: '0',
-				labelWeight: '400',
-				iconTop: label.getBoundingClientRect().top,
-				labelTop: label.getBoundingClientRect().top,
-				height: 44,
-				rowHeight: 44,
-				connector: '1px',
+		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Inbox]) {
+			test(`keeps the comparison icon quiet at rest and aligned with the title (${grouping})`, () => {
+				const { container } = renderComparison(undefined, 'all', new Set(), false, grouping, undefined, harness => {
+					harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+				});
+				const parent = container.querySelector<HTMLElement>('.session-comparison-group')!;
+				const chevron = parent.querySelector<HTMLElement>('.session-section-chevron')!;
+				const label = parent.querySelector<HTMLElement>('.session-section-label')!;
+				const icon = parent.querySelector<HTMLElement>('.session-section-icon')!;
+				assert.deepStrictEqual({
+					chevronOpacity: mainWindow.getComputedStyle(chevron).opacity,
+					labelWeight: mainWindow.getComputedStyle(label).fontWeight,
+					iconVisible: icon.getBoundingClientRect().width > 0,
+					labelAfterIcon: label.getBoundingClientRect().left >= icon.getBoundingClientRect().right,
+					iconTop: icon.getBoundingClientRect().top,
+					labelTop: label.getBoundingClientRect().top,
+					height: parent.getBoundingClientRect().height,
+					rowHeight: parent.closest('.monaco-list-row')!.getBoundingClientRect().height,
+					connector: mainWindow.getComputedStyle(parent, '::after').borderLeftWidth,
+				}, {
+					chevronOpacity: '0',
+					labelWeight: '400',
+					iconVisible: true,
+					labelAfterIcon: true,
+					iconTop: label.getBoundingClientRect().top,
+					labelTop: label.getBoundingClientRect().top,
+					height: 44,
+					rowHeight: 44,
+					connector: '1px',
+				});
 			});
-		});
+		}
 
 		test('hides the parent connector when the comparison is collapsed', () => {
 			const { container } = renderComparison();
