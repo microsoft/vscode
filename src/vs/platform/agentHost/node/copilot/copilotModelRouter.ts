@@ -362,11 +362,12 @@ function routeKey(route: IResolvedModelRoute): string {
 /**
  * The route a chat is on. A route without a name is found by the entry of its `model` that
  * matched, before its model: a route that names a family moves to a newer model when one ships,
- * and the earlier model can by then be another route's.
+ * and the earlier model can by then be another route's. When the newer model is already an
+ * earlier route's, the chat is on that route.
  */
 function currentRouteOf(routes: readonly IResolvedModelRoute[], last: ILastSelection): IResolvedModelRoute | undefined {
 	const { routeName, routeReference } = last;
-	const byReference = routeName === undefined && routeReference !== undefined ? routes.find(route => !route.route.name && routeListsModel(route.route, routeReference)) : undefined;
+	const byReference = routeName === undefined && routeReference !== undefined ? routes.find(route => !route.route.name && routeListsModel(route, routeReference)) : undefined;
 	return byReference ?? routes.find(route => routeKey(route) === (routeName ?? last.model));
 }
 

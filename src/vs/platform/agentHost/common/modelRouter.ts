@@ -712,13 +712,13 @@ interface IModelIdParts {
 	readonly date: readonly number[];
 }
 
-/** A model id's words, version and snapshot date: `gpt-5.1-mini` is `gpt`, `mini` and 5, 1. */
+/** A model id's words, version and snapshot date: `gpt-5.1-mini` is `gpt`, `mini` and 5, 1. A letter after a number is part of that version, so `gpt-4o` is `gpt` and 4. */
 function modelIdParts(id: string): IModelIdParts {
 	const words: string[] = [];
 	const version: number[] = [];
 	const date: number[] = [];
 	for (const part of id.toLowerCase().split(/[-._:]+/)) {
-		const number = /^v?(?<number>\d+)$/.exec(part)?.groups?.number;
+		const number = /^v?(?<number>\d+)[a-z]?$/.exec(part)?.groups?.number;
 		if (number === undefined) {
 			if (part) {
 				words.push(part);
@@ -827,10 +827,10 @@ function matchModelFamily(models: readonly IAgentModelInfo[], reference: string)
 	return newest.length === 1 ? { kind: 'model', model: newest[0] } : { kind: 'ambiguous', models: newest };
 }
 
-/** Whether `reference` is one of the entries of a route's `model`, however its version is written. */
-export function routeListsModel(route: IModelRouterRoute, reference: string): boolean {
+/** Whether `reference` is one of the entries of the `model` of a route, or of one merged into it, however its version is written. */
+export function routeListsModel(route: IResolvedModelRoute, reference: string): boolean {
 	const wanted = normalizeModelReference(reference);
-	return route.models.some(model => normalizeModelReference(model) === wanted);
+	return [route.route, ...route.merged ?? []].some(({ models }) => models.some(model => normalizeModelReference(model) === wanted));
 }
 
 /** Efforts a model accepts, from its config schema, in the canonical low-to-high order. */
@@ -871,6 +871,8 @@ export interface IResolvedModelRoute {
 	readonly contextSize?: ModelRouterContextSize;
 	/** The model's retirement notice, when the service has announced one. */
 	readonly retiring?: string;
+	/** Later routes without a name that landed on the same model. They are not routes of their own, and a chat that was on one is on this route. */
+	readonly merged?: readonly IModelRouterRoute[];
 }
 
 export interface IModelRouterResolution {
@@ -894,6 +896,7 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 	const routable = models.filter(isRoutableModel);
 	const routes: IResolvedModelRoute[] = [];
 	const used = new Set<string>();
+	const merged = new Map<string, IModelRouterRoute[]>();
 	router.routes.forEach((route, index) => {
 		const label = modelRouterRouteLabel(route, index);
 		let match: { model: IAgentModelInfo; reference: string } | undefined;
@@ -929,6 +932,8 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 			// A name can also be a model's id, and a pick could then mean either route.
 			if (route.name || routes.some(other => other.route.name === key)) {
 				warning(`${label} is skipped: \`${key}\` is the name of one route and the model of another.`);
+			} else {
+				merged.set(key, [...merged.get(key) ?? [], route]);
 			}
 			return;
 		}
@@ -967,5 +972,5 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 	if (routes.length < MODEL_ROUTER_MIN_ROUTES && router.routes.length >= MODEL_ROUTER_MIN_ROUTES) {
 		warning(`Only ${routes.length} of this router's models ${routes.length === 1 ? 'is' : 'are'} available, so there is nothing to route between.`);
 	}
-	return { routes, diagnostics };
+	return { routes: merged.size === 0 ? routes : routes.map(route => route.route.name || !merged.has(route.model.id) ? route : { ...route, merged: merged.get(route.model.id) }), diagnostics };
 }
