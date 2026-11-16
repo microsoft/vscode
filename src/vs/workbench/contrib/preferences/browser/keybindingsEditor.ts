@@ -326,7 +326,7 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 		if (keybinding.keybindingItem.when) {
 			userFriendlyKeybinding.when = keybinding.keybindingItem.when;
 		}
-		if (keybinding.keybindingItem.keybindingItem.systemWide) {
+		if (keybinding.keybindingItem.keybindingItem.systemWide && !keybinding.keybindingItem.keybindingItem.isDefault) {
 			userFriendlyKeybinding.systemWide = true;
 		}
 		await this.clipboardService.writeText(JSON.stringify(userFriendlyKeybinding, null, '  '));
@@ -760,8 +760,12 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 		this.keybindingsTable.setFocus([currentFocusIndices.length ? currentFocusIndices[0] : 0]);
 	}
 
-	selectKeybinding(keybindingItemEntry: IKeybindingItemEntry): void {
-		this.selectEntry(keybindingItemEntry);
+	selectKeybinding(keybindingItemEntry: IKeybindingItemEntry, focus: boolean = true): void {
+		this.selectEntry(keybindingItemEntry, focus);
+		const index = this.getIndexOf(keybindingItemEntry);
+		if (index !== -1) {
+			this.keybindingsTable.setFocus([index]);
+		}
 	}
 
 	recordSearchKeys(): void {
@@ -1148,6 +1152,9 @@ class SystemWideColumnRenderer implements ITableRenderer<IKeybindingItemEntry, I
 	renderElement(entry: IKeybindingItemEntry, index: number, templateData: ISystemWideColumnTemplateData): void {
 		templateData.elementDisposables.clear();
 		templateData.entry = entry;
+		templateData.elementDisposables.add(DOM.addDisposableListener(templateData.checkbox.domNode, DOM.EventType.FOCUS, () => {
+			this.keybindingsEditor.selectKeybinding(entry, false);
+		}));
 		const item = entry.keybindingItem;
 		const disabledReason = getSystemWideDisabledReason(entry);
 		const { checkbox } = templateData;
@@ -1393,7 +1400,9 @@ class AccessibilityProvider implements IListAccessibilityProvider<IKeybindingIte
 		return localize('keybindingsLabel', "Keybindings");
 	}
 
-	getAriaLabel({ keybindingItem }: IKeybindingItemEntry): string {
+	getAriaLabel(entry: IKeybindingItemEntry): string {
+		const { keybindingItem } = entry;
+		const disabledReason = getSystemWideDisabledReason(entry);
 		const ariaLabel = [
 			keybindingItem.commandLabel ? keybindingItem.commandLabel : keybindingItem.command,
 			keybindingItem.keybinding?.getAriaLabel() || localize('noKeybinding', "No keybinding assigned"),
@@ -1401,9 +1410,16 @@ class AccessibilityProvider implements IListAccessibilityProvider<IKeybindingIte
 			keybindingItem.when ? keybindingItem.when : localize('noWhen', "No when context"),
 			isString(keybindingItem.source) ? keybindingItem.source : keybindingItem.source.description ?? keybindingItem.source.identifier.value,
 		];
+		if (disabledReason) {
+			ariaLabel.push(disabledReason);
+		}
 		if (this.configurationService.getValue(AccessibilityVerbositySettingId.KeybindingsEditor)) {
-			const kbEditorAriaLabel = localize('keyboard shortcuts aria label', "Use space or enter to change the keybinding. Use Tab to reach the System-wide checkbox and space to toggle it. The information button in the System-wide column header explains how these shortcuts can run while another app is focused and may conflict with shortcuts in other apps.");
+			const kbEditorAriaLabel = localize('keyboard shortcuts aria label', "Use space or enter to change the keybinding.");
 			ariaLabel.push(kbEditorAriaLabel);
+			if (!disabledReason) {
+				ariaLabel.push(localize('systemWideCheckboxNavigation', "Use Tab to reach the System-wide checkbox and space to toggle it."));
+			}
+			ariaLabel.push(localize('systemWideHeaderInformation', "The information button in the System-wide column header explains how these shortcuts can run while another app is focused and may conflict with shortcuts in other apps."));
 		}
 		return ariaLabel.join(', ');
 	}
