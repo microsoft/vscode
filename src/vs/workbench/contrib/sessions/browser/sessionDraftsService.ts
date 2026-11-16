@@ -77,6 +77,12 @@ export class SessionDraftComposer implements IDisposable {
 	updateInput(input: IChatDraft): void {
 		this.input = input;
 		this.service.updateNavigation(this);
+		this.service.updateSavedDraft(this);
+	}
+
+	updateTarget(target: ISavedSessionDraftTarget): void {
+		this.target = target;
+		this.service.updateSavedDraft(this);
 	}
 
 	willSend(input: IChatDraft): void {
@@ -352,6 +358,17 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		return this.model.drafts.get().find(draft => draft.id === composer.id)?.revision;
 	}
 
+	updateSavedDraft(composer: SessionDraftComposer): void {
+		if (composer.isSending || composer.isRestoring || this.current?.composer !== composer || !this.getDraftRevision(composer)) {
+			return;
+		}
+		try {
+			this.stow(composer);
+		} catch (error) {
+			this.reportSaveError(error);
+		}
+	}
+
 	finishScheduledComposer(composer: SessionDraftComposer, revision: string | undefined): void {
 		if (revision) {
 			this.model.remove(composer.id, revision);
@@ -455,7 +472,7 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 			}
 		}
 		const alreadyRestored = this.current?.composer.id === id && this.current.restoredId === id;
-		if (!alreadyRestored) {
+		if (!this.current) {
 			await this.sessionsService.openNewSession({ preserveNavigation: true }, token);
 		}
 		if (token.isCancellationRequested) {

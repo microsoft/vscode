@@ -22,6 +22,7 @@ import { ChatDynamicVariableModel } from '../../../../chat/browser/attachments/c
 import { IChatAgentService } from '../../../../chat/common/participants/chatAgents.js';
 import { IChatVariablesService, IDynamicVariable } from '../../../../chat/common/attachments/chatVariables.js';
 import { IChatRequestVariableEntry, toPasteVariableEntry } from '../../../../chat/common/attachments/chatVariableEntries.js';
+import { IChatDraft } from '../../../../chat/common/attachments/chatDraft.js';
 import { IModelPickerComparison } from '../../../../chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../chat/common/constants.js';
 import { IChatSlashCommandService, IChatSlashData } from '../../../../chat/common/participants/chatSlashCommands.js';
@@ -824,23 +825,27 @@ suite('SharedChatInputComposer', () => {
 		});
 	});
 
-	test('keeps the input\'s inline references when another draft is bound', async () => {
+	test('keeps the input, inline references, and saved snapshot when another draft is bound', async () => {
 		const reference: IDynamicVariable = { id: 'file', range: new Range(1, 5, 1, 17), data: 'foo.ts' };
+		const contentChanged = store.add(new Emitter<void>());
+		const snapshots: IChatDraft[] = [];
 		let input = 'Fix #file:foo.ts';
 		const dynamicVariables = {
 			variables: [reference],
+			onDidChangeReferences: Event.None,
 			setInputState: (state: Readonly<Record<string, unknown>>) => { dynamicVariables.variables = state[ChatDynamicVariableModel.ID] as IDynamicVariable[]; },
 		};
-		const attachmentModel = { attachments: [], clearAndSetContext: () => { } };
-		const composer: { _bindModel(resource: URI): Promise<void> } = Object.assign(Object.create(SharedChatInputComposer.prototype), {
+		const attachmentModel = { attachments: [], onDidChange: Event.None, clearAndSetContext: () => { } };
+		const composer: SharedChatInputComposer = Object.assign(Object.create(SharedChatInputComposer.prototype), {
 			_store: store.add(new DisposableStore()),
 			_modelRef: store.add(new MutableDisposable()),
 			_modelBinding: 0,
+			options: { onDidChangeDraft: (draft: IChatDraft) => snapshots.push(draft) },
 			_widget: {
 				viewModel: {},
 				supportsFileReferences: true,
 				input: { attachmentModel },
-				inputEditor: { getValue: () => input },
+				inputEditor: { getValue: () => input, onDidChangeModelContent: contentChanged.event },
 				attachmentModel,
 				getContrib: () => dynamicVariables,
 				getInput: () => input,
@@ -848,16 +853,21 @@ suite('SharedChatInputComposer', () => {
 				setModel: () => {
 					input = '';
 					dynamicVariables.variables = [];
+					contentChanged.fire();
 				},
 			},
-			setInputValue: (value: string) => { input = value; },
+			setInputValue: (value: string) => { input = value; contentChanged.fire(); },
 			chatService: { acquireOrLoadSession: async () => ({ object: {}, dispose: () => { } }) },
 			logService: new NullLogService(),
 		});
 
-		await composer._bindModel(URI.parse('draft:/replacement'));
+		store.add(Reflect.get(SharedChatInputComposer.prototype, '_trackInputSnapshot').call(composer, composer.widget));
+		await Reflect.get(SharedChatInputComposer.prototype, '_bindModel').call(composer, URI.parse('draft:/replacement'));
 
-		assert.deepStrictEqual({ input, references: dynamicVariables.variables }, { input: 'Fix #file:foo.ts', references: [reference] });
+		assert.deepStrictEqual({ input, references: dynamicVariables.variables, snapshots }, {
+			input: 'Fix #file:foo.ts', references: [reference],
+			snapshots: [{ inputText: 'Fix #file:foo.ts', attachments: [], references: [reference] }],
+		});
 	});
 
 	test('binds the latest draft and releases an earlier draft that finishes loading later', async () => {

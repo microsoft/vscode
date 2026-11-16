@@ -65,7 +65,7 @@ import { IChatDraft, serializeChatDraft } from '../../../../../workbench/contrib
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { AgentsWindowUsage } from '../../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
 import { SessionComparisonModelSelection } from '../../../../../workbench/contrib/sessions/browser/chat/sessionComparisonModelSelection.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IModelConfigurationAccess } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { createSessionViewTestServices, createTestActiveSession, testPaneOf } from '../../../../test/browser/sessionViewTestUtils.js';
 import { getDefaultSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment } from '../../../../../workbench/contrib/sessions/browser/chat/sessionEnvironmentPicker.js';
@@ -639,7 +639,7 @@ suite('NewChatWidget', () => {
 					focus: () => { focusStates.push(inputEnabled); },
 				},
 				storageService: disposables.add(new InMemoryStorageService()),
-				sessionsProvidersService: { getProvider: () => ({ sessionTypes: [{ id: 'agent' }] }) },
+				sessionsProvidersService: { getProvider: (): Pick<ISessionsProvider, 'sessionTypes'> | undefined => ({ sessionTypes: [{ id: 'agent', label: 'Agent', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.None }] }) },
 				_environments: constObservable<readonly ISessionCreationEnvironment[]>([]),
 				_pickedEnvironment: observableValue<ISessionCreationEnvironment | undefined>('environment', undefined),
 				_workspacePicker: { ...workspaceIdentity(), setSelectedWorkspace: () => { } },
@@ -648,6 +648,7 @@ suite('NewChatWidget', () => {
 					openQuickChat: () => session,
 				},
 				sessionsManagementService: {
+					onDidChangeSessionTypes: Event.None,
 					configureNewSessionDraft: async (value: ISession) => { configured.push(value); },
 				},
 			};
@@ -673,7 +674,10 @@ suite('NewChatWidget', () => {
 				modelId: constObservable('user-model'), mode: constObservable(undefined),
 				application: constObservable({ id: 'test' }),
 			};
-			const composer = { target: draft.target, isRestoring: true };
+			const composer = {
+				target: draft.target, isRestoring: true,
+				updateTarget(target: ISavedSessionDraftTarget) { this.target = target; },
+			};
 			const seeded: URI[] = [];
 			const harness = {
 				_savedDraftComposer: composer,
@@ -700,6 +704,49 @@ suite('NewChatWidget', () => {
 			});
 		});
 
+		test('captures Agent Host mode, worktree and model options as their owning configuration changes', () => {
+			const configChanged = disposables.add(new Emitter<string>());
+			const modelChanged = disposables.add(new Emitter<readonly string[]>());
+			let configuration = { mode: 'interactive', isolationMode: 'workspace', branch: 'main', sessionTemplate: { modelConfiguration: { reasoningEffort: 'medium' } } };
+			const session = upcastPartial<ISession>({
+				sessionId: 'draft', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: 'agent',
+				status: constObservable(SessionStatus.Untitled),
+				modelId: constObservable('model'), mode: constObservable(undefined),
+				workspace: constObservable(undefined), application: constObservable({ id: 'test', label: 'Test' }),
+			});
+			const provider = upcastPartial<IAgentHostSessionsProvider>({
+				id: LOCAL_AGENT_HOST_PROVIDER_ID,
+				onDidChangeSessionConfig: configChanged.event,
+				getDraftSessionConfiguration: () => configuration,
+				getAutomationModelConfiguration: () => upcastPartial<IModelConfigurationAccess>({ onDidChange: modelChanged.event }),
+			});
+			const captured: ISavedSessionDraftTarget[] = [];
+			const composer = { target: {}, updateTarget: (target: ISavedSessionDraftTarget) => { captured.push(target); } };
+			const harness = {
+				_session: constObservable(session),
+				_environment: constObservable(undefined),
+				_savedDraftComposer: composer,
+				_restoringSavedDraft: constObservable(false),
+				_savedDraftTargetUnavailable: constObservable(false),
+				_workspacePicker: { selectedFolderUri: requested },
+				sessionsProvidersService: { getProvider: () => provider },
+				_captureSavedDraftTarget: () => capture.call(harness),
+			};
+			const capture = Reflect.get(NewChatWidget.prototype, '_captureSavedDraftTarget') as (this: typeof harness) => void;
+			const track = Reflect.get(NewChatWidget.prototype, '_trackSavedDraftTarget') as (this: typeof harness) => IDisposable;
+			disposables.add(track.call(harness));
+			configuration = { ...configuration, mode: 'plan', isolationMode: 'worktree', branch: 'selected' };
+			configChanged.fire('unrelated');
+			configChanged.fire(session.sessionId);
+			configuration = { ...configuration, sessionTemplate: { modelConfiguration: { reasoningEffort: 'high' } } };
+			modelChanged.fire(['model']);
+			assert.deepStrictEqual(captured.map(target => target.configuration), [
+				{ mode: 'interactive', isolationMode: 'workspace', branch: 'main', sessionTemplate: { modelConfiguration: { reasoningEffort: 'medium' } } },
+				{ mode: 'plan', isolationMode: 'worktree', branch: 'selected', sessionTemplate: { modelConfiguration: { reasoningEffort: 'medium' } } },
+				configuration,
+			]);
+		});
+
 		test('restoring the singleton backup does not move focus', async () => {
 			const session = upcastPartial<ISession>({
 				providerId: 'provider', sessionType: 'agent',
@@ -711,6 +758,48 @@ suite('NewChatWidget', () => {
 			assert.deepStrictEqual({ input: fixture.input(), focusStates: fixture.focusStates, unavailable: fixture.harness._savedDraftTargetUnavailable.get() }, {
 				input: draft.input, focusStates: [], unavailable: false,
 			});
+		});
+
+		test('reload recovery waits for the saved provider and its session type', async () => {
+			const session = upcastPartial<ISession>({
+				providerId: 'provider', sessionType: 'agent',
+				isQuickChat: constObservable(true), workspace: constObservable(undefined),
+			});
+			const fixture = createHarness(session);
+			const changed = disposables.add(new Emitter<void>());
+			let provider: Pick<ISessionsProvider, 'sessionTypes'> | undefined;
+			fixture.harness.sessionsProvidersService.getProvider = () => provider;
+			fixture.harness.sessionsManagementService.onDidChangeSessionTypes = changed.event;
+			const restoring = fixture.restore({ ...draft, target: { ...draft.target, folderUri: undefined } }, CancellationToken.None, true);
+			await Promise.resolve();
+			provider = { sessionTypes: [] };
+			changed.fire();
+			const pending = { configured: fixture.configured.length, unavailable: fixture.harness._savedDraftTargetUnavailable.get() };
+			provider = { sessionTypes: [{ id: 'agent', label: 'Agent', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.None }] };
+			changed.fire();
+			await restoring;
+			assert.deepStrictEqual({
+				pending, configured: fixture.configured, input: fixture.input(),
+				unavailable: fixture.harness._savedDraftTargetUnavailable.get(), focusStates: fixture.focusStates,
+			}, {
+				pending: { configured: 0, unavailable: true }, configured: [session], input: draft.input,
+				unavailable: false, focusStates: [],
+			});
+		});
+
+		test('reload recovery can be cancelled while waiting for the saved provider', async () => {
+			const fixture = createHarness(upcastPartial<ISession>({}));
+			fixture.harness.sessionsProvidersService.getProvider = () => undefined;
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const restoring = fixture.restore(draft, cancellation.token, true);
+			await Promise.resolve();
+			cancellation.cancel();
+			await assert.rejects(restoring, /Canceled/);
+			assert.deepStrictEqual({
+				configured: fixture.configured, input: fixture.input(),
+				unavailable: fixture.harness._savedDraftTargetUnavailable.get(),
+				restoring: fixture.harness._restoringSavedDraft.get(),
+			}, { configured: [], input: draft.input, unavailable: true, restoring: false });
 		});
 
 		for (const matches of [false, true]) {

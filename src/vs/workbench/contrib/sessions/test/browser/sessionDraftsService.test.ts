@@ -313,8 +313,23 @@ suite('Saved session draft lifecycle', () => {
 		await service.open(draft.id);
 		await service.open(draft.id);
 		assert.deepStrictEqual({ opens, restores, focuses, input: composer.input.inputText }, {
-			opens: 1, restores: 1, focuses: 2, input: 'edited',
+			opens: 0, restores: 1, focuses: 2, input: 'edited',
 		});
+	});
+
+	test('editing a resumed draft updates its sidebar workspace and input without navigating away', async () => {
+		const { service } = create();
+		const draft = service.save({ inputText: 'original', attachments: [] }, { folderUri: URI.file('/original') });
+		const composer = service.createComposer();
+		disposables.add(service.registerComposer(composer, async value => {
+			composer.updateInput(value.input);
+		}, () => { }));
+		await service.open(draft.id);
+		composer.updateTarget({ folderUri: URI.file('/selected') });
+		composer.updateInput({ inputText: 'edited', attachments: [] });
+		assert.deepStrictEqual(service.sections.get()[0].items.map(item => ({
+			id: item.id, title: item.title, description: item.description,
+		})), [{ id: draft.id, title: 'edited', description: 'selected' }]);
 	});
 
 	test('opening another draft cancels the recovered composer restoration', async () => {
