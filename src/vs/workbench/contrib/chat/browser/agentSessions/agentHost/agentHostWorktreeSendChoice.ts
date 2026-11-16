@@ -29,6 +29,7 @@ import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatWidgetService } from '../../chat.js';
 import { IChatSubmitRequest, IChatSubmitRequestHandlerService } from '../../chatSubmitRequestHandlerService.js';
 import { isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
+import { IAgentSession } from '../agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { getWorktreeControl } from './agentHostNewWorktreeToggle.js';
@@ -66,6 +67,24 @@ export function isRecentChatInFolder(sessions: readonly IWorktreeSendChoiceSessi
 		&& !extUriBiasedIgnorePathCase.isEqual(session.resource, draft)
 		&& !!session.workingDirectory && extUriBiasedIgnorePathCase.isEqual(session.workingDirectory, folder)
 		&& now - session.lastActivity <= WORKTREE_SEND_CHOICE_RECENT_MS);
+}
+
+/**
+ * `sessions` as {@link isRecentChatInFolder} reads them: where each works as `getWorkingDirectory` says, such as the editor
+ * window's session sources, else as its metadata does; and when it was last active, its last request, else, without one,
+ * when it was made.
+ */
+export function toWorktreeSendChoiceSessions(sessions: readonly IAgentSession[], getWorkingDirectory?: (resource: URI) => URI | undefined): IWorktreeSendChoiceSession[] {
+	return sessions.map(session => {
+		const path = session.metadata?.worktreePath ?? session.metadata?.workingDirectoryPath;
+		return {
+			resource: session.resource,
+			isAgentHost: isLocalAgentHostTarget(session.providerType),
+			isArchived: session.isArchived(),
+			workingDirectory: getWorkingDirectory?.(session.resource) ?? (typeof path === 'string' && path ? URI.file(path) : undefined),
+			lastActivity: session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created,
+		};
+	});
 }
 
 export const IAgentHostWorktreeSendChoiceService = createDecorator<IAgentHostWorktreeSendChoiceService>('agentHostWorktreeSendChoiceService');
@@ -207,7 +226,8 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 	}
 
 	/**
-	 * Whether `resource` is a new chat of the local agent host, with AI features and worktree support on in a local editor
+	 * Whether `resource` is a new chat of the local agent host in the Chat view (`/untitled-…`, not a chat area composer's
+	 * session, which asks on its own), with AI features and worktree support on in a local editor
 	 * window, that would work in the window's own folder: not in a new worktree, not without a workspace, and not where the
 	 * user chose where it works.
 	 */
@@ -233,17 +253,8 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 
 	private _hasRecentChatInFolder(draft: URI): boolean {
 		const primary = this._primaryFolder();
-		return !!primary && isRecentChatInFolder(this._agentSessionsService.model.sessions.map(session => {
-			const path = session.metadata?.worktreePath ?? session.metadata?.workingDirectoryPath;
-			return {
-				resource: session.resource,
-				isAgentHost: isLocalAgentHostTarget(session.providerType),
-				isArchived: session.isArchived(),
-				workingDirectory: this._sessionSources.getWorkingDirectory(session.resource) ?? (typeof path === 'string' && path ? URI.file(path) : undefined),
-				// Its last request, else, without one, when it was made
-				lastActivity: session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created,
-			};
-		}), primary, draft, this._now());
+		const sessions = toWorktreeSendChoiceSessions(this._agentSessionsService.model.sessions, resource => this._sessionSources.getWorkingDirectory(resource));
+		return !!primary && isRecentChatInFolder(sessions, primary, draft, this._now());
 	}
 
 	/** The window's own folder, rather than a worktree it may be at. */

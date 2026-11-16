@@ -32,7 +32,7 @@ import { IAgentHostNewSessionFolderService } from '../../../../browser/agentSess
 import { registerWorktreeControl } from '../../../../browser/agentSessions/agentHost/agentHostNewWorktreeToggle.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostWorktreeFolderChoices, IAgentHostWorktreeLocationsCache } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeFolderChoices.js';
-import { AGENT_HOST_WORKTREE_SEND_CHOICE_ID, AgentHostWorktreeSendChoice, isRecentChatInFolder, IWorktreeSendChoiceSession, WORKTREE_SEND_CHOICE_RECENT_MS } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSendChoice.js';
+import { AGENT_HOST_WORKTREE_SEND_CHOICE_ID, AgentHostWorktreeSendChoice, isRecentChatInFolder, IWorktreeSendChoiceSession, toWorktreeSendChoiceSessions, WORKTREE_SEND_CHOICE_RECENT_MS } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSendChoice.js';
 import { AgentHostWorktreeSessionSources, IAgentHostWorktreeSessionSources } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSessionSources.js';
 import { IAgentSession } from '../../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../browser/agentSessions/agentSessionsService.js';
@@ -182,6 +182,30 @@ suite('Agent host Work in Parallel choice on send', () => {
 		});
 	});
 
+	test('reads agent sessions as the predicate does: where they work, by the given lookup else their metadata, and their last activity', () => {
+		const at = (path: string, overrides: Partial<IAgentSession> = {}) => upcastPartial<IAgentSession>({
+			resource: URI.from({ scheme: SessionType.AgentHostCopilot, path }), providerType: SessionType.AgentHostCopilot, isArchived: () => false,
+			metadata: { worktreePath: '/work/vscode.worktrees/feature', workingDirectoryPath: '/work/vscode' },
+			timing: { created: 1, lastRequestStarted: 2, lastRequestEnded: 3 }, ...overrides,
+		});
+		const sessions = [
+			at('/ended'),
+			at('/started', { metadata: { workingDirectoryPath: '/work/vscode' }, timing: { created: 1, lastRequestStarted: 2, lastRequestEnded: undefined } }),
+			at('/new', { providerType: 'local', isArchived: () => true, metadata: undefined, timing: { created: 1, lastRequestStarted: undefined, lastRequestEnded: undefined } }),
+			at('/fromSource'),
+		];
+		const read = toWorktreeSendChoiceSessions(sessions, resource => resource.path === '/fromSource' ? primary : undefined)
+			.map(session => ({ path: session.resource.path, isAgentHost: session.isAgentHost, isArchived: session.isArchived, workingDirectory: session.workingDirectory?.path, lastActivity: session.lastActivity }));
+
+		assert.deepStrictEqual(read, [
+			// Its worktree, over the folder it is of
+			{ path: '/ended', isAgentHost: true, isArchived: false, workingDirectory: '/work/vscode.worktrees/feature', lastActivity: 3 },
+			{ path: '/started', isAgentHost: true, isArchived: false, workingDirectory: '/work/vscode', lastActivity: 2 },
+			{ path: '/new', isAgentHost: false, isArchived: true, workingDirectory: undefined, lastActivity: 1 },
+			{ path: '/fromSource', isAgentHost: true, isArchived: false, workingDirectory: '/work/vscode', lastActivity: 3 },
+		]);
+	});
+
 	test('asks as the first request of a new chat in the folder is sent, after a chat worked in the folder, and sends it once, in a new worktree or in the folder', async () => {
 		const results: Record<string, unknown> = {};
 		for (const answer of ['useWorktree', 'continue', 'escape'] as const) {
@@ -243,17 +267,28 @@ suite('Agent host Work in Parallel choice on send', () => {
 			return { asked: window.asked.length, sent: window.sent };
 		};
 
+		const askedOf = async (resource: URI) => {
+			const window = createWindow({ firstChatIn: primary });
+			window.setAnswer('useWorktree');
+			await window.send(resource);
+			window.dispose();
+			return { asked: window.asked.length, sent: window.sent };
+		};
+
 		assert.deepStrictEqual({
 			pickedFolder: await asked({ firstChatIn: primary }, false),
 			noWorktreeSupport: await asked({ firstChatIn: primary, isolations: ['folder'] }),
 			aiOff: await asked({ firstChatIn: primary, ai: false }),
 			noRecentChatInFolder: await asked({}),
+			chatAreaSession: await askedOf(URI.from({ scheme: SessionType.AgentHostCopilot, path: '/3f2a6c1e-chat-area' })),
 			firstChatInWorktree: await asked({ firstChatIn: worktree }),
 		}, {
 			pickedFolder: { asked: 0, sent: ['folder'] },
 			noWorktreeSupport: { asked: 0, sent: ['folder'] },
 			aiOff: { asked: 0, sent: ['folder'] },
 			noRecentChatInFolder: { asked: 0, sent: ['folder'] },
+			// The chat area composer's session, which asks on its own
+			chatAreaSession: { asked: 0, sent: ['folder'] },
 			firstChatInWorktree: { asked: 0, sent: ['folder'] },
 		});
 	});
