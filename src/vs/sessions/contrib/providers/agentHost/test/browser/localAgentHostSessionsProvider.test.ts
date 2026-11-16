@@ -18,9 +18,9 @@ import { renderAsPlaintext } from '../../../../../../base/browser/markdownRender
 import { DeferredPromise, raceCancellationError, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { CancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, errorHandler } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableMap, DisposableStore, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, ImmortalReference, MutableDisposable, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, ISettableObservable, observableFromEvent, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
@@ -89,6 +89,12 @@ import { IFocusedSessionHostService, ISessionHostService } from '../../../../../
 import { focusedSessionHostServiceOf, ITestSessionWithChat, sessionHostServiceOf, testGridPanes } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { NewWorktreeChoice } from '../../../../../../workbench/contrib/sessions/browser/chat/newWorktreeChoice.js';
+import { NewChatWidget } from '../../../../../../workbench/contrib/sessions/browser/chat/newChatWidget.js';
+import { SharedChatInputComposer } from '../../../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
+import { registerNewSessionWorktreeSendChoice } from '../../../../../../workbench/contrib/sessions/browser/chat/newSessionWorktreeSendChoice.js';
+import { ChatSubmitRequestHandlerService, IChatSubmitRequest } from '../../../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { devContainerSamples, devContainerSampleUri } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
@@ -8478,6 +8484,214 @@ suite('LocalAgentHostSessionsProvider', () => {
 			pendingSendCalls: 0,
 			sendCalls: 1,
 			title: 'Config Operation',
+		});
+	});
+
+	test('a New Worktree its agent rejects has settled as the draft\'s first send waits for its configuration, which then goes out in the folder', async () => {
+		let sendCalls = 0;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async resource => {
+				sendCalls++;
+				agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'In the Folder' }));
+				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = session.mainChat.get().resource;
+		await waitForSessionConfig(provider, session, config => config?.values.isolation === 'worktree');
+		await provider.setSessionConfigValue(session.sessionId, chat, SessionConfigKey.Isolation, 'folder');
+		await waitForSessionConfig(provider, session, config => config?.values.isolation === 'folder');
+		// The provider as it is, but for an agent that rejects the write, later: the operation it tracks rejects
+		const rejecting: LocalAgentHostSessionsProvider = Object.assign(Object.create(provider), {
+			setSessionConfigValue: async () => {
+				await timeout(0);
+				throw new Error('isolation rejected');
+			},
+		});
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: <T extends ISessionsProvider>() => rejecting as unknown as T }));
+		const choice = instantiationService.createInstance(NewWorktreeChoice, constObservable<ISession | undefined>(session), constObservable(true));
+		const errors: unknown[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+		let applied: boolean;
+		try {
+			applied = await choice.setSelected(true);
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(previousHandler);
+		}
+		const committed = await provider.sendRequest(session.sessionId, chat, { query: 'hello' });
+
+		assert.deepStrictEqual({
+			applied,
+			selected: choice.isSelected(),
+			reported: errors.map(error => (error as Error).message),
+			sendCalls,
+			title: committed.title.get(),
+		}, {
+			applied: false,
+			selected: false,
+			reported: ['isolation rejected'],
+			sendCalls: 1,
+			title: 'In the Folder',
+		});
+	});
+
+	suite('Work in Parallel, from a composer\'s send to the agent', () => {
+
+		type Case = 'switched' | 'closed' | 'rejected' | 'notApplied' | 'takenReadOnly';
+
+		/**
+		 * A composer's send of the first request of a draft of the agent host that works in its folder, through the submit
+		 * handler service to the composer's Work in Parallel handler, which asks and then applies the answer on the draft's
+		 * agent, which takes it as `agent` does; then the composer sends, or does not, to the agent.
+		 */
+		async function send(change: Case) {
+			const sends: string[] = [];
+			const provider = createProvider(disposables, agentHost, undefined, {
+				openSession: true,
+				sendRequest: async resource => {
+					sends.push(AgentSession.id(resource));
+					agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Sent' }));
+					return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+				},
+			});
+			const draft = async (path: string) => {
+				const session = provider.createNewSession(URI.file(path), provider.sessionTypes[0].id);
+				await waitForSessionConfig(provider, session, config => config?.values.isolation === 'worktree');
+				await provider.setSessionConfigValue(session.sessionId, session.mainChat.get().resource, SessionConfigKey.Isolation, 'folder');
+				await waitForSessionConfig(provider, session, config => config?.values.isolation === 'folder');
+				return session;
+			};
+			const a = await draft('/home/user/project');
+			const b = change === 'switched' ? await draft('/home/user/other') : undefined;
+			const isolationOf = (session: ISession) => provider.getSessionConfig(session.sessionId, session.mainChat.get().resource)?.values.isolation;
+			const schema = createVSCodeSessionConfigSchema();
+			// The agent as it takes New Worktree: it fails to, it keeps the folder, or it applies it and it can no longer change
+			agentHost.onResolveSessionConfig = async request => {
+				await timeout(0);
+				if (request.config?.isolation === 'worktree') {
+					if (change === 'rejected') {
+						throw new Error('isolation rejected');
+					}
+					if (change === 'takenReadOnly') {
+						return { schema: { ...schema, properties: { ...schema.properties, isolation: { ...schema.properties.isolation, readOnly: true } } }, values: { ...request.config } };
+					}
+				}
+				return { schema, values: { ...request.config, isolation: 'folder' } };
+			};
+
+			const store = disposables.add(new DisposableStore());
+			const current = observableValue<ISession | undefined>('session', a);
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: <T extends ISessionsProvider>() => provider as unknown as T }));
+			const notifications: string[] = [];
+			const notificationService = { warn: (message: string) => notifications.push(`warning: ${message}`), error: (message: string) => notifications.push(`error: ${message}`) };
+			const answer = new DeferredPromise<'worktree' | 'folder' | undefined>();
+			store.add(registerNewSessionWorktreeSendChoice({ isRecentChatInFolder: () => true, askWorktreeOnSend: () => answer.p }));
+			const widgetStore = { isDisposed: false };
+			const widget = {
+				_session: current,
+				_store: widgetStore,
+				_askingWorktreeOnSend: new Set<string>(),
+				_pendingWorktreePlacement: observableValue<object | undefined>('pendingWorktreePlacement', undefined),
+				_newWorktree: instantiationService.createInstance(NewWorktreeChoice, current, constObservable(true)),
+				contextKeyService: { contextMatchesRules: () => true },
+				_getWorktreeSendChoiceControl: () => mainWindow.document.createElement('div'),
+				_isRecentChatInFolder: Reflect.get(NewChatWidget.prototype, '_isRecentChatInFolder'),
+				_warnNewWorktreeUnavailable: Reflect.get(NewChatWidget.prototype, '_warnNewWorktreeUnavailable'),
+				notificationService,
+			};
+			const handleWorktreeSendChoice = Reflect.get(NewChatWidget.prototype, '_handleWorktreeSendChoice') as (this: object, request: IChatSubmitRequest) => Promise<boolean>;
+			const submitHandlers = new ChatSubmitRequestHandlerService();
+			store.add(submitHandlers.register({ id: 'newSession.worktreeSendChoice', tryHandle: request => handleWorktreeSendChoice.call(widget, request) }));
+			let input = 'hello';
+			const composerStore = { isDisposed: false };
+			const composer: SharedChatInputComposer = Object.assign(Object.create(SharedChatInputComposer.prototype), {
+				_widget: {
+					domNode: mainWindow.document.createElement('div'),
+					getInput: () => input,
+					getContrib: () => undefined,
+					setInput: (value: string) => { input = value; },
+					inputEditor: { getModel: () => undefined },
+					attachmentModel: { attachments: [], addContext: () => { } },
+					input: {
+						setInputEnabled: () => { },
+						hasFocus: () => false,
+						focus: () => { },
+						getAttachedContext: () => ({ asArray: () => [] }),
+						acceptInput: async () => { input = ''; },
+					},
+				},
+				_store: composerStore,
+				_sending: observableValue('sending', false),
+				_confirmingSend: observableValue('confirmingSend', false),
+				_userInteractionSource: store.add(new MutableDisposable()),
+				_canSendRequest: constObservable(true),
+				_modelRef: { value: undefined },
+				options: {
+					session: current,
+					sendRequest: async ({ query }: { query: string }) => {
+						const session = current.get()!;
+						await provider.sendRequest(session.sessionId, session.mainChat.get().resource, { query });
+						return true;
+					},
+				},
+				instantiationService: { createInstance: () => ({ cancel: () => { }, disposeSource: () => { } }) },
+				chatSubmitRequestHandlerService: submitHandlers,
+				notificationService,
+				storageService: { store: () => { } },
+				logService: { error: () => { } },
+			});
+
+			const errors: unknown[] = [];
+			const previousHandler = errorHandler.getUnexpectedErrorHandler();
+			errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+			let sent: boolean;
+			try {
+				const sending = composer.submit();
+				await timeout(0);
+				if (change === 'switched') {
+					// Another draft, with the same input
+					current.set(b, undefined);
+				} else if (change === 'closed') {
+					widgetStore.isDisposed = true;
+					composerStore.isDisposed = true;
+				}
+				answer.complete('worktree');
+				sent = await sending;
+			} finally {
+				errorHandler.setUnexpectedErrorHandler(previousHandler);
+				agentHost.onResolveSessionConfig = undefined;
+			}
+			store.dispose();
+			return {
+				sent,
+				sends: sends.length,
+				isolation: { a: isolationOf(a), ...(b ? { b: isolationOf(b) } : {}) },
+				input,
+				notifications: notifications.map(message => message.replace(/:.*/, '')),
+				reported: errors.map(error => (error as Error).message),
+			};
+		}
+
+		test('the user switches to another draft with the same input, or closes the composer, as it asks: nothing is applied or sent to either, and the input stays', async () => {
+			assert.deepStrictEqual({ switched: await send('switched'), closed: await send('closed') }, {
+				switched: { sent: false, sends: 0, isolation: { a: 'folder', b: 'folder' }, input: 'hello', notifications: ['warning'], reported: [] },
+				closed: { sent: false, sends: 0, isolation: { a: 'folder' }, input: 'hello', notifications: [], reported: [] },
+			});
+		});
+
+		test('New Worktree its agent takes without applying it is reported and sent once in the folder; one it applies and then makes read-only is sent once there, unreported', async () => {
+			assert.deepStrictEqual({ notApplied: await send('notApplied'), takenReadOnly: await send('takenReadOnly') }, {
+				notApplied: { sent: true, sends: 1, isolation: { a: 'folder' }, input: '', notifications: ['warning'], reported: [] },
+				takenReadOnly: { sent: true, sends: 1, isolation: { a: 'worktree' }, input: '', notifications: [], reported: [] },
+			});
+		});
+
+		test('New Worktree its agent fails to take leaves where the draft works unknown: it is not sent, the user is told and the draft kept', async () => {
+			assert.deepStrictEqual(await send('rejected'), { sent: false, sends: 0, isolation: { a: undefined }, input: 'hello', notifications: ['error'], reported: [] });
 		});
 	});
 

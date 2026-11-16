@@ -67,10 +67,10 @@ export interface IChatViewNewChatTarget {
 	/** Whether the session of the new chat runs in a Dev Container. */
 	readonly requireDevContainer?: boolean;
 	/**
-	 * Where the session of the new chat works: in a new worktree of {@link folder} (`worktree`), or without a folder
-	 * (`noWorkspace`, with no {@link folder}). Unset, it works in {@link folder}.
+	 * Where the session of the new chat works: in a new worktree of {@link folder} (`worktree`). Unset, it works in
+	 * {@link folder}.
 	 */
-	readonly placement?: 'worktree' | 'noWorkspace';
+	readonly placement?: 'worktree';
 }
 
 /** How {@link IChatViewHost.newChat} starts a new chat. */

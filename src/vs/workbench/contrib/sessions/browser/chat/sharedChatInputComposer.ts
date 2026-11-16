@@ -1228,6 +1228,15 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				}
 				return true;
 			}
+			// The handler can wait, during which the composer can be closed or move to another draft: the request is for the
+			// draft it was written for, so it is never sent to another, nor once that is closed. Its input stays as it is.
+			if (this._store.isDisposed || (session && this.options.session.get()?.sessionId !== session.sessionId)) {
+				userInteraction?.cancel('notDispatched');
+				if (!this._store.isDisposed && isInputAlive()) {
+					this.notificationService.warn(localize('sharedChatInputComposer.draftChanged', "The request was not sent because its chat changed while it waited. Its input was kept."));
+				}
+				return false;
+			}
 			// The handler can wait, during which the input can be replaced as before.
 			if (isInputAlive() && isDraftReplaced()) {
 				userInteraction?.cancel('notDispatched');

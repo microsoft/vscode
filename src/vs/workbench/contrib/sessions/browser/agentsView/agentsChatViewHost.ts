@@ -34,11 +34,11 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 const WAIT_TIMEOUT = 5_000;
 
 /**
- * The composer target of a new chat aimed at `target`, or `false` for one that cannot be: a new worktree without a folder,
- * or a chat without a workspace in a folder.
+ * The composer target of a new chat aimed at `target`, or `false` for one that cannot be: a new worktree without a folder.
+ * Without a folder, the composer works in the window's.
  */
 function toComposerTarget(target: IChatViewNewChatTarget): INewSessionTarget | false {
-	if (target.placement === 'worktree' ? !target.folder : target.placement === 'noWorkspace' && !!target.folder) {
+	if (target.placement === 'worktree' && !target.folder) {
 		return false;
 	}
 	return {
