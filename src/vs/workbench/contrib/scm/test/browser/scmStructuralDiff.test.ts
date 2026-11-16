@@ -323,7 +323,7 @@ suite('SCM structural diff tree', () => {
 		await instantiationService.invokeFunction(command.handler);
 		assert.deepStrictEqual({ states: [unchecked, view.showStructuralDiff], events }, {
 			states: [false, true],
-			events: [{ eventName: 'scmStructuralDiffToggled', enabled: false }, { eventName: 'scmStructuralDiffToggled', enabled: true }],
+			events: [{ eventName: 'scmStructuralDiffToggled', enabled: 0 }, { eventName: 'scmStructuralDiffToggled', enabled: 1 }],
 		});
 	});
 

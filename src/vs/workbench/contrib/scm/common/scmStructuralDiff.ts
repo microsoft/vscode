@@ -213,7 +213,7 @@ type StructuralDiffRequestedEvent = {
 	outcome: StructuralDiffRequestOutcome;
 	languageId: string;
 	durationMs: number;
-	incomplete: boolean;
+	incomplete: 0 | 1;
 };
 
 type StructuralDiffRequestedClassification = {
@@ -222,7 +222,7 @@ type StructuralDiffRequestedClassification = {
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'success if structural changes were computed, noResult if no provider supplied any, providerFailed if a provider failed, timedOut if computing them took too long, and error if, for example, a document could not be loaded.' };
 	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language of the file.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The time in milliseconds from the request until its outcome.' };
-	incomplete: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the provider marked its result as incomplete.' };
+	incomplete: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: '1 if the provider marked its result as incomplete, otherwise 0.' };
 };
 
 export class SCMStructuralDiffModel extends Disposable {
@@ -239,9 +239,11 @@ export class SCMStructuralDiffModel extends Disposable {
 	readonly onDidChange = this._onDidChange.event;
 	private generation = 0;
 	/**
-	 * Files whose request was reported since they were expanded. Only the first request that completes after a file is
-	 * expanded is reported, because edits reload the structural changes of an expanded file whenever typing pauses.
-	 * Collapsing a file or turning structural diffs off reports its next request again.
+	 * Files whose expansion was reported. Each expansion is reported once, by the first request that completes after
+	 * it. Reloads of an expanded file are not new expansions, so they are not reported, whether an edit, hiding and
+	 * showing the view, or a provider or language change causes them. Collapsing a file or turning structural diffs off
+	 * ends its expansion. Resources that their group removes or replaces, for example because their status changed, are
+	 * not used again, so they need no cleanup, and the first request of a new resource object is reported.
 	 */
 	private reportedResources = new WeakSet<ISCMResource>();
 	private readonly pendingChanges = new Set<ISCMResource>();
@@ -562,7 +564,7 @@ export class SCMStructuralDiffModel extends Disposable {
 			outcome,
 			languageId: this.modelService.getModel(modified)?.getLanguageId() ?? this.languageService.guessLanguageIdByFilepathOrFirstLine(modified) ?? 'plaintext',
 			durationMs: Math.round(entry.stopWatch.elapsed()),
-			incomplete,
+			incomplete: incomplete ? 1 : 0,
 		});
 	}
 
