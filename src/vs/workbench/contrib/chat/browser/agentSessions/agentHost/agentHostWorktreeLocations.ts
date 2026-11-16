@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceCancellation } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { basename, extUriBiasedIgnorePathCase, normalizePath, removeTrailingPathSeparator } from '../../../../../../base/common/resources.js';
@@ -70,12 +70,20 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 	private readonly _resolvedProviders = new Set<string>();
 
 	/** The forms of each folder asked about: as given, and its real path, read once. */
-	private readonly _forms = new ResourceMap<Promise<readonly URI[]>>(uri => extUriBiasedIgnorePathCase.getComparisonKey(uri));
+	private readonly _forms = new ResourceMap<Promise<readonly URI[]>>(folderKey);
 	/** The forms of the folders whose real path is read. */
-	private readonly _knownForms = new ResourceMap<readonly URI[]>(uri => extUriBiasedIgnorePathCase.getComparisonKey(uri));
+	private readonly _knownForms = new ResourceMap<readonly URI[]>(folderKey);
+	/** The worktrees last offered for each folder asked about, as compared to tell whether they changed. */
+	private readonly _offered = new ResourceMap<string>(folderKey);
+
+	/** Cancelled as the provider is disposed: what it still waits for, it no longer does. */
+	private readonly _lifetime = new CancellationTokenSource();
 
 	private readonly _onDidChangeLocations = this._register(new Emitter<void>());
-	/** Fires as the real path of a folder asked about is known to differ, which can make more of its worktrees known. */
+	/**
+	 * Fires as the worktrees of a folder asked about change: as sessions load, start, are archived or deleted, or work, or
+	 * report a branch, elsewhere; and as the folder's real path is known to differ, which can make more of them known.
+	 */
 	readonly onDidChangeLocations = this._onDidChangeLocations.event;
 
 	constructor(
@@ -84,19 +92,23 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
+		this._register(toDisposable(() => this._lifetime.dispose(true)));
 		this._register(_agentSessionsService.model.onDidResolve(provider => {
 			if (isLocalAgentHostTarget(provider)) {
 				this._resolvedProviders.add(provider);
 			}
 		}));
+		this._register(_agentSessionsService.model.onDidChangeSessions(() => this._checkOffered()));
 	}
 
 	/**
 	 * The worktrees of `primary` among the sessions the sessions list has now: cheap, as it is asked at every start. It does
-	 * not wait for the folder's real path the first time: those of a project named by it follow with {@link onDidChangeLocations}.
+	 * not wait for the sessions or the folder's real path: what they make known follows with {@link onDidChangeLocations}.
 	 */
 	async provideLocations(primary: URI, _token: CancellationToken): Promise<IFolderLocation[]> {
-		return getAgentHostSessionWorktrees(this._agentSessionsService.model.sessions, this.getFolderForms(primary));
+		const locations = this._locationsOf(primary);
+		this._offered.set(primary, offeredKey(locations));
+		return locations;
 	}
 
 	/**
@@ -112,32 +124,54 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 	}
 
 	/**
-	 * `location` as a worktree of `primary`, once the local agent host's sessions are known: also before the sessions list
-	 * first resolves them, such as to restore the location that the window's folder was at.
+	 * `location` as a worktree of `primary`, once the sessions of a local agent host that the window has are known: also
+	 * before the sessions list first resolves them. Unknown where the window has no local agent host's sessions, where
+	 * `token` is cancelled, and once the provider is disposed: it never waits on what may not come.
 	 */
 	async resolveLocation(primary: URI, location: URI, token: CancellationToken): Promise<IFolderLocation | undefined> {
-		const forms = await this._formsOf(primary);
-		const find = () => getAgentHostSessionWorktrees(this._agentSessionsService.model.sessions, forms).find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate.uri, removeTrailingPathSeparator(normalizePath(location))));
-		const found = find();
-		if (found) {
-			return found;
-		}
-		const model = this._agentSessionsService.model;
-		const unresolved = this._chatSessionsService.getRegisteredChatSessionItemProviders().filter(provider => isLocalAgentHostTarget(provider) && !this._resolvedProviders.has(provider));
-		if (unresolved.length) {
-			await raceCancellation(model.resolve(unresolved, undefined, 'automatic'), token);
-		} else if (!this._resolvedProviders.size) {
-			// Before the local agent host registers its sessions: once it lists them
-			const listed = Event.toPromise(Event.filter(model.onDidResolve, isLocalAgentHostTarget));
-			try {
-				await raceCancellation(listed, token);
-			} finally {
-				listed.cancel();
+		const cts = new CancellationTokenSource(token);
+		const lifetime = this._lifetime.token.onCancellationRequested(() => cts.cancel());
+		try {
+			const forms = await raceCancellation(this._formsOf(primary), cts.token);
+			if (!forms) {
+				return undefined;
 			}
-		} else {
-			return undefined;
+			const target = removeTrailingPathSeparator(normalizePath(location));
+			const find = () => getAgentHostSessionWorktrees(this._agentSessionsService.model.sessions, forms).find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate.uri, target));
+			const found = find();
+			if (found) {
+				return found;
+			}
+			// Only the local agent host providers the window has, which list their sessions as they resolve
+			const unresolved = this._chatSessionsService.getRegisteredChatSessionItemProviders().filter(provider => isLocalAgentHostTarget(provider) && !this._resolvedProviders.has(provider));
+			if (!unresolved.length) {
+				return undefined;
+			}
+			await raceCancellation(this._agentSessionsService.model.resolve(unresolved, undefined, 'automatic'), cts.token);
+			return cts.token.isCancellationRequested ? undefined : find();
+		} finally {
+			lifetime.dispose();
+			cts.dispose();
 		}
-		return token.isCancellationRequested ? undefined : find();
+	}
+
+	private _locationsOf(folder: URI): IFolderLocation[] {
+		return getAgentHostSessionWorktrees(this._agentSessionsService.model.sessions, this.getFolderForms(folder));
+	}
+
+	/** Fires once where the worktrees of any folder asked about are not those last offered. */
+	private _checkOffered(): void {
+		let changed = false;
+		for (const [folder, offered] of this._offered) {
+			const now = offeredKey(this._locationsOf(folder));
+			if (now !== offered) {
+				this._offered.set(folder, now);
+				changed = true;
+			}
+		}
+		if (changed) {
+			this._onDidChangeLocations.fire();
+		}
 	}
 
 	/** `folder`, and its real path where it differs, such as of a folder reached through a symbolic link: read once for each folder. */
@@ -148,8 +182,8 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 				real => {
 					const known = real && !extUriBiasedIgnorePathCase.isEqual(real, folder) ? [folder, real] : [folder];
 					this._knownForms.set(folder, known);
-					if (known.length > 1) {
-						this._onDidChangeLocations.fire();
+					if (known.length > 1 && !this._store.isDisposed) {
+						this._checkOffered();
 					}
 					return known;
 				},
@@ -162,4 +196,13 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 		}
 		return forms;
 	}
+}
+
+/** One folder however it is written: without `.` segments or a trailing separator, ignoring path case where the platform does. */
+function folderKey(folder: URI): string {
+	return extUriBiasedIgnorePathCase.getComparisonKey(removeTrailingPathSeparator(normalizePath(folder)));
+}
+
+function offeredKey(locations: readonly IFolderLocation[]): string {
+	return JSON.stringify(locations.map(location => [location.uri.toString(), location.description]));
 }

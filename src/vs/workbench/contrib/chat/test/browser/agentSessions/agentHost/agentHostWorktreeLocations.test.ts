@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { extUri } from '../../../../../../../base/common/resources.js';
@@ -18,6 +18,7 @@ import { NullLogService } from '../../../../../../../platform/log/common/log.js'
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { UriIdentityService } from '../../../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IWorkspaceFolderLocationProvider } from '../../../../../../../platform/workspace/common/folderLocations.js';
 import { WorkbenchState } from '../../../../../../../platform/workspace/common/workspace.js';
 import { TestContextService } from '../../../../../../test/common/workbenchTestServices.js';
 import { WorkspaceFolderLocationService } from '../../../../../../services/workspaces/common/workspaceFolderLocationService.js';
@@ -43,36 +44,62 @@ suite('AgentHostWorktreeLocations', () => {
 
 	/**
 	 * A provider over the sessions the sessions list has, and those it has only once the local agent host provider resolves,
-	 * which `loading` holds. Without `registered`, the local agent host has not registered its sessions yet.
+	 * which `loading` holds. Without `registered`, the window has no local agent host's sessions. A folder in `realpaths` has
+	 * that real path, read once `realpathHeld` completes; `realpathFailures` reads fail first.
 	 */
-	function createProvider(sessions: readonly IAgentSession[], uncached: readonly IAgentSession[] = [], loading?: Promise<void>, registered = true, realpaths: Record<string, string> = {}, realpathHeld?: Promise<void>) {
+	function createProvider(sessions: readonly IAgentSession[], options: { readonly uncached?: readonly IAgentSession[]; readonly loading?: Promise<void>; readonly registered?: boolean; readonly realpaths?: Record<string, string>; readonly realpathHeld?: Promise<void>; realpathFailures?: number } = {}) {
 		const onDidResolve = store.add(new Emitter<string>());
+		const onDidChangeSessions = store.add(new Emitter<void>());
 		const resolving: string[] = [];
 		const model = {
 			sessions: [...sessions],
 			onDidResolve: onDidResolve.event,
+			onDidChangeSessions: onDidChangeSessions.event,
 			resolve: async (providers: string[]) => {
 				resolving.push(...providers);
-				await loading;
-				model.sessions.push(...uncached);
+				await options.loading;
+				model.sessions.push(...options.uncached ?? []);
 				providers.forEach(provider => onDidResolve.fire(provider));
+				onDidChangeSessions.fire();
 			},
 		};
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>(model) }));
-		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ getRegisteredChatSessionItemProviders: () => registered ? ['remote', SessionType.AgentHostCopilot] : ['remote'] }));
+		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ getRegisteredChatSessionItemProviders: () => options.registered ?? true ? ['remote', SessionType.AgentHostCopilot] : ['remote'] }));
 		// A folder reached through a symbolic link, such as `/tmp/x` of `/private/tmp/x` on macOS, has another real path
 		const realpathsRead: string[] = [];
-		instantiationService.stub(IFileService, upcastPartial<IFileService>({ realpath: async (resource: URI) => { realpathsRead.push(resource.path); await realpathHeld; return URI.file(realpaths[resource.path] ?? resource.path); } }));
-		const provider = store.add(instantiationService.createInstance(AgentHostWorktreeLocationProvider));
+		instantiationService.stub(IFileService, upcastPartial<IFileService>({
+			realpath: async (resource: URI) => {
+				realpathsRead.push(resource.path);
+				await options.realpathHeld;
+				if (options.realpathFailures) {
+					options.realpathFailures--;
+					throw new Error('cannot read the real path');
+				}
+				return URI.file(options.realpaths?.[resource.path] ?? resource.path);
+			},
+		}));
+		const provider = instantiationService.createInstance(AgentHostWorktreeLocationProvider);
+		const disposeProvider = () => provider.dispose();
+		store.add(provider);
 		// Another provider resolved first
 		onDidResolve.fire('remote');
-		/** As the local agent host registers and lists its sessions. */
-		const list = () => {
-			model.sessions.push(...uncached);
-			onDidResolve.fire(SessionType.AgentHostCopilot);
+		/** As sessions change, such as one that starts, is archived or reports a branch. */
+		const changeSessions = (change: (sessions: IAgentSession[]) => void) => {
+			change(model.sessions);
+			onDidChangeSessions.fire();
 		};
-		return Object.assign(provider, { resolving, list, realpathsRead });
+		return Object.assign(provider, { resolving, realpathsRead, changeSessions, disposeProvider });
+	}
+
+	/** The folder location service, with `provider` registered as the built-in provider and `others` after it. */
+	function createService(provider: IWorkspaceFolderLocationProvider, ...others: IWorkspaceFolderLocationProvider[]) {
+		const service = store.add(new WorkspaceFolderLocationService(store.add(new UriIdentityService(store.add(new FileService(new NullLogService())))), new TestContextService(), upcastPartial<ILabelService>({ registerWorkspaceLabelDecorator: () => toDisposable(() => { }) })));
+		store.add(service.registerProvider(provider, { builtIn: true }));
+		for (const other of others) {
+			store.add(service.registerProvider(other));
+		}
+		return service;
 	}
 
 	const paths = (locations: readonly { readonly uri: URI }[]) => locations.map(location => location.uri.path);
@@ -112,11 +139,10 @@ suite('AgentHostWorktreeLocations', () => {
 			session('/private/tmp/vscode.worktrees/feature', '/private/tmp/vscode'),
 			session('/private/tmp/vscode/src', '/private/tmp/vscode'),
 			session('/private/tmp/vscode', '/private/tmp/vscode'),
-		], [], undefined, true, { '/tmp/vscode': '/private/tmp/vscode' }, realpathHeld.p);
+		], { realpaths: { '/tmp/vscode': '/private/tmp/vscode' }, realpathHeld: realpathHeld.p });
 		// The first lookup does not wait for the real path: the worktree follows once it is known, which the folder location
 		// service, and so whatever asks it, hears of
-		const service = store.add(new WorkspaceFolderLocationService(store.add(new UriIdentityService(store.add(new FileService(new NullLogService())))), new TestContextService(), upcastPartial<ILabelService>({ registerWorkspaceLabelDecorator: () => toDisposable(() => { }) })));
-		store.add(service.registerProvider(provider, { builtIn: true }));
+		const service = createService(provider);
 		let changes = 0;
 		store.add(service.onDidChangeLocations(() => changes++));
 		const first = paths(await service.getLocations(aliased, CancellationToken.None));
@@ -151,7 +177,7 @@ suite('AgentHostWorktreeLocations', () => {
 	});
 
 	test('offers the worktrees of the sessions the sessions list has now, without making it resolve more or reading more than the folder\'s real path', async () => {
-		const provider = createProvider([session('/work/vscode.worktrees/feature', '/work/vscode')], [session('/work/vscode.worktrees/later', '/work/vscode')]);
+		const provider = createProvider([session('/work/vscode.worktrees/feature', '/work/vscode')], { uncached: [session('/work/vscode.worktrees/later', '/work/vscode')] });
 		const offered = paths(await provider.provideLocations(primary, CancellationToken.None));
 
 		assert.deepStrictEqual({ offered, resolving: provider.resolving, realpathsRead: provider.realpathsRead }, { offered: ['/work/vscode.worktrees/feature'], resolving: [], realpathsRead: ['/work/vscode'] });
@@ -159,7 +185,7 @@ suite('AgentHostWorktreeLocations', () => {
 
 	test('resolves a worktree also before the sessions list resolves the local agent host\'s sessions, such as to restore the folder\'s location, once they load', async () => {
 		const loading = new DeferredPromise<void>();
-		const provider = createProvider([], [session('/work/vscode.worktrees/feature', '/work/vscode', { branchName: 'feature' })], loading.p);
+		const provider = createProvider([], { uncached: [session('/work/vscode.worktrees/feature', '/work/vscode', { branchName: 'feature' })], loading: loading.p });
 		let resolved: string | undefined;
 		const resolving = provider.resolveLocation(primary, URI.file('/work/vscode.worktrees/feature'), CancellationToken.None).then(location => resolved = location?.description);
 		await new Promise<void>(resolve => setTimeout(resolve, 0));
@@ -171,13 +197,79 @@ suite('AgentHostWorktreeLocations', () => {
 		assert.deepStrictEqual({ beforeLoad, resolved, resolving: provider.resolving, elsewhere }, { beforeLoad: undefined, resolved: 'feature', resolving: [SessionType.AgentHostCopilot], elsewhere: undefined });
 	});
 
-	test('resolves a worktree also before the local agent host registers its sessions, once it lists them', async () => {
-		const provider = createProvider([], [session('/work/vscode.worktrees/feature', '/work/vscode')], undefined, false);
-		const resolving = provider.resolveLocation(primary, URI.file('/work/vscode.worktrees/feature'), CancellationToken.None);
-		await new Promise<void>(resolve => setTimeout(resolve, 0));
-		provider.list();
+	test('resolving never waits on what may not come: without a local agent host it is unknown at once, and a later provider resolves', async () => {
+		const provider = createProvider([], { registered: false });
+		const other: IWorkspaceFolderLocationProvider = { id: 'other', provideLocations: async () => [], resolveLocation: async (_primary, location) => ({ uri: location, label: 'other' }) };
+		const service = createService(provider, other);
 
-		assert.deepStrictEqual((await resolving)?.uri.path, '/work/vscode.worktrees/feature');
+		assert.deepStrictEqual({
+			unknown: await provider.resolveLocation(primary, URI.file('/work/vscode.worktrees/feature'), CancellationToken.None),
+			byLaterProvider: (await service.resolveLocation(primary, URI.file('/work/vscode.worktrees/feature'), CancellationToken.None))?.providerId,
+		}, { unknown: undefined, byLaterProvider: 'other' });
+	});
+
+	test('resolving is unknown once its caller cancels or the provider is disposed, while it waits for the folder\'s real path or the sessions', async () => {
+		const realpathHeld = new DeferredPromise<void>();
+		const cancelled = createProvider([], { realpathHeld: realpathHeld.p });
+		const cts = store.add(new CancellationTokenSource());
+		const whileReadingRealpath = cancelled.resolveLocation(primary, URI.file('/work/vscode.worktrees/feature'), cts.token);
+		cts.cancel();
+
+		const loading = new DeferredPromise<void>();
+		const disposed = createProvider([], { uncached: [session('/work/vscode.worktrees/feature', '/work/vscode')], loading: loading.p });
+		const whileLoading = disposed.resolveLocation(primary, URI.file('/work/vscode.worktrees/feature'), CancellationToken.None);
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+		disposed.disposeProvider();
+
+		assert.deepStrictEqual({ cancelled: await whileReadingRealpath, disposed: await whileLoading }, { cancelled: undefined, disposed: undefined });
+		await realpathHeld.complete();
+		await loading.complete();
+	});
+
+	test('tells the folder location service as the worktrees it offered change: as sessions load, start, report a branch or are archived, not as others change', async () => {
+		const loading = new DeferredPromise<void>();
+		const provider = createProvider([], { uncached: [session('/work/vscode.worktrees/feature', '/work/vscode')], loading: loading.p });
+		const service = createService(provider);
+		const offered: string[][] = [];
+		store.add(service.onDidChangeLocations(async () => offered.push((await service.getLocations(primary, CancellationToken.None)).map(location => `${location.uri.path}${location.description ? ` (${location.description})` : ''}`))));
+		const step = async (change?: (sessions: IAgentSession[]) => void) => {
+			if (change) {
+				provider.changeSessions(change);
+			}
+			await new Promise<void>(resolve => setTimeout(resolve, 0));
+		};
+		const before = paths(await service.getLocations(primary, CancellationToken.None));
+		// The sessions load, as resolving a location makes them
+		const resolving = provider.resolveLocation(primary, URI.file('/work/vscode.worktrees/other'), CancellationToken.None);
+		await loading.complete();
+		await resolving;
+		await step();
+		await step(sessions => sessions.push(session('/work/vscode.worktrees/fix', '/work/vscode')));
+		await step(sessions => { sessions[0] = session('/work/vscode.worktrees/feature', '/work/vscode', { branchName: 'agents/feature' }); });
+		await step(sessions => { sessions[1] = session('/work/vscode.worktrees/fix', '/work/vscode', { archived: true }); });
+		// Another folder's session
+		await step(sessions => sessions.push(session('/work/tools.worktrees/fix', '/work/tools')));
+
+		assert.deepStrictEqual({ before, offered }, {
+			before: [],
+			offered: [
+				['/work/vscode.worktrees/feature'],
+				['/work/vscode.worktrees/feature', '/work/vscode.worktrees/fix'],
+				['/work/vscode.worktrees/feature (agents/feature)', '/work/vscode.worktrees/fix'],
+				['/work/vscode.worktrees/feature (agents/feature)'],
+			],
+		});
+	});
+
+	test('reads the folder\'s real path again after a failed read, and once for a folder however it is written', async () => {
+		const provider = createProvider([session('/private/tmp/vscode.worktrees/feature', '/private/tmp/vscode')], { realpaths: { '/tmp/vscode': '/private/tmp/vscode' }, realpathFailures: 1 });
+		const aliased = URI.file('/tmp/vscode');
+		const afterFailure = await provider.resolveLocation(aliased, URI.file('/private/tmp/vscode.worktrees/feature'), CancellationToken.None);
+		const afterRetry = (await provider.resolveLocation(aliased, URI.file('/private/tmp/vscode.worktrees/feature'), CancellationToken.None))?.uri.path;
+		await provider.resolveLocation(URI.file('/tmp/vscode/'), URI.file('/private/tmp/vscode.worktrees/feature'), CancellationToken.None);
+		await provider.resolveLocation(URI.file('/tmp/./vscode'), URI.file('/private/tmp/vscode.worktrees/feature'), CancellationToken.None);
+
+		assert.deepStrictEqual({ afterFailure, afterRetry, realpathsRead: provider.realpathsRead }, { afterFailure: undefined, afterRetry: '/private/tmp/vscode.worktrees/feature', realpathsRead: ['/tmp/vscode', '/tmp/vscode'] });
 	});
 
 	test('grants the folder\'s trust only to a worktree of a session whose project is the folder, not to a folder of a session of another project', async () => {
