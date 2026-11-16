@@ -47,7 +47,8 @@ function stepLists(file: string): Record<string, unknown>[][] {
 			return [];
 		}
 		const entries = Object.entries(step);
-		if (entries.some(([key]) => key.startsWith('${{'))) {
+		// A mapping of only template conditions holds steps, while a step can also have conditional properties
+		if (entries.every(([key]) => key.startsWith('${{'))) {
 			return entries.flatMap(([, value]) => Array.isArray(value) ? flatten(value, file, templates) : []);
 		}
 		const template = (step as { template?: unknown }).template;
@@ -102,8 +103,8 @@ function buildOnlyScripts(): { files: Map<string, string>; inline: IInlineScript
 			for (const step of steps) {
 				const script = scriptOf(step);
 				const directory = workingDirectoryOf(step);
-				for (const [, relative] of script.matchAll(/\bnode\s+(?:--\s+)?((?:\.\.\/)*build\/[\w./-]+\.(?:ts|mts|js|mjs))\b/g)) {
-					files.set(path.relative(repositoryRoot, path.resolve(directory, relative)).replaceAll('\\', '/'), pipeline);
+				for (const [, sourcesDirectory, relative] of script.matchAll(nodeScript)) {
+					files.set(path.relative(repositoryRoot, path.resolve(sourcesDirectory ? repositoryRoot : directory, relative)).replaceAll('\\', '/'), pipeline);
 				}
 				for (const match of script.matchAll(/\bnode\s+(?:-e|-p|--eval|--print)\s+(?:'(?<single>[^']*)'|"(?<double>(?:[^"\\]|\\.)*)")/g)) {
 					inline.push({ code: match.groups!.single ?? match.groups!.double.replace(/\\(.)/g, '$1'), directory, label: `node -e in ${pipeline}` });
@@ -113,6 +114,13 @@ function buildOnlyScripts(): { files: Map<string, string>; inline: IInlineScript
 	}
 	return { files, inline };
 }
+
+/**
+ * A build script that a command runs with node: a path below build/, relative to the working directory or to
+ * the sources directory, which Azure Pipelines names `$(Build.SourcesDirectory)` and scripts `$BUILD_SOURCESDIRECTORY`.
+ */
+const nodeScript = /\bnode\s+(?:--\s+)?["']?(\$\(Build\.SourcesDirectory\)\/|\$(?:env:)?BUILD_SOURCESDIRECTORY\/)?((?:\.\.\/)*build\/[\w./-]+\.(?:ts|mts|js|mjs))\b/g;
+
 /** The runtime module specifiers of a file or inline script: type-only imports and exports are erased. */
 function runtimeSpecifiers(fileName: string, code: string): string[] {
 	const source = ts.createSourceFile(fileName, code, ts.ScriptTarget.Latest, true);
@@ -139,49 +147,65 @@ function packageName(specifier: string): string {
 }
 
 /**
- * Each bare import reachable from the entry scripts (paths relative to the repository) and inline
- * scripts that build/package.json doesn't declare, with its importer.
+ * The build files reachable from the entry scripts (paths relative to the repository) and inline scripts, through
+ * their imports and the build scripts that they run with node, and the bare imports of each, with its importer.
  */
-export function undeclaredBuildImports(entries: Iterable<string>, declared: ReadonlySet<string>, inline: readonly IInlineScript[] = []): string[] {
-	const problems: string[] = [];
-	const seen = new Set<string>();
+export function walkBuildImports(entries: Iterable<string>, inline: readonly IInlineScript[] = []): { files: Set<string>; imports: { name: string; importer: string }[] } {
+	const imports: { name: string; importer: string }[] = [];
+	const files = new Set<string>();
 	const pending = [...entries].map(entry => path.join(repositoryRoot, entry));
-	const check = (specifiers: string[], directory: string, importer: string) => {
+	const check = (code: string, specifiers: string[], directory: string, importer: string) => {
 		for (const specifier of specifiers) {
 			if (specifier.startsWith('.')) {
 				const target = path.resolve(directory, specifier);
 				if (/\.(?:ts|mts|js|mjs|cjs)$/.test(target) && existsSync(target)) {
 					pending.push(target);
 				}
-			} else if (!isBuiltin(specifier) && !declared.has(packageName(specifier))) {
-				problems.push(`${packageName(specifier)} (imported by ${importer})`);
+			} else if (!isBuiltin(specifier)) {
+				imports.push({ name: packageName(specifier), importer });
 			}
+		}
+		// A child process, such as `$`node build/azure-pipelines/common/sign.ts …`` of codesign.ts, runs in the sources directory
+		for (const [, , relative] of code.matchAll(nodeScript)) {
+			pending.push(path.join(repositoryRoot, relative.replace(/^(?:\.\.\/)+/, '')));
 		}
 	};
 	for (const { code, directory, label } of inline) {
-		check(runtimeSpecifiers('inline.mts', code), directory, label);
+		check(code, runtimeSpecifiers('inline.mts', code), directory, label);
 	}
 	while (pending.length) {
 		const file = pending.pop()!;
-		if (seen.has(file)) {
+		const relative = path.relative(repositoryRoot, file).replaceAll('\\', '/');
+		if (files.has(relative)) {
 			continue;
 		}
-		seen.add(file);
-		assert.ok(existsSync(file), `${path.relative(repositoryRoot, file)} doesn't exist`);
-		check(runtimeSpecifiers(file, readFileSync(file, 'utf8')), path.dirname(file), path.relative(repositoryRoot, file).replaceAll('\\', '/'));
+		files.add(relative);
+		assert.ok(existsSync(file), `${relative} doesn't exist`);
+		const code = readFileSync(file, 'utf8');
+		check(code, runtimeSpecifiers(file, code), path.dirname(file), relative);
 	}
-	return [...new Set(problems)].sort();
+	return { files, imports };
 }
+
+/** Each bare import reachable from the entry scripts and inline scripts that build/package.json doesn't declare, with its importer. */
+export function undeclaredBuildImports(entries: Iterable<string>, declared: ReadonlySet<string>, inline: readonly IInlineScript[] = []): string[] {
+	return [...new Set(walkBuildImports(entries, inline).imports.filter(({ name }) => !declared.has(name)).map(({ name, importer }) => `${name} (imported by ${importer})`))].sort();
+}
+
 suite('scripts of build-only product build jobs', () => {
 	const buildPackage = JSON.parse(readFileSync(path.join(repositoryRoot, 'build/package.json'), 'utf8'));
 	const declared = new Set<string>(['dependencies', 'devDependencies', 'optionalDependencies'].flatMap(field => Object.keys(buildPackage[field] ?? {})));
 
-	test('are found in the pipelines that install only build dependencies, and in their step templates', () => {
+	test('are found in the pipelines that install only build dependencies, their step templates and child processes', () => {
 		const { files, inline } = buildOnlyScripts();
-		for (const script of ['build/darwin/create-universal-app.ts', 'build/darwin/verify-macho.ts', 'build/azure-pipelines/common/publish.ts', 'build/azure-pipelines/common/runWithTimeout.ts']) {
+		for (const script of ['build/darwin/create-universal-app.ts', 'build/darwin/verify-macho.ts', 'build/azure-pipelines/common/publish.ts', 'build/azure-pipelines/common/runWithTimeout.ts', 'build/azure-pipelines/common/installPnpm.ts']) {
 			assert.ok(files.has(script), `${script} isn't found in a build-only job`);
 		}
 		assert.ok(inline.some(({ code, directory }) => code.includes('install-sysroot.ts') && existsSync(path.resolve(directory, '../build/linux/debian/install-sysroot.ts'))), 'the inline sysroot script of cli/cli-compile.yml isn\'t found in a build-only job');
+		const reachable = walkBuildImports(files.keys(), inline).files;
+		for (const script of ['build/linux/debian/install-sysroot.ts', 'build/azure-pipelines/common/sign.ts']) {
+			assert.ok(reachable.has(script), `${script} isn't reached from a build-only job`);
+		}
 	});
 
 	test('import only packages that build/package.json declares', () => {
@@ -189,6 +213,7 @@ suite('scripts of build-only product build jobs', () => {
 		assert.deepStrictEqual(undeclaredBuildImports(files.keys(), declared, inline), [],
 			'A script that a build-only job runs imports a package that build/package.json doesn\'t declare. Add it to build/package.json; the root node_modules isn\'t installed in that job.');
 	});
+
 	test('reports an import that only the root declares', () => {
 		const withoutMinimatch = new Set([...declared].filter(name => name !== 'minimatch'));
 		assert.ok(undeclaredBuildImports(['build/darwin/create-universal-app.ts'], withoutMinimatch).includes('minimatch (imported by build/darwin/create-universal-app.ts)'));
