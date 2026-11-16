@@ -6,11 +6,11 @@
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { extUri, isEqual } from '../../../../base/common/resources.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChat, ISession } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../common/sessionsManagement.js';
+import { getSessionChatOfResource, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 
 /** How long an open waits for the session it opens to be known, such as while its provider loads its sessions. */
@@ -71,10 +71,11 @@ function isSessionResource(session: ISession, resource: URI): boolean {
 }
 
 /**
- * The session and chat of `chatResource` once a session lists the chat, also outside its provider's listing scope;
- * `undefined` once `token` is cancelled or `timeout` passes. A session can list a chat after it is known itself, such as a
- * peer chat or a subagent's: the wait follows the chats of the sessions that change meanwhile, and of the session that a
- * peer chat's resource names, rather than of every session.
+ * The session and chat of `chatResource` once a session lists the chat, also outside its provider's listing scope and by a
+ * former resource of the session (see {@link getSessionChatOfResource}); `undefined` once `token` is cancelled or `timeout`
+ * passes. A session can list a chat after it is known itself, such as a peer chat or a subagent's: the wait follows the
+ * chats of the sessions that change meanwhile, and of the session that the resource names without its fragment, also once
+ * a provider asks to read every session again, rather than of every session.
  */
 export function waitForSessionChat(sessionsManagementService: ISessionsManagementService, chatResource: URI, token: CancellationToken, timeout?: number): Promise<{ readonly session: ISession; readonly chat: IChat } | undefined> {
 	const existing = sessionsManagementService.getSessionForChatResource(chatResource);
@@ -99,7 +100,7 @@ export function waitForSessionChat(sessionsManagementService: ISessionsManagemen
 			}
 			followed.add(session);
 			const listener = autorun(reader => {
-				const chat = [session.mainChat.read(reader), ...session.chats.read(reader)].find(candidate => isEqual(candidate.resource, chatResource));
+				const chat = getSessionChatOfResource(session, chatResource, extUri, reader);
 				if (chat) {
 					finish({ session, chat });
 				}
@@ -111,6 +112,9 @@ export function waitForSessionChat(sessionsManagementService: ISessionsManagemen
 			}
 		};
 
+		// The session that the resource names without its fragment, such as a peer chat's, also by a former resource, once known
+		const followOwner = () => follow(sessionsManagementService.getSession(chatResource.with({ fragment: '' })));
+
 		disposables.add(token.onCancellationRequested(() => finish(undefined)));
 		// As a provider registers, its sessions are added; an empty change asks to read every session again
 		disposables.add(sessionsManagementService.onDidChangeSession(changes => {
@@ -118,6 +122,8 @@ export function waitForSessionChat(sessionsManagementService: ISessionsManagemen
 				const found = sessionsManagementService.getSessionForChatResource(chatResource);
 				if (found) {
 					finish(found);
+				} else {
+					followOwner();
 				}
 				return;
 			}
@@ -130,10 +136,7 @@ export function waitForSessionChat(sessionsManagementService: ISessionsManagemen
 		if (timeout !== undefined) {
 			disposables.add(disposableTimeout(() => finish(undefined), timeout));
 		}
-		// A peer chat's resource is its session's with a fragment
-		if (chatResource.fragment) {
-			follow(sessionsManagementService.getSession(chatResource.with({ fragment: '' })));
-		}
+		followOwner();
 	});
 }
 

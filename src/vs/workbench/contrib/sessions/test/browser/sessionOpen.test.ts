@@ -174,6 +174,49 @@ suite('waitForSessionChat', () => {
 		assert.deepStrictEqual({ session: result?.session === hidden.session, beforeTimeout: Date.now() - start < SESSION_OPEN_WAIT_TIMEOUT, listening: sessionChanged.hasListeners() }, { session: true, beforeTimeout: true, listening: false });
 	}));
 
+	test('finds a chat by a former resource of its session, as the session that has it is added, as the canonical main chat or the chat of its fragment', () => runWithFakedTimers({}, async () => {
+		const former = URI.parse('cloud-task:/former');
+		const canonical = sessionWithChats('agent-host-copilot:/canonical');
+		const peer = upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/canonical#peer') });
+		canonical.chats.set([canonical.session.mainChat.get(), peer], undefined);
+		const session: ISession = { ...canonical.session, previousIdentities: [{ sessionId: 'former', resource: former }] };
+		const { sessionChanged, sessionsManagementService } = create([]);
+		const cts = disposables.add(new CancellationTokenSource());
+
+		const start = Date.now();
+		const main = waitForSessionChat(sessionsManagementService, former, cts.token, SESSION_OPEN_WAIT_TIMEOUT);
+		const ofFragment = waitForSessionChat(sessionsManagementService, former.with({ fragment: 'peer' }), cts.token, SESSION_OPEN_WAIT_TIMEOUT);
+		await timeout(10);
+		sessionChanged.fire([{ session, kind: 'added' }]);
+		const [mainResult, fragmentResult] = await Promise.all([main, ofFragment]);
+
+		assert.deepStrictEqual({
+			main: mainResult?.session === session && mainResult.chat === canonical.session.mainChat.get(),
+			ofFragment: fragmentResult?.session === session && fragmentResult.chat === peer,
+			beforeTimeout: Date.now() - start < SESSION_OPEN_WAIT_TIMEOUT,
+			listening: sessionChanged.hasListeners(),
+		}, { main: true, ofFragment: true, beforeTimeout: true, listening: false });
+	}));
+
+	test('follows the session of a peer chat once a provider asks to read every session again, so that the peer it lists later, without a change of the session, is found', () => runWithFakedTimers({}, async () => {
+		const parent = sessionWithChats('agent-host-copilot:/parent');
+		const peer = upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/parent#peer') });
+		const known: ISession[] = [];
+		const { sessionChanged, sessionsManagementService } = create(known);
+		const cts = disposables.add(new CancellationTokenSource());
+
+		const start = Date.now();
+		const found = waitForSessionChat(sessionsManagementService, peer.resource, cts.token, SESSION_OPEN_WAIT_TIMEOUT);
+		await timeout(10);
+		known.push(parent.session);
+		sessionChanged.fire([]);
+		await timeout(10);
+		parent.chats.set([parent.session.mainChat.get(), peer], undefined);
+		const result = await found;
+
+		assert.deepStrictEqual({ chat: result?.chat === peer, beforeTimeout: Date.now() - start < SESSION_OPEN_WAIT_TIMEOUT, listening: sessionChanged.hasListeners() }, { chat: true, beforeTimeout: true, listening: false });
+	}));
+
 	test('ends at once, with no chat, as it is cancelled, such as as its host is deactivated, and once the timeout passes', () => runWithFakedTimers({}, async () => {
 		const { sessionChanged, sessionsManagementService } = create([]);
 		const unknown = URI.parse('agent-host-copilot:/unknown');
