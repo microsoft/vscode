@@ -11,6 +11,7 @@ import { ISerializableCommandAction } from '../../action/common/action.js';
 import { AgentHostEditorUpdate, IAgentHostEditorState, IAgentsWindowInvitation } from '../../chat/common/agentsWindowInvitation.js';
 import { INativeOpenDialogOptions } from '../../dialogs/common/dialogs.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IKeepAwakeState } from '../../keepAwake/common/keepAwake.js';
 import { IV8Profile } from '../../profiling/common/profiling.js';
 import { AuthInfo, Credentials } from '../../request/common/request.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
@@ -344,6 +345,9 @@ export interface ICommonNativeHostService {
 
 	getAgentHostEditorState(legacyEditorSessionCount: number): Promise<IAgentHostEditorState>;
 	updateAgentHostEditorState(update: AgentHostEditorUpdate): Promise<void>;
+	updateKeepAwakeClaim(busy: boolean): Promise<void>;
+	getKeepAwakeState(): Promise<IKeepAwakeState>;
+	readonly onDidChangeKeepAwakeState: Event<IKeepAwakeState>;
 	claimAgentsWindowInvitation(resource: UriComponents, developerMode: boolean): Promise<IAgentsWindowInvitation | undefined>;
 	markAgentsWindowInvitationShown(id: string): Promise<void>;
 	releaseAgentsWindowInvitation(id: string): Promise<void>;

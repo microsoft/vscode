@@ -59,6 +59,11 @@ import { AgentsWindowInvitationContribution } from './agentSessions/agentsWindow
 import { AgentHostEditorActivity, IAgentHostEditorActivityService } from './agentSessions/agentHostEditorActivity.js';
 import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
 import { NativePluginGitCommandService } from './pluginGitCommandService.js';
+import './chatPreventSleep.contribution.js';
+import { IChatPreventSleepActivitySource } from '../common/chatPreventSleep.js';
+import { EditorChatPreventSleepActivity } from './chatPreventSleepActivity.js';
+
+registerSingleton(IChatPreventSleepActivitySource, EditorChatPreventSleepActivity, InstantiationType.Delayed);
 
 // Override the browser PluginGitCommandService with the native one that always
 // runs git locally via the shared process. See the decision matrix on the

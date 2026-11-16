@@ -961,7 +961,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		modeChanged?: boolean,
 	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; fetcher?: FetcherId; bytesReceived?: number; statusCode?: number; suspendEventSeen?: boolean; resumeEventSeen?: boolean; otelSpan?: ISpanHandle; modelCallId?: string }> {
 		const isPowerSaveBlockerEnabled = this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.ChatRequestPowerSaveBlocker, this._experimentationService);
-		const blockerHandle = isPowerSaveBlockerEnabled && location !== ChatLocation.Other ? this._powerService.acquirePowerSaveBlocker() : undefined;
+		const blockerHandle = isPowerSaveBlockerEnabled && this._configurationService.getNonExtensionConfig<boolean>('chat.preventSleep.enabled') !== true && location !== ChatLocation.Other ? this._powerService.acquirePowerSaveBlocker() : undefined;
 
 		let suspendEventSeen = false;
 		let resumeEventSeen = false;

@@ -58,6 +58,8 @@ import { CancellationToken, CancellationTokenSource } from '../../../base/common
 import { GPUCompositingState } from './gpuCompositingState.js';
 import { AgentHostEditorUpdate, AgentsWindowInvitationState, IAgentHostEditorState, IAgentsWindowInvitation } from '../../chat/common/agentsWindowInvitation.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
+import { IKeepAwakeMainService } from '../../keepAwake/electron-main/keepAwakeMainService.js';
+import { IKeepAwakeState } from '../../keepAwake/common/keepAwake.js';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -87,8 +89,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@IGlobalKeybindingsMainService private readonly globalKeybindingsMainService: IGlobalKeybindingsMainService,
 		@IGPUProcessMainService gpuProcessMainService: IGPUProcessMainService,
 		@IApplicationStorageMainService private readonly applicationStorageService: IApplicationStorageMainService,
+		@IKeepAwakeMainService private readonly keepAwakeMainService: IKeepAwakeMainService,
 	) {
 		super();
+		this.onDidChangeKeepAwakeState = keepAwakeMainService.onDidChangeState;
 
 		this.gpuCompositingState = this._register(new GPUCompositingState(gpuProcessMainService));
 		this.agentsWindowInvitations = this._register(new AgentsWindowInvitationState(Date.now, applicationStorageService));
@@ -195,6 +199,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Events
 
 	readonly onDidOpenMainWindow: Event<number>;
+	readonly onDidChangeKeepAwakeState: Event<IKeepAwakeState>;
+
+	async updateKeepAwakeClaim(windowId: number | undefined, busy: boolean): Promise<void> {
+		if (windowId !== undefined && this.windowsMainService.getWindowById(windowId)?.isReady) {
+			this.keepAwakeMainService.setClaim(`window:${windowId}`, busy);
+		}
+	}
+
+	async getKeepAwakeState(): Promise<IKeepAwakeState> {
+		return this.keepAwakeMainService.state;
+	}
 
 	readonly onDidTriggerWindowSystemContextMenu: Event<{ windowId: number; x: number; y: number }>;
 

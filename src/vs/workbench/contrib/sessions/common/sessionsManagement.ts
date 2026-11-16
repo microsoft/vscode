@@ -287,6 +287,8 @@ export interface ISessionsManagementService {
 	 */
 	getSessions(): ISession[];
 
+	/** All known sessions, including those outside a provider's listing scope. */
+	getAllSessions(): ISession[];
 
 	/**
 	 * Get new sessions whose first request is still being prepared or sent.

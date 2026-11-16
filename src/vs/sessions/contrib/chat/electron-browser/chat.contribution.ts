@@ -58,6 +58,11 @@ import { ISession, isSessionCreated } from '../../../../workbench/services/sessi
 import { IRemoteWorkspaceHandoffService, RemoteAgentHostHandoffResult } from '../../../common/remoteWorkspaceHandoff.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { getRemoteName } from '../../../../platform/remote/common/remoteHosts.js';
+import '../../../../workbench/contrib/chat/electron-browser/chatPreventSleep.contribution.js';
+import { IChatPreventSleepActivitySource } from '../../../../workbench/contrib/chat/common/chatPreventSleep.js';
+import { SessionsChatPreventSleepActivity } from './chatPreventSleepActivity.js';
+
+registerSingleton(IChatPreventSleepActivitySource, SessionsChatPreventSleepActivity, InstantiationType.Delayed);
 
 /** Revokes editor request ownership when the next request is submitted here. */
 export class AgentsWindowRequestActivity extends Disposable implements IWorkbenchContribution {

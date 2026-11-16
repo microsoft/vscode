@@ -410,7 +410,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	/** Every session, also those outside a provider's listing scope, for looking sessions up. */
-	private _getAllSessions(): ISession[] {
+	getAllSessions(): ISession[] {
 		const sessions: ISession[] = [];
 		for (const provider of this.sessionsProvidersService.getProviders({ includeSessionBackends: true })) {
 			sessions.push(...(provider.getAllSessions?.() ?? provider.getSessions()));
@@ -438,14 +438,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (unlistedSession) {
 			return unlistedSession;
 		}
-		return this._getAllSessions().find(s =>
+		return this.getAllSessions().find(s =>
 			this.uriIdentityService.extUri.isEqual(s.resource, resource)
 			|| s.previousIdentities?.some(previous => this.uriIdentityService.extUri.isEqual(previous.resource, resource))
 		);
 	}
 
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
-		for (const session of this._getAllSessions()) {
+		for (const session of this.getAllSessions()) {
 			const chat = session.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, resource));
 			if (chat) {
 				return { session, chat };

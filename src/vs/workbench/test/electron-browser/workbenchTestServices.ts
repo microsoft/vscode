@@ -111,6 +111,9 @@ export class TestNativeHostService implements INativeHostService {
 	readonly onDidChangeAgentHostEditorState = Event.None;
 	async getAgentHostEditorState(): Promise<IAgentHostEditorState> { return { revision: 0, editorSessionCount: 0, sessions: [], lastShown: undefined, lastCopilotHarnessIntroductionSessionCount: undefined, invitation: undefined }; }
 	async updateAgentHostEditorState(): Promise<void> { }
+	readonly onDidChangeKeepAwakeState = Event.None;
+	async updateKeepAwakeClaim(): Promise<void> { }
+	async getKeepAwakeState() { return { enabled: false, active: false, inGrace: false, busySources: [] }; }
 	async claimAgentsWindowInvitation(): Promise<IAgentsWindowInvitation | undefined> { return undefined; }
 	async markAgentsWindowInvitationShown(): Promise<void> { }
 	async releaseAgentsWindowInvitation(): Promise<void> { }
