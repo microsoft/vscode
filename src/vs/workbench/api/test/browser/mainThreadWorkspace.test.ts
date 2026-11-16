@@ -18,7 +18,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { testWorkspace } from '../../../../platform/workspace/test/common/testWorkspace.js';
-import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
+import { IFolderLocation, IFolderLocationChangeEvent, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceFolderLocationsDto } from '../../common/extHost.protocol.js';
 
 suite('MainThreadWorkspace', () => {
@@ -178,7 +178,7 @@ suite('MainThreadWorkspace', () => {
 		}
 
 		function setup2(context?: Partial<IWorkspaceContextService>) {
-			const changes = disposables.add(new Emitter<void>());
+			const changes = disposables.add(new Emitter<IFolderLocationChangeEvent>());
 			const requests: DeferredPromise<IFolderLocation[]>[] = [];
 			instantiationService.stub(IWorkspaceFolderLocationService, {
 				onDidChangeLocation: changes.event,
@@ -216,7 +216,7 @@ suite('MainThreadWorkspace', () => {
 		test('a stale resolve does not overwrite a newer one', async () => {
 			const { changes, requests, pushed } = setup2();
 			await tick();
-			changes.fire();
+			changes.fire({} as IFolderLocationChangeEvent);
 			assert.strictEqual(requests.length, 2);
 
 			requests[1].complete([location(URI.file('/work/b'))]);
