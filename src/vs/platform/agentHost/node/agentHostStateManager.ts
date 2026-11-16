@@ -463,6 +463,25 @@ export class AgentHostStateManager extends Disposable {
 	readonly onDidChangeSessionActiveTurn: Event<{ session: string; active: boolean }> = this._onDidChangeSessionActiveTurn.event;
 	private readonly _onDidChangeSessionStatus = this._register(new Emitter<{ session: string; status: SessionStatus }>());
 	readonly onDidChangeSessionStatus: Event<{ session: string; status: SessionStatus }> = this._onDidChangeSessionStatus.event;
+	private readonly _keepAwakeChats = new Set<string>();
+	private readonly _onDidChangeKeepAwakeWork = this._register(new Emitter<boolean>());
+	readonly onDidChangeKeepAwakeWork = this._onDidChangeKeepAwakeWork.event;
+
+	get hasKeepAwakeWork(): boolean {
+		return this._keepAwakeChats.size > 0;
+	}
+
+	private _updateKeepAwakeChat(chat: string, status: SessionStatus): void {
+		const wasBusy = this.hasKeepAwakeWork;
+		if ((status & SessionStatus.InProgress) !== 0) {
+			this._keepAwakeChats.add(chat);
+		} else {
+			this._keepAwakeChats.delete(chat);
+		}
+		if (wasBusy !== this.hasKeepAwakeWork) {
+			this._onDidChangeKeepAwakeWork.fire(this.hasKeepAwakeWork);
+		}
+	}
 	private readonly _onDidRemoveSession = this._register(new Emitter<string>());
 	readonly onDidRemoveSession: Event<string> = this._onDidRemoveSession.event;
 	private readonly _onDidDeleteSession = this._register(new Emitter<string>());
@@ -1846,6 +1865,7 @@ export class AgentHostStateManager extends Disposable {
 				};
 				entry.state.chats = entry.state.chats.map(chat => chat.resource === chatUri ? summary : chat);
 				existingEntry.summary = summary;
+				this._updateKeepAwakeChat(chatUri, summary.status);
 				existingEntry.parentChat = registrationParentChat(summary.origin);
 				existingEntry.providerData = options.providerData;
 				existingEntry.inheritedTurnId = options.inheritedTurnId;
@@ -2848,6 +2868,7 @@ export class AgentHostStateManager extends Disposable {
 		if (entry) {
 			entry.valid = false;
 			this._chatEntries.delete(chat);
+			this._updateKeepAwakeChat(chat, SessionStatus.Idle);
 			this._chatsWithOwnConfigSchema.delete(chat);
 			this._unindexChatStorage(chat, entry.storageResource);
 			this._onDidUnregisterChat.fire({ chat, session: entry.session, storageResource: entry.storageResource });
@@ -2867,6 +2888,7 @@ export class AgentHostStateManager extends Disposable {
 			this._unindexChatStorage(chat, previous.storageResource);
 		}
 		this._chatEntries.set(chat, entry);
+		this._updateKeepAwakeChat(chat, entry.summary.status);
 		let chats = this._chatsByStorage.get(entry.storageResource);
 		if (!chats) {
 			chats = new Set();
@@ -2884,6 +2906,7 @@ export class AgentHostStateManager extends Disposable {
 			const existing = this._chatEntries.get(summary.resource);
 			if (existing) {
 				existing.summary = summary;
+				this._updateKeepAwakeChat(summary.resource, summary.status);
 				if (existing.state) {
 					existing.state = { ...existing.state, ...summary };
 				}

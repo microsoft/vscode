@@ -5,6 +5,7 @@
 
 import { Promises, raceTimeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
+import { Event } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -40,6 +41,14 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		@IAgentHostMacAccessibilityTrustService private readonly _macAccessibilityTrust: IAgentHostMacAccessibilityTrustService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
+
+	get onDidChangeKeepAwakeWork(): Event<boolean> {
+		return this._agentService.onDidChangeKeepAwakeWork;
+	}
+
+	getKeepAwakeWork(): Promise<boolean> {
+		return this._agentService.getKeepAwakeWork();
+	}
 
 	setMissionControl(service: MissionControlEnvironment | undefined): void {
 		this._missionControl = service;

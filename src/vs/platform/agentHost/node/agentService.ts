@@ -11,7 +11,7 @@ import { IAgentHostWorktreeDiskUsageService } from './worktreeDiskUsage.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { getErrorCode, isCancellationError } from '../../../base/common/errors.js';
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../base/common/mime.js';
@@ -5468,6 +5468,14 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async getSessionCount(): Promise<number> {
 		return (await this._sessionRegistry.listSessionKeys()).size;
+	}
+
+	get onDidChangeKeepAwakeWork(): Event<boolean> {
+		return this._stateManager.onDidChangeKeepAwakeWork;
+	}
+
+	async getKeepAwakeWork(): Promise<boolean> {
+		return this._stateManager.hasKeepAwakeWork;
 	}
 
 	async listSessions(mode = this._getExternalSessionsMode()): Promise<IAgentSessionMetadata[]> {

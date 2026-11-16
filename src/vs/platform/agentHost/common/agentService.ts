@@ -905,6 +905,8 @@ export interface IMissionControlCredentialSealingRequest {
 
 export interface IAgentHostManagementService {
 	readonly _serviceBrand: undefined;
+	readonly onDidChangeKeepAwakeWork: Event<boolean>;
+	getKeepAwakeWork(): Promise<boolean>;
 	/** Opt-in Mission Control ingress; failures are explicit data so structured causes survive trusted local IPC. */
 	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void | { readonly error: IConnectionDiagnosticError }>;
 	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string>;
@@ -1013,6 +1015,9 @@ export interface IAgentServiceCreateSessionConfig extends IAgentCreateSessionCon
 }
 
 export interface IAgentService {
+	/** Local work that must outlive renderer connections, including input waits. */
+	readonly onDidChangeKeepAwakeWork: Event<boolean>;
+	getKeepAwakeWork(): Promise<boolean>;
 	readonly artifactIntegrations?: IArtifactIntegrationAccess;
 	/** Receives integrations that connected clients coordinate, so agents can use them alongside host integrations. */
 	readonly artifactIntegrationClients?: IClientArtifactIntegrationRegistry;

@@ -63,6 +63,25 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(manager.getSessionSummary(sessionUri)?.resource.toString(), sessionUri.toString());
 	});
 
+	test('keep-awake activity follows every chat, including input waits and archived chats', () => {
+		manager.createSession(makeSessionSummary());
+		const peer = buildChatUri(sessionUri, 'peer');
+		manager.addChat(sessionUri, peer, sessionChatUri);
+		const changes: boolean[] = [];
+		disposables.add(manager.onDidChangeKeepAwakeWork(busy => changes.push(busy)));
+		const update = (chat: string, status: SessionStatus) => manager.dispatchServerAction(sessionUri, {
+			type: ActionType.SessionChatUpdated, chat, changes: { status },
+		});
+		update(sessionChatUri, SessionStatus.InProgress | SessionStatus.IsArchived);
+		update(peer, SessionStatus.InputNeeded);
+		update(sessionChatUri, SessionStatus.Idle);
+		assert.strictEqual(manager.hasKeepAwakeWork, true);
+		update(peer, SessionStatus.Idle);
+		update(peer, SessionStatus.InProgress);
+		manager.removeSession(sessionUri);
+		assert.deepStrictEqual({ changes, busy: manager.hasKeepAwakeWork }, { changes: [true, false, true, false], busy: false });
+	});
+
 	test('a session restored with its data only (C15) registers its chats, its default chat unresolved, and no client sees it until it is removed', async () => {
 		const peer = buildChatUri(sessionUri, 'peer');
 		const resolved: string[] = [];

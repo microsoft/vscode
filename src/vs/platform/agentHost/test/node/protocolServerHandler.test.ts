@@ -250,6 +250,8 @@ class TestHandlerChatOwnership extends AgentHostChatOwnershipService {
 }
 
 class MockAgentService extends Disposable implements IAgentService {
+	readonly onDidChangeKeepAwakeWork = Event.None;
+	async getKeepAwakeWork(): Promise<boolean> { return false; }
 	declare readonly _serviceBrand: undefined;
 	sessionWorktreeCleanup?: IAgentService['sessionWorktreeCleanup'];
 	prepareSessionWorktreeCleanup?: IAgentService['prepareSessionWorktreeCleanup'];

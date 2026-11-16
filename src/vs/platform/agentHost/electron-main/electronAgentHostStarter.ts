@@ -6,6 +6,8 @@
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter } from '../../../base/common/event.js';
+import { IKeepAwakeMainService } from '../../keepAwake/electron-main/keepAwakeMainService.js';
+import { AgentHostKeepAwakeClaim } from '../common/agentHostKeepAwake.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { isMacintosh, isWindows } from '../../../base/common/platform.js';
@@ -80,6 +82,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWindowsMainService private readonly _windowsMainService: IWindowsMainService,
+		@IKeepAwakeMainService private readonly _keepAwakeMainService: IKeepAwakeMainService,
 	) {
 		super();
 
@@ -256,6 +259,9 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 				}
 			}));
 			store.add(client);
+			store.add(new AgentHostKeepAwakeClaim(managementService, utilityProcess.onExit,
+				busy => this._keepAwakeMainService.setClaim('agentHost', busy),
+				error => this._logService.error('[KeepAwake] Failed to read local agent host activity', error)));
 			if (!this._systemFullyAwake) {
 				this._reportSystemFullyAwake();
 			}
