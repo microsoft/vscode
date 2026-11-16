@@ -157,11 +157,10 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 			return;
 		}
 		const workspace = this._contextService.getWorkspace();
-		const singleFolder = !workspace.configuration && !!workspace.uri && workspace.folders.length === 1;
+		const singleFolder = this.isSingleFolder(workspace);
 		const current = new Set<string>();
 		for (const folder of workspace.folders) {
-			// at an alternate location the folder URI is the location, the identity of the workspace is the primary
-			const primary = singleFolder ? workspace.uri! : folder.uri;
+			const primary = this.getPrimaryLocation(workspace, folder.uri);
 			const key = folder.uri.toString();
 			current.add(key);
 			const cts = new CancellationTokenSource();
@@ -201,6 +200,15 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 		return locations;
 	}
 
+	private isSingleFolder(workspace: IWorkspace): boolean {
+		return !workspace.configuration && !!workspace.uri && workspace.folders.length === 1;
+	}
+
+	/** At an alternate location the folder URI is the location, the identity of the workspace is the primary. */
+	private getPrimaryLocation(workspace: IWorkspace, folderUri: URI): URI {
+		return this.isSingleFolder(workspace) ? workspace.uri! : folderUri;
+	}
+
 	private getWorkspaceData(workspace: IWorkspace): IWorkspaceData | null {
 		if (!this._contextService.hasWorkspaceData()) {
 			return null;
@@ -208,7 +216,7 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 		return {
 			configuration: workspace.configuration || undefined,
 			isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false,
-			folders: workspace.folders,
+			folders: workspace.folders.map(folder => ({ uri: folder.uri, name: folder.name, index: folder.index, primary: this.getPrimaryLocation(workspace, folder.uri) })),
 			id: workspace.id,
 			name: this._labelService.getWorkspaceLabel(workspace),
 			transient: workspace.transient,

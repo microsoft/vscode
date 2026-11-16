@@ -87,8 +87,14 @@ interface MutableWorkspaceFolder extends vscode.WorkspaceFolder {
 	locations: readonly vscode.WorkspaceFolderLocation[];
 }
 
-function defaultLocations(uri: URI, name: string): readonly vscode.WorkspaceFolderLocation[] {
-	return [{ uri, label: name, isPrimary: true, isCurrent: true }];
+function defaultLocations(uri: URI, name: string, primary?: URI): readonly vscode.WorkspaceFolderLocation[] {
+	if (!primary || primary.toString() === uri.toString()) {
+		return [{ uri, label: name, isPrimary: true, isCurrent: true }];
+	}
+	return [
+		{ uri: primary, label: basenameOrAuthority(primary), isPrimary: true, isCurrent: false },
+		{ uri, label: name, isPrimary: false, isCurrent: true }
+	];
 }
 
 function equalLocations(a: readonly vscode.WorkspaceFolderLocation[], b: readonly vscode.WorkspaceFolderLocation[]): boolean {
@@ -134,13 +140,13 @@ class ExtHostWorkspaceImpl extends Workspace {
 
 					newWorkspaceFolders.push(existingFolder);
 				} else {
-					newWorkspaceFolders.push({ uri: folderUri, name: folderData.name, index, locations: defaultLocations(folderUri, folderData.name) });
+					newWorkspaceFolders.push({ uri: folderUri, name: folderData.name, index, locations: defaultLocations(folderUri, folderData.name, folderData.primary ? URI.revive(folderData.primary) : undefined) });
 				}
 			});
 		} else {
-			newWorkspaceFolders.push(...folders.map(({ uri, name, index }) => {
+			newWorkspaceFolders.push(...folders.map(({ uri, name, index, primary }) => {
 				const folderUri = URI.revive(uri);
-				return { uri: folderUri, name, index, locations: defaultLocations(folderUri, name) };
+				return { uri: folderUri, name, index, locations: defaultLocations(folderUri, name, primary ? URI.revive(primary) : undefined) };
 			}));
 		}
 

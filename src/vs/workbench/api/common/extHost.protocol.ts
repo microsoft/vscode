@@ -132,7 +132,10 @@ export interface IWorkspaceFolderLocationsDto {
 }
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
-	folders: { uri: UriComponents; name: string; index: number }[];
+	/**
+	 * `primary` is the primary location of the folder, which differs from `uri` when the folder is at an alternate location.
+	 */
+	folders: { uri: UriComponents; name: string; index: number; primary?: UriComponents }[];
 }
 
 export interface IConfigurationInitData extends IConfigurationData {

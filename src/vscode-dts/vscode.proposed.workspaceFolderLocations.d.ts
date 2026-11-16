@@ -44,8 +44,11 @@ declare module 'vscode' {
 
 		/**
 		 * All known locations of this workspace folder, the primary location first.
-		 * Never empty. Before the locations are resolved, it contains only the primary
-		 * location.
+		 * Never empty. Before the locations are resolved, it contains the primary
+		 * location and, if the folder is at an alternate location, that current location.
+		 *
+		 * Alternate locations are currently only discovered for a folder that is the
+		 * only folder of a local workspace.
 		 *
 		 * The value is replaced on the same {@link WorkspaceFolder} object when the
 		 * locations change, see {@link workspace.onDidChangeWorkspaceFolderLocations}.
