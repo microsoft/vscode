@@ -89,7 +89,7 @@ export class AgentHostNewWorktreeToggle extends Disposable {
 		this._register(widget.onDidChangeViewModel(update));
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			// The worktrees follow by themselves, read once for the window
-			if (e.affectsConfiguration(ChatConfiguration.EditorWindowEnableWorktree) || e.affectsConfiguration('chat.viewSessions.sessionsList.enabled')) {
+			if (e.affectsConfiguration(ChatConfiguration.EditorWindowEnableWorktree)) {
 				update();
 			}
 		}));

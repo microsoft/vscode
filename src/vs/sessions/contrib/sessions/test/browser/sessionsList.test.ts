@@ -3737,6 +3737,23 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('lists quick chats, which have no workspace, only where it is asked to, as the Agents window does and an editor window does not', () => {
+			const visible = (listsQuickChats: boolean | undefined) => {
+				const harness = createListHarness(disposables, [...worktreeSessions(), createTestSession('quick', { isQuickChat: true }).session]);
+				harness.instantiationService.get(IStorageService).store('sessionsListControl.sectionCollapseState', JSON.stringify({ [QUICK_CHATS_SECTION_ID]: false }), StorageScope.PROFILE, StorageTarget.USER);
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(400, 1400), {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Updated,
+					listsQuickChats,
+					onSessionOpen: () => { },
+				}));
+				list.layout(1400, 400);
+				return list.getVisibleSessions().some(session => session.sessionId === 'quick');
+			};
+
+			assert.deepStrictEqual({ byDefault: visible(undefined), agentsWindow: visible(true), editorWindow: visible(false) }, { byDefault: true, agentsWindow: true, editorWindow: false });
+		});
+
 		test('shows the list by worktree, with the full path in a section\'s label for screen readers, and searches within it', async () => {
 			const harness = createListHarness(disposables, worktreeSessions());
 			const container = harness.createContainer(400, 1400);

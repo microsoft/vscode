@@ -376,6 +376,8 @@ export class SessionsView extends ViewPane {
 			},
 			canOpenSession: session => this.sessionsService.canOpenSession(session),
 			offersWorktreeFilter: this.allowWorktreeGrouping,
+			// An editor window shows no chats without a workspace
+			listsQuickChats: !this.allowWorktreeGrouping,
 			onChatOpen: (session, chat, preserveFocus, sideBySide) => {
 				const onOpened = () => {
 					if (isWeb && isPhoneLayout(this.layoutService)) {

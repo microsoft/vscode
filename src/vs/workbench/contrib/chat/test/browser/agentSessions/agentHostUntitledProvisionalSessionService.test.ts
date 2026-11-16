@@ -2017,11 +2017,11 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 	});
 
-	test('a new chat in a worktree or without a workspace that no chat model takes leaves nothing prepared or seeded behind', async () => {
+	test('a new chat in a worktree that no chat model takes leaves nothing prepared or seeded behind', async () => {
 		interface IProvisionalMaps { readonly [name: string]: ResourceMap<unknown> }
 		const maps = provisional as unknown as IProvisionalMaps;
 		const retained = (resource: URI) => ({
-			seeded: folderService.isNewWorktree(resource) || folderService.isNoWorkspace(resource),
+			seeded: folderService.isNewWorktree(resource),
 			maps: ['_preparedConfigs', '_resolvedConfigs', '_resolvedConfigRequestSeq', '_resolvedConfigConnections', '_sessionCreationMetadata'].filter(name => maps[name].size > 0),
 		});
 		const unsupportedSchema: ConfigSchema = { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder'], default: 'folder' } } };
@@ -2034,14 +2034,14 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		const unsupportedRuns: unknown[] = [];
 		for (let run = 0; run < 3; run++) {
 			agentHost.resolveQueue = [{ schema: unsupportedSchema, values: { isolation: 'folder' } }];
-			unsupportedRuns.push({ opened: await prepareNewAgentHostChat(unsupported, 'worktree', folderService, provisional, notifications), ...retained(unsupported) });
+			unsupportedRuns.push({ opened: await prepareNewAgentHostChat(unsupported, folderService, provisional, notifications), ...retained(unsupported) });
 		}
 		results.unsupported = unsupportedRuns;
 
 		// No answer from the host: every attempt to prepare fails
 		const notReady = URI.parse('agent-host-copilotcli:/untitled-not-ready');
 		agentHost.resolveQueue = [];
-		results.notReady = { opened: await prepareNewAgentHostChat(notReady, 'worktree', folderService, provisional, notifications), ...retained(notReady) };
+		results.notReady = { opened: await prepareNewAgentHostChat(notReady, folderService, provisional, notifications), ...retained(notReady) };
 
 		for (const [name, open] of [
 			['openThrows', async () => { throw new Error('open failed'); }],
@@ -2049,17 +2049,11 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		] as const) {
 			const resource = URI.parse(`agent-host-copilotcli:/untitled-${name}`);
 			agentHost.resolveQueue = [{ schema: makeSchema(true), values: { isolation: 'worktree' } }];
-			const prepared = await prepareNewAgentHostChat(resource, 'worktree', folderService, provisional, notifications);
+			const prepared = await prepareNewAgentHostChat(resource, folderService, provisional, notifications);
 			const beforeOpen = retained(resource);
 			const opened = await openPreparedAgentHostChat(resource, open, folderService, provisional).catch((error: Error) => error.message);
 			results[name] = { prepared: prepared?.toString(), beforeOpen, opened, ...retained(resource) };
 		}
-
-		const scratch = URI.parse('agent-host-copilotcli:/untitled-noWorkspace-openThrows');
-		const scratchPrepared = await prepareNewAgentHostChat(scratch, 'noWorkspace', folderService, provisional, notifications);
-		const scratchBeforeOpen = retained(scratch);
-		const scratchOpened = await openPreparedAgentHostChat(scratch, async () => { throw new Error('open failed'); }, folderService, provisional).catch((error: Error) => error.message);
-		results.noWorkspaceOpenThrows = { prepared: scratchPrepared?.toString(), beforeOpen: scratchBeforeOpen, opened: scratchOpened, ...retained(scratch) };
 
 		const nothing = { seeded: false, maps: [] };
 		const preparedInWorktree = { seeded: true, maps: ['_preparedConfigs', '_resolvedConfigConnections'] };
@@ -2068,7 +2062,6 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			notReady: { opened: undefined, ...nothing },
 			openThrows: { prepared: 'agent-host-copilotcli:/untitled-openThrows', beforeOpen: preparedInWorktree, opened: 'open failed', ...nothing },
 			opensNothing: { prepared: 'agent-host-copilotcli:/untitled-opensNothing', beforeOpen: preparedInWorktree, opened: undefined, ...nothing },
-			noWorkspaceOpenThrows: { prepared: 'agent-host-copilotcli:/untitled-noWorkspace-openThrows', beforeOpen: { seeded: true, maps: [] }, opened: 'open failed', ...nothing },
 		});
 	});
 

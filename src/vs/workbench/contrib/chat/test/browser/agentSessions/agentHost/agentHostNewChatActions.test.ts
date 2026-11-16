@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
-import { NewChatInWorktreeAction, NewChatWithoutWorkspaceAction, prepareNewAgentHostChat } from '../../../../browser/agentSessions/agentHost/agentHostNewChatActions.js';
+import { NewChatInWorktreeAction, prepareNewAgentHostChat } from '../../../../browser/agentSessions/agentHost/agentHostNewChatActions.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -27,7 +27,7 @@ import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType }
 suite('Agent host New Chat entries', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('the New Chat dropdown offers New Chat in Worktree with worktree support and New Chat (No Workspace) with the Sessions list, only with AI features on', () => {
+	test('the New Chat dropdown offers New Chat in Worktree with worktree support, with or without the Sessions list, never New Chat (No Workspace), only with AI features on', () => {
 		const shown = (options: { readonly worktree: boolean; readonly sessionsList: boolean; readonly chatPart?: boolean; readonly ai?: boolean; readonly agentHost?: boolean; readonly remote?: string; readonly sessionsWindow?: boolean }) => {
 			const configuration = new TestConfigurationService({ [ChatConfiguration.EditorWindowEnableWorktree]: options.worktree, 'chat.viewSessions.sessionsList.enabled': options.sessionsList });
 			// The Chat view's title in a local window with a single folder. In a browser, `isWeb` is a constant that hides the
@@ -42,7 +42,7 @@ suite('Agent host New Chat entries', () => {
 				contextKeyService.createKey('chatPartEnabled', options.chatPart);
 			}
 			return MenuRegistry.getMenuItems(MenuId.ChatNewMenu).filter(isIMenuItem)
-				.filter(item => (item.command.id === NewChatInWorktreeAction.ID || item.command.id === NewChatWithoutWorkspaceAction.ID) && contextKeyService.contextMatchesRules(item.when))
+				.filter(item => (item.command.id === NewChatInWorktreeAction.ID || item.command.id === 'workbench.action.chat.newChatWithoutWorkspace') && contextKeyService.contextMatchesRules(item.when))
 				.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
 		};
 
@@ -55,20 +55,20 @@ suite('Agent host New Chat entries', () => {
 			noAgentHost: shown({ worktree: true, sessionsList: true, agentHost: false }),
 			remote: shown({ worktree: true, sessionsList: true, remote: 'ssh-remote' }),
 			agentsWindow: shown({ worktree: true, sessionsList: true, sessionsWindow: true }),
-			// New Chat opens in the chat area, which cannot start a chat in a worktree or without a workspace yet
+			// New Chat opens in the chat area, which cannot start a chat in a worktree yet
 			chatPartEnabled: shown({ worktree: true, sessionsList: true, chatPart: true }),
 			chatPartDisabled: shown({ worktree: true, sessionsList: true, chatPart: false }),
 		}, {
 			neither: [],
 			worktree: ['New Chat in Worktree'],
-			sessionsList: ['New Chat (No Workspace)'],
-			both: ['New Chat in Worktree', 'New Chat (No Workspace)'],
+			sessionsList: [],
+			both: ['New Chat in Worktree'],
 			aiOff: [],
 			noAgentHost: [],
 			remote: [],
 			agentsWindow: [],
 			chatPartEnabled: [],
-			chatPartDisabled: ['New Chat in Worktree', 'New Chat (No Workspace)'],
+			chatPartDisabled: ['New Chat in Worktree'],
 		});
 	});
 
@@ -80,7 +80,6 @@ suite('Agent host New Chat entries', () => {
 			let newWorktree = false;
 			const folderService = upcastPartial<IAgentHostNewSessionFolderService>({
 				setNewWorktree: () => { seeds.push('worktree'); newWorktree = true; },
-				setNoWorkspace: () => { seeds.push('noWorkspace'); },
 				clear: () => { seeds.push('clear'); newWorktree = false; },
 			});
 			let prepared: ResolveSessionConfigResult | undefined;
@@ -101,7 +100,7 @@ suite('Agent host New Chat entries', () => {
 			});
 			const warnings: string[] = [];
 			const notificationService = upcastPartial<INotificationService>({ warn: (message: unknown) => { warnings.push(String(message)); return undefined!; } });
-			const opened = await prepareNewAgentHostChat(resource, 'worktree', folderService, provisional, notificationService);
+			const opened = await prepareNewAgentHostChat(resource, folderService, provisional, notificationService);
 			return { opened: opened?.toString(), seeds, attempts, warned: warnings.length };
 		};
 
@@ -114,17 +113,7 @@ suite('Agent host New Chat entries', () => {
 		});
 	});
 
-	test('New Chat (No Workspace) seeds No Workspace before the chat shows, without preparing anything', async () => {
-		const resource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-scratch' });
-		const seeds: string[] = [];
-		const folderService = upcastPartial<IAgentHostNewSessionFolderService>({ setNoWorkspace: () => { seeds.push('noWorkspace'); } });
-		const provisional = upcastPartial<IAgentHostUntitledProvisionalSessionService>({ prepareSessionConfig: async () => { seeds.push('prepare'); } });
-		const opened = await prepareNewAgentHostChat(resource, 'noWorkspace', folderService, provisional, upcastPartial<INotificationService>({}));
-
-		assert.deepStrictEqual({ opened: opened?.toString(), seeds }, { opened: resource.toString(), seeds: ['noWorkspace'] });
-	});
-
-	test('without an available agent host, the entries report that rather than open a chat', async () => {
+	test('without an available agent host, the entry reports that rather than open a chat', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const warnings: string[] = [];
 		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ warn: (message: unknown) => { warnings.push(String(message)); return undefined!; } }));
@@ -132,8 +121,8 @@ suite('Agent host New Chat entries', () => {
 		instantiationService.stub(IAgentHostEnablementService, upcastPartial<IAgentHostEnablementService>({ enabled: constObservable(false) }));
 		const run = (id: string) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
 
-		const opened = [await run(NewChatInWorktreeAction.ID), await run(NewChatWithoutWorkspaceAction.ID)];
+		const opened = await run(NewChatInWorktreeAction.ID);
 
-		assert.deepStrictEqual({ opened, warned: warnings.length }, { opened: [undefined, undefined], warned: 2 });
+		assert.deepStrictEqual({ opened, warned: warnings.length }, { opened: undefined, warned: 1 });
 	});
 });
