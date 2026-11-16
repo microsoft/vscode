@@ -91,9 +91,14 @@ export class MdLinkOpener {
 		}
 
 		switch (resolved.kind) {
-			case 'external':
+			case 'external': {
+				const hashIndex = linkText.indexOf('#');
+				if (hashIndex !== -1) {
+					uri = uri.with({ fragment: linkText.slice(hashIndex + 1) });
+				}
 				await openExternal(uri);
 				return;
+			}
 
 			case 'folder':
 				return vscode.commands.executeCommand('revealInExplorer', uri);
@@ -159,9 +164,12 @@ async function openExternal(uri: vscode.Uri): Promise<void> {
  * Parses URI-like absolute links while leaving Windows drive paths unresolved.
  */
 export function getAbsoluteUri(linkText: string): vscode.Uri | undefined {
-	return !/^[a-z]:[\\/]/i.test(linkText) && /^[a-z][a-z0-9+.-]*:/i.test(linkText)
-		? vscode.Uri.parse(linkText, true)
-		: undefined;
+	if (/^[a-z]:[\\/]/i.test(linkText) || !/^[a-z][a-z0-9+.-]*:/i.test(linkText)) {
+		return undefined;
+	}
+	const uri = vscode.Uri.parse(linkText, true);
+	const hashIndex = linkText.indexOf('#');
+	return hashIndex !== -1 ? uri.with({ fragment: linkText.slice(hashIndex + 1) }) : uri;
 }
 
 function getSelectionFromLocationFragment(fragment: string): vscode.Range | undefined {
