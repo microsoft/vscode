@@ -1219,6 +1219,32 @@ suite('AgentSessions', () => {
 			disposables.clear();
 		});
 
+		test('offers the worktrees of archived sessions too, as the list can show those, and keeps an unchecked folder whose last session is archived', () => {
+			const filterMenuId = new MenuId('agentSessionsWorktreeFilterArchivedTest');
+			let archived = new Set<string>();
+			const inFolder = (name: string, path: string) => createSession({ resource: URI.parse(`test://${name}`), metadata: { workingDirectoryPath: path }, isArchived: () => archived.has(name) });
+			const main = inFolder('main', '/work/vscode');
+			const first = inFolder('first', '/work/vscode.worktrees/first');
+			const second = inFolder('second', '/work/vscode.worktrees/second');
+			archived = new Set(['main', 'first', 'second']);
+			modelSessions = [main, first, second];
+			disposables.add(instantiationService.createInstance(AgentSessionsFilter, { filterMenuId }));
+			const worktreesMenuId = MenuId.for(`${filterMenuId.id}.worktrees`);
+			const options = () => MenuRegistry.getMenuItems(worktreesMenuId).filter(isIMenuItem).map(item => `${item.command.title}${(item.command.toggled as ContextKeyExpression).serialize() === 'true' ? '' : ' (unchecked)'}`);
+			const allArchived = options();
+			archived = new Set();
+			onDidChangeModelSessions.fire();
+			const item = MenuRegistry.getMenuItems(worktreesMenuId).filter(isIMenuItem).find(candidate => candidate.command.title === 'first')!;
+			instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(item.command.id)!.handler(accessor));
+			archived = new Set(['first']);
+			onDidChangeModelSessions.fire();
+
+			assert.deepStrictEqual({ allArchived, lastArchived: options() }, {
+				allArchived: ['vscode', 'first', 'second'],
+				lastArchived: ['vscode', 'first (unchecked)', 'second'],
+			});
+		});
+
 		test('offers the worktrees that sessions work in with their repository, all shown, and hides the sessions of an unchecked one until reset', () => {
 			const filterMenuId = new MenuId('agentSessionsWorktreeFilterTest');
 			const inFolder = (name: string, metadata: { [key: string]: unknown }) => createSession({ resource: URI.parse(`test://${name}`), metadata });

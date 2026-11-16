@@ -40,8 +40,8 @@ export interface IWorktreeFilterOption {
 /**
  * The options of the Worktrees filter for sessions that work in `folders`: of each repository that some of them work in
  * a worktree of, its own folder and those worktrees. Repositories without worktree sessions offer nothing, so a list
- * without any offers no Worktrees filter. Folders are labelled by their name, and by their parent folder's name too where
- * names clash.
+ * without any offers no Worktrees filter. Folders are labelled by their name, and where names clash also by as many of
+ * their parent folders as tell them apart.
  */
 export function getWorktreeFilterOptions(folders: Iterable<ISessionWorktreeFolder | undefined>): IWorktreeFilterOption[] {
 	const repositories = new Map<string, { readonly repository: URI; readonly worktrees: Map<string, URI> }>();
@@ -72,15 +72,34 @@ export function getWorktreeFilterOptions(folders: Iterable<ISessionWorktreeFolde
 			entries.push({ key: worktreeKey, folder, isRepository: false });
 		}
 	}
-	const names = new Map<string, number>();
+	const sameName = new Map<string, URI[]>();
 	for (const { folder } of entries) {
-		names.set(basename(folder), (names.get(basename(folder)) ?? 0) + 1);
+		sameName.set(basename(folder), [...sameName.get(basename(folder)) ?? [], folder]);
 	}
-	return entries.map(({ key, folder, isRepository }) => ({
-		key,
-		isRepository,
-		label: names.get(basename(folder))! > 1
-			? localize('worktreeFilter.labelWithParent', "{0} ({1})", basename(folder), basename(dirname(folder)))
-			: basename(folder),
-	}));
+	const parents = new Map<URI, string>();
+	for (const folders of sameName.values()) {
+		if (folders.length > 1) {
+			getDistinguishingParents(folders).forEach((parent, index) => parents.set(folders[index], parent));
+		}
+	}
+	return entries.map(({ key, folder, isRepository }) => {
+		const parent = parents.get(folder);
+		return { key, isRepository, label: parent ? localize('worktreeFilter.labelWithParent', "{0} ({1})", basename(folder), parent) : basename(folder) };
+	});
+}
+
+/**
+ * The fewest trailing parent folders of each of `folders`, which share a name, that tell them apart, such as `one/repo.worktrees`
+ * and `two/repo.worktrees`; else their whole parent paths, with their authorities.
+ */
+function getDistinguishingParents(folders: readonly URI[]): string[] {
+	const segments = folders.map(folder => dirname(folder).path.split('/').filter(segment => segment.length > 0));
+	const depth = Math.max(...segments.map(parent => parent.length));
+	for (let count = 1; count <= depth; count++) {
+		const parents = segments.map(parent => parent.slice(-count).join('/'));
+		if (new Set(parents).size === parents.length) {
+			return parents;
+		}
+	}
+	return folders.map(folder => `${folder.authority}${dirname(folder).path}`);
 }
