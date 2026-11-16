@@ -38,6 +38,9 @@ const localAgentHostWhen = ContextKeyExpr.and(
 	IsWebContext.negate(),
 	RemoteNameContext.isEqualTo(''),
 	IsSessionsWindowContext.negate(),
+	// Not while New Chat opens in the chat area (`ChatPartEnabledContext`, #348358), which cannot start a chat in a
+	// worktree or without a workspace yet
+	ContextKeyExpr.not('chatPartEnabled'),
 );
 
 /** Where a new chat of the local agent host starts. */
@@ -73,11 +76,36 @@ export async function prepareNewAgentHostChat(
 	if (isolation && (isolation.schema.enum ?? []).includes('worktree') && config.values[isolation.key] === 'worktree') {
 		return resource;
 	}
-	folderService.clear(resource);
+	abandonNewAgentHostChat(resource, folderService, provisional);
 	notificationService.warn(config
 		? localize('chat.newChatInWorktree.unsupported', "A new chat cannot work in a new worktree of this folder.")
 		: localize('chat.newChatInWorktree.notReady', "A new chat in a worktree could not be prepared. Try again, or choose New Worktree in a new chat."));
 	return undefined;
+}
+
+/**
+ * Forgets a new chat that no chat model took: where it was to start, and its prepared configuration with the connection it
+ * holds, which nothing else would release, as no model of it goes.
+ */
+export function abandonNewAgentHostChat(resource: URI, folderService: IAgentHostNewSessionFolderService, provisional: IAgentHostUntitledProvisionalSessionService): void {
+	folderService.clear(resource);
+	provisional.releaseSession(resource);
+}
+
+/**
+ * Opens `resource`, prepared by {@link prepareNewAgentHostChat}, with `open`; forgets it where that fails or opens nothing,
+ * so that no chat model took it.
+ */
+export async function openPreparedAgentHostChat(resource: URI, open: () => Promise<URI | undefined>, folderService: IAgentHostNewSessionFolderService, provisional: IAgentHostUntitledProvisionalSessionService): Promise<URI | undefined> {
+	let opened: URI | undefined;
+	try {
+		opened = await open();
+	} finally {
+		if (!opened) {
+			abandonNewAgentHostChat(resource, folderService, provisional);
+		}
+	}
+	return opened;
 }
 
 /** Opens a new chat of the local agent host in the Chat view that starts in `placement`; `undefined` where it cannot. */
@@ -90,8 +118,10 @@ async function openLocalAgentHostChat(accessor: ServicesAccessor, placement: New
 	}
 	const instantiationService = accessor.get(IInstantiationService);
 	const openOptions = { type: contribution.type, displayName: contribution.displayName, position: ChatSessionPosition.Sidebar };
-	const resource = await prepareNewAgentHostChat(getResourceForNewChatSession(openOptions), placement, accessor.get(IAgentHostNewSessionFolderService), accessor.get(IAgentHostUntitledProvisionalSessionService), notificationService);
-	return resource && instantiationService.invokeFunction(accessor => openChatSession(accessor, { ...openOptions, sessionResource: resource }));
+	const folderService = accessor.get(IAgentHostNewSessionFolderService);
+	const provisional = accessor.get(IAgentHostUntitledProvisionalSessionService);
+	const resource = await prepareNewAgentHostChat(getResourceForNewChatSession(openOptions), placement, folderService, provisional, notificationService);
+	return resource && openPreparedAgentHostChat(resource, () => instantiationService.invokeFunction(accessor => openChatSession(accessor, { ...openOptions, sessionResource: resource })), folderService, provisional);
 }
 
 export class NewChatInWorktreeAction extends Action2 {
