@@ -6,9 +6,7 @@
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, observableFromEvent } from '../../../../../base/common/observable.js';
-import { localize2 } from '../../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationDefaults, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -18,7 +16,6 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ActiveAuxiliaryContext, AuxiliaryBarMaximizeHiddenContext } from '../../../../common/contextkeys.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { agentSessionsOrientationSubmenu } from '../../../chat/browser/agentSessions/agentSessionsActions.js';
 import { ChatViewId } from '../../../chat/browser/chat.js';
 import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
 import { IChatViewSessionsListService } from '../../../chat/browser/widgetHosts/viewPane/chatViewSessionsList.js';
@@ -28,33 +25,18 @@ import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessio
 import { AgentsViewAvailable } from '../agentsView/agentsChatPartContext.js';
 import { IEditorWindowChatPartService } from '../agentsView/agentsChatPartContribution.js';
 
-/** The value of {@link ChatConfiguration.ChatViewSessionsOrientation} that opens chats in the chat area. */
-const CHAT_AREA_ORIENTATION = 'chatArea';
-
-/** Shows the chat area in the sessions orientation submenu, where the chat part can be enabled. */
-class SetAgentSessionsOrientationChatAreaAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.chat.setAgentSessionsOrientationChatArea',
-			title: localize2('chat.sessionsOrientation.chatArea', "Chat Area"),
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, CHAT_AREA_ORIENTATION),
-			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true), ChatContextKeys.agentsViewActive.negate(), ChatContextKeys.enabled, AgentsViewAvailable),
-			menu: {
-				id: agentSessionsOrientationSubmenu,
-				group: 'navigation',
-				order: 3,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, AgentsViewAvailable)
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(IConfigurationService).updateValue(ChatConfiguration.ChatViewSessionsOrientation, CHAT_AREA_ORIENTATION);
-	}
-}
-
-registerAction2(SetAgentSessionsOrientationChatAreaAction);
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'chat',
+	properties: {
+		[ChatConfiguration.ChatViewSessionsOpenInChatPart]: {
+			type: 'boolean',
+			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
+			markdownDescription: localize('chat.viewSessions.openInChatPart', "Controls whether chats open in the chat area beside the Chat view, which then shows only its sessions, instead of in the Chat view. Applies while {0} is `sideBySide`.", '`#chat.viewSessions.orientation#`'),
+		},
+	},
+});
 
 /** No local chats, which the chat part does not show: as with the sessions list of the Chat view, whose chats are those of sessions. */
 const noLocalChatDefaults: IConfigurationDefaults = {
@@ -65,8 +47,9 @@ const noLocalChatDefaults: IConfigurationDefaults = {
 const CHAT_VIEW_ANCHOR_PRIORITY = 1;
 
 /**
- * Opens the chats of agent sessions in the chat part beside the Chat view while {@link ChatConfiguration.ChatViewSessionsOrientation} is {@link CHAT_AREA_ORIENTATION}
- * is on, in local editor windows: what would show a chat in the Chat view, such as opening a session or New Chat, shows it in
+ * Opens the chats of agent sessions in the chat part beside the Chat view while {@link ChatConfiguration.ChatViewSessionsOpenInChatPart}
+ * is on and the configured sessions orientation is side by side (not the width-based layout),
+ * in local editor windows: what would show a chat in the Chat view, such as opening a session or New Chat, shows it in
  * the chat part, as the Agents viewlet does, and the Chat view shows only its sessions. While it is off, the chat part does not
  * show and the Chat view is unchanged.
  */
@@ -90,12 +73,13 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 			return;
 		}
 
-		const setting = observableConfigValue<string>(ChatConfiguration.ChatViewSessionsOrientation, 'sideBySide', configurationService);
+		const openInChatPart = observableConfigValue(ChatConfiguration.ChatViewSessionsOpenInChatPart, false, configurationService);
+		const orientation = observableConfigValue<unknown>(ChatConfiguration.ChatViewSessionsOrientation, 'sideBySide', configurationService);
 		// What the chat part's host needs to show chats: not with AI features disabled, nor with agents disabled
 		const available = ContextKeyExpr.and(ChatContextKeys.enabled, AgentsViewAvailable)!;
 		const availableKeys = new Set(available.keys());
 		const chatAvailable = observableFromEvent(this, Event.filter(_contextKeyService.onDidChangeContext, e => e.affectsSome(availableKeys)), () => _contextKeyService.contextMatchesRules(available));
-		const enabled = derived(this, reader => setting.read(reader) === CHAT_AREA_ORIENTATION && chatAvailable.read(reader));
+		const enabled = derived(this, reader => openInChatPart.read(reader) && orientation.read(reader) !== 'stacked' && chatAvailable.read(reader));
 		this._register(chatPartService.enable({ anchorViewId: ChatViewId, anchorPriority: CHAT_VIEW_ANCHOR_PRIORITY, enabled }));
 		// The sessions that the chat part shows are known while the Chat view lists them
 		this._register(autorun(reader => {

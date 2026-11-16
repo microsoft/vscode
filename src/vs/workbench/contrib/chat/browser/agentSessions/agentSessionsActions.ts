@@ -100,10 +100,6 @@ export class SetAgentSessionsOrientationStackedAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		if (configurationService.getValue(ChatConfiguration.ChatViewSessionsOrientation) === 'chatArea') {
-			return configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'stacked'); // leaves the chat area
-		}
 		const commandService = accessor.get(ICommandService);
 
 		await commandService.executeCommand(HideAgentSessionsSidebar.ID);
@@ -127,10 +123,6 @@ export class SetAgentSessionsOrientationSideBySideAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		if (configurationService.getValue(ChatConfiguration.ChatViewSessionsOrientation) === 'chatArea') {
-			return configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'sideBySide'); // leaves the chat area
-		}
 		const commandService = accessor.get(ICommandService);
 
 		await commandService.executeCommand(ShowAgentSessionsSidebar.ID);
@@ -1258,9 +1250,9 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 			return; // we need the chat view
 		}
 
-		const configuredOrientation = configurationService.getValue<'stacked' | 'sideBySide' | 'chatArea' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
-		let validatedConfiguredOrientation: 'stacked' | 'sideBySide' | 'chatArea';
-		if (configuredOrientation === 'stacked' || configuredOrientation === 'sideBySide' || configuredOrientation === 'chatArea') {
+		const configuredOrientation = configurationService.getValue<'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
+		let validatedConfiguredOrientation: 'stacked' | 'sideBySide';
+		if (configuredOrientation === 'stacked' || configuredOrientation === 'sideBySide') {
 			validatedConfiguredOrientation = configuredOrientation;
 		} else {
 			validatedConfiguredOrientation = 'sideBySide'; // default
@@ -1269,10 +1261,7 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		const newOrientation = this.getOrientation();
 		const lastWidthForOrientation = chatView?.getLastDimensions(newOrientation)?.width;
 
-		// The chat area is not an orientation that these actions change: it stays as configured
-		if (validatedConfiguredOrientation === 'chatArea') {
-			// nothing to update
-		} else if ((!canResizeView || validatedConfiguredOrientation === 'sideBySide') && newOrientation === AgentSessionsViewerOrientation.Stacked) {
+		if ((!canResizeView || validatedConfiguredOrientation === 'sideBySide') && newOrientation === AgentSessionsViewerOrientation.Stacked) {
 			chatView.updateConfiguredSessionsViewerOrientation('stacked');
 		} else if ((!canResizeView || validatedConfiguredOrientation === 'stacked') && newOrientation === AgentSessionsViewerOrientation.SideBySide) {
 			chatView.updateConfiguredSessionsViewerOrientation('sideBySide');
