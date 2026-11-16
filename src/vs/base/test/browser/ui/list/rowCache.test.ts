@@ -68,7 +68,8 @@ suite('RowCache', function () {
 			});
 		});
 
-		assert.strictEqual(row.domNode.parentElement, null);
+		// The inner transaction re-allocated the row, so it must not be removed.
+		assert.strictEqual(row.domNode.parentElement, container);
 	});
 
 	test('keeps rows released inside a nested transaction until the outermost transaction ends', () => {
