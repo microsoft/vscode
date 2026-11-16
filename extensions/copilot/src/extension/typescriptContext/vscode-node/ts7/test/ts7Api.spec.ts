@@ -1,0 +1,151 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'node:assert';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import type { API } from '@typescript/native/async';
+import type { TypeScriptSDK } from '@typescript/native/vscode';
+import { afterAll, afterEach, beforeAll, suite, test } from 'vitest';
+import * as vscode from 'vscode';
+import { TestLogService } from '../../../../../platform/testing/common/testLogService';
+import { DisposableStore } from '../../../../../util/vs/base/common/lifecycle';
+import { TypeScript7Connection } from '../ts7Api';
+
+suite('TypeScript 7 connection', () => {
+	const store = new DisposableStore();
+	let directory: string;
+
+	beforeAll(() => {
+		directory = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-ts7-api-'));
+	});
+
+	afterEach(() => store.clear());
+	afterAll(() => {
+		store.dispose();
+		fs.rmSync(directory, { recursive: true, force: true });
+	});
+
+	test('connects only to language servers that provide the TypeScript 7.1 API', async () => {
+		const sourceBuildManifest = path.join(directory, 'package.json');
+		fs.writeFileSync(sourceBuildManifest, JSON.stringify({ name: 'typescript', version: '7.1.0' }));
+		const packageManifest = path.join(directory, 'node_modules', 'typescript', 'package.json');
+		const servers: [string, TypeScriptSDK | undefined][] = [
+			['7.1 prerelease', createSdk('7.1.0-dev.20261105.1', packageManifest)],
+			['8.0', createSdk('8.0.0', packageManifest)],
+			['build from source', createSdk('local', sourceBuildManifest)],
+			['7.0', createSdk('7.0.2', packageManifest)],
+			['bare executable', createSdk('local', undefined)],
+			['extension without SDK', undefined],
+		];
+
+		const actual = [];
+		for (const [server, sdk] of servers) {
+			const logService = new RecordingLogService();
+			const extensionApi = new TestExtensionApi();
+			extensionApi.initialize(sdk);
+			const connection = store.add(new TypeScript7Connection(logService, () => [{ activate: async () => extensionApi }], new TestConnector().connect));
+			const connected = await connection.getApi() !== undefined;
+			await connection.getApi();
+			actual.push({ server, connected, warnings: logService.warnings });
+		}
+
+		const warning = (reason: string) => `TypeScript 7 support requires a language server with the TypeScript 7.1 API, but ${reason}.`;
+		assert.deepStrictEqual(actual, [
+			{ server: '7.1 prerelease', connected: true, warnings: [] },
+			{ server: '8.0', connected: true, warnings: [] },
+			{ server: 'build from source', connected: true, warnings: [] },
+			{ server: '7.0', connected: false, warnings: [warning('the language server is version 7.0.2')] },
+			{ server: 'bare executable', connected: false, warnings: [warning('the language server version is unknown')] },
+			{ server: 'extension without SDK', connected: false, warnings: [warning('the TypeScript 7 extension is too old')] },
+		]);
+	});
+
+	test('skips extensions without an API and reconnects whenever the language server initializes', async () => {
+		const logService = new RecordingLogService();
+		const extensionApi = new TestExtensionApi();
+		const connector = new TestConnector();
+		const sdkOnlyExtension = { activate: async () => undefined };
+		const connection = store.add(new TypeScript7Connection(logService, () => [sdkOnlyExtension, { activate: async () => extensionApi }], connector.connect));
+		let reconnects = 0;
+		store.add(connection.onDidReconnect(() => reconnects++));
+		const steps: { connected: boolean; reconnects: number }[] = [];
+		const step = async () => {
+			steps.push({ connected: await connection.getApi() !== undefined, reconnects });
+		};
+
+		await step();
+		extensionApi.initialize(createSdk('7.1.0', undefined, 'first'));
+		await step();
+		extensionApi.initialize(createSdk('7.1.0', undefined, 'second'));
+		await step();
+		extensionApi.initialize(createSdk('7.0.2', undefined, 'third'));
+		await step();
+
+		assert.deepStrictEqual({ steps, connected: connector.connected, closed: connector.closed, warnings: logService.warnings.length }, {
+			steps: [
+				{ connected: false, reconnects: 0 },
+				{ connected: true, reconnects: 0 },
+				{ connected: true, reconnects: 1 },
+				{ connected: false, reconnects: 2 },
+			],
+			connected: ['first', 'second'],
+			closed: ['first', 'second'],
+			warnings: 1,
+		});
+	});
+});
+
+function createSdk(version: string, packageJsonPath: string | undefined, pipe: string = version): TypeScriptSDK {
+	return {
+		version,
+		packageJsonPath,
+		isCurrent: () => true,
+		initializeAPIConnection: async () => pipe,
+		importModule: async () => {
+			throw new Error('Copilot uses its own TypeScript 7 client');
+		},
+	};
+}
+
+/**
+ * Like the TypeScript 7 extension, invokes new listeners immediately once the language server initialized.
+ */
+class TestExtensionApi {
+	private readonly onDidInitialize = new vscode.EventEmitter<TypeScriptSDK | undefined>();
+	private initialized: { sdk: TypeScriptSDK | undefined } | undefined;
+
+	readonly onLanguageServerInitialized = (listener: (sdk: TypeScriptSDK | undefined) => void) => {
+		const subscription = this.onDidInitialize.event(listener);
+		if (this.initialized !== undefined) {
+			listener(this.initialized.sdk);
+		}
+		return subscription;
+	};
+
+	initialize(sdk: TypeScriptSDK | undefined): void {
+		this.initialized = { sdk };
+		this.onDidInitialize.fire(sdk);
+	}
+}
+
+class TestConnector {
+	readonly connected: string[] = [];
+	readonly closed: string[] = [];
+
+	readonly connect = async (pipe: string): Promise<API<true>> => {
+		this.connected.push(pipe);
+		return { close: async () => { this.closed.push(pipe); } } as API<true>;
+	};
+}
+
+class RecordingLogService extends TestLogService {
+	readonly warnings: string[] = [];
+
+	override warn(message: string): void {
+		this.warnings.push(message);
+	}
+}

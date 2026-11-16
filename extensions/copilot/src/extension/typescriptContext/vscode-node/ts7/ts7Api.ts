@@ -4,14 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { API } from '@typescript/native/async';
+import type { TypeScriptSDK } from '@typescript/native/vscode';
+import { readFile } from 'fs/promises';
 import * as vscode from 'vscode';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { TypeScript } from '../tsService';
 
+/**
+ * The part of the TypeScript 7 extension API that we use. Extensions that predate the TypeScript 7.1 API fire the
+ * event without an SDK.
+ */
 interface TypeScript7ExtensionApi {
-	onLanguageServerInitialized: vscode.Event<void>;
-	initializeAPIConnection(pipePath?: string): Promise<string>;
+	readonly onLanguageServerInitialized: vscode.Event<TypeScriptSDK | undefined>;
 }
 
 export class TypeScript7Api implements vscode.Disposable {
@@ -48,9 +53,10 @@ export class TypeScript7Api implements vscode.Disposable {
 
 /**
  * The actual connection to the TypeScript 7 language server. Shared by all {@link TypeScript7Api} handles
- * so that we only ever open one pipe to the server.
+ * so that we only ever open one pipe to the server. Copilot's client uses the TypeScript 7.1 API, so we only
+ * connect to language servers that provide it.
  */
-class TypeScript7Connection implements vscode.Disposable {
+export class TypeScript7Connection implements vscode.Disposable {
 
 	private static readonly maxConnectAttempts: number = 3;
 
@@ -61,11 +67,20 @@ class TypeScript7Connection implements vscode.Disposable {
 
 	private api: API<true> | undefined;
 	private apiPromise: Promise<API<true> | undefined> | undefined;
-	private extensionApi: TypeScript7ExtensionApi | undefined;
+	private subscribed: boolean = false;
+	/**
+	 * Resolves to the SDK of the latest language server initialization, or to undefined if that server is unsupported.
+	 * Undefined while no language server has initialized.
+	 */
+	private sdk: Promise<TypeScriptSDK | undefined> | undefined;
 	private generation: number = 0;
 	private disposed: boolean = false;
 
-	constructor(private readonly logService: ILogService) { }
+	constructor(
+		private readonly logService: ILogService,
+		private readonly getExtensions: () => readonly Pick<vscode.Extension<TypeScript7ExtensionApi | undefined>, 'activate'>[] = () => TypeScript.getVersion7Extensions<TypeScript7ExtensionApi | undefined>(),
+		private readonly connect: (pipe: string) => Promise<API<true>> = pipe => API.fromLSPConnection({ pipe }),
+	) { }
 
 	public getApi(): Promise<API<true> | undefined> {
 		if (this.api !== undefined) {
@@ -94,14 +109,17 @@ class TypeScript7Connection implements vscode.Disposable {
 
 	private async createApi(): Promise<API<true> | undefined> {
 		try {
-			const extensionApi = await this.getExtensionApi();
-			if (extensionApi === undefined) {
+			if (!await this.subscribe()) {
 				return undefined;
 			}
 			for (let attempt = 0; attempt < TypeScript7Connection.maxConnectAttempts; attempt++) {
 				const generation = this.generation;
-				const pipe = await extensionApi.initializeAPIConnection();
-				const api = await API.fromLSPConnection({ pipe });
+				const sdk = await this.sdk;
+				if (sdk === undefined) {
+					return undefined;
+				}
+				const pipe = await sdk.initializeAPIConnection();
+				const api = await this.connect(pipe);
 				if (this.disposed) {
 					this.close(api);
 					return undefined;
@@ -120,28 +138,49 @@ class TypeScript7Connection implements vscode.Disposable {
 		}
 	}
 
-	private async getExtensionApi(): Promise<TypeScript7ExtensionApi | undefined> {
-		if (this.extensionApi !== undefined) {
-			return this.extensionApi;
+	private async subscribe(): Promise<boolean> {
+		if (this.subscribed) {
+			return true;
 		}
-		const extension = TypeScript.getVersion7Extension<TypeScript7ExtensionApi>();
-		if (extension === undefined) {
-			return undefined;
+		// Skips extensions without an API, like the nightly extension that only provides a TypeScript SDK.
+		for (const extension of this.getExtensions()) {
+			const extensionApi = await extension.activate();
+			if (this.disposed) {
+				return false;
+			}
+			if (typeof extensionApi?.onLanguageServerInitialized === 'function') {
+				// Invokes the listener immediately if the language server is already initialized.
+				this.disposables.add(extensionApi.onLanguageServerInitialized(sdk => this.onLanguageServerInitialized(sdk)));
+				this.subscribed = true;
+				return true;
+			}
 		}
-		const extensionApi = await extension.activate();
-		if (this.disposed) {
-			return undefined;
+		return false;
+	}
+
+	private onLanguageServerInitialized(sdk: TypeScriptSDK | undefined): void {
+		this.sdk = this.getSupportedSdk(sdk);
+		this.reconnect();
+	}
+
+	private async getSupportedSdk(sdk: TypeScriptSDK | undefined): Promise<TypeScriptSDK | undefined> {
+		let reason: string;
+		if (sdk === undefined) {
+			reason = 'the TypeScript 7 extension is too old';
+		} else {
+			const version = await getVersion(sdk);
+			if (version !== undefined && providesTypeScript71Api(version)) {
+				return sdk;
+			}
+			reason = version === undefined ? 'the language server version is unknown' : `the language server is version ${version}`;
 		}
-		if (this.extensionApi === undefined) {
-			this.extensionApi = extensionApi;
-			this.disposables.add(extensionApi.onLanguageServerInitialized(() => this.reconnect()));
-		}
-		return this.extensionApi;
+		this.logService.warn(`TypeScript 7 support requires a language server with the TypeScript 7.1 API, but ${reason}.`);
+		return undefined;
 	}
 
 	private reconnect(): void {
-		// The initial initialization arrives while we are still connecting. Bump the generation so that
-		// connect picks up the new pipe, but only tell consumers when an established connection went away.
+		// The language server can initialize while we are still connecting. Bump the generation so that connect
+		// picks up the new SDK, but only tell consumers when an established connection went away.
 		const hadApi = this.api !== undefined;
 		this.resetApi();
 		if (hadApi) {
@@ -161,4 +200,36 @@ class TypeScript7Connection implements vscode.Disposable {
 	private close(api: API<true>): void {
 		api.close().catch(error => this.logService.error(error, 'Error closing stale TypeScript 7 API connection'));
 	}
+}
+
+/**
+ * Returns the language server's version. Builds from source report `local` and take their version from their API
+ * package manifest, which bare executables don't have.
+ */
+async function getVersion(sdk: TypeScriptSDK): Promise<string | undefined> {
+	if (sdk.version !== 'local' && sdk.version !== 'unknown') {
+		return sdk.version;
+	}
+	if (sdk.packageJsonPath === undefined) {
+		return undefined;
+	}
+	try {
+		const manifest: { version?: unknown } = JSON.parse(await readFile(sdk.packageJsonPath, 'utf8'));
+		return typeof manifest.version === 'string' ? manifest.version : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Whether a language server of the given version provides the TypeScript 7.1 API that Copilot's client uses, for
+ * example `createSnapshot`. Prereleases like `7.1.0-dev.20261105.1` count as 7.1.
+ */
+function providesTypeScript71Api(version: string): boolean {
+	const match = /^(?<major>\d+)\.(?<minor>\d+)\./.exec(version);
+	if (match?.groups === undefined) {
+		return false;
+	}
+	const major = Number(match.groups.major);
+	return major > 7 || (major === 7 && Number(match.groups.minor) >= 1);
 }
