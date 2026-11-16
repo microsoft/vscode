@@ -56,6 +56,27 @@ import { ITestSessionWithChat, testGridPane } from '../../../../../workbench/con
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents accessibility-aware Inbox navigation and first-use guidance', () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiation.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiation, configuration);
+		instantiation.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiation.stub(ISessionsHostLayoutService, {});
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
+
+		assert.deepStrictEqual({
+			screenReaderDefault: content.includes('auto, keeps you in the current conversation when a screen reader is attached'),
+			explicitChoices: content.includes('Set it to off to always stay, or on to always advance'),
+			settingsLink: content.includes('Settings link and Show Session button'),
+			dismiss: content.includes('press Escape or Got It to dismiss the spotlight'),
+		}, { screenReaderDefault: true, explicitChoices: true, settingsLink: true, dismiss: true });
+	});
+
 	test('defers to webview Find help while the Find input is focused', () => {
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
