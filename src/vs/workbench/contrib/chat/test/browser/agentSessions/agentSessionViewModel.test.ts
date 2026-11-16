@@ -21,6 +21,9 @@ import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidg
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { AgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsFilter.js';
+import { ChatSessionArchiveActionWordingSettingId } from '../../../../../../platform/chat/common/sessionArchiveActions.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatSessionRefreshReason, ChatSessionStatus, IChatSessionItemController, IChatSessionItem, IChatSessionItemsDelta, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -1260,6 +1263,22 @@ suite('AgentSessions', () => {
 				reloaded: false,
 				reset: true,
 			});
+		});
+
+		test('should notify listeners when the archive action wording changes', () => {
+			const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+			let changes = 0;
+			disposables.add(filter.onDidChange(() => changes++));
+
+			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: key => key === 'workbench.editor.enablePreview', affectedKeys: new Set(['workbench.editor.enablePreview']), change: { keys: ['workbench.editor.enablePreview'], overrides: [] }, source: ConfigurationTarget.MEMORY });
+			const afterUnrelated = changes;
+			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: key => key === ChatSessionArchiveActionWordingSettingId, affectedKeys: new Set([ChatSessionArchiveActionWordingSettingId]), change: { keys: [ChatSessionArchiveActionWordingSettingId], overrides: [] }, source: ConfigurationTarget.MEMORY });
+
+			assert.deepStrictEqual({ afterUnrelated, afterWording: changes }, { afterUnrelated: 0, afterWording: 1 });
 		});
 
 		test('should keep automation sessions hidden when restoring older filter preferences', () => {

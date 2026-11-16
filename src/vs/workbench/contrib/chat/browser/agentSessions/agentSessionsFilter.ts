@@ -96,6 +96,8 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatSessionArchiveActionWordingSettingId)) {
 				this.updateFilterActions();
+				// Let the sessions list re-render its archived section label.
+				this._onDidChange.fire();
 			}
 		}));
 
