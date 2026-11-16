@@ -18,6 +18,7 @@ import { IAgentHostNewSessionFolderService } from '../../../../browser/agentSess
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
+import { isWeb } from '../../../../../../../base/common/platform.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY, IAgentHostEnablementService } from '../../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -30,8 +31,7 @@ suite('Agent host New Chat entries', () => {
 	test('the New Chat dropdown offers New Chat in Worktree with worktree support, with or without the Sessions list, never New Chat (No Workspace), only with AI features on', () => {
 		const shown = (options: { readonly worktree: boolean; readonly sessionsList: boolean; readonly chatPart?: boolean; readonly ai?: boolean; readonly agentHost?: boolean; readonly remote?: string; readonly sessionsWindow?: boolean }) => {
 			const configuration = new TestConfigurationService({ [ChatConfiguration.EditorWindowEnableWorktree]: options.worktree, 'chat.viewSessions.sessionsList.enabled': options.sessionsList });
-			// The Chat view's title in a local window with a single folder. In a browser, `isWeb` is a constant that hides the
-			// entries by construction, and its agent host is not available either
+			// The Chat view's title in a local window with a single folder
 			const contextKeyService = store.add(new ContextKeyService(configuration));
 			contextKeyService.createKey(ChatContextKeys.enabled.key, options.ai ?? true);
 			contextKeyService.createKey('workbenchState', 'folder');
@@ -58,7 +58,11 @@ suite('Agent host New Chat entries', () => {
 			// New Chat opens in the chat area, which cannot start a chat in a worktree yet
 			chatPartEnabled: shown({ worktree: true, sessionsList: true, chatPart: true }),
 			chatPartDisabled: shown({ worktree: true, sessionsList: true, chatPart: false }),
-		}, {
+		}, isWeb ? {
+			// In a browser, whose agent host is not available either: `isWeb` is a constant that the entries' `when` takes in as
+			// it is made, so tests in a browser can see only this
+			neither: [], worktree: [], sessionsList: [], both: [], aiOff: [], noAgentHost: [], remote: [], agentsWindow: [], chatPartEnabled: [], chatPartDisabled: [],
+		} : {
 			neither: [],
 			worktree: ['New Chat in Worktree'],
 			sessionsList: [],
