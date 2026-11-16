@@ -19,7 +19,7 @@ import { IViewsService } from '../../../../../../services/views/common/viewsServ
 import { ChatViewId } from '../../../../browser/chat.js';
 import { ChatWidget } from '../../../../browser/widget/chatWidget.js';
 import { IChatViewHost, IChatViewHostNewChatOptions, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../../../browser/chatViewHost.js';
-import { ChatViewHostService } from '../../../../browser/widgetHosts/viewPane/chatViewHostService.js';
+import { ChatViewHostEvent, ChatViewHostService, IChatViewHostState, stepChatViewHostState } from '../../../../browser/widgetHosts/viewPane/chatViewHostService.js';
 import { ChatViewPane } from '../../../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { IChatViewSessionsListProvider } from '../../../../browser/widgetHosts/viewPane/chatViewSessionsList.js';
 
@@ -552,5 +552,47 @@ suite('ChatViewHostService', () => {
 		again.dispose();
 
 		assert.deepStrictEqual(steps, [false, false, true, false, true, false]);
+	});
+
+	test('what shows the chats steps: a request takes the host and supersedes a New Chat under way, a host shows a chat on its own, and a host that went changes nothing', () => {
+		const chatView = upcastPartial<IChatViewHost>({});
+		const a = { ...upcastPartial<IChatViewHost>({}), canShow: (resource: URI) => resource.scheme !== 'vscode-chat-session' };
+		const gone = upcastPartial<IChatViewHost>({});
+		const context = { chatViewHost: chatView, hostInUse: a, isRegistered: (host: IChatViewHost) => host === a };
+		const name = (host: IChatViewHost) => host === chatView ? 'chat view' : 'a';
+		let state: IChatViewHostState = { host: chatView, newChat: false, request: 0 };
+		const steps: string[] = [];
+		const step = (label: string, event: ChatViewHostEvent) => {
+			const next = stepChatViewHostState(state, event, context);
+			steps.push(`${label}: ${next === state ? 'unchanged' : `${name(next.host)}${next.newChat ? ' new chat' : ''} #${next.request}`}`);
+			state = next;
+		};
+
+		step('open in a', { kind: 'request', host: a });
+		step('New Chat starts', { kind: 'newChatStart' });
+		const superseded = state.request;
+		step('open in the Chat view meanwhile', { kind: 'request', host: chatView });
+		step('a takes the superseded New Chat', { kind: 'newChatTaken', host: a, request: superseded });
+		step('New Chat starts again', { kind: 'newChatStart' });
+		step('a takes it', { kind: 'newChatTaken', host: a, request: state.request });
+		step('a shows its chat', { kind: 'shown', host: a, resource: URI.parse('agent-host-copilot:/one') });
+		step('a shows it again', { kind: 'shown', host: a, resource: URI.parse('agent-host-copilot:/one') });
+		step('the Chat view shows a chat that a can show', { kind: 'shown', host: chatView, resource: URI.parse('agent-host-copilot:/two') });
+		step('the Chat view shows a chat that a leaves to it', { kind: 'shown', host: chatView, resource: URI.parse('vscode-chat-session://local/one') });
+		step('a host that went asks', { kind: 'request', host: gone });
+
+		assert.deepStrictEqual(steps, [
+			'open in a: a #1',
+			'New Chat starts: a #2',
+			'open in the Chat view meanwhile: chat view #3',
+			'a takes the superseded New Chat: unchanged',
+			'New Chat starts again: chat view #4',
+			'a takes it: a new chat #4',
+			'a shows its chat: a #4',
+			'a shows it again: unchanged',
+			'the Chat view shows a chat that a can show: unchanged',
+			'the Chat view shows a chat that a leaves to it: chat view #4',
+			'a host that went asks: unchanged',
+		]);
 	});
 });
