@@ -285,6 +285,28 @@ suite('AgentHostWorktree', () => {
 		});
 	});
 
+	test('does not reopen the last chat of a location the user moves the folder to once it is archived, and does again once unarchived', async () => {
+		const feature = createWorktree({ enabled: true });
+		feature.workingDirectories.set(agentSession('a').toString(), worktree.fsPath);
+		feature.show(agentSession('a'));
+		await settle();
+		feature.show(localChat);
+		await settle();
+		feature.archived.add(agentSession('a').toString());
+		feature.userMovesTo(worktree);
+		// The chats it reopens at the worktree, not the local chat it reopens back at the folder
+		const reopened = () => feature.opened.filter(opened => opened.startsWith('/a '));
+		const whileArchived = reopened();
+		feature.userMovesTo(URI.file('/work/vscode'));
+		feature.archived.delete(agentSession('a').toString());
+		feature.userMovesTo(worktree);
+
+		assert.deepStrictEqual({ whileArchived, unarchived: reopened() }, {
+			whileArchived: [],
+			unarchived: ['/a (restore)'],
+		});
+	});
+
 	test('with the setting off, logs the same trigger but moves nothing; turned off at a worktree, returns the folder to its own location', async () => {
 		const off = createWorktree({ enabled: false });
 		off.workingDirectories.set(agentSession('a').toString(), worktree.fsPath);

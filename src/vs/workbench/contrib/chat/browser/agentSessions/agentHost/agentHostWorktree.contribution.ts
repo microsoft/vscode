@@ -83,7 +83,8 @@ const LAST_SESSIONS_LIMIT = 20;
  * - A shown session that comes to work elsewhere, such as in the worktree its agent created, or whose working directory
  *   becomes known only after its first request, moves the folder on its own: such an automatic switch gives way to any
  *   other switch, and applies only while the user asked for none since it started.
- * - It remembers the last chat opened at each location, and opens it as the user moves the folder there themselves.
+ * - It remembers the last chat opened at each location, and opens it as the user moves the folder there themselves, unless
+ *   it was archived since.
  * - Terminals that started where the folder no longer is are marked.
  * - As the setting or AI features are turned off, the folder returns from a worktree to its own location.
  */
@@ -539,7 +540,8 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 
 	private _openLastSession(folder: IWorkspaceFolder): void {
 		const last = this.getLastSession(folder.uri);
-		if (!last) {
+		// A chat archived since is not reopened: the location starts fresh, as one without a last chat does
+		if (!last || this._agentSessionsService.getSession(last)?.isArchived()) {
 			return;
 		}
 		// The location the user picked again, and its chat, stay the most recent
