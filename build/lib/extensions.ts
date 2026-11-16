@@ -63,12 +63,15 @@ function updateExtensionPackageJSON(input: Stream, update: (data: any) => any): 
 
 /**
  * The esbuild scripts of the extensions whose build doesn't use `esbuild.mts`, with their arguments.
+ * With `typeCheckAfterBuild`, the type check runs after the script instead of alongside it.
  */
-const esbuildScriptsByExtension: Record<string, { readonly script: string; readonly args: readonly string[] }> = {
+const esbuildScriptsByExtension: Record<string, { readonly script: string; readonly args: readonly string[]; readonly typeCheckAfterBuild?: boolean }> = {
 	// Builds the bundles that ship, without the test bundles that would make the integration tests run
 	// the extension tests too. The source maps go to `dist-sourcemaps`, which the product build uploads
-	// (see `build/azure-pipelines/copilot/upload-sourcemaps-steps.yml`).
-	'copilot': { script: '.esbuild.mts', args: ['--sourcemaps', '--shipped-bundles-only'] },
+	// (see `build/azure-pipelines/copilot/upload-sourcemaps-steps.yml`). The script ends with Copilot's
+	// postinstall, which deletes and copies again `node_modules/@github/copilot/sdk`, whose declarations
+	// the type check reads.
+	'copilot': { script: '.esbuild.mts', args: ['--sourcemaps', '--shipped-bundles-only'], typeCheckAfterBuild: true },
 };
 
 function fromLocal(extensionPath: string, forWeb: boolean): Stream {
@@ -84,11 +87,14 @@ function fromLocal(extensionPath: string, forWeb: boolean): Stream {
 	let isBundled = false;
 
 	if (hasEsbuild) {
-		input = es.merge(
-			fromLocalEsbuild(extensionPath, esbuildConfigFileName, esbuildScript?.args ?? []),
-			// Esbuild extensions need a separate type check step
-			...getBuildRootsForExtension(extensionPath).map(root => typeCheckExtensionStream(root, forWeb)),
-		);
+		const typeCheckRoots = getBuildRootsForExtension(extensionPath);
+		input = esbuildScript?.typeCheckAfterBuild
+			? fromLocalEsbuild(extensionPath, esbuildConfigFileName, esbuildScript.args, () => Promise.all(typeCheckRoots.map(root => typeCheckExtension(root, forWeb))))
+			: es.merge(
+				fromLocalEsbuild(extensionPath, esbuildConfigFileName, esbuildScript?.args ?? []),
+				// Esbuild extensions need a separate type check step
+				...typeCheckRoots.map(root => typeCheckExtensionStream(root, forWeb)),
+			);
 		isBundled = true;
 	} else {
 		input = fromLocalNormal(extensionPath);
@@ -181,7 +187,7 @@ function fromLocalNormal(extensionPath: string): Stream {
  * pattern ignores it, and a negated pattern (`!`) packages it again. A pattern without a wildcard in
  * its last segment also matches the files in a folder of that name.
  */
-function createVscodeignoreFilter(extensionPath: string): (filePath: string) => boolean {
+export function createVscodeignoreFilter(extensionPath: string): (filePath: string) => boolean {
 	const ignoreFilePath = path.join(extensionPath, '.vscodeignore');
 	const patterns = fs.existsSync(ignoreFilePath)
 		? fs.readFileSync(ignoreFilePath, 'utf8').split(/[\r\n]/).map(line => line.trim()).filter(line => line && !line.startsWith('#'))
@@ -196,7 +202,7 @@ function createVscodeignoreFilter(extensionPath: string): (filePath: string) => 
 	return filePath => !ignored.some(pattern => matches(filePath, pattern)) || negated.some(pattern => matches(filePath, pattern));
 }
 
-function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string, esbuildArgs: readonly string[]): Stream {
+function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string, esbuildArgs: readonly string[], afterBuild?: () => Promise<unknown>): Stream {
 	const vsce = require('@vscode/vsce') as typeof import('@vscode/vsce');
 	const result = es.through();
 	const extensionName = path.basename(extensionPath);
@@ -229,7 +235,7 @@ function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string, 
 		proc.stdout!.on('data', (data) => {
 			fancyLog(`${ansiColors.green('esbuilding')}: ${data.toString('utf8')}`);
 		});
-	}).then(() => {
+	}).then(() => afterBuild?.()).then(() => {
 		// After esbuild completes, collect all files using vsce
 		return vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.None });
 	}).then(fileNames => {
