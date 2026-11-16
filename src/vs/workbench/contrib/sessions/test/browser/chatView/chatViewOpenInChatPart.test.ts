@@ -45,7 +45,7 @@ import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { EditorWindowChatPartService, IEditorWindowChatPartOptions, IEditorWindowChatPartService } from '../../../browser/agentsView/agentsChatPartContribution.js';
 import { isIMenuItem, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
-import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { agentSessionsOrientationSubmenu, SetAgentSessionsOrientationSideBySideAction, SetAgentSessionsOrientationStackedAction } from '../../../../chat/browser/agentSessions/agentSessionsActions.js';
 import { ChatViewOpenInChatPartContribution } from '../../../browser/chatView/chatViewOpenInChatPart.contribution.js';
@@ -380,5 +380,22 @@ suite('Sessions orientation submenu', () => {
 			chatArea: [['Chat Area', true], ['Side by Side', false], ['Stacked', false]],
 			updates: [[ChatConfiguration.ChatViewSessionsOrientation, 'chatArea']]
 		});
+	});
+
+	test('choosing Stacked or Side by Side while in the chat area writes that value, and does not run the sidebar commands', async () => {
+		const registrations = [registerAction2(SetAgentSessionsOrientationStackedAction), registerAction2(SetAgentSessionsOrientationSideBySideAction)];
+		const updates: unknown[][] = [];
+		const commands: string[] = [];
+		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOrientation]: 'chatArea' });
+		configurationService.updateValue = async (...args: unknown[]) => { updates.push(args); };
+		const instantiationService = new TestInstantiationService();
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ICommandService, { executeCommand: async (id: string) => { commands.push(id); } });
+		for (const id of ['workbench.action.chat.setAgentSessionsOrientationStacked', 'workbench.action.chat.setAgentSessionsOrientationSideBySide']) {
+			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
+		}
+		registrations.forEach(registration => registration.dispose());
+
+		assert.deepStrictEqual({ updates, commands }, { updates: [[ChatConfiguration.ChatViewSessionsOrientation, 'stacked'], [ChatConfiguration.ChatViewSessionsOrientation, 'sideBySide']], commands: [] });
 	});
 });
