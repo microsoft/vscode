@@ -850,6 +850,8 @@ export class PluginListWidget extends Disposable {
 
 	private installedItems: IInstalledPluginItem[] = [];
 	private remoteItems: ICustomizationItem[] = [];
+	/** The session's plugins before the search filter. A runtime-installed row pairs with one of these even when only the row matches the search. */
+	private sessionPluginItems: readonly ICustomizationItem[] = [];
 	private marketplaceItems: IMarketplacePluginItem[] = [];
 	private readonly marketplaceSnapshot = new PluginMarketplaceSnapshotModel();
 	private searchQuery: string = '';
@@ -2252,12 +2254,12 @@ export class PluginListWidget extends Disposable {
 					.map(p => installedPluginToItem(p, this.labelService))
 					.filter(item => installedPluginMatchesQuery(item, query))
 					.sort(compareInstalledPluginItems);
-				const remoteItems = [...await this.getRemotePluginItems(query)];
+				const sessionPluginItems = await this.getSessionPluginItems();
 				if (!this.isCurrentMarketplaceRequest(cts, query, browseMode)) {
 					return;
 				}
 				this.installedItems = installedItems;
-				this.remoteItems = remoteItems;
+				this.setSessionPluginItems(sessionPluginItems, query);
 			}
 			const filtered = query
 				? plugins.filter(p => customizationSearchMatchesAny(query, [p.name, p.description, p.marketplace]))
@@ -2309,7 +2311,7 @@ export class PluginListWidget extends Disposable {
 				.map(p => installedPluginToItem(p, this.labelService))
 				.filter(item => installedPluginMatchesQuery(item, query))
 				.sort(compareInstalledPluginItems);
-			const remoteItems = [...await this.getRemotePluginItems(query)];
+			const sessionPluginItems = await this.getSessionPluginItems();
 			if (!this.isCurrentMarketplaceRequest(cts, query, false)) {
 				return;
 			}
@@ -2327,7 +2329,7 @@ export class PluginListWidget extends Disposable {
 				return;
 			}
 			this.installedItems = installedItems;
-			this.remoteItems = remoteItems;
+			this.setSessionPluginItems(sessionPluginItems, query);
 			this.marketplaceItems = marketplaceItems;
 			this.searchInput.hideMessage();
 		} catch {
@@ -2367,20 +2369,24 @@ export class PluginListWidget extends Disposable {
 		this.renderPluginTree();
 	}
 
-	private async getRemotePluginItems(query: string): Promise<readonly ICustomizationItem[]> {
+	/** The plugins the active harness provides for the session, before the search filter. */
+	private async getSessionPluginItems(): Promise<readonly ICustomizationItem[]> {
 		if (!this.harnessService.getActiveDescriptor().itemProvider) {
 			return [];
 		}
 
 		try {
 			const provided = await this.itemsModel.getActiveItemSource().fetchProviderItems();
-			return provided.filter(item =>
-				isPluginCustomizationItem(item)
-				&& customizationSearchMatchesAny(query, [item.name, item.description, item.badge])
-			);
+			return provided.filter(isPluginCustomizationItem);
 		} catch {
 			return [];
 		}
+	}
+
+	/** Keeps every session plugin for pairing with runtime-installed rows, and shows those that match `query`. */
+	private setSessionPluginItems(items: readonly ICustomizationItem[], query: string): void {
+		this.sessionPluginItems = items;
+		this.remoteItems = items.filter(item => customizationSearchMatchesAny(query, [item.name, item.description, item.badge]));
 	}
 
 	private async filterPlugins(): Promise<void> {
@@ -2388,11 +2394,11 @@ export class PluginListWidget extends Disposable {
 		const query = this.searchQuery.toLowerCase().trim();
 		const browseMode = this.browseMode;
 		const allPlugins = this.agentPluginService.plugins.get();
-		const remoteItems = [...await this.getRemotePluginItems(query)];
+		const sessionPluginItems = await this.getSessionPluginItems();
 		if (generation !== this.filterGeneration || this.searchQuery.toLowerCase().trim() !== query || this.browseMode !== browseMode) {
 			return;
 		}
-		this.remoteItems = remoteItems;
+		this.setSessionPluginItems(sessionPluginItems, query);
 
 		this.installedItems = allPlugins
 			.map(p => installedPluginToItem(p, this.labelService))
@@ -2570,7 +2576,7 @@ export class PluginListWidget extends Disposable {
 		if (!item.plugin.copilotCliInstallation) {
 			return undefined;
 		}
-		const matches = this.remoteItems.filter(remote => remote.name.toLowerCase() === item.name.toLowerCase()
+		const matches = this.sessionPluginItems.filter(remote => remote.name.toLowerCase() === item.name.toLowerCase()
 			&& !isSyncedFromClientCustomizationItem(remote) && remote.actions?.some(action => action.checked !== undefined));
 		return matches.length === 1 ? matches[0] : undefined;
 	}

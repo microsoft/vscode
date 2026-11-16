@@ -61,7 +61,7 @@ suite('pluginListWidget', () => {
 		instantiationService.stub(INotificationService, new TestNotificationService());
 		const widget = Object.assign(Object.create(PluginListWidget.prototype), {
 			harnessService,
-			remoteItems: [remote], instantiationService,
+			sessionPluginItems: [remote], instantiationService,
 			marketplaceInstallService: undefined,
 			hoverService: new class extends mock<IHoverService>() {
 				override setupDelayedHover() { return toDisposable(() => { }); }
@@ -73,14 +73,14 @@ suite('pluginListWidget', () => {
 		const workspaceActions = $('div');
 		const toggle = widget.appendInstalledPluginToggle(workspaceActions, $('div'), $('div'), item).querySelector('button')!;
 		const ready = { disabled: toggle.disabled, checked: toggle.getAttribute('aria-checked'), label: toggle.getAttribute('aria-label'), badge: workspaceActions.querySelector('.inline-badge')?.textContent };
-		widget.remoteItems = [{ ...remote, actions: remote.actions!.map(action => ({ ...action, enabled: false })) }];
+		widget.sessionPluginItems = [{ ...remote, actions: remote.actions!.map(action => ({ ...action, enabled: false })) }];
 		const pendingControls = $('div');
 		const pending = widget.appendInstalledPluginToggle(pendingControls, $('div'), $('div'), item).querySelector('button')!;
 		const pendingBadgeDisabled = pendingControls.querySelector('.plugin-scope-badge')!.getAttribute('aria-disabled');
-		widget.remoteItems = [{ ...remote, actions: remote.actions!.map(action => ({ ...action, scope: 'global' })) }];
+		widget.sessionPluginItems = [{ ...remote, actions: remote.actions!.map(action => ({ ...action, scope: 'global' })) }];
 		const globalActions = $('div');
 		widget.appendInstalledPluginToggle(globalActions, $('div'), $('div'), item);
-		widget.remoteItems = [remote];
+		widget.sessionPluginItems = [remote];
 		const pendingChanges = widget.getPendingPluginScopeChanges();
 		pendingChanges.set(new Set([widget.getPluginScopeChangeKey(remote)]), undefined);
 		const busyMenuActions = widget.getInstalledPluginActions(item, store.add(new DisposableStore()));
@@ -118,7 +118,7 @@ suite('pluginListWidget', () => {
 		});
 		const widget = Object.assign(Object.create(PluginListWidget.prototype), {
 			harnessService,
-			remoteItems: [createSessionPlugin('required', true), createSessionPlugin('own'), createSessionPlugin('local', true)],
+			sessionPluginItems: [createSessionPlugin('required', true), createSessionPlugin('own'), createSessionPlugin('local', true)],
 			hoverService: new class extends mock<IHoverService>() {
 				override setupDelayedHover() { return toDisposable(() => { }); }
 			}(),
@@ -139,6 +139,49 @@ suite('pluginListWidget', () => {
 			switch: { disabled: true, checked: 'true' },
 			own: undefined, withoutSessionPlugin: undefined, local: undefined,
 			localBlocked: { requiredEnabled: false },
+		});
+	});
+
+	test('a search that matches only the location of a runtime-installed row keeps its organization requirement and locked switch', async () => {
+		const plugin = new class extends mock<IAgentPlugin>() {
+			override readonly uri = URI.file('/home/dev/.copilot/installed-plugins/enterprise/required');
+			override readonly label = 'required';
+			override readonly enablement = constObservable(ContributionEnablementState.EnabledProfile);
+			override readonly policyEnablement = constObservable(undefined);
+			override readonly copilotCliInstallation = { name: 'required', marketplace: 'enterprise' };
+		}();
+		const sessionPlugin: ICustomizationItem = {
+			uri: plugin.uri, type: 'plugin', name: 'required', description: 'Compliance checks', source: AICustomizationSources.plugin, extensionId: undefined, pluginUri: undefined,
+			organizationControl: { requiredEnabled: true },
+			actions: [{ id: 'toggle', label: 'Disable Globally', checked: true, enabled: false, scope: 'global', run: () => { } }],
+		};
+		const widget = Object.assign(Object.create(PluginListWidget.prototype), {
+			harnessService: { ...harnessService, getActiveDescriptor: () => ({ itemProvider: {} }) },
+			itemsModel: { getActiveItemSource: () => ({ fetchProviderItems: async () => [sessionPlugin] }) },
+			agentPluginService: { plugins: constObservable([plugin]) },
+			labelService: new class extends mock<ILabelService>() {
+				override getUriLabel(uri: URI): string { return uri.path; }
+			}(),
+			hoverService: new class extends mock<IHoverService>() {
+				override setupDelayedHover() { return toDisposable(() => { }); }
+			}(),
+			cardDisposables: store.add(new DisposableStore()),
+			_onDidChangeItemCount: { fire: () => { } },
+			searchQuery: 'installed-plugins', browseMode: false, filterGeneration: 0,
+		});
+		await widget.filterPlugins();
+		const [row] = widget.installedItems;
+		const toggle = widget.appendInstalledPluginToggle($('div'), $('div'), $('div'), row).querySelector('button')!;
+		assert.deepStrictEqual({
+			rows: widget.installedItems.map((item: IInstalledPluginItem) => item.name),
+			// The session plugin does not match the search itself, so it adds no row of its own.
+			sessionPluginRows: widget.remoteItems.length,
+			organization: widget.getInstalledPluginOrganizationControl(row),
+			switch: { disabled: toggle.disabled, checked: toggle.getAttribute('aria-checked') },
+		}, {
+			rows: ['required'], sessionPluginRows: 0,
+			organization: { requiredEnabled: true },
+			switch: { disabled: true, checked: 'true' },
 		});
 	});
 
