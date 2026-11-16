@@ -1128,6 +1128,59 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
+	test('scheduled relative times refresh once a minute without rerendering the message', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { disposables, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+		const renderAt = (remaining: number) => {
+			viewModel.setScheduledRequests([{
+				id: 'later', text: 'Scheduled message', description: 'Exact send time', attachments: [], actions: [],
+				runAt: new Date(Date.now() + remaining).toISOString(),
+			}]);
+			renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
+			return template.value.querySelector('.scheduled-request-description')!;
+		};
+		const hours = renderAt(3 * 60 * 60_000).textContent;
+		const description = renderAt(179_000);
+		const labels = [description.textContent];
+		await timeout(59_999);
+		labels.push(description.textContent);
+		await timeout(1);
+		labels.push(description.textContent);
+		await timeout(60_000);
+		labels.push(description.textContent);
+		await timeout(60_000);
+		labels.push(description.textContent);
+		assert.deepStrictEqual({
+			hours, labels, retainedElement: template.value.querySelector('.scheduled-request-description') === description,
+		}, {
+			hours: 'Sends in 3 hours',
+			labels: ['Sends in 3 minutes', 'Sends in 3 minutes', 'Sends in 2 minutes', 'Sends in less than a minute', 'Waiting to send'],
+			retainedElement: true,
+		});
+		disposables.dispose();
+	}));
+
+	test('scheduled editing refreshes the relative time and accessible label without replacing the picker anchor', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { disposables, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+		viewModel.setScheduledRequests([{
+			id: 'later', text: 'Scheduled message', description: 'Exact send time', attachments: [], actions: [],
+			editing: {
+				text: 'Scheduled message', runAt: new Date(Date.now() + 90_000).toISOString(), description: 'Exact send time',
+				selectTime: toAction({ id: 'time', label: 'Time', run: async () => { } }), save: async () => { }, cancel: () => { },
+			},
+		}]);
+		renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
+		const time = template.requestTimestampContainer.querySelector('.scheduled-request-edit-time')!;
+		const initial = time.getAttribute('aria-label');
+		await timeout(60_000);
+		assert.deepStrictEqual({
+			initial, updated: time.getAttribute('aria-label'),
+			retainedAnchor: template.requestTimestampContainer.querySelector('.scheduled-request-edit-time') === time,
+		}, {
+			initial: 'Change send time, Sends in 2 minutes', updated: 'Change send time, Sends in less than a minute', retainedAnchor: true,
+		});
+		disposables.dispose();
+	}));
+
 	test('scheduled messages render literal content and management actions without immediate-queue controls', async () => {
 		const { disposables, viewModel, renderer, template, node } = createPersistentProgressRenderer();
 		const ran = new DeferredPromise<void>();

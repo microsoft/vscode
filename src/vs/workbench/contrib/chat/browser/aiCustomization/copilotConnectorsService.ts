@@ -24,6 +24,7 @@ import { IGitHubAccountClient } from '../../../../../platform/github/common/acco
 import { ConnectorCatalog, ConnectorPlugin, copilotConnectorsScope, copilotCredentialBaselineScopes } from '../../../../../platform/github/common/connectors/connectors.js';
 import { deriveGitHubEndpoints } from '../../../../../platform/github/common/githubEndpoints.js';
 import { GitHubRequestError, isEqualAuthorization } from '../../../../../platform/github/common/githubTypes.js';
+import { RequestPriority } from '../../../../../platform/github/common/types.js';
 import { SchemaError } from '../../../../../platform/github/common/client/schema.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
@@ -403,14 +404,14 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		}
 	}
 
-	async refresh(token: CancellationToken): Promise<readonly ICopilotConnector[]> {
+	async refresh(token: CancellationToken, priority?: RequestPriority): Promise<readonly ICopilotConnector[]> {
 		if (!this.isEnabled()) {
 			return [];
 		}
 		const generation = ++this.refreshGeneration;
 		const operation = await this.createOperation(token);
 		try {
-			const { document, scoped } = await this.query(operation.token);
+			const { document, scoped } = await this.query(operation.token, priority);
 			if (operation.token.isCancellationRequested) {
 				throw new CancellationError();
 			}
@@ -508,7 +509,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		// that was already present before connecting) is only treated as terminal once this
 		// connect has been observed as `pending`; a new `error` is terminal immediately.
 		while (Date.now() < state.deadline) {
-			const refreshed = await this.refresh(token);
+			const refreshed = await this.refresh(token, 'mutationReconciliation');
 			const connector = refreshed.find(connector => connector.name === name);
 			switch (connector?.connectionStatus) {
 				case 'connected':
@@ -552,7 +553,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 				);
 				const deadline = Date.now() + connectionTimeout;
 				while (Date.now() < deadline) {
-					const connectors = await this.refresh(operation.token);
+					const connectors = await this.refresh(operation.token, 'mutationReconciliation');
 					if (!connectors.some(connector => connector.name === name && connector.connectionStatus === 'connected')) {
 						this._onDidDisconnect.fire(name);
 						return;
@@ -737,7 +738,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		};
 	}
 
-	private async query(token: CancellationToken): Promise<{ readonly document: ConnectorCatalog | undefined; readonly scoped: boolean }> {
+	private async query(token: CancellationToken, priority?: RequestPriority): Promise<{ readonly document: ConnectorCatalog | undefined; readonly scoped: boolean }> {
 		const authentication = await this.getAuthentication(token, false);
 		if (!authentication) {
 			return { document: undefined, scoped: false };
@@ -749,7 +750,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 				token,
 				(client, signal, deadline) => client.connectors.getCatalog(
 					signal,
-					{ caller: 'copilotConnectors.query', deadline }
+					{ caller: 'copilotConnectors.query', deadline, priority }
 				),
 				true
 			);

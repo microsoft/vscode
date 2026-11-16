@@ -128,7 +128,7 @@ export interface IAgentHostConnectionsService {
 
 	/**
 	 * Resolves a live connection by sanitized authority, including
-	 * {@link AMBIENT_AGENT_HOST_AUTHORITY} for the ambient host. Returns
+	 * {@link AMBIENT_AGENT_HOST_AUTHORITY} and its resource mapper's authority for the ambient host. Returns
 	 * `undefined` when no connected host matches.
 	 */
 	getConnectionByAuthority(authority: string): IAgentConnection | undefined;

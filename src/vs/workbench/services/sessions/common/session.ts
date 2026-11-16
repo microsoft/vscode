@@ -798,6 +798,8 @@ export interface ISessionCanvasDefinition {
 	readonly extensionName?: string;
 	readonly displayName: string;
 	readonly description: string;
+	/** The canvas's icon as its host sends it, a PNG data URI. */
+	readonly icon?: string;
 	readonly requiresInput: boolean;
 }
 

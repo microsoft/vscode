@@ -8144,6 +8144,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			...(canvas.extensionName ? { extensionName: canvas.extensionName } : {}),
 			displayName: canvas.displayName,
 			description: canvas.description,
+			...(canvas.icon ? { icon: canvas.icon } : {}),
 			requiresInput: canvas.requiresInput,
 		};
 	}

@@ -51,10 +51,10 @@ export function waitForSession(sessionsManagementService: ISessionsManagementSer
 		disposables.add(token.onCancellationRequested(() => finish(undefined)));
 		disposables.add(sessionsProvidersService.onDidChangeProviders(() => tryFind()));
 		disposables.add(sessionsManagementService.onDidChangeSessions(() => tryFind()));
-		// Also a change of a session outside a provider's listing scope, which `onDidChangeSessions` does not report; only
-		// a change of the session waited for is looked up
+		// Also a change of a session outside a provider's listing scope, which `onDidChangeSessions` does not report: only a
+		// change of the session waited for is looked up, and an empty change, by which a provider asks to read every session again
 		disposables.add(sessionsManagementService.onDidChangeSession(changes => {
-			if (changes.some(change => change.kind !== 'removed' && isSessionResource(change.session, sessionResource))) {
+			if (changes.length === 0 || changes.some(change => change.kind !== 'removed' && isSessionResource(change.session, sessionResource))) {
 				tryFind();
 			}
 		}));

@@ -15,14 +15,23 @@ import { IDynamicVariable } from '../../chat/common/attachments/chatVariables.js
 
 const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
 
-export function readNewChatDraftState(storageService: IStorageService): IChatDraft | undefined {
+export interface INewChatDraftState extends IChatDraft {
+	readonly savedDraftId?: string;
+}
+
+export function readNewChatDraftState(storageService: IStorageService): INewChatDraftState | undefined {
 	const raw = storageService.get(STORAGE_KEY_DRAFT_STATE, StorageScope.WORKSPACE);
-	return raw ? fromStoredChatDraft(parse(raw)) : undefined;
+	if (!raw) {
+		return undefined;
+	}
+	const value: INewChatDraftState = parse(raw);
+	const draft = fromStoredChatDraft(value);
+	return typeof value.savedDraftId === 'string' ? { ...draft, savedDraftId: value.savedDraftId } : draft;
 }
 
 /** Saves the draft and returns a guard that stays true until another write replaces it. */
-export function writeNewChatDraftState(storageService: IStorageService, draft: IChatDraft): () => boolean {
-	const value = stringify({ revision: generateUuid(), ...toStoredChatDraft(draft) });
+export function writeNewChatDraftState(storageService: IStorageService, draft: IChatDraft, savedDraftId?: string): () => boolean {
+	const value = stringify({ revision: generateUuid(), ...toStoredChatDraft(draft), savedDraftId });
 	storageService.store(STORAGE_KEY_DRAFT_STATE, value, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	return () => storageService.get(STORAGE_KEY_DRAFT_STATE, StorageScope.WORKSPACE) === value;
 }

@@ -67,6 +67,20 @@ suite('waitForSession', () => {
 		assert.deepStrictEqual({ afterOtherChanged, found: await found }, { afterOtherChanged: 0, found: waited });
 	}));
 
+	test('looks the session up again as a provider asks to read every session again, such as as its sessions\' visibility changes', () => runWithFakedTimers({}, async () => {
+		const { known, sessionChanged, sessionsManagementService, sessionsProvidersService } = create();
+		const hidden = buildTestSession({ id: 'hidden', title: 'Hidden' }).session;
+		const cts = disposables.add(new CancellationTokenSource());
+
+		const start = Date.now();
+		const found = waitForSession(sessionsManagementService, sessionsProvidersService, hidden.resource, cts.token, SESSION_OPEN_WAIT_TIMEOUT);
+		await timeout(10);
+		known.push(hidden);
+		sessionChanged.fire([]);
+
+		assert.deepStrictEqual({ found: await found, beforeTimeout: Date.now() - start < SESSION_OPEN_WAIT_TIMEOUT, listening: sessionChanged.hasListeners() }, { found: hidden, beforeTimeout: true, listening: false });
+	}));
+
 	test('ends at once, with no session, as it is cancelled, such as by a later open, and once the timeout passes', () => runWithFakedTimers({}, async () => {
 		const { sessionChanged, sessionsManagementService, sessionsProvidersService } = create();
 		const unknown = buildTestSession({ id: 'unknown', title: 'Unknown' }).session;

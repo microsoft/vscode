@@ -47,6 +47,7 @@ import '../../../../chat/browser/modelPicker.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { AGENT_PICKER_SPOTLIGHT_ID } from '../../../../../../workbench/contrib/chat/browser/onboarding/agentPickerSpotlight.js';
 import { AgentsWindowUsage } from '../../../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
+import { CustomAgentUsage } from '../../../../../../workbench/contrib/chat/common/customAgentUsage.js';
 import { onboardingScenarioRegistry } from '../../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 
 suite('agentHostAgentPicker', () => {
@@ -89,6 +90,7 @@ suite('agentHostAgentPicker', () => {
 			const providers = disposables.add(new SessionsProvidersService(upcastPartial<ILifecycleService>({ willShutdown: false })));
 			disposables.add(providers.registerProvider(provider));
 			const storage = disposables.add(new TestStorageService());
+			new CustomAgentUsage(storage).recordUse();
 			const usage = new AgentsWindowUsage(storage);
 			usage.recordSessionCreated();
 			usage.recordSessionCreated();

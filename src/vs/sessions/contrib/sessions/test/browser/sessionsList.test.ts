@@ -239,6 +239,83 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	test('shown again with nothing changed, the list renders again only once its sections no longer hold as the time passed: at midnight, and once a session is no longer updated in the last day', () => runWithFakedTimers({ startTime: new Date(2024, 5, 10, 23, 50).getTime(), maxTaskCount: 10_000 }, async () => {
+		// Created a week ago, at noon: Recent until midnight, when the week of Recent starts a day later
+		const lastWeek = createTestSession('Last week', { createdAt: new Date(2024, 5, 3, 12, 0) }).session;
+		const today = createTestSession('Today', { createdAt: new Date(2024, 5, 10, 10, 0) }).session;
+		// Created weeks ago, updated today at 10: Recent for a day since
+		const updated = createTestSession('Updated', { createdAt: new Date(2024, 4, 20, 10, 0), updatedAt: new Date(2024, 5, 10, 10, 0) }).session;
+		const harness = createListHarness(disposables, [today, lastWeek, updated]);
+		const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+		}));
+		list.layout(400, 400);
+		let updates = 0;
+		harness.store.add(list.onDidUpdate(() => updates++));
+		const sections = () => list.getTreeSnapshot().flatMap(node => node.type === 'section' ? [`${node.id}: ${node.children.flatMap(child => child.type === 'session' ? [child.session.title.get()] : []).join(', ')}`] : []);
+		// The renders that showing the list again makes
+		const hideAndShow = async (minutes: number) => {
+			list.setVisible(false);
+			await timeout(minutes * 60_000);
+			const hidden = updates;
+			list.setVisible(true);
+			return { renders: updates - hidden, sections: sections() };
+		};
+		const before = { sections: sections() };
+		const beforeMidnight = await hideAndShow(5);
+		const afterMidnight = await hideAndShow(10);
+		const sameDay = await hideAndShow(9 * 60);
+		const dayAfterUpdate = await hideAndShow(60);
+		list.dispose();
+
+		assert.deepStrictEqual({ before, beforeMidnight, afterMidnight, sameDay, dayAfterUpdate }, {
+			before: { sections: ['recent: Today, Last week, Updated'] },
+			beforeMidnight: { renders: 0, sections: ['recent: Today, Last week, Updated'] },
+			afterMidnight: { renders: 1, sections: ['recent: Today, Updated', 'older: Last week'] },
+			sameDay: { renders: 0, sections: ['recent: Today, Updated', 'older: Last week'] },
+			dayAfterUpdate: { renders: 1, sections: ['recent: Today', 'older: Last week, Updated'] },
+		});
+	}));
+
+	test('shown again just after a session is no longer updated within the last day or the last days, the list renders again, as it counts a session updated exactly then as within them', () => runWithFakedTimers({ startTime: new Date(2024, 5, 10, 10, 0).getTime(), maxTaskCount: 10_000 }, async () => {
+		const day = 24 * 60 * 60 * 1000;
+		const now = Date.now();
+		// Updated exactly a day ago, created weeks ago: Recent still now
+		const updated = createTestSession('Updated', { createdAt: new Date(now - 30 * day), updatedAt: new Date(now - day) }).session;
+		// Workspaces updated long ago, one updated exactly four days ago and one updated a day ago: those two stay uncapped
+		const workspaces = ['A', 'B', 'C'].map(name => createTestSession(name, { workspaceLabel: name, createdAt: new Date(now - 30 * day) }).session);
+		const fourDays = createTestSession('E', { workspaceLabel: 'E', createdAt: new Date(now - 30 * day), updatedAt: new Date(now - 4 * day) }).session;
+		const recentWorkspace = createTestSession('F', { workspaceLabel: 'F', createdAt: new Date(now - 30 * day), updatedAt: new Date(now - day + 60_000) }).session;
+		const render = (sessions: ISession[], grouping: SessionsGrouping) => {
+			const harness = createListHarness(disposables, sessions);
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(400, 1400), {
+				grouping: () => grouping, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			return list;
+		};
+		const byDate = render([updated], SessionsGrouping.Date);
+		const byWorkspace = render([...workspaces, fourDays, recentWorkspace], SessionsGrouping.Workspace);
+		const state = () => ({
+			recent: byDate.getTreeSnapshot().flatMap(node => node.type === 'section' ? [node.id] : []),
+			uncapped: byWorkspace.getTreeSnapshot().flatMap(node => node.type === 'section' && !node.hidden ? [node.label] : []),
+		});
+		const atThreshold = state();
+		byDate.setVisible(false);
+		byWorkspace.setVisible(false);
+		await timeout(1);
+		byDate.setVisible(true);
+		byWorkspace.setVisible(true);
+		const justAfter = state();
+		byDate.dispose();
+		byWorkspace.dispose();
+
+		assert.deepStrictEqual({ atThreshold, justAfter }, {
+			atThreshold: { recent: ['recent'], uncapped: ['E', 'F'] },
+			justAfter: { recent: ['older'], uncapped: ['F'] },
+		});
+	}));
+
 	test('lazy archive discovery follows section expansion, not the filter or local refresh', () => {
 		const harness = createListHarness(disposables, []);
 		harness.managementService.archivedSessionItems.set({ available: true, state: 'idle' }, undefined);
@@ -457,6 +534,30 @@ suite('Sessions - SessionsList', () => {
 				immediate, settled: fixture.counts(), titles: fixture.titles(),
 			}, {
 				immediate: { reads: 3, updates: 3 }, settled: { reads: 3, updates: 3 }, titles: ['Latest 2'],
+			});
+		});
+
+		test('keeps its rows as it hides and shows again with nothing changed, and renders again once when something changed while hidden', async () => {
+			const fixture = await createFixture();
+			const row = fixture.container.querySelector('.session-title');
+			for (let index = 0; index < 5; index++) {
+				fixture.list.setVisible(false);
+				fixture.list.setVisible(true);
+			}
+			await nextFrame();
+			const unchanged = { ...fixture.counts(), sameRow: fixture.container.querySelector('.session-title') === row };
+
+			fixture.list.setVisible(false);
+			fixture.management.sessions = [createTestSession('Latest').session];
+			fixture.changes.fire({ added: [], removed: [], changed: [] });
+			fixture.list.setVisible(true);
+			fixture.list.setVisible(false);
+			fixture.list.setVisible(true);
+			await nextFrame();
+
+			assert.deepStrictEqual({ unchanged, changed: { ...fixture.counts(), titles: fixture.titles() } }, {
+				unchanged: { reads: 0, updates: 0, sameRow: true },
+				changed: { reads: 1, updates: 1, titles: ['Latest'] },
 			});
 		});
 
@@ -5711,7 +5812,6 @@ suite('Sessions - SessionsList', () => {
 				['pinned', 'Pinned', ['pinned']],
 				['inbox:readyForYou', 'Inbox', ['failing', 'waiting', 'finished', 'idle']],
 				['inbox:working', 'Working', ['working']],
-				['inbox:readyToMerge', 'Ready to merge', []],
 				['inbox:onHold', 'On hold', ['snoozed']],
 				['inbox:acknowledged', 'Acknowledged', ['done']],
 				['archived', 'Done', ['archived']],
@@ -5876,9 +5976,9 @@ suite('Sessions - SessionsList', () => {
 			const initial = snapshot();
 			const initialTracking = tracking;
 			grouped.isRead.set(false, undefined);
-			await retry(async () => assert.deepStrictEqual(snapshot().find(section => section.id === SessionInboxSection.ReadyForYou)?.sessions, ['grouped']), 10, 100);
+			await retry(async () => assert.deepStrictEqual(snapshot().find(section => section.id === SessionInboxSection.ReadyForYou)?.sessions, ['ready', 'grouped']), 10, 100);
 			grouped.isRead.set(true, undefined);
-			await retry(async () => assert.deepStrictEqual(snapshot().find(section => section.id === SessionInboxSection.ReadyForYou)?.sessions, ['grouped']), 10, 100);
+			await retry(async () => assert.deepStrictEqual(snapshot().find(section => section.id === SessionInboxSection.ReadyForYou)?.sessions, ['ready', 'grouped']), 10, 100);
 			model.setInboxState([grouped.session], 'done');
 			await retry(async () => assert.deepStrictEqual(snapshot(), [...initial, { id: SessionInboxSection.Acknowledged, sessions: ['grouped'] }]), 10, 100);
 			running.status.set(SessionStatus.NeedsInput, undefined);
@@ -5899,9 +5999,8 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({ initial, readyForYou, restored, archived: grouped.isArchived.get(), tracking: [initialTracking, hiddenTracking, shownTracking, ordinaryTracking, tracking] }, {
 				initial: [
 					{ id: 'pinned', sessions: ['pinned'] },
-					{ id: SessionInboxSection.ReadyForYou, sessions: [] },
+					{ id: SessionInboxSection.ReadyForYou, sessions: ['ready'] },
 					{ id: SessionInboxSection.Working, sessions: ['running'] },
-					{ id: SessionInboxSection.ReadyToMerge, sessions: ['ready'] },
 				],
 				readyForYou: ['ready', 'running'], restored: ['grouped'], archived: false, tracking: [1, 0, 1, 0, 0],
 			});
@@ -6089,17 +6188,16 @@ suite('Sessions - SessionsList', () => {
 			}, {
 				groups: [
 					['pinned', ['pinned']],
-					[SessionInboxSection.ReadyForYou, ['ready']],
+					[SessionInboxSection.ReadyForYou, ['merge', 'ready']],
 					[SessionInboxSection.Working, ['working']],
-					[SessionInboxSection.ReadyToMerge, ['merge']],
 					[SessionInboxSection.OnHold, ['held']],
 					[SessionInboxSection.Acknowledged, ['done']],
 				],
 				tabElements: 0,
 				revealed: true,
-				revealedVisible: ['ready', 'held'],
-				afterGroupingChange: { workingCollapsed: true, sessions: ['ready'] },
-				restored: { workingCollapsed: true, sessions: ['ready'] },
+				revealedVisible: ['merge', 'ready', 'held'],
+				afterGroupingChange: { workingCollapsed: true, sessions: ['merge', 'ready'] },
+				restored: { workingCollapsed: true, sessions: ['merge', 'ready'] },
 				triage: ['hold', 'done'],
 			});
 		});
@@ -6434,6 +6532,33 @@ suite('Sessions - SessionsList', () => {
 				});
 			}
 		}
+
+		test('lists quick chats in the Chats section under time grouping only when asked, as the sessions lists of editor windows do; pins and archived take precedence', () => {
+			const sessions: ISession[] = [
+				createSession('quick', {}),
+				createSession('quick-pinned', {}),
+				createSession('quick-archived', { isArchived: true }),
+				createSession('regular', { workspaceLabel: 'Alpha' }),
+			];
+			const sections = (quickChatsInTimeGrouping: boolean) => groupSessionsForList(sessions, SessionsGrouping.Date, SessionsSorting.Created,
+				session => session.sessionId === 'quick-pinned' || session.sessionId === 'quick-archived',
+				session => sessions.length - sessions.indexOf(session), 'Done', false, undefined, undefined, undefined, quickChatsInTimeGrouping,
+			).map(section => ({ id: section.id, sessions: section.sessions.map(s => s.sessionId) }));
+
+			assert.deepStrictEqual({ editorWindow: sections(true), agentsWindow: sections(false) }, {
+				editorWindow: [
+					{ id: 'pinned', sessions: ['quick-pinned'] },
+					{ id: QUICK_CHATS_SECTION_ID, sessions: ['quick'] },
+					{ id: 'recent', sessions: ['regular'] },
+					{ id: 'archived', sessions: ['quick-archived'] },
+				],
+				agentsWindow: [
+					{ id: 'pinned', sessions: ['quick-pinned'] },
+					{ id: 'recent', sessions: ['quick', 'regular'] },
+					{ id: 'archived', sessions: ['quick-archived'] },
+				],
+			});
+		});
 
 		test('shows pinned sessions in a dedicated top section', () => {
 			const pinned = createSession('pinned', { workspaceLabel: 'Alpha', createdAt: new Date('2024-06-01') });
@@ -10108,7 +10233,7 @@ suite('Sessions - SessionsList', () => {
 				list.layout(800, 400);
 				const refresh = () => {
 					list.refresh();
-					for (const section of ['pinned', 'archived', SessionInboxSection.OnHold, SessionInboxSection.Working, SessionInboxSection.ReadyToMerge]) {
+					for (const section of ['pinned', 'archived', SessionInboxSection.OnHold, SessionInboxSection.Working]) {
 						list.setItemCollapsed({ section }, false);
 					}
 				};
@@ -10207,18 +10332,18 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 
-			test('resumes into Ready to merge only when attention places every dragged session there', async () => {
+			test('resumes merge-ready sessions into Inbox only when every dragged session belongs there', async () => {
 				const held = createTestSession('Held').session;
 				const merge = createTestSession('Merge').session;
-				const other = createTestSession('Other').session;
+				const other = createTestSession('Other', { status: SessionStatus.InProgress }).session;
 				const attention: IInboxSessionAttention = { tab: InboxTab.ReadyToMerge, priority: InboxNotificationPriority.Next, notificationIds: ['passingCI'], isHistoricalCompletion: false };
 				const h = renderInbox([held, merge, other], {}, new Map([['Held', attention], ['Merge', attention]]));
 				h.model.setInboxState([held, other], 'hold');
 				h.refresh();
 				h.list.setSelectedItems([{ session: held.resource }, { session: other.resource }]);
-				const mixed = drag(sessionRow(h.container, 'Held'), sectionRow(h.container, 'Ready to merge'), h.container);
+				const mixed = drag(sessionRow(h.container, 'Held'), sectionRow(h.container, 'Inbox'), h.container);
 				h.list.setSelectedItems([{ session: held.resource }]);
-				const valid = drag(sessionRow(h.container, 'Held'), sectionRow(h.container, 'Ready to merge'), h.container);
+				const valid = drag(sessionRow(h.container, 'Held'), sectionRow(h.container, 'Inbox'), h.container);
 				await timeout(0);
 				h.refresh();
 				assert.deepStrictEqual({
@@ -10226,7 +10351,7 @@ suite('Sessions - SessionsList', () => {
 					otherState: h.model.getInboxState(other)?.kind,
 					section: h.sections().find(section => section.sessions.includes('Held'))?.id,
 				}, {
-					mixed: [], valid: ['Ready to merge'], heldState: undefined, otherState: 'hold', section: SessionInboxSection.ReadyToMerge,
+					mixed: [], valid: ['Inbox'], heldState: undefined, otherState: 'hold', section: SessionInboxSection.ReadyForYou,
 				});
 			});
 
@@ -10253,7 +10378,7 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 
-			test('restores archived sessions into their prospective Ready to merge category using live attention', async () => {
+			test('restores archived merge-ready sessions into Inbox using live attention', async () => {
 				const archived = createTestSession('Archived', { isArchived: true });
 				const archivedSession: ISession = {
 					...archived.session,
@@ -10274,7 +10399,8 @@ suite('Sessions - SessionsList', () => {
 					polling++;
 					return toDisposable(() => polling--);
 				};
-				const h = renderInbox([archivedSession, merge], {}, new Map(), harness => {
+				const working = createTestSession('Working', { status: SessionStatus.InProgress }).session;
+				const h = renderInbox([archivedSession, merge, working], {}, new Map(), harness => {
 					const github = upcastPartial<IGitHubService>({
 						createPullRequestModelReference: () => ({
 							object: upcastPartial<GitHubPullRequestModel>({
@@ -10301,12 +10427,12 @@ suite('Sessions - SessionsList', () => {
 					disposables.add(service.acquireSessionAttention());
 				});
 				sinon.stub(h.managementService, 'unarchiveSession').callsFake(async () => archived.isArchived.set(false, undefined));
-				const rejected = drag(sessionRow(h.container, 'Archived'), sectionRow(h.container, 'Inbox'), h.container);
+				const rejected = drag(sessionRow(h.container, 'Archived'), sectionRow(h.container, 'Working'), h.container);
 				const before = { archived: archived.isArchived.get(), polling };
 				const attention = h.instantiationService.get(ISessionAttentionService);
 				const prospective = attention.getSessionAttentionAfterUnarchive([archivedSession]).get('Archived')?.tab;
 				const unchanged = { archived: archived.isArchived.get(), polling };
-				const accepted = drag(sessionRow(h.container, 'Archived'), sectionRow(h.container, 'Ready to merge'), h.container);
+				const accepted = drag(sessionRow(h.container, 'Archived'), sectionRow(h.container, 'Inbox'), h.container);
 				await timeout(0);
 				h.refresh();
 				assert.deepStrictEqual({
@@ -10314,8 +10440,8 @@ suite('Sessions - SessionsList', () => {
 					section: h.sections().find(section => section.sessions.includes('Archived'))?.id,
 				}, {
 					rejected: [], before: { archived: true, polling: 3 }, prospective: InboxTab.ReadyToMerge,
-					unchanged: { archived: true, polling: 3 }, accepted: ['Ready to merge'], restored: true,
-					section: SessionInboxSection.ReadyToMerge,
+					unchanged: { archived: true, polling: 3 }, accepted: ['Inbox'], restored: true,
+					section: SessionInboxSection.ReadyForYou,
 				});
 			});
 

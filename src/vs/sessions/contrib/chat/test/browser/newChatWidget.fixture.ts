@@ -124,6 +124,7 @@ import '../../../../browser/parts/mobile/mobileChatShell.css';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModelReference, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatScheduledRequest } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../../../../workbench/contrib/chat/test/common/chatService/mockChatService.js';
 import { MockLanguageModelToolsService } from '../../../../../workbench/contrib/chat/test/common/tools/mockLanguageModelToolsService.js';
@@ -199,6 +200,7 @@ const fixtureConnectorRecommendations: NonNullable<IProductService['connectorRec
 );
 
 interface INewChatWidgetFixtureOptions {
+	readonly scheduledPreview?: boolean;
 	readonly width?: number;
 	readonly height?: number;
 	readonly commentCount?: number;
@@ -479,6 +481,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		readonly activeSession = activeSessionObservable;
 		override registerSavedDraftOpener() { return Disposable.None; }
 		override setCurrentDraftId() { }
+		override async openNewSession() { return { session: activeSession, trustDeclined: false }; }
 	}();
 	const configurationService = new TestConfigurationService({
 		// Editor settings the composer's chat widget reads.
@@ -635,6 +638,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override readonly onDidSendRequest = Event.None;
 				override readonly onDidEndNewSessionRequest = Event.None;
 				override readonly onDidReplaceNewDraftSession = Event.None;
+				override async configureNewSessionDraft() { }
 				override isQuickChatTargetAvailable(): boolean { return false; }
 				override getAllProviderSessionTypes() {
 					return activeSession ? sessionTypes.map(sessionType => ({ providerId: provider.id, sessionType })) : [];
@@ -652,9 +656,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override getPendingNewSessionGroup() { return undefined; }
 			}());
 			reg.defineInstance(IScheduledChatsService, new class extends mock<IScheduledChatsService>() {
-				override readonly enabled = constObservable(false);
+				override readonly enabled = constObservable(!!options.scheduledPreview);
 				override readonly availableProviders = constObservable([]);
-				override canSchedule() { return false; }
+				override canSchedule() { return !!options.scheduledPreview; }
 				override assertUnscheduled() { }
 			}());
 			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
@@ -885,8 +889,11 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	}
 	// The fixture menu evaluates preconditions once, so Send reflects whether the
 	// fixture attaches context, adds comments or fills the prompt.
-	const sendEnabled = withAttachedContext || commentCount > 0 || selectedOptionIndex !== undefined || !!comparisonPrompt;
+	const sendEnabled = withAttachedContext || commentCount > 0 || selectedOptionIndex !== undefined || !!comparisonPrompt || !!options.scheduledPreview;
 	menuService.addItem(MenuId.ChatExecute, { command: { id: ChatSubmitAction.ID, title: 'Send', icon: Codicon.arrowUpCompact, precondition: sendEnabled ? undefined : ContextKeyExpr.false() }, group: 'navigation', order: 4 });
+	if (options.scheduledPreview) {
+		menuService.addItem(MenuId.ChatExecuteSecondary, { command: { id: 'sessions.sendLater', title: 'Send Later...', icon: Codicon.clock }, group: 'navigation' });
+	}
 	if (withControlPickers) {
 		instantiationService.stub(IAgentHostConnectionsService, {
 			onDidChangeSessionResolution: Event.None,
@@ -1462,9 +1469,39 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		}
 		assertChatPetInScreenshot(view.element);
 	}
+	if (options.scheduledPreview) {
+		const text = 'Review the latest build results and summarize any failures.';
+		const request = constObservable<IChatScheduledRequest>({
+			id: 'scheduled-preview', text, description: 'Scheduled', attachments: [],
+			runAt: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
+			actions: [
+				toAction({ id: 'reschedule', label: 'Reschedule...', class: 'codicon codicon-clock', run() { } }),
+				toAction({ id: 'edit', label: 'Edit as Draft', class: 'codicon codicon-edit', run() { } }),
+				toAction({ id: 'cancel', label: 'Cancel Schedule', class: 'codicon codicon-close', run() { } }),
+			],
+		});
+		await instantiationService.get(ISessionDraftsService).preview({ inputText: text, attachments: [] }, {
+			folderUri: workspace.folders[0].root,
+			providerId: provider.id,
+			sessionTypeId: activeSession!.sessionType,
+		}, { request, save: async () => { }, sendNow: async () => { }, reschedule: async () => { } });
+		await waitForFixtureDomCondition(view.element, () => {
+			const line = view.element.querySelector('.view-line');
+			return !!line?.textContent?.includes('Review') && line.getBoundingClientRect().height > 0;
+		}, disposableStore);
+	}
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
+	ScheduledDraft: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withConfiguredModel: true, withControlPickers: true, welcomePhrases: true, scheduledPreview: true }),
+	}),
+	ScheduledDraftNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderNewChatWidget(context, { width: 420, withWorkspace: true, withConfiguredModel: true, withControlPickers: true, welcomePhrases: true, scheduledPreview: true }),
+	}),
 	Migrations: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],

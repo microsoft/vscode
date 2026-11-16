@@ -19,7 +19,6 @@ export type SessionInboxAction = 'done' | 'hold' | 'untilActivity' | number | un
 
 export const enum SessionInboxSection {
 	ReadyForYou = 'inbox:readyForYou',
-	ReadyToMerge = 'inbox:readyToMerge',
 	Working = 'inbox:working',
 	OnHold = 'inbox:onHold',
 	Acknowledged = 'inbox:acknowledged',
@@ -29,7 +28,6 @@ export const enum SessionInboxSection {
 export const sessionInboxSections = [
 	SessionInboxSection.ReadyForYou,
 	SessionInboxSection.Working,
-	SessionInboxSection.ReadyToMerge,
 	SessionInboxSection.OnHold,
 	SessionInboxSection.Acknowledged,
 ] as const;
@@ -73,9 +71,9 @@ export function getSessionInboxSection(session: ISession, state?: SessionInboxSt
 	}
 	if (attention) {
 		switch (attention.tab) {
-			case InboxTab.ReadyForYou: return SessionInboxSection.ReadyForYou;
+			case InboxTab.ReadyForYou:
+			case InboxTab.ReadyToMerge: return SessionInboxSection.ReadyForYou;
 			case InboxTab.Working: return SessionInboxSection.Working;
-			case InboxTab.ReadyToMerge: return SessionInboxSection.ReadyToMerge;
 		}
 	}
 	return SessionInboxSection.ReadyForYou;

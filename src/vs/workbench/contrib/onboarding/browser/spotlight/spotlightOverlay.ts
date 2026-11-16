@@ -294,7 +294,7 @@ export class SpotlightOverlay extends Disposable {
 			this._stepListeners.add(addDisposableListener(focusElement, EventType.KEY_DOWN, onTargetKey, true));
 			this._stepListeners.add(addDisposableListener(focusElement, EventType.KEY_UP, onTargetKey, true));
 		} else if (options.allowTargetInteraction || advanceOnTargetClick || options.hideNext) {
-			this._stepListeners.add(addDisposableListener(focusElement, EventType.KEY_DOWN, e => this._onKeyDown(e)));
+			this._stepListeners.add(addDisposableListener(focusElement, EventType.KEY_DOWN, e => this._onKeyDown(e), true));
 		}
 
 		this.layout();

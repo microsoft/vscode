@@ -35,12 +35,14 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { type CanvasDefinitionSnapshot, getCanvasDefinitionInstanceId, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService, isCanvasOwner, isOpenableExtensionCanvasDefinition } from '../../../canvases/common/canvas.js';
+import { type CanvasDefinitionSnapshot, getCanvasDefinitionInstanceId, getCanvasIconUri, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService, isCanvasOwner, isOpenableExtensionCanvasDefinition } from '../../../canvases/common/canvas.js';
+import { acquireCanvasIconClasses } from '../../../canvases/browser/canvasIcons.js';
 import { CanvasDefinitionStore } from '../../../canvases/common/canvasDefinitionStore.js';
-import { CanvasExtensionConsentDeniedError, notifyCanvasExtensionConsentDenied } from '../../../canvases/common/agentHostCanvasConsent.js';
+import { openCanvasForUser } from '../../../canvases/common/agentHostCanvasConsent.js';
 import { AICustomizationManagementCommands } from '../../common/aiCustomizationWorkspaceService.js';
 import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
@@ -335,6 +337,7 @@ class CopilotCanvasExtensionRenderer implements IListRenderer<ICopilotCanvasExte
 
 interface ICopilotCanvasTemplateData {
 	readonly container: HTMLElement;
+	readonly icon: HTMLElement;
 	readonly label: HTMLElement;
 	readonly detail: HTMLElement;
 	readonly actions: HTMLElement;
@@ -363,6 +366,8 @@ class CopilotCanvasRenderer implements IListRenderer<ICopilotCanvasEntry, ICopil
 		const templateDisposables = new DisposableStore();
 		const elementDisposables = new DisposableStore();
 		container.classList.add('copilot-customization-tree-item', 'copilot-canvas-tree-item');
+		// Decorative: the label names the canvas.
+		const icon = DOM.append(container, $('span.copilot-customization-tree-icon', { 'aria-hidden': 'true' }));
 		const text = DOM.append(container, $('.copilot-customization-tree-text'));
 		const label = DOM.append(text, $('.copilot-customization-tree-label'));
 		const detail = DOM.append(text, $('.copilot-customization-tree-detail'));
@@ -381,7 +386,7 @@ class CopilotCanvasRenderer implements IListRenderer<ICopilotCanvasEntry, ICopil
 		moreButton.element.dataset.customizationAction = 'more';
 		templateDisposables.add(DOM.addDisposableListener(actions, DOM.EventType.MOUSE_DOWN, event => event.stopPropagation()));
 		templateDisposables.add(DOM.addDisposableListener(actions, DOM.EventType.CLICK, event => event.stopPropagation()));
-		const template = { container, label, detail, actions, moreButton, templateDisposables, elementDisposables, currentItemKey: undefined };
+		const template = { container, icon, label, detail, actions, moreButton, templateDisposables, elementDisposables, currentItemKey: undefined };
 		this.templates.add(template);
 		return template;
 	}
@@ -395,6 +400,7 @@ class CopilotCanvasRenderer implements IListRenderer<ICopilotCanvasEntry, ICopil
 		templateData.container.dataset.customizationKey = itemKey;
 		templateData.container.classList.toggle('disabled', !enabled);
 		templateData.container.classList.toggle('readonly', !enabled || !isOpenableExtensionCanvasDefinition(item.canvas));
+		templateData.icon.className = ['copilot-customization-tree-icon', ...templateData.elementDisposables.add(acquireCanvasIconClasses(getCanvasIconUri(item.canvas.icon))).classes].join(' ');
 		templateData.label.textContent = item.canvas.displayName;
 		const detail = this.getDetail(item);
 		templateData.detail.textContent = detail;
@@ -498,6 +504,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		@ICustomizationMarketplaceService private readonly customizationMarketplaceService: ICustomizationMarketplaceService,
 		@IHoverService hoverService: IHoverService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IProgressService private readonly progressService: IProgressService,
 		@IOpenerService openerService: IOpenerService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -927,7 +934,9 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			const source = extension?.source ?? canvas.extensionSource;
 			const key = this.getCanvasCacheKey(context, extensionId, source);
 			const values = liveByExtension.get(key) ?? [];
-			values.push(canvas);
+			// Icons are images, too large to keep in storage; a cached canvas shows the default icon until it is listed again.
+			const { icon: _icon, ...stored } = canvas;
+			values.push(stored);
 			liveByExtension.set(key, values);
 		}
 		for (const [key, values] of liveByExtension) {
@@ -1295,38 +1304,29 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		if (!currentItem || !this.canvasService.enabled.get() || !this.isCanvasEnabled(currentItem) || !isOpenableExtensionCanvasDefinition(currentItem.canvas)) {
 			return;
 		}
+		const { context, canvas } = currentItem;
+		const instanceId = getCanvasDefinitionInstanceId(canvas);
 		try {
 			if (!await this.closeCustomizationEditor()) {
 				return;
 			}
-			const instanceId = getCanvasDefinitionInstanceId(currentItem.canvas);
-			const existing = currentItem.context.canvases.get()?.find(candidate => candidate.instanceId === instanceId);
+			const existing = context.canvases.get()?.find(candidate => candidate.instanceId === instanceId);
 			if (existing) {
-				await this.canvasService.revealCanvas({ ...currentItem.context.owner, canvas: existing.resource });
+				await this.canvasService.revealCanvas({ ...context.owner, canvas: existing.resource });
 				if (existing.source) {
 					return;
 				}
 			}
-			await currentItem.context.definitionProvider!.openCanvas(currentItem.canvas, instanceId);
 		} catch (error) {
-			if (error instanceof CanvasExtensionConsentDeniedError) {
-				const { context, canvas } = currentItem;
-				notifyCanvasExtensionConsentDenied(this.notificationService, error, () => this.retryOpenCanvas(context, canvas));
-				return;
-			}
-			this.notificationService.error(localize('copilotCanvases.openFailed', "Unable to open canvas {0}. {1}", currentItem.canvas.displayName, getErrorMessage(error)));
-		}
-	}
-
-	/**
-	 * Asks about the declined extension of `canvas` again in `context`'s chat, while canvases are enabled. The editor may be closed
-	 * by now, and the extension's canvases stay unregistered until the retry, so it opens through the chat directly.
-	 */
-	private async retryOpenCanvas(context: ICanvasContext, canvas: ICanvasDefinition): Promise<void> {
-		if (!this.canvasService.enabled.get() || !context.definitionProvider) {
+			this.notificationService.error(localize('copilotCanvases.openFailed', "Unable to open canvas {0}. {1}", canvas.displayName, getErrorMessage(error)));
 			return;
 		}
-		await context.definitionProvider.openCanvas(canvas, getCanvasDefinitionInstanceId(canvas), { retryDeniedConsent: true });
+		await openCanvasForUser(this.progressService, this.notificationService, canvas.displayName, async options => {
+			// The editor may be closed by a retry, and a declined extension's canvases stay unregistered until it, so open through the chat directly.
+			if (this.canvasService.enabled.get() && context.definitionProvider) {
+				await context.definitionProvider.openCanvas(canvas, instanceId, options);
+			}
+		});
 	}
 
 	private activateCanvas(item: ICopilotCanvasItem): void {
