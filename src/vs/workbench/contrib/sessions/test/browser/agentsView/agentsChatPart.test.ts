@@ -736,6 +736,31 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual({ reentered, showing: service.isShowing(built.mainChat.chat.resource), disposed: input.isDisposed() }, { reentered: 0, showing: false, disposed: true });
 	});
 
+	test('closing a tab disposes its chat, and the composer it owns, as the tab disposes, without disposing the tab again from within its dispose', async () => {
+		const { service, part, state } = createService();
+		await service.openComposer(undefined);
+		const input = part.activeGroup.activeEditor!;
+		let depth = 0;
+		let reentered = 0;
+		const dispose = input.dispose.bind(input);
+		input.dispose = () => {
+			reentered += depth;
+			depth++;
+			try {
+				dispose();
+			} finally {
+				depth--;
+			}
+		};
+
+		const closing = part.activeGroup.closeEditor(input);
+		// In the same tick as its tab: nothing of it is left to dispose later
+		const asItsTabDisposes = { liveSlots: state().liveSlots, reentered, disposed: input.isDisposed() };
+		await closing;
+
+		assert.deepStrictEqual(asItsTabDisposes, { liveSlots: 0, reentered: 0, disposed: true });
+	});
+
 	test('closing the last chat closes the chat part, which closing a chat it does not show leaves as it is', async () => {
 		const { service, layout } = createService();
 		await service.openChat(session, chatA);

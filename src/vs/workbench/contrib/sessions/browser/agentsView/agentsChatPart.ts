@@ -52,7 +52,11 @@ import { AgentsChatPartAction, logAgentsChatPartAction } from './agentsChatPartT
 import { AgentsViewAvailable, InAgentsChatPartContext } from './agentsChatPartContext.js';
 import { EditorWindowMainSessionHost } from './editorWindowMainSessionHost.js';
 
-/** The chats of the chat part, which it shows again as the window restores. */
+/**
+ * The chats of the chat part, which it shows again as the window restores. Its editor part's own state would restore bare
+ * chat editors through their serializers; the chat part restores each chat through its session instead, once the
+ * providers know it, as the chat it shows.
+ */
 const CHAT_PART_EDITORS_STORAGE_KEY = 'workbench.chatPart.editors';
 
 /** How long restoring a chat of the chat part waits for its session to load. */
@@ -640,17 +644,13 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			reason: localize('agentsChatPart.cannotMove', "A chat stays in the chat area."),
 			canMoveTo: group => !!this._part?.groups.some(candidate => candidate.id === group),
 		});
-		// Its chat goes with its editor, once the editor's dispose is done: disposing the chat disposes the editor, and what
-		// it shows, which would otherwise happen within the editor's own dispose, such as as its session is removed meanwhile
+		// Its chat goes with its editor: the chat no longer disposes an editor that is disposing (see SessionChatEditorEntry)
 		Event.once(chat.input.onWillDispose)(() => {
 			this._composerModels.delete(chat.input);
 			if (this._composerTabs.get().has(chat.input)) {
 				this._composerTabs.set(new Set([...this._composerTabs.get()].filter(tab => tab !== chat.input)), undefined);
 			}
-			const ending = this._chats.deleteAndLeak(chat.input);
-			if (ending) {
-				queueMicrotask(() => ending.dispose());
-			}
+			this._chats.deleteAndDispose(chat.input);
 		});
 		return chat;
 	}
