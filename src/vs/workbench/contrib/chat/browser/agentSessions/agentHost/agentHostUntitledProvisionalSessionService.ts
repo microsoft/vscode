@@ -1300,7 +1300,9 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	 * `agentHostSessionHandler` sees those agent defaults as "user-set" and
 	 * drops the workbench defaults.
 	 *
-	 * - `isolation`: workbench has no isolation picker, so always `'folder'`.
+	 * - `isolation`: `'worktree'` for `sessionResource` where it is seeded to
+	 *   start in a new worktree (New Chat in Worktree), otherwise `'folder'`.
+	 *   A worktree picked later in the chat input changes the configuration.
 	 * - `mode` / `autoApprove`: seeded from the single
 	 *   `chat.defaultConfiguration` object setting (`mode` and
 	 *   `approvals` properties). Approval policy is applied after host schema
@@ -1310,7 +1312,6 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	 * Skipped entirely in the Agents window, where the sessions provider
 	 * supplies config via `request.agentHostSessionConfig` instead.
 	 */
-	/** The initial configuration, of `sessionResource` where given: in a new worktree where it is to start in one. */
 	private _getInitialConfig(sessionResource?: URI): Record<string, unknown> | undefined {
 		if (this._environmentService.isSessionsWindow) {
 			return undefined;

@@ -28,7 +28,7 @@ suite('Agent host New Chat entries', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('the New Chat dropdown offers New Chat in Worktree with worktree support and New Chat (No Workspace) with the Sessions list, only with AI features on', () => {
-		const shown = (options: { readonly worktree: boolean; readonly sessionsList: boolean; readonly ai?: boolean; readonly agentHost?: boolean; readonly remote?: string; readonly sessionsWindow?: boolean }) => {
+		const shown = (options: { readonly worktree: boolean; readonly sessionsList: boolean; readonly chatPart?: boolean; readonly ai?: boolean; readonly agentHost?: boolean; readonly remote?: string; readonly sessionsWindow?: boolean }) => {
 			const configuration = new TestConfigurationService({ [ChatConfiguration.EditorWindowEnableWorktree]: options.worktree, 'chat.viewSessions.sessionsList.enabled': options.sessionsList });
 			// The Chat view's title in a local window with a single folder. In a browser, `isWeb` is a constant that hides the
 			// entries by construction, and its agent host is not available either
@@ -38,6 +38,9 @@ suite('Agent host New Chat entries', () => {
 			contextKeyService.createKey('remoteName', options.remote ?? '');
 			contextKeyService.createKey(AGENT_HOST_ENABLED_CONTEXT_KEY.key, options.agentHost ?? true);
 			contextKeyService.createKey('isSessionsWindow', options.sessionsWindow ?? false);
+			if (options.chatPart !== undefined) {
+				contextKeyService.createKey('chatPartEnabled', options.chatPart);
+			}
 			return MenuRegistry.getMenuItems(MenuId.ChatNewMenu).filter(isIMenuItem)
 				.filter(item => (item.command.id === NewChatInWorktreeAction.ID || item.command.id === NewChatWithoutWorkspaceAction.ID) && contextKeyService.contextMatchesRules(item.when))
 				.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
@@ -52,6 +55,9 @@ suite('Agent host New Chat entries', () => {
 			noAgentHost: shown({ worktree: true, sessionsList: true, agentHost: false }),
 			remote: shown({ worktree: true, sessionsList: true, remote: 'ssh-remote' }),
 			agentsWindow: shown({ worktree: true, sessionsList: true, sessionsWindow: true }),
+			// New Chat opens in the chat area, which cannot start a chat in a worktree or without a workspace yet
+			chatPartEnabled: shown({ worktree: true, sessionsList: true, chatPart: true }),
+			chatPartDisabled: shown({ worktree: true, sessionsList: true, chatPart: false }),
 		}, {
 			neither: [],
 			worktree: ['New Chat in Worktree'],
@@ -61,6 +67,8 @@ suite('Agent host New Chat entries', () => {
 			noAgentHost: [],
 			remote: [],
 			agentsWindow: [],
+			chatPartEnabled: [],
+			chatPartDisabled: ['New Chat in Worktree', 'New Chat (No Workspace)'],
 		});
 	});
 
@@ -79,6 +87,7 @@ suite('Agent host New Chat entries', () => {
 			let attempts = 0;
 			const provisional = upcastPartial<IAgentHostUntitledProvisionalSessionService>({
 				getPreparedSessionConfig: () => prepared,
+				releaseSession: () => { seeds.push('release'); prepared = undefined; },
 				prepareSessionConfig: async () => {
 					attempts++;
 					// As the host resolves the configuration it asks for: in a new worktree once seeded
@@ -100,8 +109,8 @@ suite('Agent host New Chat entries', () => {
 			ready: { opened: resource.toString(), seeds: ['worktree'], attempts: 1, warned: 0 },
 			secondAttempt: { opened: resource.toString(), seeds: ['worktree'], attempts: 2, warned: 0 },
 			// Nothing opens: no chat that works in the folder, and the seed goes, so that a later configuration changes nothing
-			never: { opened: undefined, seeds: ['worktree', 'clear'], attempts: 3, warned: 1 },
-			unsupported: { opened: undefined, seeds: ['worktree', 'clear'], attempts: 1, warned: 1 },
+			never: { opened: undefined, seeds: ['worktree', 'clear', 'release'], attempts: 3, warned: 1 },
+			unsupported: { opened: undefined, seeds: ['worktree', 'clear', 'release'], attempts: 1, warned: 1 },
 		});
 	});
 
