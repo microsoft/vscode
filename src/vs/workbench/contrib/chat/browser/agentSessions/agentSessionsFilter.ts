@@ -119,7 +119,12 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.STORAGE_KEY, this._store)(() => this.updateExcludes(true)));
 
 		// The Worktrees submenu, and which folder's sessions show, follow the worktrees that sessions work in
-		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
+		const model = this.agentSessionsService.model as IAgentSessionsService['model'] | undefined;
+		if (!model) {
+			// No sessions, such as for a host that lists none: no worktree to offer
+			return;
+		}
+		this._register(model.onDidChangeSessions(() => {
 			const worktreeOptions = this.getWorktreeOptions();
 			if (!equals(worktreeOptions, this.worktreeOptions)) {
 				const selected = this.getSelectedWorktree();
@@ -138,7 +143,8 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	 * archived is not offered, and while it is selected all folders show, until one of its sessions is unarchived.
 	 */
 	private getWorktreeOptions(): IWorktreeFilterOption[] {
-		return getWorktreeFilterOptions(this.agentSessionsService.model.sessions.filter(session => !session.isArchived()).map(getAgentSessionWorktreeFolder));
+		const sessions = (this.agentSessionsService.model as IAgentSessionsService['model'] | undefined)?.sessions ?? [];
+		return getWorktreeFilterOptions(sessions.filter(session => !session.isArchived()).map(getAgentSessionWorktreeFolder));
 	}
 
 	private updateExcludes(fromEvent: boolean): void {
