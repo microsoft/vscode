@@ -6,25 +6,35 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
-import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
+import { getCodeEditor, ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
 import { ISelection, Selection } from '../../../../../../editor/common/core/selection.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IVisibleEditorPane } from '../../../../../common/editor.js';
-import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { IEditorOptions } from '../../../../../../platform/editor/common/editor.js';
+import { FileOperation, FileOperationEvent } from '../../../../../../platform/files/common/files.js';
+import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
+import { IEditorIdentifier, IEditorPane, IVisibleEditorPane } from '../../../../../common/editor.js';
+import { EditorInput } from '../../../../../common/editor/editorInput.js';
+import { SideBySideEditorInput } from '../../../../../common/editor/sideBySideEditorInput.js';
+import { CodeEditorService } from '../../../../../services/editor/browser/codeEditorService.js';
+import { EditorService } from '../../../../../services/editor/browser/editorService.js';
+import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
+import { createEditorPart, registerTestEditor, registerTestFileEditor, registerTestSideBySideEditor, TestFileEditorInput, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { CustomEditorInput } from '../../../../customEditor/browser/customEditorInput.js';
 import { ICustomEditorService } from '../../../../customEditor/common/customEditor.js';
 import { ICustomTextEditorNavigation } from '../../../../customEditor/common/customTextEditorNavigation.js';
+import { FileEditorInput } from '../../../../files/browser/editors/fileEditorInput.js';
 import { IOverlayWebview } from '../../../../webview/browser/webview.js';
 import { IWebviewWorkbenchService } from '../../../../webviewPanel/browser/webviewWorkbenchService.js';
 import { ChatImplicitContextContribution, ChatImplicitContexts } from '../../../browser/attachments/chatImplicitContext.js';
@@ -71,8 +81,10 @@ suite('Chat implicit custom editor context', () => {
 		let activeEditorPane: IVisibleEditorPane | undefined;
 		instantiation.stub(IEditorService, {
 			onDidActiveEditorChange: activeEditorChanged.event,
+			onDidCloseEditor: Event.None,
 			get activeEditorPane() { return activeEditorPane; },
 			get activeEditor() { return activeEditorPane?.input; },
+			get visibleEditorPanes() { return activeEditorPane ? [activeEditorPane] : []; },
 		});
 		const implicitContext = store.add(new ChatImplicitContexts());
 		const widgets: IChatWidget[] = [];
@@ -293,6 +305,172 @@ suite('Chat implicit custom editor context', () => {
 			added: [{ uri: fixture.model.uri, range: new Selection(2, 1, 2, 5) }],
 		});
 	});
+});
+
+suite('Chat implicit context of a closed editor', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const nonCodeEditorId = 'test.chatImplicitContext.nonCodeEditor';
+	const documentUri = URI.file('/workspace/document.txt');
+
+	async function setupEditors() {
+		store.add(registerTestFileEditor());
+		store.add(registerTestSideBySideEditor());
+		store.add(registerTestEditor(nonCodeEditorId, [new SyncDescriptor(TestFileEditorInput)]));
+		const fileService = store.add(new TestFileService());
+		const instantiation = workbenchInstantiationService({
+			fileService: () => fileService,
+			configurationService: () => new TestConfigurationService({
+				chat: { implicitContext: { enabled: { [ChatAgentLocation.Chat]: 'always' }, suggestedContext: true } }
+			})
+		}, store);
+		const part = await createEditorPart(instantiation, store.add(new DisposableStore()));
+		instantiation.stub(IEditorGroupsService, part);
+		const editorService = store.add(instantiation.createInstance(EditorService, undefined));
+		instantiation.stub(IEditorService, editorService);
+		instantiation.stub(ICodeEditorService, store.add(instantiation.createInstance(CodeEditorService)));
+		const implicitContext = store.add(new ChatImplicitContexts());
+		const widget = upcastPartial<IChatWidget>({
+			location: ChatAgentLocation.Chat,
+			input: upcastPartial<ChatInputPart>({ implicitContext }),
+		});
+		instantiation.stub(IChatWidgetService, {
+			getWidgetsByLocations: location => location === ChatAgentLocation.Chat ? [widget] : [],
+			onDidAddWidget: Event.None,
+		});
+		instantiation.stub(IChatService, { onDidSubmitRequest: Event.None });
+		instantiation.stub(IChatEditingService, { editingSessionsObs: constObservable([]) });
+		instantiation.stub(ILanguageModelIgnoredFilesService, { fileIsIgnored: async () => false });
+		instantiation.stub(IChatContextService, { contextForResource: async () => undefined });
+
+		function selectText(pane: IEditorPane | undefined): IEditorIdentifier {
+			const codeEditor = getCodeEditor(pane?.getControl());
+			assert.ok(pane?.input && codeEditor);
+			codeEditor.setSelection(new Selection(1, 1, 1, 6));
+			return { editor: pane.input, groupId: pane.group.id };
+		}
+
+		/** Opens the document in a text editor and selects some of its text. */
+		async function openDocument(group?: typeof SIDE_GROUP): Promise<IEditorIdentifier> {
+			return selectText(await editorService.openEditor({ resource: documentUri, options: { pinned: true } }, group));
+		}
+
+		/** Deletes the document the way the Explorer does, which closes its editor. */
+		async function deleteDocument(): Promise<void> {
+			const closed = Event.toPromise(editorService.onDidCloseEditor);
+			fileService.fireAfterOperation(new FileOperationEvent(documentUri, FileOperation.DELETE));
+			await closed;
+		}
+
+		/** Creates an editor of the file that is separate from the one of its tab. */
+		function createEditor(resource: URI): EditorInput {
+			return store.add(instantiation.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined));
+		}
+
+		/** Opens an editor with two sides, like a diff editor, and selects some text in its primary side unless it is inactive. */
+		async function openSecondEditor(primary: EditorInput, secondary: EditorInput, options?: IEditorOptions): Promise<IEditorIdentifier> {
+			const editor = store.add(instantiation.createInstance(SideBySideEditorInput, undefined, undefined, secondary, primary));
+			const pane = await editorService.openEditor(editor, { pinned: true, ...options });
+			return options?.inactive ? { editor, groupId: part.activeGroup.id } : selectText(pane);
+		}
+
+		/** Opens an editor that has no code editor, like the Welcome page. */
+		async function openNonCodeEditor(): Promise<void> {
+			await editorService.openEditor(store.add(new TestFileEditorInput(URI.parse('test://welcome'), nonCodeEditorId)), { pinned: true });
+		}
+
+		async function startImplicitContext(): Promise<void> {
+			store.add(instantiation.createInstance(ChatImplicitContextContribution));
+			await timeout(0);
+		}
+
+		const attached = () => implicitContext.values.map(value => ({ id: value.id, resource: value.uri?.toString() }));
+		return { editorService, openDocument, deleteDocument, createEditor, openSecondEditor, openNonCodeEditor, startImplicitContext, attached };
+	}
+
+	const attachedSelection = [{ id: 'vscode.implicit.selection', resource: documentUri.toString() }];
+
+	const removals: [string, (fixture: Awaited<ReturnType<typeof setupEditors>>, opened: IEditorIdentifier) => Promise<void>][] = [
+		['closing', (fixture, opened) => fixture.editorService.closeEditor(opened)],
+		['deleting', fixture => fixture.deleteDocument()],
+	];
+	for (const [name, remove] of removals) {
+		test(`${name} the active document drops its selection when a non-code editor takes its place`, async () => {
+			const fixture = await setupEditors();
+			await fixture.openNonCodeEditor();
+			const opened = await fixture.openDocument();
+			await fixture.startImplicitContext();
+			const whileOpen = fixture.attached();
+
+			await remove(fixture, opened);
+			await timeout(0);
+			assert.deepStrictEqual({ whileOpen, afterwards: fixture.attached() }, { whileOpen: attachedSelection, afterwards: [] });
+		});
+	}
+
+	test('switching to a non-code editor keeps the selection until its document is closed', async () => {
+		const fixture = await setupEditors();
+		const opened = await fixture.openDocument();
+		await fixture.startImplicitContext();
+
+		await fixture.openNonCodeEditor();
+		await timeout(0);
+		const whileOpen = fixture.attached();
+
+		await fixture.editorService.closeEditor(opened);
+		await timeout(0);
+		assert.deepStrictEqual({ whileOpen, afterwards: fixture.attached() }, { whileOpen: attachedSelection, afterwards: [] });
+	});
+
+	const secondEditors: [string, (fixture: Awaited<ReturnType<typeof setupEditors>>, opened: IEditorIdentifier) => [primary: EditorInput, secondary: EditorInput]][] = [
+		['shares the editor of the document', (fixture, opened) => [opened.editor, opened.editor]],
+		['has its own editor of the document', fixture => [fixture.createEditor(documentUri), fixture.createEditor(URI.file('/workspace/original.txt'))]],
+	];
+	for (const [name, sides] of secondEditors) {
+		test(`the selection is kept while a second editor that ${name} is still open`, async () => {
+			const fixture = await setupEditors();
+			const opened = await fixture.openDocument();
+			await fixture.startImplicitContext();
+			const second = await fixture.openSecondEditor(...sides(fixture, opened), { inactive: true });
+			await fixture.openNonCodeEditor();
+
+			await fixture.editorService.closeEditor(opened);
+			await timeout(0);
+			const whileOpen = fixture.attached();
+
+			await fixture.editorService.closeEditor(second);
+			await timeout(0);
+			assert.deepStrictEqual({ whileOpen, afterwards: fixture.attached() }, { whileOpen: attachedSelection, afterwards: [] });
+		});
+	}
+
+	test('a selection made in a second editor of the document is kept until the document is closed', async () => {
+		const fixture = await setupEditors();
+		const opened = await fixture.openDocument();
+		const second = await fixture.openSecondEditor(fixture.createEditor(documentUri), fixture.createEditor(documentUri));
+		await fixture.startImplicitContext();
+		await fixture.openNonCodeEditor();
+
+		await fixture.editorService.closeEditor(second);
+		await timeout(0);
+		const whileOpen = fixture.attached();
+
+		await fixture.editorService.closeEditor(opened);
+		await timeout(0);
+		assert.deepStrictEqual({ whileOpen, afterwards: fixture.attached() }, { whileOpen: attachedSelection, afterwards: [] });
+	});
+
+	test('closing the document in another group than the non-code editor drops its selection', () => runWithFakedTimers({}, async () => {
+		// Advance past the editor change debounce in virtual time.
+		const fixture = await setupEditors();
+		await fixture.openNonCodeEditor();
+		const opened = await fixture.openDocument(SIDE_GROUP);
+		await fixture.startImplicitContext();
+		const whileOpen = fixture.attached();
+
+		await fixture.editorService.closeEditor(opened);
+		await timeout(510);
+		assert.deepStrictEqual({ whileOpen, afterwards: fixture.attached() }, { whileOpen: attachedSelection, afterwards: [] });
+	}));
 });
 
 class TestNavigation extends Disposable implements ICustomTextEditorNavigation {
