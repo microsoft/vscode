@@ -744,9 +744,11 @@ export function recordUserSelectedSessionType(
 	chatSessionsService: Pick<IChatSessionsService, 'getChatSessionContribution' | 'getAllChatSessionContributions'>,
 	workspace: IWorkspace,
 	sessionType: string,
-	agentHostEnabled: boolean
+	agentHostEnabled: boolean,
+	localChatHidden = false
 ): void {
-	if (sessionType === getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, agentHostEnabled)) {
+	// The default as the picker shows it, also while a feature hides new local chats, as the setting off would
+	if (sessionType === getComputedDefaultSessionType(configurationService, chatSessionsService, workspace, agentHostEnabled, false, false, localChatHidden)) {
 		clearUserSelectedSessionType(storageService);
 	} else {
 		storeUserSelectedSessionType(storageService, sessionType);

@@ -303,7 +303,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		this._promptForCopilotToLocalSwitch(previousTarget, sessionTypeItem.type);
 
 		if (!this._isSessionsWindow) {
-			recordUserSelectedSessionType(this.storageService, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), sessionTypeItem.type, this.agentHostEnablementService.enabled.get());
+			recordUserSelectedSessionType(this.storageService, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), sessionTypeItem.type, this.agentHostEnablementService.enabled.get(), this.localChatAvailabilityService.hidden.get());
 		}
 
 		if (this.delegate.setActiveSessionProvider) {

@@ -916,6 +916,36 @@ suite('ChatConfiguration defaults', () => {
 		});
 	});
 
+	test('while a feature hides new local chats, selecting another type and then the default remembers what it remembers with local chats off in the setting, so that new chats are local again once it no longer hides them', () => {
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude);
+		const flow = (hide: boolean) => {
+			const configurationService = new TestConfigurationService({
+				[ChatConfiguration.DefaultToCopilotHarness]: false,
+				[ChatConfiguration.EditorLocalAgentEnabled]: hide,
+			});
+			const storageService = disposables.add(new TestStorageService());
+			const availability = disposables.add(new LocalChatAvailabilityService());
+			const hidden = hide ? availability.hide() : undefined;
+			const localChatHidden = availability.hidden.get();
+			const shownDefault = getComputedDefaultSessionType(configurationService, chatSessionsService, localWorkspace, true, false, false, localChatHidden);
+			recordUserSelectedSessionType(storageService, configurationService, chatSessionsService, localWorkspace, SessionType.AgentHostClaude, true, localChatHidden);
+			recordUserSelectedSessionType(storageService, configurationService, chatSessionsService, localWorkspace, shownDefault, true, localChatHidden);
+			// Local chats on again: no longer hidden, or the setting turned back on
+			hidden?.dispose();
+			configurationService.setUserConfiguration(ChatConfiguration.EditorLocalAgentEnabled, true);
+			return {
+				shownDefault,
+				remembered: getRememberedSessionType(storageService),
+				nextChat: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { localChatHidden: availability.hidden.get() }),
+			};
+		};
+
+		assert.deepStrictEqual({ hidden: flow(true), settingOff: flow(false) }, {
+			hidden: { shownDefault: SessionType.AgentHostCopilot, remembered: undefined, nextChat: localChatSessionType },
+			settingOff: { shownDefault: SessionType.AgentHostCopilot, remembered: undefined, nextChat: localChatSessionType },
+		});
+	});
+
 	test('selecting local while the agent host default is Copilot remembers local as an opt-out', () => {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.DefaultToCopilotHarness]: true,
