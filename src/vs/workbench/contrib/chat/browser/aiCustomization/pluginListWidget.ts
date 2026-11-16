@@ -17,7 +17,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { getManagedSupportUrl, IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { appendContactAdministratorLink } from '../../../../services/policies/browser/organizationSupportLink.js';
@@ -45,7 +45,7 @@ import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWid
 import { MiddleEllipsisPathLabel } from './aiCustomizationListWidgetUtils.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { CustomizationGroupHeaderRenderer, getCustomizationGroupAriaLabel, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
-import { getCustomizationDisabledLabel, ICustomizationHarnessService, isPluginCustomizationItem, isSyncedFromClientCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
+import { getCustomizationDisabledLabel, ICustomizationHarnessService, isPluginCustomizationItem, isSyncedFromClientCustomizationItem, type ICustomizationItem, type ICustomizationItemAction, type ICustomizationOrganizationControl } from '../../common/customizationHarnessService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
@@ -283,6 +283,7 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		private readonly _harnessService: ICustomizationHarnessService,
 		private readonly _hoverService: IHoverService,
 		private readonly _renderActions: (item: IInstalledPluginItem, container: HTMLElement, actions: HTMLElement, disposables: DisposableStore) => void,
+		private readonly _getOrganizationControl: (item: IInstalledPluginItem, reader: IReader) => ICustomizationOrganizationControl | undefined,
 		private readonly _showSyncToggle = true,
 	) { }
 
@@ -311,10 +312,7 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		templateData.currentItemId = element.item.plugin.uri.toString();
 
 		templateData.name.textContent = formatDisplayName(element.item.name);
-		templateData.disposables.add(autorun(reader => {
-			const policyEnablement = getPluginPolicyEnablement(element.item.plugin, reader);
-			templateData.managedTag.update(policyEnablement === undefined ? undefined : { requiredEnabled: policyEnablement });
-		}));
+		templateData.disposables.add(autorun(reader => templateData.managedTag.update(this._getOrganizationControl(element.item, reader))));
 
 		templateData.location.set(element.item.location ?? '');
 		templateData.metadata.textContent = getInstalledPluginMetadata(element.item);
@@ -1106,7 +1104,7 @@ export class PluginListWidget extends Disposable {
 			(entry, container, disposables) => this.renderPluginTreeGroupActions(entry, container, disposables),
 		);
 		const searchHeaderRenderer = new PluginSearchHeaderRenderer();
-		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService, this.hoverService, (item, container, actions, disposables) => this.renderInstalledListActions(item, container, actions, disposables), false);
+		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService, this.hoverService, (item, container, actions, disposables) => this.renderInstalledListActions(item, container, actions, disposables), (item, reader) => this.getInstalledPluginOrganizationControl(item, reader), false);
 		const remoteRenderer = new PluginRemoteItemRenderer((item, actions, disposables) => this.renderRemoteListActions(item, actions, disposables), this.hoverService);
 		const marketplaceRenderer = new PluginMarketplaceItemRenderer(this.pluginInstallService, this.agentPluginService, this.pluginMarketplaceService, this.notificationService);
 
@@ -1405,8 +1403,7 @@ export class PluginListWidget extends Disposable {
 				const label = isContributionEnabled(element.item.plugin.enablement.read(reader))
 					? localize('pluginInstalledItemAriaLabelEnabled', "{0}. Enabled", withDetails)
 					: localize('pluginInstalledItemAriaLabelDisabled', "{0}. Disabled", withDetails);
-				const policyEnablement = getPluginPolicyEnablement(element.item.plugin, reader);
-				return withOrganizationManagedAriaLabel(label, policyEnablement === undefined ? undefined : { requiredEnabled: policyEnablement });
+				return withOrganizationManagedAriaLabel(label, this.getInstalledPluginOrganizationControl(element.item, reader));
 			});
 		}
 		if (element.type === 'remote-item') {
@@ -2576,6 +2573,15 @@ export class PluginListWidget extends Disposable {
 		const matches = this.remoteItems.filter(remote => remote.name.toLowerCase() === item.name.toLowerCase()
 			&& !isSyncedFromClientCustomizationItem(remote) && remote.actions?.some(action => action.checked !== undefined));
 		return matches.length === 1 ? matches[0] : undefined;
+	}
+
+	/**
+	 * The organization's control over an installed plugin. The runtime resolves managed settings for a
+	 * session, so for a plugin the runtime installed only its session plugin reports what is required.
+	 */
+	private getInstalledPluginOrganizationControl(item: IInstalledPluginItem, reader?: IReader): ICustomizationOrganizationControl | undefined {
+		const policyEnablement = getPluginPolicyEnablement(item.plugin, reader);
+		return policyEnablement !== undefined ? { requiredEnabled: policyEnablement } : this.getSessionPluginItem(item)?.organizationControl;
 	}
 
 	private getInstalledPluginActions(item: IInstalledPluginItem, disposables: DisposableStore): IAction[] {

@@ -100,6 +100,48 @@ suite('pluginListWidget', () => {
 		});
 	});
 
+	test('a runtime-installed plugin shows the organization requirement of its session plugin on a locked switch', () => {
+		const createItem = (name: string, runtimeInstalled: boolean, policyEnablement?: boolean): IInstalledPluginItem => {
+			const plugin = new class extends mock<IAgentPlugin>() {
+				override readonly uri = URI.file(`/plugins/${name}`);
+				override readonly label = name;
+				override readonly enablement = constObservable(ContributionEnablementState.EnabledProfile);
+				override readonly policyEnablement = constObservable(policyEnablement);
+				override readonly copilotCliInstallation = runtimeInstalled ? { name, marketplace: 'enterprise' } : undefined;
+			}();
+			return { kind: AgentPluginItemKind.Installed, name, description: '', plugin };
+		};
+		const createSessionPlugin = (name: string, requiredEnabled?: boolean): ICustomizationItem => ({
+			uri: URI.file(`/plugins/${name}`), type: 'plugin', name, source: AICustomizationSources.plugin, extensionId: undefined, pluginUri: undefined,
+			organizationControl: requiredEnabled === undefined ? undefined : { requiredEnabled },
+			actions: [{ id: 'toggle', label: 'Disable Globally', checked: true, enabled: requiredEnabled === undefined, scope: 'global', run: () => { } }],
+		});
+		const widget = Object.assign(Object.create(PluginListWidget.prototype), {
+			harnessService,
+			remoteItems: [createSessionPlugin('required', true), createSessionPlugin('own'), createSessionPlugin('local', true)],
+			hoverService: new class extends mock<IHoverService>() {
+				override setupDelayedHover() { return toDisposable(() => { }); }
+			}(),
+			cardDisposables: store.add(new DisposableStore()),
+		});
+		const required = createItem('required', true);
+		const toggle = widget.appendInstalledPluginToggle($('div'), $('div'), $('div'), required).querySelector('button')!;
+		assert.deepStrictEqual({
+			required: widget.getInstalledPluginOrganizationControl(required),
+			switch: { disabled: toggle.disabled, checked: toggle.getAttribute('aria-checked') },
+			own: widget.getInstalledPluginOrganizationControl(createItem('own', true)),
+			withoutSessionPlugin: widget.getInstalledPluginOrganizationControl(createItem('unpaired', true)),
+			// A plugin the workbench loads itself is governed by the workbench policy alone.
+			local: widget.getInstalledPluginOrganizationControl(createItem('local', false)),
+			localBlocked: widget.getInstalledPluginOrganizationControl(createItem('local', false, false)),
+		}, {
+			required: { requiredEnabled: true },
+			switch: { disabled: true, checked: 'true' },
+			own: undefined, withoutSessionPlugin: undefined, local: undefined,
+			localBlocked: { requiredEnabled: false },
+		});
+	});
+
 	test('This Workspace badge opens the existing scope action without changing scope until confirmed', async () => {
 		let menu: IContextMenuDelegate | undefined;
 		let calls = 0;

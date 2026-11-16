@@ -164,7 +164,7 @@ import { AgentHostGitHubTelemetryRouter } from '../agentHostGitHubTelemetryRoute
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { CopilotSlashCommandCompletionProvider, ICopilotRuntimeSlashCommandQueryOptions } from './copilotSlashCommandCompletionProvider.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
-import { SessionCustomizationDiscovery, workspaceDirectoryHasHooks, type SessionDiscoveredCustomization } from './sessionCustomizationDiscovery.js';
+import { SessionCustomizationDiscovery, workspaceDirectoryHasHooks, type SessionDiscoveredCustomization, type SessionPluginInventory } from './sessionCustomizationDiscovery.js';
 import { computeFolderPickerDecisionForRoots } from '../shared/folderPickerDecision.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
 import { getAppNodeModulesUri } from '../appNodeModules.js';
@@ -3269,14 +3269,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 				!candidate.id && candidate.directSourceId === undefined
 				&& candidate.name === plugin.name && candidate.marketplace === plugin.marketplace
 				&& installed.filter(installation => installation.name === plugin.name && installation.marketplace === plugin.marketplace).length > 1);
+			const effectivePlugin = matches.length === 1 ? matches[0] : undefined;
 			return {
 				name: plugin.name,
 				marketplace: plugin.marketplace,
 				directSourceId: plugin.directSourceId,
 				enabled: plugin.enabled,
 				// A ready chat omits inactive plugins; an unavailable inventory must remain pending.
-				effectiveEnabled: matches.length === 1 ? matches[0].enabled : effective !== undefined && matches.length === 0 && !ambiguous ? false : undefined,
-				managedDesiredEnabled: plugin.managedDesiredEnabled,
+				effectiveEnabled: effectivePlugin ? effectivePlugin.enabled : effective !== undefined && matches.length === 0 && !ambiguous ? false : undefined,
+				// The runtime resolves managed settings per session, so the chat's inventory states what the organization requires.
+				managedDesiredEnabled: effectivePlugin?.managed ? effectivePlugin.managedDesiredEnabled : plugin.managedDesiredEnabled,
 				...(plugin.marketplace && repositoryEnablement ? { repositoryEnabled: repositoryEnablement.get(`${plugin.name}@${plugin.marketplace}`) ?? null } : {}),
 				resource: plugin.rootPath && isAbsolute(plugin.rootPath) ? URI.file(plugin.rootPath) : undefined,
 				contentRevision: this._plugins.runtimePluginContentRevision,
@@ -10971,6 +10973,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// The plugin controller serves the session's default chat, whose marker is the session's.
 				() => this._sessionSettings.get(session)?.workspaceless === true,
 				() => this.listPluginInstallations(session),
+				async () => this._findSessionChat(session)?.listInstalledPlugins(),
 			);
 			client = this._instantiationService.createInstance(ActiveClient, session, pluginController, this._onDidChatProgress);
 			this._activeClients.set(session, client);
@@ -11908,6 +11911,7 @@ class SessionDiscoveredEntry extends Disposable {
 		workingDirectories: readonly URI[],
 		userHome: URI,
 		private readonly _getClient: () => Promise<CopilotClient>,
+		private readonly _sessionPlugins: SessionPluginInventory,
 		private readonly _onDidRefresh: () => void,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -11995,7 +11999,7 @@ class SessionDiscoveredEntry extends Disposable {
 
 	private async _refresh(token: CancellationToken): Promise<boolean> {
 		try {
-			const customizations = await this._discovery.discover(await this._getClient(), token);
+			const customizations = await this._discovery.discover(await this._getClient(), token, this._sessionPlugins);
 			if (token.isCancellationRequested) {
 				return false;
 			}
@@ -12146,8 +12150,8 @@ class PluginController extends Disposable {
 	}
 
 	/** Creates a per-session controller that reads host-customization and runtime MCP state lazily. */
-	public createSessionController(session: URI, directory: URI | undefined, hostCustomizations: () => readonly Customization[], topLevelMcpServers: () => ITopLevelMcpServers, isDefaultChatWorkspaceless: () => boolean, installedPlugins: () => Promise<readonly IAgentPluginInstallation[]>): SessionPluginController {
-		return this._instantiationService.createInstance(SessionPluginController, this, session, directory, hostCustomizations, topLevelMcpServers, isDefaultChatWorkspaceless, installedPlugins);
+	public createSessionController(session: URI, directory: URI | undefined, hostCustomizations: () => readonly Customization[], topLevelMcpServers: () => ITopLevelMcpServers, isDefaultChatWorkspaceless: () => boolean, installedPlugins: () => Promise<readonly IAgentPluginInstallation[]>, sessionPlugins: SessionPluginInventory): SessionPluginController {
+		return this._instantiationService.createInstance(SessionPluginController, this, session, directory, hostCustomizations, topLevelMcpServers, isDefaultChatWorkspaceless, installedPlugins, sessionPlugins);
 	}
 
 	/**
@@ -12304,6 +12308,7 @@ class CustomizationAnchor extends Disposable {
 		private readonly _workspaceDirectories: readonly URI[],
 		private readonly _userHome: URI,
 		private readonly _getClient: () => Promise<CopilotClient>,
+		private readonly _sessionPlugins: SessionPluginInventory,
 		private readonly _onDidChange: () => void,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IFileService private readonly _fileService: IFileService,
@@ -12318,7 +12323,7 @@ class CustomizationAnchor extends Disposable {
 			return undefined;
 		}
 		if (!this._discovered.value) {
-			this._discovered.value = this._instantiationService.createInstance(SessionDiscoveredEntry, this._workspaceDirectories, this._userHome, this._getClient, this._onDidChange);
+			this._discovered.value = this._instantiationService.createInstance(SessionDiscoveredEntry, this._workspaceDirectories, this._userHome, this._getClient, this._sessionPlugins, this._onDidChange);
 		}
 		return this._discovered.value;
 	}
@@ -12396,6 +12401,8 @@ class SessionPluginController extends Disposable {
 		/** Whether the default chat, whose folders the published view follows, is workspace-less. */
 		private readonly _isDefaultChatWorkspaceless: () => boolean,
 		private readonly _installedPlugins: () => Promise<readonly IAgentPluginInstallation[]>,
+		/** Reads the plugin inventory of the session's default chat, which carries the organization's requirements. */
+		private readonly _sessionPlugins: SessionPluginInventory,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
@@ -12425,7 +12432,7 @@ class SessionPluginController extends Disposable {
 		let entry = this._anchors.get(key);
 		if (!entry) {
 			const workspaceDirectories = workspaceless ? [] : [directory, ...additionalDirectories];
-			const anchor: CustomizationAnchor = this._instantiationService.createInstance(CustomizationAnchor, key, directory, additionalDirectories, workspaceDirectories, this._parent.getUserHome(), () => this._parent.getClient(), () => this._onDidChangeAnchor(anchor));
+			const anchor: CustomizationAnchor = this._instantiationService.createInstance(CustomizationAnchor, key, directory, additionalDirectories, workspaceDirectories, this._parent.getUserHome(), () => this._parent.getClient(), this._sessionPlugins, () => this._onDidChangeAnchor(anchor));
 			entry = { anchor, refs: 0 };
 			if (this._store.isDisposed) {
 				// A late acquisition after session finalize owns its anchor outright.
