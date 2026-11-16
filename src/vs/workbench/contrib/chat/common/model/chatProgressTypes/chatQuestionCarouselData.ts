@@ -8,6 +8,21 @@ import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IChatQuestion, IChatQuestionAnswers, IChatQuestionCarousel } from '../../chatService/chatService.js';
 import { ToolDataSource } from '../../tools/languageModelToolsService.js';
 
+export const CHAT_QUESTION_PASSWORD_MASK = '••••••••';
+
+export function maskPasswordAnswers(questions: readonly IChatQuestion[], answers: IChatQuestionAnswers | undefined): IChatQuestionAnswers | undefined {
+	if (!answers || !questions.some(question => question.password && answers[question.id] !== undefined)) {
+		return answers;
+	}
+	const masked = { ...answers };
+	for (const question of questions) {
+		if (question.password && masked[question.id] !== undefined) {
+			masked[question.id] = CHAT_QUESTION_PASSWORD_MASK;
+		}
+	}
+	return masked;
+}
+
 /**
  * Runtime representation of a question carousel with a {@link DeferredPromise}
  * that is resolved when the user submits answers. {@link toJSON} strips the
@@ -47,7 +62,7 @@ export class ChatQuestionCarouselData implements IChatQuestionCarousel {
 		if (this.isUsed) {
 			return;
 		}
-		this.data = answers ?? {};
+		this.data = maskPasswordAnswers(this.questions, answers) ?? {};
 		this.isUsed = true;
 		this.draftAnswers = undefined;
 		this.draftCurrentIndex = undefined;

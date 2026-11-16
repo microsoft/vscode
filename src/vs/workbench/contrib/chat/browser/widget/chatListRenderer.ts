@@ -64,7 +64,7 @@ import { chatSubcommandLeader, IParsedChatRequest } from '../../common/requestPa
 import { TerminalToolId } from '../../common/tools/terminalToolIds.js';
 import { ChatAgentVoteDirection, ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatConfirmation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatExternalEdit, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPlanReview, IChatPlanReviewResult, IChatPullRequestContent, IChatQuestionAnswerValue, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsageModelTotal, isChatFollowup } from '../../common/chatService/chatService.js';
 import { ChatPlanReviewData } from '../../common/model/chatProgressTypes/chatPlanReviewData.js';
-import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
+import { ChatQuestionCarouselData, maskPasswordAnswers } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPasteVariableEntry } from '../../common/attachments/chatVariableEntries.js';
@@ -135,8 +135,9 @@ import { ChatImageGenerationBatchPart } from './chatContentParts/chatImageGenera
 import { ChatInlineAttachmentRenderer, ChatMarkdownDecorationsRenderer } from './chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { getInlineRequestAttachments, recoverAttachmentMentions } from '../../common/attachments/chatInlineAttachments.js';
 import { ChatEditorOptions } from './chatOptions.js';
+import { ChatInputNotificationWidget } from './input/chatInputNotificationWidget.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './chatContentParts/codeBlockPart.js';
-import { autorun, autorunPerKeyedItem, autorunSelfDisposable, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, autorunPerKeyedItem, autorunSelfDisposable, constObservable, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -156,6 +157,7 @@ const WORKING_CAUGHT_UP_DEBOUNCE_MS = 750;
 const DEFAULT_CHAT_ITEM_HORIZONTAL_PADDING = 40;
 
 export interface IChatListItemTemplate {
+	transcriptNotice?: ChatInputNotificationWidget;
 	currentElement?: ChatTreeItem;
 	renderedReadOnly?: boolean;
 	renderedInputRequests?: boolean;
@@ -2052,6 +2054,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			ChatContextKeys.responseSupportsIssueReporting.bindTo(templateData.contextKeyService).set(!!element.agent?.metadata.supportIssueReporting);
 			ChatContextKeys.responseVote.bindTo(templateData.contextKeyService).set(element.vote === ChatAgentVoteDirection.Up ? 'up' : element.vote === ChatAgentVoteDirection.Down ? 'down' : '');
 			templateData.feedbackSurveyWidget.render(element);
+			if (!readOnly && isAgentHostTarget(getChatSessionType(element.sessionResource)) && this.viewModel?.model.getRequests()[0]?.id === element.requestId
+				&& !dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row')) {
+				const widget = this.chatWidgetService.getWidgetBySessionResource(element.sessionResource);
+				if (widget && widget.transcriptDomNode.contains(this.delegate.container) && !templateData.transcriptNotice) {
+					const notice = templateData.elementDisposables.add(this.instantiationService.createInstance(ChatInputNotificationWidget, {
+						placement: 'transcript', inputUri: widget.input.inputUri, sessionResource: constObservable(element.sessionResource), focusInput: () => widget.focusInput(),
+					}));
+					templateData.transcriptNotice = notice;
+					templateData.elementDisposables.add(toDisposable(() => { templateData.transcriptNotice = undefined; }));
+					templateData.rowContainer.insertBefore(notice.domNode, templateData.footerToolbarContainer);
+				}
+			}
 		} else {
 			ChatContextKeys.responseVote.bindTo(templateData.contextKeyService).set('');
 			templateData.feedbackSurveyWidget.render(undefined);
@@ -5920,7 +5934,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 			// Mark the carousel as used and store the answers
 			const answersRecord: IChatQuestionAnswers | undefined = answers ? Object.fromEntries(answers) : undefined;
-			carousel.data = answersRecord ?? {};
+			const storedAnswers = maskPasswordAnswers(carousel.questions, answersRecord);
+			carousel.data = storedAnswers ?? {};
 			carousel.isUsed = true;
 			if (carousel instanceof ChatQuestionCarouselData) {
 				carousel.draftAnswers = undefined;
@@ -5931,7 +5946,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			// Notify the extension about the carousel answers to resolve the deferred promise
 			if (isResponseVM(context.element) && carousel.resolveId) {
-				this.chatService.notifyQuestionCarouselAnswer(context.element.requestId, carousel.resolveId, answersRecord);
+				this.chatService.notifyQuestionCarouselAnswer(context.element.requestId, carousel.resolveId, storedAnswers);
 			}
 
 			// Remove from pending carousels

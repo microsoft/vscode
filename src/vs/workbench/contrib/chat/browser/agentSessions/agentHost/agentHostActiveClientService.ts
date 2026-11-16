@@ -5,6 +5,7 @@
 
 import { coalesce, distinct } from '../../../../../../base/common/arrays.js';
 import { DeferredPromise, Delayer } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { hash } from '../../../../../../base/common/hash.js';
@@ -33,7 +34,7 @@ import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
-import { type ILocalCustomizationSyncOptions, resolveCustomizationRefs, resolveLocalCustomAgents } from './agentHostLocalCustomizations.js';
+import { enumerateLocalCustomizationsForHarness, type ILocalCustomizationSyncOptions, resolveCustomizationRefs, resolveLocalCustomAgents } from './agentHostLocalCustomizations.js';
 import { getAgentFileToolReferenceName, toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostToolSetEnablementService, isCopilotCliSessionType, isToolEnabledInSet } from './agentHostToolSetEnablementService.js';
 import { AgentHostMcpServerSupportScope, IAgentHostMcpServerSupportScope } from './agentHostMcpServerSupportScope.js';
@@ -159,6 +160,8 @@ class AgentCustomizationScope extends Disposable {
 			const seq = ++this._updateSeq;
 			let completedInitialResolution = false;
 			try {
+				// List the customization folders once for both the refs and the agents.
+				const enumerated = await enumerateLocalCustomizationsForHarness(this._promptsService, this._syncProvider, this._sessionType, CancellationToken.None, this._options, this._roots);
 				const [refs, agents] = await Promise.all([
 					resolveCustomizationRefs(
 						this._fileService,
@@ -172,8 +175,9 @@ class AgentCustomizationScope extends Disposable {
 						this._options,
 						this._roots,
 						this._windowRemoteAuthority,
+						enumerated,
 					),
-					resolveLocalCustomAgents(this._fileService, this._promptsService, this._syncProvider, this._agentPluginService, this._sessionType, this._options),
+					resolveLocalCustomAgents(this._fileService, this._promptsService, this._syncProvider, this._agentPluginService, this._sessionType, this._options, enumerated),
 				]);
 				if (seq !== this._updateSeq) {
 					return;

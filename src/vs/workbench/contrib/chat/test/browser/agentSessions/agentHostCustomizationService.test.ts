@@ -417,6 +417,43 @@ suite('AbstractAgentHostCustomizationService', () => {
 		});
 	});
 
+	test('distinguishes MCP servers waiting for plugin activation from disabled servers', () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin, id: 'opaque-plugin', uri: 'urn:peer:plugin', name: 'Plugin',
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			load: { kind: CustomizationLoadStatus.Loading },
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'other-provider', plugin: 'opaque-source', globalEnabled: true, repositorySupported: true }),
+			children: [mcpServer('opaque-server', 'Server')],
+		};
+		const target = new FakeTarget([plugin]);
+		sut.setTarget(session, target);
+		const read = () => sut.getMcpServers(session).map(server => ({
+			enabled: server.enabled,
+			waitingForSessionStart: server.waitingForSessionStart,
+		}));
+		const pending = read();
+		target.customizations = [{ ...plugin, children: [{ ...mcpServer('opaque-server', 'Server'), enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] }] }];
+		const disabledServer = read();
+		target.customizations = [{ ...plugin, _meta: withRuntimePluginEnablement(undefined, { provider: 'other-provider', plugin: 'opaque-source', globalEnabled: false, repositorySupported: true }) }];
+		const disabledPlugin = read();
+		target.customizations = [{ ...plugin, _meta: undefined }];
+		const withoutRuntimeMetadata = read();
+		target.customizations = [{
+			...plugin, load: { kind: CustomizationLoadStatus.Loaded },
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'other-provider', plugin: 'opaque-source', globalEnabled: true, effectiveEnabled: true, repositorySupported: true }),
+		}];
+		assert.deepStrictEqual({ pending, disabledServer, disabledPlugin, withoutRuntimeMetadata, ready: read() }, {
+			pending: [{ enabled: false, waitingForSessionStart: true }],
+			disabledServer: [{ enabled: false, waitingForSessionStart: undefined }],
+			disabledPlugin: [{ enabled: false, waitingForSessionStart: undefined }],
+			withoutRuntimeMetadata: [{ enabled: false, waitingForSessionStart: undefined }],
+			ready: [{ enabled: true, waitingForSessionStart: undefined }],
+		});
+	});
+
 	for (const authority of ['local', 'remote-test']) {
 		test(`maps ordered ${authority} roots without changing workspace enablement URIs`, () => {
 			const sut = createSut();

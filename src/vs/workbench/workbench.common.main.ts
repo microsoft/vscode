@@ -241,6 +241,7 @@ import './contrib/agentsVoice/browser/agentsVoice.contribution.js';
 import './contrib/mcp/browser/mcp.contribution.js';
 import './contrib/mcp/browser/mcp.view.contribution.js';
 import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';
+import './contrib/sessions/browser/editorWindow/editorWindowSessions.contribution.js';
 import './contrib/chat/browser/contextContrib/chatContext.contribution.js';
 import './contrib/imageCarousel/browser/imageCarousel.contribution.js';
 
@@ -460,6 +461,7 @@ import './contrib/workspace/browser/workspace.contribution.js';
 
 // Workspaces
 import './contrib/workspaces/browser/workspaces.contribution.js';
+import './contrib/workspaces/browser/folderLocationWorkingSets.contribution.js';
 
 // List
 import './contrib/list/browser/list.contribution.js';

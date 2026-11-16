@@ -12,7 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mockObject, upcastDeepPartial, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -31,6 +31,7 @@ import { SessionsTitleBarWidget } from '../../browser/sessionsTitleBarWidget.js'
 import { ISessionHost } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ITestSessionsService, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 
 suite('SessionsTitleBarWidget - Remote Host', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -78,13 +79,19 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 			upcastPartial<BlockedSessionsIndicatorModel>({
 				onDidRequestBlink: Event.None,
 				blockedSessions: constObservable([]),
+				unacknowledgedBlockedSessions: constObservable([]),
+				reminderSessions: constObservable([]),
+				attentionSessionCount: constObservable(0),
 				requiresInputKind: constObservable(undefined),
 			}),
 			upcastPartial<ISessionsManagementService>({
 				onDidChangeSessions: Event.None,
 				onDidChangeSessionTypes: onDidChangeSessionTypes.event,
 			}),
-			upcastPartial<ITestSessionsService>({ activeSession }),
+			upcastPartial<ITestSessionsService>({
+				activeSession,
+				getRecentlyOpenedSessions: () => ({ recent: [], other: [] }),
+			}),
 			upcastPartial<ISessionHost>({ session: activeSession, chat: derived(reader => activeSession.read(reader)?.activeChat.read(reader)) }),
 			providersService,
 			upcastPartial<ICommandService>({}),
@@ -96,6 +103,11 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 			hoverService,
 			upcastPartial<IBrowserWorkbenchEnvironmentService>({ sessionTitle }),
 			upcastPartial<IChatWindowService>({}),
+			upcastPartial<IAccessibilityService>({ isMotionReduced: () => false }),
+			upcastPartial<IContextMenuService>({
+				onDidShowContextMenu: Event.None,
+				onDidHideContextMenu: Event.None,
+			}),
 		));
 		const container = $('div');
 		widget.render(container);

@@ -21,6 +21,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, TurnState, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentPlanReview, type IAgentPlanReview } from '../../../../../../platform/agentHost/common/meta/agentPlanReview.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../../../../../platform/agentHost/common/meta/agentChatInputRequestMeta.js';
+import { getShellAuthenticationTitle, readShellAuthentication, type IShellAuthenticationPrompt } from '../../../../../../platform/agentHost/common/meta/agentShellAuthenticationMeta.js';
 import { isComputerUseActivationAccepted, readComputerUseActivationCard, readComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { getToolKind as getProtocolToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { copilotCliToolInputContract, readToolCallMeta, readToolCallPresentation, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
@@ -52,7 +53,7 @@ import { AgentSession } from '../../../../../../platform/agentHost/common/agentS
 import product from '../../../../../../platform/product/common/product.js';
 import { ConfigureAutomationToolReferenceName } from '../../../common/automations/automationService.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../../../common/sessionComparisonConstants.js';
-import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionTargetData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
+import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatSingleSelectAnswer, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionTargetData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot, type IRateLimitSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -315,6 +316,55 @@ export function createInputRequestCarousel(inputReq: ChatInputRequest, connectio
 	return carousel;
 }
 
+export const SHELL_AUTHENTICATION_QUESTION_ID = 'answer';
+const SHELL_AUTHENTICATION_CONFIRM_YES = 'yes';
+const SHELL_AUTHENTICATION_CONFIRM_NO = 'no';
+const SHELL_AUTHENTICATION_CANCEL = 'cancel';
+
+export function createShellAuthenticationCarousel(requestId: string, prompt: IShellAuthenticationPrompt, canAnswer = true): ChatQuestionCarouselData {
+	const note = !canAnswer
+		? { icon: Codicon.info, text: localize('agentHost.shellAuthentication.cannotAnswer', "This connection can't send your answer privately, so you can only cancel the prompt here.") }
+		: { icon: Codicon.lock, text: localize('agentHost.shellAuthentication.disclosure', "Your answer goes only to {0} and isn't sent to the model.", prompt.program) };
+	const base = {
+		id: SHELL_AUTHENTICATION_QUESTION_ID,
+		title: getShellAuthenticationTitle(prompt),
+		context: prompt.command ? `${localize('agentHost.shellAuthentication.command', "Command:")}\n${prompt.command}` : undefined,
+		description: prompt.prompt.trim() || undefined,
+		note,
+		required: true,
+	};
+	const question: IChatQuestion = !canAnswer
+		? {
+			...base,
+			type: 'singleSelect',
+			allowFreeformInput: false,
+			options: [{ id: SHELL_AUTHENTICATION_CANCEL, label: localize('agentHost.shellAuthentication.cancelPrompt', "Cancel Prompt"), value: SHELL_AUTHENTICATION_CANCEL }],
+		}
+		: prompt.inputKind === 'confirm'
+			? {
+				...base,
+				type: 'singleSelect',
+				allowFreeformInput: false,
+				options: [
+					{ id: SHELL_AUTHENTICATION_CONFIRM_YES, label: localize('agentHost.shellAuthentication.yes', "Yes"), value: SHELL_AUTHENTICATION_CONFIRM_YES },
+					{ id: SHELL_AUTHENTICATION_CONFIRM_NO, label: localize('agentHost.shellAuthentication.no', "No"), value: SHELL_AUTHENTICATION_CONFIRM_NO },
+				],
+			}
+			: { ...base, type: 'text', password: prompt.inputKind === 'secret' };
+	const carousel = new ChatQuestionCarouselData([question], true, requestId);
+	carousel.answerPresentation = 'conversation';
+	return carousel;
+}
+
+export function getShellAuthenticationAnswer(prompt: IShellAuthenticationPrompt, answers: IChatQuestionAnswers | undefined): string | undefined {
+	const answer = answers?.[SHELL_AUTHENTICATION_QUESTION_ID];
+	if (prompt.inputKind === 'confirm') {
+		const selected = typeof answer === 'object' ? (answer as IChatSingleSelectAnswer).selectedValue : answer;
+		return selected === SHELL_AUTHENTICATION_CONFIRM_YES ? 'yes' : undefined;
+	}
+	return typeof answer === 'string' ? answer : undefined;
+}
+
 export function createInputRequestPlanReview(inputReq: ChatInputRequest, planReview: IAgentPlanReview['review'], resourceUris: IAgentHostResourceUriMapper, connectionAuthority: string): ChatPlanReviewData {
 	return new ChatPlanReviewData(
 		planReview.title,
@@ -394,6 +444,16 @@ export function inputRequestResponsePartToProgress(part: InputRequestResponsePar
 			state: part.response === ChatInputResponseKind.Accept ? ElicitationState.Accepted : ElicitationState.Rejected,
 			isHidden: false,
 		};
+	}
+
+	const shellAuthentication = readShellAuthentication(inputReq);
+	if (shellAuthentication) {
+		// Chat state never holds the answer, so the record only says whether the prompt was answered.
+		const carousel = createShellAuthenticationCarousel(inputReq.id, shellAuthentication);
+		carousel.data = {};
+		carousel.isUsed = true;
+		carousel.answeredExternally = part.response === ChatInputResponseKind.Accept;
+		return carousel;
 	}
 
 	if (readComputerUseSetupCard(inputReq)) {

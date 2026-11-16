@@ -72,7 +72,7 @@ import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT, ChatViewId, IChatWidgetService, IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
 import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
-import { disposableTimeout, raceCancellation, RunOnceScheduler } from '../../../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, raceCancellation, RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -1125,6 +1125,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
 
+	private readonly _widgetCreated = new DeferredPromise<ChatWidget>();
+	/** Resolves to {@link widget} once the view creates it, as its body first renders. */
+	get whenWidget(): Promise<ChatWidget> { return this._widgetCreated.p; }
+
 	private titleControl: ChatViewTitleControl | undefined;
 
 	private createChatControl(parent: HTMLElement): ChatWidget {
@@ -1140,7 +1144,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Chat Widget
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
-		this._widget = this._register(scopedInstantiationService.createInstance(
+		const widget = this._register(scopedInstantiationService.createInstance(
 			ChatWidget,
 			ChatAgentLocation.Chat,
 			{ viewId: this.id },
@@ -1177,7 +1181,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				inputEditorBackground: locationBasedColors.background,
 				resultEditorBackground: editorBackground,
 			}));
-		this._widget.render(chatControlsContainer, parent);
+		this._widget = widget;
+		widget.render(chatControlsContainer, parent);
+		// What waits for the widget gets it once it is rendered, as the body renders, once
+		this._widgetCreated.complete(widget);
 		this._register(scopedInstantiationService.createInstance(AgentHostSessionInputPills, this._widget, 'auto'));
 
 		const updateWidgetVisibility = (reader?: IReader) => this._widget.setVisible(this.isBodyVisible() && !this.welcomeController?.isShowingWelcome.read(reader));

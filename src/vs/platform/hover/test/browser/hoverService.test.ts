@@ -386,12 +386,14 @@ suite('HoverService', () => {
 			const hoverBounds = hoverWidget.domNode.getBoundingClientRect();
 			const statusBarBounds = statusBarDomNode.getBoundingClientRect();
 			const heightOutsideContents = hoverWidget.domNode.offsetHeight - contentsDomNode.offsetHeight;
+			// Bounds are floats, so a status bar ending exactly where the hover ends can differ from it by rounding noise at fractional positions
+			const epsilon = 0.001;
 
 			assert.deepStrictEqual({
 				hoverMaxHeight: hoverWidget.domNode.style.maxHeight,
 				contentsMaxHeight: contentsDomNode.style.maxHeight,
 				contentOverflows: contentsDomNode.scrollHeight > contentsDomNode.clientHeight,
-				statusBarIsVisible: statusBarBounds.top >= hoverBounds.top && statusBarBounds.bottom <= hoverBounds.bottom
+				statusBarIsVisible: statusBarBounds.top >= hoverBounds.top - epsilon && statusBarBounds.bottom <= hoverBounds.bottom + epsilon
 			}, {
 				hoverMaxHeight: expectedMaxHeight,
 				contentsMaxHeight: `${Math.max(0, mainWindow.innerHeight * 0.25 - heightOutsideContents)}px`,
@@ -713,6 +715,29 @@ suite('HoverService', () => {
 				pointerCentre: 30,
 			});
 			hover.dispose();
+		});
+
+		test('should position hover using viewport coordinates for a CSS-zoomed target', () => {
+			const zoomed = fixture.appendChild(document.createElement('div'));
+			zoomed.style.cssText = 'position: fixed; top: 0; left: 0; zoom: 1.25;';
+			const clippingElement = zoomed.appendChild(document.createElement('div'));
+			clippingElement.style.cssText = 'position: absolute; top: 0; left: 40px; width: 200px; height: 40px;';
+			const target = clippingElement.appendChild(document.createElement('div'));
+			target.style.cssText = 'position: absolute; top: 8px; left: 20px; width: 40px; height: 16px;';
+
+			const hover = store.add(showHover('Zoomed target hover', target, {
+				position: { hoverPosition: HoverPosition.BELOW, clippingElement },
+			}));
+			const hoverWidget = asHoverWidget(hover);
+			const targetRect = target.getBoundingClientRect();
+
+			assert.deepStrictEqual({
+				alignedX: Math.abs(hoverWidget.x - targetRect.left) < 0.5,
+				alignedY: Math.abs(hoverWidget.y - (targetRect.bottom - 2)) < 0.5,
+			}, {
+				alignedX: true,
+				alignedY: true,
+			});
 		});
 
 	});

@@ -40,6 +40,7 @@ import { IWorkspacesManagementMainService } from '../../workspaces/electron-main
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from '../../window/electron-main/window.js';
 import { IPolicyService } from '../../policy/common/policy.js';
 import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
+import { IFolderLocationsMainService } from './folderLocationsMainService.js';
 import { IStateService } from '../../state/node/state.js';
 import { IUserDataProfilesMainService } from '../../userDataProfile/electron-main/userDataProfile.js';
 import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
@@ -838,6 +839,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		@IProductService private readonly productService: IProductService,
 		@IProtocolMainService protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@IFolderLocationsMainService private readonly folderLocationsMainService: IFolderLocationsMainService,
 		@IStateService stateService: IStateService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
@@ -1072,9 +1074,10 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// Telemetry
 		type WindowErrorClassification = {
-			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of window error to understand the nature of the error better.' };
+			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of window error to understand the nature of the error better.' };
 			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reason of the window error to understand the nature of the error better.' };
-			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The exit code of the window process to understand the nature of the error better' };
+			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the window process to understand the nature of the error better' };
+			isAgentsWindow: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the window was an Agents window, to attribute window errors to it.' };
 			owner: 'bpasero';
 			comment: 'Provides insight into reasons the vscode window had an error.';
 		};
@@ -1082,11 +1085,13 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			type: WindowError;
 			reason: string | undefined;
 			code: number | undefined;
+			isAgentsWindow: boolean;
 		};
 		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', {
 			type,
 			reason: details?.reason,
-			code: details?.exitCode
+			code: details?.exitCode,
+			isAgentsWindow: !!this._config?.isSessionsWindow
 		});
 
 		// Inform User if non-recoverable
@@ -1473,6 +1478,15 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// Validate workspace
 		configuration.workspace = await this.validateWorkspaceBeforeReload(configuration);
+
+		// An alternate location that is gone is not reloaded, and a notice is only shown once
+		delete configuration.folderLocationMissing;
+		delete configuration.folderLocation;
+		if (isSingleFolderWorkspaceIdentifier(configuration.workspace) && !configuration.remoteAuthority && configuration.workspace.uri.scheme === Schemas.file) {
+			const validated = await this.folderLocationsMainService.validateFolderLocation(configuration.workspace.uri, this.folderLocationsMainService.getFolderLocation(configuration.workspace.uri));
+			configuration.folderLocation = validated.folderLocation;
+			configuration.folderLocationMissing = validated.folderLocationMissing;
+		}
 
 		// Delete some properties we do not want during reload
 		delete configuration.filesToOpenOrCreate;

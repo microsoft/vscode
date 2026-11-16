@@ -8,6 +8,8 @@ import { Event } from '../../../common/event.js';
 
 export interface ITableColumn<TRow, TCell> {
 	readonly label: string;
+	/** Custom header content; label remains the column's text label. */
+	readonly headerElement?: HTMLElement;
 	readonly tooltip?: string;
 	readonly weight: number;
 	readonly templateId: string;

@@ -13,6 +13,8 @@ import { StringSHA1 } from '../../../../../../base/common/hash.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { isObject } from '../../../../../../base/common/types.js';
+import type { AuthenticateResult } from '../../../../../../platform/agentHost/common/agent.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { AgentHostAuthenticationPendingError } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
@@ -76,6 +78,12 @@ export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, m
 	return !selectedModel || readAgentModelByokIdentifier(selectedModel) === undefined;
 }
 
+function assertAuthenticationAccepted(result: unknown): void {
+	if (isObject(result) && (result as Partial<AuthenticateResult>).authenticated === false) {
+		throw new Error(localize('agentHost.credentialRejected', "The agent host did not accept the authentication credential."));
+	}
+}
+
 interface IForwardedAuthenticationIdentity {
 	readonly sessionId: string;
 	readonly accountId: string;
@@ -134,7 +142,7 @@ export class AgentHostAuthTokenCache {
 		}
 
 		const promise = (async () => {
-			await authenticate();
+			assertAuthenticationAccepted(await authenticate());
 			if (!this._isCurrentGeneration(key, globalGeneration, keyGeneration)) {
 				throw new CancellationError();
 			}
@@ -739,11 +747,11 @@ async function forwardAuthenticationToken(
 		const identity = session?.id && session.account ? { sessionId: session.id, accountId: session.account.id } : undefined;
 		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), authenticationAccountId(readAuthenticationAccount(request)), readAgentEntitlementHint(request), options.target, identity);
 	}
-	await options.authenticate(request);
+	assertAuthenticationAccepted(await options.authenticate(request));
 	return true;
 }
 
-function toAuthenticateRequest(
+export function toAuthenticateRequest(
 	resource: string,
 	scopes: readonly string[] | undefined,
 	session: IForwardedAuthenticationSession | undefined,
@@ -754,7 +762,6 @@ function toAuthenticateRequest(
 	const account = providerId && session?.account?.id ? {
 		providerId,
 		accountId: session.account.id,
-		...(providerId === 'microsoft' && session.account.label ? { label: session.account.label } : {}),
 		...(session.authorizationServer ? { authorizationServer: session.authorizationServer.toString() } : {}),
 	} : undefined;
 	return {

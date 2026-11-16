@@ -195,6 +195,32 @@ suite('WorkspaceEditingService', () => {
 			assert.deepStrictEqual(switched.map(u => u?.toString()), [primary.toString()]);
 		});
 
+		test('an idle-only return does nothing while a switch is in flight', async () => {
+			const primary = URI.file('/work/project');
+			const alt = URI.file('/work/alt');
+			const resolution = new DeferredPromise<IResolvedFolderLocation>();
+			const switched: (URI | undefined)[] = [];
+			const service = ds.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
+				undefined,
+				{ getWorkbenchState: () => WorkbenchState.FOLDER, getWorkspace: () => ({ folders: [{ uri: primary }], uri: primary }), setFolderLocation: async (location: URI) => { switched.push(location); } },
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, { confirm: async () => ({ confirmed: true }) },
+				undefined,
+				{ extUri },
+				{ isWorkspaceTrusted: () => true, getUriTrustInfo: async () => ({ trusted: false }), setUrisTrust: async () => { } },
+				undefined, undefined, undefined,
+				{ canSetLocation: () => true, resolveLocation: () => resolution.p, setLocation: () => { } },
+				{ isWorkspaceTrustEnabled: () => true }
+			));
+
+			const pending = service.setFolderLocation(alt);
+			await service.setFolderLocation(primary, { ifIdle: true });
+			resolution.complete({ uri: alt, label: 'Alt', providerId: 'test', builtIn: false });
+			await pending;
+			await service.setFolderLocation(primary, { ifIdle: true });
+
+			assert.deepStrictEqual(switched.map(u => u?.toString()), [alt.toString(), primary.toString()]);
+		});
+
 		test('switching a trusted workspace to an untrusted location asks once, and declining still switches in Restricted Mode', async () => {
 			const alt = URI.file('/work/alt');
 			const declined = createService({ current: URI.file('/work/project'), primaryTrusted: true, builtIn: false, confirmed: false });

@@ -23,7 +23,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ChatContextKeyExprs, ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IRemoteTunnelStartOptions, RemoteTunnelCommandIds } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 import { RemoteConnectionsActionViewItem } from './toggleRemoteConnectionsActionViewItem.js';
-import { getRemoteTunnelAccessState, RemoteConnectionsToggleResult } from './remoteConnectionsSharing.js';
+import { getRemoteConnectionsToggleFailure, getRemoteTunnelAccessState, RemoteConnectionsFailureReason, RemoteConnectionsToggleResult } from './remoteConnectionsSharing.js';
 
 export const TUNNEL_HOST_SHARING_KEY = 'tunnelHostSharing';
 export const TUNNEL_HOST_SHARING_CONTEXT = new RawContextKey<boolean>(TUNNEL_HOST_SHARING_KEY, false);
@@ -39,19 +39,24 @@ export async function executeToggleRemoteConnections(accessor: ServicesAccessor,
 		const logService = accessor.get(ILogService);
 		const notificationService = accessor.get(INotificationService);
 		const enabled = sharingService.state.get() !== 'disabled';
-		try {
-			if (!enabled) {
+		const fail = (error: unknown, reason: RemoteConnectionsFailureReason) => {
+			logService.error('Failed to toggle GitHub environment sharing', error);
+			notificationService.error(enabled
+				? localize('tunnelHost.disableSharingFailed', "Failed to disable GitHub environment sharing: {0}", getErrorMessage(error))
+				: localize('tunnelHost.enableSharingFailed', "Failed to enable GitHub environment sharing: {0}", getErrorMessage(error)));
+			return getRemoteConnectionsToggleFailure(error, reason);
+		};
+		if (!enabled) {
+			try {
 				await remoteTunnelService.stopTunnel();
+			} catch (error) {
+				return isCancellationError(error) ? 'canceled' : fail(error, 'stopDevTunnel');
 			}
+		}
+		try {
 			await sharingService.setEnabled(!enabled);
 		} catch (error) {
-			if (!isCancellationError(error)) {
-				logService.error('Failed to toggle GitHub environment sharing', error);
-				notificationService.error(enabled
-					? localize('tunnelHost.disableSharingFailed', "Failed to disable GitHub environment sharing: {0}", getErrorMessage(error))
-					: localize('tunnelHost.enableSharingFailed', "Failed to enable GitHub environment sharing: {0}", getErrorMessage(error)));
-				return 'failed';
-			}
+			return isCancellationError(error) ? 'canceled' : fail(error, 'unknown');
 		}
 		return 'completed';
 	}

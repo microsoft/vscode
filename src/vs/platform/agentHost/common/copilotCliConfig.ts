@@ -76,6 +76,10 @@ export const enum CopilotCliConfigKey {
 	ProgressUpdatesPromptDefaultControlled = 'progressUpdatesPromptDefaultControlled',
 	/** Store Copilot Memory in the repository instead of GitHub's cloud memory service. Off by default. */
 	LocalMemory = 'localMemory',
+	/** Where Copilot SDK sessions place retrieved memories: the system prompt (default) or generated user-role messages. */
+	MemoryMode = 'memoryMode',
+	/** Whether the workbench memory mode value is controlled by its configuration default. */
+	MemoryModeDefaultControlled = 'memoryModeDefaultControlled',
 	/** Character budget for skill descriptions included in the Copilot SDK system message. */
 	SkillCharBudget = 'skillCharBudget',
 	/** Override Auto's "Optimize for" preference. */
@@ -92,6 +96,8 @@ export const enum CopilotCliConfigKey {
 	LocalModelAccountGate = 'localModelAccountGate',
 	/** Whether Copilot adds its `Co-authored-by` trailer to the commits it creates. On by default. */
 	IncludeCoAuthoredBy = 'includeCoAuthoredBy',
+	/** Ask in chat for the answers that `sudo -A`, `ssh`, and `git` prompts in agent shell commands need. Off by default. */
+	ShellAuthentication = 'shellAuthentication',
 }
 
 export const CopilotCliVSCodeAssignmentContextKey = 'copilotCliVSCodeAssignmentContext';
@@ -161,6 +167,11 @@ export const LegacyDynamicAutoTiersConfigKey = 'dynamicAutoTiers';
 
 export const AgentHostCopilotLocalMemoryEnabledSettingId = 'chat.copilot.memory.local.enabled';
 
+export const AgentHostCopilotMemoryModeSettingId = 'chat.copilot.memory.mode';
+
+export const copilotMemoryModeValues = ['system-prompt', 'user-prompt'] as const;
+export type CopilotMemoryMode = typeof copilotMemoryModeValues[number];
+
 export const CopilotSkillCharBudgetSettingId = 'chat.copilot.skillCharBudget';
 
 export const CopilotAutoModeTierOverrideSettingId = 'github.copilot.chat.autoModeTierOverride';
@@ -168,6 +179,8 @@ export const CopilotAutoModeTierOverrideSettingId = 'github.copilot.chat.autoMod
 export const AgentHostCopilotModelCapabilityOverridesSettingId = 'chat.agentHost.copilot.modelCapabilityOverrides';
 
 export const AgentHostCopilotIncludeCoAuthoredBySettingId = 'chat.agentHost.copilot.includeCoAuthoredBy';
+
+export const AgentHostCopilotShellAuthenticationEnabledSettingId = 'chat.agentHost.copilot.shellAuthentication.enabled';
 
 export const copilotSdkLogLevelSettingValues = ['info', 'trace'] as const;
 export type CopilotSdkLogLevelSetting = typeof copilotSdkLogLevelSettingValues[number];
@@ -400,6 +413,23 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.localMemory.description', "When enabled, Copilot SDK sessions store memories in the repository's .github/copilot-memories.jsonl file instead of GitHub's cloud memory service. Requires a GitHub-hosted repository; GitHub Copilot Memory settings and policies don't apply."),
 		default: false,
 	}),
+	[CopilotCliConfigKey.MemoryMode]: schemaProperty<CopilotMemoryMode>({
+		type: 'string',
+		title: localize('agentHost.config.memoryMode.title', "Copilot Memory Placement"),
+		description: localize('agentHost.config.memoryMode.description', "Where Copilot SDK sessions place retrieved Copilot Memory: in the system prompt, or in generated user messages."),
+		enum: [...copilotMemoryModeValues],
+		enumLabels: [
+			localize('agentHost.config.memoryMode.systemPrompt', "System Prompt"),
+			localize('agentHost.config.memoryMode.userPrompt', "User Prompt"),
+		],
+		default: 'system-prompt',
+	}),
+	[CopilotCliConfigKey.MemoryModeDefaultControlled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.memoryModeDefaultControlled.title', "Copilot Memory Placement Default Control"),
+		description: localize('agentHost.config.memoryModeDefaultControlled.description', "Whether the workbench Copilot Memory placement setting has no explicit override. Used only to gate setting experiment telemetry."),
+		default: false,
+	}),
 	[CopilotCliConfigKey.SkillCharBudget]: schemaProperty<number>({
 		type: 'number',
 		title: localize('agentHost.config.skillCharBudget.title', "Skill Character Budget"),
@@ -492,6 +522,12 @@ export const copilotCliConfigSchema = createSchema({
 		title: localize('agentHost.config.includeCoAuthoredBy.title', "Include Co-authored-by Trailer"),
 		description: localize('agentHost.config.includeCoAuthoredBy.description', "When enabled, Copilot SDK sessions add a `Co-authored-by` trailer to the commits they create. Applied when a session starts or resumes."),
 		default: true,
+	}),
+	[CopilotCliConfigKey.ShellAuthentication]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.shellAuthentication.title', "Shell Authentication Prompts"),
+		description: localize('agentHost.config.shellAuthentication.description', "When enabled, Copilot SDK sessions ask in chat for the passwords, passphrases, and confirmations that `sudo -A`, `ssh`, and `git` request, and send the answer only to that program. Applied when a session starts or resumes."),
+		default: false,
 	}),
 });
 

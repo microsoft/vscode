@@ -20,6 +20,8 @@ import { NullLogService } from '../../../../../../../platform/log/common/log.js'
 import { AccountPolicyGateState } from '../../../../../../services/policies/common/accountPolicyService.js';
 import { TestContextService, TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
 import { ChatViewPane } from '../../../../browser/widgetHosts/viewPane/chatViewPane.js';
+import { ChatWidget } from '../../../../browser/widget/chatWidget.js';
+import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ChatOpenDiagnosticsService } from '../../../../common/chatOpenDiagnosticsService.js';
 import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
 import { IChatModelReference } from '../../../../common/chatService/chatService.js';
@@ -555,5 +557,46 @@ suite('ChatViewPane restored chat with a harness disabled by policy', () => {
 			savedChat: { restored: true, disposed: false },
 			allowedDraft: { restored: true, disposed: false },
 		});
+	});
+});
+
+suite('ChatViewPane widget readiness', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('whenWidget resolves to the widget the body creates, once it is rendered, as the body creates its controls', async () => {
+		const steps: string[] = [];
+		const store = disposables.add(new DisposableStore());
+		const widget = upcastPartial<ChatWidget>({
+			render: () => { steps.push('render'); },
+			setVisible: () => { },
+			dispose: () => { },
+		});
+		const instantiationService = {
+			createInstance: () => ({ onDidChangeHeight: Event.None, dispose: () => { } }),
+			createChild: () => ({ createInstance: (ctor: unknown) => ctor === ChatWidget ? widget : { dispose: () => { } }, dispose: () => { } }),
+		};
+		// The order of the real Chat view: its title control, then its widget, which it renders
+		const pane = Object.assign(Object.create(ChatViewPane.prototype), {
+			_store: store,
+			_widgetCreated: new DeferredPromise<ChatWidget>(),
+			id: 'workbench.panel.chat.view.copilot',
+			instantiationService,
+			layoutService: { getContainer: () => mainWindow.document.createElement('div') },
+			scopedContextKeyService: {},
+			aiCustomizationWorkspaceService: { activeProjectRoot: constObservable(undefined) },
+			customizationMigrationsAvailable: { set: () => { } },
+			getLocationBasedColors: () => ({ background: '', overlayBackground: '', listOverrideStyles: {} }),
+			onDidChangeBodyVisibility: Event.None,
+			isBodyVisible: () => true,
+			welcomeController: undefined,
+			relayout: () => { },
+		}) as ChatViewPane;
+		pane.whenWidget.then(created => steps.push(created === widget ? 'resolved to the widget' : `resolved to ${created}`));
+
+		(Reflect.get(ChatViewPane.prototype, 'createChatControl') as (this: ChatViewPane, parent: HTMLElement) => ChatWidget).call(pane, mainWindow.document.createElement('div'));
+		await timeout(0);
+
+		assert.deepStrictEqual(steps, ['render', 'resolved to the widget']);
 	});
 });
