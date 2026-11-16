@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ISessionGridPane } from '../../../../services/sessions/browser/sessionGridPane.js';
@@ -15,7 +14,7 @@ import { ISessionsNavigationService } from '../sessionsNavigationService.js';
 import type { IOpenChatOptions, IOpenSessionOptions } from '../sessionsService.js';
 import { IEditorWindowSessionsPresenterService } from '../editorWindow/editorWindowSessionsPresenter.js';
 import { IAgentsViewProvidersService } from './agentsViewProviders.js';
-import { prepareSessionForOpen, resolveSessionForOpen } from '../sessionOpen.js';
+import { LatestSessionOpen, prepareSessionForOpen, resolveSessionForOpen } from '../sessionOpen.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { requestSessionWorkspaceTrust } from '../../../../services/sessions/browser/worktreeTrust.js';
@@ -52,19 +51,12 @@ export class EditorWindowSessionsNavigationHost extends Disposable implements IS
 		return this._mainWindowHost;
 	}
 
-	/** The latest open, which a later one cancels: an open shows its session only while it is the latest. */
-	private readonly _open = this._register(new MutableDisposable<CancellationTokenSource>());
-
-	/** Cancels the open under way, if any, and starts another. */
-	private _startOpen(): CancellationToken {
-		this._open.value?.cancel();
-		const open = this._open.value = new CancellationTokenSource();
-		return open.token;
-	}
+	/** The latest open, which a later one cancels, as disposing this does: an open shows its session only while it is the latest. */
+	private readonly _open = this._register(new LatestSessionOpen());
 
 	async openSession(sessionResource: URI, options?: IOpenSessionOptions): Promise<void> {
 		// A later open supersedes this one while it resolves, waits for or prepares its session: the user's latest pick shows
-		const token = this._startOpen();
+		const token = this._open.start();
 		// Its session is known only while the providers are held: until it shows, such as in the chat part, which holds them then
 		const hold = this._providers.acquire();
 		try {
@@ -84,7 +76,7 @@ export class EditorWindowSessionsNavigationHost extends Disposable implements IS
 
 	async openChat(session: ISession, chatUri: URI, options?: IOpenChatOptions): Promise<void> {
 		// A later open, also of a session, supersedes this one while its session prepares, so that the user's latest pick shows
-		const token = this._startOpen();
+		const token = this._open.start();
 		await prepareSessionForOpen(this._sessionsProvidersService, session);
 		if (!token.isCancellationRequested) {
 			await this._presenter.openChat(session, chatUri, { preserveFocus: options?.preserveFocus });

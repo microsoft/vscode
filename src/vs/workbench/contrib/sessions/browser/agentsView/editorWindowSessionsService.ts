@@ -6,7 +6,7 @@
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -26,7 +26,7 @@ import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { ICloseChatOptions, IOpenChatOptions, IOpenNewChatInSessionOptions, IOpenNewSessionOptions, IOpenNewSessionResult, IOpenSessionOptions, IOpenSessionsOptions, ISessionNavigationRequest, ISessionsService, SessionGridDirection } from '../sessionsService.js';
 import { getEditorWindowComposerTarget, IEditorWindowSessionsPresenterService } from '../editorWindow/editorWindowSessionsPresenter.js';
 import { IAgentsViewProvidersService } from './agentsViewProviders.js';
-import { prepareSessionForOpen, resolveSessionForOpen, waitForSessionToLoad } from '../sessionOpen.js';
+import { LatestSessionOpen, prepareSessionForOpen, resolveSessionForOpen, waitForSessionToLoad } from '../sessionOpen.js';
 
 /**
  * The sessions of an editor window, for the UI the Agents window shares with it, such as the chat view and its pills: the
@@ -123,15 +123,8 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 
 	//#region Sessions and chats: shown by the presenter
 
-	/** The latest open, which a later one cancels: an open shows its session only while it is the latest. */
-	private readonly _open = this._register(new MutableDisposable<CancellationTokenSource>());
-
-	/** Cancels the open under way, if any, and starts another. */
-	private _startOpen(): CancellationToken {
-		this._open.value?.cancel();
-		const open = this._open.value = new CancellationTokenSource();
-		return open.token;
-	}
+	/** The latest open, which a later one cancels, as disposing this does: an open shows its session only while it is the latest. */
+	private readonly _open = this._register(new LatestSessionOpen());
 
 	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {
 		void this.openSession(sessionResource, options);
@@ -139,23 +132,24 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 
 	async openSession(sessionResource: URI, options?: IOpenSessionOptions): Promise<void> {
 		// A later open supersedes this one while it resolves or waits for its session: the user's latest pick shows
-		const token = this._startOpen();
+		const token = this._open.start();
 		// Its session is known only while the providers are held: until it shows, such as in the chat part, which holds them then
 		const hold = this._providers.acquire();
 		try {
 			const session = await resolveSessionForOpen(this._sessionsManagementService, this._sessionsProvidersService, sessionResource, token);
 			if (session) {
-				await this._openSession(session, options);
+				await this._openSession(session, options, token);
 			}
 		} finally {
 			hold.dispose();
 		}
 	}
 
-	private async _openSession(session: ISession, options: IOpenSessionOptions | undefined): Promise<void> {
+	private async _openSession(session: ISession, options: IOpenSessionOptions | undefined, token: CancellationToken): Promise<void> {
 		// As the Agents window reports opening a session: until its chat shows and the session loaded. The wait for the session
-		// to load ends just after the attempt timed out, which the telemetry service reports.
-		const cts = new CancellationTokenSource();
+		// to load ends just after the attempt timed out, which the telemetry service reports, or as a later open or disposing
+		// this service cancels the open, as in the Agents window.
+		const cts = new CancellationTokenSource(token);
 		const timeout = setTimeout(() => cts.cancel(), SESSION_OPEN_TIMEOUT_MS + 1000);
 		try {
 			await this._sessionOpenTelemetryService.withOpenRequest(options?.source ?? 'unknown', cts.token, async attempt => {
@@ -196,7 +190,7 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 
 	async openChat(session: ISession, chatUri: URI, options?: IOpenChatOptions): Promise<void> {
 		// A later open, also of a session, supersedes this one while its session prepares, so that the user's latest pick shows
-		const token = this._startOpen();
+		const token = this._open.start();
 		await prepareSessionForOpen(this._sessionsProvidersService, session);
 		if (!token.isCancellationRequested) {
 			await this._presenter.openChat(session, chatUri, { preserveFocus: options?.preserveFocus });
@@ -260,7 +254,7 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 		const draftSlot = options?.draftSlot && options.draftSlot !== this._sessionsManagementService.defaultNewSessionSlot ? options.draftSlot : undefined;
 		if (!draftSlot) {
 			// A new session supersedes an open still resolving, which would otherwise show its session in place of the composer
-			this._startOpen();
+			this._open.start();
 			// In the folder asked for, else the window's, with what is asked for: without a folder, the composer's picker keeps its own
 			const folderUri = options?.folderUri ?? getEditorWindowComposerTarget(this._workspaceContextService, this._editorService)?.folderUri;
 			const target = folderUri
@@ -303,7 +297,7 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 
 	openQuickChat(options?: ICreateNewSessionOptions): ISession | undefined {
 		// A quick chat supersedes an open still resolving or preparing, which would otherwise show its session in place of the composer
-		this._startOpen();
+		this._open.start();
 		// A target without a folder is a chat without a workspace, with what is asked for; no target keeps the picker's folder
 		void this._presenter.openComposer({ providerId: options?.providerId, sessionTypeId: options?.sessionTypeId, modelId: options?.modelId, modeId: options?.modeId });
 		return undefined;
@@ -311,7 +305,7 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 
 	async openNewChatInSession(session: ISession, options?: IOpenNewChatInSessionOptions): Promise<void> {
 		// A later open supersedes this one while its provider creates the chat, and it supersedes an earlier one, as the Agents window's does
-		const token = this._startOpen();
+		const token = this._open.start();
 		const { from: _from, ...createOptions } = options ?? {};
 		const chat = await this._sessionsManagementService.createNewChatInSession(session, Object.keys(createOptions).length ? createOptions : undefined);
 		if (chat && !token.isCancellationRequested) {

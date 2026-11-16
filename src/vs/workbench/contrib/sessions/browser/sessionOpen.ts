@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableTimeout } from '../../../../base/common/async.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ISession } from '../../../services/sessions/common/session.js';
@@ -107,4 +107,30 @@ export async function resolveSessionForOpen(sessionsManagementService: ISessions
 	}
 	await prepareSessionForOpen(sessionsProvidersService, session);
 	return token.isCancellationRequested ? undefined : session;
+}
+
+/**
+ * The latest open of its owner: starting one cancels the one under way, and so does disposing it, so that an open
+ * neither waits nor shows its session once a later one started or its owner is gone.
+ */
+export class LatestSessionOpen extends Disposable {
+
+	private _source: CancellationTokenSource | undefined;
+
+	/** Cancels the open under way, if any, and starts another; once disposed, the open it starts is cancelled. */
+	start(): CancellationToken {
+		this._source?.dispose(true);
+		if (this._store.isDisposed) {
+			this._source = undefined;
+			return CancellationToken.Cancelled;
+		}
+		this._source = new CancellationTokenSource();
+		return this._source.token;
+	}
+
+	override dispose(): void {
+		this._source?.dispose(true);
+		this._source = undefined;
+		super.dispose();
+	}
 }
