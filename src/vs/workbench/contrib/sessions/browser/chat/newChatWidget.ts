@@ -440,12 +440,7 @@ export class NewChatWidget extends Disposable {
 			environment: this._environment,
 			environmentPickerEnabled,
 			canRestoreWorkspace: () => !this._isQuickChatComposer.get() || this._newChatInput?.canApplyWorkspaceDefault === true,
-			onUserSelection: () => {
-				this._savedDraftTargetUnavailable.set(false, undefined);
-				// The user's own choice of workspace wins over the requested placement
-				this._pendingWorktreePlacement.set(undefined, undefined);
-				newSessionComposerService.notifyUserWorkspaceSelection();
-			},
+			onUserSelection: () => this._onUserWorkspaceSelection(),
 			whenSelectionAccepted: async () => {
 				const session = this._pendingWorkspaceCreation ? (await this._pendingWorkspaceCreation).session : this._session.get();
 				return !!session && this._session.get()?.sessionId === session.sessionId;
@@ -1512,6 +1507,14 @@ export class NewChatWidget extends Disposable {
 			this._pendingWorktreePlacement.set(undefined, undefined);
 			this._selectRequestedNoWorkspace(target);
 		}
+	}
+
+	/** The user picked a workspace: a saved draft's unavailable target and a requested new worktree no longer apply. */
+	private _onUserWorkspaceSelection(): void {
+		this._savedDraftTargetUnavailable.set(false, undefined);
+		// The user's own choice of workspace wins over the requested placement
+		this._pendingWorktreePlacement.set(undefined, undefined);
+		this.newSessionComposerService.notifyUserWorkspaceSelection();
 	}
 
 	/** Whether `session` works in `folderUri`. */
