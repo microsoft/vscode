@@ -523,7 +523,7 @@ export class SessionsView extends ViewPane {
 				return this.sessionsService.openSession(session.resource, { preserveFocus, source: 'sessionsList', forceMainChat: true }).then(onOpened).catch(onUnexpectedError);
 			},
 			canOpenSession: session => this.sessionsService.canOpenSession(session),
-			offersWorktreeFilter: this.allowWorktreeGrouping,
+			offersWorktreeFilter: this.contextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key) !== true,
 			onChatOpen: (session, chat, preserveFocus, sideBySide) => {
 				const onOpened = () => {
 					if (isWeb && isPhoneLayout(this.layoutService)) {
