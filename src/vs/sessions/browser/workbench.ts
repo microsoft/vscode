@@ -3285,6 +3285,8 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		return this.workbenchGrid.isViewMaximized(this.panelPartView);
 	}
 
+	readonly onDidChangeChatPartVisibility: Event<boolean> = Event.None;
+
 	hasChatPart(): boolean {
 		return false;
 	}

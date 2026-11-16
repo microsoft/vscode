@@ -14,7 +14,6 @@ import { IContextKeyService } from '../../../platform/contextkey/common/contextk
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import '../../browser/actions/layoutActions.js';
 import '../../browser/parts/auxiliarybar/auxiliaryBarActions.js';
-import { ChatPartEnabledContext } from '../../common/contextkeys.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../browser/parts/editor/editor.js';
 import { WorkbenchContextKeysHandler } from '../../browser/contextkeys.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../services/layout/browser/layoutService.js';
@@ -28,6 +27,12 @@ suite('Workbench Context Keys - Editor Area Hidden For Chat', () => {
 	class ChatLayoutService extends TestLayoutService {
 		readonly emitter = disposables.add(new Emitter<IPartVisibilityChangeEvent>());
 		override readonly onDidChangePartVisibility = this.emitter.event;
+		readonly chatEmitter = disposables.add(new Emitter<boolean>());
+		override readonly onDidChangeChatPartVisibility = this.chatEmitter.event;
+		hasChat = false;
+		override hasChatPart(): boolean {
+			return this.hasChat;
+		}
 		chatVisible = true;
 		editorHidden = false;
 		override isVisible(part: Parts): boolean {
@@ -52,6 +57,7 @@ suite('Workbench Context Keys - Editor Area Hidden For Chat', () => {
 		.some(item => isIMenuItem(item) && item.command.id === 'workbench.action.toggleMaximizedAuxiliaryBar' && (!item.when || item.when.evaluate(contextKeyService.getContext(null))));
 
 	const snapshot = (contextKeyService: ContextKeyService) => ({
+		chatPartEnabled: contextKeyService.getContextKeyValue('chatPartEnabled'),
 		chatPartVisible: contextKeyService.getContextKeyValue('chatPartVisible'),
 		editorAreaHiddenByChat: contextKeyService.getContextKeyValue('editorAreaHiddenByChat'),
 		mainEditorAreaVisible: contextKeyService.getContextKeyValue('mainEditorAreaVisible'),
@@ -65,37 +71,33 @@ suite('Workbench Context Keys - Editor Area Hidden For Chat', () => {
 		layoutService.editorHidden = true;
 		const contextKeyService = create(layoutService);
 		const atConstruction = { ...snapshot(contextKeyService), maximizeActionShown: maximizeActionShown(contextKeyService) };
-		const chatPartEnabled = ChatPartEnabledContext.bindTo(contextKeyService);
 
 		// The layout creates the chat part from its stored state, visible, and fires no visibility event
 		// and normalizes a stale hidden editor area to visible, also without an event
+		layoutService.hasChat = true;
 		layoutService.chatVisible = true;
 		layoutService.editorHidden = false;
 		restored();
 		await layoutService.whenRestored;
 		await Promise.resolve();
-		// A feature enables the chat area, and later turns it off again
-		chatPartEnabled.set(true);
 		const restoredKeys = { ...snapshot(contextKeyService), maximizeActionShown: maximizeActionShown(contextKeyService) };
-		chatPartEnabled.set(false);
-		const disabledAgain = maximizeActionShown(contextKeyService);
 		const paletteEnabled = !!MenuRegistry.getCommand('workbench.action.toggleEditorVisibility')?.precondition?.evaluate(contextKeyService.getContext(null));
 
 		layoutService.chatVisible = false;
-		layoutService.emitter.fire({ partId: Parts.CHAT_PART, visible: false });
+		layoutService.chatEmitter.fire(false);
 		const hiddenChat = snapshot(contextKeyService);
 
 		layoutService.chatVisible = true;
 		layoutService.editorHidden = true;
+		layoutService.chatEmitter.fire(true);
 		layoutService.emitter.fire({ partId: Parts.EDITOR_PART, visible: false });
 
-		assert.deepStrictEqual({ atConstruction, restoredKeys, disabledAgain, paletteEnabled, hiddenChat, editorHidden: snapshot(contextKeyService) }, {
-			atConstruction: { chatPartVisible: false, editorAreaHiddenByChat: true, mainEditorAreaVisible: false, maximizeActionShown: true },
-			restoredKeys: { chatPartVisible: true, editorAreaHiddenByChat: false, mainEditorAreaVisible: true, maximizeActionShown: false },
-			disabledAgain: true,
+		assert.deepStrictEqual({ atConstruction, restoredKeys, paletteEnabled, hiddenChat, editorHidden: snapshot(contextKeyService) }, {
+			atConstruction: { chatPartEnabled: false, chatPartVisible: false, editorAreaHiddenByChat: true, mainEditorAreaVisible: false, maximizeActionShown: true },
+			restoredKeys: { chatPartEnabled: true, chatPartVisible: true, editorAreaHiddenByChat: false, mainEditorAreaVisible: true, maximizeActionShown: false },
 			paletteEnabled: true,
-			hiddenChat: { chatPartVisible: false, editorAreaHiddenByChat: false, mainEditorAreaVisible: true },
-			editorHidden: { chatPartVisible: true, editorAreaHiddenByChat: true, mainEditorAreaVisible: false },
+			hiddenChat: { chatPartEnabled: true, chatPartVisible: false, editorAreaHiddenByChat: false, mainEditorAreaVisible: true },
+			editorHidden: { chatPartEnabled: true, chatPartVisible: true, editorAreaHiddenByChat: true, mainEditorAreaVisible: false },
 		});
 	});
 

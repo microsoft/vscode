@@ -667,6 +667,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	readonly onDidChangePanelPosition: Event<string> = Event.None;
 	readonly onDidChangePanelAlignment: Event<PanelAlignment> = Event.None;
 	readonly onDidChangePartVisibility: Event<IPartVisibilityChangeEvent> = Event.None;
+	readonly onDidChangeChatPartVisibility: Event<boolean> = Event.None;
 	onDidLayoutMainContainer = Event.None;
 	onDidLayoutActiveContainer = Event.None;
 	onDidLayoutContainer = Event.None;

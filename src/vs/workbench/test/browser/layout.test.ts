@@ -412,6 +412,19 @@ suite('Workbench layout chat part', () => {
 		});
 	});
 
+	test('fires the chat part visibility event once per change, also for a maximized panel, and not while it stays as it is', () => {
+		const { layout } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } });
+		const events: boolean[] = [];
+		store.add(layout.onDidChangeChatPartVisibility(visible => events.push(visible)));
+		layout.setPartHidden(false, Parts.CHAT_PART);
+		layout.toggleMaximizedPanel();
+		layout.toggleMaximizedPanel();
+		layout.setPartHidden(true, Parts.CHAT_PART);
+		layout.setPartHidden(true, Parts.CHAT_PART);
+		layout.setPartHidden(false, Parts.CHAT_PART);
+		assert.deepStrictEqual(events, [false, true, false, true]);
+	});
+
 	test('a chat part hidden for a maximized panel or secondary side bar stays hidden after a reload, and shows again when that is restored', () => {
 		const configuration: ILayoutConfiguration = { sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } };
 		const reload = (toggleMaximized: (layout: Layout) => void) => {

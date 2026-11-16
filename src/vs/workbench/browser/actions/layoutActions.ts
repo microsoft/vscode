@@ -264,7 +264,7 @@ class ToggleEditorVisibilityAction extends Action2 {
 			id: ToggleEditorVisibilityAction.ID,
 			title: {
 				...localize2('toggleEditor', "Toggle Editor Area Visibility"),
-				mnemonicTitle: localize({ key: 'miToggleEditorArea', comment: ['&& denotes a mnemonic'] }, "&&Editor Area"),
+				mnemonicTitle: localize({ key: 'miShowEditorArea', comment: ['&& denotes a mnemonic'] }, "Show &&Editor Area"),
 			},
 			category: Categories.View,
 			f1: true,

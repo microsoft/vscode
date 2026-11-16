@@ -207,6 +207,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private readonly _onDidChangePartVisibility = this._register(new Emitter<IPartVisibilityChangeEvent>());
 	readonly onDidChangePartVisibility = this._onDidChangePartVisibility.event;
 
+	private readonly _onDidChangeChatPartVisibility = this._register(new Emitter<boolean>());
+	readonly onDidChangeChatPartVisibility = this._onDidChangeChatPartVisibility.event;
+
 	private readonly _onDidChangeNotificationsVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeNotificationsVisibility = this._onDidChangeNotificationsVisibility.event;
 
@@ -323,7 +326,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	/** The chat part beside the editor, while a feature registered one as the window started (see {@link registerPart}). */
 	private chatPartView: ISerializableView | undefined;
-	private chatPartHidden = true;
+	private _chatPartHidden = true;
+	/** Whether the chat part is hidden, by the user or by the layout. Every change goes through this setter, which fires the event once per change. */
+	private get chatPartHidden(): boolean {
+		return this._chatPartHidden;
+	}
+	private set chatPartHidden(hidden: boolean) {
+		if (this._chatPartHidden !== hidden) {
+			this._chatPartHidden = hidden;
+			this._onDidChangeChatPartVisibility.fire(!hidden);
+		}
+	}
 	/** Whether the layout hid the chat part, such as for a maximized panel, and shows it again with the editor. */
 	private chatPartHiddenByLayout = false;
 	/** The view the chat part docks beside (see {@link setChatPartAnchor}). */
