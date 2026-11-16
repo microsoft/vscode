@@ -163,12 +163,18 @@ suite('Agent host New Chat entries', () => {
 				return upcastPartial<IChatViewHostSessionStart>({ complete: async () => true, dispose: () => { } });
 			},
 		}));
-		for (const service of [IChatService, ILogService, IEditorGroupsService, IEditorService, ICustomizationHarnessService, ILanguageModelToolsService, IAgentHostImportConversationStore]) {
-			instantiationService.stub(service, {});
-		}
-		const run = (id: string) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
+		instantiationService.stub(IChatService, {});
+		instantiationService.stub(ILogService, {});
+		instantiationService.stub(IEditorGroupsService, {});
+		instantiationService.stub(IEditorService, {});
+		instantiationService.stub(ICustomizationHarnessService, {});
+		instantiationService.stub(ILanguageModelToolsService, {});
+		instantiationService.stub(IAgentHostImportConversationStore, {});
 
-		const opened = [await run(NewChatInWorktreeAction.ID), await run(NewChatWithoutWorkspaceAction.ID)];
+		const opened = [
+			await instantiationService.invokeFunction(accessor => new NewChatInWorktreeAction().run(accessor)),
+			await instantiationService.invokeFunction(accessor => new NewChatWithoutWorkspaceAction().run(accessor)),
+		];
 
 		assert.deepStrictEqual({ opened: opened.map(resource => !!resource), targets }, { opened: [true, true], targets: [{ placement: 'worktree', folder }, { placement: 'noWorkspace' }] });
 	});

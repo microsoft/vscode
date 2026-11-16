@@ -28,7 +28,6 @@ import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { SessionConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
@@ -389,7 +388,7 @@ suite('AgentsChatViewHost', () => {
 
 	test('New Chat in Worktree and New Chat (No Workspace) of the Chat view start a composer here aimed at their placement: a new worktree of the prepared folder, or no workspace', async () => {
 		const folder = URI.file('/repo');
-		const run = async (id: string, preparedFolder: URI | undefined) => {
+		const run = async (action: NewChatInWorktreeAction | NewChatWithoutWorkspaceAction, preparedFolder: URI | undefined) => {
 			const targets: (INewSessionTarget | undefined)[] = [];
 			const { host, calls } = createHost({ chatPart: { openComposer: async target => { targets.push(target); } } });
 			const steps: string[] = [];
@@ -416,7 +415,7 @@ suite('AgentsChatViewHost', () => {
 			instantiationService.stub(ICustomizationHarnessService, {});
 			instantiationService.stub(ILanguageModelToolsService, {});
 			instantiationService.stub(IAgentHostImportConversationStore, {});
-			const opened = await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
+			const opened = await instantiationService.invokeFunction(accessor => action.run(accessor));
 			return {
 				opened: !!opened,
 				targets: targets.map(target => ({ folder: target?.folderUri?.path, placement: target?.placement })),
@@ -426,9 +425,9 @@ suite('AgentsChatViewHost', () => {
 		};
 
 		assert.deepStrictEqual({
-			worktree: await run(NewChatInWorktreeAction.ID, folder),
-			noWorkspace: await run(NewChatWithoutWorkspaceAction.ID, undefined),
-			worktreeWithoutFolder: await run(NewChatInWorktreeAction.ID, undefined),
+			worktree: await run(new NewChatInWorktreeAction(), folder),
+			noWorkspace: await run(new NewChatWithoutWorkspaceAction(), undefined),
+			worktreeWithoutFolder: await run(new NewChatInWorktreeAction(), undefined),
 		}, {
 			worktree: { opened: true, targets: [{ folder: '/repo', placement: 'worktree' }], errors: 0, cleanup: [] },
 			noWorkspace: { opened: true, targets: [{ folder: undefined, placement: undefined }], errors: 0, cleanup: [] },
@@ -513,12 +512,12 @@ suite('AgentsChatViewHost', () => {
 		instantiationService.stub(IEditorService, {});
 		instantiationService.stub(ICustomizationHarnessService, {});
 		instantiationService.stub(ILanguageModelToolsService, {});
-		const run = async (id: string) => {
-			const opened = await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
+		const run = async (action: NewChatInWorktreeAction | NewChatWithoutWorkspaceAction) => {
+			const opened = await instantiationService.invokeFunction(accessor => action.run(accessor));
 			return { opened: !!opened, afterRelease: retained(started!) };
 		};
 
-		const results = { worktree: await run(NewChatInWorktreeAction.ID), noWorkspace: await run(NewChatWithoutWorkspaceAction.ID) };
+		const results = { worktree: await run(new NewChatInWorktreeAction()), noWorkspace: await run(new NewChatWithoutWorkspaceAction()) };
 
 		assert.deepStrictEqual({ results, composers, errors: calls.filter(call => call.startsWith('error')).length }, {
 			results: {
