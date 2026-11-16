@@ -128,9 +128,10 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 		this._register(_agentHostService.rootState.onDidChange(() => {
 			const previous = agents;
 			agents = this._advertisedAgents();
-			// Not on every change: whoever asks again on the change event lists them where they are not listed
+			// Only as its agents change, such as as it becomes available: then the folders asked about can have worktrees among
+			// the sessions of the agents it has now, which it lists where it has not, such as after a listing that failed
 			if (agents !== previous) {
-				this._checkOffered();
+				this._checkOffered(this._offered.size > 0);
 				this._onDidChangeLocations.fire();
 			}
 		}));
@@ -247,14 +248,15 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 	/**
 	 * Fires once where the worktrees of any folder asked about are not those last offered. By the forms of each folder known
 	 * now, without reading any: a real path that could not be read is read again only as the folder is asked about again.
+	 * Where `list`, it lists the agent host's sessions where they are not listed yet.
 	 */
-	private _checkOffered(): void {
+	private _checkOffered(list = false): void {
 		if (this._store.isDisposed) {
 			return;
 		}
 		let changed = false;
 		for (const [folder, offered] of this._offered) {
-			const now = offeredKey(getAgentHostSessionWorktrees(this._localSessions(false), this._knownForms.get(folder) ?? [folder]));
+			const now = offeredKey(getAgentHostSessionWorktrees(this._localSessions(list), this._knownForms.get(folder) ?? [folder]));
 			if (now !== offered) {
 				this._offered.set(folder, now);
 				changed = true;
@@ -299,7 +301,7 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 		return forms;
 	}
 
-	/** The agents the local agent host reports, as a key that changes only as they do. */
+	/** The agents the local agent host reports, as a key that changes only as they do: none (`''`) before it reports them, or where it failed to. */
 	private _advertisedAgents(): string {
 		const rootState = this._agentHostService.rootState.value;
 		return rootState && !(rootState instanceof Error) ? JSON.stringify(rootState.agents.map(agent => agent.provider).sort()) : '';

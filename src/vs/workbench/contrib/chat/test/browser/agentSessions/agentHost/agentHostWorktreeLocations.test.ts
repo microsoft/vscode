@@ -342,7 +342,7 @@ suite('AgentHostWorktreeLocations', () => {
 		});
 	});
 
-	test('after a listing that failed, lists again only as a folder is asked about, not as the local agent host\'s state changes, also where each change is asked about again', async () => {
+	test('after a listing that failed, lists again as the local agent host\'s agents change, not as the rest of its state does, also where each change is asked about again', async () => {
 		// Every listing fails, as long as the agent host cannot list its sessions
 		const options = { listFailures: 6 };
 		const provider = createProvider([session('/work/vscode.worktrees/feature', '/work/vscode')], options);
@@ -361,16 +361,27 @@ suite('AgentHostWorktreeLocations', () => {
 			await tick();
 		}
 		const unrelated = { changes, listings: provider.listings() };
+		// It can list them again, and its agents change
 		options.listFailures = 0;
-		const changed = Event.toPromise(service.onDidChangeLocations);
-		await provider.provideLocations(primary, CancellationToken.None);
-		await changed;
+		provider.changeRootState(advertising('copilotcli', 'claude'));
+		await tick();
 
 		assert.deepStrictEqual({ unrelated, listings: provider.listings(), offered: paths(await provider.provideLocations(primary, CancellationToken.None)) }, {
 			unrelated: { changes: 0, listings: 1 },
 			listings: 2,
 			offered: ['/work/vscode.worktrees/feature'],
 		});
+	});
+
+	test('lists the sessions of a folder asked about before the local agent host reported its agents once it does, without being asked again', async () => {
+		const provider = createProvider([session('/work/vscode.worktrees/feature', '/work/vscode')], { started: false });
+		await provider.provideLocations(primary, CancellationToken.None);
+		await tick();
+		const beforeStart = provider.listings();
+		provider.changeRootState(advertising('copilotcli'));
+		await tick();
+
+		assert.deepStrictEqual({ beforeStart, listings: provider.listings(), offered: paths(await provider.provideLocations(primary, CancellationToken.None)) }, { beforeStart: 0, listings: 1, offered: ['/work/vscode.worktrees/feature'] });
 	});
 
 	test('resolves a worktree also before the local agent host\'s sessions are listed, such as to restore the folder\'s location, once they are', async () => {
