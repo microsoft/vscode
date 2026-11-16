@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, observableFromEvent } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -13,7 +13,8 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
-import { ActiveAuxiliaryContext, AuxiliaryBarMaximizeHiddenContext } from '../../../../common/contextkeys.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { ActiveAuxiliaryContext } from '../../../../common/contextkeys.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ChatViewId } from '../../../chat/browser/chat.js';
@@ -66,6 +67,7 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		@IChatViewSessionsListService private readonly _sessionsListService: IChatViewSessionsListService,
 		@IChatViewHostService chatViewHostService: IChatViewHostService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -106,7 +108,7 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 	 * maximize it.
 	 */
 	private _hideMaximizeWhileSessionsOnly(): void {
-		const hidden = AuxiliaryBarMaximizeHiddenContext.bindTo(this._contextKeyService);
+		const claim = this._register(new MutableDisposable());
 		const activeAuxiliaryKeys = new Set([ActiveAuxiliaryContext.key]);
 		const activeAuxiliary = observableFromEvent(this, Event.filter(this._contextKeyService.onDidChangeContext, e => e.affectsSome(activeAuxiliaryKeys)), () => this._contextKeyService.getContextKeyValue<string>(ActiveAuxiliaryContext.key));
 		// The Chat view can live in another container than its default one
@@ -114,9 +116,13 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		this._register(autorun(reader => {
 			const sessionsOnly = this._sessionsListService.sessionsOnly.read(reader);
 			const container = chatViewContainer.read(reader);
-			hidden.set(sessionsOnly && container !== undefined && activeAuxiliary.read(reader) === container);
+			const hidden = sessionsOnly && container !== undefined && activeAuxiliary.read(reader) === container;
+			if (hidden && !claim.value) {
+				claim.value = this._layoutService.hideAuxiliaryBarMaximize();
+			} else if (!hidden) {
+				claim.clear();
+			}
 		}));
-		this._register(toDisposable(() => hidden.reset()));
 	}
 }
 

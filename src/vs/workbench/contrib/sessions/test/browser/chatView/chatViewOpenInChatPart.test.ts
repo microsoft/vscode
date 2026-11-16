@@ -39,7 +39,7 @@ import { ChangesMultiDiffSourceResolver } from '../../../../sessionChanges/brows
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatViewContainerId, ChatViewId, IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { ChatViewSessionsListService, IChatViewSessionsListService } from '../../../../chat/browser/widgetHosts/viewPane/chatViewSessionsList.js';
-import { ActiveAuxiliaryContext, AuxiliaryBarMaximizeHiddenContext, RemoteNameContext } from '../../../../../common/contextkeys.js';
+import { ActiveAuxiliaryContext, RemoteNameContext } from '../../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
@@ -88,13 +88,18 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			containerChanged.fire({ views: [upcastPartial<IViewDescriptor>({ id: ChatViewId })], from: upcastPartial<ViewContainer>({}), to: upcastPartial<ViewContainer>({ id }) });
 		};
 
+		let maximizeClaims = 0;
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({
+			hideAuxiliaryBarMaximize: () => { maximizeClaims++; return toDisposable(() => maximizeClaims--); },
+		}));
+
 		store.add(instantiationService.createInstance(ChatViewOpenInChatPartContribution));
 		const state = () => ({
 			anchors: chatPartOptions.map(o => ({ anchorViewId: o.anchorViewId, anchorPriority: o.anchorPriority, enabled: o.enabled.get() })),
 			runtime: runtimeOptions.map(o => o.viewIds),
 			runtimeHeld,
 		});
-		return { state, configurationService, contextKeyService, chatPartOptions, sessionsList, chatViewHosts, moveChatView };
+		return { state, configurationService, contextKeyService, chatPartOptions, sessionsList, chatViewHosts, moveChatView, maximizeClaims: () => maximizeClaims };
 	}
 
 	test('is on only while the setting is on and the configured orientation is side by side', async () => {
@@ -181,10 +186,10 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		assert.deepStrictEqual(steps, [undefined, false, undefined]);
 	});
 
-	test('hides Maximize only while the Chat view shows only the sessions', async () => {
-		const { contextKeyService, configurationService } = setup({ setting: false });
+	test('holds a Maximize claim only while the Chat view shows only the sessions', async () => {
+		const { contextKeyService, configurationService, maximizeClaims } = setup({ setting: false });
 		ActiveAuxiliaryContext.bindTo(contextKeyService).set(ChatViewContainerId);
-		const hidden = () => contextKeyService.getContextKeyValue(AuxiliaryBarMaximizeHiddenContext.key);
+		const hidden = () => maximizeClaims() > 0;
 		const steps = [hidden()];
 		await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, true);
 		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenInChatPart]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
@@ -196,9 +201,9 @@ suite('ChatViewOpenInChatPartContribution', () => {
 	});
 
 	test('hides Maximize for the container that now holds the Chat view, not its default one', async () => {
-		const { contextKeyService, moveChatView } = setup({ setting: true });
+		const { contextKeyService, moveChatView, maximizeClaims } = setup({ setting: true });
 		const active = ActiveAuxiliaryContext.bindTo(contextKeyService);
-		const hidden = () => contextKeyService.getContextKeyValue(AuxiliaryBarMaximizeHiddenContext.key);
+		const hidden = () => maximizeClaims() > 0;
 		active.set(ChatViewContainerId);
 		const steps = [hidden()];
 		moveChatView('other');

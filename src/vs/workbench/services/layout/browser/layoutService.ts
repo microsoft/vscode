@@ -534,6 +534,12 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onDidChangeAuxiliaryBarMaximized: Event<void>;
 
 	/**
+	 * Emits when the auxiliary bar starts or stops hiding its Maximize action, as claimed by
+	 * {@link hideAuxiliaryBarMaximize}.
+	 */
+	readonly onDidChangeAuxiliaryBarMaximizeHidden: Event<boolean>;
+
+	/**
 	 * True if a default layout with default editors was applied at startup
 	 */
 	readonly openedDefaultEditors: boolean;
@@ -639,6 +645,17 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Returns true if the auxiliary sidebar is maximized.
 	 */
 	isAuxiliaryBarMaximized(): boolean;
+
+	/**
+	 * Claims that the auxiliary bar does not offer to maximize, for as long as the returned claim is not disposed.
+	 * Claims stack: the action stays hidden while any claim is held.
+	 */
+	hideAuxiliaryBarMaximize(): IDisposable;
+
+	/**
+	 * Returns true while any claim made with {@link hideAuxiliaryBarMaximize} is held.
+	 */
+	isAuxiliaryBarMaximizeHidden(): boolean;
 
 	/**
 	 * Returns true if the main window has a border.
