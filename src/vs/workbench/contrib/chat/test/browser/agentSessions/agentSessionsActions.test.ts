@@ -27,11 +27,11 @@ import { KeybindingResolver } from '../../../../../../platform/keybinding/common
 import { ResolvedKeybindingItem } from '../../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
 import { USLayoutResolvedKeybinding } from '../../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
-import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
+import { ChatPartEnabledContext, IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
-import { ArchiveAgentSessionAction, MarkAgentSessionDoneAction, MarkAgentSessionReadAction, MarkAgentSessionUnreadAction, MarkAllAgentSessionsReadAction, OpenAgentSessionCustomizationsAction, RenameAgentSessionAction, RestoreAgentSessionAction, UnarchiveAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
+import { ArchiveAgentSessionAction, HideAgentSessionsSidebar, ShowAgentSessionsSidebar, ToggleAgentSessionsSidebar, registerAgentSessionsSidebarToggleMenus, MarkAgentSessionDoneAction, MarkAgentSessionReadAction, MarkAgentSessionUnreadAction, MarkAllAgentSessionsReadAction, OpenAgentSessionCustomizationsAction, RenameAgentSessionAction, RestoreAgentSessionAction, UnarchiveAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
 import { AgentSessionsControl } from '../../../browser/agentSessions/agentSessionsControl.js';
 import { ChatViewPane } from '../../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { IAgentSession, IAgentSessionsModel, IMarshalledAgentSessionContext } from '../../../browser/agentSessions/agentSessionsModel.js';
@@ -543,5 +543,66 @@ suite('AgentSessionsActions', () => {
 		await instantiationService.invokeFunction(accessor => action.run(accessor, child));
 
 		assert.strictEqual(archiveCalls, 0);
+	});
+});
+
+suite('AgentSessionsActions - sessions sidebar toggle with chat part', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createContext(chatPartEnabled: boolean, extra: Record<string, ContextKeyValue> = {}): IContext {
+		const values: Record<string, ContextKeyValue> = {
+			[ChatPartEnabledContext.key]: chatPartEnabled,
+			[ChatContextKeys.enabled.key]: true,
+			[ChatContextKeys.agentSessionsViewerOrientation.key]: 1,
+			[ChatContextKeys.agentSessionsViewerPosition.key]: 1,
+			[ChatContextKeys.agentSessionsViewerVisible.key]: false,
+			...extra
+		};
+		return { getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined };
+	}
+
+	function getToggleMenuCommands(chatPartEnabled: boolean): string[] {
+		disposables.add(registerAgentSessionsSidebarToggleMenus());
+		const ids = new Set<string>();
+		for (const menuId of [MenuId.AgentSessionsToolbar, MenuId.ChatViewSessionTitleToolbar]) {
+			for (const item of MenuRegistry.getMenuItems(menuId)) {
+				if (isIMenuItem(item) && /AgentSessionsSidebar$/.test(item.command.id)) {
+					for (const orientation of [1, 2]) {
+						for (const position of [1, 2]) {
+							const itemContext = createContext(chatPartEnabled, {
+								[ChatContextKeys.agentSessionsViewerOrientation.key]: orientation,
+								[ChatContextKeys.agentSessionsViewerPosition.key]: position,
+							});
+							if (!item.when || item.when.evaluate(itemContext)) {
+								ids.add(`${menuId.id}:${item.command.id}`);
+							}
+						}
+					}
+				}
+			}
+		}
+		return [...ids].sort();
+	}
+
+	test('hides the sessions sidebar toggle menu items while the chat part is enabled', () => {
+		assert.deepStrictEqual(getToggleMenuCommands(true), []);
+		assert.notStrictEqual(getToggleMenuCommands(false).length, 0);
+	});
+
+	test('disables the sessions sidebar commands while the chat part is enabled', () => {
+		const orientationFor = (action: { desc: { precondition?: { evaluate(context: IContext): boolean } } }, chatPartEnabled: boolean, orientation: number) =>
+			action.desc.precondition?.evaluate(createContext(chatPartEnabled, { [ChatContextKeys.agentSessionsViewerOrientation.key]: orientation }));
+		const show = new ShowAgentSessionsSidebar();
+		const hide = new HideAgentSessionsSidebar();
+		const toggle = new ToggleAgentSessionsSidebar();
+		assert.deepStrictEqual({
+			show: [orientationFor(show, false, 1), orientationFor(show, true, 1)],
+			hide: [orientationFor(hide, false, 2), orientationFor(hide, true, 2)],
+			toggle: [orientationFor(toggle, false, 1), orientationFor(toggle, true, 1)],
+		}, {
+			show: [true, false],
+			hide: [true, false],
+			toggle: [true, false],
+		});
 	});
 });

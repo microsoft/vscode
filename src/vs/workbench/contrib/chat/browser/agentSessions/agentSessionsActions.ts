@@ -8,8 +8,9 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection, IMarshalledAgentSessionContext, isAgentHostAgentSessionItem, isAgentSessionChild, isAgentSessionSection, isLocalAgentSessionItem, isMarshalledAgentSessionContext } from './agentSessionsModel.js';
 import { Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, AgentSessionChatContextMenu, AgentSessionChatToolbar, AgentSessionProviders, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
+import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, AgentSessionChatContextMenu, AgentSessionChatToolbar, AgentSessionProviders, AgentSessionsViewerOrientation, AgentSessionsViewerPosition, IAgentSessionsControl } from './agentSessions.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -31,7 +32,7 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { hasKey } from '../../../../../base/common/types.js';
-import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
+import { ChatPartEnabledContext, IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -1330,6 +1331,7 @@ export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 				ChatContextKeys.enabled,
 				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
 				ChatContextKeys.agentsViewActive.negate(),
+				ChatPartEnabledContext.negate(),
 			),
 			f1: true,
 			category: AGENT_SESSIONS_CATEGORY,
@@ -1354,6 +1356,7 @@ export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
 				ChatContextKeys.enabled,
 				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
 				ChatContextKeys.agentsViewActive.negate(),
+				ChatPartEnabledContext.negate(),
 			),
 			f1: true,
 			category: AGENT_SESSIONS_CATEGORY,
@@ -1374,7 +1377,7 @@ export class ToggleAgentSessionsSidebar extends Action2 {
 		super({
 			id: ToggleAgentSessionsSidebar.ID,
 			title: ToggleAgentSessionsSidebar.TITLE,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.agentsViewActive.negate()),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.agentsViewActive.negate(), ChatPartEnabledContext.negate()),
 			f1: true,
 			category: AGENT_SESSIONS_CATEGORY,
 		});
@@ -1436,3 +1439,109 @@ export class FocusAgentSessionsAction extends Action2 {
 }
 
 //#endregion
+
+/**
+ * Registers the toolbar items that show or hide the sessions sidebar. They are not offered
+ * while the chat part is enabled, which has its own sessions list.
+ */
+export function registerAgentSessionsSidebarToggleMenus(): IDisposable {
+	const store = new DisposableStore();
+
+	store.add(MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
+		command: {
+			id: ShowAgentSessionsSidebar.ID,
+			title: ShowAgentSessionsSidebar.TITLE,
+			icon: Codicon.layoutSidebarRightOff,
+		},
+		group: 'navigation',
+		order: 5,
+		when: ContextKeyExpr.and(
+			ChatPartEnabledContext.negate(),
+			ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+			ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
+		)
+	}));
+
+	store.add(MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
+		command: {
+			id: ShowAgentSessionsSidebar.ID,
+			title: ShowAgentSessionsSidebar.TITLE,
+			icon: Codicon.layoutSidebarLeftOff,
+		},
+		group: 'navigation',
+		order: 5,
+		when: ContextKeyExpr.and(
+			ChatPartEnabledContext.negate(),
+			ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+			ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)
+		)
+	}));
+
+	store.add(MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
+		command: {
+			id: HideAgentSessionsSidebar.ID,
+			title: HideAgentSessionsSidebar.TITLE,
+			icon: Codicon.layoutSidebarRight,
+		},
+		group: 'navigation',
+		order: 5,
+		when: ContextKeyExpr.and(
+			ChatPartEnabledContext.negate(),
+			ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
+			ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
+		)
+	}));
+
+	store.add(MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
+		command: {
+			id: HideAgentSessionsSidebar.ID,
+			title: HideAgentSessionsSidebar.TITLE,
+			icon: Codicon.layoutSidebarLeft,
+		},
+		group: 'navigation',
+		order: 5,
+		when: ContextKeyExpr.and(
+			ChatPartEnabledContext.negate(),
+			ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
+			ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)
+		)
+	}));
+
+	store.add(MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleToolbar, {
+		command: {
+			id: ShowAgentSessionsSidebar.ID,
+			title: ShowAgentSessionsSidebar.TITLE,
+			icon: Codicon.layoutSidebarLeftOff,
+		},
+		group: 'navigation',
+		order: 1,
+		when: ContextKeyExpr.and(
+			ChatPartEnabledContext.negate(),
+			ContextKeyExpr.or(
+				ChatContextKeys.agentSessionsViewerVisible.negate(),
+				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+			),
+			ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)
+		)
+	}));
+
+	store.add(MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleToolbar, {
+		command: {
+			id: ShowAgentSessionsSidebar.ID,
+			title: ShowAgentSessionsSidebar.TITLE,
+			icon: Codicon.layoutSidebarRightOff,
+		},
+		group: 'navigation',
+		order: 1,
+		when: ContextKeyExpr.and(
+			ChatPartEnabledContext.negate(),
+			ContextKeyExpr.or(
+				ChatContextKeys.agentSessionsViewerVisible.negate(),
+				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+			),
+			ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
+		)
+	}));
+
+	return store;
+}

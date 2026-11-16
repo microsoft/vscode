@@ -8,15 +8,12 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize2 } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { registerSingleton, InstantiationType } from '../../../../../platform/instantiation/common/extensions.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from './agentSessions.js';
 import { IAgentSessionsService, AgentSessionsService } from './agentSessionsService.js';
 import { LocalAgentsSessionsController } from './localAgentSessionsController.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, OpenAgentSessionCustomizationsAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, ToggleAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction, SetAgentSessionsOrientationStackedAction, SetAgentSessionsOrientationSideBySideAction, MarkAllAgentSessionsReadAction, RenameAgentSessionAction, DeleteAgentSessionAction, DeleteAllLocalSessionsAction, MarkAgentSessionSectionReadAction, ToggleShowAgentSessionsAction, PinAgentSessionAction, UnpinAgentSessionAction, CollapseAllAgentSessionSectionsAction, getAgentSessionArchiveActionConstructors } from './agentSessionsActions.js';
+import { OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, OpenAgentSessionCustomizationsAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, ToggleAgentSessionsSidebar, registerAgentSessionsSidebarToggleMenus, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction, SetAgentSessionsOrientationStackedAction, SetAgentSessionsOrientationSideBySideAction, MarkAllAgentSessionsReadAction, RenameAgentSessionAction, DeleteAgentSessionAction, DeleteAllLocalSessionsAction, MarkAgentSessionSectionReadAction, ToggleShowAgentSessionsAction, PinAgentSessionAction, UnpinAgentSessionAction, CollapseAllAgentSessionSectionsAction, getAgentSessionArchiveActionConstructors } from './agentSessionsActions.js';
 import { AgentHostPermissionUiContribution } from './agentHost/agentHostPermissionUiContribution.js';
 import { registerExternalSessionsFilterMenu } from './externalSessionsFilterMenu.js';
 import './agentHost/agentHostChatInputPicker.contribution.js';
@@ -104,97 +101,7 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	icon: Codicon.filter,
 } satisfies ISubmenuItem);
 
-MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
-	command: {
-		id: ShowAgentSessionsSidebar.ID,
-		title: ShowAgentSessionsSidebar.TITLE,
-		icon: Codicon.layoutSidebarRightOff,
-	},
-	group: 'navigation',
-	order: 5,
-	when: ContextKeyExpr.and(
-		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
-		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
-	)
-});
-
-MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
-	command: {
-		id: ShowAgentSessionsSidebar.ID,
-		title: ShowAgentSessionsSidebar.TITLE,
-		icon: Codicon.layoutSidebarLeftOff,
-	},
-	group: 'navigation',
-	order: 5,
-	when: ContextKeyExpr.and(
-		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
-		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)
-	)
-});
-
-MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
-	command: {
-		id: HideAgentSessionsSidebar.ID,
-		title: HideAgentSessionsSidebar.TITLE,
-		icon: Codicon.layoutSidebarRight,
-	},
-	group: 'navigation',
-	order: 5,
-	when: ContextKeyExpr.and(
-		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
-		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
-	)
-});
-
-MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
-	command: {
-		id: HideAgentSessionsSidebar.ID,
-		title: HideAgentSessionsSidebar.TITLE,
-		icon: Codicon.layoutSidebarLeft,
-	},
-	group: 'navigation',
-	order: 5,
-	when: ContextKeyExpr.and(
-		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
-		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)
-	)
-});
-
-// --- Sessions Title Toolbar
-
-MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleToolbar, {
-	command: {
-		id: ShowAgentSessionsSidebar.ID,
-		title: ShowAgentSessionsSidebar.TITLE,
-		icon: Codicon.layoutSidebarLeftOff,
-	},
-	group: 'navigation',
-	order: 1,
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.or(
-			ChatContextKeys.agentSessionsViewerVisible.negate(),
-			ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
-		),
-		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)
-	)
-});
-
-MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleToolbar, {
-	command: {
-		id: ShowAgentSessionsSidebar.ID,
-		title: ShowAgentSessionsSidebar.TITLE,
-		icon: Codicon.layoutSidebarRightOff,
-	},
-	group: 'navigation',
-	order: 1,
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.or(
-			ChatContextKeys.agentSessionsViewerVisible.negate(),
-			ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
-		),
-		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
-	)
-});
+registerAgentSessionsSidebarToggleMenus();
 
 //#endregion
 
