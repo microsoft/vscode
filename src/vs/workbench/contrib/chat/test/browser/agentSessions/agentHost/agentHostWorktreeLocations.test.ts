@@ -19,7 +19,7 @@ import { FileService } from '../../../../../../../platform/files/common/fileServ
 import { UriIdentityService } from '../../../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspaceFolderLocationProvider } from '../../../../../../../platform/workspace/common/folderLocations.js';
-import { WorkbenchState } from '../../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../../platform/workspace/common/workspace.js';
 import { TestContextService } from '../../../../../../test/common/workbenchTestServices.js';
 import { WorkspaceFolderLocationService } from '../../../../../../services/workspaces/common/workspaceFolderLocationService.js';
 import { BrowserWorkspaceEditingService } from '../../../../../../services/workspaces/browser/workspaceEditingService.js';
@@ -65,7 +65,20 @@ suite('AgentHostWorktreeLocations', () => {
 		};
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>(model) }));
-		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ getRegisteredChatSessionItemProviders: () => options.registered ?? true ? ['remote', SessionType.AgentHostCopilot] : ['remote'] }));
+		let registered = options.registered ?? true;
+		const onDidChangeItemsProviders = store.add(new Emitter<{ readonly chatSessionType: string }>());
+		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({
+			getRegisteredChatSessionItemProviders: () => registered ? ['remote', SessionType.AgentHostCopilot] : ['remote'],
+			onDidChangeItemsProviders: onDidChangeItemsProviders.event,
+		}));
+		// The window's workspace: its folder, which can change
+		let workspaceFolders = [primary];
+		const onDidChangeWorkspaceFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
+			getWorkspace: () => upcastPartial<IWorkspace>({ uri: workspaceFolders[0], folders: workspaceFolders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
+			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			onDidChangeWorkbenchState: Event.None,
+		}));
 		// A folder reached through a symbolic link, such as `/tmp/x` of `/private/tmp/x` on macOS, has another real path
 		const realpathsRead: string[] = [];
 		instantiationService.stub(IFileService, upcastPartial<IFileService>({
@@ -89,7 +102,17 @@ suite('AgentHostWorktreeLocations', () => {
 			change(model.sessions);
 			onDidChangeSessions.fire();
 		};
-		return Object.assign(provider, { resolving, realpathsRead, changeSessions, disposeProvider });
+		/** As the local agent host registers its sessions, which list `listed` once resolved. */
+		const registerLocalProvider = (listed: readonly IAgentSession[]) => {
+			registered = true;
+			options = { ...options, uncached: listed };
+			onDidChangeItemsProviders.fire({ chatSessionType: SessionType.AgentHostCopilot });
+		};
+		const openFolder = (folder: URI) => {
+			workspaceFolders = [folder];
+			onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+		};
+		return Object.assign(provider, { resolving, realpathsRead, changeSessions, disposeProvider, registerLocalProvider, openFolder });
 	}
 
 	/** The folder location service, with `provider` registered as the built-in provider and `others` after it. */
@@ -270,6 +293,61 @@ suite('AgentHostWorktreeLocations', () => {
 		await provider.resolveLocation(URI.file('/tmp/./vscode'), URI.file('/private/tmp/vscode.worktrees/feature'), CancellationToken.None);
 
 		assert.deepStrictEqual({ afterFailure, afterRetry, realpathsRead: provider.realpathsRead }, { afterFailure: undefined, afterRetry: '/private/tmp/vscode.worktrees/feature', realpathsRead: ['/tmp/vscode', '/tmp/vscode'] });
+	});
+
+	test('tells the folder location service as a local agent host\'s sessions become available, so that a location unknown before them resolves', async () => {
+		const provider = createProvider([], { registered: false });
+		const service = createService(provider);
+		let changes = 0;
+		store.add(service.onDidChangeLocations(() => changes++));
+		const feature = URI.file('/work/vscode.worktrees/feature');
+		const beforeRegistration = await service.resolveLocation(primary, feature, CancellationToken.None);
+		provider.registerLocalProvider([session('/work/vscode.worktrees/feature', '/work/vscode')]);
+		const changesOnRegistration = changes;
+		const afterRegistration = (await service.resolveLocation(primary, feature, CancellationToken.None))?.uri.path;
+
+		assert.deepStrictEqual({ beforeRegistration, changesOnRegistration, afterRegistration, changesOnResolve: changes - changesOnRegistration }, {
+			beforeRegistration: undefined,
+			changesOnRegistration: 1,
+			afterRegistration: '/work/vscode.worktrees/feature',
+			// Its sessions resolved
+			changesOnResolve: 1,
+		});
+	});
+
+	test('does not read a folder\'s real path again as sessions change after a failed read, only as the folder is asked about again', async () => {
+		const provider = createProvider([], { realpathFailures: 1 });
+		await provider.provideLocations(primary, CancellationToken.None);
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+		for (let change = 0; change < 3; change++) {
+			// Such as a session that is pinned or read
+			provider.changeSessions(() => { });
+			await new Promise<void>(resolve => setTimeout(resolve, 0));
+		}
+		const afterChanges = [...provider.realpathsRead];
+		await provider.provideLocations(primary, CancellationToken.None);
+
+		assert.deepStrictEqual({ afterChanges, afterAsk: provider.realpathsRead }, { afterChanges: ['/work/vscode'], afterAsk: ['/work/vscode', '/work/vscode'] });
+	});
+
+	test('forgets a folder the workspace no longer has, and does nothing once disposed', async () => {
+		const provider = createProvider([]);
+		const service = createService(provider);
+		let changes = 0;
+		store.add(service.onDidChangeLocations(() => changes++));
+		await service.getLocations(primary, CancellationToken.None);
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+		provider.openFolder(URI.file('/work/tools'));
+		// A worktree of the folder that is retired
+		provider.changeSessions(sessions => sessions.push(session('/work/vscode.worktrees/feature', '/work/vscode')));
+		const afterRetiring = changes;
+		// Its real path is read again as it is asked about again
+		await service.getLocations(primary, CancellationToken.None);
+		const realpathsRead = [...provider.realpathsRead];
+		provider.disposeProvider();
+		provider.changeSessions(sessions => sessions.push(session('/work/vscode.worktrees/fix', '/work/vscode')));
+
+		assert.deepStrictEqual({ afterRetiring, afterDispose: changes - afterRetiring, realpathsRead }, { afterRetiring: 0, afterDispose: 0, realpathsRead: ['/work/vscode', '/work/vscode'] });
 	});
 
 	test('grants the folder\'s trust only to a worktree of a session whose project is the folder, not to a folder of a session of another project', async () => {

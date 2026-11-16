@@ -14,6 +14,7 @@ import { basename, extUriBiasedIgnorePathCase, normalizePath, removeTrailingPath
 import { URI } from '../../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IFolderLocation, IWorkspaceFolderLocationProvider } from '../../../../../../platform/workspace/common/folderLocations.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IChatSessionsService, isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
 import { IAgentSession } from '../agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
@@ -69,7 +70,10 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 	/** The local agent host providers whose sessions the sessions list has resolved. */
 	private readonly _resolvedProviders = new Set<string>();
 
-	/** The forms of each folder asked about: as given, and its real path, read once. */
+	/**
+	 * The forms of each folder asked about: as given, and its real path, read once. Like {@link _knownForms} and
+	 * {@link _offered}, only for the folders of the workspace, and at most {@link MAX_FOLDERS} of them.
+	 */
 	private readonly _forms = new ResourceMap<Promise<readonly URI[]>>(folderKey);
 	/** The forms of the folders whose real path is read. */
 	private readonly _knownForms = new ResourceMap<readonly URI[]>(folderKey);
@@ -82,7 +86,8 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 	private readonly _onDidChangeLocations = this._register(new Emitter<void>());
 	/**
 	 * Fires as the worktrees of a folder asked about change: as sessions load, start, are archived or deleted, or work, or
-	 * report a branch, elsewhere; and as the folder's real path is known to differ, which can make more of them known.
+	 * report a branch, elsewhere; as the folder's real path is known to differ, which can make more of them known; and as a
+	 * local agent host's sessions become available, so that a location that was unknown can be resolved again.
 	 */
 	readonly onDidChangeLocations = this._onDidChangeLocations.event;
 
@@ -90,15 +95,25 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@IFileService private readonly _fileService: IFileService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 		this._register(toDisposable(() => this._lifetime.dispose(true)));
 		this._register(_agentSessionsService.model.onDidResolve(provider => {
 			if (isLocalAgentHostTarget(provider)) {
 				this._resolvedProviders.add(provider);
+				// Its sessions are known: a location unknown before them can be resolved now
+				this._onDidChangeLocations.fire();
+			}
+		}));
+		this._register(_chatSessionsService.onDidChangeItemsProviders(({ chatSessionType }) => {
+			if (isLocalAgentHostTarget(chatSessionType)) {
+				this._onDidChangeLocations.fire();
 			}
 		}));
 		this._register(_agentSessionsService.model.onDidChangeSessions(() => this._checkOffered()));
+		this._register(_workspaceContextService.onDidChangeWorkspaceFolders(() => this._retireFolders()));
+		this._register(_workspaceContextService.onDidChangeWorkbenchState(() => this._retireFolders()));
 	}
 
 	/**
@@ -106,8 +121,8 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 	 * not wait for the sessions or the folder's real path: what they make known follows with {@link onDidChangeLocations}.
 	 */
 	async provideLocations(primary: URI, _token: CancellationToken): Promise<IFolderLocation[]> {
-		const locations = this._locationsOf(primary);
-		this._offered.set(primary, offeredKey(locations));
+		const locations = getAgentHostSessionWorktrees(this._agentSessionsService.model.sessions, this.getFolderForms(primary));
+		this._remember(this._offered, primary, offeredKey(locations));
 		return locations;
 	}
 
@@ -155,15 +170,17 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 		}
 	}
 
-	private _locationsOf(folder: URI): IFolderLocation[] {
-		return getAgentHostSessionWorktrees(this._agentSessionsService.model.sessions, this.getFolderForms(folder));
-	}
-
-	/** Fires once where the worktrees of any folder asked about are not those last offered. */
+	/**
+	 * Fires once where the worktrees of any folder asked about are not those last offered. By the forms of each folder known
+	 * now, without reading any: a real path that could not be read is read again only as the folder is asked about again.
+	 */
 	private _checkOffered(): void {
+		if (this._store.isDisposed) {
+			return;
+		}
 		let changed = false;
 		for (const [folder, offered] of this._offered) {
-			const now = offeredKey(this._locationsOf(folder));
+			const now = offeredKey(getAgentHostSessionWorktrees(this._agentSessionsService.model.sessions, this._knownForms.get(folder) ?? [folder]));
 			if (now !== offered) {
 				this._offered.set(folder, now);
 				changed = true;
@@ -181,22 +198,60 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 			forms = folder.scheme !== Schemas.file ? Promise.resolve([folder]) : this._fileService.realpath(folder).then(
 				real => {
 					const known = real && !extUriBiasedIgnorePathCase.isEqual(real, folder) ? [folder, real] : [folder];
-					this._knownForms.set(folder, known);
-					if (known.length > 1 && !this._store.isDisposed) {
-						this._checkOffered();
+					// Not for a folder retired meanwhile, nor once disposed
+					if (this._forms.get(folder) === forms && !this._store.isDisposed) {
+						this._remember(this._knownForms, folder, known);
+						if (known.length > 1) {
+							this._checkOffered();
+						}
 					}
 					return known;
 				},
 				() => {
-					// Read again next time, such as once the folder is there
-					this._forms.delete(folder);
+					// Read again as the folder is asked about again, such as once the folder is there
+					if (this._forms.get(folder) === forms) {
+						this._forms.delete(folder);
+					}
 					return [folder];
 				});
-			this._forms.set(folder, forms);
+			this._remember(this._forms, folder, forms);
 		}
 		return forms;
 	}
+
+	/** Sets `folder`'s `value` in `map`, keeping at most {@link MAX_FOLDERS} folders: the most recently set. */
+	private _remember<T>(map: ResourceMap<T>, folder: URI, value: T): void {
+		map.delete(folder);
+		map.set(folder, value);
+		for (const [oldest] of map) {
+			if (map.size <= MAX_FOLDERS) {
+				break;
+			}
+			map.delete(oldest);
+		}
+	}
+
+	/** Forgets the folders that are no longer the workspace's, as its folders change. */
+	private _retireFolders(): void {
+		const workspace = this._workspaceContextService.getWorkspace();
+		const current = new ResourceMap<true>(folderKey);
+		for (const uri of [workspace.uri, ...workspace.folders.map(folder => folder.uri)]) {
+			if (uri) {
+				current.set(uri, true);
+			}
+		}
+		for (const map of [this._forms, this._knownForms, this._offered] as ResourceMap<unknown>[]) {
+			for (const [folder] of [...map]) {
+				if (!current.has(folder)) {
+					map.delete(folder);
+				}
+			}
+		}
+	}
 }
+
+/** The folders it keeps what it knows of: a window has one, as alternate locations are of a single-folder workspace. */
+const MAX_FOLDERS = 4;
 
 /** One folder however it is written: without `.` segments or a trailing separator, ignoring path case where the platform does. */
 function folderKey(folder: URI): string {
