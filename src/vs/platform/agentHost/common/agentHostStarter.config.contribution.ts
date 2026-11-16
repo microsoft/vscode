@@ -359,7 +359,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.agentHost.browserUse.enabled', "When enabled, local Copilot agent sessions offer GitHub's Browser Use plugin, which can operate pages in Google Chrome or Microsoft Edge through the [GitHub Copilot browser extension](https://chromewebstore.google.com/detail/github-copilot/hblomdgalaelcilcdepgohfcogjiijhe). Turn it on with `/plugin enable browser-use` in a Copilot chat, then run `/browser-use:doctor` to check your setup. Requires Node.js 22 or later on your `PATH`. Changes take effect after a restart."),
 			default: false,
-			tags: ['experimental', 'advanced'],
+			tags: ['preview', 'advanced'],
 			experiment: { mode: 'startup' },
 			agentHost: { key: AgentHostBrowserUseEnabledConfigKey, scope: AgentHostConfigurationSyncScope.Local },
 		},
