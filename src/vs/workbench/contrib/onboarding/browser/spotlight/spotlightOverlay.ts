@@ -294,14 +294,15 @@ export class SpotlightOverlay extends Disposable {
 			this._stepListeners.add(addDisposableListener(focusElement, EventType.KEY_DOWN, onTargetKey, true));
 			this._stepListeners.add(addDisposableListener(focusElement, EventType.KEY_UP, onTargetKey, true));
 		} else if (options.allowTargetInteraction || advanceOnTargetClick || options.hideNext) {
-			this._stepListeners.add(addDisposableListener(focusElement, EventType.KEY_DOWN, e => this._onKeyDown(e)));
+			this._stepListeners.add(addDisposableListener(focusElement, EventType.KEY_DOWN, e => this._onKeyDown(e), true));
 		}
 
 		this.layout();
 
 		// Move focus to the spotlighted control (so keyboard users can activate it
-		// to advance) or, otherwise, into the callout's primary action.
-		this._focus(hideNext ? focusElement : content.focusEndTour ? this._skipButton.element : this._nextButton.element);
+		// to advance) or, otherwise, into the callout's primary action. An explicit
+		// focusEndTour wins, as the target may not be focusable.
+		this._focus(content.focusEndTour ? this._skipButton.element : hideNext ? focusElement : this._nextButton.element);
 	}
 
 	/** Prevents duplicate activation while waiting for an action to be accepted. */

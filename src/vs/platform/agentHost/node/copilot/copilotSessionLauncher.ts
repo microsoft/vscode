@@ -416,6 +416,11 @@ export interface ICopilotSessionRuntime {
 	 * Independent of the experiment arm, so both arms report the same exposure.
 	 */
 	setProgressUpdatesPromptEligible?(eligible: boolean): void;
+	/**
+	 * Whether this launch enabled Copilot Memory with the placement following its configuration default, so the
+	 * memory placement experiment applies to it. Independent of the experiment arm, so both arms report the same exposure.
+	 */
+	setMemoryModeEligible?(eligible: boolean): void;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	createServerSdkTools(toolSearchActive?: boolean): Tool<any>[];
 	/** Tools that let the agent ask the user to turn on Computer Use; empty unless the runtime has it and it is off. */
@@ -1104,6 +1109,14 @@ export function isCopilotSessionTelemetryEnabled(
 	return effectiveLevel >= TelemetryLevel.USAGE;
 }
 
+/** Whether a Copilot session launched now runs canvases: canvases are enabled and the session is durable. */
+export function isCopilotCanvasRuntimeEnabled(
+	configurationService: Pick<IAgentConfigurationService, 'getRootValue'>,
+	isEphemeral: boolean,
+): boolean {
+	return !isEphemeral && configurationService.getRootValue(platformRootSchema, AgentHostCanvasesEnabledConfigKey) === true;
+}
+
 export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	/**
@@ -1494,8 +1507,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	 */
 	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime, onManagedSettingsResolved: () => void): Promise<{ config: ICopilotSessionConfig; modelPolicy: CopilotManagedModelPolicy | undefined; resetAutoTier: boolean }> {
 		const plugins = plan.snapshot.plugins;
-		const canvasRuntimeEnabled = !plan.isEphemeral
-			&& this._configurationService.getRootValue(platformRootSchema, AgentHostCanvasesEnabledConfigKey) === true;
+		const canvasRuntimeEnabled = isCopilotCanvasRuntimeEnabled(this._configurationService, plan.isEphemeral === true);
 		if (canvasRuntimeEnabled && !plan.extensionSdkPath) {
 			throw new Error(`Extension SDK path is unavailable for canvas-enabled Copilot session '${plan.sessionId}'`);
 		}
@@ -1505,6 +1517,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// Throwaway chat surfaces skip memory, like the other heavyweight features they omit.
 		const memoryEnabled = !plan.isEphemeral;
 		const localMemoryEnabled = plan.workspace?.kind !== 'virtual' && memoryEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalMemory) === true;
+		const memoryUserPromptMode = memoryEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.MemoryMode) === 'user-prompt';
+		// The mode is fixed with the SDK config, so the experiment's provenance must be too.
+		runtime.setMemoryModeEligible?.(memoryEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.MemoryModeDefaultControlled) === true);
 		const searchSubagentEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SearchSubagent) === true;
 		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
 		const stabilityOrderedPromptEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.StabilityOrderedPrompt) === true;
@@ -1840,7 +1855,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			infiniteSessions: { enabled: true },
 			// Always explicit so the VS Code opt-in gates memory instead of the runtime default.
 			// The runtime still applies the user's GitHub Copilot Memory settings and policies.
-			memory: { enabled: memoryEnabled },
+			// `mode` is sent only for the experimental placement, so the default stays the runtime's.
+			memory: { enabled: memoryEnabled, ...(memoryUserPromptMode ? { mode: 'user-prompt' } : {}) },
 			enableManagedSettings: true,
 		};
 		return { config, modelPolicy: resolved, resetAutoTier: resumeAutoTier === null };

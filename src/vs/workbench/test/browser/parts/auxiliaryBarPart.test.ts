@@ -4,11 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, append } from '../../../../base/browser/dom.js';
+import { $, append, getWindow } from '../../../../base/browser/dom.js';
 import { ToggleMenuAction } from '../../../../base/browser/ui/toolbar/toolbar.js';
 import { Separator } from '../../../../base/common/actions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createTestAuxiliaryBarPart } from './auxiliaryBarTestUtils.js';
+import { createTestAuxiliaryBarPart, testAuxiliaryBarGlobalActionsMenu } from './auxiliaryBarTestUtils.js';
+import { timeout } from '../../../../base/common/async.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
 
 import '../../../browser/media/part.css';
 import '../../../contrib/modernUI/browser/media/padding.css';
@@ -64,4 +68,40 @@ suite('Auxiliary Bar - Responsive title actions', () => {
 			]);
 		});
 	}
+
+	test('shows the separator after its view\'s title actions only while actions of its own follow them, as they come and go, and lays the actions out without it while hidden', () => runWithFakedTimers({}, async () => {
+		const container = append(root, $('.part.auxiliarybar'));
+		const part = createTestAuxiliaryBarPart(container, store, { globalActions: false });
+		const state = () => {
+			const separator = part.toolbar.getItemElement(part.toolbar.getItemsLength() - 1)!;
+			return {
+				separatorShown: getWindow(separator).getComputedStyle(separator).display !== 'none',
+				actions: Array.from({ length: part.toolbar.getItemsLength() }, (_, index) => part.toolbar.getItemAction(index)?.id),
+				minWidth: part.toolbar.getElement().style.minWidth,
+			};
+		};
+		const layout = (toolbarWidth: number) => {
+			container.style.width = '300px';
+			part.setToolbarAvailableWidth(toolbarWidth);
+			part.layout(300, 200, 0, 0);
+			part.toolbar.relayout();
+		};
+		layout(300);
+		// The toolbar reserves the width of its separator only while it shows
+		const withoutOwnActions = state();
+
+		// Menus report their changes debounced
+		const close = store.add(MenuRegistry.appendMenuItem(testAuxiliaryBarGlobalActionsMenu, { command: { id: 'test.close', title: 'Hide Secondary Side Bar', icon: Codicon.close }, group: 'navigation' }));
+		await timeout(1000);
+		const withOwnActions = state();
+		close.dispose();
+		await timeout(1000);
+		const afterTheyGo = state();
+
+		assert.deepStrictEqual({ withoutOwnActions, withOwnActions, afterTheyGo }, {
+			withoutOwnActions: { separatorShown: false, actions: ['submenuitem.test.auxiliaryBar.newChat', 'settings', ToggleMenuAction.ID, Separator.ID], minWidth: '24px' },
+			withOwnActions: { separatorShown: true, actions: ['submenuitem.test.auxiliaryBar.newChat', 'settings', ToggleMenuAction.ID, Separator.ID], minWidth: '37px' },
+			afterTheyGo: { separatorShown: false, actions: ['submenuitem.test.auxiliaryBar.newChat', 'settings', ToggleMenuAction.ID, Separator.ID], minWidth: '24px' },
+		});
+	}));
 });
