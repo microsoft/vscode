@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, EventHelper, EventType, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, EventHelper, EventType, getWindow } from '../../../../base/browser/dom.js';
 import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -16,7 +16,7 @@ import { getFlatActionBarActions } from '../../../../platform/actions/browser/me
 import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -49,17 +49,12 @@ export interface IEditorAddTabControlOptions {
 	readonly recentFirst?: boolean;
 
 	/**
-	 * Opens the menu over the button, with its first entry under the pointer, so that a second click without moving
-	 * the pointer picks it.
+	 * Makes the first entry the default: the menu highlights it when it opens and while the pointer is over the button,
+	 * and pressing the button again while the menu is open picks it, so that clicking twice without moving the pointer
+	 * picks it.
 	 */
-	readonly menuOverButton?: boolean;
+	readonly defaultEntry?: boolean;
 }
-
-/**
- * The offset of the pointer in the button from the top left corner of the menu when the menu opens over the button:
- * inside the icon column of the first entry, at its vertical center.
- */
-const MENU_OVER_BUTTON_POINTER_OFFSET = { x: 16, y: 19 };
 
 /**
  * The "Add Tab" (`+`) dropdown that lists the actions of a contributed menu.
@@ -87,6 +82,7 @@ export class EditorAddTabControl extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
+		@IContextViewService contextViewService: IContextViewService,
 	) {
 		super();
 
@@ -94,13 +90,15 @@ export class EditorAddTabControl extends Disposable {
 		parent.insertBefore(this.element, options?.before ?? null);
 
 		const recentEntryStorageKey = `editor.addTabMenu.recentEntry.${menuId.id}`;
+		const recentDescription = localize('addTabRecentlyUsed', "recently used");
+		let recentAction: IAction | undefined;
 		const menu = this._register(menuService.createMenu(menuId, contextKeyService));
 		const getActions = () => {
 			const actions = getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
 			const recentEntry = options?.recentFirst ? storageService.get(recentEntryStorageKey, StorageScope.PROFILE) : undefined;
-			const recentIndex = recentEntry ? actions.findIndex(action => action.id === recentEntry) : -1;
-			// The recent entry above the menu, which keeps its order, so that its entries stay where they always are
-			return recentIndex >= 0 ? [actions[recentIndex], new Separator(), ...actions] : actions;
+			recentAction = recentEntry ? actions.find(action => action.id === recentEntry) : undefined;
+			// The recent entry moves to the top
+			return recentAction ? [recentAction, ...actions.filter(action => action !== recentAction)] : actions;
 		};
 		const addTabAction = toAction({
 			id: addTabActionId,
@@ -111,7 +109,8 @@ export class EditorAddTabControl extends Disposable {
 		const dropdown = this._register(new DropdownMenuActionViewItem(addTabAction, { getActions }, contextMenuService, {
 			classNames: ThemeIcon.asClassNameArray(Codicon.add),
 			keybindingProvider: options?.keybindingProvider ?? (action => keybindingService.lookupKeybinding(action.id, contextKeyService)),
-			getAnchor: options?.menuOverButton ? () => this._getMenuOverButtonAnchor() : undefined
+			defaultItem: options?.defaultEntry ? 0 : undefined,
+			getDescription: action => action === recentAction ? recentDescription : undefined
 		}));
 		const toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, this.element, {
 			ariaLabel: localize('ariaLabelAddTab', "Add Tab"),
@@ -127,8 +126,8 @@ export class EditorAddTabControl extends Disposable {
 				}
 			}));
 		}
-		if (options?.menuOverButton) {
-			this._ignoreReleaseOfOpeningPress();
+		if (options?.defaultEntry) {
+			this._pickDefaultEntryOnSecondPress(dropdown, toolbar, () => getActions().find(action => !(action instanceof Separator)), contextViewService);
 		}
 
 		const updateVisibility = () => this.element.classList.toggle('hidden', getActions().length === 0);
@@ -142,32 +141,26 @@ export class EditorAddTabControl extends Disposable {
 		}));
 	}
 
-	private _getMenuOverButtonAnchor(): { x: number; y: number } {
-		const button = this.element.getBoundingClientRect();
-		return {
-			x: button.left + button.width / 2 - MENU_OVER_BUTTON_POINTER_OFFSET.x,
-			y: button.top + button.height / 2 - MENU_OVER_BUTTON_POINTER_OFFSET.y,
-		};
-	}
-
 	/**
-	 * The menu opens on mouse down, under the pointer: releasing the button that opened it must not pick its first entry.
+	 * While the menu is open, pressing the button picks the default entry rather than only closing the menu. The menu
+	 * blocks the mouse in the rest of the window, so the press is recognized by its position before the block sees it.
 	 */
-	private _ignoreReleaseOfOpeningPress(): void {
-		const pendingRelease = this._register(new MutableDisposable());
-		this._register(addDisposableListener(this.element, EventType.MOUSE_DOWN, e => {
-			if (e.button !== 0) {
-				return;
-			}
-			pendingRelease.value = addDisposableListener(getWindow(this.element), EventType.MOUSE_UP, release => {
-				pendingRelease.clear();
-				if (!isHTMLElement(release.target) || !this.element.contains(release.target)) {
-					EventHelper.stop(release, true);
+	private _pickDefaultEntryOnSecondPress(dropdown: DropdownMenuActionViewItem, toolbar: WorkbenchToolBar, getDefaultEntry: () => IAction | undefined, contextViewService: IContextViewService): void {
+		const whileMenuVisible = this._register(new MutableDisposable());
+		this._register(dropdown.onDidChangeVisibility(visible => {
+			whileMenuVisible.value = visible ? addDisposableListener(getWindow(this.element), EventType.MOUSE_DOWN, e => {
+				const bounds = this.element.getBoundingClientRect();
+				const onButton = e.clientX >= bounds.left && e.clientX < bounds.right && e.clientY >= bounds.top && e.clientY < bounds.bottom;
+				const entry = onButton && e.button === 0 ? getDefaultEntry() : undefined;
+				if (!entry) {
+					return;
 				}
-			}, true);
-		}, true));
+				EventHelper.stop(e, true);
+				contextViewService.hideContextView();
+				toolbar.actionRunner.run(entry, toolbar.context);
+			}, true) : undefined;
+		}));
 	}
-
 	/**
 	 * Logs the journey through the menu: it was opened, then an entry was picked or it was dismissed.
 	 */

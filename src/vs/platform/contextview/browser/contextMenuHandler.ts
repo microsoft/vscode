@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getContextMenuAutoSelectItem, IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
+import { getContextMenuAutoSelectItem, getContextMenuDefaultAction, IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
 import { $, addDisposableListener, EventType, getActiveElement, getWindow, isAncestor, isHTMLElement } from '../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { Menu } from '../../../base/browser/ui/menu/menu.js';
@@ -88,6 +88,7 @@ export class ContextMenuHandler {
 
 				const menuDisposables = new DisposableStore();
 
+				const anchor = delegate.getAnchor();
 				const actionRunner = delegate.actionRunner || menuDisposables.add(new ActionRunner());
 				actionRunner.onWillRun(evt => this.onActionRun(evt, !delegate.skipTelemetry), this, menuDisposables);
 				actionRunner.onDidRun(this.onDidActionRun, this, menuDisposables);
@@ -97,6 +98,9 @@ export class ContextMenuHandler {
 					actionRunner,
 					getKeyBinding: delegate.getKeyBinding ? delegate.getKeyBinding : action => this.keybindingService.lookupKeybinding(action.id),
 					getGroupTitle: getMenuActionGroupTitle,
+					getDescription: delegate.getDescription ? action => delegate.getDescription?.(action) : undefined,
+					defaultAction: getContextMenuDefaultAction(delegate, actions),
+					defaultActionArea: isHTMLElement(anchor) ? anchor : undefined,
 				},
 					defaultMenuStyles
 				);
@@ -133,7 +137,9 @@ export class ContextMenuHandler {
 			},
 
 			focus: () => {
-				const selection = getContextMenuAutoSelectItem(delegate, actions);
+				const autoSelection = getContextMenuAutoSelectItem(delegate, actions);
+				const defaultAction = getContextMenuDefaultAction(delegate, actions);
+				const selection = autoSelection === false && defaultAction ? actions.indexOf(defaultAction) : autoSelection;
 				if (typeof selection === 'number') {
 					// The menu adds group headers and removes redundant separators, which can move the selected action
 					const index = menu?.indexOfAction(actions[selection]) ?? -1;

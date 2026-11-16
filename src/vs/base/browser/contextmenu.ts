@@ -7,7 +7,7 @@ import { StandardMouseEvent } from './mouseEvent.js';
 import { IActionViewItemOptions } from './ui/actionbar/actionViewItems.js';
 import { IActionViewItem } from './ui/actionbar/actionbar.js';
 import { AnchorAlignment, AnchorAxisAlignment, IAnchor, IContextViewCloseAnimation } from './ui/contextview/contextview.js';
-import { IAction, IActionRunner } from '../common/actions.js';
+import { IAction, IActionRunner, Separator } from '../common/actions.js';
 import { ResolvedKeybinding } from '../common/keybindings.js';
 import { OmitOptional } from '../common/types.js';
 
@@ -48,6 +48,15 @@ export interface IContextMenuDelegate {
 	 * A number selects a zero-based index in {@link getActions}, counting separators and each submenu as one item; non-integer or out-of-range indices are ignored.
 	 */
 	autoSelectItem?: boolean | number;
+	/**
+	 * The zero-based index in {@link getActions} of the default action: highlighted when the menu shows (unless
+	 * {@link autoSelectItem} selects another) and while the pointer is over the anchor element, so that Enter picks it.
+	 * Elsewhere outside the menu, no action is highlighted.
+	 * Only supported by custom (non-native) menus.
+	 */
+	defaultItem?: number;
+	/** A short description shown to the right of an action's label, such as "recently used". Only custom (non-native) menus show it. */
+	getDescription?(action: IAction): string | undefined;
 	anchorAlignment?: AnchorAlignment;
 	anchorAxisAlignment?: AnchorAxisAlignment;
 	domForShadowRoot?: HTMLElement;
@@ -79,4 +88,13 @@ export function getContextMenuAutoSelectItem(delegate: IContextMenuDelegate, act
 		return Number.isInteger(selection) && selection >= 0 && selection < actions.length ? selection : false;
 	}
 	return selection === true;
+}
+
+/** The action that {@link IContextMenuDelegate.defaultItem} names: the first action at or after that index that is not a separator. */
+export function getContextMenuDefaultAction(delegate: IContextMenuDelegate, actions: readonly IAction[]): IAction | undefined {
+	const index = delegate.defaultItem;
+	if (index === undefined || !Number.isInteger(index) || index < 0) {
+		return undefined;
+	}
+	return actions.slice(index).find(action => !(action instanceof Separator));
 }
