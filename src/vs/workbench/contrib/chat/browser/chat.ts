@@ -41,6 +41,7 @@ import { ICodeBlockActionContext, ICodeBlockRenderOptions } from './widget/chatC
 import { AgentSessionTarget } from './agentSessions/agentSessions.js';
 import type { IResolvedResponseSelection } from './responseSelectionResolver.js';
 import type { IChatBackgroundShell } from '../../../common/chatBackgroundShell.js';
+import type { IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
 
 export { ChatOutline } from './chatOutline.js';
 
@@ -548,6 +549,8 @@ export interface IChatWidget {
 	getFocus(): ChatTreeItem | undefined;
 	setInput(query?: string): void;
 	getInput(): string;
+	/** Replaces the empty chat's welcome content, e.g. with the selected agent's own (`undefined` restores the default). */
+	setAgentWelcome?(content: Omit<IChatViewWelcomeContent, 'additionalMessage'> | undefined): void;
 	refreshParsedInput(): void;
 	/** Floats persistent input content and reserves matching space below the transcript. */
 	setPersistentContentHeight(height: number | undefined): void;

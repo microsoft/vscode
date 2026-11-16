@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -56,6 +57,14 @@ interface IAgentStartExperience {
 	readonly agentName: string;
 	readonly commands: readonly IAgentCommand[];
 	readonly startForm: IAgentStartForm | undefined;
+	/** Markdown for the empty chat; `command:<name>` links run the agent's own commands. */
+	readonly welcome: string | undefined;
+}
+
+/** The VS Code command behind an agent command: a valid command URI path, so welcome links can run it. */
+function agentCommandId(agentName: string, commandName: string): string {
+	const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+	return `_chat.agentCommand.${slug(agentName)}.${slug(commandName)}`;
 }
 
 export class ChatAgentStartExperienceContribution extends Disposable implements IWorkbenchContribution {
@@ -96,6 +105,7 @@ export class ChatAgentStartExperienceContribution extends Disposable implements 
 		const mode = widget.input.currentModeObs.get();
 		const uri = mode.uri?.get();
 		if (!uri || mode.isBuiltin) {
+			widget.setAgentWelcome?.(undefined);
 			return;
 		}
 		const experience = await this._read(mode.name.get(), uri);
@@ -103,9 +113,29 @@ export class ChatAgentStartExperienceContribution extends Disposable implements 
 			return;
 		}
 		experience.commands.forEach(command => this._registerCommand(experience.agentName, command));
+		widget.setAgentWelcome?.(experience.welcome ? {
+			title: experience.agentName,
+			icon: Codicon.chatSparkle,
+			message: this._welcomeMarkdown(experience, widget.viewModel?.sessionResource),
+		} : undefined);
 		if (experience.startForm) {
 			this._showStartForm(widget, experience.startForm);
 		}
+	}
+
+	/** Trusts exactly the agent's own commands, and passes them the chat they were clicked in. */
+	private _welcomeMarkdown(experience: IAgentStartExperience, sessionResource: URI | undefined): MarkdownString {
+		const ids: string[] = [];
+		const value = experience.welcome!.replace(/\]\(command:([\w-]+)\)/g, (link, name: string) => {
+			if (!experience.commands.some(command => command.name === name)) {
+				return link;
+			}
+			const id = agentCommandId(experience.agentName, name);
+			ids.push(id);
+			const args = encodeURIComponent(JSON.stringify([{ sessionResource: sessionResource?.toString() }]));
+			return `](command:${id}?${args})`;
+		});
+		return new MarkdownString(value, { isTrusted: { enabledCommands: ids }, supportThemeIcons: true });
 	}
 
 	private async _read(agentName: string, uri: URI): Promise<IAgentStartExperience | undefined> {
@@ -115,26 +145,29 @@ export class ChatAgentStartExperienceContribution extends Disposable implements 
 		}
 		const commands = toArray(toJson(header.getAttribute(PromptHeaderAttributes.commands)?.value)).map(asAgentCommand).filter((command): command is IAgentCommand => !!command);
 		const form = toJson(header.getAttribute(PromptHeaderAttributes.startForm)?.value);
-		return { agentName, commands, startForm: asStartForm(form) };
+		return { agentName, commands, startForm: asStartForm(form), welcome: asString(toJson(header.getAttribute(PromptHeaderAttributes.welcome)?.value)) };
 	}
 
 	private _registerCommand(agentName: string, definition: IAgentCommand): void {
-		const key = `${agentName}/${definition.name}`;
-		const existing = this._commandRegistrations.get(key);
+		const id = agentCommandId(agentName, definition.name);
+		const existing = this._commandRegistrations.get(id);
 		if (existing) {
 			existing.definition = definition;
 			return;
 		}
-		const id = `_chat.agentCommand.${key}`;
 		const entry = { definition, registration: new DisposableStore() };
-		entry.registration.add(CommandsRegistry.registerCommand(id, (_accessor, context?: { widget?: IChatWidget }) => this._run(entry.definition, context?.widget ?? this._chatWidgetService.lastFocusedWidget)));
+		// From the input toolbar: `{ widget }`; from a welcome link: `{ sessionResource }`.
+		entry.registration.add(CommandsRegistry.registerCommand(id, (_accessor, context?: { widget?: IChatWidget; sessionResource?: string }) => this._run(entry.definition,
+			context?.widget
+			?? (context?.sessionResource ? this._chatWidgetService.getWidgetBySessionResource(URI.parse(context.sessionResource)) : undefined)
+			?? this._chatWidgetService.lastFocusedWidget)));
 		entry.registration.add(MenuRegistry.appendMenuItem(MenuId.ChatInputStatus, {
 			command: { id, title: definition.label, icon: definition.icon ? ThemeIcon.fromId(definition.icon) : Codicon.play },
 			group: 'navigation',
 			order: this._commandRegistrations.size,
 			when: ContextKeyExpr.equals(ChatContextKeys.chatModeName.key, agentName),
 		}));
-		this._commandRegistrations.set(key, entry);
+		this._commandRegistrations.set(id, entry);
 	}
 
 	private async _run(command: IAgentCommand, widget: IChatWidget | undefined): Promise<void> {

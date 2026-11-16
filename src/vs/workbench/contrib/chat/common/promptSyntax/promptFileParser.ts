@@ -97,6 +97,7 @@ export namespace PromptHeaderAttributes {
 	export const includeCustomInstructions = 'include-custom-instructions';
 	export const commands = 'commands';
 	export const startForm = 'start-form';
+	export const welcome = 'welcome';
 }
 
 export class PromptHeader {

@@ -16,10 +16,8 @@
 
 .interactive-session.chat-view-getting-started-disabled {
 
-	/* hide most welcome pieces when we show recent sessions to make some space */
-	.chat-welcome-view .chat-welcome-view-icon,
-	.chat-welcome-view .chat-welcome-view-title,
-	.chat-welcome-view .chat-welcome-view-message,
+	/* hide most welcome pieces when we show recent sessions to make some space, but keep a custom agent's welcome */
+	.chat-welcome-view-container:not(.chat-agent-welcome) .chat-welcome-view :is(.chat-welcome-view-icon, .chat-welcome-view-title, .chat-welcome-view-message),
 	.chat-welcome-view .chat-welcome-view-disclaimer,
 	.chat-welcome-view .chat-welcome-view-tips {
 		display: none;
