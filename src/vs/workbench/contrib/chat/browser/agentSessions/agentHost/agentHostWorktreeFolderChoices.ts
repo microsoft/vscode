@@ -279,17 +279,22 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 	/**
 	 * The chip for the selected `folder`: by its icon, a folder or a worktree, and its name, or New Worktree by that name, with
 	 * what it is for screen readers and on hover. The name shows at once; only the icon settles once git proves a worktree.
+	 * `startedWorktree` is the worktree made for a session that started in a new worktree, which the chip then shows rather
+	 * than New Worktree.
 	 */
-	getChip(folder: URI): { readonly icon: ThemeIcon; readonly label: string; readonly description: string } {
-		const choices = this._choices();
-		const choice = choices.find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate.uri, folder));
-		const primary = choices.find(candidate => candidate.kind === 'folder');
+	getChip(folder: URI, startedWorktree?: URI): { readonly icon: ThemeIcon; readonly label: string; readonly description: string } {
 		if (this.isNoWorkspaceSelected()) {
 			return this.getNoWorkspaceChip();
 		}
+		const choices = this._choices();
+		const primary = choices.find(candidate => candidate.kind === 'folder');
 		if (this.isNewWorktreeSelected()) {
-			return { icon: WORKTREE_ICON, label: getNewWorktreeLabel(), description: localize('agentHost.folderPicker.newWorktreeChipDescription', "New worktree of {0}", primary?.label ?? basename(folder)) };
+			if (!startedWorktree) {
+				return { icon: WORKTREE_ICON, label: getNewWorktreeLabel(), description: localize('agentHost.folderPicker.newWorktreeChipDescription', "New worktree of {0}", primary?.label ?? basename(folder)) };
+			}
+			folder = startedWorktree;
 		}
+		const choice = choices.find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate.uri, folder));
 		const name = choice?.label ?? basename(folder);
 		// A folder it does not list, such as the worktree a started session works in, is a worktree once git proves it one
 		const worktree = choice ? choice.kind === 'worktree' : this._isProvenWorktree(folder);

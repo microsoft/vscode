@@ -381,6 +381,64 @@ suite('AgentHostFolderPickerActionItem', () => {
 			inFolder: { label: 'fix', ariaLabel: 'Folder: fix', noWorkspaceIcon: false },
 		});
 	});
+	test('a session started in a new worktree shows that worktree, also once the host reports it late, and New Worktree until then', () => {
+		const primary = URI.file('/work/vscode');
+		const worktree = URI.file('/work/vscode.worktrees/copilot-hello');
+		const session = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-1' });
+		const onDidChangeCustomizations = store.add(new Emitter<void>());
+		/** Where the host says the session works: none yet, the window's folder before it starts, the worktree made for it after */
+		let workingDirectories: URI[] = [];
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.EditorWindowEnableWorktree]: true }));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
+			getWorkspace: () => upcastPartial<IWorkspace>({ uri: primary, folders: [upcastPartial<IWorkspaceFolder>({ uri: primary, name: 'vscode' })] }),
+			getWorkbenchState: () => WorkbenchState.FOLDER,
+			onDidChangeWorkspaceFolders: Event.None,
+		}));
+		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({
+			onDidChangeProviders: Event.None,
+			onDidChangeLocation: Event.None,
+			canSetLocation: () => true,
+			getLocations: async () => [] as IFolderLocation[],
+			getLocation: () => undefined,
+			resolveLocation: async () => undefined,
+		}));
+		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({ onDidChangeFolder: Event.None, getFolder: () => undefined, isNoWorkspace: () => false, getDefaultFolder: () => undefined }));
+		// The session's configuration keeps its isolation in a new worktree after it started
+		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({
+			onDidChange: Event.None,
+			getResolvedConfig: () => ({ schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } }, values: { isolation: 'worktree' } }),
+			getPreparedSessionConfig: () => undefined,
+		}));
+		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>({ onDidChangeSessions: Event.None }) }));
+		instantiationService.stub(IAgentHostWorktreeSessionSources, store.add(new AgentHostWorktreeSessionSources()));
+		instantiationService.stub(IAgentHostWorktreeLocationsCache, store.add(instantiationService.createInstance(AgentHostWorktreeLocationsCache)));
+		instantiationService.stub(IAgentHostCustomizationService, upcastPartial<IAgentHostCustomizationService>({
+			onDidChangeCustomizations: onDidChangeCustomizations.event,
+			getClientWorkingDirectoryUris: () => workingDirectories,
+			isWorkspaceless: () => false,
+		}));
+		instantiationService.stub(ISCMService, upcastPartial<ISCMService>({ getRepository: () => undefined }));
+		const widget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: session }), onDidChangeViewModel: Event.None });
+		const chip = store.add(instantiationService.createInstance(AgentHostFolderPickerActionItem, upcastPartial<MenuItemAction>(store.add(new Action('workbench.action.chat.openAgentHostFolderPicker', 'Folder'))), widget, { compact: observableValue('compact', false) }));
+		chip.render(root);
+		const shown = () => ({ label: chip.element?.textContent, worktreeIcon: !!chip.element?.querySelector('.codicon-worktree') });
+
+		const unknown = shown();
+		workingDirectories = [primary];
+		onDidChangeCustomizations.fire();
+		const inFolder = shown();
+		// It started: the host reports the worktree made for it, after the chip rendered
+		workingDirectories = [worktree];
+		onDidChangeCustomizations.fire();
+
+		assert.deepStrictEqual({ unknown, inFolder, started: shown() }, {
+			unknown: { label: 'New Worktree', worktreeIcon: true },
+			inFolder: { label: 'New Worktree', worktreeIcon: true },
+			started: { label: 'copilot-hello', worktreeIcon: true },
+		});
+	});
+
 	test('its list keeps the detail of a row with a description, such as the folder with Current, inside the row, as it does a row without one', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.set(IKeybindingService, new MockKeybindingService());
