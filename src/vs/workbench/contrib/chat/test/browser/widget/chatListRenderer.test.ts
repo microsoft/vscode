@@ -7031,6 +7031,42 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
+	for (const names of [['view', 'editor'], ['editor']]) {
+		test(`a pending question and plan review dock again in a widget that shows the chat again, such as a chat editor shown again, without rendering the rest of the row again (${names.length} widgets)`, async () => {
+			const session = URI.from({ scheme: 'vscode-chat-session', path: `/shown-again-${names.length}` });
+			const { chatWidgetService, widgets, dockedIn, questionIn, showChat } = createInputRequestWidgets(session, names);
+			const { instantiationService, model, request, renderer, template, node, createRenderer } = createPersistentProgressRenderer({ sessionResource: session, chatMode: ChatModeKind.Agent, chatWidgetService, getWidget: () => widgets.get('editor') });
+			const view = names.includes('view') ? createRenderer(() => widgets.get('view'), dom.append(mainWindow.document.body, dom.$('.interactive-session'))) : undefined;
+			const answered = sinon.stub(instantiationService.get(IChatService), 'notifyQuestionCarouselAnswer');
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Here is the plan') });
+			const review = new ChatPlanReviewData('Review plan', 'Approve this plan.', [{ label: 'Implement' }], true, undefined, 'plan-again');
+			const question = new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction' }], true, 'question-again');
+			model.acceptResponseProgress(request, review);
+			model.acceptResponseProgress(request, question);
+			renderer.renderElement(node, 0, template);
+			view?.renderer.renderElement(node, 0, view.template);
+			const markdown = template.value.querySelector('.rendered-markdown');
+
+			// The chat editor is hidden: its widget shows no chat, and its input lets go of what it docked, while its list keeps the row
+			showChat('editor', URI.from({ scheme: 'vscode-chat-session', path: '/none' }));
+			const hidden = { plan: dockedIn('plan-again'), question: dockedIn('question-again') };
+			showChat('editor', session);
+			renderer.renderElement(node, 0, template);
+			const shownAgain = { plan: dockedIn('plan-again'), question: dockedIn('question-again'), sameMarkdown: !!markdown && template.value.querySelector('.rendered-markdown') === markdown };
+
+			if (shownAgain.question.includes('editor')) {
+				await questionIn('editor', 'question-again')(new Map([['q1', 'Weave']]), true);
+			}
+
+			const other = names.filter(name => name !== 'editor');
+			assert.deepStrictEqual({ hidden, shownAgain, answered: { left: dockedIn('question-again'), notified: answered.callCount, answers: question.data } }, {
+				hidden: { plan: other, question: other },
+				shownAgain: { plan: names, question: names, sameMarkdown: true },
+				answered: { left: [], notified: 1, answers: { q1: 'Weave' } },
+			});
+		});
+	}
+
 	test('a question that a widget docked for a chat it no longer shows, settled later, leaves the question of the same key of the chat it shows now', async () => {
 		const first = URI.from({ scheme: 'vscode-chat-session', path: '/first' });
 		const second = URI.from({ scheme: 'vscode-chat-session', path: '/second' });

@@ -1038,6 +1038,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly _notifiedQuestionCarousels = new Set<string>();
 	/** The copies of questions and plan reviews docked in its widget's input that it removes as they are settled elsewhere. */
 	private readonly settlementWatchedParts = new WeakSet<IChatContentPart>();
+	/** Whether the input that docked each copy of a question or plan review has let go of it since. */
+	private readonly dockedCopies = new WeakMap<IChatContentPart, { gone: boolean }>();
 	private readonly workingProgressConfirmationEndListeners = new WeakSet<IChatToolInvocation>();
 
 	private readonly chatContentMarkdownRenderer: IMarkdownRenderer;
@@ -5283,6 +5285,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	/**
+	 * Tells whether the input that docked `part` has let go of it, such as as its widget showed no chat for a while, as when
+	 * its chat editor was hidden. The row that rendered the request then renders it again as its widget shows the chat
+	 * again, which docks it again, rather than keeping a row whose request is docked nowhere in that widget.
+	 */
+	private watchDockedCopy(part: IChatContentPart): () => boolean {
+		let state = this.dockedCopies.get(part);
+		if (!state) {
+			const watched = { gone: false };
+			this.dockedCopies.set(part, watched);
+			part.addDisposable?.(toDisposable(() => { watched.gone = true; }));
+			state = watched;
+		}
+		const docked = state;
+		return () => docked.gone;
+	}
+
+	/**
 	 * The widget that shows the input requests of the chat of `sessionResource`, such as its questions and tool approvals: the
 	 * widget whose list this renders, where it shows that chat and can show them, else any widget that shows the chat. Other
 	 * widgets can show the same chat, such as one that is hidden, whose input the user would not see.
@@ -6130,11 +6149,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		// Return a placeholder that will re-render as a summary when the carousel is used or response is complete/stopped
+		const isDockedCopyGone = this.watchDockedCopy(part);
 		return this.renderNoContent((other, _followingContent, element) => {
 			// Re-render (return false) if:
 			// - carousel was used/submitted
 			// - response is complete (stopped)
-			if (carousel.isUsed || (isResponseVM(element) && element.isComplete)) {
+			// - the input let go of its copy, such as as its widget showed no chat for a while: rendering it again docks it again
+			if (carousel.isUsed || (isResponseVM(element) && element.isComplete) || isDockedCopyGone()) {
 				return false;
 			}
 			// Use resolveId for comparison instead of object identity to handle re-rendering during scrolling
@@ -6240,13 +6261,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// taken (e.g. "Approved plan", "Provided feedback"). The actual
 		// feedback text is rendered as a separate markdown block beneath
 		// rather than collapsed onto the progress line.
-		const renderProgress = (): IChatContentPart => {
+		const renderProgress = (isDockedCopyGone?: () => boolean): IChatContentPart => {
 			if (context.suppressProgressShimmer && !review.isUsed) {
-				return this.renderNoContent(other => other === review && !review.isUsed);
+				return this.renderNoContent(other => other === review && !review.isUsed && !isDockedCopyGone?.());
 			}
 			const message = this.getPlanReviewProgressMessage(review);
 			if (!message) {
-				return this.renderNoContent(other => other.kind === 'planReview');
+				return this.renderNoContent(other => other.kind === 'planReview' && !(!review.isUsed && isDockedCopyGone?.()));
 			}
 			// Capture the used state at render time. `other` and `review`
 			// are typically the same mutable object, so comparing
@@ -6278,6 +6299,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					// Re-render when the used state flips so we transition
 					// from "Plan review required" to the final action label.
 					if (!!review.isUsed !== renderedAsUsed) {
+						return false;
+					}
+					// Docked nowhere in this widget any more while still pending: render it again, which docks it again
+					if (!review.isUsed && isDockedCopyGone?.()) {
 						return false;
 					}
 					if (review.resolveId && other.resolveId) {
@@ -6317,7 +6342,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return fallbackPart;
 		}
 
-		return renderProgress();
+		return renderProgress(this.watchDockedCopy(dockedPart));
 	}
 
 	private getPlanReviewProgressMessage(review: IChatPlanReview): string | undefined {
