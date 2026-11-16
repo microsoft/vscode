@@ -98,10 +98,11 @@ export function isEmptyUpToCompletionWord(model: ITextModel, rangeResult: IChatC
 }
 
 /**
- * Returns `true` when the cursor sits inside a non-empty token whose first
- * character is one of the given trigger characters (or is positioned right
- * after such a token). Used to gate completion providers so they only run
- * when the user is actively editing a trigger-led token.
+ * Returns `true` when the cursor sits inside a non-empty token led by one of
+ * the given trigger characters (or is positioned right after such a token).
+ * The trigger character starts the token or follows an opening bracket in it,
+ * as in `(#file`. Used to gate completion providers so they only run when the
+ * user is actively editing a trigger-led token.
  */
 export function isAtTriggerCharacterToken(model: ITextModel, position: Position, triggerCharacters: readonly string[]): boolean {
 	if (triggerCharacters.length === 0) {
@@ -113,8 +114,10 @@ export function isAtTriggerCharacterToken(model: ITextModel, position: Position,
 	// start-of-line) up to the cursor.
 	const wsIdx = beforeCursor.search(/\s\S*$/);
 	const token = wsIdx >= 0 ? beforeCursor.slice(wsIdx + 1) : beforeCursor;
-	if (token.length > 0 && triggerCharacters.includes(token[0])) {
-		return true;
+	for (let i = 0; i < token.length; i++) {
+		if (triggerCharacters.includes(token[i]) && (i === 0 || '([{'.includes(token[i - 1]))) {
+			return true;
+		}
 	}
 	return triggerCharacters.includes('/') && /^\s*\//.test(beforeCursor);
 }

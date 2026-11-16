@@ -120,6 +120,22 @@ suite('AgentHostFileCompletionProvider', () => {
 		test('returns undefined when # is not preceded by whitespace', () => {
 			assert.strictEqual(extractAtToken('foo#bar', 7), undefined);
 		});
+
+		test('extracts a token whose trigger character follows an opening bracket', () => {
+			assert.deepStrictEqual([
+				extractAtToken('(#foo)', 5),
+				extractAtToken('see [@foo', 9),
+				extractAtToken('render({#', 9),
+				extractAtToken('a)#foo', 6),
+				extractAtToken('a.#foo', 6),
+			], [
+				{ token: 'foo', triggerChar: '#', rangeStart: 1, rangeEnd: 5 },
+				{ token: 'foo', triggerChar: '@', rangeStart: 5, rangeEnd: 9 },
+				{ token: '', triggerChar: '#', rangeStart: 8, rangeEnd: 9 },
+				undefined,
+				undefined,
+			]);
+		});
 	});
 
 	suite('provideCompletionItems', () => {

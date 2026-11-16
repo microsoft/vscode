@@ -115,6 +115,7 @@ suite('AgentHostChatCompletionProvider', () => {
 					extractChatToken('#CHAT:Pla', 9),            // case-insensitive prefix
 					extractChatToken('a#chat:x', 8),             // '#' not preceded by whitespace
 					extractChatToken('#chat:a b', 9),            // whitespace terminates the token
+					extractChatToken('(#chat:Pla)', 10),         // '#' after an opening bracket
 				],
 				[
 					undefined,
@@ -126,6 +127,7 @@ suite('AgentHostChatCompletionProvider', () => {
 					{ typed: 'Pla', rangeStart: 0, rangeEnd: 9 },
 					undefined,
 					undefined,
+					{ typed: 'Pla', rangeStart: 1, rangeEnd: 10 },
 				],
 			);
 		});

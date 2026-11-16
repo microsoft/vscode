@@ -39,6 +39,8 @@ import { NullLogService } from '../../../../../../../../platform/log/common/log.
 import { TestThemeService } from '../../../../../../../../platform/theme/test/common/testThemeService.js';
 import { ISharedWebContentExtractorService } from '../../../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { workbenchInstantiationService } from '../../../../../../../test/browser/workbenchTestServices.js';
+import { IHistoryService } from '../../../../../../../services/history/common/history.js';
+import { ISearchService } from '../../../../../../../services/search/common/search.js';
 import { ChatSubmitAction } from '../../../../../browser/actions/chatExecuteActions.js';
 import { ChatAttachmentModel } from '../../../../../browser/attachments/chatAttachmentModel.js';
 import { IChatAttachmentResolveService } from '../../../../../browser/attachments/chatAttachmentResolveService.js';
@@ -128,6 +130,41 @@ suite('BuiltinDynamicCompletions symbols', () => {
 			});
 		});
 	}
+});
+
+suite('BuiltinDynamicCompletions files', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('offers a file for what is typed before a closing parenthesis, which stays where it is', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const languageFeaturesService = new LanguageFeaturesService();
+		const model = store.add(createTextModel('(#foo)', null, undefined, URI.from({ scheme: Schemas.vscodeChatInput, path: '/test' })));
+		const uri = URI.file('/workspace/foo.ts');
+		const widget = upcastPartial<IChatWidget>({
+			supportsFileReferences: true,
+			viewModel: upcastPartial<ChatViewModel>({ model: upcastPartial<IChatModel>({ sessionResource: URI.from({ scheme: 'test', path: '/test' }) }) }),
+		});
+		instantiationService.stub(IChatWidgetService, { getWidgetByInputUri: () => widget });
+		instantiationService.stub(ILanguageFeaturesService, languageFeaturesService);
+		instantiationService.stub(IChatAgentService, {});
+		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
+		instantiationService.stub(IHistoryService, { getHistory: () => [{ resource: uri }] });
+		instantiationService.stub(ISearchService, { fileSearch: async () => ({ results: [], messages: [] }) });
+		store.add(instantiationService.createInstance(BuiltinDynamicCompletions));
+		const provider = languageFeaturesService.completionProvider.ordered(model).find(provider => provider._debugDisplayName === 'chatVarCompletions-fileAndFolder')!;
+
+		const result = await provider.provideCompletionItems(model, new Position(1, 6), { triggerKind: CompletionTriggerKind.Invoke }, CancellationToken.None);
+
+		assert.deepStrictEqual(result?.suggestions.map(suggestion => ({
+			insertText: suggestion.insertText,
+			insert: Range.lift(Range.isIRange(suggestion.range) ? suggestion.range : suggestion.range.insert).toString(),
+			reference: (suggestion.command?.arguments?.[0] as { variable: IDynamicVariable }).variable,
+		})), [{
+			insertText: '#file:foo.ts ',
+			insert: '[1,2 -> 1,6]',
+			reference: { id: uri.toString(), isFile: true, isDirectory: false, range: { startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 14 }, data: uri },
+		}]);
+	});
 });
 
 suite('AgentCompletions in agent-host chats', () => {
@@ -1472,6 +1509,19 @@ suite('isAtTriggerCharacterToken', () => {
 
 	test('cursor in token whose first char is not a trigger char', () => {
 		check('abc@def', 8, false); // first char of token is 'a', not '@'
+	});
+
+	test('cursor in a trigger-led token that follows an opening bracket', () => {
+		assert.deepStrictEqual(([
+			['(#', 3],
+			['see [@file', 11],
+			['render({#file', 14],
+			['a)#file', 8],
+			['a.#file', 8],
+		] as const).map(([text, column]) => {
+			const model = store.add(createTextModel(text, null, undefined, URI.parse('test:input')));
+			return isAtTriggerCharacterToken(model, new Position(1, column), triggerChars);
+		}), [true, true, true, false, false]);
 	});
 
 	test('cursor in slash command arguments', () => {
