@@ -27,6 +27,7 @@ import { getPendingSessionAriaLabel } from '../../browser/views/pendingSessions.
 import { ISessionGroupsService } from '../../browser/sessionGroupsService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
 import { ISavedSessionDraft } from '../../common/savedSessionDrafts.js';
+import { readNewChatDraftState, writeNewChatDraftState } from '../../common/newChatDraftState.js';
 import { ISendRequestSentEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { SESSIONS_DRAFTS_ENABLED_SETTING } from '../../common/sessionConfig.js';
 
@@ -201,6 +202,149 @@ suite('Saved session draft lifecycle', () => {
 		});
 	});
 
+	test('reloading a resumed draft preserves its identity, edited input, and attachments without creating copies', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		let instance = create(true, storage);
+		const input = {
+			inputText: '#file.ts original',
+			attachments: [{ kind: 'file' as const, id: 'file', name: 'file.ts', value: URI.file('/workspace/file.ts') }],
+			references: [{ id: 'file', range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 9 }, data: URI.file('/workspace/file.ts'), isFile: true }],
+		};
+		const draft = instance.service.save(input, { folderUri: URI.file('/workspace'), modelId: 'model' });
+		const notifications: NotificationMessage[] = [];
+		for (let cycle = 0; cycle < 2; cycle++) {
+			const composer = instance.service.createComposer();
+			const registration = disposables.add(instance.service.registerComposer(composer, async value => composer.updateInput(value.input), () => { }));
+			const backup = readNewChatDraftState(storage);
+			if (backup) {
+				composer.updateInput(backup);
+			}
+			await instance.service.open(draft.id);
+			composer.updateInput({ ...input, inputText: `#file.ts edit ${cycle}` });
+			writeNewChatDraftState(storage, composer.input, composer.id);
+			instance.lifecycle.willShutdown = true;
+			instance.service.stowAndClear(composer);
+			registration.dispose();
+			notifications.push(...instance.infoNotifications);
+			instance.service.dispose();
+			instance = create(true, storage);
+		}
+		const composer = instance.service.createComposer();
+		disposables.add(instance.service.registerComposer(composer, async value => composer.updateInput(value.input), () => { }));
+		composer.updateInput(readNewChatDraftState(storage)!);
+		await instance.service.open(draft.id);
+		assert.deepStrictEqual({
+			id: composer.id, input: composer.input, target: composer.target,
+			savedIds: instance.service.sections.get()[0].items.map(item => item.id),
+			notifications: [...notifications, ...instance.infoNotifications],
+		}, {
+			id: draft.id, input: { ...input, inputText: '#file.ts edit 1' }, target: draft.target,
+			savedIds: [draft.id], notifications: [],
+		});
+	});
+
+	test('a singleton backup without a live saved identity cannot adopt an unrelated draft', () => {
+		const { service, storage } = create();
+		const saved = service.save({ inputText: 'saved', attachments: [] }, {});
+		const ids = [saved.id, 'removed-draft', undefined].map(id => {
+			writeNewChatDraftState(storage, { inputText: 'backup', attachments: [] }, id);
+			return service.createComposer().id === saved.id;
+		});
+		assert.deepStrictEqual(ids, [true, false, false]);
+	});
+
+	test('restores the backed-up composer target before startup capture without opening other saved drafts', async () => {
+		const { service, storage, view, infoNotifications } = create();
+		const target = { folderUri: URI.file('/saved-workspace'), providerId: 'saved-provider', sessionTypeId: 'agent', configuration: { modelId: 'saved-model', branch: 'saved-branch' } };
+		const saved = service.save({ inputText: 'saved input', attachments: [] }, target);
+		service.save({ inputText: 'another draft', attachments: [] }, { folderUri: URI.file('/another-workspace') });
+		const input = { inputText: 'latest backed-up edit', attachments: [], references: undefined };
+		writeNewChatDraftState(storage, input, saved.id);
+		let opens = 0;
+		view.openNewSession = async () => {
+			opens++;
+			return { session: undefined, trustDeclined: false };
+		};
+		const opened: string[] = [];
+		disposables.add(service.onDidOpenDraft(id => opened.push(id)));
+		const composer = service.createComposer();
+		const restores: { id: string; inputText: string; target: ISavedSessionDraft['target']; preserveFocus: boolean | undefined }[] = [];
+		const restored = new DeferredPromise<void>();
+		view.setCurrentDraftId = () => {
+			if (!composer.isRestoring) {
+				restored.complete();
+			}
+		};
+		disposables.add(service.registerComposer(composer, async (draft, _token, preserveFocus) => {
+			restores.push({ id: draft.id, inputText: draft.input.inputText, target: draft.target, preserveFocus });
+			composer.updateInput(draft.input);
+		}, () => { }));
+		const restoringBeforeStartup = composer.isRestoring;
+		await restored.p;
+		const openedOnStartup = [...opened];
+		await service.open(saved.id);
+		const changedTarget = { ...target, folderUri: URI.file('/user-picked-workspace'), configuration: { modelId: 'user-picked-model', branch: 'user-picked-branch' } };
+		composer.target = changedTarget;
+		const changed = service.stow(composer);
+		assert.deepStrictEqual({ restoringBeforeStartup, restores, openedOnStartup, opens, target: changed?.target, input: changed?.input, infoNotifications }, {
+			restoringBeforeStartup: true,
+			restores: [{ id: saved.id, inputText: input.inputText, target, preserveFocus: true }],
+			openedOnStartup: [], opens: 0, target: changedTarget, input, infoNotifications: [],
+		});
+	});
+
+	test('selecting the already restored draft focuses it without rebuilding its target or replacing edits', async () => {
+		const { service, view } = create();
+		let opens = 0;
+		view.openNewSession = async () => {
+			opens++;
+			return { session: undefined, trustDeclined: false };
+		};
+		const draft = service.save({ inputText: 'saved', attachments: [] }, {});
+		const composer = service.createComposer();
+		let restores = 0;
+		let focuses = 0;
+		disposables.add(service.registerComposer(composer, async value => {
+			restores++;
+			composer.updateInput(value.input);
+		}, () => { }, () => { focuses++; }));
+		await service.open(draft.id);
+		composer.updateInput({ inputText: 'edited', attachments: [] });
+		await service.open(draft.id);
+		await service.open(draft.id);
+		assert.deepStrictEqual({ opens, restores, focuses, input: composer.input.inputText }, {
+			opens: 1, restores: 1, focuses: 2, input: 'edited',
+		});
+	});
+
+	test('opening another draft cancels the recovered composer restoration', async () => {
+		const { service, storage, notifications } = create();
+		const first = service.save({ inputText: 'backed up', attachments: [] }, { folderUri: URI.file('/first') });
+		const second = service.save({ inputText: 'selected', attachments: [] }, { folderUri: URI.file('/second') });
+		writeNewChatDraftState(storage, first.input, first.id);
+		const composer = service.createComposer();
+		const started = new DeferredPromise<void>();
+		let cancelled = false;
+		disposables.add(service.registerComposer(composer, async (draft, token) => {
+			if (draft.id === first.id) {
+				await new Promise<void>(resolve => {
+					disposables.add(token!.onCancellationRequested(() => {
+						cancelled = true;
+						resolve();
+					}));
+					started.complete();
+				});
+				return;
+			}
+			composer.updateInput(draft.input);
+		}, () => { }));
+		await started.p;
+		await service.open(second.id);
+		assert.deepStrictEqual({ cancelled, input: composer.input.inputText, target: composer.target, restoring: composer.isRestoring, notifications }, {
+			cancelled: true, input: second.input.inputText, target: second.target, restoring: false, notifications: [],
+		});
+	});
+
 	test('starting a new composition saves and clears the input, then resumes its text, attachments and target', async () => {
 		const { service } = create();
 		const composer = service.createComposer();
@@ -339,25 +483,34 @@ suite('Saved session draft lifecycle', () => {
 		const { service } = create();
 		const first = service.save({ inputText: 'first', attachments: [] }, {});
 		const second = service.save({ inputText: 'second', attachments: [] }, {});
+		const skipped = service.save({ inputText: 'skipped', attachments: [] }, {});
 		const composer = service.createComposer();
 		const started = new DeferredPromise<void>();
 		const resume = new DeferredPromise<void>();
-		disposables.add(service.registerComposer(composer, async draft => {
+		const restored: string[] = [];
+		const opened: string[] = [];
+		disposables.add(service.onDidOpenDraft(id => opened.push(id)));
+		disposables.add(service.registerComposer(composer, async (draft, token) => {
+			restored.push(draft.id);
 			if (draft.id === first.id) {
 				started.complete();
 				await resume.p;
 			}
-			composer.updateInput(draft.input);
+			if (!token?.isCancellationRequested) {
+				composer.updateInput(draft.input);
+			}
 		}, () => { }));
 		const openingFirst = service.open(first.id);
 		await started.p;
+		const openingSkipped = service.open(skipped.id);
 		const openingSecond = service.open(second.id);
 		resume.complete();
-		await Promise.all([openingFirst, openingSecond]);
+		await Promise.all([openingFirst, openingSkipped, openingSecond]);
 		assert.deepStrictEqual({
 			input: composer.input.inputText, id: composer.id,
 			titles: service.sections.get().flatMap(section => section.items.map(item => item.title)).sort(),
-		}, { input: 'second', id: second.id, titles: ['first', 'second'] });
+			restored, opened,
+		}, { input: 'second', id: second.id, titles: ['first', 'second', 'skipped'], restored: [first.id, second.id], opened: [second.id] });
 	});
 
 	test('opening a draft restores only the requested draft when the composer registers', async () => {
