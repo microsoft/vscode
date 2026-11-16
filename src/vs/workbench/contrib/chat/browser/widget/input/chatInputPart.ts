@@ -2715,10 +2715,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 		const currentMode = this._currentModeObservable.get();
-		const validMode = this._currentChatModesObservable.get().findModeById(currentMode.id);
+		const modes = this._currentChatModesObservable.get();
+		// The same custom agent can change its ID, e.g. from a synced copy to its source file while an agent host session starts.
+		const validMode = modes.findModeById(currentMode.id) ?? (currentMode.kind === ChatModeKind.Agent && currentMode.id !== ChatMode.Agent.id ? modes.findModeByName(currentMode.name.get()) : undefined);
 		const isAgentModeEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled);
 		if (!validMode) {
 			this.setChatMode(isAgentModeEnabled ? ChatModeKind.Agent : ChatModeKind.Ask);
+			return;
+		}
+		if (validMode.id !== currentMode.id) {
+			this.setChatMode(validMode.id, false);
 			return;
 		}
 		if (validMode.kind !== currentMode.kind) {

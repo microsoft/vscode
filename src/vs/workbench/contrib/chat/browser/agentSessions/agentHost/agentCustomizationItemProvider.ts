@@ -327,7 +327,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				source: sources[index],
 				tools: undefined,
 				agents: undefined,
-				argumentHint: undefined,
+				argumentHint: meta['vscode.argumentHint'],
 				handOffs: undefined,
 				hooks: undefined,
 				model: meta['vscode.models'] ?? (agent.model ? [agent.model] : undefined),
