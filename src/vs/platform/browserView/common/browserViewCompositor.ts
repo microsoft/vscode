@@ -30,12 +30,12 @@ function blit(target: IBrowserViewBitmap, source: IBrowserViewBitmap, left: numb
 }
 
 /**
- * Composes a screenshot of the whole view. A docked DevTools view covers the whole view and leaves
- * a hole for the page, which is captured separately and sits on the side opposite to the dock side.
+ * Composes a separately captured page into the hole in a docked DevTools screenshot.
+ * Uses the explicit origin for device mode, or the area opposite the dock side by default.
  */
-export function composeDevToolsScreenshot(page: IBrowserViewBitmap, devTools: IBrowserViewBitmap, dockSide: BrowserViewDevToolsDockSide): IBrowserViewBitmap {
+export function composeDevToolsScreenshot(page: IBrowserViewBitmap, devTools: IBrowserViewBitmap, dockSide: BrowserViewDevToolsDockSide, pageOrigin?: { readonly x: number; readonly y: number }): IBrowserViewBitmap {
 	const result: IBrowserViewBitmap = { data: devTools.data.slice(), width: devTools.width, height: devTools.height };
-	const pageLeft = dockSide === 'left' ? devTools.width - page.width : 0;
-	blit(result, page, pageLeft, 0);
+	const pageLeft = pageOrigin?.x ?? (dockSide === 'left' ? devTools.width - page.width : 0);
+	blit(result, page, pageLeft, pageOrigin?.y ?? 0);
 	return result;
 }

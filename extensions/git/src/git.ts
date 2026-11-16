@@ -2517,17 +2517,16 @@ export class Repository {
 			env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent }
 		};
 
-		args.push(options.remote);
-
-		for (const tag of options.tags) {
-			args.push(`refs/tags/${tag}:refs/tags/${tag}`);
-		}
-
 		if (options.force) {
 			args.push('--force');
 		}
 
-		await this.exec(args, spawnOptions);
+		args.push(options.remote);
+
+		const refspecs = options.tags.map(tag => `refs/tags/${tag}:refs/tags/${tag}`);
+		for (const chunk of splitInChunks(refspecs, MAX_CLI_LENGTH)) {
+			await this.exec([...args, ...chunk], spawnOptions);
+		}
 	}
 
 	async pull(rebase?: boolean, remote?: string, branch?: string, options: PullOptions = {}): Promise<boolean> {

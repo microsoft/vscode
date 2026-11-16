@@ -12,6 +12,7 @@ import { localize } from '../../../../nls.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { getCanvasUri } from '../../../../platform/agentHost/common/agentHostProtocolTransition.js';
 import { getInlineToolInput, parsePartialToolInput } from '../../../../platform/agentHost/common/partialToolInput.js';
+import { readCanvasIcon } from '../../../../platform/agentHost/common/meta/agentCanvasIconMeta.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { CanvasReference, CanvasState } from '../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { ActionType, type ActionEnvelope } from '../../../../platform/agentHost/common/state/sessionActions.js';
@@ -19,7 +20,7 @@ import { ActiveTurn, ChatState, ResponsePartKind, StateComponents, ToolCallStatu
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { openCanvasWithExtensionConsent } from './agentHostCanvasConsent.js';
-import { ICanvasContext, ICanvasDefinition, ICanvasDefinitionProvider, ICanvasOpenRequest } from './canvas.js';
+import { getCanvasIconUri, ICanvasContext, ICanvasDefinition, ICanvasDefinitionProvider, ICanvasOpenRequest } from './canvas.js';
 import { ICanvas, ICanvasOpenOptions, ICanvasOwner } from '../../../common/canvasReference.js';
 
 export class AgentHostCanvas implements ICanvas {
@@ -30,6 +31,7 @@ export class AgentHostCanvas implements ICanvas {
 	readonly source: URI | undefined;
 	readonly extensionId: string | undefined;
 	readonly canvasId: string | undefined;
+	readonly icon: URI | undefined;
 
 	constructor(
 		resource: URI,
@@ -42,6 +44,7 @@ export class AgentHostCanvas implements ICanvas {
 		this.canvasId = canvas?.canvasId;
 		this.title = canvas?.title ?? canvas?.extensionName ?? canvas?.canvasId ?? localize('canvas.pendingTitle', "Canvas");
 		this.status = canvas?.status;
+		this.icon = getCanvasIconUri(readCanvasIcon(canvas));
 		const uri = canvas && getCanvasUri(canvas);
 		if (uri !== undefined) {
 			try {

@@ -27,13 +27,11 @@ The generated protocol includes the Changesets model:
 3. If VS Code consumers need short aliases or type guards, update the wrapper files in this directory after the sync.
 4. Compile. The generated registry catches missing action/notification version map entries.
 
-### Current targeted backport
+### Current targeted backports
 
-The generated copy intentionally carries the optional `CreateChatParams.title` on top of the `.ahp-version` source commit `6eec1b91`. Until the recorded pin advances to an AHP commit containing this field, preserve or reapply this generated delta when syncing. Neither titles nor initial messages require an additional capability; source-based creation still uses the existing `fork` and `sideChat` capabilities.
+The generated copy uses the `.ahp-version` source commit `d7a5579b` plus targeted source backports for MCP-served skills and optional `AuthenticateParams.accountId`. The account field matches the merged [microsoft/agent-host-protocol#583](https://github.com/microsoft/agent-host-protocol/pull/583) at `eea267f02b9b031aebe6abea12a4e80927da2493`. Preserve these deltas when syncing until the recorded pin includes them. The older `CreateChatParams.title`, deprecated `SessionChatSummary.archived`, and `ChatIsReadChanged` compatibility deltas are already present in this pin.
 
-A reproducible sync from `6eec1b91` must also retain the existing VS Code-only
-compatibility deltas: deprecated `SessionChatSummary.archived` and
-`ChatIsReadChanged` introduced in `0.10.0`.
+For a narrow sync, set `AHP_PROTOCOL_REPO` to an isolated protocol source worktree at the recorded pin with those source backports applied, then run the normal sync script. Do not copy unrelated upstream changes or edit generated files to recover the existing deltas.
 
 ### Initial-message transport delta
 

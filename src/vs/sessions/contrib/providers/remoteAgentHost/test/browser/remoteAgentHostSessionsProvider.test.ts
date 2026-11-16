@@ -845,7 +845,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			all: resources(catalog.getAllSessions()),
 			toIsListed: catalog.getAllSessions().includes(to),
 		})));
-		catalog.setListingScope({ folders: constObservable([]), repositories: constObservable([]) });
+		catalog.setListingScope({ folders: constObservable([]) });
 		events.length = 0;
 		bind();
 
@@ -860,7 +860,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		// The task is still pending, so what the empty scope hides is the runtime's session
 		catalog.attach(task.taskId, runtime, task);
 		discover();
-		catalog.setListingScope({ folders: constObservable([URI.file('/elsewhere')]), repositories: constObservable([]) });
+		catalog.setListingScope({ folders: constObservable([URI.file('/elsewhere')]) });
 		events.length = 0;
 
 		catalog.clear();
@@ -911,7 +911,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		disposables.add(catalog.onDidReplaceSession(() => atReplacement.push({ listed: resources(catalog.getSessions()), all: resources(catalog.getAllSessions()) })));
 		const events: { added: string[]; removed: string[]; changed: string[] }[] = [];
 		disposables.add(catalog.onDidChangeAllSessions(event => events.push({ added: resources(event.added), removed: resources(event.removed), changed: resources(event.changed) })));
-		catalog.setListingScope({ folders: constObservable([]), repositories: constObservable([]) });
+		catalog.setListingScope({ folders: constObservable([]) });
 
 		bindings.set('task-session', cloudSandboxTaskResource('the-task'));
 		runtime.reconcileTaskResource('task-session');

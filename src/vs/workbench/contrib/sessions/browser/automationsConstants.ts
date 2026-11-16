@@ -4,3 +4,4 @@
  *--------------------------------------------------------------------------------------------*/
 
 export const AUTOMATIONS_CUSTOM_VIEW_ID = 'sessions.customView.automations';
+export const AUTOMATIONS_TOUR_SEEN_KEY = 'sessions.getStarted.showMe.automation';

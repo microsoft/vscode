@@ -19,7 +19,7 @@ import { AMBIENT_AGENT_HOST_AUTHORITY } from '../../common/agentHostConnectionsS
 import type { IAgentConnection, IAgentHostService } from '../../common/agentService.js';
 import { ChangesetKind } from '../../common/changesetUri.js';
 import type { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService } from '../../common/remoteAgentHostService.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper } from '../../common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, createEditorRemoteAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, identityAgentHostResourceUriMapper } from '../../common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
 import { PathStyle } from '../../common/state/protocol/common/commands.js';
 
@@ -42,7 +42,7 @@ suite('AgentHostConnectionsService', () => {
 	function createService(
 		remoteConnections: readonly IRemoteAgentHostConnectionInfo[],
 		remoteByAddress: Map<string, IAgentConnection>,
-		options?: { ambientResourceAuthority?: string; ambientPathStyle?: PathStyle },
+		options?: { ambientResourceUris?: IAgentHostResourceUriMapper; ambientPathStyle?: PathStyle },
 	): { service: AgentHostConnectionsService; ambient: IAgentConnection; pathProvider: IResourcePathProvider; registeredFormatters: ResourceLabelFormatter[]; fireRemoteChange: () => void } {
 		const onRemoteChange = store.add(new Emitter<void>());
 
@@ -50,9 +50,7 @@ suite('AgentHostConnectionsService', () => {
 			...fakeConnection('ambient', options?.ambientPathStyle),
 			onAgentHostStart: Event.None,
 			onAgentHostExit: Event.None,
-			resourceUris: options?.ambientResourceAuthority
-				? createAgentHostResourceUriMapper(options.ambientResourceAuthority)
-				: identityAgentHostResourceUriMapper,
+			resourceUris: options?.ambientResourceUris ?? identityAgentHostResourceUriMapper,
 		} as unknown as IAgentHostService;
 
 		const remoteAgentHostService = {
@@ -134,6 +132,22 @@ suite('AgentHostConnectionsService', () => {
 		assert.strictEqual(fired, 1);
 	});
 
+	test('resolves the ambient editor-remote authority without claiming another host', () => {
+		const remoteAuthority = 'wsl+Ubuntu';
+		const authority = agentHostAuthority(`vscode-remote://${remoteAuthority}`);
+		const other = fakeConnection('other-host');
+		const { service, ambient } = createService([info('other', 'Other')], new Map([['other', other]]), {
+			ambientResourceUris: createEditorRemoteAgentHostResourceUriMapper(remoteAuthority, authority),
+		});
+
+		assert.deepStrictEqual([
+			service.getConnectionByAuthority(AMBIENT_AGENT_HOST_AUTHORITY),
+			service.getConnectionByAuthority(authority),
+			service.getConnectionByAuthority('other'),
+			service.getConnectionByAuthority(agentHostAuthority('vscode-remote://wsl+Other')),
+		], [ambient, ambient, other, undefined]);
+	});
+
 	test('provides path semantics for mixed remote authorities and the ambient resource authority', async () => {
 		const windows = fakeConnection('windows', PathStyle.Posix);
 		const linux = fakeConnection('linux', PathStyle.Posix);
@@ -147,7 +161,7 @@ suite('AgentHostConnectionsService', () => {
 			['linux', linux],
 			['absent', absent],
 		]), {
-			ambientResourceAuthority: 'ambient-remote',
+			ambientResourceUris: createAgentHostResourceUriMapper('ambient-remote'),
 			ambientPathStyle: PathStyle.Posix,
 		});
 
