@@ -2398,6 +2398,27 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('adoptExistingWorktreeMetadata bases a linked worktree on the branch its branch tracks', async () => {
+		const worktreeCheckout = URI.joinPath(worktreesRoot, 'adopted');
+		const gitService = createGitService();
+		gitService.getRepositoryRoot = async () => worktreeCheckout;
+		gitService.getWorktreeRoots = async () => [repoRoot, worktreeCheckout];
+		gitService.getCurrentBranch = async () => 'feat/test';
+		gitService.getHEAD = async () => localBranch('feat/test', 'origin/dev');
+		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
+		const isolation = createIsolation(disposables, { gitService });
+
+		await isolation.adoptExistingWorktreeMetadata(sessionUri, worktreeCheckout);
+
+		assert.deepStrictEqual({
+			adoptedBase: await db.getMetadata('agentHost.diffBaseBranch'),
+			externalBase: (await isolation.resolveExternalWorktreeProject(worktreeCheckout))?.metadata['agentHost.diffBaseBranch'],
+		}, {
+			adoptedBase: 'origin/dev',
+			externalBase: 'origin/dev',
+		});
+	});
+
 	test('adoptExistingWorktreeMetadata is a no-op for a primary checkout', async () => {
 		const gitService = createGitService();
 		gitService.getRepositoryRoot = async () => repoRoot;
