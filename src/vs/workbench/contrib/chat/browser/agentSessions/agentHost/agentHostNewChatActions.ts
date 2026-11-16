@@ -38,9 +38,6 @@ const localAgentHostWhen = ContextKeyExpr.and(
 	IsWebContext.negate(),
 	RemoteNameContext.isEqualTo(''),
 	IsSessionsWindowContext.negate(),
-	// Not while New Chat opens in the chat area (`ChatPartEnabledContext`, #348358), which cannot start a chat in a
-	// worktree or without a workspace yet
-	ContextKeyExpr.not('chatPartEnabled'),
 );
 
 /** Where a new chat of the local agent host starts. */
@@ -108,7 +105,10 @@ export async function openPreparedAgentHostChat(resource: URI, open: () => Promi
 	return opened;
 }
 
-/** Opens a new chat of the local agent host in the Chat view that starts in `placement`; `undefined` where it cannot. */
+/**
+ * Opens a new chat of the local agent host in the Chat view that starts in `placement`, which its host's new-session composer
+ * also aims at, such as the chat area's; `undefined` where it cannot.
+ */
 async function openLocalAgentHostChat(accessor: ServicesAccessor, placement: NewAgentHostChatPlacement): Promise<URI | undefined> {
 	const contribution = accessor.get(IChatSessionsService).getChatSessionContribution(SessionType.AgentHostCopilot);
 	const notificationService = accessor.get(INotificationService);
@@ -121,7 +121,7 @@ async function openLocalAgentHostChat(accessor: ServicesAccessor, placement: New
 	const folderService = accessor.get(IAgentHostNewSessionFolderService);
 	const provisional = accessor.get(IAgentHostUntitledProvisionalSessionService);
 	const resource = await prepareNewAgentHostChat(getResourceForNewChatSession(openOptions), placement, folderService, provisional, notificationService);
-	return resource && openPreparedAgentHostChat(resource, () => instantiationService.invokeFunction(accessor => openChatSession(accessor, { ...openOptions, sessionResource: resource })), folderService, provisional);
+	return resource && openPreparedAgentHostChat(resource, () => instantiationService.invokeFunction(accessor => openChatSession(accessor, { ...openOptions, sessionResource: resource, target: { placement } })), folderService, provisional);
 }
 
 export class NewChatInWorktreeAction extends Action2 {

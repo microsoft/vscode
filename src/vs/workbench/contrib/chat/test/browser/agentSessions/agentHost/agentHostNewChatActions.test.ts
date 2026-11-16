@@ -23,6 +23,14 @@ import { CommandsRegistry } from '../../../../../../../platform/commands/common/
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../../common/chatSessionsService.js';
+import { IChatViewHostService, IChatViewHostSessionStart, IChatViewHostSessionStartOptions, IChatViewNewChatTarget } from '../../../../browser/chatViewHost.js';
+import { IChatService } from '../../../../common/chatService/chatService.js';
+import { ILogService } from '../../../../../../../platform/log/common/log.js';
+import { IEditorGroupsService } from '../../../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
+import { ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
+import { ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
+import { IAgentHostImportConversationStore } from '../../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 
 suite('Agent host New Chat entries', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -55,7 +63,7 @@ suite('Agent host New Chat entries', () => {
 			noAgentHost: shown({ worktree: true, sessionsList: true, agentHost: false }),
 			remote: shown({ worktree: true, sessionsList: true, remote: 'ssh-remote' }),
 			agentsWindow: shown({ worktree: true, sessionsList: true, sessionsWindow: true }),
-			// New Chat opens in the chat area, which cannot start a chat in a worktree or without a workspace yet
+			// New Chat opens in the chat area, whose new-session composer aims at the entry's placement
 			chatPartEnabled: shown({ worktree: true, sessionsList: true, chatPart: true }),
 			chatPartDisabled: shown({ worktree: true, sessionsList: true, chatPart: false }),
 		}, {
@@ -67,7 +75,7 @@ suite('Agent host New Chat entries', () => {
 			noAgentHost: [],
 			remote: [],
 			agentsWindow: [],
-			chatPartEnabled: [],
+			chatPartEnabled: ['New Chat in Worktree', 'New Chat (No Workspace)'],
 			chatPartDisabled: ['New Chat in Worktree', 'New Chat (No Workspace)'],
 		});
 	});
@@ -135,5 +143,32 @@ suite('Agent host New Chat entries', () => {
 		const opened = [await run(NewChatInWorktreeAction.ID), await run(NewChatWithoutWorkspaceAction.ID)];
 
 		assert.deepStrictEqual({ opened, warned: warnings.length }, { opened: [undefined, undefined], warned: 2 });
+	});
+
+	test('the entries start their chat in the Chat view host with their placement as its target, so that the chat area aims at it', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({}));
+		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ getChatSessionContribution: () => upcastPartial<ResolvedChatSessionsExtensionPoint>({ type: SessionType.AgentHostCopilot, displayName: 'Copilot' }) }));
+		instantiationService.stub(IAgentHostEnablementService, upcastPartial<IAgentHostEnablementService>({ enabled: constObservable(true) }));
+		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({ setNewWorktree: () => { }, setNoWorkspace: () => { } }));
+		// A configuration that offers the new worktree the entry seeds
+		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({
+			getPreparedSessionConfig: () => ({ schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } } as SessionConfigSchema, values: { isolation: 'worktree' } }),
+		}));
+		const targets: (IChatViewNewChatTarget | undefined)[] = [];
+		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({
+			startSession: async (_resource: URI, options: IChatViewHostSessionStartOptions) => {
+				targets.push(options.target);
+				return upcastPartial<IChatViewHostSessionStart>({ complete: async () => true, dispose: () => { } });
+			},
+		}));
+		for (const service of [IChatService, ILogService, IEditorGroupsService, IEditorService, ICustomizationHarnessService, ILanguageModelToolsService, IAgentHostImportConversationStore]) {
+			instantiationService.stub(service, {});
+		}
+		const run = (id: string) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
+
+		const opened = [await run(NewChatInWorktreeAction.ID), await run(NewChatWithoutWorkspaceAction.ID)];
+
+		assert.deepStrictEqual({ opened: opened.map(resource => !!resource), targets }, { opened: [true, true], targets: [{ placement: 'worktree' }, { placement: 'noWorkspace' }] });
 	});
 });

@@ -39,7 +39,7 @@ import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
 import { autorun, derived, IObservable, observableFromEvent, observableSignal, observableValue } from '../../../../../base/common/observable.js';
 import { IChatRequestVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { IChatViewHostService, IChatViewHostSessionStart } from '../chatViewHost.js';
+import { IChatViewHostService, IChatViewHostSessionStart, IChatViewNewChatTarget } from '../chatViewHost.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { IAgentHostImportConversationStore, type IAgentHostImportConversation } from '../agentSessions/agentHost/agentHostImportConversationStore.js';
@@ -1893,6 +1893,8 @@ export type NewChatSessionOpenOptions = {
 	readonly replaceEditorForResource?: URI;
 	/** Revalidate the source after asynchronous setup, before changing its displayed conversation. */
 	readonly beforeOpen?: () => void;
+	/** In the Chat view, what a new-session composer that its host shows for the session aims at, such as a new worktree. */
+	readonly target?: IChatViewNewChatTarget;
 };
 
 export async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatSessionOpenOptions, chatSendOptions?: NewChatSessionSendOptions): Promise<URI | undefined> {
@@ -1949,6 +1951,7 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 					local: openOptions.type === AgentSessionProviders.Local,
 					importingConversation: !!chatSendOptions?.importConversation,
 					beforeOpen: openOptions.beforeOpen,
+					target: openOptions.target,
 				});
 				break;
 			}
