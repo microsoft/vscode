@@ -140,6 +140,7 @@ import { ISecretStorageService } from '../../../../../platform/secrets/common/se
 import '../../../../contrib/chat/browser/aiCustomization/copilotCanvases.contribution.js';
 import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
 import { getExtensionSuggestionsSectionBadge, IAgentsWindowExtensionSuggestionsService } from '../../../../contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 // ============================================================================
 // Mock helpers
@@ -1902,7 +1903,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					override async getConfigurationResource() { return undefined; }
 				}(),
 				new class extends mock<IWorkspaceContextService>() {
-					override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
+					override getWorkspace(): IWorkspace { return testIWorkspace({ id: 'test', folders: [] }); }
 				}(),
 				secretStorageService,
 			));
@@ -1966,7 +1967,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IEditorGroupsService, new class extends mock<IEditorGroupsService>() { }());
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 				override readonly onDidChangeWorkspaceFolders = Event.None;
-				override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
+				override getWorkspace(): IWorkspace { return testIWorkspace({ id: 'test', folders: [] }); }
 				override getWorkbenchState(): WorkbenchState { return WorkbenchState.WORKSPACE; }
 			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {

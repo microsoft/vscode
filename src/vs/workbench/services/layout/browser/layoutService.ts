@@ -27,6 +27,7 @@ export const enum Parts {
 	AUXILIARYBAR_PART = 'workbench.parts.auxiliarybar',
 	SESSIONS_PART = 'workbench.parts.sessions',
 	CUSTOM_VIEW_GRID_PART = 'workbench.parts.customViewGrid',
+	CHAT_PART = 'workbench.parts.chat',
 	EDITOR_PART = 'workbench.parts.editor',
 	STATUSBAR_PART = 'workbench.parts.statusbar'
 }
@@ -112,14 +113,14 @@ export const enum ActivityBarPosition {
 /**
  * Whether the compact menu is owned by the title bar rather than the activity bar.
  * This is the case when the activity bar is at the top or bottom, because the activity
- * bar then lives in the side bar and disappears with the side bar. The title bar
- * only owns the menu while the custom title bar is shown in the main window; otherwise
- * the activity bar keeps it so that the menu remains reachable.
+ * bar then lives in the side bar and disappears with the side bar, and when the activity
+ * bar is hidden. The title bar only owns the menu while the custom title bar is shown in
+ * the main window; otherwise the activity bar keeps it so that the menu remains reachable.
  */
 export function isCompactMenuInTitlebar(configurationService: IConfigurationService): boolean {
 	const activityBarLocation = configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
 	return getMenuBarVisibility(configurationService) === 'compact'
-		&& (activityBarLocation === ActivityBarPosition.TOP || activityBarLocation === ActivityBarPosition.BOTTOM)
+		&& (activityBarLocation === ActivityBarPosition.TOP || activityBarLocation === ActivityBarPosition.BOTTOM || activityBarLocation === ActivityBarPosition.HIDDEN)
 		&& shouldShowCustomTitleBar(configurationService, mainWindow);
 }
 
@@ -210,12 +211,15 @@ export function getFloatingOuterEdgeOwners(layoutService: IWorkbenchLayoutServic
 	// this order inward to the first *visible* card, so a hidden editor (e.g. a maximized side
 	// bar that spans the full content width) is skipped and the spanning card is detected on
 	// both edges.
+	// A chat part, where a window has one, sits immediately beside the editor on the primary side bar's side, inside a
+	// vertical panel on that side.
 	const sideBarGroup: Parts[] = [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART];
 	const panelGroup: Parts[] = [Parts.PANEL_PART];
 	const fullOrder: Parts[] = sideBarLeft
 		? [
 			...sideBarGroup,
 			...(panelInLeftSequence ? panelGroup : []),
+			Parts.CHAT_PART,
 			Parts.EDITOR_PART,
 			...(panelInRightSequence ? panelGroup : []),
 			Parts.AUXILIARYBAR_PART
@@ -224,6 +228,7 @@ export function getFloatingOuterEdgeOwners(layoutService: IWorkbenchLayoutServic
 			Parts.AUXILIARYBAR_PART,
 			...(panelInLeftSequence ? panelGroup : []),
 			Parts.EDITOR_PART,
+			Parts.CHAT_PART,
 			...(panelInRightSequence ? panelGroup : []),
 			...[...sideBarGroup].reverse() // activity bar is outermost on the right edge
 		];
@@ -753,7 +758,7 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 		}
 	}
 
-	if (!isTitleBarEmpty(configurationService)) {
+	if (!isTitleBarEmpty(configurationService, window)) {
 		return true;
 	}
 
@@ -794,7 +799,7 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 	}
 }
 
-function isTitleBarEmpty(configurationService: IConfigurationService): boolean {
+function isTitleBarEmpty(configurationService: IConfigurationService, window: Window): boolean {
 
 	// with the command center enabled, we should always show
 	if (configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER)) {
@@ -804,6 +809,11 @@ function isTitleBarEmpty(configurationService: IConfigurationService): boolean {
 	// with the activity bar on top, we should always show
 	const activityBarPosition = configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
 	if (activityBarPosition === ActivityBarPosition.TOP || activityBarPosition === ActivityBarPosition.BOTTOM) {
+		return false;
+	}
+
+	// with the activity bar hidden, the main window title bar hosts the compact menu, so we should always show
+	if (activityBarPosition === ActivityBarPosition.HIDDEN && !isAuxiliaryWindow(window) && getMenuBarVisibility(configurationService) === 'compact') {
 		return false;
 	}
 

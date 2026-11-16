@@ -42,6 +42,9 @@ export const COPILOT_ENABLED_BUILTIN_TOOL_NAMES: readonly string[] = [
 	'sql', 'session_store_sql', 'store_memory', 'vote_memory',
 	// Canvases
 	'list_canvas_capabilities', 'open_canvas', 'invoke_canvas_action',
+	// Fine-tuned secret detection scope submission. The runtime adds it only to the security-review
+	// subagent, and only when the `SECURITY_REVIEW_FINE_TUNED_MODEL` feature flag is on.
+	'submit_security_review_scope',
 ];
 
 /**

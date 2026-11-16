@@ -418,7 +418,7 @@ export function registerChatCodeBlockActions(): DisposableStore {
 			const chatSessionsService = accessor.get(IChatSessionsService);
 			const sessionTelemetry = isResponseVM(context.element) ? getChatSessionTelemetryIds(context.element.sessionResource, accessor.get(IAgentHostConnectionsService)) : undefined;
 
-			const editor = await editorService.openEditor({ contents: context.code, languageId: context.languageId, resource: undefined } satisfies IUntitledTextResourceEditorInput);
+			const editor = await editorService.openEditor({ contents: context.code, languageId: context.languageId, resource: undefined, untitledOrigin: 'chat' } satisfies IUntitledTextResourceEditorInput);
 
 			if (editor && isResponseVM(context.element)) {
 				const requestId = context.element.requestId;

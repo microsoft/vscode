@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, IReader, ISettableObservable, ITransaction, autorun, constObservable, derived, observableValue, subtransaction, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -1091,9 +1092,12 @@ export class VisibleSessions extends Disposable {
 	 * Replace the given session in the visibility model with `updatedSession`,
 	 * preserving the grid slot, sticky state, and active state. The slot state
 	 * for the old session is disposed; a fresh slot state is created for the
-	 * updated session. No-op if `session` is not currently in the grid.
+	 * updated session. Chats detached into their own panes keep their panes when
+	 * `updatedSession` lists them, by their resources or by `chats`, which maps
+	 * the resources of `session`'s chats to those of `updatedSession`'s chats.
+	 * No-op if `session` is not currently in the grid.
 	 */
-	updateSession(session: ISession, updatedSession: ISession, preserveFocus = false): void {
+	updateSession(session: ISession, updatedSession: ISession, preserveFocus = false, chats?: ResourceMap<URI>): void {
 		const fromId = session.sessionId;
 		const rootVisible = this._visibleList.includes(fromId);
 		if (!rootVisible && ![...this._detached.values()].some(entry => entry.state.sessionId === fromId)) {
@@ -1103,6 +1107,8 @@ export class VisibleSessions extends Disposable {
 		const previousActive = this._activeSession.get();
 		const wasActive = previousActive?.sessionId === fromId;
 		const detached = [...this._detached].filter(([, entry]) => entry.state.sessionId === fromId);
+		// The chat the session's own slot shows continues as the chat `chats` maps it to, not as the replacement's initial chat
+		const rootChat = rootVisible && chats ? this._wrappers.get(fromId)?.activeChat.get().resource : undefined;
 		this.replaceId(fromId, updatedSession.sessionId);
 		// `replaceId` is a no-op when ids match — dispose the old slot state
 		// directly so a fresh one is created against `updatedSession`.
@@ -1112,10 +1118,17 @@ export class VisibleSessions extends Disposable {
 
 		transaction((tsx) => {
 			const visibleSession = rootVisible ? this._getOrCreateVisibleSession(updatedSession) : undefined;
+			const continuedResource = rootChat && chats?.get(rootChat);
+			const continuedChat = continuedResource && updatedSession.chats.get().find(chat => this._uriIdentityService.extUri.isEqual(chat.resource, continuedResource));
+			if (visibleSession && continuedChat) {
+				visibleSession.openChat(continuedChat);
+				visibleSession.setActiveChat(continuedChat);
+			}
 			for (const [key, entry] of detached) {
 				this._detached.delete(key);
 				this._detachedDisposables.deleteAndDispose(key);
-				const chat = updatedSession.chats.get().find(chat => chat.resource.toString() === key);
+				const resource = chats?.get(entry.state.chat.resource)?.toString() ?? key;
+				const chat = updatedSession.chats.get().find(chat => chat.resource.toString() === resource);
 				if (chat) {
 					this.moveChatToGrid(updatedSession, chat, entry.slot.placement?.reference ?? this.getRenderedGridSlots()[0]?.id ?? entry.slot.id,
 						entry.slot.placement?.direction ?? Direction.Right, entry.slot.id, tsx);
@@ -1124,7 +1137,8 @@ export class VisibleSessions extends Disposable {
 			this._updateDetachedChats(updatedSession.sessionId, tsx);
 			if (wasActive) {
 				const previousChat = detachedChatOf(previousActive);
-				const activePane = previousChat && this._detached.get(previousChat.toString())?.state;
+				const activeChat = previousChat && (chats?.get(previousChat) ?? previousChat);
+				const activePane = activeChat && this._detached.get(activeChat.toString())?.state;
 				const firstRoot = this._visibleList[0];
 				this._setActiveSession(activePane || visibleSession || this._detached.values().next().value?.state
 					|| (firstRoot === undefined ? undefined : this._wrappers.get(firstRoot)), preserveFocus, tsx);

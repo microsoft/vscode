@@ -279,6 +279,27 @@ suite('CopilotModelRouter', () => {
 		});
 	});
 
+	test('a chat on a route that names a family stays on it when a newer model of the family ships', async () => {
+		const next = async (routes: readonly string[], previous: IModelRoutedInfo) => {
+			const content = `version: 1\ndescription: Test.\neffort: off\nroutes:\n${routes.map(route => `  - model: ${route}\n    when: Work.\n`).join('')}`;
+			const file: IModelRouterFile = { ...routerFile(), router: parseModelRouter(content, 'daily.model-router.yaml').router };
+			return (await engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file, text: 'continue', models: [model('claude-opus-5.5'), model('claude-haiku-4.5'), model('claude-haiku-5.5')], previousTurns: [routedTurn(previous)], picker: undefined })).routed;
+		};
+		// The chat started on the `haiku` route when `claude-haiku-4.5` was the newest Haiku.
+		const onFamilyRoute: IModelRoutedInfo = { router: 'daily', chosenModel: 'claude-haiku-4.5', routeReference: 'haiku' };
+		assert.deepStrictEqual({
+			onFamilyRoute: await next(['opus', 'haiku', 'claude-haiku-4.5'], onFamilyRoute),
+			// A chat on the route that names that version stays on it.
+			onExactRoute: await next(['opus', 'haiku', 'claude-haiku-4.5'], { router: 'daily', chosenModel: 'claude-haiku-4.5' }),
+			// The newer model is already an earlier route's, so `haiku` is no route of its own and the chat is on that one.
+			onMergedRoute: await next(['opus', 'claude-haiku-5.5', 'haiku'], onFamilyRoute),
+		}, {
+			onFamilyRoute: { router: 'daily', chosenModel: 'claude-haiku-5.5', routeReference: 'haiku', kept: true, firstTurnOnly: true },
+			onExactRoute: { router: 'daily', chosenModel: 'claude-haiku-4.5', kept: true, firstTurnOnly: true },
+			onMergedRoute: { router: 'daily', chosenModel: 'claude-haiku-5.5', kept: true, firstTurnOnly: true },
+		});
+	});
+
 	test('a kept named route whose model has changed keeps an effort that model has', async () => {
 		const content = 'version: 1\ndescription: Test.\nroutes:\n  - name: feature\n    model: [big, haiku]\n    when: Building.\n    guidance: Plan first.\n';
 		const file: IModelRouterFile = { ...routerFile(), router: parseModelRouter(content, 'daily.model-router.yaml').router };

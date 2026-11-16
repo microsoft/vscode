@@ -3,9 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableMap, DisposableStore, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, MutableDisposable, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { Event } from '../../../../base/common/event.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -21,7 +25,7 @@ import { getActiveResourceCandidates, getFeedbackSessionCandidates } from './age
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { ICodeReviewService } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
-import { getAcceptedAgentFeedbackCommentCount, getSessionEditorComments } from './sessionEditorComments.js';
+import { getAcceptedAgentFeedbackCommentCount, getSessionEditorComments, ISessionEditorComment } from './sessionEditorComments.js';
 import { ISessionHostService, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 
@@ -35,6 +39,27 @@ export interface IAgentFeedbackOverlayEditorGroup extends IEditorGroup {
  */
 export function getAgentFeedbackOverlayResourceCandidates(input: Parameters<typeof getActiveResourceCandidates>[0]): ReturnType<typeof getActiveResourceCandidates> {
 	return input instanceof EmptyFileEditorInput || input instanceof ViewEditorInput ? [] : getActiveResourceCandidates(input);
+}
+
+/**
+ * The comment that the navigation of a session should be anchored at once the file `resourceUri` is shown: its first
+ * comment, unless the current anchor already is one of its comments, or `undefined` to keep the current anchor.
+ */
+export function getNavigationAnchorForResource(comments: readonly ISessionEditorComment[], currentAnchorId: string | undefined, resourceUri: URI): string | undefined {
+	const commentsOfResource = comments.filter(comment => isEqual(comment.resourceUri, resourceUri) || comment.resourceUri.fsPath === resourceUri.fsPath);
+	if (commentsOfResource.length === 0 || commentsOfResource.some(comment => comment.id === currentAnchorId)) {
+		return undefined;
+	}
+	return commentsOfResource[0].id;
+}
+
+/**
+ * The file that a diff editor shows: its modified side, or its original side when the modified side is the empty
+ * synthetic document that stands in for a deleted file, such as in the Changes editor.
+ */
+export function getDiffEditorResource(model: { readonly original: { readonly uri: URI }; readonly modified: { readonly uri: URI } }): URI {
+	const modified = model.modified.uri;
+	return modified.scheme === Schemas.inMemory && modified.path.startsWith('/synthetic/') ? model.original.uri : modified;
 }
 
 export class AgentFeedbackOverlayController {
@@ -95,6 +120,49 @@ export class AgentFeedbackOverlayController {
 			agentFeedbackService.onDidChangeNavigation,
 			agentFeedbackService.onDidChangeFeedbackScope,
 		));
+
+		// When another file becomes active within the editor, such as a file picked in the Changes editor, anchor the
+		// navigation at that file's comments so that the counter shows where the user is. This only moves the counter:
+		// it does not reveal or focus the comment, which would scroll the file away from where the user put it.
+		const controlListener = this._store.add(new MutableDisposable());
+		const syncNavigationAnchor = (pane: NonNullable<IEditorGroup['activeEditorPane']>) => {
+			const control = pane.getControl();
+			const diffModel = isDiffEditor(control) ? control.getModel() : undefined;
+			const resourceUri = diffModel ? getDiffEditorResource(diffModel) : isCodeEditor(control) ? control.getModel()?.uri : undefined;
+			if (!resourceUri) {
+				return;
+			}
+			const candidates = getAgentFeedbackOverlayResourceCandidates(pane.input);
+			for (const { sessionResource } of getFeedbackSessionCandidates(candidates, candidate => agentFeedbackService.getFeedbackSessionResource(candidate, hostSession?.get()))) {
+				const comments = getSessionEditorComments(
+					sessionResource,
+					agentFeedbackService.getFeedback(sessionResource),
+					codeReviewService.getPRReviewState(sessionResource).get(),
+					agentFeedbackService.getVisibleResolvedFeedbackIds(sessionResource),
+					shouldIncludeRawPRReviewComments(agentFeedbackService, sessionResource),
+				);
+				if (comments.length > 0) {
+					const currentAnchorId = comments[agentFeedbackService.getNavigationBearing(sessionResource, comments).activeIdx]?.id;
+					const anchorId = getNavigationAnchorForResource(comments, currentAnchorId, resourceUri);
+					if (anchorId) {
+						agentFeedbackService.setNavigationAnchor(sessionResource, anchorId, { reveal: false });
+					}
+					return;
+				}
+			}
+		};
+		const listenToActiveControl = () => {
+			const pane = group.activeEditorPane;
+			if (!pane) {
+				controlListener.clear();
+				return;
+			}
+			controlListener.value = pane.onDidChangeControl(() => syncNavigationAnchor(pane));
+			// The editor may have shown its file before the group announced it as active.
+			syncNavigationAnchor(pane);
+		};
+		listenToActiveControl();
+		this._store.add(group.onDidActiveEditorChange(listenToActiveControl));
 
 		this._store.add(autorun(r => {
 			activeSignal.read(r);

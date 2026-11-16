@@ -9,7 +9,7 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { equalSets } from '../../../../base/common/collections.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, IReader, observableFromEvent, observableValue, runOnChange, transaction } from '../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableSignalFromEvent, observableValue, runOnChange, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon, themeColorFromId } from '../../../../base/common/themables.js';
 import { isStringArray } from '../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -142,8 +142,11 @@ export interface ISessionsListModelService {
 
 export const ISessionsListModelService = createDecorator<ISessionsListModelService>('sessionsListModelService');
 
-function isUnreadSessionModifiedToday(session: ISession, reader?: IReader): boolean {
-	return !session.isRead.read(reader) && session.updatedAt.read(reader).toDateString() === new Date().toDateString();
+/** How recently an unread session from before the Inbox's first use must have been modified to still be admitted. */
+const UNREAD_HISTORICAL_INBOX_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+function isUnreadSessionModifiedRecently(session: ISession, reader?: IReader): boolean {
+	return !session.isRead.read(reader) && session.updatedAt.read(reader).getTime() >= Date.now() - UNREAD_HISTORICAL_INBOX_WINDOW_MS;
 }
 
 type StoredSessionInboxState = SessionInboxState | { readonly kind: 'resumed' };
@@ -219,6 +222,8 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		this._migratedReadSessionIds = this.loadSet(SessionsListModelService.READ_MIGRATION_DONE_KEY);
 
 		this.migratePreviousIdentities(this.sessionsManagementService.getSessions());
+		// A session replaced by one with another ID, such as one its host hands off to another connection, continues as it
+		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => this.migrateIdentities([[from.sessionId, to.sessionId]])));
 		this._register(this.sessionsManagementService.onDidChangeSessions(() => {
 			const sessions = this.sessionsManagementService.getSessions();
 			this.migratePreviousIdentities(sessions);
@@ -226,10 +231,11 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		}));
 		this.updateDefaultPlacement(this.sessionsManagementService.getSessions());
 
-		// Migrate identities before admitting completions so inherited triage takes precedence.
-		const catalog = observableFromEvent(this, this.sessionsManagementService.onDidChangeSessions, () => this.sessionsManagementService.getSessions());
+		// Read the sessions afresh: a replacement migrates its state before the change event, and a stale list would admit the replaced session.
+		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
 		this._register(autorun(reader => {
-			const sessions = new Map(catalog.read(reader).map(session => [session.sessionId, session]));
+			sessionsChanged.read(reader);
+			const sessions = new Map(this.sessionsManagementService.getSessions().map(session => [session.sessionId, session]));
 			const state = this._inboxState.read(reader);
 			const attention = this.sessionAttentionService.sessionAttention.read(reader);
 			const next = new Map(state);
@@ -279,6 +285,14 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	// -- Legacy read-state migration --
 
 	private migratePreviousIdentities(sessions: readonly ISession[]): void {
+		this.migrateIdentities(sessions.flatMap(session => (session.previousIdentities ?? []).map((previous): [string, string] => [previous.sessionId, session.sessionId])));
+	}
+
+	/**
+	 * Moves the list state of each `[from, to]` session ID to `to`, where `to` has none of that state of its own.
+	 * An Inbox entry that records no triage, such as automatic admission before the replacement, counts as none.
+	 */
+	private migrateIdentities(identities: readonly (readonly [from: string, to: string])[]): void {
 		let changed = false;
 		let inboxChanged = false;
 		const inbox = new Map(this._inboxState.get());
@@ -294,24 +308,31 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 				changed = true;
 			}
 		};
-		for (const session of sessions) {
-			for (const previous of session.previousIdentities ?? []) {
-				if (previous.sessionId === session.sessionId) {
-					continue;
+		for (const [from, to] of identities) {
+			if (from === to) {
+				continue;
+			}
+			for (const set of sets) {
+				if (set.delete(from)) {
+					set.add(to);
+					changed = true;
 				}
-				for (const set of sets) {
-					if (set.delete(previous.sessionId)) {
-						set.add(session.sessionId);
-						changed = true;
-					}
+			}
+			move(this._sortOverrides.created, from, to);
+			move(this._sortOverrides.updated, from, to);
+			move(this._updatedDefaultPlacements, from, to);
+			const state = inbox.get(from);
+			if (state) {
+				if ((inbox.get(to)?.kind ?? 'resumed') === 'resumed') {
+					// Acknowledged notification IDs are prefixed with the session ID.
+					const prefix = `${from}:`;
+					inbox.set(to, (state.kind === 'done' || state.kind === 'untilActivity') && state.notificationIds
+						? { ...state, notificationIds: state.notificationIds.map(id => id.startsWith(prefix) ? `${to}:${id.slice(prefix.length)}` : id) }
+						: state);
 				}
-				move(this._sortOverrides.created, previous.sessionId, session.sessionId);
-				move(this._sortOverrides.updated, previous.sessionId, session.sessionId);
-				move(this._updatedDefaultPlacements, previous.sessionId, session.sessionId);
-				if (inbox.has(previous.sessionId)) {
-					move(inbox, previous.sessionId, session.sessionId);
-					inboxChanged = true;
-				}
+				inbox.delete(from);
+				changed = true;
+				inboxChanged = true;
 			}
 		}
 		if (changed) {
@@ -393,8 +414,8 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			return state.kind !== 'resumed' && isSessionInboxStateCurrent(state, session, Date.now(), reader, attention) ? state : undefined;
 		}
 		if (attention?.isHistoricalCompletion) {
-			if (!isUnreadSessionModifiedToday(session, reader)) {
-				return { kind: 'done', activity: getSessionInboxActivity(session, reader), notificationIds: attention.notificationIds };
+			if (!isUnreadSessionModifiedRecently(session, reader)) {
+				return { kind: 'done', activity: getSessionInboxActivity(session, reader), notificationIds: attention.notificationIds, isHistoricalCompletion: true };
 			}
 		}
 		return undefined;
@@ -515,7 +536,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		if (this._hiddenAutomationSessionIds.read(reader).has(session.sessionId)) {
 			return false;
 		}
-		if (showAutomationRuns) {
+		if (session.isScheduledChat?.read(reader) || showAutomationRuns) {
 			return true;
 		}
 		return this._shownAutomationSessionIds.read(reader).has(session.sessionId)

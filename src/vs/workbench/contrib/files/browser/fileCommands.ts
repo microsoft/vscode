@@ -733,6 +733,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 				pinned: true
 			},
 			languageId: args?.languageId,
+			untitledOrigin: 'newFileCommand',
 		});
 	}
 });

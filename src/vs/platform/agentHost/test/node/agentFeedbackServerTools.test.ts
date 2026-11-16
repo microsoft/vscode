@@ -433,7 +433,7 @@ suite('AgentFeedbackServerTools', () => {
 			});
 			// The comment must land on the main session's annotations channel,
 			// not on the individual chat's.
-			assert.strictEqual(manager.getSnapshot(buildAnnotationsUri(chatUri)), undefined);
+			assert.strictEqual(manager.getAnnotationsState(buildAnnotationsUri(chatUri)), undefined);
 			const state = manager.getSnapshot(buildAnnotationsUri(sessionResource))!.state as AnnotationsState;
 			assert.strictEqual(state.annotations.length, 1);
 			const meta = state.annotations[0]._meta?.[FEEDBACK_ANNOTATION_META_KEY] as { sessionResource: string };
