@@ -74,7 +74,7 @@ export class ToggleShowAgentSessionsAction extends Action2 {
 	}
 }
 
-const agentSessionsOrientationSubmenu = new MenuId('chatAgentSessionsOrientationSubmenu');
+export const agentSessionsOrientationSubmenu = new MenuId('chatAgentSessionsOrientationSubmenu');
 MenuRegistry.appendMenuItem(MenuId.ChatWelcomeContext, {
 	submenu: agentSessionsOrientationSubmenu,
 	title: localize2('chat.sessionsOrientation', "Sessions Orientation"),
@@ -100,6 +100,10 @@ export class SetAgentSessionsOrientationStackedAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		if (configurationService.getValue(ChatConfiguration.ChatViewSessionsOrientation) === 'chatArea') {
+			return configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'stacked'); // leaves the chat area
+		}
 		const commandService = accessor.get(ICommandService);
 
 		await commandService.executeCommand(HideAgentSessionsSidebar.ID);
@@ -112,7 +116,7 @@ export class SetAgentSessionsOrientationSideBySideAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.setAgentSessionsOrientationSideBySide',
 			title: localize2('chat.sessionsOrientation.sideBySide', "Side by Side"),
-			toggled: ContextKeyExpr.notEquals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'stacked'),
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'sideBySide'),
 			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true), ChatContextKeys.agentsViewActive.negate()),
 			menu: {
 				id: agentSessionsOrientationSubmenu,
@@ -123,6 +127,10 @@ export class SetAgentSessionsOrientationSideBySideAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		if (configurationService.getValue(ChatConfiguration.ChatViewSessionsOrientation) === 'chatArea') {
+			return configurationService.updateValue(ChatConfiguration.ChatViewSessionsOrientation, 'sideBySide'); // leaves the chat area
+		}
 		const commandService = accessor.get(ICommandService);
 
 		await commandService.executeCommand(ShowAgentSessionsSidebar.ID);
@@ -1250,9 +1258,9 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 			return; // we need the chat view
 		}
 
-		const configuredOrientation = configurationService.getValue<'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
-		let validatedConfiguredOrientation: 'stacked' | 'sideBySide';
-		if (configuredOrientation === 'stacked' || configuredOrientation === 'sideBySide') {
+		const configuredOrientation = configurationService.getValue<'stacked' | 'sideBySide' | 'chatArea' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
+		let validatedConfiguredOrientation: 'stacked' | 'sideBySide' | 'chatArea';
+		if (configuredOrientation === 'stacked' || configuredOrientation === 'sideBySide' || configuredOrientation === 'chatArea') {
 			validatedConfiguredOrientation = configuredOrientation;
 		} else {
 			validatedConfiguredOrientation = 'sideBySide'; // default
@@ -1261,7 +1269,10 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		const newOrientation = this.getOrientation();
 		const lastWidthForOrientation = chatView?.getLastDimensions(newOrientation)?.width;
 
-		if ((!canResizeView || validatedConfiguredOrientation === 'sideBySide') && newOrientation === AgentSessionsViewerOrientation.Stacked) {
+		// The chat area is not an orientation that these actions change: it stays as configured
+		if (validatedConfiguredOrientation === 'chatArea') {
+			// nothing to update
+		} else if ((!canResizeView || validatedConfiguredOrientation === 'sideBySide') && newOrientation === AgentSessionsViewerOrientation.Stacked) {
 			chatView.updateConfiguredSessionsViewerOrientation('stacked');
 		} else if ((!canResizeView || validatedConfiguredOrientation === 'stacked') && newOrientation === AgentSessionsViewerOrientation.SideBySide) {
 			chatView.updateConfiguredSessionsViewerOrientation('sideBySide');

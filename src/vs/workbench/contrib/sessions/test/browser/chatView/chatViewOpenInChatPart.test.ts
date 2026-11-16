@@ -53,7 +53,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function setup(options: { remote?: boolean; sessionsWindow?: boolean; setting?: boolean; chatEnabled?: boolean; agentEnabled?: boolean } = {}) {
-		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOpenInChatPart]: options.setting ?? false, [ChatConfiguration.AgentEnabled]: options.agentEnabled ?? true });
+		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOrientation]: (options.setting ?? false) ? 'chatArea' : 'sideBySide', [ChatConfiguration.AgentEnabled]: options.agentEnabled ?? true });
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(options.chatEnabled ?? true);
 		RemoteNameContext.bindTo(contextKeyService).set('');
@@ -149,11 +149,11 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		const { configurationService } = setup({ setting: false });
 		const localChat = () => Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationDefaultsOverrides().get(ChatConfiguration.EditorLocalAgentEnabled)?.value;
 		const steps = [localChat()];
-		await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, true);
-		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenInChatPart]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
+		await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOrientation, 'chatArea');
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOrientation]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOrientation }));
 		steps.push(localChat());
-		await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, false);
-		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenInChatPart]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
+		await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOrientation, 'sideBySide');
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOrientation]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOrientation }));
 		steps.push(localChat());
 		assert.deepStrictEqual(steps, [undefined, false, undefined]);
 	});
@@ -163,11 +163,11 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		ActiveAuxiliaryContext.bindTo(contextKeyService).set(ChatViewContainerId);
 		const hidden = () => contextKeyService.getContextKeyValue(AuxiliaryBarMaximizeHiddenContext.key);
 		const steps = [hidden()];
-		await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, true);
-		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenInChatPart]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
+		await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOrientation, 'chatArea');
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOrientation]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOrientation }));
 		steps.push(hidden());
-		await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, false);
-		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenInChatPart]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
+		await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOrientation, 'sideBySide');
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOrientation]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOrientation }));
 		steps.push(hidden());
 		assert.deepStrictEqual(steps, [false, true, false]);
 	});
@@ -193,8 +193,8 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		const { state, configurationService, contextKeyService, chatPartOptions, sessionsList } = setup({ setting: false });
 		const enabled = (): IObservable<boolean> => chatPartOptions[0].enabled;
 		const steps: boolean[] = [enabled().get()];
-		await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, true);
-		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenInChatPart]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
+		await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOrientation, 'chatArea');
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOrientation]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOrientation }));
 		steps.push(enabled().get());
 		const sessionsOnly = [sessionsList.sessionsOnly.get()];
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
@@ -210,7 +210,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		/** The contribution over the real chat part service and Chat view host service, recording where chats are opened. */
 		function setupServices(options: { agentEnabled: boolean; setting?: boolean; chatViewShows?: URI; chatViewHasView?: boolean }) {
 			const calls: string[] = [];
-			const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOpenInChatPart]: options.setting ?? true, [ChatConfiguration.AgentEnabled]: options.agentEnabled });
+			const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOrientation]: (options.setting ?? true) ? 'chatArea' : 'sideBySide', [ChatConfiguration.AgentEnabled]: options.agentEnabled });
 			const contextKeyService = store.add(new ContextKeyService(configurationService));
 			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 			RemoteNameContext.bindTo(contextKeyService).set('');
@@ -257,8 +257,8 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			// The host service goes last, as the hosts that registered in it unregister first
 			store.add(hostService);
 			const setSetting = async (value: boolean) => {
-				await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, value);
-				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenInChatPart]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
+				await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOrientation, value ? 'chatArea' : 'sideBySide');
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOrientation]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOrientation }));
 			};
 			return { hostService, calls, loadingModel, setSetting, sessionsList };
 		}
