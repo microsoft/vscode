@@ -7,17 +7,33 @@ import { DECREASE_HOVER_VERBOSITY_ACTION_ID, DECREASE_HOVER_VERBOSITY_ACTION_LAB
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorAction, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Range } from '../../../common/core/range.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { GotoDefinitionAtPositionEditorContribution } from '../../gotoSymbol/browser/link/goToDefinitionAtPosition.js';
 import { HoverStartMode, HoverStartSource } from './hoverOperation.js';
 import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ContentHoverController } from './contentHoverController.js';
 import { HoverVerbosityAction } from '../../../common/languages.js';
 import * as nls from '../../../../nls.js';
 import './hover.css';
+
+/**
+ * Runs when the user clicks "Don't Show Again" in the long line warning hover: turns the
+ * warning off and closes the hover that shows it, which would otherwise stay open while it has focus.
+ */
+export function hideLongLineWarningHover(accessor: ServicesAccessor): Promise<void> {
+	for (const editor of accessor.get(ICodeEditorService).listCodeEditors()) {
+		const controller = ContentHoverController.get(editor);
+		if (controller?.isHoverVisible) {
+			controller.hideContentHover();
+		}
+	}
+	return accessor.get(IConfigurationService).updateValue('editor.hover.showLongLineWarning', false);
+}
 
 enum HoverFocusBehavior {
 	NoAutoFocus = 'noAutoFocus',
