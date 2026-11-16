@@ -16,7 +16,7 @@ import { createErrorWithActions, isErrorWithActions } from '../../../../../base/
 import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { combinedDisposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -4937,6 +4937,45 @@ suite('NewChatWidget', () => {
 				seedWorkspaceDraft.call(harness);
 				return calls;
 			}
+
+			test('a composer restricted to folders without worktrees offers New Worktree as a checkbox instead of in its picker, only with AI features on, the old sessions list and a draft that can work in a new worktree', () => {
+				const createVisible = Reflect.get(NewChatWidget.prototype, '_createNewWorktreeCheckboxVisible') as (this: object, newWorktree: object | undefined, allowedFolders: IObservable<readonly URI[]> | undefined) => IObservable<boolean>;
+				const getPickerNewWorktree = Reflect.get(NewChatWidget.prototype, '_getPickerNewWorktree') as (this: object, newWorktree: object) => { isAvailable(): boolean };
+				const repo = URI.file('/repo');
+				const worktree = URI.file('/repo.worktrees/feature');
+				function offers(options: { chatEnabled?: boolean; sessionsList?: boolean; available?: boolean; folders?: readonly URI[]; draftHost?: boolean } = {}) {
+					const configurationService = new TestConfigurationService(options.sessionsList ? { 'chat.viewSessions.sessionsList.enabled': true } : {});
+					disposables.add(configurationService.onDidChangeConfigurationEmitter);
+					const newWorktree = { isAvailable: () => options.available ?? true };
+					const harness: Record<string, unknown> = {
+						contextKeyService: { onDidChangeContext: Event.None, contextMatchesRules: () => options.chatEnabled ?? true },
+						configurationService,
+						_environmentWorkspaceChanged: observableSignal('changed'),
+						_session: constObservable(undefined),
+						_draftHost: { getFolderPresentation: (folder: URI) => folder.path === worktree.path ? { kind: 'worktree' } : undefined },
+					};
+					const visible = createVisible.call(harness, options.draftHost === false ? undefined : newWorktree, options.draftHost === false ? undefined : constObservable(options.folders ?? [repo]));
+					harness._newWorktreeCheckboxVisible = visible;
+					const shown = visible.get();
+					return { checkbox: shown, inPicker: options.draftHost === false ? undefined : getPickerNewWorktree.call(harness, newWorktree).isAvailable() };
+				}
+
+				assert.deepStrictEqual({
+					noWorktrees: offers(),
+					withWorktrees: offers({ folders: [repo, worktree] }),
+					newSessionsList: offers({ sessionsList: true }),
+					aiOff: offers({ chatEnabled: false }),
+					cannotWorkInNewWorktree: offers({ available: false }),
+					agentsWindow: offers({ draftHost: false }),
+				}, {
+					noWorktrees: { checkbox: true, inPicker: false },
+					withWorktrees: { checkbox: false, inPicker: true },
+					newSessionsList: { checkbox: false, inPicker: true },
+					aiOff: { checkbox: false, inPicker: true },
+					cannotWorkInNewWorktree: { checkbox: false, inPicker: false },
+					agentsWindow: { checkbox: false, inPicker: undefined },
+				});
+			});
 
 			suite('in a new worktree', () => {
 
