@@ -90,6 +90,7 @@ suite('Agent host New Chat entries', () => {
 				setNewWorktree: () => { seeds.push('worktree'); newWorktree = true; },
 				setNoWorkspace: () => { seeds.push('noWorkspace'); },
 				clear: () => { seeds.push('clear'); newWorktree = false; },
+				resolveNewSessionPrimary: () => undefined,
 			});
 			let prepared: ResolveSessionConfigResult | undefined;
 			let attempts = 0;
