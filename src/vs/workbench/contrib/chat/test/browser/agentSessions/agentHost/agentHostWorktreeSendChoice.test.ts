@@ -33,7 +33,7 @@ import { IAgentHostNewSessionFolderService } from '../../../../browser/agentSess
 import { registerWorktreeControl } from '../../../../browser/agentSessions/agentHost/agentHostNewWorktreeToggle.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostWorktreeFolderChoices, IAgentHostWorktreeLocationsCache } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeFolderChoices.js';
-import { AGENT_HOST_WORKTREE_SEND_CHOICE_ID, AgentHostWorktreeSendChoice, isRecentChatInFolder, IWorktreeSendChoiceSession, toWorktreeSendChoiceSessions, WORKTREE_SEND_CHOICE_RECENT_MS } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSendChoice.js';
+import { AGENT_HOST_WORKTREE_SEND_CHOICE_ID, AgentHostWorktreeSendChoice, IAgentHostWorktreeSendChoiceService, isRecentChatInFolder, IWorktreeSendChoiceSession, toWorktreeSendChoiceSessions, WORKTREE_SEND_CHOICE_RECENT_MS } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSendChoice.js';
 import { AgentHostWorktreeSessionSources, IAgentHostWorktreeSessionSources } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSessionSources.js';
 import { IAgentSession } from '../../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../browser/agentSessions/agentSessionsService.js';
@@ -323,16 +323,19 @@ suite('Agent host Work in Parallel choice on send', () => {
 		});
 	});
 
-	test('tells another chat surface where its new chat works: asked once on its control, then as remembered without asking', async () => {
+	test('tells another chat surface where its new chat works: in the folder without a control, nothing remembered; asked once on its control, then as remembered without asking', async () => {
 		const window = createWindow({});
+		const service: IAgentHostWorktreeSendChoiceService = window.service;
 		window.setAnswer('useWorktree');
-		const first = await window.service.askWorktreeOnSend(window.control);
+		const withoutControl = await service.askWorktreeOnSend(undefined);
+		const first = await service.askWorktreeOnSend(window.control);
 		window.setAnswer('continue');
-		const second = await window.service.askWorktreeOnSend(window.control);
+		const second = await service.askWorktreeOnSend(window.control);
+		const rememberedWithoutControl = await service.askWorktreeOnSend(undefined);
 		const asked = window.asked;
 		window.dispose();
 
-		assert.deepStrictEqual({ first, second, asked }, { first: 'worktree', second: 'worktree', asked: [{ onControl: true }] });
+		assert.deepStrictEqual({ withoutControl, first, second, rememberedWithoutControl, asked }, { withoutControl: 'folder', first: 'worktree', second: 'worktree', rememberedWithoutControl: 'worktree', asked: [{ onControl: true }] });
 	});
 
 	test('a request sent again while its new worktree is applied, or the remembered choice is, is sent once', async () => {

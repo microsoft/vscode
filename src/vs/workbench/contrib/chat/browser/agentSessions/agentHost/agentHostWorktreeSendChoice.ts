@@ -98,8 +98,9 @@ export interface IAgentHostWorktreeSendChoiceService {
 	 * Where a new chat in the window's own folder works: as the user chose before, else as they choose now in the Work in
 	 * Parallel callout on `control`, its worktree control, which it remembers for the profile. The caller decides when to
 	 * ask, such as with {@link isRecentChatInFolder}, holds its send meanwhile, and applies the answer to its own new chat.
+	 * Without a `control` it does not ask: the chat works as chosen before, else in the folder, and nothing is remembered.
 	 */
-	askWorktreeOnSend(control: HTMLElement): Promise<WorktreeSendChoice>;
+	askWorktreeOnSend(control: HTMLElement | undefined): Promise<WorktreeSendChoice>;
 }
 
 /**
@@ -172,7 +173,7 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 			}
 			const target = this._chatWidgetService.getWidgetBySessionResource(resource)?.domNode;
 			const control = target && getWorktreeControl(target);
-			const choice = this._rememberedChoice() ?? (control ? await this._askAndRemember(control) : 'folder');
+			const choice = await this.askWorktreeOnSend(control);
 			if (choice === 'worktree') {
 				await this._applyNewWorktree(choices);
 			}
@@ -202,8 +203,8 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 		this._notificationService.warn(localize('agentHost.worktreeSendChoice.notApplied', "This chat could not start in a new worktree, so it works in the folder."));
 	}
 
-	async askWorktreeOnSend(control: HTMLElement): Promise<WorktreeSendChoice> {
-		return this._rememberedChoice() ?? this._askAndRemember(control);
+	async askWorktreeOnSend(control: HTMLElement | undefined): Promise<WorktreeSendChoice> {
+		return this._rememberedChoice() ?? (control ? this._askAndRemember(control) : 'folder');
 	}
 
 	/**
