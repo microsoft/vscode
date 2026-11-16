@@ -21,6 +21,7 @@ export class QuickInput {
 	private static QUICK_INPUT_ENTRY_LABEL_SPAN = `${QuickInput.QUICK_INPUT_ROW} .monaco-highlighted-label`;
 	private static QUICK_INPUT_FOCUSED_LABEL = `${QuickInput.QUICK_INPUT_ROW}.focused .quick-input-list-row > .monaco-icon-label .label-name`;
 	private static QUICK_INPUT_FOCUSED_ELEMENTS = `${QuickInput.QUICK_INPUT_FOCUSED_ENTRY}, ${QuickInput.QUICK_INPUT_FOCUSED_LABEL}`;
+	private static MODAL_DIALOG = '.monaco-dialog-box';
 
 	constructor(private code: Code) { }
 
@@ -45,7 +46,21 @@ export class QuickInput {
 	}
 
 	async closeQuickInput(): Promise<void> {
+		await this.waitForNoModalDialog();
 		await this.code.dispatchKeybinding('escape', () => this.waitForQuickInputClosed());
+	}
+
+	/**
+	 * Escape cancels a modal dialog instead of reaching the quick input, and a dialog can open at any time, like the
+	 * proxy login dialog of a network request, which is not shown again once cancelled. Before pressing Escape for the
+	 * quick input, gives an open dialog time to be answered by what handles it.
+	 */
+	async waitForNoModalDialog(): Promise<void> {
+		try {
+			await this.code.waitForElement(QuickInput.MODAL_DIALOG, element => !element, 300);
+		} catch {
+			this.code.logger.log('QuickInput: a modal dialog is still open after 30 seconds, pressing Escape anyway');
+		}
 	}
 
 	async waitForQuickInputElements(accept: (names: string[]) => boolean): Promise<void> {
