@@ -1923,7 +1923,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 	test('matches trigger colors and keeps the gear and compact chevron visible with tight spacing', () => {
 		const { container, widget } = createPermissionsWidget();
 		container.style.setProperty('--vscode-descriptionForeground', '#777777');
-		container.style.setProperty('--vscode-problemsWarningIcon-foreground', '#aa8800');
+		container.style.setProperty('--vscode-chat-permissionPickerWarningForeground', '#aa8800');
 		container.style.setProperty('--vscode-problemsInfoIcon-foreground', '#0066cc');
 		container.style.setProperty('--vscode-codiconFontSize-compact', '12px');
 		container.style.setProperty('--vscode-spacing-size40', '4px');
@@ -1949,6 +1949,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 			states.push({
 				color: summaryStyle.color,
+				opacity: summaryStyle.opacity,
 				matchesTrigger: summaryStyle.color === triggerStyle.color && summaryStyle.opacity === triggerStyle.opacity,
 				gearVisible,
 				visibleAtRest,
@@ -1958,8 +1959,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				gearPadding: targetWindow.getComputedStyle(row.querySelector('.action-list-item-toolbar .action-label')!).paddingLeft,
 			});
 		}
-		assert.deepStrictEqual(states, ['rgb(119, 119, 119)', 'rgb(170, 136, 0)', 'rgb(0, 102, 204)'].map(color => ({
-			color, matchesTrigger: true, gearVisible: true, visibleAtRest: true, visibleOnFocus: true, compact: true, gearSummaryGap: 4, gearPadding: '2px',
+		assert.deepStrictEqual(states, [['rgb(119, 119, 119)', '0.85'], ['rgb(170, 136, 0)', '1'], ['rgb(0, 102, 204)', '1']].map(([color, opacity]) => ({
+			color, opacity, matchesTrigger: true, gearVisible: true, visibleAtRest: true, visibleOnFocus: true, compact: true, gearSummaryGap: 4, gearPadding: '2px',
 		})));
 	});
 

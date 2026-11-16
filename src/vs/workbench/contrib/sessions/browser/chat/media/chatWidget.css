@@ -1080,11 +1080,11 @@
 }
 
 .sessions-chat-picker-slot .action-label.warning {
-	color: var(--vscode-problemsWarningIcon-foreground);
+	color: var(--vscode-chat-permissionPickerWarningForeground);
 }
 
 .sessions-chat-picker-slot .action-label.warning .codicon {
-	color: var(--vscode-problemsWarningIcon-foreground) !important;
+	color: var(--vscode-chat-permissionPickerWarningForeground) !important;
 }
 
 .sessions-chat-picker-slot .action-label.info {

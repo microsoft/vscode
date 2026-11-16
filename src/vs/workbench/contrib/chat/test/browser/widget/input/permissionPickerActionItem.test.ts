@@ -22,9 +22,13 @@ import { MockContextKeyService, MockKeybindingService } from '../../../../../../
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { InMemoryStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { inputBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
+import { ColorScheme } from '../../../../../../../platform/theme/common/theme.js';
+import { ColorThemeData } from '../../../../../../services/themes/common/colorThemeData.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../../common/constants.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { PermissionPickerActionItem } from '../../../../browser/widget/input/permissionPickerActionItem.js';
+import { chatPermissionPickerWarningForeground } from '../../../../browser/widget/input/permissionPickerColors.js';
 import { IUnavailablePermissionLevel } from '../../../../browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 
 suite('PermissionPickerActionItem', () => {
@@ -287,5 +291,15 @@ suite('PermissionPickerActionItem', () => {
 		picker.show();
 		toggle()!.onChange(false);
 		assert.deepStrictEqual({ checked: toggle()?.checked, disabled: toggle()?.disabled, writes }, { checked: true, disabled: true, writes: [] });
+	});
+
+	test('warning foreground meets text contrast on the input background in every color scheme', () => {
+		const schemes = Object.values(ColorScheme);
+		assert.deepStrictEqual(schemes.map(scheme => {
+			const theme = ColorThemeData.createUnloadedThemeForThemeType(scheme);
+			const foreground = theme.getColor(chatPermissionPickerWarningForeground);
+			const background = theme.getColor(inputBackground);
+			return { scheme, readable: !!foreground && !!background && foreground.getContrastRatio(background) >= 4.5 };
+		}), schemes.map(scheme => ({ scheme, readable: true })));
 	});
 });

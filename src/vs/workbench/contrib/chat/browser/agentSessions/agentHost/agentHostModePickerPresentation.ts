@@ -23,6 +23,7 @@ import { ChatPermissionLevel } from '../../../common/constants.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { renderChatInputPickerSplit } from '../../widget/input/chatInputPickerActionItem.js';
 import { organizationDefaultLabel } from '../../widget/input/modelPicker/modelPickerBadges.js';
+import '../../widget/input/permissionPickerColors.js'; // Register the permissions picker's theme colors
 
 export const AGENT_HOST_PERMISSIONS_SETTINGS_QUERY = '@tag:chatPermissions';
 

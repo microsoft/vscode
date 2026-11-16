@@ -2113,11 +2113,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label.warning {
-	color: var(--vscode-problemsWarningIcon-foreground);
+	color: var(--vscode-chat-permissionPickerWarningForeground);
 }
 
 .interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label.warning .codicon {
-	color: var(--vscode-problemsWarningIcon-foreground) !important;
+	color: var(--vscode-chat-permissionPickerWarningForeground) !important;
 }
 
 .interactive-session .chat-secondary-toolbar .chat-input-picker-item .action-label.info {

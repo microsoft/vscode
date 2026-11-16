@@ -82,6 +82,7 @@
 		"--vscode-chat-linesAddedForeground",
 		"--vscode-chat-linesRemovedForeground",
 		"--vscode-chat-mcpCompatibilityWarningForeground",
+		"--vscode-chat-permissionPickerWarningForeground",
 		"--vscode-chat-requestBackground",
 		"--vscode-chat-requestBorder",
 		"--vscode-chat-requestBubbleBackground",

@@ -15,6 +15,7 @@ import { ColorThemeData } from '../../../services/themes/common/colorThemeData.j
 import '../../../common/agentsColors.js';
 import '../../../common/agentsSizes.js';
 import '../../../contrib/chat/browser/widget/input/modelPicker/modelPickerColors.js';
+import '../../../contrib/chat/browser/widget/input/permissionPickerColors.js';
 import '../../../contrib/welcomeGettingStarted/browser/gettingStartedColors.js';
 
 const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
