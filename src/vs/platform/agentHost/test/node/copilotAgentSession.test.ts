@@ -4983,6 +4983,53 @@ suite('CopilotAgentSession', () => {
 		session.dispose();
 	});
 
+	test('shows the icon of the latest read of a canvas, whichever read finishes first', async () => {
+		const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+		const [before, after] = [toCanvasIconDataUri(png), toCanvasIconDataUri(Buffer.concat([png, Buffer.alloc(3)]))];
+		const results = [];
+		for (const order of ['olderFirst', 'newerFirst'] as const) {
+			const reads: DeferredPromise<string | undefined>[] = [];
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				readCanvasIcon: () => {
+					const read = new DeferredPromise<string | undefined>();
+					reads.push(read);
+					return read.p;
+				},
+			});
+			mockSession.fire('session.canvas.opened', { instanceId: 'board', extensionId: 'user:board', canvasId: 'board', icon: '/extensions/board/icon.png', url: 'https://example.test/board' });
+			// The extension reloads with a new icon while its first icon is still read.
+			mockSession.fire('session.canvas.registry_changed', { canvases: [] });
+			for (const [read, icon] of order === 'olderFirst' ? [[reads[0], before], [reads[1], after]] as const : [[reads[1], after], [reads[0], before]] as const) {
+				read.complete(icon);
+				await timeout(0);
+			}
+			results.push({ order, reads: reads.length, icons: signals.filter(signal => signal.kind === 'canvas').map(signal => readCanvasIcon(signal.state)) });
+			session.dispose();
+		}
+		assert.deepStrictEqual(results, [
+			{ order: 'olderFirst', reads: 2, icons: [undefined, after] },
+			{ order: 'newerFirst', reads: 2, icons: [undefined, after] },
+		]);
+	});
+
+	test('shows the icon of a canvas that becomes unavailable while its icon is read', async () => {
+		const icon = toCanvasIconDataUri(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64'));
+		const read = new DeferredPromise<string | undefined>();
+		const { session, mockSession, signals } = await createAgentSession(disposables, { readCanvasIcon: () => read.p });
+		const canvas = { instanceId: 'board', extensionId: 'user:board', canvasId: 'board' };
+		mockSession.fire('session.canvas.opened', { ...canvas, icon: '/extensions/board/icon.png', url: 'https://example.test/board' });
+		// The extension stops before its icon is read; the canvas still declares that icon.
+		mockSession.fire('session.canvas.unavailable', canvas);
+		read.complete(icon);
+		await timeout(0);
+		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'canvas').map(signal => ({ uri: signal.state.uri, icon: readCanvasIcon(signal.state) })), [
+			{ uri: 'https://example.test/board', icon: undefined },
+			{ uri: undefined, icon: undefined },
+			{ uri: undefined, icon },
+		]);
+		session.dispose();
+	});
+
 	test('reports why the runtime declined a canvas open, and throws its other failures', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		const results: string[] = [];
