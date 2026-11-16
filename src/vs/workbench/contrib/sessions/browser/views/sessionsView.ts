@@ -375,6 +375,7 @@ export class SessionsView extends ViewPane {
 				return this.sessionsService.openSession(session.resource, { preserveFocus, source: 'sessionsList', forceMainChat: true }).then(onOpened).catch(onUnexpectedError);
 			},
 			canOpenSession: session => this.sessionsService.canOpenSession(session),
+			offersWorktreeFilter: this.allowWorktreeGrouping,
 			onChatOpen: (session, chat, preserveFocus, sideBySide) => {
 				const onOpened = () => {
 					if (isWeb && isPhoneLayout(this.layoutService)) {
@@ -782,11 +783,15 @@ export class SessionsView extends ViewPane {
 	}
 
 	private registerSessionFilters(sessionsControl: SessionsList): void {
-		// Picking a worktree folder opens a session of it, as a click in the list does
+		// The Worktrees filter, of an editor window only, whose picked folder opens a session of it once allowed to, as a click
+		// in the list does
+		const offersWorktrees = this.scopedContextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key) !== true;
 		const worktreeOpener = this._register(new SessionsWorktreeOpener(
 			this._mainWindowHost.session,
 			() => this.sessionsManagementService.getSessions().filter(session => sessionsControl.isSessionListed(session)),
+			session => this.sessionsService.canOpenSession(session),
 			session => this.sessionsService.openSession(session.resource, { preserveFocus: false, source: 'sessionsList', forceMainChat: true }).then(() => this._handleSessionOpened(session)).catch(onUnexpectedError),
+			sessionsControl.filters.onDidChange,
 		));
 		const changed = observableSignalFromEvent(this, Event.any(
 			this.sessionsManagementService.onDidChangeSessions,
@@ -806,7 +811,7 @@ export class SessionsView extends ViewPane {
 				environments,
 				(session, reader) => sessionsControl.isSessionListed(session, reader),
 				reader,
-			);
+			).filter(option => offersWorktrees || option.filter.kind !== 'worktree');
 			const environmentLabels = new Map(options
 				.filter(option => option.filter.kind === 'environment')
 				.map(option => [option.filter.id, option.label]));
@@ -896,7 +901,7 @@ export class SessionsView extends ViewPane {
 					override run() {
 						if (option.filter.kind === 'worktree') {
 							sessionsControl.filters.setSelectedWorktree(option.filter.id);
-							worktreeOpener.open(option.filter.id);
+							worktreeOpener.open(option.filter.id).catch(onUnexpectedError);
 						} else {
 							sessionsControl.filters.setExcluded(option.filter, !sessionsControl.filters.isExcluded(option.filter));
 						}
