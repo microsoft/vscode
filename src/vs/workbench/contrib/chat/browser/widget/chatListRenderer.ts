@@ -2503,7 +2503,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const remaining = timestamp - Date.now();
 			const label = remaining <= 0 ? localize('scheduledRequestDue', "Waiting to send")
 				: remaining < 60_000 ? localize('scheduledRequestSoon', "Sends in less than a minute")
-				: localize('scheduledRequestRelativeTime', "Sends {0}", fromNow(timestamp, false, true));
+					: localize('scheduledRequestRelativeTime', "Sends {0}", fromNow(timestamp, false, true));
 			if (label !== previousLabel) {
 				previousLabel = label;
 				render(label);
