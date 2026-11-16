@@ -7,6 +7,7 @@ import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
@@ -152,7 +153,7 @@ suite('SharedChatInputComposer', () => {
 			},
 			storageService,
 			logService: new NullLogService(),
-			notificationService: { error: (message: string) => { errors.push(message); }, warn: (message: string) => { warnings.push(message); } },
+			notificationService: { error: (message: string | Error) => { errors.push(String(message)); }, warn: (message: string) => { warnings.push(message); } },
 			chatSlashCommandService: slashCommands,
 			chatSubmitRequestHandlerService: { tryHandle: (request: { input: string }) => options.tryHandle?.(request.input) ?? Promise.resolve(false) },
 			instantiationService: { createInstance: (ctor: unknown) => ctor === ChatRequestParser ? parser : { cancel: () => { }, disposeSource: () => { } } },
@@ -173,6 +174,18 @@ suite('SharedChatInputComposer', () => {
 			storageWrites: storageWrites(),
 		}, { saves: 1, enabled: true, requests: [], storageWrites: 0 });
 	});
+
+	for (const cancelled of [true, false]) {
+		test(`scheduled submit override failures keep input and only report non-cancellation errors, cancelled: ${cancelled}`, async () => {
+			const error = cancelled ? new CancellationError() : new Error('Schedule changed');
+			const { composer, state } = createComposer({ submitOverride: async () => { throw error; } });
+			const sent = await composer.submit();
+			assert.deepStrictEqual({ sent, errors: state().errors, requests: state().requests, input: state().input }, {
+				sent: false, errors: cancelled ? [] : [String(error)], requests: [],
+				input: { text: 'Build it', attachments: [context.id], enabled: true },
+			});
+		});
+	}
 
 	test('backs up the saved identity with input and clears it for a new composition', () => {
 		const storageService = store.add(new InMemoryStorageService());

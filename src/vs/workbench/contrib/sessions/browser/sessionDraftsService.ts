@@ -180,7 +180,9 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 			if (this.hasUnsavedScheduledChanges()) {
 				event.veto((async () => !(await this.dialogService.confirm({
 					message: localize('scheduledDraft.discardOnClose', "Discard unsaved changes to this scheduled request?"),
-					detail: localize('scheduledDraft.originalStillScheduled', "The last saved version will still be sent at its scheduled time."),
+					detail: this.current?.composer.preview.get()?.request.get()?.runAt
+						? localize('scheduledDraft.originalStillScheduled', "The last saved version will still be sent at its scheduled time.")
+						: localize('scheduledDraft.unavailableDiscard', "Your unsaved changes will be lost. Check Automations for the request's current status."),
 					primaryButton: localize('scheduledDraft.discard', "Discard Changes"),
 				})).confirmed)(), 'veto.scheduledDraft');
 			}
@@ -332,8 +334,11 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 
 	stowAndClear(composer = this.current?.composer): ISavedSessionDraft | undefined {
 		const current = this.current;
+		if (current && current.composer === composer && (this.opening || composer.isRestoring || composer.isScheduling)) {
+			throw new Error(localize('draft.newSessionBusy', "Wait for the draft to finish opening or scheduling before starting a new session."));
+		}
 		if (current && current.composer === composer && composer.preview.get()) {
-			this.assertCanReplaceScheduledDraft();
+			this.prepareToReplaceScheduledDraft();
 			current.clear();
 			composer.id = generateUuid();
 			composer.updateInput({ inputText: '', attachments: [] });
@@ -344,9 +349,6 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		}
 		if (!this.enabled.get() || !current || current.composer !== composer || current.composer.isSending) {
 			return undefined;
-		}
-		if (this.opening || current.composer.isScheduling) {
-			throw new Error(localize('draft.newSessionBusy', "Wait for the draft to finish opening or scheduling before starting a new session."));
 		}
 		const saved = this.stow(current.composer, { notifyCreated: true });
 		if (saved) {
@@ -426,7 +428,7 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 
 	preview(input: IChatDraft, target: ISavedSessionDraftTarget, scheduled: IScheduledSessionDraft): Promise<void> {
 		return this.queueRestore(async () => {
-			this.assertCanReplaceScheduledDraft();
+			this.prepareToReplaceScheduledDraft();
 			if (this.current?.composer.isSending || this.current?.composer.isScheduling) {
 				throw new Error(localize('draft.busy', "Wait for the current request to start or finish scheduling before opening a draft."));
 			}
@@ -444,6 +446,7 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 			}
 			current.composer.preview.set(scheduled, undefined);
 			current.composer.target = target;
+			current.composer.markScheduledSaved(input, target);
 			const now = Date.now();
 			await current.restore({ id: generateUuid(), revision: generateUuid(), createdAt: now, updatedAt: now, input, target });
 			current.composer.markScheduledSaved();
@@ -524,7 +527,7 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		if (!draft) {
 			return false;
 		}
-		this.assertCanReplaceScheduledDraft();
+		this.prepareToReplaceScheduledDraft();
 		if (this.current?.composer.isSending || this.current?.composer.isScheduling) {
 			throw new Error(localize('draft.busy', "Wait for the current request to start or finish scheduling before opening a draft."));
 		}
@@ -569,11 +572,22 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		return !!composer?.preview.get() && composer.hasScheduledChanges.get() && hasSessionDraftContent(composer.input);
 	}
 
-	private assertCanReplaceScheduledDraft(): void {
-		if (this.current?.composer.preview.get() && this.current.composer.isScheduling) {
+	private prepareToReplaceScheduledDraft(): void {
+		const composer = this.current?.composer;
+		if (composer?.preview.get() && composer.isScheduling) {
 			throw new Error(localize('scheduledDraft.saving', "Wait for the scheduled request to finish saving."));
 		}
 		if (this.hasUnsavedScheduledChanges()) {
+			if (composer && !composer.preview.get()?.request.get()?.runAt) {
+				if (!this.enabled.get()) {
+					composer.preview.set(undefined, undefined);
+					composer.updateInput(composer.input);
+					throw new Error(localize('scheduledDraft.keptAsInput', "This scheduled request is no longer editable here. Your changes have been kept in New Session and can be sent as a separate request. Check Automations before sending again."));
+				}
+				this.save(composer.input, composer.target);
+				composer.markScheduledSaved();
+				return;
+			}
 			throw new Error(localize('scheduledDraft.unsaved', "Use the Send control to save your changes before replacing this scheduled draft, or clear its input to discard local edits. The last saved version remains scheduled."));
 		}
 	}

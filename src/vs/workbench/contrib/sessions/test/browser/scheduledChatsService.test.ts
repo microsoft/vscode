@@ -68,6 +68,7 @@ suite('Scheduled chat handoffs', () => {
 		let preview: IObservable<IChatScheduledRequest | undefined> | undefined;
 		let scheduledDraft: IScheduledSessionDraft | undefined;
 		const previewInputs: IChatDraft[] = [];
+		const previewTargets: ISavedSessionDraftTarget[] = [];
 		const loadedChats: URI[] = [];
 		const openedChats: URI[] = [];
 		const recoveredInputs: Parameters<IChatModel['inputModel']['setState']>[0][] = [];
@@ -149,8 +150,9 @@ suite('Scheduled chat handoffs', () => {
 		};
 		const drafts = new class extends mock<ISessionDraftsService>() {
 			override readonly enabled = constObservable(savedDrafts);
-			override async preview(input: IChatDraft, _target: ISavedSessionDraftTarget, scheduled: IScheduledSessionDraft) {
+			override async preview(input: IChatDraft, target: ISavedSessionDraftTarget, scheduled: IScheduledSessionDraft) {
 				previewInputs.push(input);
+				previewTargets.push(target);
 				preview = scheduled.request;
 				scheduledDraft = scheduled;
 			}
@@ -247,7 +249,7 @@ suite('Scheduled chat handoffs', () => {
 				}
 			}));
 		return {
-			service, storage, config, calls, openedDrafts, previewInputs, loadedChats, openedChats, recoveredInputs, requests, automations, runs, sessions, sessionsChanged, memberships, pickerAnchors, dispatched,
+			service, storage, config, calls, openedDrafts, previewInputs, previewTargets, loadedChats, openedChats, recoveredInputs, requests, automations, runs, sessions, sessionsChanged, memberships, pickerAnchors, dispatched,
 			get preview(): IObservable<IChatScheduledRequest | undefined> {
 				assert.ok(preview);
 				return preview;
@@ -817,6 +819,32 @@ suite('Scheduled chat handoffs', () => {
 			});
 		});
 	}
+
+	test('scheduled previews without a local handoff retain descriptor configuration and isolation when saved unchanged', async () => {
+		for (const isolationMode of ['worktree', 'workspace', undefined, 'quickChat']) {
+			const fixture = create();
+			const sessionTemplate = { modelId: 'saved-model', config: { permission: 'saved-permission' } };
+			fixture.configuration = { sessionTemplate };
+			const workspace = isolationMode !== 'quickChat';
+			const scheduledTarget: ISavedSessionDraftTarget = {
+				...target,
+				...(workspace ? { folderUri: URI.file('/workspace') } : {}),
+				configuration: { sessionTemplate, ...(workspace ? { isolationMode, branch: isolationMode === 'worktree' ? 'saved-branch' : undefined } : {}) },
+			};
+			await fixture.service.schedule(input, scheduledTarget, session, 'composition');
+			const original = fixture.automations.get()[0];
+			fixture.storage.remove('sessions.scheduledChatHandoffs', StorageScope.PROFILE);
+			await fixture.service.items.get()[0].open();
+			const restored = fixture.previewTargets[0];
+			assert.deepStrictEqual(restored, scheduledTarget);
+			fixture.configuration = restored.configuration;
+			await fixture.scheduledDraft.save(fixture.previewInputs[0], restored, session);
+			const saved = fixture.automations.get()[0];
+			assert.deepStrictEqual({ target: saved.target, sessionTemplate: saved.sessionTemplate }, {
+				target: original.target, sessionTemplate: original.sessionTemplate,
+			});
+		}
+	});
 
 	test('an open scheduled draft follows rescheduling and dispatch without changing the automation', async () => {
 		const fixture = create();

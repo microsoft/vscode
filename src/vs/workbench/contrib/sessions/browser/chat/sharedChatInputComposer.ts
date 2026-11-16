@@ -1077,9 +1077,17 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 
 	private async _send(rawQuery: string, attachments: readonly IChatRequestVariableEntry[], background: boolean): Promise<boolean> {
 		if (this.options.submitOverride) {
-			const overridden = await this.options.submitOverride(this._widget?.input.executeToolbarElement);
-			if (overridden !== undefined) {
-				return overridden;
+			try {
+				const overridden = await this.options.submitOverride(this._widget?.input.executeToolbarElement);
+				if (overridden !== undefined) {
+					return overridden;
+				}
+			} catch (error) {
+				if (!isCancellationError(error)) {
+					this.logService.error('[SharedChatInputComposer] Failed to submit request', error);
+					this.notificationService.error(error);
+				}
+				return false;
 			}
 		}
 		const widget = this._widget;

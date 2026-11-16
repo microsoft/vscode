@@ -540,18 +540,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 					options = { ...options, sessionTemplate: await captureTemplate() };
 				}
 				mutationGuard?.();
-				const target: ISavedSessionDraftTarget = {
-					providerId: options.target.providerId,
-					sessionTypeId: options.target.sessionTypeId,
-					...(options.target.kind === 'workspace' ? { folderUri: options.target.folderUri } : {}),
-					configuration: options.conversation ? undefined : {
-						sessionTemplate: options.sessionTemplate,
-						...(options.target.kind === 'workspace' ? {
-							isolationMode: options.target.isolation.kind === 'worktree' ? 'worktree' : options.target.isolation.kind === 'folder' ? 'workspace' : undefined,
-							branch: options.target.isolation.kind === 'worktree' ? options.target.isolation.branch : undefined,
-						} : {}),
-					},
-				};
+				const target = getScheduledDraftTarget(options);
 				handoff = {
 					id: generateUuid(), toolOperationId: operationId, name: options.name, compositionId: operationId,
 					input: { inputText: options.prompt, attachments: [] }, sourceReleased: true,
@@ -678,11 +667,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		this.assertEnabled();
 		const handoff = this.readHandoffs().find(candidate => candidate.automationId === automation.id || candidate.id === automation.creationId);
 		const input = handoff ? fromStoredChatDraft(parse(stringify(toStoredChatDraft(handoff.input)))) : { inputText: automation.request?.text ?? automation.prompt, attachments: [] };
-		await this.draftsService.preview(input, handoff?.target ?? {
-			folderUri: automation.target.kind === 'workspace' ? automation.target.folderUri : undefined,
-			providerId: automation.target.providerId,
-			sessionTypeId: automation.target.sessionTypeId,
-		}, {
+		await this.draftsService.preview(input, handoff?.target ?? getScheduledDraftTarget(automation), {
 			request: derived(reader => this.items.read(reader).find(item => item.id === automation.id)),
 			save: async (input, target, session) => {
 				automation = await this.saveEditedRequest(automation, { text: input.inputText, input, runAt: automation.schedule.runAt ?? '' }, { target, session });
@@ -923,6 +908,21 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			throw new Error(automation.readOnlyReason);
 		}
 	}
+}
+
+function getScheduledDraftTarget(options: IScheduledChatRequestOptions): ISavedSessionDraftTarget {
+	return {
+		providerId: options.target.providerId,
+		sessionTypeId: options.target.sessionTypeId,
+		...(options.target.kind === 'workspace' ? { folderUri: options.target.folderUri } : {}),
+		configuration: options.conversation ? undefined : {
+			sessionTemplate: options.sessionTemplate,
+			...(options.target.kind === 'workspace' ? {
+				isolationMode: options.target.isolation.kind === 'worktree' ? 'worktree' : options.target.isolation.kind === 'folder' ? 'workspace' : undefined,
+				branch: options.target.isolation.kind === 'worktree' ? options.target.isolation.branch : undefined,
+			} : {}),
+		},
+	};
 }
 
 function getAutomationTarget(target: ISavedSessionDraftTarget, session: ISession, configuration: ISavedSessionDraftTarget['configuration']): AutomationTarget {
