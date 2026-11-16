@@ -536,7 +536,7 @@ export class ChatView extends AbstractChatView {
 				inputPlaceholder: options.input?.placeholder,
 				inputEditorOptions: options.inputEditorOptions,
 				isSessionsWindow: true,
-				sessionWorkingSet: options.input?.workingSet === true,
+				sessionWorkingSet: options.input?.workingSet,
 				validateInput: query => {
 					if (this.scheduledChatsService.enabled.get() && query !== this._widget.getInput()) {
 						throw new Error(localize('chat.inputChangedBeforeSend', "The input changed while preparing this request. Review it before sending again."));

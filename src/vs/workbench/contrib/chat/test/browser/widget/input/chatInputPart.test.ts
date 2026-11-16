@@ -729,7 +729,7 @@ suite('ChatInputPart', () => {
 		}, { input: false, hostSubmit: true });
 	});
 
-	function createWorkingSetInput(isSessionsWindow = false, sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }), inAgentsWindow = isSessionsWindow, sessionWorkingSet = false) {
+	function createWorkingSetInput(isSessionsWindow = false, sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }), inAgentsWindow = isSessionsWindow, sessionWorkingSet?: boolean) {
 		const configurationService = new TestConfigurationService();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const instantiationService = workbenchInstantiationService(undefined, store);
@@ -933,6 +933,17 @@ suite('ChatInputPart', () => {
 			}, { supported: false, visible: false, workingSet: false, keptChangesCreated: false });
 		});
 	}
+
+	test('its sessionWorkingSet option decides whether it shows the working set, also against where it renders the working set and whether it is a sessions window\'s chat; unset, as it renders it outside one', () => {
+		const supported = (isSessionsWindow: boolean, sessionWorkingSet: boolean | undefined) => createWorkingSetInput(isSessionsWindow, undefined, false, sessionWorkingSet).inputPart.supportsSessionWorkingSet;
+
+		assert.deepStrictEqual({
+			declined: supported(false, false),
+			asked: supported(true, true),
+			editorWindowDefault: supported(false, undefined),
+			sessionsWindowChatDefault: supported(true, undefined),
+		}, { declined: false, asked: true, editorWindowDefault: true, sessionsWindowChatDefault: false });
+	});
 
 	test('shows the working set of a session\'s chat that asks for it outside the Agents window, and never in it', async () => {
 		const shown = async (inAgentsWindow: boolean) => {
