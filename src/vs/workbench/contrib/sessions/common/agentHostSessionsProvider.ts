@@ -288,6 +288,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	/** Source workspace for a container-backed provider, retained while disconnected or restored. */
 	readonly devContainerSourceWorkspace?: URI;
+	/** Address of the SSH, Tunnel, or WSL host that runs this provider's Dev Container environment, if it represents one. */
+	readonly devContainerEnvironmentHost?: string;
 	/** Fires when Dev Container workspace availability should be checked again. */
 	readonly onDidChangeDevContainerAvailability?: Event<void>;
 	/** Whether this workspace supports Dev Container execution. */

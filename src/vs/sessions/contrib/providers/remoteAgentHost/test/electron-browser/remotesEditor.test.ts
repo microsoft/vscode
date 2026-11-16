@@ -68,6 +68,8 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	async setSharedAsGitHubEnvironment(): Promise<void> { }
 	async deleteTunnel(): Promise<void> { }
 	async deleteSSHHost(): Promise<void> { }
+	async createDevContainer(): Promise<void> { }
+	async deleteDevContainer(): Promise<void> { }
 	async remove(): Promise<void> { }
 	setHidden(): void { }
 

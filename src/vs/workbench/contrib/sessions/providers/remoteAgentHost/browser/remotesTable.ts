@@ -61,7 +61,7 @@ export interface IRemoteTableRow {
 }
 
 type RemoteColumn = 'gutter' | 'name' | 'connection' | 'actions';
-export type RemoteRowAction = 'toggleGroup' | 'toggleVisibility' | 'configure' | 'documentation' | 'connect' | 'rename' | 'copyAddress' | 'locationPreference' | 'githubEnvironment' | 'showExtension' | 'updateServer' | 'delete' | 'signIn';
+export type RemoteRowAction = 'toggleGroup' | 'toggleVisibility' | 'configure' | 'documentation' | 'connect' | 'createDevContainer' | 'rename' | 'copyAddress' | 'locationPreference' | 'githubEnvironment' | 'showExtension' | 'updateServer' | 'delete' | 'signIn';
 
 type RemoteCellTemplate = {
 	readonly container: HTMLElement;
@@ -72,7 +72,7 @@ type RemoteCellTemplate = {
 		| { readonly column: 'name'; readonly label: HTMLElement; readonly detail: HTMLElement; readonly gitHubEnvironment: HTMLElement; readonly count: HTMLElement; readonly progress: HTMLElement; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
 		| { readonly column: 'connection'; readonly state: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement; readonly warning: HTMLElement }
 		| { readonly column: 'gutter'; readonly action: Action; readonly toolbar: WorkbenchToolBar }
-		| { readonly column: 'actions'; readonly action: Action; readonly rename: Action; readonly copyAddress: Action; readonly locationPreference: Action; readonly gitHubEnvironment: Action; readonly showExtension: Action; readonly updateServer: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
+		| { readonly column: 'actions'; readonly action: Action; readonly createDevContainer: Action; readonly rename: Action; readonly copyAddress: Action; readonly locationPreference: Action; readonly gitHubEnvironment: Action; readonly showExtension: Action; readonly updateServer: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
 	);
 
 const connectionProgressIcon = ThemeIcon.modify(Codicon.loading, 'spin');
@@ -229,7 +229,12 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 							this.onAction(template.row.entry, 'updateServer');
 						}
 					}));
-					template = { ...base, column: this.column, action, rename, copyAddress, locationPreference, gitHubEnvironment, showExtension, updateServer, delete: deleteAction, documentation, toolbar, actionLayout: '' };
+					const createDevContainer = disposables.add(new Action('remotes.createDevContainer', '', ThemeIcon.asClassName(Codicon.add), true, async () => {
+						if (template.row?.entry.type === 'remote') {
+							this.onAction(template.row.entry, 'createDevContainer');
+						}
+					}));
+					template = { ...base, column: this.column, action, createDevContainer, rename, copyAddress, locationPreference, gitHubEnvironment, showExtension, updateServer, delete: deleteAction, documentation, toolbar, actionLayout: '' };
 				}
 				disposables.add(dom.addDisposableGenericMouseDownListener(container, event => dom.EventHelper.stop(event, true)));
 				break;
@@ -319,9 +324,10 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				}, { groupId: this.hoverGroupId }));
 				// Users remove an extension's remote through its extension, so the row names it.
 				const contributedBy = entry.type === 'remote' ? entry.remote.contributedBy : undefined;
-				template.detail.textContent = contributedBy ? localize('remotes.contributedByDetail', "Registered by the {0} extension", contributedBy.displayName) : '';
-				template.detail.hidden = !contributedBy;
-				if (contributedBy) {
+				template.detail.textContent = contributedBy ? localize('remotes.contributedByDetail', "Registered by the {0} extension", contributedBy.displayName)
+					: entry.type === 'remote' ? entry.remote.description ?? '' : '';
+				template.detail.hidden = !template.detail.textContent;
+				if (template.detail.textContent) {
 					template.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(template.detail, {
 						content: template.detail.textContent, style: HoverStyle.Mouse,
 					}, { groupId: this.hoverGroupId }));
@@ -373,17 +379,23 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				const showConfig = template.column === 'actions' && entry.type === 'group' && (entry.kind === 'ssh' || entry.kind === 'tunnel' || entry.kind === 'environment');
 				const showDocumentation = template.column === 'actions' && entry.type === 'group' && !!entry.documentation;
 				const showConnection = template.column === 'actions' && entry.type === 'remote';
-				const showDelete = showConnection && (entry.remote.kind === 'environment' && entry.remote.canRemove || (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh') && !!entry.remote.canDelete);
+				const isDevContainer = showConnection && entry.remote.kind === 'devContainer';
+				const showDelete = showConnection && (entry.remote.kind === 'environment' && entry.remote.canRemove || (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh' || entry.remote.kind === 'devContainer') && !!entry.remote.canDelete);
+				const showCreateDevContainer = showConnection && !!entry.remote.canCreateDevContainer;
 				const showLocationPreference = showConnection && (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh');
 				const showGitHubEnvironment = showConnection && (entry.remote.kind === 'ssh' || entry.remote.kind === 'wsl' || entry.remote.kind === 'tunnel')
 					&& (!!entry.remote.canShareAsGitHubEnvironment || !!entry.remote.gitHubEnvironment);
 				const showExtension = showConnection && !!entry.remote.contributedBy;
 				const showUpdate = showConnection && RemoteAgentHostConnectionStatus.isIncompatible(entry.remote.connectionStatus) && !!entry.remote.connectionStatus.vscodeUpgradeMethod;
-				const actionLayout = `${showConfig}:${showDocumentation}:${showConnection}:${showDelete}:${showLocationPreference}:${showGitHubEnvironment}:${showExtension}:${showUpdate}`;
+				const actionLayout = `${showConfig}:${showDocumentation}:${showConnection}:${isDevContainer}:${showCreateDevContainer}:${showDelete}:${showLocationPreference}:${showGitHubEnvironment}:${showExtension}:${showUpdate}`;
 				if (template.column === 'actions' && template.actionLayout !== actionLayout) {
 					template.actionLayout = actionLayout;
+					// Dev Containers connect with their host and have no meaningful address to copy.
 					template.toolbar.setActions(showConnection ? [
-						template.action, template.rename, template.copyAddress,
+						...(isDevContainer ? [] : [template.action]),
+						...(showCreateDevContainer ? [template.createDevContainer] : []),
+						template.rename,
+						...(isDevContainer ? [] : [template.copyAddress]),
 						...(showLocationPreference ? [template.locationPreference] : []),
 						...(showGitHubEnvironment ? [template.gitHubEnvironment] : []),
 						...(showExtension ? [template.showExtension] : []),
@@ -427,6 +439,8 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 						? localize('remotes.connectUnavailable', "Connect to {0}: {1}", entry.remote.name, entry.remote.unavailableReason) : template.action.label;
 					template.rename.label = localize('remotes.rename', "Rename {0}...", entry.remote.name);
 					template.rename.enabled = !entry.busy;
+					template.createDevContainer.label = localize('remotes.createDevContainer', "Create Dev Container on {0}", entry.remote.name);
+					template.createDevContainer.enabled = showCreateDevContainer && !entry.busy;
 					template.copyAddress.label = localize('remotes.copyAddress', "Copy Address of {0}", entry.remote.name);
 					template.locationPreference.label = localize('remotes.locationPreference', "Change Preferred Agent Location for {0}", entry.remote.name);
 					template.locationPreference.enabled = !entry.busy

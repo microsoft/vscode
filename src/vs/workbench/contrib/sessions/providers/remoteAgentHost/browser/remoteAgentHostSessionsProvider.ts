@@ -155,6 +155,8 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly hostGroup?: IAgentHostGroup;
 	/** Source workspace represented by this Dev Container provider. */
 	readonly devContainerSourceWorkspaceUri?: URI;
+	/** Address of the host that runs the Dev Container environment represented by this provider. */
+	readonly devContainerEnvironmentHost?: string;
 	readonly devContainerWorktreeScope?: string;
 	/** Controls the stopped/removed container while this runtime provider remains registered. */
 	readonly devContainerLifecycle?: {
@@ -207,6 +209,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly remoteAddress: string;
 	get devContainerSourceWorkspace(): URI | undefined { return this._devContainerSourceWorkspaceUri; }
+	readonly devContainerEnvironmentHost: string | undefined;
 	readonly remoteLocationPreferenceKey: string;
 	readonly hostGroup: IAgentHostGroup | undefined;
 	private _browseActions: readonly ISessionWorkspaceBrowseAction[];
@@ -377,6 +380,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._workspaceTypeIcon = config.workspaceTypeIcon;
 		this._defaultChangesetKind = config.defaultChangesetKind;
 		this._devContainerSourceWorkspaceUri = config.devContainerSourceWorkspaceUri;
+		this.devContainerEnvironmentHost = config.devContainerEnvironmentHost;
 		this._register(agentHostConnectionsService.registerSessionResolutionPolicy(this._connectionAuthority, {
 			connectionAddress: config.address,
 			sessionSchemeAlias: this._sessionSchemeAlias,

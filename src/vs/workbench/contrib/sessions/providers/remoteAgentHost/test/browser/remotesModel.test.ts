@@ -38,6 +38,9 @@ import { TestProgressService } from '../../../../../../test/browser/workbenchTes
 import { IInputOptions, IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { IAgentHostSessionsProvider, LocalAgentHostRegistration } from '../../../../common/agentHostSessionsProvider.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerEnvironmentsEnabledSettingId, IDevContainerAgentHostService, IDevContainerEnvironment } from '../../../../common/devContainerAgentHostService.js';
+import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
 import { IRemoteRefreshProgress, RemotesModel, remoteKinds } from '../../browser/remotesModel.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from '../../browser/remoteAgentHostPickerVisibility.js';
@@ -319,6 +322,26 @@ suite('RemotesModel', () => {
 			onDidChangeProviders: providersChanged.event,
 			getProviders: () => [...providers.values()],
 		});
+		const devContainers = {
+			environments: observableValue<readonly IDevContainerEnvironment[]>(store, []),
+			hosts: observableValue<ReadonlySet<string>>(store, new Set()),
+			deletions: [] as string[],
+		};
+		instantiationService.stub(IDevContainerAgentHostService, {
+			environments: devContainers.environments,
+			environmentHosts: devContainers.hosts,
+			createEnvironment: async sourceAddress => {
+				const environment = { address: `devcontainer:${sourceAddress}`, sourceAddress, providerId: `agenthost-devcontainer:${sourceAddress}` };
+				devContainers.environments.set([...devContainers.environments.get(), environment], undefined);
+				return environment;
+			},
+			deleteEnvironment: async address => {
+				devContainers.deletions.push(address);
+				devContainers.environments.set(devContainers.environments.get().filter(environment => environment.address !== address), undefined);
+			},
+		});
+		const telemetry = new TestExperimentTriggerTelemetryService();
+		instantiationService.stub(ITelemetryService, telemetry);
 		const model = store.add(instantiationService.createInstance(RemotesModel));
 		const addProvider = (address: string, localRegistration?: LocalAgentHostRegistration) => {
 			const provider = createProvider(address);
@@ -341,7 +364,7 @@ suite('RemotesModel', () => {
 			getWSLDiscoveryCalls: () => wslDiscoveryCalls, setSSHDiscovery: (discovery: () => Promise<string[]>) => { sshDiscovery = discovery; },
 			setTunnelDiscovery: (discovery: () => Promise<ITunnelInfo[]>) => { tunnelDiscovery = discovery; },
 			setTunnelAuthentication: (authentication: () => Promise<'github' | 'microsoft' | undefined>) => { tunnelAuthentication = authentication; },
-			environmentHosts, environmentAvailable, environmentState, environmentConnections, environmentNames, environmentDeletions, confirmations, sharing, extensionHosts,
+			environmentHosts, environmentAvailable, environmentState, environmentConnections, environmentNames, environmentDeletions, confirmations, sharing, extensionHosts, devContainers, telemetry,
 			setConfiguration: async (key: string, value: boolean) => {
 				await configuration.setUserConfiguration(key, value);
 				configuration.onDidChangeConfigurationEmitter.fire({
@@ -382,6 +405,49 @@ suite('RemotesModel', () => {
 			disconnected: [],
 			reconnects: ['127.0.0.1:8445'],
 			unregistered: [],
+		});
+	});
+
+	test('offers Create Dev Container on Docker hosts only when enabled, triggering the experiment in every arm', async () => {
+		const results = [];
+		for (const enabled of [false, true]) {
+			const { model, devContainers, telemetry, setConfiguration } = setup();
+			await setConfiguration(DevContainerAgentHostEnabledSettingId, true);
+			await setConfiguration(DevContainerEnvironmentsEnabledSettingId, enabled);
+			const triggersWithoutHosts = [...telemetry.triggers];
+			devContainers.hosts.set(new Set(['wsl:Ubuntu']), undefined);
+			results.push({
+				enabled, triggersWithoutHosts, triggers: telemetry.triggers,
+				creatable: model.remotes.get().filter(remote => remote.canCreateDevContainer).map(remote => remote.id),
+			});
+		}
+		const trigger = `config.${DevContainerEnvironmentsEnabledSettingId}`;
+		assert.deepStrictEqual(results, [
+			{ enabled: false, triggersWithoutHosts: [], triggers: [trigger], creatable: [] },
+			{ enabled: true, triggersWithoutHosts: [], triggers: [trigger], creatable: ['wsl:Ubuntu'] },
+		]);
+	});
+
+	test('lists created Dev Containers with their host and deletes them after confirmation', async () => {
+		const { model, devContainers, confirmations, setConfiguration } = setup();
+		await setConfiguration(DevContainerAgentHostEnabledSettingId, true);
+		await setConfiguration(DevContainerEnvironmentsEnabledSettingId, true);
+		const devContainerRows = () => model.remotes.get().filter(remote => remote.kind === 'devContainer')
+			.map(({ id, name, description, canDelete, canRemove }) => ({ id, name, description, canDelete, canRemove }));
+		await assert.rejects(model.createDevContainer('wsl:Ubuntu'), /cannot be created/);
+		devContainers.hosts.set(new Set(['wsl:Ubuntu']), undefined);
+		await model.createDevContainer('wsl:Ubuntu');
+		const created = devContainerRows();
+		await setConfiguration(DevContainerEnvironmentsEnabledSettingId, false);
+		const disabled = devContainerRows();
+		await setConfiguration(DevContainerEnvironmentsEnabledSettingId, true);
+		await model.deleteDevContainer('devcontainer:wsl:Ubuntu');
+		assert.deepStrictEqual({ created, disabled, confirmations: confirmations.map(confirmation => confirmation.message), deletions: devContainers.deletions, deleted: devContainerRows() }, {
+			created: [{ id: 'devcontainer:wsl:Ubuntu', name: 'Dev Container', description: 'Ubuntu', canDelete: true, canRemove: false }],
+			disabled: [],
+			confirmations: ['Are you sure you want to delete Dev Container \'Dev Container\'?'],
+			deletions: ['devcontainer:wsl:Ubuntu'],
+			deleted: [],
 		});
 	});
 
@@ -822,11 +888,13 @@ suite('RemotesModel', () => {
 		const partial = { ssh: refreshing.has('ssh'), tunnel: refreshing.has('tunnel') };
 		await tunnel.error(new Error('Tunnel discovery failed'));
 		const failures = await refresh;
+		// Extension remotes are registered and Dev Containers are created in this client rather than discovered.
+		const discoveredKinds = remoteKinds.filter(kind => kind !== 'extension' && kind !== 'devContainer').sort();
 		assert.deepStrictEqual({
 			partial, failures, remaining: [...refreshing],
 			started: updates.filter(update => update.refreshing).map(update => update.kind).sort(),
 			finished: updates.filter(update => !update.refreshing).map(update => update.kind).sort(),
-		}, { partial: { ssh: false, tunnel: true }, failures: ['tunnel'], remaining: [], started: remoteKinds.filter(kind => kind !== 'extension').sort(), finished: remoteKinds.filter(kind => kind !== 'extension').sort() });
+		}, { partial: { ssh: false, tunnel: true }, failures: ['tunnel'], remaining: [], started: discoveredKinds, finished: discoveredKinds });
 	});
 
 	test('tunnel progress spans authentication and reports missing-scope failure before other discovery finishes', async () => {

@@ -17,7 +17,7 @@ import { AgentHostArtifactRemovalCapabilityMetaKey } from './meta/agentHostArtif
 import { AgentHostSessionImportCapabilityMetaKey } from './meta/agentHostSessionImportMeta.js';
 import { AgentHostSessionMoveCapabilityMetaKey } from './meta/agentHostSessionMoveMeta.js';
 import { AgentHostSavedChatCapabilityMetaKey, AgentHostSavedChatContinuationCapabilityMetaKey } from './meta/agentHostSavedChatMeta.js';
-import { AgentHostDevContainersCapabilityMetaKey } from './meta/agentHostDevContainersMeta.js';
+import { AgentHostDevContainerEnvironmentsCapabilityMetaKey, AgentHostDevContainersCapabilityMetaKey } from './meta/agentHostDevContainersMeta.js';
 import { AgentHostClientProxyCapabilityMetaKey } from './meta/agentHostClientProxyMeta.js';
 import { AgentHostTimingCapabilityMetaKey, ChatUserInteractionCapability } from './meta/agentHostTimingMeta.js';
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
@@ -41,7 +41,7 @@ import { AgentHostGitHubEnvironmentCapabilityMetaKey, type IAgentHostGitHubEnvir
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 export { StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, supportsAgentHostCreateSessionImport };
-export { supportsAgentHostDevContainers } from './meta/agentHostDevContainersMeta.js';
+export { supportsAgentHostDevContainerEnvironments, supportsAgentHostDevContainers } from './meta/agentHostDevContainersMeta.js';
 export { supportsAgentHostSessionMove } from './meta/agentHostSessionMoveMeta.js';
 
 export const DevContainerIsDockerAvailableExtensionMethod = 'vscode/devContainers/isDockerAvailable';
@@ -49,6 +49,8 @@ export const DevContainerConnectExtensionMethod = 'vscode/devContainers/connect'
 export const DevContainerDisconnectExtensionMethod = 'vscode/devContainers/disconnect';
 export const DevContainerStopExtensionMethod = 'vscode/devContainers/stop';
 export const DevContainerRemoveExtensionMethod = 'vscode/devContainers/remove';
+export const DevContainerConnectEnvironmentExtensionMethod = 'vscode/devContainers/connectEnvironment';
+export const DevContainerRemoveEnvironmentExtensionMethod = 'vscode/devContainers/removeEnvironment';
 export const DevContainerRelaySendExtensionMethod = 'vscode/devContainers/relaySend';
 export const DevContainerRelayMessageNotification = 'vscode/devContainers/relayMessage';
 export const DevContainerRelayCloseNotification = 'vscode/devContainers/relayClose';
@@ -59,6 +61,8 @@ export const DevContainerUserStateNotification = 'vscode/devContainers/userState
 
 export const devContainerConnectionParamsValidator = vObj({ connectionId: vString() });
 export const devContainerConnectParamsValidator = vObj({ connectionId: vString(), workspaceFolder: vString(), name: vString(), resume: vOptionalProp(vBoolean()), sandboxEnabled: vOptionalProp(vBoolean()), persistUserState: vOptionalProp(vBoolean()) });
+export const devContainerConnectEnvironmentParamsValidator = vObj({ connectionId: vString(), environmentId: vString(), image: vString(), name: vString(), resume: vOptionalProp(vBoolean()), sandboxEnabled: vOptionalProp(vBoolean()) });
+export const devContainerEnvironmentParamsValidator = vObj({ environmentId: vString() });
 export const devContainerWorkspaceParamsValidator = vObj({ workspaceFolder: vString() });
 export const devContainerRelayMessageValidator = vObj({ connectionId: vString(), data: vString() });
 export const devContainerSandboxSupportValidator = vObj({ connectionId: vString(), supported: vBoolean() });
@@ -173,6 +177,8 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostSessionImportCapabilityMetaKey]?: true;
 	readonly [AgentHostSessionMoveCapabilityMetaKey]?: true;
 	readonly [AgentHostDevContainersCapabilityMetaKey]?: true;
+	/** Present when the host accepts `vscode/devContainers/connectEnvironment` and `vscode/devContainers/removeEnvironment`. */
+	readonly [AgentHostDevContainerEnvironmentsCapabilityMetaKey]?: true;
 	readonly [AgentHostTimingCapabilityMetaKey]?: true;
 	readonly [ChatUserInteractionCapability]?: true;
 	/** Present when the host serves the client's proxy support and accepts `vscode/clientProxyChanged`. */
@@ -217,7 +223,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		...(savedChatContinuation ? { [AgentHostSavedChatContinuationCapabilityMetaKey]: true as const } : {}),
 		...(sessionImport ? { [AgentHostSessionImportCapabilityMetaKey]: true as const } : {}),
 		...(sessionMove ? { [AgentHostSessionMoveCapabilityMetaKey]: true as const } : {}),
-		...(devContainers ? { [AgentHostDevContainersCapabilityMetaKey]: true as const } : {}),
+		...(devContainers ? { [AgentHostDevContainersCapabilityMetaKey]: true as const, [AgentHostDevContainerEnvironmentsCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [AgentHostTimingCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [ChatUserInteractionCapability]: true as const } : {}),
 		...(artifactIntegrations ? { [AgentHostArtifactIntegrationsCapabilityMetaKey]: 1 as const, [AgentHostArtifactNoticesCapabilityMetaKey]: 1 as const } : {}),
@@ -397,6 +403,8 @@ export interface IAgentHostExtensionCommandMap {
 	[DevContainerDisconnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectionParamsValidator>; result: void };
 	[DevContainerStopExtensionMethod]: { params: ValidatorType<typeof devContainerWorkspaceParamsValidator>; result: boolean };
 	[DevContainerRemoveExtensionMethod]: { params: ValidatorType<typeof devContainerWorkspaceParamsValidator>; result: boolean };
+	[DevContainerConnectEnvironmentExtensionMethod]: { params: ValidatorType<typeof devContainerConnectEnvironmentParamsValidator>; result: IDevContainerAgentHostConnectResult };
+	[DevContainerRemoveEnvironmentExtensionMethod]: { params: ValidatorType<typeof devContainerEnvironmentParamsValidator>; result: boolean };
 	[DevContainerRelaySendExtensionMethod]: { params: ValidatorType<typeof devContainerRelayMessageValidator>; result: void };
 	[RemoveSessionArtifactExtensionMethod]: {
 		params: ValidatorType<typeof removeSessionArtifactParamsValidator>;

@@ -10,10 +10,12 @@ import { isAbsolute } from '../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../base/common/platform.js';
 import { URI, uriToFsPath } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { hasKey } from '../../../base/common/types.js';
 import type { IValidator } from '../../../base/common/validation.js';
 import { ILogService } from '../../log/common/log.js';
-import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, devContainerConnectParamsValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, DevContainerUserStateNotification, devContainerWorkspaceParamsValidator, type IAgentHostExtensionNotificationMap } from '../common/agentHostExtensionProtocol.js';
-import { IDevContainerAgentHostMainService, type IDevContainerAgentHostWorkspaceConfig, type IDevContainerAgentHostConnectResult } from '../common/devContainerAgentHost.js';
+import { DevContainerCloseConnectionNotification, DevContainerConnectEnvironmentExtensionMethod, devContainerConnectEnvironmentParamsValidator, DevContainerConnectExtensionMethod, devContainerConnectParamsValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, devContainerEnvironmentParamsValidator, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveEnvironmentExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, DevContainerUserStateNotification, devContainerWorkspaceParamsValidator, type IAgentHostExtensionNotificationMap } from '../common/agentHostExtensionProtocol.js';
+import { IDevContainerAgentHostMainService, type IDevContainerAgentHostConfig, type IDevContainerAgentHostConnectResult } from '../common/devContainerAgentHost.js';
+import { devContainerEnvironmentImages, isDevContainerEnvironmentId } from '../common/devContainerEnvironments.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 
 interface IConnection {
@@ -68,9 +70,11 @@ export class DevContainerAgentHostProtocol extends Disposable {
 		switch (method) {
 			case DevContainerIsDockerAvailableExtensionMethod:
 			case DevContainerConnectExtensionMethod:
+			case DevContainerConnectEnvironmentExtensionMethod:
 			case DevContainerDisconnectExtensionMethod:
 			case DevContainerStopExtensionMethod:
 			case DevContainerRemoveExtensionMethod:
+			case DevContainerRemoveEnvironmentExtensionMethod:
 			case DevContainerRelaySendExtensionMethod:
 				return this._handleRequest(method, params);
 			default:
@@ -95,6 +99,20 @@ export class DevContainerAgentHostProtocol extends Disposable {
 					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'workspaceFolder must be an absolute host path and name must be non-empty');
 				}
 				return this._connect({ connectionId: config.connectionId, name: config.name, ...(config.resume !== undefined ? { resume: config.resume } : {}), ...(config.sandboxEnabled !== undefined ? { sandboxEnabled: config.sandboxEnabled } : {}), ...(config.persistUserState !== undefined ? { persistUserState: config.persistUserState } : {}), workspaceFolder });
+			}
+			case DevContainerConnectEnvironmentExtensionMethod: {
+				const config = this._validate(devContainerConnectEnvironmentParamsValidator, params);
+				if (!isDevContainerEnvironmentId(config.environmentId) || !devContainerEnvironmentImages.includes(config.image) || !config.name.trim() || config.name.includes('\0')) {
+					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'environmentId must be a valid identifier, image must be supported, and name must be non-empty');
+				}
+				return this._connect({ connectionId: config.connectionId, name: config.name, ...(config.resume !== undefined ? { resume: config.resume } : {}), ...(config.sandboxEnabled !== undefined ? { sandboxEnabled: config.sandboxEnabled } : {}), environmentId: config.environmentId, image: config.image });
+			}
+			case DevContainerRemoveEnvironmentExtensionMethod: {
+				const result = devContainerEnvironmentParamsValidator.validate(params);
+				if (result.error || !isDevContainerEnvironmentId(result.content.environmentId)) {
+					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, result.error?.message ?? 'environmentId must be a valid identifier');
+				}
+				return this._service.removeContainer({ environmentId: result.content.environmentId });
 			}
 			case DevContainerDisconnectExtensionMethod: {
 				const { connectionId } = this._validate(devContainerConnectionParamsValidator, params);
@@ -159,7 +177,7 @@ export class DevContainerAgentHostProtocol extends Disposable {
 		return connection;
 	}
 
-	private async _connect(config: IDevContainerAgentHostWorkspaceConfig): Promise<IDevContainerAgentHostConnectResult> {
+	private async _connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult> {
 		if (this._connections.has(config.connectionId)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Dev Container connectionId is already in use');
 		}
@@ -167,7 +185,8 @@ export class DevContainerAgentHostProtocol extends Disposable {
 		this._connections.set(connection.clientId, connection);
 		this._connectionsById.set(connection.id, connection);
 		try {
-			if (!await this._requestTrust(config.workspaceFolder)) {
+			// Environments start from a supported image and have no host folder to trust.
+			if (hasKey(config, { workspaceFolder: true }) && !await this._requestTrust(config.workspaceFolder)) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Workspace trust is required to start a Dev Container');
 			}
 			this._checkCurrent(connection);

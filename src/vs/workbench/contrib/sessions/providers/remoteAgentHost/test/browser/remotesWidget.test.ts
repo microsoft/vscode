@@ -56,6 +56,8 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	readonly gitHubEnvironmentChanges: { id: string; shared: boolean }[] = [];
 	readonly tunnelDeletions: string[] = [];
 	readonly sshDeletions: string[] = [];
+	readonly devContainerCreations: string[] = [];
+	readonly devContainerDeletions: string[] = [];
 	copyFailure: Error | undefined;
 	pendingConnection: DeferredPromise<void> | undefined;
 	pendingManagement: DeferredPromise<void> | undefined;
@@ -122,6 +124,21 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 
 	async deleteSSHHost(id: string): Promise<void> {
 		this.sshDeletions.push(id);
+		await this.pendingManagement?.p;
+		this.remotes.set(this.remotes.get().filter(remote => remote.id !== id), undefined);
+	}
+
+	async createDevContainer(id: string): Promise<void> {
+		this.devContainerCreations.push(id);
+		await this.pendingManagement?.p;
+		this.remotes.set([...this.remotes.get(), {
+			id: `devcontainer:${id}`, kind: 'devContainer', name: 'Dev Container', detail: id, description: id,
+			canRemove: false, canDelete: true, connectionStatus: RemoteAgentHostConnectionStatus.connected,
+		}], undefined);
+	}
+
+	async deleteDevContainer(id: string): Promise<void> {
+		this.devContainerDeletions.push(id);
 		await this.pendingManagement?.p;
 		this.remotes.set(this.remotes.get().filter(remote => remote.id !== id), undefined);
 	}

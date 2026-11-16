@@ -128,6 +128,16 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 		async deleteSSHHost(id: string) {
 			await this.remove(id);
 		}
+		async createDevContainer(id: string) {
+			const host = this.remotes.get().find(remote => remote.id === id);
+			this.remotes.set([...this.remotes.get(), {
+				id: `devcontainer:${id}`, kind: 'devContainer', name: 'Dev Container', detail: host?.name ?? id, description: host?.name ?? id,
+				canRemove: false, canDelete: true, connectionStatus: RemoteAgentHostConnectionStatus.connected,
+			}], undefined);
+		}
+		async deleteDevContainer(id: string) {
+			await this.remove(id);
+		}
 		async remove(id: string) {
 			this.remotes.set(this.remotes.get().filter(remote => remote.id !== id), undefined);
 		}
