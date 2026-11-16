@@ -460,6 +460,65 @@ suite('Agent Host GitHub clients', () => {
 		}, { sameFirstClient: true, distinctClients: true, sameSecondClient: true });
 	});
 
+	for (const replacement of ['replay pruning', 'broader scopes', 'another client', 'revocation', 'invalidation'] as const) {
+		test(`bootstrap cooldown history survives ${replacement}`, () => runWithFakedTimers({}, async () => {
+			const endpoint = createTestGitHubEndpointService();
+			const resource = endpoint.getRepoResource();
+			const authentication = store.add(new AgentHostAuthenticationService(new NullLogService()));
+			const provider = new class extends mock<IAgent>() {
+				override getProtectedResources() { return [resource]; }
+				override async authenticate() { return true; }
+			}();
+			const clientId = 'originating-client';
+			const initial = { resource: resource.resource, scopes: ['repo'], token: 'first-token', expiresIn: 1 };
+			await authentication.authenticate(initial, [provider], undefined, clientId);
+			const start = Date.now();
+			const requests: number[] = [];
+			const service = store.add(new AgentHostGitHubService({
+				fetch: async () => {
+					requests.push(Date.now() - start);
+					return Response.json({ id: 101 });
+				},
+			}, authentication, endpoint, new NullLogService(), NullTelemetryService));
+			const signal = new AbortController().signal;
+			const first = store.add(service.acquireRepositoryClient(signal)).object;
+			const credential = await first.credentials.getCredential(signal);
+			getGitHubClientInternals(first).transport.rateLimits.updateFromResponse(credential.account, new Response(null, {
+				status: 429, headers: { 'Retry-After': '60' },
+			}));
+			await authentication.authenticate({ ...initial, accountId: 'account-a' }, [provider], undefined, clientId);
+			switch (replacement) {
+				case 'replay pruning':
+					await timeout(1_001);
+					await authentication.replay(provider);
+					break;
+				case 'broader scopes':
+					await timeout(1_001);
+					break;
+				case 'another client':
+					await authentication.authenticate({ ...initial, token: 'other-token', accountId: 'account-b' }, [provider], undefined, 'other-client');
+					break;
+				case 'revocation':
+					await authentication.authenticate({ ...initial, token: '' }, [provider], undefined, clientId);
+					break;
+				case 'invalidation':
+					authentication.invalidateAuthTokens(resource.resource);
+					break;
+			}
+			await authentication.authenticate({
+				...initial, token: 'renewed-token', accountId: 'account-a', expiresIn: 120,
+				scopes: replacement === 'broader scopes' ? ['repo', 'gist'] : initial.scopes,
+			}, [provider], undefined, clientId);
+			const renewed = store.add(service.acquireRepositoryClient(signal)).object;
+			const renewedCredential = await renewed.credentials.getCredential(signal);
+			assert.deepStrictEqual({
+				sameComparisonContext: first.authorization.accountId === renewed.authorization.accountId,
+				account: renewedCredential.account.accountId,
+				requests,
+			}, { sameComparisonContext: true, account: '101', requests: [0, 60_000] });
+		}));
+	}
+
 	for (const transition of ['same', 'different', 'revokeDifferent', 'withoutHintDifferent', 'hintAppearsBeforeDifferent', 'hintDisappearsBeforeDifferent'] as const) {
 		test(`bootstrap cooldown uses the forwarded account identity (${transition})`, () => runWithFakedTimers({}, async () => {
 			const endpoint = createTestGitHubEndpointService();

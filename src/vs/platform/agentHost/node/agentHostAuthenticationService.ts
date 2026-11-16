@@ -68,13 +68,16 @@ export interface IAgentHostAuthenticationController {
 	replay(provider: IAgent): Promise<void>;
 }
 
-interface IStoredAuthToken extends IAgentHostAuthCredential {
-	readonly target?: AuthenticateParams['target'];
-	readonly resource: string;
-	readonly clientId?: string;
+interface IAccountSelectionHistory {
 	readonly lastAccountId?: string;
 	/** The first learned hint retains the bootstrap context established without a hint. */
 	readonly unhintedAccountId?: string;
+}
+
+interface IStoredAuthToken extends IAgentHostAuthCredential, IAccountSelectionHistory {
+	readonly target?: AuthenticateParams['target'];
+	readonly resource: string;
+	readonly clientId?: string;
 	sharedCredential?: IAgentHostScopedCredential;
 }
 
@@ -98,6 +101,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 
 	declare readonly _serviceBrand: undefined;
 	private readonly _tokens = new Map<string, IStoredAuthToken>();
+	private readonly _accountSelectionHistory = new Map<string, IAccountSelectionHistory>();
 	private readonly _authenticationRequests = new Map<string, IAuthenticationRequest>();
 	private readonly _sessionCredentials = new Map<string, IAgentHostCredentialSource>();
 	private readonly _agentMergeCredentials = new Map<string, IAgentHostCredentialSource>();
@@ -135,6 +139,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		}
 		this._register(toDisposable(() => {
 			this._tokens.clear();
+			this._accountSelectionHistory.clear();
 			this._sessionCredentials.clear();
 			this._agentMergeCredentials.clear();
 			this._resolvedSessionSources.clear();
@@ -260,13 +265,17 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			this._tokens.delete(key);
 			this._revocations.set(key, (this._revocations.get(key) ?? 0) + 1);
 		} else if (authenticated) {
-			const previousSelection = previous?.clientId === clientId ? previous : undefined;
+			const selectionKey = JSON.stringify([clientId, this._key(params.resource, [], params.target)]);
+			const history = this._accountSelectionHistory.get(selectionKey);
+			const previousSelection = previous && previous.clientId === clientId ? previous : history;
 			const lastAccountId = params.accountId ?? previousSelection?.lastAccountId;
-			const unhintedAccountId = previousSelection?.unhintedAccountId
+			const unhintedAccountId = history?.unhintedAccountId
 				?? (previousSelection && previousSelection.lastAccountId === undefined ? lastAccountId : undefined);
+			const selection = { lastAccountId, unhintedAccountId };
+			this._accountSelectionHistory.set(selectionKey, selection);
 			this._tokens.set(key, {
 				resource: params.resource, scopes, token: params.token, expiresAt, accountId: params.accountId,
-				clientId, lastAccountId, unhintedAccountId, ...(params.target ? { target: params.target } : {}),
+				clientId, ...selection, ...(params.target ? { target: params.target } : {}),
 			});
 		}
 		if (!params.target && this.useLocalCredentials) {
