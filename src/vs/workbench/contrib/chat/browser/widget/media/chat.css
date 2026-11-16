@@ -5380,13 +5380,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		outline-offset: var(--vscode-strokeThickness);
 	}
 
-	.scheduled-request-actions {
-		top: -17px;
+	&.interactive-request .scheduled-request-actions {
+		/* Keep the toolbar out of the preceding message's inline editor. */
+		top: calc(-1 * var(--vscode-spacing-size80));
 		opacity: 0;
+		pointer-events: none;
 	}
 
-	&:focus-within .scheduled-request-actions {
+	&.interactive-request:hover .scheduled-request-actions,
+	&.interactive-request:focus-within .scheduled-request-actions {
 		opacity: 1;
+		pointer-events: auto;
 	}
 
 	.scheduled-request-header {

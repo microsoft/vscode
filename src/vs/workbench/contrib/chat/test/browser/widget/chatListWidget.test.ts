@@ -246,6 +246,44 @@ suite('ChatListWidget', () => {
 		}
 	});
 
+	test('scheduled hover toolbars only receive pointer input while visible', async () => {
+		const { disposables, viewModel, container, widget } = createWidget({}, undefined, true);
+		container.classList.add('interactive-list');
+		const host = dom.append(mainWindow.document.body, dom.$('.part.sessionspart', undefined,
+			dom.$('.sessions-chat', undefined, container.parentElement!)));
+		disposables.add(toDisposable(() => host.remove()));
+		viewModel.setScheduledRequests([
+			{
+				id: 'editing', text: 'Editing', description: 'Tomorrow', attachments: [], actions: [],
+				editing: {
+					text: 'Editing', runAt: '2099-01-15T10:00:00Z', description: 'Tomorrow',
+					selectTime: toAction({ id: 'time', label: 'Time', run: () => { } }),
+					save: async () => { }, cancel: () => { },
+				},
+			},
+			{
+				id: 'following', text: 'Next message', description: 'Tomorrow', attachments: [],
+				actions: [toAction({ id: 'edit', label: 'Edit', class: ThemeIcon.asClassName(Codicon.edit), run: () => { } })],
+			},
+		]);
+		widget.refresh();
+		for (const width of [300, 700]) {
+			container.style.width = `${width}px`;
+			widget.layout(300, width);
+			await waitForStableLayout(widget);
+			const time = container.querySelector<HTMLElement>('.scheduled-request-edit-time')!;
+			const toolbar = container.querySelector<HTMLElement>('.scheduled-request-actions')!;
+			const receivesPointer = () => {
+				const bounds = toolbar.getBoundingClientRect();
+				return toolbar.contains(mainWindow.document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2));
+			};
+			time.focus();
+			const resting = receivesPointer();
+			toolbar.querySelector<HTMLElement>('.action-label')!.focus();
+			assert.deepStrictEqual({ width, resting, focused: receivesPointer() }, { width, resting: false, focused: true });
+		}
+	});
+
 	test('scheduled message editing retains the edit state across time changes and cancellation', async () => {
 		const { viewModel, container, widget } = createWidget({}, undefined, true);
 		const request = { id: 'later', text: 'Original', description: 'Tomorrow', attachments: [], actions: [] };
