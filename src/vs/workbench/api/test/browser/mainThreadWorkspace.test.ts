@@ -14,8 +14,11 @@ import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 import { IFileQuery, ISearchService } from '../../../services/search/common/search.js';
 import { workbenchInstantiationService } from '../../../test/browser/workbenchTestServices.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
-import { Event } from '../../../../base/common/event.js';
-import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { testWorkspace } from '../../../../platform/workspace/test/common/testWorkspace.js';
+import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceFolderLocationsDto } from '../../common/extHost.protocol.js';
 
 suite('MainThreadWorkspace', () => {
@@ -165,5 +168,101 @@ suite('MainThreadWorkspace', () => {
 			assert.strictEqual(data.locations.filter(l => l.isCurrent).length, 1);
 			assert.strictEqual(data.locations[0].isPrimary, true);
 		}
+	});
+	suite('location resolution lifetime', () => {
+
+		const folder = URI.file('/work/repo');
+
+		function location(uri: URI): IFolderLocation {
+			return { uri, label: uri.path };
+		}
+
+		function setup2(context?: Partial<IWorkspaceContextService>) {
+			const changes = disposables.add(new Emitter<void>());
+			const requests: DeferredPromise<IFolderLocation[]>[] = [];
+			instantiationService.stub(IWorkspaceFolderLocationService, {
+				onDidChangeLocation: changes.event,
+				onDidChangeProviders: Event.None,
+				// ignores the cancellation token on purpose
+				getLocations: () => {
+					const request = new DeferredPromise<IFolderLocation[]>();
+					requests.push(request);
+					return request.p;
+				}
+			});
+			if (context) {
+				instantiationService.stub(IWorkspaceContextService, context);
+			} else {
+				instantiationService.stub(IWorkspaceContextService, new class {
+					getWorkspace() { return testWorkspace(folder); }
+					hasWorkspaceData() { return true; }
+					getCompleteWorkspace() { return Promise.resolve(testWorkspace(folder)); }
+					getWorkbenchState() { return WorkbenchState.FOLDER; }
+					onDidChangeWorkspaceFolders = Event.None;
+					onDidChangeWorkbenchState = Event.None;
+				} as unknown as IWorkspaceContextService);
+			}
+			const pushed: IWorkspaceFolderLocationsDto[][] = [];
+			const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({
+				$initializeWorkspace: () => { },
+				$acceptWorkspaceData: () => { },
+				$acceptWorkspaceFolderLocations: (data: IWorkspaceFolderLocationsDto[]) => { pushed.push(data); }
+			})));
+			return { changes, requests, pushed, mtw };
+		}
+
+		const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+
+		test('a stale resolve does not overwrite a newer one', async () => {
+			const { changes, requests, pushed } = setup2();
+			await tick();
+			changes.fire();
+			assert.strictEqual(requests.length, 2);
+
+			requests[1].complete([location(URI.file('/work/b'))]);
+			await tick();
+			requests[0].complete([location(URI.file('/work/a'))]);
+			await tick();
+
+			assert.deepStrictEqual(pushed.map(p => p[0].locations.map(l => l.uri.path)), [['/work/repo', '/work/b']]);
+		});
+
+		test('nothing is pushed after dispose', async () => {
+			const { requests, pushed, mtw } = setup2();
+			await tick();
+			mtw.dispose();
+			requests[0].complete([location(URI.file('/work/a'))]);
+			await tick();
+
+			assert.deepStrictEqual(pushed, []);
+		});
+
+		test('a removed and re-added folder does not accept old data', async () => {
+			const removed = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+			let current = testWorkspace(folder);
+			const { requests, pushed } = setup2({
+				getWorkspace: () => current,
+				hasWorkspaceData: () => true,
+				getCompleteWorkspace: () => Promise.resolve(current),
+				getWorkbenchState: () => WorkbenchState.FOLDER,
+				onDidChangeWorkspaceFolders: removed.event,
+				onDidChangeWorkbenchState: Event.None
+			});
+			await tick();
+			assert.strictEqual(requests.length, 1);
+
+			current = testWorkspace();
+			removed.fire({ added: [], removed: [], changed: [] });
+			current = testWorkspace(folder);
+			removed.fire({ added: [], removed: [], changed: [] });
+			assert.strictEqual(requests.length, 2);
+
+			requests[1].complete([location(URI.file('/work/new'))]);
+			await tick();
+			requests[0].complete([location(URI.file('/work/old'))]);
+			await tick();
+
+			assert.deepStrictEqual(pushed.map(p => p[0].locations.map(l => l.uri.path)), [['/work/repo', '/work/new']]);
+		});
 	});
 });

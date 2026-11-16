@@ -40,7 +40,7 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 	private readonly _activeCancelTokens: { [id: number]: CancellationTokenSource } = Object.create(null);
 	private readonly _proxy: ExtHostWorkspaceShape;
 	private readonly _queryBuilder: QueryBuilder;
-	private readonly _locationResolves = this._register(new DisposableMap<string, CancellationTokenSource>());
+	private readonly _locationResolves = new Map<string, CancellationTokenSource>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -87,6 +87,12 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 
 	override dispose(): void {
 		super.dispose();
+
+		// disposing a token source does not cancel it
+		for (const cts of this._locationResolves.values()) {
+			cts.dispose(true);
+		}
+		this._locationResolves.clear();
 
 		for (const requestId in this._activeCancelTokens) {
 			const tokenSource = this._activeCancelTokens[requestId];
@@ -159,9 +165,11 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 			const key = folder.uri.toString();
 			current.add(key);
 			const cts = new CancellationTokenSource();
-			this._locationResolves.set(key, cts); // disposes (and cancels) the previous one
+			this._locationResolves.get(key)?.dispose(true);
+			this._locationResolves.set(key, cts);
 			this._resolveFolderLocations(folder.uri, primary, singleFolder, cts.token).then(locations => {
-				if (!cts.token.isCancellationRequested) {
+				// the resolver may ignore the token, so check that this resolve is still the current one
+				if (!cts.token.isCancellationRequested && this._locationResolves.get(key) === cts) {
 					this._proxy.$acceptWorkspaceFolderLocations([{ folder: folder.uri, locations }]);
 				}
 			}, error => {
@@ -172,7 +180,8 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 		}
 		for (const key of [...this._locationResolves.keys()]) {
 			if (!current.has(key)) {
-				this._locationResolves.deleteAndDispose(key);
+				this._locationResolves.get(key)?.dispose(true);
+				this._locationResolves.delete(key);
 			}
 		}
 	}
