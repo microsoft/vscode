@@ -9,6 +9,7 @@ import type { TypeScriptSDK } from '@typescript/native/vscode';
 import { afterAll, afterEach, suite, test } from 'vitest';
 import * as vscode from 'vscode';
 import { TestLogService } from '../../../../../platform/testing/common/testLogService';
+import { DeferredPromise } from '../../../../../util/vs/base/common/async';
 import { DisposableStore } from '../../../../../util/vs/base/common/lifecycle';
 import { TypeScript7Connection } from '../ts7Api';
 
@@ -103,6 +104,38 @@ suite('TypeScript 7 connection', () => {
 			connected: ['late'],
 		});
 	});
+
+	test('retries with the latest language server when connecting to the previous one fails', async () => {
+		const logService = new RecordingLogService();
+		const extensionApi = new TestExtensionApi();
+		const connector = new TestConnector();
+		const connection = store.add(new TypeScript7Connection(logService, () => [{ activate: async () => extensionApi }], connector.connect));
+		const connecting = new DeferredPromise<void>();
+		const previousPipe = new DeferredPromise<string>();
+		extensionApi.initialize({
+			...createSdk('7.1.0'),
+			initializeAPIConnection: () => {
+				void connecting.complete();
+				return previousPipe.p;
+			},
+		});
+		let retry: Promise<API<true> | undefined> | undefined;
+		store.add(connection.onDidReconnect(() => {
+			retry = connection.getApi();
+		}));
+
+		const first = connection.getApi();
+		await connecting.p;
+		extensionApi.initialize(createSdk('7.1.0', 'latest'));
+		void previousPipe.error(new Error('The selected TypeScript installation has changed.'));
+
+		assert.deepStrictEqual({ first: await first !== undefined, retried: await retry !== undefined, connected: connector.connected, errors: logService.errors }, {
+			first: true,
+			retried: true,
+			connected: ['latest'],
+			errors: [],
+		});
+	});
 });
 
 function createSdk(version: string, pipe: string = version): TypeScriptSDK {
@@ -150,8 +183,13 @@ class TestConnector {
 
 class RecordingLogService extends TestLogService {
 	readonly warnings: string[] = [];
+	readonly errors: string[] = [];
 
 	override warn(message: string): void {
 		this.warnings.push(message);
+	}
+
+	override error(error: string | Error, message?: string): void {
+		this.errors.push(message ?? String(error));
 	}
 }

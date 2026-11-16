@@ -121,8 +121,16 @@ export class TypeScript7Connection implements vscode.Disposable {
 				if (sdk === undefined) {
 					return undefined;
 				}
-				const pipe = await sdk.initializeAPIConnection();
-				const api = await this.connect(pipe);
+				let api: API<true>;
+				try {
+					api = await this.connect(await sdk.initializeAPIConnection());
+				} catch (error) {
+					if (this.disposed || this.generation === generation) {
+						throw error;
+					}
+					// The language server (re)initialized while we were connecting, which can make the previous SDK fail.
+					continue;
+				}
 				if (this.disposed) {
 					this.close(api);
 					return undefined;
