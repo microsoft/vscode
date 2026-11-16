@@ -18,7 +18,7 @@ import { renderAsPlaintext } from '../../../../../../base/browser/markdownRender
 import { DeferredPromise, raceCancellationError, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { CancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, errorHandler } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, ISettableObservable, observableFromEvent, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
@@ -89,6 +89,7 @@ import { IFocusedSessionHostService, ISessionHostService } from '../../../../../
 import { focusedSessionHostServiceOf, ITestSessionWithChat, sessionHostServiceOf, testGridPanes } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { NewWorktreeChoice } from '../../../../../../workbench/contrib/sessions/browser/chat/newWorktreeChoice.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { devContainerSamples, devContainerSampleUri } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
@@ -8444,6 +8445,57 @@ suite('LocalAgentHostSessionsProvider', () => {
 			pendingSendCalls: 0,
 			sendCalls: 1,
 			title: 'Config Operation',
+		});
+	});
+
+	test('a New Worktree its agent rejects has settled as the draft\'s first send waits for its configuration, which then goes out in the folder', async () => {
+		let sendCalls = 0;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async resource => {
+				sendCalls++;
+				agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'In the Folder' }));
+				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = session.mainChat.get().resource;
+		await waitForSessionConfig(provider, session, config => config?.values.isolation === 'worktree');
+		await provider.setSessionConfigValue(session.sessionId, chat, SessionConfigKey.Isolation, 'folder');
+		await waitForSessionConfig(provider, session, config => config?.values.isolation === 'folder');
+		// The provider as it is, but for an agent that rejects the write, later: the operation it tracks rejects
+		const rejecting: LocalAgentHostSessionsProvider = Object.assign(Object.create(provider), {
+			setSessionConfigValue: async () => {
+				await timeout(0);
+				throw new Error('isolation rejected');
+			},
+		});
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: <T extends ISessionsProvider>() => rejecting as unknown as T }));
+		const choice = instantiationService.createInstance(NewWorktreeChoice, constObservable<ISession | undefined>(session), constObservable(true));
+		const errors: unknown[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+		let applied: boolean;
+		try {
+			applied = await choice.setSelected(true);
+		} finally {
+			errorHandler.setUnexpectedErrorHandler(previousHandler);
+		}
+		const committed = await provider.sendRequest(session.sessionId, chat, { query: 'hello' });
+
+		assert.deepStrictEqual({
+			applied,
+			selected: choice.isSelected(),
+			reported: errors.map(error => (error as Error).message),
+			sendCalls,
+			title: committed.title.get(),
+		}, {
+			applied: false,
+			selected: false,
+			reported: ['isolation rejected'],
+			sendCalls: 1,
+			title: 'In the Folder',
 		});
 	});
 
