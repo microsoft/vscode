@@ -235,6 +235,20 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 			&& !this._choices().some(choice => choice.kind === 'worktree');
 	}
 
+	/**
+	 * Whether the chip offers more than the folder the session works in already: No Workspace, a worktree or the folder at
+	 * its own location, or New Worktree where no checkbox stands in for it. Not while the session's configuration, which
+	 * says whether it can work in a new worktree, is still unknown, so that a chip with only the folder never shows.
+	 */
+	offersChoices(): boolean {
+		// The worktrees last, which reading costs: never where No Workspace already makes it a choice
+		return this.isActive()
+			&& (this.isNoWorkspaceAvailable()
+				|| this.isNoWorkspaceSelected()
+				|| this._choices().length > 1
+				|| (this.canWorkInNewWorktree() && !this.offersOnlyNewWorktree()));
+	}
+
 	/** Has the session start without a working directory, as No Workspace does. */
 	setNoWorkspace(): void {
 		const sessionResource = this._sessionResource();

@@ -24,6 +24,8 @@ import { AgentHostWorktreeFolderChoices } from './agentHostWorktreeFolderChoices
 
 /** Whether the chat input offers New Worktree as a checkbox rather than the folder chip: while the folder has no worktrees. */
 export const ChatAgentHostNewWorktreeToggleVisible = new RawContextKey<boolean>('chatAgentHostNewWorktreeToggleVisible', false, { type: 'boolean', description: localize('chatAgentHostNewWorktreeToggleVisible', "Whether the chat input offers New Worktree as a checkbox, as the folder has no worktrees.") });
+/** Whether the chat input shows the folder chip: while it offers more than the folder the session works in already. */
+export const ChatAgentHostFolderChipVisible = new RawContextKey<boolean>('chatAgentHostFolderChipVisible', false, { type: 'boolean', description: localize('chatAgentHostFolderChipVisible', "Whether the chat input shows the folder chip, as it offers more than the folder the session works in already.") });
 /** Whether the session of the chat input is to work in a new worktree of its folder. */
 export const ChatAgentHostNewWorktreeSelected = new RawContextKey<boolean>('chatAgentHostNewWorktreeSelected', false, { type: 'boolean', description: localize('chatAgentHostNewWorktreeSelected', "Whether the session of the chat input is to work in a new worktree of its folder.") });
 
@@ -43,8 +45,8 @@ export const agentHostWorktreeChoicesWhen = ContextKeyExpr.and(
 );
 
 /**
- * Keeps the {@link ChatAgentHostNewWorktreeToggleVisible} and {@link ChatAgentHostNewWorktreeSelected} of a chat widget's
- * input as its session's worktree choices are: as the folder comes to have worktrees or no longer has any, and as the
+ * Keeps the {@link ChatAgentHostNewWorktreeToggleVisible}, {@link ChatAgentHostFolderChipVisible} and
+ * {@link ChatAgentHostNewWorktreeSelected} of a chat widget's input as its session's worktree choices are: as the folder comes to have worktrees or no longer has any, and as the
  * widget shows another session.
  */
 export class AgentHostNewWorktreeToggle extends Disposable {
@@ -57,9 +59,11 @@ export class AgentHostNewWorktreeToggle extends Disposable {
 		super();
 		const choices = this._register(instantiationService.createInstance(AgentHostWorktreeFolderChoices, () => widget.viewModel?.sessionResource));
 		const visible = ChatAgentHostNewWorktreeToggleVisible.bindTo(widget.scopedContextKeyService);
+		const chipVisible = ChatAgentHostFolderChipVisible.bindTo(widget.scopedContextKeyService);
 		const selected = ChatAgentHostNewWorktreeSelected.bindTo(widget.scopedContextKeyService);
 		const update = () => {
 			visible.set(choices.offersOnlyNewWorktree());
+			chipVisible.set(choices.offersChoices());
 			selected.set(choices.isNewWorktreeSelected());
 		};
 		this._register(choices.onDidChange(update));
@@ -72,6 +76,7 @@ export class AgentHostNewWorktreeToggle extends Disposable {
 		}));
 		this._register(toDisposable(() => {
 			visible.reset();
+			chipVisible.reset();
 			selected.reset();
 		}));
 		update();

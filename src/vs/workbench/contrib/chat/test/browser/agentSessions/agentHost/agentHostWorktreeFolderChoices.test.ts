@@ -39,8 +39,8 @@ suite('AgentHostWorktreeFolderChoices', () => {
 	const session = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-1' });
 
 	/** The choices in a window whose folder is at `at`, recording the folders and isolation it sets for the session. */
-	async function createChoices(options: { readonly enabled: boolean; readonly at: URI; readonly isolation?: string; readonly state?: WorkbenchState; readonly listed?: readonly URI[]; readonly sessionsList?: boolean; readonly read?: boolean; readonly resolveLocation?: (location: URI) => Promise<IResolvedFolderLocation | undefined> }) {
-		const config = { values: { isolation: options.isolation ?? 'folder' } as Record<string, unknown> };
+	async function createChoices(options: { readonly enabled: boolean; readonly at: URI; readonly isolation?: string; readonly state?: WorkbenchState; readonly listed?: readonly URI[]; readonly sessionsList?: boolean; readonly read?: boolean; readonly isolations?: readonly string[] | 'unresolved'; readonly resolveLocation?: (location: URI) => Promise<IResolvedFolderLocation | undefined> }) {
+		const config = { values: { isolation: options.isolation ?? 'folder' } as Record<string, unknown>, isolations: options.isolations ?? ['folder', 'worktree'] };
 		const changes: string[] = [];
 		const listed = { locations: options.listed ?? [feature, other], reads: 0 };
 		const onDidChangeSessions = store.add(new Emitter<void>());
@@ -73,7 +73,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		}));
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({
 			onDidChange: onDidChangeProvisional.event,
-			getResolvedConfig: () => configReset ? undefined : ({ schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } }, values: config.values }),
+			getResolvedConfig: () => configReset || config.isolations === 'unresolved' ? undefined : ({ schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: [...config.isolations] } } }, values: config.values }),
 			getPreparedSessionConfig: () => undefined,
 			applyConfigChange: async (_resource: URI, _provider: string, workingDirectory: URI | undefined, partial: Record<string, unknown>) => {
 				changes.push(`isolation ${partial.isolation}`);
@@ -95,7 +95,12 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		}
 		await new Promise<void>(resolve => setTimeout(resolve, 0));
 		const items = (selected: URI) => actions(selected).map(action => `${action.category?.label ? `[${action.category.label}] ` : ''}${action.label}${action.description ? ` (${action.description})` : ''}${action.checked ? ' *' : ''}`);
-		return { choices, actions, items, changes, configDirectories, listed, onDidChangeSessions, instantiationService };
+		/** Resolves the session's configuration, as the host answers, with the `isolations` it supports. */
+		const resolve = (isolations: readonly string[]) => {
+			config.isolations = isolations;
+			onDidChangeProvisional.fire(session);
+		};
+		return { choices, actions, items, changes, configDirectories, listed, onDidChangeSessions, instantiationService, resolve };
 	}
 
 	test('offers the folder and New Worktree, each with what it does, then under Worktrees the worktrees, with where the folder is now first', async () => {
@@ -308,6 +313,48 @@ suite('AgentHostWorktreeFolderChoices', () => {
 			unchecked: { shown: ['New Worktree [ ]'], changes: ['isolation worktree', 'isolation folder'] },
 			withWorktree: ['Folder'],
 			withNoWorkspace: ['Folder'],
+		});
+	}));
+
+	test('shows the folder chip only where it offers more than the folder, neither it nor the checkbox where the session cannot work in a new worktree, and nothing until that is known', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const shownIn = async (options: { readonly sessionsList?: boolean; readonly isolations: readonly string[] | 'unresolved'; readonly listed?: readonly URI[] }) => {
+			const { instantiationService, resolve } = await createChoices({ enabled: true, at: primary, listed: options.listed ?? [], sessionsList: options.sessionsList, isolations: options.isolations });
+			const contextKeyService = store.add(new ContextKeyService(instantiationService.get(IConfigurationService)));
+			contextKeyService.createKey(ChatContextKeys.enabled.key, true);
+			contextKeyService.createKey(ChatContextKeys.chatIsAgentHostSession.key, true);
+			contextKeyService.createKey(ChatContextKeys.chatSessionType.key, SessionType.AgentHostCopilot);
+			contextKeyService.createKey('workbenchState', 'folder');
+			contextKeyService.createKey('remoteName', '');
+			const widget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<IChatWidget['viewModel']>({ sessionResource: session }), onDidChangeViewModel: Event.None, scopedContextKeyService: contextKeyService });
+			store.add(instantiationService.createInstance(AgentHostNewWorktreeToggle, widget));
+			await new Promise<void>(resolve => setTimeout(resolve, 0));
+			const shown = () => MenuRegistry.getMenuItems(MenuId.ChatInputSecondary).filter(isIMenuItem)
+				.filter(item => (item.command.id === OpenAgentHostFolderPickerAction.ID || item.command.id === 'workbench.action.chat.toggleAgentHostNewWorktree') && contextKeyService.contextMatchesRules(item.when))
+				.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
+			return { shown, resolve };
+		};
+
+		const unresolved = await shownIn({ isolations: 'unresolved' });
+		const whileUnresolved = unresolved.shown();
+		unresolved.resolve(['folder', 'worktree']);
+		const onceResolved = unresolved.shown();
+
+		assert.deepStrictEqual({
+			noWorktreeSupport: (await shownIn({ isolations: ['folder'] })).shown(),
+			whileUnresolved,
+			onceResolved,
+			worktreeSupport: (await shownIn({ isolations: ['folder', 'worktree'] })).shown(),
+			// No Workspace makes it a choice, also without worktree support
+			sessionsList: (await shownIn({ isolations: ['folder'], sessionsList: true })).shown(),
+			// A worktree to pick makes it a choice, also without support for new ones
+			noWorktreeSupportWithWorktree: (await shownIn({ isolations: ['folder'], listed: [feature] })).shown(),
+		}, {
+			noWorktreeSupport: [],
+			whileUnresolved: [],
+			onceResolved: ['New Worktree'],
+			worktreeSupport: ['New Worktree'],
+			sessionsList: ['Folder'],
+			noWorktreeSupportWithWorktree: ['Folder'],
 		});
 	}));
 
