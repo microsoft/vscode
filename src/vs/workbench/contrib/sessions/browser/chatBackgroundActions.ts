@@ -306,7 +306,7 @@ const chatBackgroundConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('chat.agentSessions.backgroundImageTint', "Match the window's colors to your chat background image. Not available in high contrast themes."),
+			description: localize('chat.agentSessions.backgroundImageTint', "In the Agents window, match the window's colors to your chat background image. Has no effect in editor windows. Not available in high contrast themes."),
 			tags: ['experimental'],
 		},
 		[AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING]: {
