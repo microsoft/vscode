@@ -2471,7 +2471,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const save = buttons.addButton({ ...defaultButtonStyles, supportIcons: true, title: true });
 		save.element.classList.add('scheduled-request-save-label');
 		const time = buttons.addButton({ ...defaultButtonStyles, supportIcons: true, title: localize('scheduledRequestChangeTime', "Change Send Time") });
-		time.label = '$(chevron-down)';
+		time.label = '$(chevron-down-compact)';
 		time.element.classList.add('scheduled-request-edit-time');
 		time.element.setAttribute('aria-haspopup', 'dialog');
 		const split = dom.append(actions, dom.$('.scheduled-request-save'));
