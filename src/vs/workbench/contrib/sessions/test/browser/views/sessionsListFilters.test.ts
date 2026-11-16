@@ -23,6 +23,44 @@ suite('SessionsListFilters', () => {
 		return store.add(new SessionsListFilters(storage, store.add(new NullLogService())));
 	}
 
+	test('offers no worktree folder whose listed sessions are all archived, shows all while the selected one\'s are, and it again as one is unarchived', () => {
+		const archived = observableValue('archived', false);
+		const inFolder = (id: string, path: string, isArchived = constObservable(false)): ISession => {
+			const root = URI.file(path);
+			const workspace: ISessionWorkspace = {
+				uri: root, label: id, icon: Codicon.folder, requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+				folders: [{ root, workingDirectory: root, name: id, description: undefined, gitRepository: undefined }],
+			};
+			return { ...buildTestSession({ id, title: id }).session, workspace: constObservable(workspace), isArchived };
+		};
+		const main = inFolder('main', '/work/vscode');
+		const first = inFolder('first', '/work/vscode.worktrees/first', archived);
+		const second = inFolder('second', '/work/vscode.worktrees/second');
+		const sessions = [main, first, second];
+		const filters = createFilters();
+		const state = () => {
+			const available = getWorktreeFilterKeys(sessions, listAll);
+			const options = getSessionFilterOptions(sessions, [], listAll).filter(option => option.filter.kind === 'worktree');
+			const selected = filters.getSelectedWorktree(available);
+			return {
+				options: options.map(option => option.label),
+				checked: selected === undefined ? 'All Worktrees' : options.find(option => option.filter.id === selected)?.label,
+				visible: sessions.filter(session => filters.matches(session, false, available)).map(session => session.sessionId),
+			};
+		};
+		filters.setSelectedWorktree(getSessionFilterOptions(sessions, [], listAll).find(option => option.filter.kind === 'worktree' && option.label === 'first')!.filter.id);
+		const selected = state();
+		archived.set(true, undefined);
+		const lastArchived = state();
+		archived.set(false, undefined);
+
+		assert.deepStrictEqual({ selected, lastArchived, unarchived: state() }, {
+			selected: { options: ['vscode', 'first', 'second'], checked: 'first', visible: ['first'] },
+			lastArchived: { options: ['vscode', 'second'], checked: 'All Worktrees', visible: ['main', 'first', 'second'] },
+			unarchived: { options: ['vscode', 'first', 'second'], checked: 'first', visible: ['first'] },
+		});
+	});
+
 	test('shows the sessions of all worktree folders or of the one selected, until All Worktrees or reset, and all where the selected or a stored hidden folder is not offered', () => {
 		const inFolder = (id: string, path: string, repository?: { readonly uri: string; readonly workTree?: string }): ISession => {
 			const root = URI.file(path);

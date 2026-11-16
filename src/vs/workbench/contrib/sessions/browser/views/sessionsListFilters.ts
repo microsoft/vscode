@@ -176,18 +176,19 @@ export function getSessionFilterOptions(sessions: readonly ISession[], environme
 			});
 		}
 	}
-	// The worktrees that listed sessions work in, with their repository's own folder
+	// The worktrees that listed sessions not archived work in, with their repository's own folder
 	for (const option of getListedWorktreeOptions(sessions, isSessionListed, reader)) {
 		options.push({ filter: { kind: 'worktree', id: option.key }, label: option.label, group: option.isRepository ? '4_worktrees_1_repository' : '4_worktrees_2_worktrees' });
 	}
 	return options;
 }
 
+/** The Worktrees filter's options: the folders that listed sessions not archived work in. */
 function getListedWorktreeOptions(sessions: readonly ISession[], isSessionListed: (session: ISession, reader: IReader | undefined) => boolean, reader?: IReader) {
-	return getWorktreeFilterOptions(sessions.filter(session => isSessionListed(session, reader)).map(session => getSessionWorktreeFilterFolder(session, reader)));
+	return getWorktreeFilterOptions(sessions.filter(session => isSessionListed(session, reader) && !session.isArchived.read(reader)).map(session => getSessionWorktreeFilterFolder(session, reader)));
 }
 
-/** The keys of the folders the Worktrees filter offers for `sessions`, of those the list includes. */
+/** The keys of the folders the Worktrees filter offers for `sessions`: of those the list includes, not archived. */
 export function getWorktreeFilterKeys(sessions: readonly ISession[], isSessionListed: (session: ISession, reader: IReader | undefined) => boolean, reader?: IReader): ReadonlySet<string> {
 	return new Set(getListedWorktreeOptions(sessions, isSessionListed, reader).map(option => option.key));
 }

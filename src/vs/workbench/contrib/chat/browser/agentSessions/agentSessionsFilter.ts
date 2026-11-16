@@ -131,11 +131,11 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	}
 
 	/**
-	 * The options of the Worktrees submenu, also of archived sessions: the list can show those, and the selected folder
-	 * stays in the submenu when the user archives its last session.
+	 * The options of the Worktrees submenu: the folders that sessions not archived work in. A folder whose sessions are all
+	 * archived is not offered, and while it is selected all folders show, until one of its sessions is unarchived.
 	 */
 	private getWorktreeOptions(): IWorktreeFilterOption[] {
-		return getWorktreeFilterOptions(this.agentSessionsService.model.sessions.map(getAgentSessionWorktreeFolder));
+		return getWorktreeFilterOptions(this.agentSessionsService.model.sessions.filter(session => !session.isArchived()).map(getAgentSessionWorktreeFolder));
 	}
 
 	private updateExcludes(fromEvent: boolean): void {
