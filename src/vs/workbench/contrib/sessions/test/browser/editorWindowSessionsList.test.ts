@@ -52,11 +52,10 @@ suite('EditorWindowSessionsList', () => {
 		});
 	});
 
-	test('every editor window view offers Date, Environment and Worktree, defaulting to Date', () => {
+	test('every editor window view offers every grouping, also Worktree, with no fixed default', () => {
 		const options = createEditorWindowSessionsViewOptions({ id: SessionsViewId } as IViewletViewOptions, observableValue('scoped', true));
 		assert.deepStrictEqual(options.groupings, {
-			offered: [SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Worktree],
-			default: SessionsGrouping.Date,
+			offered: [SessionsGrouping.Workspace, SessionsGrouping.Repository, SessionsGrouping.Environment, SessionsGrouping.Date, SessionsGrouping.Inbox, SessionsGrouping.Worktree],
 		});
 	});
 
