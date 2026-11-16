@@ -7,7 +7,7 @@ import assert from 'assert';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IAction, Separator, SubmenuAction } from '../../../../../base/common/actions.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { retry, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { isDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -302,6 +302,47 @@ suite('Sessions list context menus', () => {
 				{ state, states: [state, state], pinned: [true, true], sections: [['pinned', ids], [SessionInboxSection.ReadyForYou, []]], returnToInboxInMenu: false, returnToInboxInToolbar: false },
 				{ state, states: [state, state], pinned: [false, false], sections: state ? [[SessionInboxSection.ReadyForYou, []], [state === 'hold' ? SessionInboxSection.OnHold : SessionInboxSection.Acknowledged, ids]] : [[SessionInboxSection.ReadyForYou, ids]] },
 			]));
+		});
+	}
+
+	for (const promoteNewChat of [false, true]) {
+		test(`Inbox triage actions share a toolbar position with ${promoteNewChat ? 'New Nested Session' : 'Pin'}`, async () => {
+			const ready = createTestSession('Ready');
+			const acknowledged = createTestSession('Acknowledged');
+			for (const item of [ready, acknowledged]) {
+				item.capabilities.set({ ...item.capabilities.get(), supportsMultipleChats: true }, undefined);
+			}
+			const harness = createListHarness(disposables, [ready.session, acknowledged.session]);
+			const { instantiationService, store } = harness;
+			const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			await configurationService.setUserConfiguration(ChatSessionArchiveActionWordingSettingId, ChatSessionArchiveActionWording.MarkAsDone);
+			const model = store.add(instantiationService.createInstance(SessionsListModelService));
+			instantiationService.stub(ISessionsListModelService, model);
+			model.setInboxState([acknowledged.session], 'done');
+			const contextKeyService = store.add(new ContextKeyService(instantiationService.get(IConfigurationService)));
+			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+			SessionsViewGroupingContext.bindTo(contextKeyService).set(SessionsGrouping.Inbox);
+			SessionsListPromoteNewChatActionContext.bindTo(contextKeyService).set(promoteNewChat);
+			instantiationService.stub(IContextKeyService, contextKeyService);
+			instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+			store.add(instantiationService.createInstance(SessionsArchiveActionsContribution));
+			const list = store.add(instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Inbox,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(600, 400);
+			list.setItemCollapsed({ section: SessionInboxSection.Acknowledged }, false);
+			const actions = (session: ISession) => [...list.getItemRow({ session: session.resource })!
+				.querySelectorAll('.session-title-toolbar .action-label')].map(action => action.getAttribute('aria-label'));
+			const organizeAction = promoteNewChat ? 'New Nested Session' : 'Pin';
+			await retry(async () => assert.deepStrictEqual({
+				inbox: actions(ready.session),
+				acknowledged: actions(acknowledged.session),
+			}, {
+				inbox: ['Acknowledge: Remove from Inbox until new activity', organizeAction, 'Mark as Done'],
+				acknowledged: ['Return to Inbox', organizeAction, 'Mark as Done'],
+			}), 10, 100);
 		});
 	}
 

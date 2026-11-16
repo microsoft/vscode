@@ -144,7 +144,7 @@ export const AGENTS_WINDOW_REGISTRATIONS: readonly string[] = [
 	'menu SessionItemContextMenu submenu SessionsSessionItemOpenIn group navigation order 1 when chatIsEnabled && isSessionsWindow',
 	'menu SessionItemToolbar command sessionsViewPane.pinSession group navigation order 1 when !sessionIsArchived && !sessionItem.isPinned && !sessionsListPromoteNewChatAction',
 	'menu SessionItemToolbar command sessionsViewPane.unpinSession group navigation order 1 when sessionItem.isPinned && !sessionIsArchived && !sessionsListPromoteNewChatAction',
-	'menu SessionItemToolbar command sessionsViewPane.inboxResume group navigation order 1 when chatIsEnabled && !sessionIsArchived && !sessionItem.isPinned && sessionsViewPane.grouping == \'inbox\' && sessionItem.inboxState != \'\'',
+	'menu SessionItemToolbar command sessionsViewPane.inboxResume group navigation order 0.5 when chatIsEnabled && !sessionIsArchived && !sessionItem.isPinned && sessionsViewPane.grouping == \'inbox\' && sessionItem.inboxState != \'\'',
 	'menu SessionItemToolbar command sessionsViewPane.inboxMergePullRequest group navigation order 0 when chatIsEnabled && sessionItem.canMergePullRequest && !sessionIsArchived && sessionsViewPane.grouping == \'inbox\'',
 	'menu SessionItemToolbar command sessionsViewPane.importSession group navigation order 1.5 when chatIsEnabled && sessionItem.canImport && !sessionIsArchived',
 	'menu SessionsAutomationsHistoryItemContext command sessionsViewPane.showAutomationSessionInList group 2_organize order 1 when chatAutomationsEnabled && chatIsEnabled && sessionItem.isAutomation && !sessionIsArchived && !sessionItem.isInSessionsList',
