@@ -143,7 +143,7 @@ import { Menus } from '../menus.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
 import { getChatCompletedStateIcon, getSessionAgentMergeConfigurationObservable, getSessionCompletedStateIcon, ISessionAgentMergeConfiguration } from '../sessionAgentMerge.js';
 import { BlockedSessionReason, BlockedSessions } from '../blockedSessions.js';
-import { IInboxSessionAttention, ISessionAttentionService, InboxNotificationPriority } from '../../common/sessionAttentionService.js';
+import { IInboxSessionAttention, ISessionAttentionService, InboxNotificationPriority, InboxTab } from '../../common/sessionAttentionService.js';
 import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext, PinnedCanvasState } from '../pinnedCanvases.js';
 import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
@@ -473,8 +473,6 @@ function getSessionSectionIcon(sectionId: string, sessions: readonly ISession[] 
 			return Codicon.calendar;
 		case SessionInboxSection.ReadyForYou:
 			return Codicon.inbox;
-		case SessionInboxSection.ReadyToMerge:
-			return Codicon.gitPullRequest;
 		case SessionInboxSection.Working:
 			return Codicon.sessionInProgress;
 		case SessionInboxSection.OnHold:
@@ -9327,7 +9325,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private canAcknowledgeInboxSession(session: ISession, reader?: IReader): boolean {
-		return this.isInboxLayout() && !session.isArchived.read(reader) && this.getInboxSection(session, reader) === SessionInboxSection.ReadyForYou;
+		return this.isInboxLayout() && !session.isArchived.read(reader) && this.getInboxStateContext(session, reader) !== 'done';
 	}
 
 	private advanceInboxAfterSend(resource: URI): void {
@@ -9356,7 +9354,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 			this.update();
 			const visible = new Set(this.getVisibleSessions());
-			const next = candidates.find(session => visible.has(session) && this.canAcknowledgeInboxSession(session));
+			const next = candidates.find(session => visible.has(session) && this.canAcknowledgeInboxSession(session) && this.getInboxSection(session) === SessionInboxSection.ReadyForYou);
 			if (next) {
 				this.openSession(next);
 			} else {
@@ -9380,7 +9378,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private acknowledgeInboxSessions(sessions: readonly ISession[], actionId?: string): void {
-		if (this._store.isDisposed || !this.visible || !this.isInboxLayout() || actionId === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID || actionId === 'sessionsViewPane.inboxResume' || actionId === 'sessionsViewPane.inboxHold' || actionId === 'sessionsViewPane.inboxSnooze') {
+		if (this._store.isDisposed || !this.visible || !this.isInboxLayout() || actionId === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID || actionId === 'sessionsViewPane.inboxResume' || actionId === 'sessionsViewPane.inboxHold' || actionId === 'sessionsViewPane.inboxSnooze' || actionId === 'sessionsViewPane.pinSession' || actionId === 'sessionsViewPane.unpinSession') {
 			return;
 		}
 		const targets = sessions.filter(session => !session.isArchived.get() && this.getInboxSection(session) === SessionInboxSection.ReadyForYou);
@@ -9390,8 +9388,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private canMergeInboxPullRequest(session: ISession, reader?: IReader): boolean {
+		const attention = this.sessionAttentionService.sessionAttention.read(reader).get(session.sessionId);
 		return this.isInboxLayout() && !session.isArchived.read(reader)
-			&& getSessionInboxSection(session, this._sessionsListModelService.getInboxState(session, reader), reader, this.sessionAttentionService.sessionAttention.read(reader).get(session.sessionId)) === SessionInboxSection.ReadyToMerge
+			&& attention?.tab === InboxTab.ReadyToMerge
+			&& getSessionInboxSection(session, this._sessionsListModelService.getInboxState(session, reader), reader, attention) === SessionInboxSection.ReadyForYou
 			&& getInboxPullRequestMergeOperation(session, reader) !== undefined;
 	}
 
@@ -10456,7 +10456,6 @@ export function groupSessionsForList(
 function getSessionInboxSectionLabel(section: typeof sessionInboxSections[number]): string {
 	switch (section) {
 		case SessionInboxSection.ReadyForYou: return localize('inboxSection', "Inbox");
-		case SessionInboxSection.ReadyToMerge: return localize('inboxReadyToMerge', "Ready to merge");
 		case SessionInboxSection.Working: return localize('inboxWorking', "Working");
 		case SessionInboxSection.OnHold: return localize('inboxOnHold', "On hold");
 		case SessionInboxSection.Acknowledged: return localize('inboxAcknowledged', "Acknowledged");

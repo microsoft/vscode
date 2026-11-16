@@ -50,7 +50,7 @@ import { AccessibleViewType } from '../../../../../platform/accessibility/browse
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsListNotificationFocused } from './sessionsListNotification.js';
 import { getInboxPullRequestMergeOperation, getSessionInboxSection, SessionInboxAction, SessionInboxSection } from '../../common/sessionInbox.js';
-import { ISessionAttentionService } from '../../common/sessionAttentionService.js';
+import { ISessionAttentionService, InboxTab } from '../../common/sessionAttentionService.js';
 
 async function archiveSessionsWithUndo(
 	sessions: readonly ISession[],
@@ -1260,7 +1260,7 @@ export function registerSessionsListActions(): IDisposable {
 			super({
 				id: ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID,
 				title: localize2('inboxAcknowledge', "Acknowledge"),
-				tooltip: localize('inboxAcknowledgeTooltip', "Acknowledge: Remove from Inbox until new activity"),
+				tooltip: localize('inboxAcknowledgeTooltip', "Acknowledge: Move to Acknowledged until new activity"),
 				icon: Codicon.eye,
 				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext),
 				menu: [Menus.SessionItemToolbar, SessionItemContextMenuId].map(id => ({
@@ -1287,8 +1287,8 @@ export function registerSessionsListActions(): IDisposable {
 				menu: [Menus.SessionItemToolbar, SessionItemContextMenuId].map(id => ({
 					id,
 					group: id === Menus.SessionItemToolbar ? 'navigation' : '1_state',
-					order: 1,
-					when: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionIsArchivedContext.negate(), SessionItemInboxStateContext.notEqualsTo('')),
+					order: id === Menus.SessionItemToolbar ? 0.5 : 1,
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionIsArchivedContext.negate(), IsSessionPinnedContext.negate(), SessionItemInboxStateContext.notEqualsTo('')),
 				})),
 			});
 		}
@@ -1325,7 +1325,7 @@ export function registerSessionsListActions(): IDisposable {
 				{ label: localize('snoozeWeek', "In One Week"), value: morning(7) },
 				{ label: localize('snoozeActivity', "Until New Activity"), value: 'untilActivity' as const },
 				{ label: localize('snoozeDate', "Pick a Date and Time..."), value: 'custom' as const },
-			], { placeHolder: localize('snoozeReturnPlaceholder', "When should these sessions leave On hold? They will return to Inbox, Working, or Ready to merge based on their activity.") });
+			], { placeHolder: localize('snoozeReturnPlaceholder', "When should these sessions leave On hold? They will return to Inbox or Working based on their activity.") });
 			if (!picked) {
 				return;
 			}
@@ -1362,12 +1362,12 @@ export function registerSessionsListActions(): IDisposable {
 				title: localize2('inboxMergePullRequest', "Merge Pull Request"),
 				icon: Codicon.gitMerge,
 				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionItemCanMergePullRequestContext, SessionItemIsMultiSelectionContext.negate()),
-				menu: [Menus.SessionItemToolbar, SessionItemContextMenuId].map(id => ({
-					id,
-					group: id === Menus.SessionItemToolbar ? 'navigation' : '1_state',
+				menu: [{
+					id: SessionItemContextMenuId,
+					group: '1_state',
 					order: 0,
 					when: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionIsArchivedContext.negate(), SessionItemCanMergePullRequestContext),
-				})),
+				}],
 			});
 		}
 		async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
@@ -1376,7 +1376,8 @@ export function registerSessionsListActions(): IDisposable {
 			const attention = accessor.get(ISessionAttentionService).sessionAttention.get();
 			const model = accessor.get(ISessionsListModelService);
 			const merge = session && !session.isArchived.get()
-				&& getSessionInboxSection(session, model.getInboxState(session), undefined, attention.get(session.sessionId)) === SessionInboxSection.ReadyToMerge
+				&& attention.get(session.sessionId)?.tab === InboxTab.ReadyToMerge
+				&& getSessionInboxSection(session, model.getInboxState(session), undefined, attention.get(session.sessionId)) === SessionInboxSection.ReadyForYou
 				? getInboxPullRequestMergeOperation(session) : undefined;
 			if (!merge) {
 				throw new Error(localize('inboxMergeUnavailable', "This pull request is no longer available to merge."));
