@@ -165,7 +165,7 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 			for (const tool of tools) {
 				if (tool.canBeReferencedInPrompt) {
 					data.push({
-						name: this._languageModelToolsService.getFullReferenceName(tool),
+						name: this._languageModelToolsService.getFullReferenceName(tool, undefined, r),
 						sourceLabel: ToolDataSource.classify(tool.source).label,
 						sourceOrdinal: ToolDataSource.classify(tool.source).ordinal,
 						description: tool.userDescription ?? tool.modelDescription
@@ -174,7 +174,7 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 			}
 			for (const toolSet of toolSets) {
 				data.push({
-					name: this._languageModelToolsService.getFullReferenceName(toolSet),
+					name: this._languageModelToolsService.getFullReferenceName(toolSet, undefined, r),
 					sourceLabel: ToolDataSource.classify(toolSet.source).label,
 					sourceOrdinal: ToolDataSource.classify(toolSet.source).ordinal,
 					description: toolSet.description

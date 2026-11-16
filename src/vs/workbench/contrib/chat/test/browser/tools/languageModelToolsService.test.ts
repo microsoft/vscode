@@ -184,6 +184,7 @@ class AutoApprovePolicyTestConfigurationService extends TestConfigurationService
 
 class McpPolicyTestConfigurationService extends TestConfigurationService {
 	private mcpPolicyValue: McpAccessValue | undefined;
+	mcpPolicyInspectCount = 0;
 
 	setMcpPolicyValue(value: McpAccessValue | undefined): void {
 		this.mcpPolicyValue = value;
@@ -197,6 +198,9 @@ class McpPolicyTestConfigurationService extends TestConfigurationService {
 
 	override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
 		const result = super.inspect<T>(key, overrides);
+		if (key === mcpAccessConfig) {
+			this.mcpPolicyInspectCount++;
+		}
 		return key === mcpAccessConfig
 			? { ...result, policyValue: this.mcpPolicyValue as T | undefined }
 			: result;
@@ -995,6 +999,49 @@ suite('LanguageModelToolsService', () => {
 			const expectedFullReferenceNames = ['internalToolSetRefName'];
 			assert.deepStrictEqual(fullReferenceNames.sort(), expectedFullReferenceNames.sort(), 'toFullReferenceNames should return the original enabled names');
 		}
+	});
+
+	test('getFullReferenceName reuses the catalogue when a reader is provided', () => {
+		const config = new McpPolicyTestConfigurationService();
+		const { service } = createTestToolsService(store, { configurationService: config });
+		const tools: IToolData[] = Array.from({ length: 20 }, (_, index) => ({
+			id: `tool${index}`,
+			source: { type: 'extension', label: 'Test Extension', extensionId: new ExtensionIdentifier('test.extension') },
+			displayName: `tool${index}`,
+			modelDescription: 'Test tool',
+			canBeReferencedInPrompt: true,
+		}));
+		for (const tool of tools) {
+			store.add(service.registerToolData(tool));
+		}
+		service.flushToolUpdates();
+		config.mcpPolicyInspectCount = 0;
+
+		let names: string[] = [];
+		store.add(autorun(reader => {
+			names = tools.map(tool => service.getFullReferenceName(tool, undefined, reader));
+		}));
+
+		assert.deepStrictEqual(names, tools.map(tool => `test.extension/${tool.id}`));
+		assert.ok(config.mcpPolicyInspectCount <= tools.length + 1, `Expected at most ${tools.length + 1} policy inspections, got ${config.mcpPolicyInspectCount}`);
+	});
+
+	test('getFullReferenceName tracks tool set membership when a reader is provided', () => {
+		const tool: IToolData = { id: 'tool', source: ToolDataSource.Internal, displayName: 'tool', modelDescription: 'Test tool', canBeReferencedInPrompt: true };
+		store.add(service.registerToolData(tool));
+		service.flushToolUpdates();
+		let name = '';
+		store.add(autorun(reader => {
+			name = service.getFullReferenceName(tool, undefined, reader);
+		}));
+		const names = [name];
+		const toolSet = store.add(service.createToolSet(ToolDataSource.Internal, 'testSet', 'testSet'));
+		store.add(toolSet.addTool(tool));
+		names.push(name);
+		toolSet.dispose();
+		names.push(name);
+
+		assert.deepStrictEqual(names, ['tool', 'testSet/tool', 'tool']);
 	});
 
 	test('getFullReferenceName returns qualified names for tools and tool sets', () => {
