@@ -8,7 +8,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -16,6 +16,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/virtualSc
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { ChatDynamicVariableModel } from '../../../../chat/browser/attachments/chatDynamicVariables.js';
 import { IChatAgentService } from '../../../../chat/common/participants/chatAgents.js';
@@ -33,7 +34,7 @@ import { ILayoutService } from '../../../../../../platform/layout/browser/layout
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
-import { IChatWidget, IQuickChatService } from '../../../../chat/browser/chat.js';
+import { IChatWidget, IChatWidgetViewOptions, IQuickChatService } from '../../../../chat/browser/chat.js';
 import { IChatViewHostService } from '../../../../chat/browser/chatViewHost.js';
 import { ChatWidgetService } from '../../../../chat/browser/widget/chatWidgetService.js';
 import { ChatInputPart } from '../../../../chat/browser/widget/input/chatInputPart.js';
@@ -956,4 +957,60 @@ suite('SharedChatInputComposer', () => {
 
 		assert.deepStrictEqual(busy.filter(value => value !== ''), []);
 	}));
+
+	test('renders without an overflow widgets element of its own, so suggest shows in the window its chat widget is attached to later, such as the Agents Launcher\'s', () => {
+		const renderStore = store.add(new DisposableStore());
+		const windowContainer = dom.$('.monaco-workbench');
+		let widgetOptions: IChatWidgetViewOptions | undefined;
+		const widget = {
+			render: () => { },
+			setVisible: () => { },
+			setInputPartMaxHeightOverride: () => { },
+			layout: () => { },
+			onDidFocus: Event.None,
+			inputEditor: { onDidChangeModelContent: Event.None },
+			attachmentModel: { onDidChange: Event.None },
+			scopedContextKeyService: new MockContextKeyService(),
+			input: { gettingStartedTipContainerElement: dom.$('div'), registerChatPetHorizontalPlatformProvider: () => Disposable.None },
+			inputPart: {},
+			dispose: () => { },
+		};
+		const composer: SharedChatInputComposer = Object.assign(Object.create(SharedChatInputComposer.prototype), {
+			_store: renderStore,
+			options: { session: constObservable(undefined) },
+			contextKeyService: new MockContextKeyService(),
+			layoutService: { getContainer: () => windowContainer },
+			sessionsProvidersService: { onDidChangeProviders: Event.None },
+			sessionTypePicker: { onDidChangeChatPetPlatform: Event.None },
+			instantiationService: { createInstance: () => Disposable.None },
+			_scopedInstantiationService: {
+				createChild: () => ({
+					createInstance: (_ctor: unknown, _location: unknown, _viewContext: unknown, options: IChatWidgetViewOptions) => {
+						widgetOptions = options;
+						return widget;
+					},
+					dispose: () => { },
+				}),
+			},
+			_createHostModelSelection: () => undefined,
+			_renderBusyState: () => { },
+			_registerVoiceTarget: () => Disposable.None,
+			_renderSessionControls: () => { },
+			_restoreInput: () => { },
+			_bindChatModel: () => { },
+			_renderAttachmentOffset: () => { },
+		});
+
+		// Rendered detached, as its view renders before a window, such as the Agents Launcher's, attaches it. An element the
+		// composer put into a window's container now would stay in the main window; the chat widget's own one follows it.
+		composer.render(dom.$('div'), dom.$('div'));
+
+		assert.deepStrictEqual({
+			overflowWidgetsElement: widgetOptions?.editorOverflowWidgetsDomNode,
+			windowContainerChildren: windowContainer.childElementCount,
+		}, {
+			overflowWidgetsElement: undefined,
+			windowContainerChildren: 0,
+		});
+	});
 });
