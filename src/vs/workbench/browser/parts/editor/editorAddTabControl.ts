@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, EventHelper, EventType, getWindow } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, EventHelper, EventType, getWindow, isAncestor } from '../../../../base/browser/dom.js';
 import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -22,8 +22,10 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IEditorCommandsContext } from '../../../common/editor.js';
+import './media/editorAddTabControl.css';
 
 const addTabActionId = 'editor.tabs.addTab';
+const addTabMenuClassName = 'editor-add-tab-menu';
 
 export interface IEditorAddTabControlOptions {
 
@@ -109,8 +111,7 @@ export class EditorAddTabControl extends Disposable {
 		const dropdown = this._register(new DropdownMenuActionViewItem(addTabAction, { getActions }, contextMenuService, {
 			classNames: ThemeIcon.asClassNameArray(Codicon.add),
 			keybindingProvider: options?.keybindingProvider ?? (action => keybindingService.lookupKeybinding(action.id, contextKeyService)),
-			defaultItem: options?.defaultEntry ? 0 : undefined,
-			getDescription: action => action === recentAction ? recentDescription : undefined
+			menuClassName: addTabMenuClassName
 		}));
 		const toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, this.element, {
 			ariaLabel: localize('ariaLabelAddTab', "Add Tab"),
@@ -128,6 +129,9 @@ export class EditorAddTabControl extends Disposable {
 		}
 		if (options?.defaultEntry) {
 			this._pickDefaultEntryOnSecondPress(dropdown, toolbar, () => getActions().find(action => !(action instanceof Separator)), contextViewService);
+		}
+		if (options?.defaultEntry || options?.recentFirst) {
+			this._decorateMenu(dropdown, !!options.defaultEntry, () => recentAction ? recentDescription : undefined);
 		}
 
 		const updateVisibility = () => this.element.classList.toggle('hidden', getActions().length === 0);
@@ -161,6 +165,68 @@ export class EditorAddTabControl extends Disposable {
 			}, true) : undefined;
 		}));
 	}
+
+	/**
+	 * Decorates the rendered menu, as the shared menu has no notion of a default entry or descriptions:
+	 * - the default (first) entry is highlighted while the pointer is over the button, as when the menu opens, so that
+	 *   Enter picks it; with the pointer elsewhere outside the menu, nothing is highlighted, as in any menu.
+	 * - the first entry gets the given description to the right of its label.
+	 * Native menus are not rendered in the DOM and stay undecorated.
+	 */
+	private _decorateMenu(dropdown: DropdownMenuActionViewItem, highlightDefaultEntry: boolean, getFirstEntryDescription: () => string | undefined): void {
+		const targetWindow = getWindow(this.element);
+		const whileMenuVisible = this._register(new MutableDisposable<DisposableStore>());
+		this._register(dropdown.onDidChangeVisibility(visible => {
+			if (!visible) {
+				whileMenuVisible.clear();
+				return;
+			}
+			const store = whileMenuVisible.value = new DisposableStore();
+			let menuElement: HTMLElement | null = null;
+			let items: HTMLElement[] = [];
+			const highlightDefault = (onButton: boolean) => {
+				const first = items[0];
+				const focused = items.find(item => item.classList.contains('focused'));
+				if (onButton && first && focused !== first) {
+					// The menu focuses the entry that the pointer moves over
+					first.firstElementChild?.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, movementX: 1 }));
+				} else if (!onButton && focused) {
+					// The menu clears its focus when the pointer leaves it
+					focused.dispatchEvent(new MouseEvent(EventType.MOUSE_OUT, { bubbles: true, relatedTarget: targetWindow.document.body }));
+				}
+			};
+
+			// The dropdown signals its visibility before it renders the menu
+			queueMicrotask(() => {
+				if (store.isDisposed) {
+					return;
+				}
+				// The menu is rendered by the context menu service, which gives no access to its elements
+				// eslint-disable-next-line eslint-js/no-restricted-syntax
+				menuElement = targetWindow.document.querySelector<HTMLElement>(`.context-view.${addTabMenuClassName} .monaco-menu`);
+				// eslint-disable-next-line eslint-js/no-restricted-syntax
+				items = menuElement ? [...menuElement.querySelectorAll<HTMLElement>('.action-item')].filter(item => item.firstElementChild?.classList.contains('action-menu-item')) : [];
+				const description = getFirstEntryDescription();
+				const firstLabel = [...items[0]?.firstElementChild?.children ?? []].find(child => child.classList.contains('action-label'));
+				if (description && firstLabel) {
+					firstLabel.after($('span.add-tab-menu-entry-description', undefined, description));
+				}
+				if (highlightDefaultEntry) {
+					highlightDefault(true);
+				}
+			});
+
+			if (highlightDefaultEntry) {
+				store.add(addDisposableListener(targetWindow, EventType.MOUSE_MOVE, e => {
+					if (menuElement && !isAncestor(e.target as Node, menuElement)) {
+						const bounds = this.element.getBoundingClientRect();
+						highlightDefault(e.clientX >= bounds.left && e.clientX < bounds.right && e.clientY >= bounds.top && e.clientY < bounds.bottom);
+					}
+				}, true));
+			}
+		}));
+	}
+
 	/**
 	 * Logs the journey through the menu: it was opened, then an entry was picked or it was dismissed.
 	 */

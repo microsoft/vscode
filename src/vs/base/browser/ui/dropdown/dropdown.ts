@@ -182,10 +182,6 @@ export interface IDropdownMenuOptions extends IBaseDropdownOptions {
 	menuClassName?: string;
 	closeAnimation?: IContextViewCloseAnimation;
 	getAnchor?: () => HTMLElement;
-	/** The index of the default entry, see `IContextMenuDelegate.defaultItem`. */
-	defaultItem?: number;
-	/** See `IContextMenuDelegate.getDescription`. */
-	getDescription?: (action: IAction) => string | undefined;
 	menuAsChild?: boolean; // scope down for #99448
 	menuAsPopover?: boolean; // host the menu as a popover inside the dropdown element
 	readonly skipTelemetry?: boolean;
@@ -241,8 +237,6 @@ export class DropdownMenu extends BaseDropdown {
 			onHide: () => this.onHide(),
 			actionRunner: this.menuOptions ? this.menuOptions.actionRunner : undefined,
 			anchorAlignment: this.menuOptions ? this.menuOptions.anchorAlignment : AnchorAlignment.LEFT,
-			defaultItem: this._options.defaultItem,
-			getDescription: this._options.getDescription,
 			domForShadowRoot: this._options.menuAsChild || this._options.menuAsPopover ? this.element : undefined,
 			hostAsPopover: this._options.menuAsPopover,
 			skipTelemetry: this._options.skipTelemetry

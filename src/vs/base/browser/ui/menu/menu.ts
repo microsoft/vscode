@@ -55,8 +55,6 @@ export interface IMenuOptions {
 	actionViewItemProvider?: IActionViewItemProvider;
 	actionRunner?: IActionRunner;
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;
-	/** Returns a short description shown to the right of an action's label, before its keybinding. */
-	getDescription?: (action: IAction) => string | undefined;
 	/**
 	 * Returns the title of the group an action belongs to. The menu shows the title of a group's
 	 * first action as a header above the group, unless a separator with a label introduces it.
@@ -68,9 +66,6 @@ export interface IMenuOptions {
 	expandDirection?: IMenuDirection;
 	useEventAsContext?: boolean;
 	submenuIds?: Set<string>;
-	/** Highlighted while the pointer is over {@link defaultActionArea}, such as the button that opened the menu. */
-	defaultAction?: IAction;
-	defaultActionArea?: HTMLElement;
 }
 
 export interface IMenuStyles {
@@ -195,31 +190,14 @@ export class Menu extends ActionBar {
 			}));
 		}
 
-		// Outside the menu, only the pointer over the default action's area highlights the default action
-		const focusOutside = (e: MouseEvent) => {
-			const area = options.defaultActionArea?.getBoundingClientRect();
-			const inArea = !!area && e.clientX >= area.left && e.clientX < area.right && e.clientY >= area.top && e.clientY < area.bottom;
-			const defaultIndex = inArea && options.defaultAction ? this.indexOfAction(options.defaultAction) : -1;
-			const focusedItem = defaultIndex >= 0 ? defaultIndex : undefined;
-			if (focusedItem !== this.focusedItem) {
-				this.focusedItem = focusedItem;
-				this.updateFocus();
-			}
-		};
 		this._register(addDisposableListener(this.domNode, EventType.MOUSE_OUT, e => {
 			const relatedTarget = e.relatedTarget as HTMLElement;
 			if (!isAncestor(relatedTarget, this.domNode)) {
-				focusOutside(e);
+				this.focusedItem = undefined;
+				this.updateFocus();
 				e.stopPropagation();
 			}
 		}));
-		if (options.defaultAction && options.defaultActionArea) {
-			this._register(addDisposableListener(getWindow(container), EventType.MOUSE_MOVE, e => {
-				if (!isAncestor(e.target as HTMLElement, this.domNode)) {
-					focusOutside(e);
-				}
-			}, true));
-		}
 
 		const resolveActionItem = (eventTarget: EventTarget | null): HTMLElement | undefined => {
 			let target = eventTarget as HTMLElement | null;
@@ -466,7 +444,6 @@ export class Menu extends ActionBar {
 				enableMnemonics: options.enableMnemonics,
 				useEventAsContext: options.useEventAsContext,
 				getKeyBinding: options.getKeyBinding,
-				description: options.getDescription?.(action),
 			};
 
 			const menuActionViewItem = new BaseMenuActionViewItem(options.context, action, menuItemOptions, this.menuStyles);
@@ -495,7 +472,6 @@ export class Menu extends ActionBar {
 interface IMenuItemOptions extends IActionViewItemOptions {
 	readonly enableMnemonics?: boolean;
 	readonly getKeyBinding?: IMenuOptions['getKeyBinding'];
-	readonly description?: string;
 }
 
 class BaseMenuActionViewItem extends BaseActionViewItem {
@@ -615,10 +591,6 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 		this.check.setAttribute('role', 'none');
 
 		this.label = append(this.item, $('span.action-label'));
-
-		if (this.options.description) {
-			append(this.item, $('span.menu-item-description', undefined, this.options.description));
-		}
 
 		if (this.options.label && (this.options.getKeyBinding || this.options.keybinding)) {
 			this._keybinding = append(this.item, $('span.keybinding'));
@@ -1585,12 +1557,6 @@ ${formatRule(Codicon.menuSubmenu)}
 	font-size: inherit;
 	padding: 0 2em;
 	max-height: 100%;
-}
-
-.monaco-menu .monaco-action-bar.vertical .menu-item-description {
-	flex: 0 0 auto;
-	font-size: inherit;
-	opacity: 0.7;
 }
 
 .monaco-menu .monaco-action-bar.vertical .menu-item-check {

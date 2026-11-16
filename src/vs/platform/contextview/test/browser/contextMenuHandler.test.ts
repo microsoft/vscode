@@ -162,38 +162,4 @@ suite('ContextMenuHandler', () => {
 			focused: 'Second',
 		});
 	});
-
-	test('highlights the default item when the menu shows and while the pointer is over the anchor', () => {
-		const container = appendFixed($('div'));
-		const anchor = appendFixed($('div'));
-		Object.assign(anchor.style, { left: '300px', top: '300px', width: '20px', height: '20px' });
-		const contextViewService = upcastPartial<IContextViewService>({
-			showContextView: delegate => {
-				store.add(delegate.render(container));
-				delegate.focus?.();
-				return { close: () => delegate.onHide?.() };
-			},
-		});
-		const handler = new ContextMenuHandler(contextViewService, NullTelemetryService, new TestNotificationService(), new MockKeybindingService());
-		const actions = [store.add(new Action('first', 'First')), new Separator(), store.add(new Action('second', 'Second'))];
-		handler.showContextMenu({
-			getAnchor: () => anchor,
-			getActions: () => actions,
-			defaultItem: 2,
-		});
-		const focused = () => container.querySelector('.action-item.focused')?.textContent;
-		const items = container.querySelectorAll<HTMLElement>('.action-item');
-		const outside = { clientX: 5, clientY: 500 };
-		const onAnchor = { clientX: 310, clientY: 310 };
-		const onShow = focused();
-		items[0].dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
-		const overFirst = focused();
-		items[0].dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: mainWindow.document.body, ...outside }));
-		const leftToOutside = focused();
-		anchor.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, ...onAnchor }));
-		const overAnchor = focused();
-		mainWindow.document.body.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, ...outside }));
-
-		assert.deepStrictEqual({ onShow, overFirst, leftToOutside, overAnchor, leftAnchor: focused() }, { onShow: 'Second', overFirst: 'First', leftToOutside: undefined, overAnchor: 'Second', leftAnchor: undefined });
-	});
 });

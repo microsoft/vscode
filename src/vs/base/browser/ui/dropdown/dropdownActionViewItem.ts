@@ -42,10 +42,6 @@ export interface IDropdownMenuActionViewItemOptions extends IBaseActionViewItemO
 	readonly menuAsChild?: boolean;
 	readonly menuAsPopover?: boolean;
 	readonly skipTelemetry?: boolean;
-	/** The index of the default entry, see `IContextMenuDelegate.defaultItem`. */
-	readonly defaultItem?: number;
-	/** See `IContextMenuDelegate.getDescription`. */
-	readonly getDescription?: (action: IAction) => string | undefined;
 }
 
 export class DropdownMenuActionViewItem extends BaseActionViewItem {
@@ -97,9 +93,7 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 			menuClassName: this.options.menuClassName,
 			closeAnimation: this.options.closeAnimation,
 			getAnchor: this.options.getAnchor,
-			skipTelemetry: this.options.skipTelemetry,
-			defaultItem: this.options.defaultItem,
-			getDescription: this.options.getDescription
+			skipTelemetry: this.options.skipTelemetry
 		};
 
 		this.dropdownMenu = this._register(new DropdownMenu(container, options));

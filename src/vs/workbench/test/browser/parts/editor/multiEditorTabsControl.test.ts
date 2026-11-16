@@ -8,6 +8,9 @@ import { stub } from 'sinon';
 import { isSafari } from '../../../../../base/browser/browser.js';
 import { $, Dimension, EventType, ModifierKeyEmitter, reset, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { Menu } from '../../../../../base/browser/ui/menu/menu.js';
+import { defaultMenuStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -4954,7 +4957,7 @@ suite('MultiEditorTabsControl', () => {
 		};
 		const open = (button: EditorAddTabControl) => {
 			press(button);
-			const menu = { entries: shownMenu!.getActions().map(action => action.id + (shownMenu!.getDescription?.(action) ? ` (${shownMenu!.getDescription(action)})` : '')), defaultItem: shownMenu!.defaultItem };
+			const menu = shownMenu!.getActions().map(action => action.id);
 			shownMenu!.onHide?.(true);
 			return menu;
 		};
@@ -4976,15 +4979,60 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual({
 			initially,
 			afterPickingSecond,
-			inAnotherButton: open(createButton()).entries,
+			inAnotherButton: open(createButton()),
 			executed,
 			menuOpen,
 		}, {
-			initially: { entries: ['test.newTabButton.first', 'test.newTabButton.second'], defaultItem: 0 },
-			afterPickingSecond: { entries: ['test.newTabButton.second (recently used)', 'test.newTabButton.first'], defaultItem: 0 },
-			inAnotherButton: ['test.newTabButton.second (recently used)', 'test.newTabButton.first'],
+			initially: ['test.newTabButton.first', 'test.newTabButton.second'],
+			afterPickingSecond: ['test.newTabButton.second', 'test.newTabButton.first'],
+			inAnotherButton: ['test.newTabButton.second', 'test.newTabButton.first'],
 			executed: ['test.newTabButton.second', 'test.newTabButton.second'],
 			menuOpen: false,
+		});
+	});
+
+	test('the new tab button menu describes the recent entry and highlights it only while the pointer is over the button', async () => {
+		instantiationService.stub(IMenuService, new class extends TestMenuService {
+			override createMenu(): IMenu {
+				return {
+					onDidChange: Event.None,
+					dispose: () => { },
+					getActions: options => [['navigation', ['test.newTabButton.first', 'test.newTabButton.second'].map(id =>
+						instantiationService.createInstance(MenuItemAction, { id, title: id }, undefined, options, undefined, undefined))]],
+				};
+			}
+		}());
+		// Renders the menu like the context menu service does: in a context view with the menu's class names
+		const menuStore = disposables.add(new DisposableStore());
+		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+			override readonly onDidShowContextMenu = Event.None;
+			override readonly onDidHideContextMenu = Event.None;
+			override showContextMenu(delegate: IContextMenuDelegate): void {
+				const contextView = $(`.context-view.${delegate.getMenuClassName!().split(' ').join('.')}`);
+				mainWindow.document.body.appendChild(contextView);
+				menuStore.add(toDisposable(() => contextView.remove()));
+				menuStore.add(new Menu(contextView, delegate.getActions(), {}, defaultMenuStyles));
+			}
+		}());
+		instantiationService.get(IStorageService).store('editor.addTabMenu.recentEntry.test.newTabButton.decorated', 'test.newTabButton.second', StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		const button = disposables.add(instantiationService.createInstance(EditorAddTabControl, container, MenuId.for('test.newTabButton.decorated'), instantiationService.get(IContextKeyService), { recentFirst: true, defaultEntry: true }));
+		const bounds = button.element.getBoundingClientRect();
+		const onButton = { clientX: bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2 };
+		button.element.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true, ...onButton }));
+		await timeout(0);
+		const menu = () => [...mainWindow.document.querySelectorAll('.context-view.editor-add-tab-menu .action-item')].map(item => (item.classList.contains('focused') ? '* ' : '') + item.textContent);
+		const onOpen = menu();
+		mainWindow.document.body.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, clientX: bounds.right + 300, clientY: bounds.bottom + 300 }));
+		const pointerElsewhere = menu();
+		button.element.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, ...onButton }));
+		const pointerOnButton = menu();
+		menuStore.clear();
+
+		assert.deepStrictEqual({ onOpen, pointerElsewhere, pointerOnButton }, {
+			onOpen: ['* test.newTabButton.secondrecently used', 'test.newTabButton.first'],
+			pointerElsewhere: ['test.newTabButton.secondrecently used', 'test.newTabButton.first'],
+			pointerOnButton: ['* test.newTabButton.secondrecently used', 'test.newTabButton.first'],
 		});
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
