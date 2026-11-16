@@ -7,7 +7,6 @@ import assert from 'assert';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -16,6 +15,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { createFileSystemProviderError, FileSystemProviderErrorCode, type IStat } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agent.js';
 import { buildChatUri } from '../../common/state/sessionState.js';
@@ -31,19 +31,16 @@ class ControllableStatFileSystemProvider extends InMemoryFileSystemProvider {
 
 suite('SessionDataService', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: FileService;
 	let service: SessionDataService;
 	const basePath = URI.from({ scheme: Schemas.inMemory, path: '/userData' });
 
 	setup(() => {
-		fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		service = new SessionDataService(basePath, fileService, new NullLogService());
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('getSessionDataDir returns correct URI', () => {
 		const session = AgentSession.uri('copilot', 'abc-123');
@@ -214,7 +211,7 @@ suite('SessionDataService', () => {
 
 suite('SessionDataService — openDatabase ref-counting', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const basePath = URI.from({ scheme: Schemas.inMemory, path: '/userData' });
 	let fileService: FileService;
 	let provider: ControllableStatFileSystemProvider;
@@ -227,10 +224,6 @@ suite('SessionDataService — openDatabase ref-counting', () => {
 		service = new SessionDataService(basePath, fileService, new NullLogService(), () => ':memory:');
 	});
 
-	teardown(() => {
-		disposables.clear();
-	});
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('returns a functional database reference', async () => {
 		const session = AgentSession.uri('copilot', 'ref-test');

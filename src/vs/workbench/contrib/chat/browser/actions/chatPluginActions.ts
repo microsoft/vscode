@@ -18,7 +18,9 @@ import { IDialogService, IFileDialogService } from '../../../../../platform/dial
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
@@ -47,12 +49,17 @@ export class ManagePluginsAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
+		// The Agents window has no Extensions view, so show the plugins in Chat Customizations instead.
+		if (accessor.get(IWorkbenchEnvironmentService).isSessionsWindow) {
+			await accessor.get(ICommandService).executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Plugins);
+			return;
+		}
 		accessor.get(IExtensionsWorkbenchService).openSearch('@agentPlugins ');
 	}
 }
 
 interface IInstallFromSourceActionOptions {
-	/** When `true`, do not reveal the installed plugin in the Extensions viewlet after install. */
+	/** When `true`, do not reveal the installed plugin in Chat Customizations after install. */
 	readonly skipReveal?: boolean;
 }
 
@@ -83,9 +90,11 @@ export class InstallFromSourceAction extends Action2 {
 	async run(accessor: ServicesAccessor, options?: IInstallFromSourceActionOptions): Promise<boolean> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const pluginInstallService = accessor.get(IPluginInstallService);
-		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		const commandService = accessor.get(ICommandService);
 		const fileDialogService = accessor.get(IFileDialogService);
 		const customizationHarnessService = accessor.get(ICustomizationHarnessService);
+		const notificationService = accessor.get(INotificationService);
+		const progressService = accessor.get(IProgressService);
 
 		const store = new DisposableStore();
 		const inputBox = store.add(quickInputService.createInputBox());
@@ -133,34 +142,43 @@ export class InstallFromSourceAction extends Action2 {
 				inputBox.hide();
 
 				let success: boolean;
+				let installedUri: URI | undefined;
 				if (pluginInstallProvider) {
-					await pluginInstallProvider.installFromSource(sessionResource, source);
+					await progressService.withProgress({
+						location: ProgressLocation.Notification,
+						title: localize('installingPluginFromSource', "Installing plugin from source..."),
+						cancellable: false,
+					}, () => pluginInstallProvider.installFromSource(sessionResource, source));
 					success = true;
 				} else {
 					const result = await pluginInstallService.installPluginFromSource(source);
 					success = result.success;
+					installedUri = result.installedUri;
 					if (!success && result.message) {
-						inputBox.validationMessage = result.message;
+						notificationService.error(result.message);
 					}
 				}
 				if (!success) {
 					inputBox.show();
 				} else {
 					installed = true;
-					if (!options?.skipReveal) {
-						const ref = parseMarketplaceReference(source);
-						if (ref) {
-							extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
+					try {
+						if (!options?.skipReveal) {
+							await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, {
+								section: AICustomizationManagementSection.Plugins,
+								sessionResource,
+								revealUri: installedUri,
+							});
 						}
+					} catch (error) {
+						notificationService.error(error instanceof Error ? error : String(error));
+					} finally {
+						store.dispose();
 					}
-					store.dispose();
 				}
 			} catch (e) {
-				// An unexpected failure (e.g. cancelled trust prompt) would otherwise
-				// leave the hidden input box and awaited promise stuck. Re-show it with
-				// the error so the user can retry or cancel.
 				const detail = e instanceof Error ? e.message : String(e);
-				inputBox.validationMessage = localize('installFromSourceFailed', "Failed to install plugin: {0}", detail);
+				notificationService.error(localize('installFromSourceFailed', "Failed to install plugin: {0}", detail));
 				inputBox.show();
 			} finally {
 				installing = false;

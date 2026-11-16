@@ -52,8 +52,8 @@ export interface IRemoteAgentHostConnectionCustomization {
 	 */
 	readonly authenticate?: (request: IAgentHostAuthenticateRequest, reason?: AuthRequiredReason) => Promise<IAgentHostAuthenticateRequest>;
 
-	/** Resolves a fresh connection-owned credential for an expired challenge without requiring a new user sign-in. */
-	readonly renewAuthentication?: (resource: ProtectedResourceMetadata) => Promise<IAgentHostAuthenticateRequest>;
+	/** Resolves a fresh connection-owned credential, or returns undefined for resources using normal provider recovery. */
+	readonly renewAuthentication?: (resource: ProtectedResourceMetadata) => Promise<IAgentHostAuthenticateRequest | undefined>;
 
 	/**
 	 * The backend session URI scheme for an agent provider when it differs from the provider itself.

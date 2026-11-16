@@ -227,6 +227,22 @@ suite('AgentHostSettingsFileSystemProvider (ambient editor-window adapter)', () 
 		assert.strictEqual(events[0].toString(), uri.toString());
 	});
 
+	test('stat changes modification time for same-size content changes', async () => {
+		const schema = { mode: { type: 'string', title: 'Mode', enum: ['ab', 'ba'] } } satisfies Record<string, ConfigPropertySchema>;
+		const { fs, uri, agentHostService } = createHarness(makeRootState(schema, { mode: 'ab' }));
+
+		const first = await fs.stat(uri);
+		const unchanged = await fs.stat(uri);
+		agentHostService.setRootState(makeRootState(schema, { mode: 'ba' }));
+		const changed = await fs.stat(uri);
+
+		assert.deepStrictEqual({
+			sameSize: changed.size === first.size,
+			unchangedMtime: unchanged.mtime === first.mtime,
+			changedMtime: changed.mtime > first.mtime,
+		}, { sameSize: true, unchangedMtime: true, changedMtime: true });
+	});
+
 	test('root state hydrates after construction (readFile reflects late-arriving config)', async () => {
 		const { fs, uri, agentHostService } = createHarness(); // no initial state
 

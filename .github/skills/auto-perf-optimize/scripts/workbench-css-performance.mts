@@ -530,7 +530,7 @@ function launchCode(userDataDir: string, extensionsDir: string, workspace: strin
 
 function transpileClient(): Promise<void> {
 	return new Promise((resolve, reject) => {
-		const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'transpile-client'], {
+		const child = spawn(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['run', 'transpile-client'], {
 			cwd: options.codeRoot,
 			env: process.env,
 			shell: process.platform === 'win32',

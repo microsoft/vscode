@@ -62,6 +62,7 @@ export class ChatResourcePillActionViewItem extends ChatPillActionViewItemBase {
 				button.element.removeAttribute('aria-description');
 			}
 			this.updatePromotedAction(this._resourcePillOptions.promotedActionIcon ? entry?.promotedAction : undefined, this._resourcePillOptions.promotedActionIcon, this._hoverService);
+			this.updateEntryChecked(entry?.checked);
 		}));
 	}
 

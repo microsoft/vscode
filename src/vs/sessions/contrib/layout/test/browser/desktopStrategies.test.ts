@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { spy } from 'sinon';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -17,11 +18,12 @@ import { GroupModelChangeKind } from '../../../../../workbench/common/editor.js'
 import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionFileChange, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionFileChange, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { CanvasInput } from '../../../../../workbench/contrib/canvases/common/canvas.js';
-import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
+import { WindowCanvasInput, IWindowCanvas } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
+import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { DesktopDetailPanelCoordinator } from '../../browser/desktop/desktopDetailPanelCoordinator.js';
 import { DesktopDockedTabsCoordinator } from '../../browser/desktop/desktopDockedTabsCoordinator.js';
@@ -32,6 +34,7 @@ import { DesktopOwnerCompositionStore } from '../../browser/desktop/desktopOwner
 import { FilesDetailsState, getFilesDetailsState } from '../../browser/desktop/desktopSharedHelpers.js';
 import { SessionVisibilityProfile, DesktopVisibilityProfileStore } from '../../browser/desktop/desktopVisibilityProfileStore.js';
 import { createTestHarness, ICreateOptions, ITestLayoutHarness, makeChange, makeSession, TestStubEditorInput } from './layoutControllerTestUtils.js';
+import { ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 interface ITestContextState {
 	isRestoringSessionLayout: boolean;
@@ -88,8 +91,13 @@ function createStrategyTestContext(store: DisposableStore, harness: ITestLayoutH
 		completeChangesEditorTransition: () => { },
 		chatLayoutActive: () => false,
 		chatLayoutSuspended: () => false,
-		ownerKeyFor: session => session.resource,
-		compositionKeyFor: session => session.resource,
+		shownByMainWindow: reader => {
+			const session = reader ? harness.activeSessionObs.read(reader) : harness.activeSessionObs.get();
+			return session && { session, chat: reader ? session.activeChat.read(reader) : session.activeChat.get() };
+		},
+		mainWindowSession: harness.activeSessionObs,
+		ownerKeyFor: shown => shown.session.resource,
+		compositionKeyFor: shown => shown.session.resource,
 		sharedChatLayout: false,
 		compositionStore: harness.instaService.createInstance(DesktopOwnerCompositionStore, false),
 	};
@@ -109,7 +117,7 @@ suite('Desktop layout strategies', () => {
 		return createStrategyTestContext(store, harness, contextOptions).ctx;
 	}
 
-	function activate(session: IActiveSession | undefined): void {
+	function activate(session: ITestSessionWithChat | undefined): void {
 		harness.activeSessionObs.set(session, undefined);
 		harness.visibleSessionsObs.set(session ? [session] : [], undefined);
 	}
@@ -293,6 +301,33 @@ suite('Desktop layout strategies', () => {
 		});
 	});
 
+	for (const isCreated of [false, true]) {
+		test(`native canvas hides docked Details even when maximized (${isCreated ? 'existing' : 'draft'} session)`, () => {
+			harness = createTestHarness(store);
+			const { ctx } = createStrategyTestContext(store, harness);
+			const session = makeSession(URI.parse('session:/native-canvas'), { isCreated });
+			const editor = store.add(harness.instaService.createInstance(WindowCanvasInput, {
+				id: 'test.inbox', title: 'Inbox', icon: Codicon.inbox,
+				ctor: new SyncDescriptor(class extends mock<IWindowCanvas>() { }),
+			}));
+			harness.activeGroupEditors.push(editor);
+			harness.activeEditorInput = editor;
+			harness.editorMaximized = true;
+			harness.partVisibility.set(Parts.EDITOR_PART, true);
+			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+			activate(session);
+			if (isCreated) {
+				store.add(harness.instaService.createInstance(DesktopExistingSessionStrategy, ctx, createVisibilityStore(), createDetailPanel()));
+			} else {
+				store.add(harness.instaService.createInstance(DesktopDraftSessionStrategy, ctx, createDetailPanel(), createVisibilityStore()));
+			}
+			assert.deepStrictEqual({
+				editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+				detailsVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			}, { editorVisible: true, detailsVisible: false });
+		});
+	}
+
 	test('Existing Session hides Files Details after initial restoration settles with a canvas editor', () => {
 		harness = createTestHarness(store);
 		const { ctx, state } = createStrategyTestContext(store, harness);
@@ -407,7 +442,7 @@ suite('Desktop layout strategies', () => {
 		harness.activeEditorInput = emptyFiles;
 		harness.partVisibility.set(Parts.EDITOR_PART, true);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		ctx.compositionStore.set(ctx.ownerKeyFor(draft)!, { editor: false, auxiliaryBar: true });
+		ctx.compositionStore.set(ctx.ownerKeyFor({ session: draft, chat: draft.activeChat.get() })!, { editor: false, auxiliaryBar: true });
 		createDraftStrategy(ctx);
 
 		harness.visibleSessionsObs.set([draft, other], undefined);
@@ -500,7 +535,7 @@ suite('Desktop layout strategies', () => {
 		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
 
 		assert.deepStrictEqual(
-			ctx.compositionStore.get(ctx.ownerKeyFor(draft)!),
+			ctx.compositionStore.get(ctx.ownerKeyFor({ session: draft, chat: draft.activeChat.get() })!),
 			undefined,
 			'a visibility change must not overwrite the focused draft owner while another chat is simultaneously visible'
 		);
@@ -910,7 +945,7 @@ suite('Desktop layout strategies', () => {
 		});
 	});
 
-	test('Existing Session restores its composition when another mounted session is hidden', () => {
+	test('Existing Session keeps a docked-only composition hidden when another mounted session is hidden', () => {
 		const ctx = setup({}, { multipleChatsVisible: false });
 		ctx.chatLayoutActive = () => true;
 		const initialSession = makeSession(URI.parse('session:/initial'));
@@ -925,7 +960,7 @@ suite('Desktop layout strategies', () => {
 		harness.activeSessionObs.set(initialSession, undefined);
 		harness.partVisibility.set(Parts.EDITOR_PART, true);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-		ctx.compositionStore.set(ctx.compositionKeyFor(restoredSession)!, { editor: false, auxiliaryBar: true });
+		ctx.compositionStore.set(ctx.compositionKeyFor({ session: restoredSession, chat: restoredSession.activeChat.get() })!, { editor: false, auxiliaryBar: true });
 
 		harness.activeSessionObs.set(restoredSession, undefined);
 
@@ -934,7 +969,7 @@ suite('Desktop layout strategies', () => {
 			auxiliaryBar: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
 		}, {
 			editor: false,
-			auxiliaryBar: true,
+			auxiliaryBar: false,
 		});
 	});
 

@@ -27,13 +27,18 @@ import { GitHubRequestError } from '../../../github/common/githubTransport.js';
 import { PullRequestMutationApi } from '../../../github/common/githubPullRequestMutationService.js';
 import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { arePullRequestArtifactChecksReady, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactWorkspaceSettingsKey } from '../../common/githubPullRequestArtifact.js';
-import { AuthRequiredParams, AuthRequiredReason, NotificationType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
+import { ActionType, AuthRequiredParams, AuthRequiredReason, NotificationType } from '../../common/state/sessionActions.js';
+import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostArtifactEventService } from '../../node/artifactIntegrations/agentHostArtifactRuntime.js';
@@ -41,7 +46,7 @@ import { getPullRequestGroupPresentation, GitHubPullRequestArtifactIntegration }
 import { createPullRequestArtifactSnapshot } from '../common/githubPullRequestArtifactTestUtils.js';
 import { createTestGitHubService } from './testGitHubService.js';
 
-async function fixture(store: DisposableStore, initial = createPullRequestArtifactSnapshot(), options: { credentialError?: GitHubRequestError; enterpriseUri?: string; storage?: IArtifactIntegrationStorage } = {}) {
+async function fixture(store: DisposableStore, initial = createPullRequestArtifactSnapshot(), options: { credentialError?: GitHubRequestError; acquireError?: 'match' | 'createResource'; missingSponsor?: boolean; enterpriseUri?: string; storage?: IArtifactIntegrationStorage } = {}) {
 	const session = 'copilot:/pull-request-artifact';
 	const chat = buildDefaultChatUri(session);
 	const directory = URI.file('/workspace').toString();
@@ -138,7 +143,7 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 			}
 		}();
 	}();
-	const github = createTestGitHubService(client, Event.map(invalidated.event, () => undefined), {
+	const github = createTestGitHubService(client, Event.map(Event.filter(invalidated.event, event => event.reason !== 'reauthorization'), () => undefined), {
 		actions: new class extends mock<IActionsClient>() {
 			override async getRun(_repository: RepositoryRef, runId: number) {
 				return upcastPartial<WorkflowRun>({ id: runId, status: workflowStatus });
@@ -173,7 +178,27 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 			}
 		}(),
 	});
-	const integration = new GitHubPullRequestArtifactIntegration(github, git, stateManager, configuration, events, logService, endpoint);
+	let acquireError = options.acquireError;
+	let acquisitions = 0;
+	const acquire = github.acquireRepositoryClient;
+	github.acquireRepositoryClient = (...args) => {
+		if (acquireError && ++acquisitions >= (acquireError === 'match' ? 1 : 2)) {
+			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'GitHub repository authentication is required', { resources: [endpoint.getRepoResource()] });
+		}
+		return acquire(...args);
+	};
+	const principal = { apiOrigin: endpoint.getApiBaseUri(), userId: '1' };
+	const authentication = options.missingSponsor ? store.add(new AgentHostAuthenticationService(logService)) : undefined;
+	if (authentication) {
+		authentication.restoreSessionCredentialPrincipal(session, principal, chat);
+		const isolatedGithub = store.add(new AgentHostGitHubService({}, authentication, endpoint, logService, NullTelemetryService));
+		github.captureSessionCredentialSource = (...args) => isolatedGithub.captureSessionCredentialSource(...args);
+	}
+	const gitRefreshes = store.add(new Emitter<string>());
+	const gitState = new class extends mock<IAgentHostGitStateService>() {
+		override readonly onDidRefreshSessionGitState = gitRefreshes.event;
+	};
+	const integration = new GitHubPullRequestArtifactIntegration(github, git, stateManager, configuration, events, logService, endpoint, gitState);
 	const registry = store.add(new ArtifactIntegrationRegistry());
 	store.add(registry.register(integration, 'test'));
 	let stored: string | undefined;
@@ -224,10 +249,19 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 			commit = value.commit ?? commit;
 			dirty = value.dirty ?? dirty;
 			remote = value.remote ?? remote;
+			// A checkout that changed is announced by the Git state refresh that observed it.
+			gitRefreshes.fire(session);
 			configuration.updateSessionConfig(session, { checkoutRevision: ++request });
 		},
+		refreshGitState: () => gitRefreshes.fire(session),
 		setAccount: (id: string) => { accountId = id; invalidated.fire({ reason: 'account' }); },
-		reauthenticate: () => { credentialError = undefined; invalidated.fire({ reason: 'replacement' }); },
+		reauthenticate: () => {
+			credentialError = undefined;
+			acquireError = undefined;
+			invalidated.fire({ reason: 'replacement' });
+		},
+		/** Same-token reauthorization: the credential and repository client are kept. */
+		reauthorize: () => invalidated.fire({ reason: 'reauthorization' }),
 		onRefresh: (hook: () => void | Promise<void>) => { refreshHook = hook; },
 		onMutation: (hook: () => void | Promise<void>) => { mutationHook = hook; },
 		onPrepareMerge: (hook: () => Promise<void>) => { prepareMergeHook = hook; },
@@ -315,8 +349,11 @@ suite('GitHub pull request artifact integration', () => {
 		states.closedDraft = group();
 		f.snapshot.set({ ...base, core: { status: 'loading', complete: false } }, undefined);
 		states.loading = group();
-		assert.deepStrictEqual({ groupLabel: f.model.snapshot.get().contributions[0].groupLabel, states }, {
+		const contribution = f.model.snapshot.get().contributions[0];
+		assert.deepStrictEqual({ groupLabel: contribution.groupLabel, groupId: contribution.view.groupId, states }, {
 			groupLabel: 'Pull Requests',
+			// Pull requests keep a pill of their own, grouped with each other.
+			groupId: 'github.pullRequest',
 			states: {
 				open: '4:git-pull-request:charts.green main=git-pull-request',
 				failing: '6:git-pull-request-error:charts.orange main=git-pull-request',
@@ -507,6 +544,42 @@ suite('GitHub pull request artifact integration', () => {
 		});
 	}));
 
+	for (const stage of ['match', 'createResource'] as const) {
+		test(`offers repository sign-in when the session source is unavailable during ${stage}`, () => run(async store => {
+			const f = await fixture(store, undefined, { acquireError: stage });
+			const before = f.model.snapshot.get().contributions[0].view.availability;
+			const recovery = await f.model.requestAuthentication(gitHubPullRequestArtifactIntegrationId);
+			f.reauthenticate();
+			await waitForState(f.model.snapshot, snapshot => snapshot.contributions[0]?.view.availability.kind === 'available');
+			assert.deepStrictEqual({
+				before,
+				recovery,
+				requests: f.authenticationRequests,
+				after: f.model.snapshot.get().contributions[0].view.availability,
+			}, {
+				before: { kind: 'authenticationRequired', reason: 'Sign in to GitHub to see the state of this pull request.' },
+				recovery: { resource: f.endpoint.getRepoResource().resource, authorizationServers: f.endpoint.getRepoResource().authorization_servers, scopes: f.endpoint.getRepoResource().scopes_supported },
+				requests: [],
+				after: { kind: 'available' },
+			});
+		}));
+	}
+
+	test('a client-mode session without a sponsor asks to resume or reconnect instead of offering repository sign-in', () => run(async store => {
+		const f = await fixture(store, undefined, { missingSponsor: true });
+		const before = f.model.snapshot.get().contributions[0].view.availability;
+		const authentication = f.model.snapshot.get().contributions[0].authentication;
+		assert.deepStrictEqual({
+			before,
+			authentication,
+			requests: f.authenticationRequests,
+		}, {
+			before: { kind: 'error', reason: 'Resume this session or reconnect its client to restore access to this pull request.' },
+			authentication: undefined,
+			requests: [],
+		});
+	}));
+
 	test('requests the configured enterprise repository resource rather than github.com', () => run(async store => {
 		const f = await fixture(store, undefined, {
 			enterpriseUri: 'https://tenant.ghe.com',
@@ -608,6 +681,34 @@ suite('GitHub pull request artifact integration', () => {
 		const f = await fixture(store, { ...base, core: { ...base.core, status: 'error', complete: false, error: { kind: 'server', message: 'Temporarily unavailable' } } });
 		f.snapshot.set({ ...base, checks: { ...base.checks, status: 'error', complete: false, error: { kind: 'rateLimit', message: 'Retry later' } } }, undefined);
 		assert.deepStrictEqual(f.authenticationRequests, []);
+	}));
+
+	test('revalidates an action refusal after same-token reauthorization without replaying the action', () => run(async store => {
+		const base = createPullRequestArtifactSnapshot();
+		const f = await fixture(store, { ...base, core: { ...base.core, value: { ...base.core.value!, draft: true } } });
+		f.onMutation(() => { throw new GitHubRequestError('Resource protected by organization SAML enforcement.', 'authorization', 403); });
+		await f.invoke('markReady');
+		const refused = f.model.snapshot.get().contributions[0].view.availability.kind;
+		let revalidations = 0;
+		f.onMutation(() => { });
+		f.onRefresh(() => { revalidations++; f.snapshot.set({ ...f.snapshot.get() }, undefined); });
+		f.reauthorize();
+		await waitForState(f.model.snapshot, snapshot => snapshot.contributions[0]?.view.availability.kind === 'available');
+		assert.deepStrictEqual({ refused, revalidated: revalidations > 0, requests: f.authenticationRequests.length, mutations: f.mutations },
+			{ refused: 'authenticationRequired', revalidated: true, requests: 1, mutations: [] });
+	}));
+
+	test('clears sign-in once the pull request loads again even while another fragment keeps failing', () => run(async store => {
+		const base = createPullRequestArtifactSnapshot();
+		const f = await fixture(store, { ...base, core: { ...base.core, status: 'error', complete: false, error: { kind: 'authentication', message: 'Bad credentials' } } });
+		const availability = () => f.model.snapshot.get().contributions[0].view.availability;
+		const refused = availability();
+		f.snapshot.set({ ...base, checks: { ...base.checks, status: 'loading', complete: false } }, undefined);
+		const loading = availability();
+		f.snapshot.set({ ...base, checks: { ...base.checks, status: 'error', complete: false, error: { kind: 'overloaded', message: 'GitHub request capacity exceeded' } } }, undefined);
+		const settled = availability();
+		const signIn = { kind: 'authenticationRequired', reason: 'Sign in to GitHub to see the state of this pull request.' };
+		assert.deepStrictEqual({ refused, loading, settled, requests: f.authenticationRequests.length }, { refused: signIn, loading: signIn, settled: { kind: 'available' }, requests: 1 });
 	}));
 
 	test('keeps CI visible for open/draft PRs and comments only when qualifying threads remain', () => run(async store => {
@@ -719,6 +820,28 @@ suite('GitHub pull request artifact integration', () => {
 		}));
 	}
 
+	test('probes the checkout once for unchanged inputs and again after a Git state refresh or a turn end', () => run(async store => {
+		const open = itemActionSnapshot();
+		const f = await fixture(store, open);
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { merge: 'ifUnchanged' });
+		await timeout(100);
+		const initial = f.checkoutRequests.length;
+
+		for (let i = 0; i < 10; i++) {
+			f.snapshot.set({ ...open }, undefined);
+			await timeout(60);
+		}
+		const afterEvents = f.checkoutRequests.length - initial;
+		f.refreshGitState();
+		await timeout(100);
+		const afterGitRefresh = f.checkoutRequests.length - initial;
+		f.stateManager.dispatchServerAction(f.chat, { type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date().toISOString(), message: { text: 'Fix it', origin: { kind: MessageKind.User } } });
+		f.stateManager.dispatchServerAction(f.chat, { type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 1 });
+		await timeout(100);
+
+		assert.deepStrictEqual({ afterEvents, afterGitRefresh, afterTurnEnd: f.checkoutRequests.length - initial }, { afterEvents: 0, afterGitRefresh: 1, afterTurnEnd: 2 });
+	}));
+
 	test('does not publish an in-flight checkout after the pull request closes', () => run(async store => {
 		const open = itemActionSnapshot();
 		const closed = { ...open, core: { ...open.core, value: { ...open.core.value!, state: 'closed' as const } } };
@@ -746,6 +869,33 @@ suite('GitHub pull request artifact integration', () => {
 		assert.deepStrictEqual({ beforeRefresh, afterRefresh: availability(), checkouts: f.checkoutRequests.length - initial }, {
 			beforeRefresh: false, afterRefresh: true, checkouts: 2,
 		});
+	}));
+
+	test('probes the checkout again when the pull request reopens after closing during a probe', () => run(async store => {
+		const open = itemActionSnapshot();
+		const closed = { ...open, core: { ...open.core, value: { ...open.core.value!, state: 'closed' as const } } };
+		const f = await fixture(store, open);
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { merge: 'ifUnchanged' });
+		await timeout(100);
+		const initial = f.checkoutRequests.length;
+		const entered = new DeferredPromise<void>();
+		const resume = new DeferredPromise<void>();
+		f.onCheckout(async () => {
+			await entered.complete();
+			await resume.p;
+		});
+		f.refreshGitState();
+		await entered.p;
+		f.snapshot.set(closed, undefined);
+		// The close is observed while the probe is pending.
+		await timeout(100);
+		await resume.complete();
+		await timeout(0);
+		f.onCheckout(undefined);
+		f.snapshot.set(open, undefined);
+		await timeout(100);
+
+		assert.strictEqual(f.checkoutRequests.length - initial, 2);
 	}));
 
 	test('keeps an applicable merge action visible when permissions prevent execution', () => run(async store => {
@@ -985,7 +1135,7 @@ suite('GitHub pull request artifact integration', () => {
 			},
 			title: 'Checks (2/4)',
 			items: [
-				{ id: 'pending', icon: { id: 'sync-compact', colorId: 'editorWarning.foreground' } },
+				{ id: 'pending', icon: { id: 'circle-filled-compact', colorId: 'editorWarning.foreground' } },
 				{ id: 'failed', icon: { id: 'error-compact', colorId: 'errorForeground' } },
 				{ id: 'skipped', icon: { id: 'skip', colorId: 'descriptionForeground' } },
 				{ id: 'passed', icon: { id: 'pass-filled-compact', colorId: 'charts.green' } },
@@ -1062,7 +1212,7 @@ suite('GitHub pull request artifact integration', () => {
 			states.push({ icon: section?.icon, label: section?.label, description: section?.description, title: details.details.get().title, checksReady: arePullRequestArtifactChecksReady(snapshot) });
 		}
 		assert.deepStrictEqual(states, [
-			{ icon: { id: 'sync-compact', colorId: 'editorWarning.foreground' }, label: '0/1', description: '0 of 1 checks passed; 0 failed.', title: 'Checks (0/1)', checksReady: false },
+			{ icon: { id: 'circle-filled-compact', colorId: 'editorWarning.foreground' }, label: '0/1', description: '0 of 1 checks passed; 0 failed.', title: 'Checks (0/1)', checksReady: false },
 			{ icon: { id: 'pass-filled-compact', colorId: 'charts.green' }, label: '1/1', description: '1 of 1 checks passed; 0 failed.', title: 'Checks (1/1)', checksReady: true },
 			{ icon: { id: 'skip', colorId: 'descriptionForeground' }, label: '1/1', description: '1 of 1 checks completed without failure; 0 failed; 1 skipped.', title: 'Checks (1/1)', checksReady: true },
 		]);
@@ -1490,6 +1640,71 @@ suite('GitHub pull request artifact integration', () => {
 		f.snapshot.set({ ...base, core: { ...base.core, value: { ...base.core.value!, headSha: 'pushed' } } }, undefined);
 		await waitForState(f.model.snapshot, snapshot => snapshot.contributions[0].configuration.values.merge === 'never');
 		assert.deepStrictEqual({ afterRepair, prompts: f.prompts.map(prompt => prompt.chat), mutations: f.mutations }, { afterRepair: 'ifUnchanged', prompts: [peer], mutations: [] });
+	}));
+
+	test('a repair after restoring a checkpoint without a head records the head it starts from', () => run(async store => {
+		const firstStore = store.add(new DisposableStore());
+		const first = await fixture(firstStore, itemActionSnapshot());
+		await first.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { merge: 'ifUnchanged' });
+		const generation = first.model.snapshot.get().contributions[0].configuration.generations.merge;
+		// Written by a build whose repairs always ran in a verified checkout, so it records that checkout but not the head.
+		const legacyRepair = { runId: 'legacy', chat: first.chat, directory: first.directory, commit: 'head' };
+		await first.service.ledger.transact(state => {
+			state.bindings[0] = {
+				...state.bindings[0], checkpoint: {
+					revision: state.bindings[0].checkpoint.revision + 1,
+					value: { version: 1, generation, repair: legacyRepair, mutation: null },
+				},
+			};
+		});
+		firstStore.dispose();
+		const f = await fixture(store, itemActionSnapshot(), { storage: first.storage });
+		const peer = buildChatUri(f.session, 'peer');
+		const peerDirectory = URI.file('/peer').toString();
+		f.stateManager.addChat(f.session, peer, peer, { workingDirectories: [peerDirectory] });
+		f.setCheckout({ directory: peerDirectory, branch: 'different' });
+		await f.invoke('fixCI', peer);
+		await f.finishPrompt();
+		const checkpoint = f.service.ledger.state.get().bindings[0].checkpoint.value;
+		// The repair pushed a passing head from another worktree; the recording chat's checkout stays clean at its old commit.
+		const pushed = createPullRequestArtifactSnapshot();
+		f.snapshot.set({
+			...pushed,
+			core: { ...pushed.core, value: { ...pushed.core.value!, headSha: 'pushed' } },
+			checks: { ...pushed.checks, headSha: 'pushed', value: { ...pushed.checks.value!, headSha: 'pushed' } },
+			reviewThreads: { ...pushed.reviewThreads, headSha: 'pushed' },
+			mergeability: { ...pushed.mergeability, headSha: 'pushed', value: { ...pushed.mergeability.value!, headSha: 'pushed' } },
+		}, undefined);
+		await timeout(300);
+		await f.service.whenIdle();
+		const configuration = f.model.snapshot.get().contributions[0].configuration;
+		assert.deepStrictEqual({ checkpoint, merge: configuration.values.merge, disabled: !!configuration.disablements.merge, mutations: f.mutations }, {
+			checkpoint: { version: 1, generation, repair: { ...legacyRepair, headSha: 'head' }, mutation: null },
+			merge: 'never', disabled: true, mutations: [],
+		});
+	}));
+
+	test('a later repair keeps the head an earlier repair of the same merge generation started from', () => run(async store => {
+		const f = await fixture(store, itemActionSnapshot());
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { merge: 'ifUnchanged' });
+		await f.service.whenIdle();
+		const generation = f.model.snapshot.get().contributions[0].configuration.generations.merge;
+		// An earlier repair without a checkout started from another head; the pull request changed since.
+		const earlier = { version: 1, generation, repair: { runId: 'earlier', chat: f.chat, directory: '', commit: '', headSha: 'original' }, mutation: null };
+		await f.service.ledger.transact(state => {
+			state.bindings[0] = { ...state.bindings[0], checkpoint: { revision: state.bindings[0].checkpoint.revision + 1, value: earlier } };
+		});
+		await f.invoke('fixCI');
+		await f.finishPrompt();
+		const checkpoint = f.service.ledger.state.get().bindings[0].checkpoint.value;
+		// The recording chat's checkout is clean at the current head, which is now mergeable.
+		f.snapshot.set(createPullRequestArtifactSnapshot(), undefined);
+		await timeout(300);
+		await f.service.whenIdle();
+		const configuration = f.model.snapshot.get().contributions[0].configuration;
+		assert.deepStrictEqual({ checkpoint, merge: configuration.values.merge, disabled: !!configuration.disablements.merge, mutations: f.mutations }, {
+			checkpoint: earlier, merge: 'never', disabled: true, mutations: [],
+		});
 	}));
 
 	test('workspace exclusions affect automatic Mark Ready but never automatic merging', () => run(async store => {

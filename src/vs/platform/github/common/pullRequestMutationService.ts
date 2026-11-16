@@ -127,7 +127,6 @@ export class PullRequestMutationService extends Disposable implements PullReques
 				url: this._restUrl(ref, `actions/jobs/${encodeURIComponent(jobId)}/logs`),
 				maximumBytes: maximumWorkflowLogBytes,
 				timeout: workflowLogTimeout,
-				priority: 'interactive',
 			}, combinedSignal);
 			// Drop partial secrets before applying redaction to the entire captured log.
 			const text = response.truncated ? response.text.slice(0, response.text.lastIndexOf('\n') + 1) : response.text;
@@ -593,6 +592,10 @@ export class PullRequestMutationService extends Disposable implements PullReques
 	}
 
 	private _handleCredentialInvalidation(event: GitHubCredentialInvalidation): void {
+		// Reauthorizing the same credential does not change what a preparation or rerun is waiting for.
+		if (event.reason === 'reauthorization') {
+			return;
+		}
 		if (this._preparations.size > 0 || this._unconfirmedReruns.size > 0) {
 			this._logService?.debug(`[PullRequestMutationService] Clearing mutation reconciliation state after credential invalidation (${event.reason})`);
 		}

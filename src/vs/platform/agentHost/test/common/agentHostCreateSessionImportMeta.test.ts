@@ -65,6 +65,28 @@ suite('Agent host createSession importConversation metadata', () => {
 		});
 	});
 
+	test('MCP result metadata survives JSON serialization and staged conversation import', () => {
+		const conversation: IAgentCreateSessionImportConversation = {
+			...sampleImport,
+			turns: sampleImport.turns.map(turn => ({
+				...turn,
+				responseParts: turn.responseParts.map(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? {
+					...part,
+					toolCall: {
+						...part.toolCall,
+						resultMetadata: { ui: { private: [null, false, 0, {}] }, toolKind: 'server-owned' },
+					},
+				} : part),
+			})),
+		};
+		const serialized = JSON.stringify(serializeCreateSessionImport(conversation));
+		const chunks = splitCreateSessionImportChunks(serialized, 64);
+		assert.deepStrictEqual([
+			readCreateSessionImportValue(JSON.parse(serialized)),
+			readCreateSessionImportMeta(withStagedCreateSessionImportMeta(undefined, 'mcp-result-meta'), id => id === 'mcp-result-meta' ? chunks.join('') : undefined),
+		], [conversation, conversation]);
+	});
+
 	test('splits chunks within bounds without breaking UTF-16 surrogate pairs', () => {
 		const textWithEmoji = 'ab😀cd😀ef';
 		const chunks = splitCreateSessionImportChunks(textWithEmoji, 3);

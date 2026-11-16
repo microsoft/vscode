@@ -110,8 +110,6 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(FileContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ChatInstructionsPickerPick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(OpenEditorContextValuePick)));
-		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ClipboardImageContextValuePick)));
-		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ScreenshotContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(SessionReferenceContextPickerPick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(GitHubContextValuePick, 'issue')));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(GitHubContextValuePick, 'pullRequest')));
@@ -431,13 +429,15 @@ class OpenEditorContextValuePick implements IChatContextValueItem {
 }
 
 
-class ClipboardImageContextValuePick implements IChatContextValueItem {
+export class ClipboardImageContextValuePick implements IChatContextValueItem {
 	readonly type = 'valuePick';
 	readonly label = localize('imageFromClipboard', 'Image from Clipboard');
 	readonly icon = Codicon.fileMedia;
 
 	constructor(
+		private readonly readImageOnEnable: boolean,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) { }
 
 	async isEnabled(widget: IChatWidget) {
@@ -447,12 +447,19 @@ class ClipboardImageContextValuePick implements IChatContextValueItem {
 		if (!widget.input.selectedLanguageModel.get()?.metadata.capabilities?.vision) {
 			return false;
 		}
+		if (!this.readImageOnEnable) {
+			return true;
+		}
 		const imageData = await this._clipboardService.readImage();
 		return isImage(imageData);
 	}
 
-	async asAttachment(): Promise<IImageVariableEntry> {
+	async asAttachment(): Promise<IImageVariableEntry | undefined> {
 		const fileBuffer = await this._clipboardService.readImage();
+		if (!isImage(fileBuffer)) {
+			this._notificationService.warn(localize('clipboardHasNoImage', "The clipboard does not contain an image."));
+			return undefined;
+		}
 		return {
 			id: await imageToHash(fileBuffer),
 			name: localize('pastedImage', 'Pasted Image'),
@@ -530,7 +537,7 @@ export class TerminalContext implements IChatContextValueItem {
 	}
 }
 
-class ScreenshotContextValuePick implements IChatContextValueItem {
+export class ScreenshotContextValuePick implements IChatContextValueItem {
 
 	readonly type = 'valuePick';
 	readonly icon = Codicon.deviceCamera;
@@ -546,9 +553,19 @@ class ScreenshotContextValuePick implements IChatContextValueItem {
 		return !!widget.attachmentCapabilities.supportsImageAttachments && !!widget.input.selectedLanguageModel.get()?.metadata.capabilities?.vision;
 	}
 
-	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {
+	async asAttachment(_widget: IChatWidget): Promise<IChatRequestVariableEntry | undefined> {
 		const blob = await this._hostService.getScreenshot();
 		return blob && convertBufferToScreenshotVariable(blob);
+	}
+}
+
+export class BrowserScreenshotContextContribution extends Disposable {
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IChatContextPickService contextPickService: IChatContextPickService,
+	) {
+		super();
+		this._register(contextPickService.registerChatContextItem(instantiationService.createInstance(ScreenshotContextValuePick)));
 	}
 }
 

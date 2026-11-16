@@ -9,9 +9,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { ArtifactServerToolName, LEGACY_ARTIFACT_SERVER_TOOL_NAMES } from '../../common/serverToolNames.js';
 import { readSessionArtifacts, SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
-import { buildChatUri, buildDefaultChatUri, SessionStatus, MessageKind } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
-import { ActionType } from '../../common/state/sessionActions.js';
+import { chatTurnStarted } from '../common/chatActionBuilders.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 import { artifactServerToolDefinitions, createArtifactServerToolGroup, type IArtifactServerToolAccessor } from '../../node/shared/artifactServerTools.js';
 import { getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
@@ -44,9 +44,7 @@ suite('Artifact Server Tools', () => {
 			sessionUri, stateManager, host, persisted,
 			artifacts: () => readSessionArtifacts(stateManager.getSessionState(sessionUri)?._meta),
 			execute: async (name: string, args?: unknown) => host.executeTool(buildDefaultChatUri(sessionUri), name, args),
-			startUserTurn: () => stateManager.dispatchServerAction(buildDefaultChatUri(sessionUri), {
-				type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date(0).toISOString(), message: { text: 'Tidy up', origin: { kind: MessageKind.User } },
-			}),
+			startUserTurn: () => stateManager.dispatchServerAction(buildDefaultChatUri(sessionUri), chatTurnStarted('turn-1', 'Tidy up', new Date(0).toISOString())),
 		};
 	}
 
@@ -231,10 +229,7 @@ suite('Artifact Server Tools', () => {
 		const defaultChat = buildDefaultChatUri(sessionUri);
 		const peerChat = buildChatUri(sessionUri, 'peer');
 		stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat, buildDefaultChatUri(sessionUri)));
-		stateManager.dispatchServerAction(peerChat, {
-			type: ActionType.ChatTurnStarted, turnId: 'peer-turn', startedAt: new Date(0).toISOString(),
-			message: { text: 'Tidy up the peer artifacts', origin: { kind: MessageKind.User } },
-		});
+		stateManager.dispatchServerAction(peerChat, chatTurnStarted('peer-turn', 'Tidy up the peer artifacts', new Date(0).toISOString()));
 		await host.executeTool(defaultChat, ArtifactServerToolName.AddArtifactOrReference, {
 			type: 'website', label: 'Default', isArtifact: true, link: 'https://example.com/default',
 		});
@@ -447,6 +442,37 @@ suite('Artifact Server Tools', () => {
 		}
 
 		assert.deepStrictEqual({ artifacts: artifacts(), persisted }, { artifacts: before, persisted: [before] });
+	});
+
+	test('offers how the chat shows an entry only while chat resources are enabled, and ignores it otherwise', async () => {
+		let chatResources = false;
+		const { host, sessionUri, execute, artifacts } = createHarness({ isChatResourcesEnabled: () => chatResources });
+		const advertisedProperties = () => {
+			const add = host.getDefinitionsForSession(sessionUri).find(definition => definition.name === ArtifactServerToolName.AddArtifactOrReference);
+			const items = add?.inputSchema?.properties?.items as { readonly items?: { readonly properties?: Record<string, unknown> } } | undefined;
+			return Object.keys(items?.items?.properties ?? {});
+		};
+		const website = { type: 'website', label: 'Docs', isArtifact: false, link: 'https://example.com', mode: 'aboveInput' };
+
+		const disabled = { properties: advertisedProperties(), definitions: host.getDefinitionsForSession(sessionUri) };
+		await execute(ArtifactServerToolName.AddArtifactOrReference, { items: [website] });
+		const disabledMode = artifacts()[0].mode;
+		// Ignored like any unknown field, so even an invalid one does not reject the entry.
+		await execute(ArtifactServerToolName.AddArtifactOrReference, { type: 'website', label: 'Other', isArtifact: false, link: 'https://example.org', mode: null });
+		const disabledInvalid = artifacts().map(artifact => artifact.label);
+		chatResources = true;
+		const enabledProperties = advertisedProperties();
+		const updated = await execute(ArtifactServerToolName.AddArtifactOrReference, { items: [website] });
+
+		assert.deepStrictEqual({ disabledProperties: disabled.properties, disabledDefinitions: disabled.definitions, disabledMode, disabledInvalid, enabledProperties, enabledMode: artifacts()[0].mode, updated }, {
+			disabledProperties: ['type', 'label', 'isArtifact', 'link', 'uri', 'commitHash'],
+			disabledDefinitions: artifactServerToolDefinitions,
+			disabledMode: undefined,
+			disabledInvalid: ['Docs', 'Other'],
+			enabledProperties: ['type', 'label', 'isArtifact', 'link', 'uri', 'commitHash', 'mode'],
+			enabledMode: 'aboveInput',
+			updated: `Updated how the chat shows the reference: ${artifacts()[0].id}`,
+		});
 	});
 
 	test('reports persistence errors without publishing a promotion', async () => {

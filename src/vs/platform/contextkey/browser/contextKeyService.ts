@@ -8,7 +8,7 @@ import { Iterable } from '../../../base/common/iterator.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { MarshalledObject } from '../../../base/common/marshalling.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
-import { cloneAndChange, distinct, equals } from '../../../base/common/objects.js';
+import { cloneAndChange, equals } from '../../../base/common/objects.js';
 import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
@@ -65,14 +65,78 @@ export class Context implements IContext {
 		return ret;
 	}
 
-	public updateParent(parent: Context): void {
+	public hasOwnValue(key: string): boolean {
+		return key in this._value;
+	}
+
+	/**
+	 * Sets a new parent and returns the keys whose value in {@link collectAllValues} changed.
+	 * The ancestors that the old and the new parent share provide the same values before and
+	 * after, so only the values of the ancestors that they don't share are compared.
+	 */
+	public updateParent(parent: Context): string[] {
+		const oldParent = this._parent;
 		this._parent = parent;
+
+		const oldAncestors = Context._getAncestorsOrSelf(oldParent);
+		const newAncestors = Context._getAncestorsOrSelf(parent);
+		const sharedAncestor = oldAncestors.find(context => newAncestors.includes(context));
+
+		const candidateKeys = new Set<string>();
+		if (sharedAncestor) {
+			const notShared = [
+				...oldAncestors.slice(0, oldAncestors.indexOf(sharedAncestor)),
+				...newAncestors.slice(0, newAncestors.indexOf(sharedAncestor))
+			];
+			for (const context of notShared) {
+				for (const key in context._value) {
+					candidateKeys.add(key);
+				}
+			}
+		} else {
+			for (const context of [oldParent, parent]) {
+				if (context) {
+					for (const key in context.collectAllValues()) {
+						candidateKeys.add(key);
+					}
+				}
+			}
+		}
+
+		const changedKeys: string[] = [];
+		for (const key of candidateKeys) {
+			if (key === '_contextId' || key in this._value) {
+				continue;
+			}
+			if (!equals(oldParent?._getCollectedValue(key), parent._getCollectedValue(key))) {
+				changedKeys.push(key);
+			}
+		}
+		return changedKeys;
 	}
 
 	public collectAllValues(): Record<string, any> {
 		let result = this._parent ? this._parent.collectAllValues() : Object.create(null);
 		result = { ...result, ...this._value };
 		delete result['_contextId'];
+		return result;
+	}
+
+	/**
+	 * Returns the value of `key` in {@link collectAllValues} without collecting all values.
+	 */
+	protected _getCollectedValue(key: string): any {
+		if (key in this._value) {
+			return this._value[key];
+		}
+		return this._parent?._getCollectedValue(key);
+	}
+
+	private static _getAncestorsOrSelf(context: Context | null): Context[] {
+		const result: Context[] = [];
+		for (let candidate = context; candidate; candidate = candidate._parent) {
+			result.push(candidate);
+		}
 		return result;
 	}
 }
@@ -97,8 +161,16 @@ class NullContext extends Context {
 		return undefined;
 	}
 
+	public override updateParent(parent: Context): string[] {
+		return [];
+	}
+
 	override collectAllValues(): { [key: string]: any } {
 		return Object.create(null);
+	}
+
+	protected override _getCollectedValue(key: string): any {
+		return undefined;
 	}
 }
 
@@ -191,6 +263,11 @@ class ConfigAwareContextValuesContainer extends Context {
 		this._values.forEach((value, index) => result[index] = value);
 		return { ...result, ...super.collectAllValues() };
 	}
+
+	protected override _getCollectedValue(key: string): any {
+		// Like collectAllValues, only use the configuration values that are cached already
+		return this.hasOwnValue(key) ? super._getCollectedValue(key) : this._values.get(key);
+	}
 }
 
 class ContextKey<T extends ContextKeyValue> implements IContextKey<T> {
@@ -261,10 +338,6 @@ class CompositeContextKeyChangeEvent implements IContextKeyChangeEvent {
 	allKeysContainedIn(keys: IReadableSet<string>): boolean {
 		return this.events.every(evt => evt.allKeysContainedIn(keys));
 	}
-}
-
-function allEventKeysInContext(event: IContextKeyChangeEvent, context: Record<string, any>): boolean {
-	return event.allKeysContainedIn(new Set(Object.keys(context)));
 }
 
 export abstract class AbstractContextKeyService extends Disposable implements IContextKeyService {
@@ -496,9 +569,7 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 		// Forward parent events to this listener. Parent will change.
 		this._parentChangeListener.value = this._parent.onDidChangeContext(e => {
 			const thisContainer = this._parent.getContextValuesContainer(this._myContextId);
-			const thisContextValues = thisContainer.value;
-
-			if (!allEventKeysInContext(e, thisContextValues)) {
+			if (!e.allKeysContainedIn({ has: key => thisContainer.hasOwnValue(key) })) {
 				this._onDidChangeContext.fire(e);
 			}
 		});
@@ -544,18 +615,10 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 		}
 
 		const thisContainer = this._parent.getContextValuesContainer(this._myContextId);
-		const oldAllValues = thisContainer.collectAllValues();
 		this._parent = parentContextKeyService;
 		this._updateParentChangeListener();
 		const newParentContainer = this._parent.getContextValuesContainer(this._parent.contextId);
-		thisContainer.updateParent(newParentContainer);
-
-		const newAllValues = thisContainer.collectAllValues();
-		const allValuesDiff = {
-			...distinct(oldAllValues, newAllValues),
-			...distinct(newAllValues, oldAllValues)
-		};
-		const changedKeys = Object.keys(allValuesDiff);
+		const changedKeys = thisContainer.updateParent(newParentContainer);
 
 		this._onDidChangeContext.fire(new ArrayContextKeyChangeEvent(changedKeys));
 	}

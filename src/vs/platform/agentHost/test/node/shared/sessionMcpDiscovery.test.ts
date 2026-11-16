@@ -53,7 +53,7 @@ suite('SessionMcpDiscovery', () => {
 		}
 	}
 
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: TestFileService;
 	const primary = URI.from({ scheme: Schemas.inMemory, path: '/primary' });
 	const additional = URI.from({ scheme: Schemas.inMemory, path: '/additional' });
@@ -62,10 +62,6 @@ suite('SessionMcpDiscovery', () => {
 		fileService = store.add(new TestFileService(new NullLogService()));
 		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
 	});
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function write(root: URI, value: unknown): Promise<void> {
 		await fileService.writeFile(URI.joinPath(root, '.mcp.json'), VSBuffer.fromString(JSON.stringify(value)));

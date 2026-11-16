@@ -18,6 +18,16 @@ import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js
 import { resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
+/**
+ * Installed dependencies. Installs rewrite thousands of files, and a change there says nothing about the branch or
+ * uncommitted changes. Other build output is told apart by Git's ignore rules, see {@link ChangesetFileMonitorCoordinator._onRootChanged}.
+ */
+const CHANGESET_WATCH_EXCLUDES: readonly string[] = Object.freeze([
+	...DEFAULT_AGENT_HOST_WATCH_EXCLUDES,
+	'**/node_modules',
+	'**/node_modules/**',
+]);
+
 class WatchInterestReferenceCollection extends ReferenceCollection<string> {
 	constructor(
 		private readonly _create: (sessionStr: string) => void,
@@ -50,7 +60,9 @@ class WatchInterestReferenceCollection extends ReferenceCollection<string> {
  * session on that root is actively running a turn: agent/tool edits made during
  * the turn are captured by the turn lifecycle, and the static changesets are
  * recomputed once when the turn completes. Watching during the turn would add
- * duplicate file-system noise without improving correctness.
+ * duplicate file-system noise without improving correctness. Idle sessions
+ * sharing the root are refreshed once it is watched again, since changes made
+ * meanwhile (by the agent or e.g. a `git pull` in a terminal) went unobserved.
  */
 export class ChangesetFileMonitorCoordinator extends Disposable {
 
@@ -158,7 +170,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 				this.untrackSessionChanges(subscription);
 			}
 		}
-		this._removeActiveSession(sessionStr);
+		this._resumeRoots(this._removeActiveSession(sessionStr));
 		this._destroyWatchInterest(sessionStr);
 	}
 
@@ -322,24 +334,40 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		return workingDirectories.join('\u0000');
 	}
 
-	private _onRootChanged(rootStr: string): void {
-		if (this._isRootActive(rootStr)) {
-			return;
+	/**
+	 * Agents compile and bundle into directories Git ignores, which changes thousands of files without changing
+	 * anything Git reports. When every changed path is ignored there is nothing to refresh.
+	 */
+	private async _onRootChanged(rootStr: string, repositoryRoot: URI, changedResources: readonly URI[] | undefined): Promise<void> {
+		let relevant: boolean | undefined;
+		if (changedResources?.length && this._gitService.hasUnignoredPaths) {
+			try {
+				relevant = await this._gitService.hasUnignoredPaths(repositoryRoot, changedResources);
+			} catch (err) {
+				this._logService.debug(`[ChangesetFileMonitorCoordinator] Could not tell whether the changes under ${rootStr} are ignored`, err);
+			}
 		}
-		const sessions = this._rootSessions.get(rootStr);
-		if (!sessions || sessions.size === 0) {
-			return;
+		if (relevant !== false && !this._store.isDisposed) {
+			this._onRootsChanged([rootStr]);
 		}
-		const sessionsToRefresh = [...sessions].filter(session => {
-			const source = this._watchSources.get(session) ?? session;
-			return this._hasWatchInterest(session)
-				&& !!this._sessionRoots.get(session)?.has(rootStr)
-				&& !this._activeSessionRoots.has(session)
-				&& !this._unresolvedActiveSessions.has(session)
-				&& !!this._stateManager.getSessionState(source);
-		});
-		if (sessionsToRefresh.length === 0) {
-			return;
+	}
+
+	private _onRootsChanged(rootStrs: Iterable<string>): void {
+		const sessionsToRefresh = new Set<string>();
+		for (const rootStr of rootStrs) {
+			if (this._isRootActive(rootStr)) {
+				continue;
+			}
+			for (const session of this._rootSessions.get(rootStr) ?? []) {
+				const source = this._watchSources.get(session) ?? session;
+				if (this._hasWatchInterest(session)
+					&& this._sessionRoots.get(session)?.has(rootStr)
+					&& !this._activeSessionRoots.has(session)
+					&& !this._unresolvedActiveSessions.has(session)
+					&& this._stateManager.getSessionState(source)) {
+					sessionsToRefresh.add(session);
+				}
+			}
 		}
 
 		for (const session of sessionsToRefresh) {
@@ -358,7 +386,8 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 				this._logService.warn(`[ChangesetFileMonitorCoordinator] Failed to parse primary working directory URI for ${session}: ${primaryWorkingDirectory}`, err);
 				continue;
 			}
-			void this._gitStateService.refreshSessionGitState(source, primaryWorkingDirectoryUri);
+			// Edits to files that were already modified leave the Git state as it was.
+			void this._gitStateService.refreshSessionGitState(source, primaryWorkingDirectoryUri, undefined, { force: true });
 		}
 	}
 
@@ -385,8 +414,8 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		if (!sessions || sessions.size === 0) {
 			return true;
 		}
-		const rootWatchAcquisition = this._fileMonitorService.acquire(repositoryRoot, () => this._onRootChanged(rootStr), {
-			excludes: DEFAULT_AGENT_HOST_WATCH_EXCLUDES,
+		const rootWatchAcquisition = this._fileMonitorService.acquire(repositoryRoot, changedResources => this._onRootChanged(rootStr, repositoryRoot, changedResources), {
+			excludes: CHANGESET_WATCH_EXCLUDES,
 			debounceMs: 750,
 		});
 		if (!rootWatchAcquisition) {
@@ -430,16 +459,22 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	}
 
 	private _markSessionInactive(sessionStr: string): void {
-		const rootStrs = this._removeActiveSession(sessionStr);
-		for (const rootStr of rootStrs) {
-			const repositoryRoot = this._rootUris.get(rootStr);
-			if (repositoryRoot) {
-				this._ensureRootWatcher(rootStr, repositoryRoot);
-			}
-		}
+		this._resumeRoots(this._removeActiveSession(sessionStr));
 		if (this._hasWatchInterest(sessionStr) || this._pendingWatchInterest.has(sessionStr)) {
 			this._attachWatcherIfPossible(sessionStr);
 		}
+	}
+
+	/** Resumes roots no longer suspended by a turn and catches up each idle session once. */
+	private _resumeRoots(rootStrs: ReadonlySet<string>): void {
+		for (const rootStr of rootStrs) {
+			const repositoryRoot = this._rootUris.get(rootStr);
+			if (!repositoryRoot || this._isRootActive(rootStr)) {
+				continue;
+			}
+			this._ensureRootWatcher(rootStr, repositoryRoot);
+		}
+		this._onRootsChanged(rootStrs);
 	}
 
 	private _removeActiveSession(sessionStr: string): ReadonlySet<string> {

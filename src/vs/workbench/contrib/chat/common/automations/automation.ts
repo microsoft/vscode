@@ -5,15 +5,16 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import type { AutomationDisableCondition, JsonPrimitive, Message } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { AutomationTrigger } from '../../../../../platform/github/common/missionControl/automations.js';
-import type { JsonPrimitive } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 
 /**
  * How often an automation runs. `hourly` fires every hour from creation/update;
  * `daily`/`weekly` fire at the configured hour/minute (and day-of-week);
- * `weekdays` fires Monday-Friday at the configured local wall-clock hour/minute.
+ * `weekdays` fires Monday-Friday at the configured local wall-clock hour/minute;
+ * `cron` uses the Agent Host's five-field cron grammar.
  */
-export type AutomationInterval = 'manual' | 'hourly' | 'daily' | 'weekdays' | 'weekly' | 'custom';
+export type AutomationInterval = 'manual' | 'once' | 'hourly' | 'daily' | 'weekdays' | 'weekly' | 'cron' | 'custom';
 
 /**
  * Describes the cadence at which an automation should fire.
@@ -23,13 +24,21 @@ export type AutomationInterval = 'manual' | 'hourly' | 'daily' | 'weekdays' | 'w
  */
 export interface IAutomationSchedule {
 	readonly interval: AutomationInterval;
+	/** Absolute ISO-8601 UTC instant, required for `once`; independent of the local time zone. */
+	readonly runAt?: string;
 	/** Absent for Agent Host local-time semantics. */
 	readonly timeZone?: 'UTC';
 
-	/** Hour-of-day, 0-23. Ignored for `manual` and `hourly`. */
+	/** Five-field AHP cron expression. Required for `cron`. */
+	readonly cronExpression?: string;
+
+	/** Preserved host time zone for `cron`; defaults to the local time zone on creation. */
+	readonly cronTimeZone?: string;
+
+	/** Hour-of-day, 0-23. Ignored for `manual`, `hourly` and `cron`. */
 	readonly scheduleHour: number;
 
-	/** Minute-of-hour, 0-59. Ignored for `manual` and `hourly`. */
+	/** Minute-of-hour, 0-59. Ignored for `manual`, `hourly` and `cron`. */
 	readonly scheduleMinute: number;
 
 	/** Day-of-week, 0 (Sunday) through 6 (Saturday). Only used for `weekly`. */
@@ -101,10 +110,24 @@ export interface IAutomationCloudTrigger {
 
 /** A single automation with immutable identity and provider-owned execution configuration. */
 export interface IAutomationDescriptor {
+	/** Stable client handoff identity, when supplied at creation. */
+	readonly creationId?: string;
 	/** Opaque identifier, unique across concrete providers as well as within one host. */
 	readonly id: string;
 	readonly name: string;
 	readonly prompt: string;
+	/** Distinguishes a captured user request from an ordinary Automation. */
+	readonly purpose?: 'scheduledChat';
+	/** Complete captured request. Resource attachments use client-space URIs at this boundary. */
+	readonly request?: Message;
+	/** Existing execution target in client space; does not transfer conversation ownership. */
+	readonly conversation?: { readonly sessionResource: URI; readonly chatResource: URI };
+	/** Opaque run identity that durably consumed a one-time occurrence. */
+	readonly oneTimeRunId?: string;
+	/** Durable confirmation of initial-request dispatch, independent of retained run history. */
+	readonly oneTimeDispatchedAt?: string;
+	/** Positive confirmation that a consumed occurrence failed before submission was attempted. */
+	readonly oneTimeDispatchRejectedAt?: string;
 	readonly schedule: IAutomationSchedule;
 	readonly cloudTrigger?: IAutomationCloudTrigger;
 
@@ -128,6 +151,8 @@ export interface IAutomationDescriptor {
 	readonly permissionLevel?: string;
 
 	readonly enabled: boolean;
+	/** Host-owned conditions; only end dates can be authored by this client. */
+	readonly disableConditions?: readonly AutomationDisableCondition[];
 
 	/** ISO-8601 UTC timestamp. */
 	readonly createdAt: string;

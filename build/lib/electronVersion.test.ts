@@ -8,14 +8,21 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import * as path from 'path';
 import { suite, test } from 'node:test';
-import { shouldDownloadElectron } from './electronVersion.ts';
+import { getElectronVersion, shouldDownloadElectron } from './electronVersion.ts';
+import { getServerNodeVersion } from './node.ts';
+
+async function writeNativeBuild(repoRoot: string): Promise<void> {
+	await fs.writeFile(path.join(repoRoot, 'package.json'), JSON.stringify({
+		nativeBuild: { runtime: 'electron', target: '42.9.3', disturl: 'https://electronjs.org/headers', msBuildId: 'test' },
+	}));
+}
 
 suite('Electron runtime reuse', () => {
 	for (const platform of ['darwin', 'linux', 'win32'] as const) {
 		test(`checks the version and executable on ${platform}`, async () => {
 			const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'vscode-electron-reuse-'));
 			try {
-				await fs.writeFile(path.join(repoRoot, '.npmrc'), 'target="42.9.3"\nms_build_id="test"\n');
+				await writeNativeBuild(repoRoot);
 				await fs.writeFile(path.join(repoRoot, 'product.json'), JSON.stringify({
 					nameLong: 'Code - OSS',
 					nameShort: 'Code - OSS',
@@ -54,7 +61,7 @@ suite('Electron runtime reuse', () => {
 	test('refreshes a non-executable POSIX runtime', { skip: process.platform === 'win32' }, async () => {
 		const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'vscode-electron-reuse-'));
 		try {
-			await fs.writeFile(path.join(repoRoot, '.npmrc'), 'target="42.9.3"\nms_build_id="test"\n');
+			await writeNativeBuild(repoRoot);
 			await fs.writeFile(path.join(repoRoot, 'product.json'), JSON.stringify({ applicationName: 'code-oss' }));
 			const electronDir = path.join(repoRoot, '.build', 'electron');
 			await fs.mkdir(electronDir, { recursive: true });
@@ -72,5 +79,43 @@ suite('Electron runtime reuse', () => {
 
 	test('does not silently reuse a runtime when repository configuration cannot be read', () => {
 		assert.throws(() => shouldDownloadElectron('/unused', {}), { code: 'ENOENT' });
+	});
+});
+
+suite('Runtime versions', () => {
+	test('reads the Electron and server Node.js versions from the nativeBuild field', async () => {
+		const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'vscode-runtime-versions-'));
+		try {
+			await writeNativeBuild(repoRoot);
+			await fs.mkdir(path.join(repoRoot, 'remote'));
+			await fs.writeFile(path.join(repoRoot, 'remote', 'package.json'), JSON.stringify({
+				nativeBuild: { runtime: 'node', target: '24.22.1', disturl: 'https://nodejs.org/dist', msBuildId: '488038' },
+			}));
+			assert.deepStrictEqual([getElectronVersion(repoRoot), getServerNodeVersion(repoRoot)], [
+				{ electronVersion: '42.9.3', msBuildId: 'test' },
+				{ nodeVersion: '24.22.1', internalNodeVersion: '488038' },
+			]);
+		} finally {
+			await fs.rm(repoRoot, { recursive: true, force: true });
+		}
+	});
+
+	test('rejects a missing or invalid nativeBuild field', async () => {
+		const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'vscode-runtime-versions-'));
+		try {
+			const messages: string[] = [];
+			for (const nativeBuild of [undefined, { runtime: 'node', target: '24.22.1', disturl: 'https://nodejs.org/dist', msBuildId: '1' }, { runtime: 'electron', target: 43, disturl: 'x' }, { runtime: 'electron', disturl: 'x', ms_build_id: '1' }]) {
+				await fs.writeFile(path.join(repoRoot, 'package.json'), JSON.stringify({ nativeBuild }));
+				assert.throws(() => getElectronVersion(repoRoot), (error: Error) => { messages.push(error.message.replace(repoRoot, '<root>')); return true; });
+			}
+			assert.deepStrictEqual(messages, [
+				`The nativeBuild field of ${path.join('<root>', 'package.json')} must have the runtime "electron", a target and an msBuildId.`,
+				`The nativeBuild field of ${path.join('<root>', 'package.json')} must have the runtime "electron", a target and an msBuildId.`,
+				`Invalid nativeBuild field in ${path.join('<root>', 'package.json')}: "target" must be a string. See NativeBuildConfig in build/npm/pnpm/nativeBuildEnv.ts.`,
+				`Invalid nativeBuild field in ${path.join('<root>', 'package.json')}: unknown property "ms_build_id". See NativeBuildConfig in build/npm/pnpm/nativeBuildEnv.ts.`,
+			]);
+		} finally {
+			await fs.rm(repoRoot, { recursive: true, force: true });
+		}
 	});
 });

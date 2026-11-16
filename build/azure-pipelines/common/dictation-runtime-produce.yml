@@ -34,6 +34,8 @@ parameters:
 #      skipped on non-publish runs (no CDN write to auth for).
 #   3. Run `node build/dictation-runtime/produce.ts`. Always stamps; uploads
 #      only on publish.
+#   4. Clear the NuGet access token from step 1 so that later steps cannot log
+#      it — skipped on non-publish runs, like step 1.
 steps:
   - task: NuGetAuthenticate@1
     displayName: "Dictation runtime: authenticate NuGet"
@@ -79,3 +81,10 @@ steps:
         AZURE_CLIENT_ID: $(AZURE_CLIENT_ID)
         AZURE_ID_TOKEN: $(AZURE_ID_TOKEN)
       displayName: "Dictation runtime: build + upload"
+
+  # Only the ONNX downloads need the access token from the NuGetAuthenticate@1
+  # step above. Clear it so that later steps, such as the packaged Agent Host
+  # smoke test, cannot write it to logs or crash dumps.
+  - pwsh: Write-Host "##vso[task.setvariable variable=VSS_NUGET_ACCESSTOKEN]"
+    displayName: "Dictation runtime: clear NuGet access token"
+    condition: and(always(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))

@@ -37,7 +37,7 @@ suite('GitHub account client', () => {
 		}, {
 			authorization,
 			domains: [
-				'actions', 'authorization', 'automations', 'checks', 'connectors', 'content', 'environments', 'gist', 'issues', 'notifications',
+				'actions', 'authorization', 'automations', 'checks', 'connectors', 'content', 'environments', 'gist', 'issues', 'missionControlModels', 'notifications',
 				'onDidChangeCredentials', 'onDidInvalidate', 'organizations', 'pullRequests', 'repositories', 'reviews', 'search', 'tasks', 'users',
 			],
 			runs: { total_count: 0, workflow_runs: [] },
@@ -80,6 +80,7 @@ suite('GitHub account client', () => {
 			{ domain: 'users', run: () => client.users.getAuthenticated(signal(), options) },
 			{ domain: 'automations', run: () => client.automations.list(repository, signal(), options) },
 			{ domain: 'environments', run: () => client.environments.list(signal(), options) },
+			{ domain: 'models', run: () => client.missionControlModels.list(signal(), options) },
 			{ domain: 'tasks', run: () => client.tasks.list(signal(), options) },
 			{ domain: 'reviews', run: () => client.reviews.listThreadSummaries('PR_1', signal(), options) },
 			{ domain: 'content', run: () => client.content.getRawFile(repository, 'a'.repeat(40), 'README.md', signal(), options) },

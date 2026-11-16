@@ -160,6 +160,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
+
 	private _currentTooltip: string = '';
 	private _hoverElement: HTMLElement | undefined;
 	private readonly _hover = this._register(new MutableDisposable<IDisposable>());
@@ -388,6 +389,10 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		if (this.isSandboxManaged()) {
 			return true;
 		}
+		const checked = this.delegate.sandboxEnabled?.get();
+		if (checked !== undefined) {
+			return checked;
+		}
 		const settingId = this.getSandboxToggleSettingId();
 		if (!settingId) {
 			return false;
@@ -420,6 +425,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		let tooltip: string;
 		let sandboxIcon = false;
 		const level = this.delegate.currentPermissionLevel.get();
+		const sandboxed = !ext?.items.length && this.isSandboxToggleAvailable() && this.isSandboxingEnabled();
 		if (ext && ext.items.length > 0) {
 			const selected = ext.items.find(i => i.id === ext.selectedId)
 				?? ext.items.find(i => i.default)
@@ -432,7 +438,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 			icon = meta.icon;
 			label = meta.shortLabel;
 			tooltip = this.delegate.getPermissionLevelHover?.(level, meta) ?? meta.description;
-			if (this.isSandboxToggleAvailable() && this.isSandboxingEnabled()) {
+			if (sandboxed) {
 				sandboxIcon = this.delegate.getSandboxToggle !== undefined;
 				if (!sandboxIcon && level === ChatPermissionLevel.Default) {
 					label = localize('permissions.defaultSandboxed.label', "Default permissions (sandboxed)");

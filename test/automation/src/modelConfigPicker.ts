@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as playwright from 'playwright';
+import * as playwright from '@playwright/test';
 
 /**
  * The model details page the model picker's configuration readout opens. It holds

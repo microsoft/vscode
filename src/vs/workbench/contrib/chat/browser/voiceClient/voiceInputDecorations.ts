@@ -46,7 +46,7 @@ export interface IVoiceInputDecorationsOptions {
 	/** Explicit ownership for surfaces that do not yet have a resource. */
 	readonly isOwner?: IObservable<boolean>;
 	/** Surface resource, compared with the voice target to avoid misrouting. */
-	readonly getCurrentResource?: () => URI | undefined;
+	readonly getCurrentResource?: (reader: IReader) => URI | undefined;
 	/**
 	 * The single chat input voice mode is bound to. Only the surface whose
 	 * {@link getCurrentResource} matches this renders the glow/transcript, so
@@ -71,7 +71,7 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 			return options.isOwner.read(reader);
 		}
 		const owner = options.currentVoiceInputResource?.read(reader);
-		const current = options.getCurrentResource?.();
+		const current = options.getCurrentResource?.(reader);
 		return !!current && !!owner && isEqual(current, owner);
 	};
 

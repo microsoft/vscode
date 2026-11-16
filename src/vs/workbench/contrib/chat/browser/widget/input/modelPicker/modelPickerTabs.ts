@@ -157,7 +157,6 @@ export interface IModelPickerSectionsOptions {
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
 	readonly selectedModelId: string | undefined;
 	readonly organizationDefaultModelId?: string;
-	readonly recentModelIds: readonly string[];
 	readonly pinnedModelIds: readonly string[];
 	readonly controlModels: IStringDictionary<IModelControlEntry>;
 	readonly preferredSpeedVariants?: ReadonlyMap<string, string>;
@@ -274,10 +273,11 @@ function buildUnavailableEntries(options: IModelPickerSectionsOptions): IModelPi
 	const present = new Set(options.models.flatMap(model => [model.identifier, model.metadata.id]));
 	const entries: IModelPickerUnavailableEntry[] = [];
 	for (const [id, entry] of Object.entries(options.controlModels)) {
-		if (!entry.featured || (!options.showUnavailable && !options.alwaysShowUnavailableModelIds?.has(id))) {
+		const outOfDate = isOutOfDate(entry, options.currentVSCodeVersion);
+		const showUpdate = present.has(id) && outOfDate;
+		if (!entry.featured || !(options.showUnavailable || options.alwaysShowUnavailableModelIds?.has(id) || showUpdate)) {
 			continue;
 		}
-		const outOfDate = isOutOfDate(entry, options.currentVSCodeVersion);
 		// A model that is here but gated needs an update; one that is missing entirely
 		// needs whatever its account is short of.
 		if (present.has(id) ? outOfDate : !entry.exists) {

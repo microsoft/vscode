@@ -194,9 +194,11 @@ export interface IAgentHostNewSessionFolderService {
 
 	/**
 	 * Record the folder chosen for the given session resource. Fires
-	 * {@link onDidChangeFolder} when the value actually changes.
+	 * {@link onDidChangeFolder} when the value actually changes. The choice also
+	 * becomes the window's default for new chats unless `updateDefault` is
+	 * `false`, as for a folder chosen on the user's behalf.
 	 */
-	setFolder(sessionResource: URI, folder: URI): void;
+	setFolder(sessionResource: URI, folder: URI, options?: { readonly updateDefault?: boolean }): void;
 
 	/**
 	 * Forget any choice recorded for the given session resource.
@@ -285,8 +287,10 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 		return this._folders.get(sessionResource);
 	}
 
-	setFolder(sessionResource: URI, folder: URI): void {
-		this._defaultFolder = folder;
+	setFolder(sessionResource: URI, folder: URI, options?: { readonly updateDefault?: boolean }): void {
+		if (options?.updateDefault !== false) {
+			this._defaultFolder = folder;
+		}
 		const existing = this._folders.get(sessionResource);
 		if (existing?.toString() === folder.toString()) {
 			return;

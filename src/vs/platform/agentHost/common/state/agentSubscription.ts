@@ -46,6 +46,14 @@ export interface IAgentSubscription<T> {
 	 */
 	readonly verifiedValue: T | undefined;
 
+	/**
+	 * Whether client actions applied optimistically still await the host's
+	 * acknowledgement. They are replayed after a reconnect only while the
+	 * subscription is held; releasing its last reference discards them.
+	 * Reported by session, chat, and annotations subscriptions.
+	 */
+	readonly hasPendingActions?: boolean;
+
 	/** Fires when {@link value} changes (optimistic or confirmed). */
 	readonly onDidChange: Event<T>;
 
@@ -423,6 +431,10 @@ export class SessionStateSubscription extends BaseAgentSubscription<SessionState
 		this._onDidChange.fire(state);
 	}
 
+	get hasPendingActions(): boolean {
+		return this._pendingActions.length > 0;
+	}
+
 	/**
 	 * Clear pending actions for this session (e.g., on unsubscribe).
 	 */
@@ -609,6 +621,10 @@ export class ChatStateSubscription extends BaseAgentSubscription<ChatState> {
 		}
 		this._optimisticState = state;
 		this._onDidChange.fire(state);
+	}
+
+	get hasPendingActions(): boolean {
+		return this._pendingActions.length > 0;
 	}
 
 	clearPending(): void {
@@ -833,8 +849,7 @@ interface IPendingAnnotationsAction {
 }
 
 /**
- * Subscription to a session's annotations channel (e.g.
- * `<sessionUri>/annotations`).
+ * Subscription to a session's advertised annotations channel.
  *
  * Annotations actions are client-dispatchable, so this subscription supports
  * write-ahead reconciliation: optimistic state is layered on top of confirmed
@@ -931,6 +946,10 @@ export class AnnotationsStateSubscription extends BaseAgentSubscription<Annotati
 		}
 		this._optimisticState = state;
 		this._onDidChange.fire(state);
+	}
+
+	get hasPendingActions(): boolean {
+		return this._pendingActions.length > 0;
 	}
 
 	clearPending(): void {

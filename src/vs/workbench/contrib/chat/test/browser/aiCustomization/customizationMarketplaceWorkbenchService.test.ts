@@ -24,24 +24,14 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationMarketplaceManagementProvider, ICustomizationMarketplaceSearchProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationMarketplaceWorkbenchService, getProviderMarketplaceSourceId } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
 import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
+import { TestDataTelemetryService } from '../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 
 suite('CustomizationMarketplaceWorkbenchService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-
-	class TestTelemetryService extends NullTelemetryServiceShape {
-		readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
-
-		override publicLog2(eventName?: string, data?: Record<string, unknown>): void {
-			if (eventName && data) {
-				this.events.push({ name: eventName, data });
-			}
-		}
-	}
 
 	function createConnector(name: string, displayName = `Mail ${name}`): ICopilotConnector {
 		return {
@@ -70,8 +60,10 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		}());
 	}
 
-	function registerConnectorService(instantiationService: TestInstantiationService, marketplaceSearchProvider?: ICustomizationMarketplaceSearchProvider): void {
-		instantiationService.stub(ICopilotConnectorsService, new class extends mock<ICopilotConnectorsService>() {
+	function registerConnectorService(
+		instantiationService: TestInstantiationService,
+		marketplaceSearchProvider?: ICustomizationMarketplaceSearchProvider,
+		connectorsService: ICopilotConnectorsService = new class extends mock<ICopilotConnectorsService>() {
 			override readonly onDidChange = Event.None;
 			override readonly onDidChangeAccount = Event.None;
 			override readonly onDidDisconnect = Event.None;
@@ -79,7 +71,9 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			override readonly connectedMcpServers = [];
 			override readonly authorizationRequired = false;
 			override readonly connectionStateKnown = false;
-		}());
+		}(),
+	): void {
+		instantiationService.stub(ICopilotConnectorsService, connectorsService);
 		const harness = { id: 'local', label: 'Local', icon: { id: 'vm' }, marketplaceSearchProvider } satisfies IHarnessDescriptor;
 		instantiationService.stub(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 			override readonly activeHarness = observableValue(this, harness.id);
@@ -104,7 +98,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		marketplaceManagementProvider?: ICustomizationMarketplaceManagementProvider,
 		pluginMarketplaceReferences: readonly IMarketplaceReference[] = [],
 		marketplacePolicy: { active: boolean; onDidChange: Event<void> } = { active: false, onDidChange: Event.None },
-		telemetryService = new TestTelemetryService(),
+		telemetryService = new TestDataTelemetryService(),
 		defaultAccountService: IDefaultAccountService = new class extends mock<IDefaultAccountService>() {
 			override readonly onDidChangeDefaultAccount = Event.None;
 		}(),
@@ -226,7 +220,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		const clock = sinon.useFakeTimers({ now: 1_000 });
 		store.add(toDisposable(() => clock.restore()));
 		const configuration = createConfiguration([]);
-		const telemetryService = new TestTelemetryService();
+		const telemetryService = new TestDataTelemetryService();
 		const sourceId = CustomizationMarketplaceSources.McpGallery.id;
 		const platformService = new class extends mock<ICustomizationMarketplaceService>() {
 			override readonly sources = [CustomizationMarketplaceSources.McpGallery];
@@ -656,10 +650,64 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			selected: selected.items.map(item => item.sourceId),
 			search: search.items.map(item => item.sourceId), calls,
 		}, {
-			started: ['plugin', 'public'], page: [pluginSourceId, 'agentFinder'],
+			started: ['public', 'plugin'], page: [pluginSourceId, 'agentFinder'],
 			selected: [pluginSourceId], search: [pluginSourceId, 'agentFinder'],
-			calls: ['plugin', 'public', 'plugin', 'plugin', 'public'],
+			calls: ['public', 'plugin', 'plugin', 'public', 'plugin'],
 		});
+	});
+
+	test('starts GitHub Feed and Copilot Connectors before other sources without waiting for them', async () => {
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
+			[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
+			[ChatConfiguration.PluginsEnabled]: true,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const publicResult = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
+		const connectorResult = new DeferredPromise<{ connectors: readonly ICopilotConnector[]; cacheToken: CancellationToken }>();
+		const pluginResult = new DeferredPromise<IPluginMarketplacePage>();
+		const calls: string[] = [];
+		const reference = parseMarketplaceReference('owner/catalog')!;
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(IPlatformCustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [];
+			override readonly allSources = [];
+			override async query() { return { items: [] }; }
+		}());
+		instantiationService.stub(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
+			override readonly onDidChangeMarketplaces = Event.None;
+			override isStrictMarketplacePolicyActive() { return false; }
+			override getMarketplaceReferences() { return [reference]; }
+			override queryMarketplacePlugins() {
+				calls.push('plugin');
+				return pluginResult.p;
+			}
+		}());
+		const connectorsService = new class extends mock<ICopilotConnectorsService>() {
+			override async getConnectorsSnapshot() {
+				calls.push('connectors');
+				return connectorResult.p;
+			}
+		}();
+		registerConnectorService(instantiationService, {
+			query: async () => {
+				calls.push('public');
+				return publicResult.p;
+			},
+		}, connectorsService);
+		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceWorkbenchService));
+		const pending = service.query({ pageSize: 3 }, CancellationToken.None);
+		await Promise.resolve();
+		const started = [...calls];
+
+		await publicResult.complete({ items: [], total: 0 });
+		await connectorResult.complete({ connectors: [], cacheToken: CancellationToken.None });
+		await pluginResult.complete({ items: [], total: 0, errors: [] });
+		await pending;
+
+		assert.deepStrictEqual(started, ['public', 'connectors', 'plugin']);
 	});
 
 	test('preserves recoverable public feed failures through the renderer composition', async () => {
@@ -765,7 +813,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		const clock = sinon.useFakeTimers();
 		store.add(toDisposable(() => clock.restore()));
 		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
-		const telemetryService = new TestTelemetryService();
+		const telemetryService = new TestDataTelemetryService();
 		let requestCount = 0;
 		const service = createService(
 			configuration,
@@ -895,7 +943,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			undefined,
 			[],
 			{ active: false, onDidChange: Event.None },
-			new TestTelemetryService(),
+			new TestDataTelemetryService(),
 			new class extends mock<IDefaultAccountService>() {
 				override readonly currentDefaultAccount = defaultAccount;
 				override readonly onDidChangeDefaultAccount = Event.None;

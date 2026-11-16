@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -28,16 +29,14 @@ import { getCompactCodicon } from '../../chatIcons.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { requiresCopilotAgentHost, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
-import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IAgentSdkSetupService } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
-import { canInitializeCodexWithoutGitHub, ICodexAccountService } from '../../../../../services/agentHost/browser/codexAccountService.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { getChatSessionTelemetryContext } from '../../../common/chatService/chatServiceTelemetry.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
-import { canInitializeSessionTypeOnSelection, getSessionTypeAvailability, getSessionTypePickerAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../agentSessions/sessionTypeAvailability.js';
+import { getSessionTypeAvailability, getSessionTypePickerAvailability, getSessionTypeUnavailableDescription, getSessionTypeUnavailableHover, SessionTypeAvailability } from '../../agentSessions/sessionTypeAvailability.js';
 import { hasAgentSdkSetupForSessionType } from '../../agentSessions/agentHost/agentHostSdkSetupNotification.js';
 import { ChatConfiguration, CopilotHarnessIntroductionMode, getCopilotHarnessIntroductionMode, getDefaultNewChatSessionType, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../../common/constants.js';
 import { IChatHarnessSwitchFeedbackSurveyService } from '../../feedbackSurvey/chatHarnessSwitchFeedbackSurveyService.js';
@@ -139,7 +138,7 @@ export function createSessionTypePickerAction(
 }
 
 /**
- * Returns picker availability using the signed-out Agent Host setting for every chat surface.
+ * Returns picker availability for every chat surface.
  */
 export function getConfiguredSessionTypePickerAvailability(
 	type: AgentSessionTarget,
@@ -148,20 +147,17 @@ export function getConfiguredSessionTypePickerAvailability(
 	chatEntitlementService: IChatEntitlementService,
 	languageModelsService: ILanguageModelsService,
 	agentSdkSetupService: IAgentSdkSetupService,
-	codexAccountService: ICodexAccountService,
 	managedSettingsService: IManagedSettingsService,
 ): SessionTypeAvailability {
 	if (type === AgentSessionProviders.Local && requiresCopilotAgentHost(managedSettingsService, configurationService)) {
 		return SessionTypeAvailability.DisabledByPolicy;
 	}
-	const allowSignedOutWhenUsable = configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true;
+
 	const hasAgentSdkSetup = hasAgentSdkSetupForSessionType(agentSdkSetupService.setups, type);
-	const canInitializeWithoutGitHub = type === AgentSessionProviders.AgentHostCodex && canInitializeCodexWithoutGitHub(codexAccountService.account);
 	return getSessionTypePickerAvailability(
 		type,
-		getSessionTypeAvailability(chatSessionsService, chatEntitlementService, languageModelsService, type, allowSignedOutWhenUsable),
-		allowSignedOutWhenUsable,
-		canInitializeSessionTypeOnSelection(chatEntitlementService.entitlement, allowSignedOutWhenUsable, hasAgentSdkSetup, canInitializeWithoutGitHub),
+		getSessionTypeAvailability(chatSessionsService, chatEntitlementService, languageModelsService, type),
+		hasAgentSdkSetup,
 	);
 }
 
@@ -193,7 +189,6 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
 		@IAgentSdkSetupService protected readonly agentSdkSetupService: IAgentSdkSetupService,
-		@ICodexAccountService protected readonly codexAccountService: ICodexAccountService,
 		@IChatHarnessSwitchFeedbackSurveyService private readonly harnessSwitchFeedbackSurveyService: IChatHarnessSwitchFeedbackSurveyService,
 		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
 	) {
@@ -211,7 +206,6 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 						this.chatEntitlementService,
 						this.languageModelsService,
 						this.agentSdkSetupService,
-						this.codexAccountService,
 						this.managedSettingsService,
 					);
 					actions.push(createSessionTypePickerAction(
@@ -250,7 +244,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 		super(action, sessionTargetPickerOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
-		this._isSessionsWindow = IsSessionsWindowContext.getValue(contextKeyService) === true;
+		this._isSessionsWindow = IsSessionsWindowContext.getValue(contextKeyService) === true || ChatContextKeys.inSessionsChat.getValue(contextKeyService) === true;
 
 		if (this.delegate.onDidChangeActiveSessionProvider) {
 			this._register(this.delegate.onDidChangeActiveSessionProvider(() => {

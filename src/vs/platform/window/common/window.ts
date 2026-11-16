@@ -145,11 +145,74 @@ export function parseExternalAgentsWindowNewSessionLinkUri(uri: URI | string, pr
 	}
 }
 
+/**
+ * Query parameter of a `file` or `vscode-remote` product protocol link naming a
+ * chat session resource to open in the window the link opens.
+ */
+export const CHAT_SESSION_LINK_QUERY_PARAM = 'session';
+
+/**
+ * Query parameter of a `file` or `vscode-remote` product protocol link naming a
+ * Copilot CLI session, by its CLI session id, to open in the window the link
+ * opens. The window decides which provider opens the session, so callers such
+ * as the Copilot CLI's `/code` command do not depend on a provider-specific URI.
+ */
+export const COPILOT_CLI_SESSION_LINK_QUERY_PARAM = 'copilotCliSession';
+
+/**
+ * A chat session to open in the window that a product protocol link opens.
+ */
+export type ChatSessionToOpen =
+	| { readonly kind: 'resource'; readonly resource: string }
+	| { readonly kind: 'copilotCli'; readonly sessionId: string };
+
+/**
+ * Whether `sessionId` is a valid Copilot CLI session id. Mirrors the Copilot CLI
+ * runtime's rule (non-empty ASCII letters, digits, `_` and `-`), with an upper
+ * bound on the length.
+ */
+export function isValidCopilotCliSessionId(sessionId: string): boolean {
+	return /^[A-Za-z0-9_-]{1,256}$/.test(sessionId);
+}
+
+/**
+ * Removes the chat session parameters from the query of a product protocol
+ * link and returns the link without them, along with the chat session to open,
+ * if any.
+ *
+ * Both parameters are always removed, even when their values are invalid, so
+ * that they never reach the window that opens for the link. A link without
+ * either parameter is returned unchanged.
+ */
+export function extractChatSessionToOpen(uri: URI): { readonly uri: URI; readonly chatSessionToOpen: ChatSessionToOpen | undefined } {
+	const params = new URLSearchParams(uri.query);
+	const resource = params.get(CHAT_SESSION_LINK_QUERY_PARAM);
+	const copilotCliSessionId = params.get(COPILOT_CLI_SESSION_LINK_QUERY_PARAM);
+	if (resource === null && copilotCliSessionId === null) {
+		return { uri, chatSessionToOpen: undefined };
+	}
+
+	params.delete(CHAT_SESSION_LINK_QUERY_PARAM);
+	params.delete(COPILOT_CLI_SESSION_LINK_QUERY_PARAM);
+	const uriWithoutChatSession = uri.with({ query: params.toString() });
+
+	if (resource) {
+		return { uri: uriWithoutChatSession, chatSessionToOpen: { kind: 'resource', resource } };
+	}
+
+	if (copilotCliSessionId && isValidCopilotCliSessionId(copilotCliSessionId)) {
+		return { uri: uriWithoutChatSession, chatSessionToOpen: { kind: 'copilotCli', sessionId: copilotCliSessionId } };
+	}
+
+	return { uri: uriWithoutChatSession, chatSessionToOpen: undefined };
+}
+
 export const enum AgentsWindowOpenSource {
 	CommandPalette = 'commandPalette',
 	KeyboardShortcut = 'keyboardShortcut',
 	TitleBar = 'titleBar',
 	ChatTitleBar = 'chatTitleBar',
+	ChatViewTitle = 'chatViewTitle',
 	CurrentChatHandoff = 'currentChatHandoff',
 	EmptyWorkspaceCurrentChatHandoff = 'emptyWorkspaceCurrentChatHandoff',
 	ParallelWorkEmptyChatHandoff = 'parallelWorkEmptyChatHandoff',
@@ -157,11 +220,14 @@ export const enum AgentsWindowOpenSource {
 	ParallelWorkSameWindow = 'parallelWorkSameWindow',
 	ParallelWorkAllWindows = 'parallelWorkAllWindows',
 	WelcomeTryOut = 'welcomeTryOut',
-	WelcomeViewAll = 'welcomeViewAll',
 	CommandLine = 'commandLine',
 	Link = 'link',
+	AgentsLauncher = 'agentsLauncher',
 	Unknown = 'unknown',
 }
+
+/** The IPC channel on which the main process asks the Agents window to show the Agents Launcher. */
+export const AGENTS_LAUNCHER_IPC_CHANNEL = 'vscode:showAgentsLauncher';
 
 export function isAgentsWindowOpenSource(value: unknown): value is AgentsWindowOpenSource {
 	switch (value) {
@@ -169,6 +235,7 @@ export function isAgentsWindowOpenSource(value: unknown): value is AgentsWindowO
 		case AgentsWindowOpenSource.KeyboardShortcut:
 		case AgentsWindowOpenSource.TitleBar:
 		case AgentsWindowOpenSource.ChatTitleBar:
+		case AgentsWindowOpenSource.ChatViewTitle:
 		case AgentsWindowOpenSource.CurrentChatHandoff:
 		case AgentsWindowOpenSource.EmptyWorkspaceCurrentChatHandoff:
 		case AgentsWindowOpenSource.ParallelWorkEmptyChatHandoff:
@@ -176,9 +243,9 @@ export function isAgentsWindowOpenSource(value: unknown): value is AgentsWindowO
 		case AgentsWindowOpenSource.ParallelWorkSameWindow:
 		case AgentsWindowOpenSource.ParallelWorkAllWindows:
 		case AgentsWindowOpenSource.WelcomeTryOut:
-		case AgentsWindowOpenSource.WelcomeViewAll:
 		case AgentsWindowOpenSource.CommandLine:
 		case AgentsWindowOpenSource.Link:
+		case AgentsWindowOpenSource.AgentsLauncher:
 		case AgentsWindowOpenSource.Unknown:
 			return true;
 		default:
@@ -518,6 +585,22 @@ export interface IOSConfiguration {
 	readonly arch: string;
 }
 
+/**
+ * The alternate location a single-folder window was at, persisted so that
+ * the window can start at it again after a reload or restart.
+ */
+export interface IWindowFolderLocation {
+
+	/** The resource of the alternate location. */
+	readonly uri: string;
+
+	/** The label of the alternate location. */
+	readonly label: string;
+
+	/** The identifier of the provider that resolved the alternate location. */
+	readonly providerId: string;
+}
+
 export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {
 	mainPid: number;
 	handle?: VSBuffer;
@@ -543,6 +626,12 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	partsSplash?: IPartsSplash;
 
 	workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
+
+	/** Set when the single-folder `workspace` (its primary location) is at an alternate location. */
+	folderLocation?: IWindowFolderLocation;
+
+	/** Set when the window was meant to start at an alternate location that no longer exists. */
+	folderLocationMissing?: { readonly label: string };
 
 	isInitialStartup?: boolean;
 	logLevel: LogLevel;

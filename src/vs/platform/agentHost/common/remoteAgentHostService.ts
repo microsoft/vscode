@@ -7,7 +7,6 @@ import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
-import type { OperatingSystem } from '../../../base/common/platform.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ConfigurationTarget, type IConfigurationService } from '../../configuration/common/configuration.js';
 import { StorageScope, StorageTarget, type IStorageService } from '../../storage/common/storage.js';
@@ -24,6 +23,7 @@ import type { SSHAgentHostLifecycle } from './sshRemoteAgentHost.js';
 import type { AgentHostServerType } from './agentHostEndpointRegistry.js';
 import type { IDevContainerRepository } from './devContainerSamples.js';
 import type { ConnectionDiagnosticObserver, IConnectionDiagnosticEvent, IRemoteConnectionDiagnosticEvent } from './connectionDiagnostics.js';
+import type { PathStyle } from './state/protocol/common/commands.js';
 
 /**
  * Connection status for a remote agent host.
@@ -273,6 +273,8 @@ export type RemoteAgentHostProtocolClientState = 'connecting' | 'incompatible' |
  */
 export interface IRemoteAgentHostProtocolClient extends IAgentConnection, IDisposable {
 	readonly defaultDirectory: string | undefined;
+	/** Original terminal handshake error, including host-advertised protocol upgrade metadata. */
+	readonly connectionError?: ProtocolError;
 	/** Deadline for the next scheduled reconnect attempt, if one is pending. */
 	readonly nextReconnectAt: number | undefined;
 	readonly onDidClose: Event<AgentHostTransportFailureReason | undefined>;
@@ -852,8 +854,8 @@ export interface IRemoteAgentHostConnectionInfo {
 	readonly status: RemoteAgentHostConnectionStatus;
 	/** Last user-visible failure; automatic retries retain it until they fail or succeed. */
 	readonly lastConnectionError?: string;
-	/** Last operating system successfully reported by this host. */
-	readonly operatingSystem?: OperatingSystem;
+	/** Last path style advertised by this host. */
+	readonly pathStyle?: PathStyle;
 }
 
 export interface IRemoteAgentHostPendingConnection {

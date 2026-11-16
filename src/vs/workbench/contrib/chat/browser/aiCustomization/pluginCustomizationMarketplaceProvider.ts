@@ -12,7 +12,7 @@ import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources 
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { DEFAULT_PLUGIN_MARKETPLACE, IMarketplaceReference, parseMarketplaceReference, parseProviderMarketplaceReference } from '../../common/plugins/marketplaceReference.js';
-import { IMarketplacePlugin, IPluginMarketplaceService, MarketplaceType, PluginSourceKind } from '../../common/plugins/pluginMarketplaceService.js';
+import { getMarketplacePluginRepositoryUri, IMarketplacePlugin, IPluginMarketplaceService, MarketplaceType, PluginSourceKind } from '../../common/plugins/pluginMarketplaceService.js';
 
 const defaultMarketplaceReference = parseMarketplaceReference(DEFAULT_PLUGIN_MARKETPLACE)!;
 const defaultMarketplaceId = defaultMarketplaceReference.canonicalId;
@@ -55,11 +55,15 @@ export function getPluginCustomizationMarketplaceSourceIdFromIdentifier(identifi
 }
 
 export function isPluginMarketplaceAvailableInDiscover(configurationService: IConfigurationService, marketplace: IMarketplaceReference | string, githubFeedAvailable: boolean): boolean {
-	const reference = typeof marketplace === 'string' ? parseProviderMarketplaceReference(marketplace) : marketplace;
 	return !githubFeedAvailable ||
 		configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true ||
 		configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) !== true ||
-		reference?.githubRepo?.toLowerCase() !== defaultMarketplaceReference.githubRepo;
+		!isDefaultPluginMarketplace(marketplace);
+}
+
+export function isDefaultPluginMarketplace(marketplace: IMarketplaceReference | string): boolean {
+	const reference = typeof marketplace === 'string' ? parseProviderMarketplaceReference(marketplace) : marketplace;
+	return reference?.githubRepo?.toLowerCase() === defaultMarketplaceReference.githubRepo;
 }
 
 export function getPluginCustomizationMarketplaceSourceInfos(
@@ -158,6 +162,7 @@ function toMarketplaceEntry(plugin: IMarketplacePlugin, registry: 'custom' | 'de
 		version: plugin.version,
 		url: plugin.readmeUri,
 		...(plugin.readmeUri ? { readmeUri: plugin.readmeUri } : {}),
+		repository: getMarketplacePluginRepositoryUri(plugin),
 		score: search ? 0 : undefined,
 		priority: registry === 'custom' ? 1 : 0,
 		installation: {

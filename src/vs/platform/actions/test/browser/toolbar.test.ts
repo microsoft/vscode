@@ -14,19 +14,9 @@ import { IContextKeyService } from '../../../contextkey/common/contextkey.js';
 import { IContextMenuMenuDelegate, IContextMenuService } from '../../../contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
+import { TestTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { IMenuItemHide, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../common/actions.js';
 import { HiddenItemStrategy, IWorkbenchToolBarOptions, WorkbenchToolBar } from '../../browser/toolbar.js';
-
-class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data: unknown }[] = [];
-
-	override publicLog2(eventName?: string, data?: unknown): void {
-		if (eventName) {
-			this.events.push({ name: eventName, data });
-		}
-	}
-}
 
 class TestWorkbenchToolBar extends WorkbenchToolBar {
 	async runAction(action: IAction): Promise<void> {

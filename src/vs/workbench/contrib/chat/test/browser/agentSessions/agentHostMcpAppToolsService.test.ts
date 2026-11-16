@@ -240,6 +240,14 @@ suite('AgentHostMcpAppToolsService', () => {
 		]);
 	});
 
+	test('MCP result meta canary is absent from model-facing converted content', async () => {
+		const { service, getTool } = createService();
+		const app = new TestApp([appTool('result')]);
+		store.add(service.registerApp(session, app));
+		app.result = { content: [], _meta: { private: { canary: 'MCP_RESULT_META_ONLY_CANARY' } } };
+		assert.deepStrictEqual(await invoke(getTool('result'), session), { content: [] });
+	});
+
 	test('routes equal original names independently with headless and subagent rendering contexts', async () => {
 		const { service, getTool } = createService();
 		const first = new TestApp([appTool('shared')]);

@@ -70,7 +70,7 @@ jobs:
             - script: |
                 set -e
                 mkdir -p .build/crashes
-                npm run test-node -- --build
+                pnpm run test-node --build
               displayName: "🧪 Unit test iteration ${{ i }}/${{ length(parameters.iterations) }} (node.js)"
               continueOnError: true
               timeoutInMinutes: 15
@@ -162,7 +162,7 @@ jobs:
                 APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
                 APP_NAME="`ls $APP_ROOT | head -n 1`"
                 status=0
-                npm run smoketest-no-compile -- --tracing --build "$APP_ROOT/$APP_NAME" || status=$?
+                pnpm run smoketest-no-compile --tracing --build "$APP_ROOT/$APP_NAME" || status=$?
                 if [ $status -ne 0 ] && [ -d .build/logs/smoke-tests-electron ]; then
                   mv .build/logs/smoke-tests-electron ".build/logs/failed-iteration-${{ i }}"
                 fi

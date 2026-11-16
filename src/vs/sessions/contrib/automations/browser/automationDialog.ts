@@ -7,6 +7,7 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Button, IButton, unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
@@ -15,15 +16,16 @@ import { Radio } from '../../../../base/browser/ui/radio/radio.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { AnchorPosition } from '../../../../base/browser/ui/contextview/contextview.js';
 import { ISelectBoxOptions, ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
-import { IAction } from '../../../../base/common/actions.js';
+import { Action, IAction } from '../../../../base/common/actions.js';
 import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, disposableObservableValue, IObservable, IReader, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { extUriIgnorePathCase, getComparisonKey, isEqual } from '../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isStringArray } from '../../../../base/common/types.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -38,12 +40,13 @@ import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../.
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { isAutomationAfterDate, isAutomationAfterDateExpired } from '../../../../platform/agentHost/common/automationDisableConditions.js';
+import { AutomationDisableConditionKind, type AutomationAfterDateCondition } from '../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -53,15 +56,16 @@ import { defaultButtonStyles, defaultCheckboxStyles, defaultSelectBoxStyles, get
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { selectBorder } from '../../../../platform/theme/common/colors/inputColors.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
-import { IResolvedFolderWorkspace, IWorkspacePickerItem, WorkspacePicker } from '../../chat/browser/sessionWorkspacePicker.js';
-import { BranchPicker, IBranchPickerBranch, NEW_WORKTREE_LABEL } from '../../chat/browser/branchPicker.js';
-import { MobileSessionTypePicker } from '../../chat/browser/mobile/mobileSessionTypePicker.js';
-import { isMobilePickerSheetTarget } from '../../../browser/parts/mobile/mobilePickerSheet.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
+import { IResolvedFolderWorkspace, IWorkspacePickerItem, WorkspacePicker } from '../../../../workbench/contrib/sessions/browser/chat/sessionWorkspacePicker.js';
+import { BranchPicker, IBranchPickerBranch, NEW_WORKTREE_LABEL } from '../../../../workbench/contrib/sessions/browser/chat/branchPicker.js';
+import { MobileSessionTypePicker } from '../../../../workbench/contrib/sessions/browser/chat/mobile/mobileSessionTypePicker.js';
+import { isMobilePickerSheetTarget } from '../../../../workbench/contrib/sessions/browser/mobile/mobilePickerSheet.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../workbench/services/sessions/common/session.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { AutomationInterval, AutomationTarget, IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationToolCatalog, IAutomationCustomizationChoice, IAutomationProviderConfiguration, IAutomationService, IAutomationTool } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { automationScheduleToUTC, DAYS_OF_WEEK } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { automationScheduleToUTC, DAYS_OF_WEEK, getAutomationCronValidationError } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { describeAutomationCron } from '../../../../platform/agentHost/common/automationCron.js';
 import { automationTriggerFamily, AutomationTriggerFamily } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -74,19 +78,20 @@ import { ChatInputPickerResponsiveLayout, IChatInputPickerResponsiveLayoutItem }
 import { settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from '../../../../workbench/contrib/preferences/common/settingsEditorColorRegistry.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { AutomationIsolationModel, normalizeAutomationBranchNames } from '../common/isolationGroupModel.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { IAutomationSessionConfiguration } from '../../../services/sessions/common/sessionsProvider.js';
-import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from '../../chat/browser/mobile/mobileWorkspacePickerSheet.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IAutomationSessionConfiguration } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from '../../../../workbench/contrib/sessions/browser/chat/mobile/mobileWorkspacePickerSheet.js';
 import { AutomationInputCompletions } from './automationInputCompletions.js';
 import { AutomationTriggerEditor, IAutomationTriggerFormState } from './automationTriggerEditor.js';
-import { NewChatModelPickerService, INewChatModelPickerService } from '../../chat/browser/newChatModelPicker.js';
-import { createNewSessionControlToolbar } from '../../chat/browser/newSessionConfigToolbars.js';
-import { ISessionModelSelection, SessionModelSelection } from '../../chat/browser/sessionModelSelection.js';
-import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
-import { VisibleSession } from '../../../services/sessions/browser/visibleSessions.js';
-import { setActiveSessionContextKeys } from '../../../services/sessions/common/sessionContextKeys.js';
-import { SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
-import { Menus } from '../../../browser/menus.js';
+import { AutomationCronInput } from './automationCronInput.js';
+import { NewChatModelPickerService, INewChatModelPickerService } from '../../../../workbench/contrib/sessions/browser/chat/newChatModelPicker.js';
+import { createNewSessionControlToolbar } from '../../../../workbench/contrib/sessions/browser/chat/newSessionConfigToolbars.js';
+import { ISessionModelSelection, SessionModelSelection } from '../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
+import { createSessionHostServices, getMainWindowHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { setHostSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
+import { SessionUsesCombinedConfigPickerContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 
 const $ = DOM.$;
 
@@ -102,6 +107,7 @@ const INTERVALS: { readonly value: AutomationInterval; readonly label: string }[
 	{ value: 'daily', label: localize('automation.interval.daily', "Daily") },
 	{ value: 'weekdays', label: localize('automation.interval.weekdays', "Weekdays") },
 	{ value: 'weekly', label: localize('automation.interval.weekly', "Weekly") },
+	{ value: 'cron', label: localize('automation.interval.cron', "Cron") },
 ];
 
 // Picker popups mount outside the dialog, so allow their focus targets through its focus trap.
@@ -132,6 +138,7 @@ export async function canSelectAutomationWorkspace(
 	return !!await workspaceTrustRequestService.requestResourcesTrust({
 		uri: folderUri,
 		message: localize('automation.form.trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
+		remoteHostLabel: sessionsManagementService.getRemoteHostLabel(resolved.workspace, resolved.providerId),
 	});
 }
 
@@ -145,7 +152,7 @@ export function registerAutomationDialogKeyboardNavigation(
 	getFocusableElements: () => readonly HTMLElement[],
 	isPopupTarget: (target: HTMLElement) => boolean,
 	acceptPromptSuggestion: () => boolean = () => false,
-	cancelPromptSuggestion: () => boolean = () => false,
+	cancelInputPopup: () => boolean = () => false,
 ): IAutomationDialogKeyboardNavigation {
 	const store = new DisposableStore();
 	let suppressPopupEscapeKeyUp = false;
@@ -171,9 +178,9 @@ export function registerAutomationDialogKeyboardNavigation(
 		const isPopup = target instanceof targetWindow.HTMLElement && isPopupTarget(target);
 		// Keep ownership of the Escape press when the popup closes and key repeat targets the form.
 		if (event.key === 'Escape' && !event.repeat) {
-			const promptSuggestionCancelled = !isPopup && !event.altKey && !event.ctrlKey && !event.metaKey && cancelPromptSuggestion();
-			suppressPopupEscapeKeyUp = isPopup || promptSuggestionCancelled;
-			if (promptSuggestionCancelled) {
+			const inputPopupCancelled = !isPopup && !event.altKey && !event.ctrlKey && !event.metaKey && cancelInputPopup();
+			suppressPopupEscapeKeyUp = isPopup || inputPopupCancelled;
+			if (inputPopupCancelled) {
 				event.preventDefault();
 				event.stopImmediatePropagation();
 				return;
@@ -230,6 +237,8 @@ export interface IFormState extends IAutomationTriggerFormState {
 	name: string;
 	ownership?: 'user' | 'repository';
 	interval: AutomationInterval;
+	cronExpression?: string;
+	cronTimeZone?: string;
 	hour: number;
 	minute: number;
 	day: number;
@@ -239,7 +248,8 @@ export interface IFormState extends IAutomationTriggerFormState {
 	sessionTypeId: string | undefined;
 	isolationMode: string | undefined;
 	branch: string | undefined;
-	enabled: boolean;
+	readonly enabled: boolean;
+	endDate?: string;
 	timeZone?: 'UTC';
 	timezoneOffset?: number;
 	resolvedFolderUri?: URI;
@@ -249,7 +259,9 @@ export interface IFormState extends IAutomationTriggerFormState {
 }
 
 export interface IValidationState {
+	endDateError?: string;
 	scheduleError?: string;
+	cronError?: string;
 	nameError: string | undefined;
 	promptError: string | undefined;
 	folderError: string | undefined;
@@ -272,6 +284,44 @@ export function getAutomationDialogProviders(automationService: IAutomationServi
 	});
 }
 
+export function buildAutomationDisableConditions(endDate: string | undefined): AutomationAfterDateCondition[] {
+	return endDate === undefined ? [] : [{ kind: AutomationDisableConditionKind.AfterDate, date: endDate }];
+}
+
+export function getAutomationEndDateError(endDate: string | undefined, initial: string | undefined): string | undefined {
+	if (endDate === undefined) {
+		return undefined;
+	}
+	if (!isAutomationAfterDate(endDate)) {
+		return localize('automation.form.invalidEndDate', "The saved end date is invalid. In Advanced Settings, change Disables after or select Never.");
+	}
+	return endDate !== initial && Date.parse(endDate) <= Date.now()
+		? localize('automation.form.futureEndDate', "The end date has passed. In Advanced Settings, change Disables after or select Never.")
+		: undefined;
+}
+
+type AutomationDurationUnit = 'days' | 'weeks' | 'months';
+
+/** Returns a local-calendar cutoff, or undefined when the duration cannot produce a supported end date. */
+export function getAutomationDurationEndDate(amount: number, unit: AutomationDurationUnit, now = Date.now()): string | undefined {
+	if (!Number.isSafeInteger(amount) || amount <= 0) {
+		return undefined;
+	}
+	const date = new Date(now);
+	if (unit === 'months') {
+		const month = date.getMonth() + amount;
+		const lastDay = new Date(date.getFullYear(), month + 1, 0).getDate();
+		date.setMonth(month, Math.min(date.getDate(), lastDay));
+	} else {
+		date.setDate(date.getDate() + amount * (unit === 'weeks' ? 7 : 1));
+	}
+	if (!Number.isFinite(date.getTime())) {
+		return undefined;
+	}
+	const result = date.toISOString();
+	return isAutomationAfterDate(result) ? result : undefined;
+}
+
 interface IRenderFormHandle {
 	readonly getPrompt: () => string;
 	readonly getSessionConfiguration: (token: CancellationToken) => Promise<AutomationSessionConfigurationCapture>;
@@ -289,7 +339,8 @@ interface IRenderFormHandle {
 	readonly focusSaveError: () => void;
 	readonly getFocusableElements: () => readonly HTMLElement[];
 	readonly acceptPromptSuggestion: () => boolean;
-	readonly cancelPromptSuggestion: () => boolean;
+	readonly cancelInputPopup: () => boolean;
+	readonly refreshDisableConditionsWarning: () => void;
 }
 
 export type AutomationDialogMessageSource = 'immutableSettings' | 'repositoryWarning' | 'targetValidation' | 'scheduleValidation' | 'toolCatalogError' | 'operationError' | 'saveError';
@@ -1017,7 +1068,7 @@ registerAction2(class OpenAutomationsHarnessChipAction extends Action2 {
 			f1: false,
 			precondition: ChatContextKeys.enabled,
 			menu: [{
-				id: Menus.AutomationsDialogTargetToolbar,
+				id: AgentsWindowMenus.AutomationsDialogTargetToolbar,
 				group: 'navigation',
 				order: -1,
 				when: ChatContextKeys.inAutomationsDialog,
@@ -1036,7 +1087,7 @@ registerAction2(class OpenAutomationsWorkspacePickerAction extends Action2 {
 			f1: false,
 			precondition: ChatContextKeys.enabled,
 			menu: [{
-				id: Menus.AutomationsDialogTargetToolbar,
+				id: AgentsWindowMenus.AutomationsDialogTargetToolbar,
 				group: 'navigation',
 				order: -2,
 				when: ChatContextKeys.inAutomationsDialog,
@@ -1055,7 +1106,7 @@ registerAction2(class OpenAutomationsIsolationGroupAction extends Action2 {
 			f1: false,
 			precondition: ChatContextKeys.enabled,
 			menu: [{
-				id: Menus.AutomationsDialogTargetToolbar,
+				id: AgentsWindowMenus.AutomationsDialogTargetToolbar,
 				group: 'navigation',
 				order: 2,
 				when: ChatContextKeys.inAutomationsDialog,
@@ -1092,6 +1143,7 @@ export function renderForm(
 	setRepositoryWarningVisible: (visible: boolean) => void = () => { },
 	setDialogMessage: (source: AutomationDialogMessageSource, message: IAutomationDialogMessage | undefined) => void = () => { },
 	focusDialogMessage: () => void = () => { },
+	inputEditorOptions?: IChatInputPartOptions['inputEditorOptions'],
 ): IRenderFormHandle {
 	let reloadCustomizations: () => void = () => { };
 	const validateForm = revalidate;
@@ -1214,18 +1266,40 @@ export function renderForm(
 	const scheduleError = DOM.append(formContent, $('span.automation-target-error.automation-visually-hidden'));
 	scheduleError.id = 'automation-schedule-error';
 	DOM.hide(scheduleError);
+	const durationContent = $('.automation-duration-settings');
 	const customizationSelection = disposables.add(new AutomationCustomizationSelection(
-		formContent, customizations?.service, customizations?.hoverService, logService, customizations?.existingId, triggerFields,
+		formContent, customizations?.service, customizations?.hoverService, logService, customizations?.existingId, triggerFields, durationContent,
 	));
 
+	const cronGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group.automation-form-cron-group'));
+	const cronTimeZone = state.cronTimeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+	const cronInput = disposables.add(instantiationService.createInstance(AutomationCronInput, cronGroup, state.cronExpression ?? '', cronTimeZone));
+	const cronDescription = $('.automation-form-schedule-description', { role: 'status', 'aria-atomic': 'true' });
+	scheduleRow.after(cronDescription);
+	const updateCronDescription = () => {
+		const expression = state.cronExpression ?? '';
+		const description = state.interval === 'cron' && expression.trim() && !getAutomationCronValidationError(expression, cronTimeZone)
+			? describeAutomationCron(expression)
+			: '';
+		cronDescription.textContent = description;
+		DOM.setVisibility(!!description, cronDescription);
+	};
+	disposables.add(cronInput.onDidChange(value => {
+		state.cronExpression = value;
+		updateCronDescription();
+		revalidate();
+	}));
 	const applyIntervalVisibility = () => {
 		const showTime = state.interval === 'daily' || state.interval === 'weekdays' || state.interval === 'weekly';
 		const showDay = state.interval === 'weekly';
 		timeGroup.style.display = showTime ? '' : 'none';
 		dayGroup.style.display = showDay ? '' : 'none';
+		cronGroup.style.display = state.interval === 'cron' ? '' : 'none';
+		scheduleRow.classList.toggle('has-cron', state.interval === 'cron');
+		updateCronDescription();
 	};
 	const updateIntervalOptions = (cloud: boolean) => {
-		intervals = INTERVALS.filter(item => !cloud || item.value !== 'weekdays');
+		intervals = INTERVALS.filter(item => !cloud || (item.value !== 'weekdays' && item.value !== 'cron'));
 		if (cloud) {
 			intervals = ['weekly', 'daily', 'hourly'].flatMap(value => INTERVALS.filter(item => item.value === value));
 			const families = triggerEditor.families;
@@ -1247,6 +1321,7 @@ export function renderForm(
 		applyIntervalVisibility();
 	};
 	applyIntervalVisibility();
+	revalidate();
 	disposables.add(intervalSelect.onDidSelect(e => {
 		const value = intervals[e.index].value;
 		if (value === 'issue' || value === 'pullRequest') {
@@ -1717,33 +1792,37 @@ export function renderForm(
 	const promptHost = DOM.append(promptRow, $('.automation-form-prompt-host.interactive-session'));
 	const editorOverflowWidgetsDomNode = layoutService.getContainer(DOM.getWindow(promptHost)).appendChild($('.chat-editor-overflow.automation-dialog-editor-overflow.monaco-editor'));
 	disposables.add(toDisposable(() => editorOverflowWidgetsDomNode.remove()));
-	const activeAutomationSession = disposables.add(disposableObservableValue<VisibleSession | undefined>(form, undefined));
-	disposables.add(autorun(reader => {
-		const session = sessionsManagementService.automationSession.read(reader);
-		activeAutomationSession.set(session ? new VisibleSession(session, session.mainChat.read(reader)) : undefined, undefined);
-	}));
+	// The dialog's draft: the provider's session, which the dialog observes but does not own.
+	const activeAutomationSession = sessionsManagementService.automationSession;
+	const activeAutomationChat = derived(reader => activeAutomationSession.read(reader)?.mainChat.read(reader));
 	const scopedContextKeyService = disposables.add(contextKeyService.createScoped(sessionSection));
 	ChatContextKeys.location.bindTo(scopedContextKeyService).set(ChatAgentLocation.Chat);
 	ChatContextKeys.inChatSession.bindTo(scopedContextKeyService).set(true);
 	ChatContextKeys.inAutomationsDialog.bindTo(scopedContextKeyService).set(true);
 	const newChatModelPickerService = new NewChatModelPickerService();
-	const sessionModelSelection = disposables.add(instantiationService.createInstance(SessionModelSelection, activeAutomationSession, { modelConfiguration: true }));
-	const scopedInstantiationService = disposables.add(instantiationService.createChild(new ServiceCollection(
-		[IContextKeyService, scopedContextKeyService],
-		[ISessionContext, new SessionContext(activeAutomationSession)],
-		[INewChatModelPickerService, newChatModelPickerService],
-		[ISessionModelSelection, sessionModelSelection],
-	)));
+	const sessionModelSelection = disposables.add(instantiationService.createInstance(SessionModelSelection, { session: activeAutomationSession, chat: activeAutomationChat }, { modelConfiguration: true }));
+	// The dialog drafts in the host of the window it shows in: the window of its form.
+	const automationHost = instantiationService.invokeFunction(accessor => {
+		const sessionHostService = accessor.get(ISessionHostService);
+		const parent = sessionHostService.getHostOfWindow(DOM.getWindow(form).vscodeWindowId) ?? getMainWindowHost(sessionHostService);
+		return new SessionHost({ kind: SessionHostKind.AutomationDialog, parent, session: activeAutomationSession, chat: activeAutomationChat, contextKeyService: scopedContextKeyService });
+	});
+	disposables.add(instantiationService.invokeFunction(accessor => accessor.get(ISessionHostService).registerHost(automationHost)));
+	const services = createSessionHostServices(scopedContextKeyService, automationHost);
+	services.set(INewChatModelPickerService, newChatModelPickerService);
+	services.set(ISessionModelSelection, sessionModelSelection);
+	const scopedInstantiationService = disposables.add(instantiationService.createChild(services));
 	const usesCombinedConfigPicker = SessionUsesCombinedConfigPickerContext.bindTo(scopedContextKeyService);
 	disposables.add(autorun(reader => {
 		sessionTypesChanged.read(reader);
 		const session = activeAutomationSession.read(reader);
-		setActiveSessionContextKeys(session, scopedContextKeyService, reader);
+		// A dialog's draft shows in no pane: it is not pinned and shows no tab strip.
+		setHostSessionContextKeys(session, activeAutomationChat.read(reader), undefined, scopedContextKeyService, reader);
 		usesCombinedConfigPicker.set(!!session && sessionsManagementService.usesCombinedNewSessionConfigPicker(session));
 	}));
 
 	const pickerHoverDelegate = disposables.add(createInstantHoverDelegate());
-	const targetToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, targetContainer, Menus.AutomationsDialogTargetToolbar, {
+	const targetToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, targetContainer, AgentsWindowMenus.AutomationsDialogTargetToolbar, {
 		hoverDelegate: pickerHoverDelegate,
 		ariaLabel: localize('automation.form.targetOptions', "Automation target options"),
 		telemetrySource: 'automations.dialog',
@@ -1823,6 +1902,7 @@ export function renderForm(
 		// A scheduling form, not a chat about to be sent: keep promos out.
 		isTransientChat: true,
 		inputEditorMinLines: 3,
+		inputEditorOptions,
 		inputEditorQuickSuggestions: EditorOptions.quickSuggestions.defaultValue,
 		// The dialog renders the composer flush with its form column (the
 		// `.interactive-input-part` margin is zeroed in CSS), so there is no
@@ -1923,6 +2003,120 @@ export function renderForm(
 	}, DOM.getWindow(promptHost)));
 	disposables.add(resizeObserver.observe(promptHost));
 
+	const durationRow = DOM.append(durationContent, $('.automation-form-row.automation-form-duration-row'));
+	const endDateError = DOM.append(formContent, $('span.automation-form-error', {
+		id: 'automation-end-date-error', role: 'status', 'aria-live': 'polite',
+	}));
+	const units: { value: 'never' | AutomationDurationUnit; label: string }[] = [
+		{ value: 'never', label: localize('automation.form.duration.never', "Never") },
+		{ value: 'days', label: localize('automation.form.duration.days', "Days") },
+		{ value: 'weeks', label: localize('automation.form.duration.weeks', "Weeks") },
+		{ value: 'months', label: localize('automation.form.duration.months', "Months") },
+	];
+	let unit = state.endDate === undefined ? units[0].value : units[1].value;
+	let durationChanged = false;
+	DOM.append(durationRow, $('label.automation-form-label', { for: 'automation-duration' }, localize('automation.form.disablesAfter', "Disables after")));
+	const amountInput = disposables.add(new InputBox(durationRow, contextViewService, {
+		type: 'number',
+		ariaLabel: localize('automation.form.duration.amount', "Disables after: duration"),
+		inputBoxStyles: automationNameInputBoxStyles,
+	}));
+	amountInput.element.classList.add('automation-form-duration-input');
+	amountInput.inputElement.id = 'automation-duration';
+	amountInput.inputElement.step = '1';
+	amountInput.value = state.endDate === undefined ? '1' : String(Math.max(0, Math.ceil((Date.parse(state.endDate) - Date.now()) / 86_400_000)));
+	amountInput.inputElement.min = amountInput.value === '0' ? '0' : '1';
+	const stepAmount = (direction: 1 | -1) => {
+		const current = amountInput.inputElement.valueAsNumber;
+		amountInput.value = String(Number.isFinite(current)
+			? Math.max(1, direction > 0 ? Math.floor(current) + 1 : Math.ceil(current) - 1)
+			: 1);
+		amountInput.focus();
+	};
+	const increase = disposables.add(new Action('automation.duration.increase', localize('automation.form.duration.increase', "Increase Duration"), ThemeIcon.asClassName(Codicon.chevronUpCompact), true, () => stepAmount(1)));
+	const decrease = disposables.add(new Action('automation.duration.decrease', localize('automation.form.duration.decrease', "Decrease Duration"), ThemeIcon.asClassName(Codicon.chevronDownCompact), amountInput.inputElement.valueAsNumber > 1, () => stepAmount(-1)));
+	const stepper = disposables.add(new ActionBar(amountInput.element, {
+		orientation: ActionsOrientation.VERTICAL,
+		focusOnlyEnabledItems: true,
+		ariaLabel: localize('automation.form.duration.controls', "Duration controls"),
+		// The dialog captures keyup, so activate these actions on keydown.
+		triggerKeys: { keyDown: true },
+	}));
+	stepper.push([increase, decrease], { icon: true, label: false });
+	disposables.add(decrease.onDidChange(event => {
+		if (event.enabled !== undefined) {
+			stepper.setFocusable(false);
+			stepper.setFocusable(true);
+		}
+	}));
+	DOM.setVisibility(unit !== 'never', amountInput.element);
+	const unitContainer = DOM.append(durationRow, $('.automation-form-duration-unit'));
+	const unitSelect = disposables.add(new SelectBox(
+		units.map(option => ({ text: option.label })),
+		unit === 'never' ? 0 : 1,
+		contextViewService,
+		defaultSelectBoxStyles,
+		{ ...scheduleSelectOptions, ariaLabel: localize('automation.form.duration.unit', "Disables after: unit") },
+	));
+	unitSelect.render(unitContainer);
+	const durationHint = DOM.append(durationContent, $('span.automation-form-hint.automation-form-duration-hint', { id: 'automation-duration-hint' }));
+	amountInput.inputElement.setAttribute('aria-describedby', `${endDateError.id} ${durationHint.id}`);
+	disposables.add(amountInput.onDidChange(() => {
+		decrease.enabled = amountInput.inputElement.valueAsNumber > 1;
+		durationChanged = true;
+		revalidate();
+	}));
+	disposables.add(unitSelect.onDidSelect(event => {
+		unit = units[event.index].value;
+		durationChanged = true;
+		DOM.setVisibility(unit !== 'never', amountInput.element);
+		revalidate();
+	}));
+
+	const conditionsWarning = DOM.append(formContent, $('span.automation-form-hint', {
+		id: 'automation-conditions-warning', role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true',
+	}));
+	const initialEndDate = isEdit ? state.endDate : undefined;
+	const refreshDisableConditionsWarning = () => {
+		const supportsEndDate = !runInCloud.get();
+		customizationSelection.setEndDateContentVisible(supportsEndDate);
+		let durationError: string | undefined;
+		if (durationChanged) {
+			amountInput.inputElement.min = '1';
+			const date = unit === 'never' ? undefined : getAutomationDurationEndDate(amountInput.inputElement.valueAsNumber, unit);
+			if (unit !== 'never' && date === undefined) {
+				durationError = localize('automation.form.duration.invalid', "Enter a positive whole number that produces an end date before year 10000.");
+			} else {
+				state.endDate = date;
+			}
+		}
+		durationHint.textContent = durationError || state.endDate === undefined
+			? ''
+			: localize('automation.form.duration.estimatedEndDate', "Estimated end date: {0}", new Date(state.endDate).toLocaleString(undefined, {
+				year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit',
+			}));
+		DOM.setVisibility(!!durationHint.textContent, durationHint);
+		validation.endDateError = supportsEndDate
+			? durationError ?? getAutomationEndDateError(state.endDate, initialEndDate)
+			: state.endDate !== undefined
+				? localize('automation.form.cloudEndDate', "Cloud automations do not support end dates. Select Never before switching to the cloud.")
+				: undefined;
+		amountInput.inputElement.setAttribute('aria-invalid', String(!!validation.endDateError));
+		DOM.setVisibility(!!validation.endDateError, endDateError);
+		const errorMessage = validation.endDateError ?? '';
+		if (endDateError.textContent !== errorMessage) {
+			endDateError.textContent = errorMessage;
+		}
+		const expired = state.enabled && isAutomationAfterDateExpired(buildAutomationDisableConditions(state.endDate));
+		DOM.setVisibility(expired, conditionsWarning);
+		const message = expired
+			? localize('automation.form.expiredDuration', "The end date has passed. Scheduling will stop immediately. Change the duration or select Never before re-enabling scheduling.")
+			: '';
+		if (conditionsWarning.textContent !== message) {
+			conditionsWarning.textContent = message;
+		}
+	};
+	refreshDisableConditionsWarning();
 	const providerOptions = DOM.append(promptSection, $('.automation-provider-options'));
 	const providerDetails = DOM.append(providerOptions, $('.automation-provider-details.automation-form-row', { role: 'group', 'aria-labelledby': 'automation-tools-label' }));
 	DOM.append(providerDetails, $('span.automation-form-label', { id: 'automation-tools-label' }, localize('automation.tools', "Tools")));
@@ -2193,11 +2387,13 @@ export function renderForm(
 			}
 			setDialogMessage('targetValidation', message ? { severity: 'error', text: message } : undefined);
 		},
-		getSaveBlockedReason: (targetMessage, scheduleMessage) => scheduleMessage
-			? { message: scheduleMessage, elementId: scheduleError.id }
-			: !isEdit && targetMessage === cloudUnavailableMessage()
-				? { message: targetMessage, elementId: targetError.id }
-				: undefined,
+		getSaveBlockedReason: (targetMessage, scheduleMessage) => validation.endDateError
+			? { message: validation.endDateError, elementId: endDateError.id }
+			: scheduleMessage
+				? { message: scheduleMessage, elementId: scheduleError.id }
+				: !isEdit && targetMessage === cloudUnavailableMessage()
+					? { message: targetMessage, elementId: targetError.id }
+					: undefined,
 		waitForAutomationSessionSync: token => {
 			updateAutomationSessionTarget();
 			return automationSessionDraftSynchronizer.waitForSync(token);
@@ -2212,8 +2408,9 @@ export function renderForm(
 			sessionConfigurationErrorMessage.set(message, undefined);
 		},
 		focusSaveError: focusDialogMessage,
+		refreshDisableConditionsWarning,
 		getFocusableElements: () => {
-			// eslint-disable-next-line no-restricted-syntax -- the dialog owns this form subtree and supplies its dynamic focus order.
+			// eslint-disable-next-line eslint-js/no-restricted-syntax -- the dialog owns this form subtree and supplies its dynamic focus order.
 			return Array.from(form.querySelectorAll<HTMLElement>('input, select, textarea, button, a[href], [tabindex]'));
 		},
 		acceptPromptSuggestion: () => {
@@ -2224,7 +2421,10 @@ export function renderForm(
 			suggestController.acceptSelectedSuggestion(true, false);
 			return true;
 		},
-		cancelPromptSuggestion: () => {
+		cancelInputPopup: () => {
+			if (cronInput.dismissHover()) {
+				return true;
+			}
 			const suggestController = SuggestController.get(chatInput.inputEditor);
 			if (!chatInput.inputEditor.hasTextFocus() || !suggestController || suggestController.model.state === SuggestState.Idle) {
 				return false;
@@ -2243,6 +2443,7 @@ export class AutomationCustomizationSelection extends Disposable {
 	private readonly content: HTMLElement;
 	private readonly body: HTMLElement;
 	private additionalContentVisible = false;
+	private endDateContentVisible = false;
 	private customizationsVisible = false;
 	private readonly rows = this._register(new DisposableStore());
 	private readonly request = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -2259,6 +2460,7 @@ export class AutomationCustomizationSelection extends Disposable {
 		private readonly logService: ILogService,
 		private readonly existingId?: string,
 		private readonly additionalContent?: HTMLElement,
+		private readonly endDateContent?: HTMLElement,
 	) {
 		super();
 		this._register(toDisposable(() => this.request.value?.cancel()));
@@ -2267,11 +2469,14 @@ export class AutomationCustomizationSelection extends Disposable {
 		this.disclosure.element.classList.add('automation-advanced-disclosure', 'automation-form-label');
 		this.chevron = DOM.append(this.disclosure.element, $('span.automation-advanced-chevron', { 'aria-hidden': 'true' }));
 		DOM.append(this.chevron, renderIcon(Codicon.chevronRight));
-		DOM.append(this.disclosure.element, $('span', undefined, localize('automation.advanced', "Advanced")));
+		DOM.append(this.disclosure.element, $('span', undefined, localize('automation.advanced', "Advanced Settings")));
 		this.summary = DOM.append(this.disclosure.element, $('span.automation-advanced-summary'));
 		this.body = DOM.append(this.section, $('.automation-advanced-content', { id: 'automation-advanced-content' }));
 		if (additionalContent) {
 			DOM.append(this.body, additionalContent);
+		}
+		if (endDateContent) {
+			DOM.append(this.body, endDateContent);
 		}
 		this.content = DOM.append(this.body, $('.automation-customizations', { id: 'automation-customizations' }));
 		this.disclosure.element.setAttribute('aria-controls', this.body.id);
@@ -2293,8 +2498,21 @@ export class AutomationCustomizationSelection extends Disposable {
 		this.updateVisibility();
 	}
 
+	setEndDateContentVisible(visible: boolean): void {
+		this.endDateContentVisible = visible;
+		if (visible) {
+			this.disclosure.element.setAttribute('aria-describedby', 'automation-end-date-error automation-conditions-warning');
+		} else {
+			this.disclosure.element.removeAttribute('aria-describedby');
+		}
+		if (this.endDateContent) {
+			setAutomationControlVisible(this.endDateContent, visible);
+		}
+		this.updateVisibility();
+	}
+
 	private updateVisibility(): void {
-		setAutomationControlVisible(this.section, this.additionalContentVisible || this.customizationsVisible);
+		setAutomationControlVisible(this.section, this.additionalContentVisible || this.customizationsVisible || this.endDateContentVisible);
 		setAutomationControlVisible(this.body, this.expanded);
 		setAutomationControlVisible(this.content, this.customizationsVisible);
 		this.summary.hidden = this.expanded || !this.customizationsVisible || this.additionalContentVisible;
@@ -2524,10 +2742,16 @@ export function updateSaveButtonState(
 			? localize('automation.form.scheduleRequired', "Choose a supported schedule.")
 			: utcSchedule && state.interval === 'weekdays'
 				? localize('automation.form.cloudWeekdays', "Weekdays is only available for local automations. Choose a supported schedule for Cloud.")
-				: utcSchedule && (state.interval === 'daily' || state.interval === 'weekly') && utcSchedule.scheduleMinute % 15 !== 0
-					? localize('automation.form.cloudScheduleMinute', "Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.")
-					: undefined;
-	const valid = !validation.nameError && !validation.promptError && !validation.folderError && !validation.sessionTypeError && !validation.branchError && !validation.scheduleError;
+				: utcSchedule && state.interval === 'cron'
+					? localize('automation.form.cloudCron', "Cron is only available for local automations. Choose a supported schedule for Cloud.")
+					: utcSchedule && (state.interval === 'daily' || state.interval === 'weekly') && utcSchedule.scheduleMinute % 15 !== 0
+						? localize('automation.form.cloudScheduleMinute', "Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.")
+						: undefined;
+	validation.cronError = state.interval === 'cron'
+		? getAutomationCronValidationError(state.cronExpression ?? '', state.cronTimeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone)
+		: undefined;
+	const cronComplete = state.interval !== 'cron' || !!state.cronExpression?.trim();
+	const valid = cronComplete && !validation.cronError && !validation.nameError && !validation.promptError && !validation.folderError && !validation.sessionTypeError && !validation.branchError && !validation.scheduleError && !validation.endDateError;
 	if (saveButton) {
 		saveButton.enabled = valid && !state.targetPending;
 	}
@@ -2662,7 +2886,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 
 	/** In cloud mode the base picker's recent-workspace limit applies to repository candidates only. */
 	protected override _getRecentWorkspaces(): IResolvedFolderWorkspace[] {
-		const recents = super._getRecentWorkspaces();
+		const recents = super._getRecentWorkspaces(this.cloudMode?.get() || this._workspaceFilter.length > 0);
 		if (!this.cloudMode?.get()) {
 			return recents;
 		}

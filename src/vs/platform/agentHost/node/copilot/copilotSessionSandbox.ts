@@ -11,28 +11,34 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IEnvironmentService, INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
-import { normalizeSandboxFileSystemPath } from '../../../sandbox/common/settings.js';
+import { AgentSandboxEnabledValue, normalizeSandboxFileSystemPath } from '../../../sandbox/common/settings.js';
 import type { IAgentPermissionResponseContext } from '../../common/agent.js';
+import { getAttachedLocalPaths } from '../../common/attachedLocalPaths.js';
 import type { IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
 import { measureAgentProviderOperation } from '../../common/agentHostProviderTiming.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import type { MessageAttachment } from '../../common/state/protocol/state.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
-import type { ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
+import { SAVE_SESSION_SANDBOX_PATH, SAVE_WORKSPACE_SANDBOX_PATH, type ISandboxPathGrant, type ISessionSandboxPaths } from '../../common/sandboxPathGrant.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
 import { IAgentConfigurationService, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
-import { getSessionSandboxConfig } from '../sessionSandbox.js';
+import { getApplicationSandboxReadRoots } from '../applicationSandboxPaths.js';
+import { getSessionSandboxConfig, getSessionSandboxOverrides } from '../sessionSandbox.js';
+import { ISessionSandboxPathService } from '../sessionSandboxPathService.js';
+import { getWorkspaceSandboxScopeId, IWorkspaceSandboxPathService } from '../workspaceSandboxPathService.js';
 import type { ActionOrigin } from '../../common/state/sessionActions.js';
 import { attributePermissionResult } from './copilotPermissionAttribution.js';
 import { CopilotSandboxDiagnostics } from './copilotSandboxDiagnostics.js';
 import { CopilotSandboxCertificateDiagnostics } from './copilotSandboxCertificateDiagnostics.js';
 import { applySandboxConfig } from './copilotSessionLauncher.js';
 import type { ShellManager } from './copilotShellTools.js';
-import { buildSandboxConfigForSdk, type SandboxConfig } from './sandboxConfigForSdk.js';
+import { buildSandboxConfigForSdk, resolveAttachedPathGrants, toSandboxFileSystemPath, type ISandboxAttachedPathGrants, type ISandboxAttachedPaths, type SandboxConfig } from './sandboxConfigForSdk.js';
 
 /** A config change of the chat this SDK session runs. */
 interface ISandboxConfigChange {
@@ -51,13 +57,21 @@ interface ICopilotSessionSandboxOptions {
 	readonly getConfigWriteTarget: () => IAgentChatConfigurationTarget;
 	readonly platform: NodeJS.Platform;
 	readonly getSession: () => CopilotSession | undefined;
+	readonly isSessionClosed?: (session?: CopilotSession) => boolean;
 	readonly getHostSupport: () => ReturnType<CopilotClient['rpc']['sandbox']['getHostSupport']>;
 	readonly getCertificateStatus: (config: SandboxConfig) => Promise<IAgentSandboxCertificateStatus | undefined>;
+	readonly refreshCertificate: (getConfig: () => SandboxConfig, scopeId: string) => Promise<void>;
 	readonly installCertificate: (getConfig: () => SandboxConfig, scopeId: string) => Promise<void>;
 	readonly rotateCertificate: (getConfig: () => SandboxConfig, scopeId: string) => Promise<void>;
 	readonly removeCertificate: (scopeId: string, validate: () => void) => Promise<void>;
 	readonly getShellInitDirectory: () => URI | undefined;
 	readonly getAppliedPluginDirectories: () => readonly URI[];
+	/** The working directory the runtime grants when `addCurrentWorkingDirectory` is on. */
+	readonly getWorkingDirectory: () => URI | undefined;
+	/** Further working directories the SDK session was launched with; the runtime grants them read/write. */
+	readonly getAdditionalWorkingDirectories: () => readonly URI[];
+	/** Authoritative launch roots; absent for workspace-less and virtual chats. */
+	readonly getWorkspaceWorkingDirectories: () => readonly URI[] | undefined;
 	readonly shellManager: ShellManager | undefined;
 	readonly onDidChangeRuntimeConfig?: () => void;
 }
@@ -66,10 +80,15 @@ interface ICopilotSessionSandboxOptions {
 export class CopilotSessionSandbox extends Disposable {
 	private readonly _requests = new Map<string, string>();
 	private readonly _pendingPathGrants = new Map<string, ISandboxPathGrant>();
+	private readonly _pendingWorkspaceRoots = new Map<string, readonly URI[] | undefined>();
+	/** Local files and folders the user attached to this chat, by URI; read-only for the life of the SDK session, never saved to settings. */
+	private readonly _attachedPaths = new Map<string, URI>();
 	private readonly _configSequencer = new Sequencer();
 	private readonly _diagnostics: CopilotSandboxDiagnostics;
 	private readonly _certificateDiagnostics: CopilotSandboxCertificateDiagnostics;
+	private _applicationReadRoots: readonly URI[] | undefined;
 	private _configUpdateDeferred = false;
+	private _workspacePathsLoadFailed = false;
 	private _disabledForSession = false;
 	private _launchSession: CopilotSession | undefined;
 	private _pendingSelection: 'on' | 'off' | 'default' | undefined;
@@ -80,12 +99,66 @@ export class CopilotSessionSandbox extends Disposable {
 		private readonly _options: ICopilotSessionSandboxOptions,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@ISessionSandboxPathService private readonly _sessionPaths: ISessionSandboxPathService,
+		@IWorkspaceSandboxPathService private readonly _workspacePaths: IWorkspaceSandboxPathService,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 	) {
 		super();
 		this._diagnostics = this._register(instantiationService.createInstance(CopilotSandboxDiagnostics, _options.ownerSession.toString(), _options.getHostSupport, _options.platform));
 		this._certificateDiagnostics = this._register(instantiationService.createInstance(CopilotSandboxCertificateDiagnostics, _options.getConfigWriteTarget, _options.getCertificateStatus));
+		this._register(this._workspacePaths.onDidChange(scope => {
+			if (scope === this._workspaceScopeId(this._options.getWorkspaceWorkingDirectories())) {
+				void this.applyConfig().catch(error => {
+					this._logService.error(error, `[Copilot:${this._options.sessionId}] Failed to update workspace sandbox access`);
+					if (!this._store.isDisposed) {
+						this._configurationService.reportChatSandboxConflict(this._target(), getErrorMessage(error));
+					}
+				});
+			}
+		}));
+	}
+
+	async prepare(): Promise<void> {
+		this._getWorkspacePaths();
+		if (!this._applicationReadRoots) {
+			this._applicationReadRoots = this._environmentService.appBundleRoot
+				? await getApplicationSandboxReadRoots(this._environmentService.appRoot, this._environmentService.appBundleRoot, this._options.platform)
+				: [];
+		}
+		await this._sessionPaths.load(this._options.ownerSession);
+	}
+
+	private _workspaceScopeId(roots: readonly URI[] | undefined): string | undefined {
+		return roots?.length ? getWorkspaceSandboxScopeId(roots) : undefined;
+	}
+
+	private _getWorkspacePaths(): ISessionSandboxPaths | undefined {
+		const enabled = getSessionSandboxOverrides(this._configurationService, this._target())[AgentHostSandboxKey.Enabled]
+			?? this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox)?.[AgentHostSandboxKey.Enabled];
+		if (enabled !== AgentSandboxEnabledValue.On) {
+			return undefined;
+		}
+		const roots = this._options.getWorkspaceWorkingDirectories();
+		if (!roots?.length) {
+			return undefined;
+		}
+		try {
+			const paths = this._workspacePaths.getPaths(roots);
+			this._workspacePathsLoadFailed = false;
+			return paths;
+		} catch (error) {
+			if (!this._workspacePathsLoadFailed) {
+				this._workspacePathsLoadFailed = true;
+				this._logService.error(error, `[Copilot:${this._options.sessionId}] Failed to load workspace sandbox settings`);
+				this._configurationService.reportChatSandboxConflict(this._target(), localize(
+					'copilot.sandbox.workspaceLoadFailed',
+					"Workspace-specific sandbox settings are not loaded.",
+				));
+			}
+			return undefined;
+		}
 	}
 
 	setPendingRequest(toolCallId: string, requestId: string): void {
@@ -112,8 +185,16 @@ export class CopilotSessionSandbox extends Disposable {
 			: undefined;
 		if (grant) {
 			this._pendingPathGrants.set(toolCallId, grant);
+			this._pendingWorkspaceRoots.set(toolCallId, this._options.getWorkspaceWorkingDirectories()?.slice());
 		}
 		return grant;
+	}
+
+	isWorkspacePathGrantAvailable(toolCallId: string): boolean {
+		const roots = this._pendingWorkspaceRoots.get(toolCallId);
+		return !!roots?.length
+			&& this._workspaceScopeId(roots) === this._workspaceScopeId(this._options.getWorkspaceWorkingDirectories())
+			&& this._options.getConfigWriteTarget().session === this._options.ownerSession.toString();
 	}
 
 	/** Returns whether the caller needs to synchronize configuration deferred by this permission request. */
@@ -122,6 +203,7 @@ export class CopilotSessionSandbox extends Disposable {
 			this.completePendingRequest(toolCallId, requestId);
 			if (grant && this._pendingPathGrants.get(toolCallId) === grant) {
 				this._pendingPathGrants.delete(toolCallId);
+				this._pendingWorkspaceRoots.delete(toolCallId);
 			}
 		}
 		if (!this._pendingPathGrants.size && this._configUpdateDeferred && !this._store.isDisposed) {
@@ -137,43 +219,148 @@ export class CopilotSessionSandbox extends Disposable {
 			return grant;
 		}
 		const removed = new Set(grant.removedReadonlyPaths);
-		const paths = this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox)?.[AgentHostSandboxKey.UserConfiguredPaths]?.readonlyPaths ?? [];
+		const paths = [
+			...this._configurationService.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox)?.[AgentHostSandboxKey.UserConfiguredPaths]?.readonlyPaths ?? [],
+			...this._getWorkspacePaths()?.readonlyPaths ?? [],
+			...this._configurationService.getSessionSandboxPaths(this._target().session)?.readonlyPaths ?? [],
+		];
 		const os = this._options.platform === 'win32' ? OperatingSystem.Windows : this._options.platform === 'darwin' ? OperatingSystem.Macintosh : OperatingSystem.Linux;
 		return { ...grant, removedReadonlyPaths: [...removed, ...paths.filter(path => removed.has(normalizeSandboxFileSystemPath(path, os)))] };
 	}
 
 	async grantPathForPendingRequest(toolCallId: string, requestId: string | undefined, grant: ISandboxPathGrant | undefined, context: IAgentPermissionResponseContext, token: CancellationToken): Promise<PermissionRequestResult | AttributedPermissionResult> {
+		const sessionScope = context.selectedOptionId === SAVE_SESSION_SANDBOX_PATH;
+		const workspaceScope = context.selectedOptionId === SAVE_WORKSPACE_SANDBOX_PATH;
+		const saved = !sessionScope && !workspaceScope && context.sandboxPathGrantSaved === true;
 		try {
 			return await this._configSequencer.queue(async () => {
-				if (!context.sandboxPathGrantSaved) {
+				if (!sessionScope && !workspaceScope && !saved) {
 					throw new Error(localize('copilot.permission.grant.unsupportedClient', "This client did not save the sandbox path grant. Update VS Code and retry."));
 				}
-				if (token.isCancellationRequested || !requestId || !grant || this._requests.get(toolCallId) !== requestId) {
+				// The SDK session stops being available once it starts disconnecting.
+				const session = this._options.getSession();
+				const workspaceRoots = this._pendingWorkspaceRoots.get(toolCallId);
+				const validateScope = () => {
+					if (this._options.getConfigWriteTarget().session !== this._options.ownerSession.toString()) {
+						throw new Error(localize('copilot.permission.grant.expired', "The sandbox permission request is no longer pending."));
+					}
+					if (this._workspaceScopeId(workspaceRoots) !== this._workspaceScopeId(this._options.getWorkspaceWorkingDirectories())) {
+						throw new Error(localize('copilot.permission.grant.workspaceChanged', "The workspace for this sandbox permission request has changed. Retry the request."));
+					}
+				};
+				const validate = () => {
+					if (token.isCancellationRequested || !requestId || !grant || this._requests.get(toolCallId) !== requestId || !session
+						|| this._options.getSession() !== session || this._store.isDisposed
+						|| this._pendingPathGrants.get(toolCallId) !== grant) {
+						throw new Error(localize('copilot.permission.grant.expired', "The sandbox permission request is no longer pending."));
+					}
+					validateScope();
+					if (workspaceScope && !workspaceRoots?.length) {
+						throw new Error(localize('copilot.permission.grant.workspaceRequired', "Workspace sandbox permissions require a chat with filesystem workspace folders."));
+					}
+				};
+				validate();
+				if (!session || !requestId || !grant) {
 					throw new Error(localize('copilot.permission.grant.expired', "The sandbox permission request is no longer pending."));
 				}
-				const attributed = attributePermissionResult({ kind: 'approve-once' }, context.decisionSource);
+				if (workspaceRoots?.length && !sessionScope) {
+					this._workspacePaths.getPaths(workspaceRoots);
+				}
+				const attributed = attributePermissionResult({ kind: 'approve-once' }, context.decisionSource, context.userFeedback);
 				// The grant changes the runtime's live policy outside `options.update`.
 				this._appliedConfig = undefined;
-				const result = await this._options.getSession()!.rpc.sandbox.grantPathForRequest({
+				const result = await session.rpc.sandbox.grantPathForRequest({
 					requestId,
 					...(attributed.kind === 'attributed' ? { decisionContext: attributed.decisionContext } : {}),
 				});
 				if (!result.success) {
 					throw new Error(localize('copilot.permission.grant.rejected', "The SDK did not grant sandbox access for this request."));
 				}
+				validateScope();
+				const target = this._target();
+				const os = this._options.platform === 'win32' ? OperatingSystem.Windows : this._options.platform === 'darwin' ? OperatingSystem.Macintosh : OperatingSystem.Linux;
+				const persistence = sessionScope
+					? this._sessionPaths.grant(this._options.ownerSession, grant)
+					: this._sessionPaths.removeReadonlyPaths(this._options.ownerSession, grant.removedReadonlyPaths ?? [], os);
+				if (workspaceRoots?.length && !sessionScope) {
+					const workspacePersistence = workspaceScope
+						? this._workspacePaths.grant(workspaceRoots, grant)
+						: this._workspacePaths.removeReadonlyPaths(workspaceRoots, grant.removedReadonlyPaths ?? [], os);
+					void workspacePersistence.catch(error => {
+						this._logService.error(error, `[Copilot:${this._options.sessionId}] Failed to persist workspace sandbox path access`);
+						this._configurationService.reportChatSandboxConflict(target, localize(
+							'copilot.permission.grant.workspaceSaveFailed',
+							"Sandbox access was granted, but the workspace permission change could not be saved. You may need to approve it again when reopening the workspace. {0}",
+							getErrorMessage(error),
+						));
+					});
+				}
+				void persistence.catch(error => {
+					this._logService.error(error, `[Copilot:${this._options.sessionId}] Failed to persist session sandbox path access`);
+					this._configurationService.reportChatSandboxConflict(target, sessionScope
+						? localize(
+							'copilot.permission.grant.sessionSaveFailed',
+							"Sandbox access was granted for this session, but could not be saved. You may need to approve it again when resuming the session. {0}",
+							getErrorMessage(error),
+						)
+						: localize(
+							'copilot.permission.grant.sessionCleanupFailed',
+							"Sandbox access was granted, but the removal of this session's previous read-only access could not be saved. You may need to approve it again when resuming the session. {0}",
+							getErrorMessage(error),
+						));
+				});
 				return { kind: 'no-result' };
 			});
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this._options.sessionId}] Failed to grant sandbox path access`);
-			const message = context.sandboxPathGrantSaved
+			const message = saved
 				? localize('copilot.permission.grant.savedButFailed', "The path was saved to your sandbox settings, but this request could not be retried. {0}", getErrorMessage(error))
 				: getErrorMessage(error);
 			if (context.origin) {
 				const target = this._target();
 				this._configurationService.setChatSandboxEnabled(target, this._configurationService.getChatSandboxEnabled(target) ?? true, { ...context.origin, message });
+			} else {
+				this._configurationService.reportChatSandboxConflict(this._target(), message);
 			}
 			return attributePermissionResult({ kind: 'reject' }, 'unattended_fallback');
 		}
+	}
+
+	/**
+	 * Records the local files and folders of a user message so the next applied
+	 * config grants them read-only. Returns whether the message attaches any
+	 * local path, new or not: a caller that sends before the next turn must then
+	 * await {@link applyConfig}, which also waits for an update still in flight.
+	 */
+	addAttachments(attachments: readonly MessageAttachment[] | undefined): boolean {
+		const uris = getAttachedLocalPaths(attachments);
+		for (const uri of uris) {
+			this._attachedPaths.set(uri.toString(), uri);
+		}
+		return uris.length > 0;
+	}
+
+	/** The local attachments the sandbox can't make readable: those the effective policy blocks, and folders containing a writable folder. */
+	getUnreadableAttachments(attachments: readonly MessageAttachment[] | undefined): Pick<ISandboxAttachedPathGrants, 'blocked' | 'containsWritable'> {
+		const paths = getAttachedLocalPaths(attachments);
+		if (!paths.length || this._disabledForSession) {
+			return { blocked: [], containsWritable: [] };
+		}
+		const target = this._target();
+		const sandbox = getSessionSandboxConfig(this._configurationService, target, this._options.platform, this._getWorkspacePaths());
+		const policy = this._configurationService.getSessionSandboxPolicy(target.session);
+		const { blocked, containsWritable } = resolveAttachedPathGrants(this._options.platform, sandbox, policy, this._attachedPathsFor(paths));
+		return { blocked, containsWritable };
+	}
+
+	/** Uses the session's platform rather than `URI.fsPath`, whose syntax follows the OS of the current process. */
+	private _attachedPathsFor(uris: readonly URI[]): ISandboxAttachedPaths {
+		const workingDirectory = this._options.getWorkingDirectory();
+		return {
+			paths: uris.map(uri => toSandboxFileSystemPath(uri, this._options.platform)),
+			...(workingDirectory ? { workingDirectory: toSandboxFileSystemPath(workingDirectory, this._options.platform) } : {}),
+			additionalWorkingDirectories: this._options.getAdditionalWorkingDirectories().map(uri => toSandboxFileSystemPath(uri, this._options.platform)),
+		};
 	}
 
 	/** Whether the Agent Host's own shell tools replace the SDK's built-in shell. */
@@ -242,15 +429,16 @@ export class CopilotSessionSandbox extends Disposable {
 
 	private _computeConfig(): SandboxConfig | undefined {
 		const target = this._target();
-		const sandbox = getSessionSandboxConfig(this._configurationService, target, this._options.platform);
+		const sandbox = getSessionSandboxConfig(this._configurationService, target, this._options.platform, this._getWorkspacePaths());
 		const policy = this._configurationService.getSessionSandboxPolicy(target.session);
 		const readonlyPaths = [...getVSCodeSandboxReadRoots({
+			applicationReadRoots: this._applicationReadRoots,
 			sessionDataDirectories: [this._options.ownerSession.toString(), this._options.storage.toString(), ...this._configurationService.getChatAttachmentScopes(target)]
 				.filter((scope, index, scopes) => scopes.indexOf(scope) === index)
 				.map(scope => this._sessionDataService.getSessionDataDir(URI.parse(scope))),
 			shellInitDirectory: this._options.getShellInitDirectory(),
 		}), ...this._options.getAppliedPluginDirectories()].map(root => root.fsPath);
-		return buildSandboxConfigForSdk(this._options.platform, sandbox, readonlyPaths, policy);
+		return buildSandboxConfigForSdk(this._options.platform, sandbox, readonlyPaths, policy, this._attachedPathsFor([...this._attachedPaths.values()]));
 	}
 
 	updateDiagnostics(config?: SandboxConfig): Promise<void> {
@@ -283,9 +471,15 @@ export class CopilotSessionSandbox extends Disposable {
 		return this.isCustomTerminalToolEnabled() || this._disabledForSession ? { enabled: false } : this._computeConfig() ?? { enabled: false };
 	}
 
-	refreshCertificateDiagnostics(): Promise<void> {
-		const config = this.isCustomTerminalToolEnabled() || this._disabledForSession ? { enabled: false } : this._computeConfig() ?? { enabled: false };
-		return this._certificateDiagnostics.update(config);
+	async refreshCertificateDiagnostics(scopeId?: string): Promise<void> {
+		try {
+			if (scopeId !== undefined) {
+				await this._options.refreshCertificate(() => this._certificateConfig(), scopeId);
+			}
+		} finally {
+			const config = this.isCustomTerminalToolEnabled() || this._disabledForSession ? { enabled: false } : this._computeConfig() ?? { enabled: false };
+			await this._certificateDiagnostics.update(config);
+		}
 	}
 
 	/** Serializes configuration pushes with request-bound grants and session opt-outs. */
@@ -334,6 +528,9 @@ export class CopilotSessionSandbox extends Disposable {
 	}
 
 	private async _updateConfig(failOnError: boolean, requestedSelection: 'on' | 'off' | 'default' | undefined, recorder?: IAgentProviderSendStageRecorder, session = this._options.getSession() ?? this._launchSession, reportMutation = true, isResume = false): Promise<void> {
+		if (this._store.isDisposed || this._options.isSessionClosed?.(session)) {
+			return;
+		}
 		if (!session) {
 			if (requestedSelection !== undefined) {
 				this._pendingSelection = requestedSelection;
@@ -373,7 +570,10 @@ export class CopilotSessionSandbox extends Disposable {
 				this._options.onDidChangeRuntimeConfig?.();
 			}
 			if (!unchanged) {
-				const result = await measureAgentProviderOperation(recorder, 'sandboxRpc', () => applySandboxConfig(session, sandboxConfig, this._options.sessionId, this._logService, isResume || requestedSelection !== undefined));
+				const result = await measureAgentProviderOperation(recorder, 'sandboxRpc', () => applySandboxConfig(session, sandboxConfig, this._options.sessionId, this._logService, isResume || requestedSelection !== undefined, () => !!this._options.isSessionClosed?.(session)));
+				if (this._store.isDisposed || this._options.isSessionClosed?.(session)) {
+					return;
+				}
 				if (!result.applied) {
 					this._configurationService.reportChatSandboxConflict(target, result.message);
 					return;
@@ -389,6 +589,9 @@ export class CopilotSessionSandbox extends Disposable {
 			}
 			await measureAgentProviderOperation(recorder, 'sandboxDiagnostics', () => this.updateDiagnostics(sandboxConfig));
 		} catch (err) {
+			if (this._store.isDisposed || this._options.isSessionClosed?.(session)) {
+				return;
+			}
 			if (failOnError) {
 				throw err;
 			}

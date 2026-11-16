@@ -26,6 +26,55 @@ suite('Getting started focus styles', () => {
 	});
 
 	for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+		test(`document has a keyboard focus outline in ${theme}`, () => {
+			const container = append(mainWindow.document.body, $(`.monaco-workbench.${theme}`));
+			store.add(toDisposable(() => container.remove()));
+			container.style.setProperty('--vscode-focusBorder', '#0078d4');
+			container.style.setProperty('--vscode-strokeThickness', '1px');
+			const content = append(append(container, $('.part.editor')), $('.content'));
+			content.style.height = '400px';
+			const document = append(content, $('.gettingStartedContainer', { role: 'document', tabindex: 0 }));
+			const slide = append(document, $('.gettingStartedSlide.gettingStartedSlideCategories'));
+			const button = append(slide, $('button', {}, 'Start'));
+			const input = append(container, $('input', { type: 'text' }));
+			input.focus();
+			document.focus();
+
+			const style = mainWindow.getComputedStyle(document);
+			const documentBounds = document.getBoundingClientRect();
+			const contentBounds = content.getBoundingClientRect();
+			const outlineExtent = parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
+			const focusedStyle = {
+				focused: mainWindow.document.activeElement === document,
+				focusVisible: document.matches(':focus-visible'),
+				outlineStyle: style.outlineStyle,
+				outlineWidth: style.outlineWidth,
+				outlineColor: style.outlineColor,
+				outlineOffset: style.outlineOffset,
+				outlineContained: documentBounds.top - outlineExtent >= contentBounds.top
+					&& documentBounds.bottom + outlineExtent <= contentBounds.bottom
+					&& documentBounds.left - outlineExtent >= contentBounds.left
+					&& documentBounds.right + outlineExtent <= contentBounds.right,
+			};
+			button.focus();
+
+			assert.deepStrictEqual({
+				...focusedStyle,
+				childFocused: mainWindow.document.activeElement === button,
+				outlineStyleWithChildFocused: mainWindow.getComputedStyle(document).outlineStyle,
+			}, {
+				focused: true,
+				focusVisible: true,
+				outlineStyle: 'solid',
+				outlineWidth: '1px',
+				outlineColor: 'rgb(0, 120, 212)',
+				outlineOffset: '-1px',
+				outlineContained: true,
+				childFocused: true,
+				outlineStyleWithChildFocused: 'none',
+			});
+		});
+
 		for (const section of ['recent', 'walkthrough']) {
 			test(`${section} close button uses the theme focus outline in ${theme}`, () => {
 				const container = append(mainWindow.document.body, $(`.monaco-workbench.${theme}`));

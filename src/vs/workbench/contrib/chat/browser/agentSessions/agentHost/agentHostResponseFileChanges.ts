@@ -10,10 +10,11 @@ import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObs
 import { getComparisonKey, isEqual, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { buildBranchChangesetUri, ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
-import { toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import {
 	ChangesetStatus,
@@ -110,9 +111,24 @@ function getToolCallFileEdits(toolCall: ToolCallState): ISessionFileDiff[] {
 	return edits;
 }
 
-/** Maps one Agent Host changeset file into the diff shape used by chat editors. */
-export function agentHostChangesetFileToEntryDiff(file: ChangesetFile, connectionAuthority: string): IEditSessionEntryDiff | undefined {
-	return changesetEditToEntryDiff(file.edit, connectionAuthority);
+/**
+ * The authority of the agent host URIs handed out by the session's connection. The ambient
+ * host always resolves with the `local` authority, even in a remote window where it runs on
+ * the remote, so host files would otherwise be opened as paths on this machine.
+ */
+export function getAgentHostResourceAuthority(resolution: IAgentHostSessionResolution): string {
+	const root = resolution.connection.resourceUris.fromAgentHost(URI.file('/'));
+	return root.scheme === AGENT_HOST_SCHEME ? root.authority : resolution.connectionAuthority;
+}
+
+/**
+ * Maps one Agent Host changeset file into the diff shape used by chat editors. The file is mapped into this
+ * window's URI space through the owning connection's `resourceUris`, so it opens as the workspace's file (a
+ * `vscode-remote` file in a remote window). Its recorded contents are read through the host using
+ * `connectionAuthority`, as from {@link getAgentHostResourceAuthority}.
+ */
+export function agentHostChangesetFileToEntryDiff(file: ChangesetFile, connection: Pick<IAgentConnection, 'resourceUris'>, connectionAuthority: string): IEditSessionEntryDiff | undefined {
+	return changesetEditToEntryDiff(file.edit, connection, connectionAuthority);
 }
 
 /** Result of converting one immutable file edit, independent of the workspace roots it is later classified against. */
@@ -121,13 +137,13 @@ interface IConvertedFileEdit {
 	readonly diff: Omit<IChatResponseFileEdit, 'isOutsideWorkspace'>;
 }
 
-function changesetEditToEntryDiff(edit: ISessionFileDiff, connectionAuthority: string): IEditSessionEntryDiff | undefined {
+function changesetEditToEntryDiff(edit: ISessionFileDiff, connection: Pick<IAgentConnection, 'resourceUris'>, connectionAuthority: string): IEditSessionEntryDiff | undefined {
 	const normalized = normalizeFileEdit(edit);
 	if (!normalized) {
 		return undefined;
 	}
 
-	const modifiedURI = toAgentHostUri(normalized.resource, connectionAuthority);
+	const modifiedURI = connection.resourceUris.fromAgentHost(normalized.resource);
 	const originalURI = normalized.beforeContentUri
 		? toAgentHostContentUri(normalized.beforeContentUri, connectionAuthority, normalized.beforeUri)
 		: modifiedURI;
@@ -315,7 +331,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 	private _changesetEditToEntryDiff(edit: ISessionFileDiff): IEditSessionEntryDiff | undefined {
 		let diff = this._convertedChangesetEdits.get(edit);
 		if (diff === undefined) {
-			diff = changesetEditToEntryDiff(edit, this._connectionAuthority) ?? null;
+			diff = changesetEditToEntryDiff(edit, this._connection, this._connectionAuthority) ?? null;
 			this._convertedChangesetEdits.set(edit, diff);
 		}
 		return diff ?? undefined;
@@ -545,7 +561,7 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		}
 		const resource = normalized.resource;
 
-		const modifiedURI = toAgentHostUri(resource, this._connectionAuthority);
+		const modifiedURI = this._connection.resourceUris.fromAgentHost(resource);
 		const originalURI = normalized.kind === FileEditKind.Create || !normalized.beforeContentUri
 			? modifiedURI
 			: toAgentHostContentUri(normalized.beforeContentUri, this._connectionAuthority, normalized.beforeUri);

@@ -25,6 +25,7 @@ import { IFileDialogService } from '../../../../../../../platform/dialogs/common
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
@@ -58,8 +59,7 @@ suite('ChatResourceGroupWidget', () => {
 	});
 
 	test('saving separate generated images uses hashed names without changing their resource URIs', async () => {
-		const fileService = store.add(new FileService(new NullLogService()));
-		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(store, Schemas.inMemory);
 		instantiationService.stub(IFileService, fileService);
 		const destination = URI.from({ scheme: Schemas.inMemory, path: '/saved' });
 		await fileService.createFolder(destination);
@@ -559,6 +559,21 @@ suite('ChatResourceGroupWidget', () => {
 			decoded: image.naturalWidth > 0,
 			hoverImages: imageHovers.flatMap(hover => [...hover.querySelectorAll('img')]).length,
 		}, { initialFilePills: 1, initialImages: 0, finalImages: 1, decoded: true, hoverImages: 1 });
+	});
+
+	test('tool result thumbnails show an image placeholder, not a warning, until they are ready', async () => {
+		const widget = render([{ kind: 'data', uri: resource, mimeType: 'image/png', value: decodeBase64(imageData).buffer }], false);
+		const state = () => ({
+			icons: [...widget.domNode.querySelectorAll('.image-attachment .chat-attached-context-pill .codicon')].map(icon => icon.className),
+			images: snapshot(widget).images,
+		});
+		const loading = state();
+		await waitForElement(widget.domNode, 'img.chat-attached-context-pill-image');
+
+		assert.deepStrictEqual({ loading, ready: state() }, {
+			loading: { icons: ['codicon codicon-file-media-compact'], images: 0 },
+			ready: { icons: [], images: 1 },
+		});
 	});
 
 	for (const inline of [false, true]) {

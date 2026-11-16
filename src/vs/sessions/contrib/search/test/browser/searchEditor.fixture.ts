@@ -41,7 +41,7 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 import { TestEditorGroupsService, TestEditorGroupView, TestEditorService, TestPathService, TestTextResourceConfigurationService, TestWorkingCopyService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { TestFileService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { FixtureKeybindingService } from '../../../../test/browser/addTabFixtureUtils.js';
-import { NEW_FILE_TAB_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { NEW_FILE_TAB_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 
 let modelCounter = 0;

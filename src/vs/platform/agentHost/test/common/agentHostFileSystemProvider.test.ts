@@ -7,15 +7,18 @@ import assert from 'assert';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../../../base/common/event.js';
+import { constObservable, type IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FileChangeType, FilePermission, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
+import { FileChangesEvent, FileChangeType, FilePermission, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
 import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection, type IRemoteWatchHandle } from '../../common/agentHostFileSystemProvider.js';
+import type { IAgentConnection } from '../../common/agentService.js';
 import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
-import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, isAgentHostContentRefUri, toAgentHostContentUri, toAgentHostUri } from '../../common/agentHostUri.js';
-import { ContentEncoding, ResourceType, type CreateResourceWatchParams, type ResourceCopyParams, type ResourceListResult, type ResourceMkdirParams, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult } from '../../common/state/protocol/commands.js';
+import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, createEditorRemoteAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, isAgentHostContentRefUri, toAgentHostContentUri, toAgentHostUri } from '../../common/agentHostUri.js';
+import { ContentEncoding, PathStyle, ResourceType, type CreateResourceWatchParams, type InitializeResult, type ResourceCopyParams, type ResourceListResult, type ResourceMkdirParams, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult } from '../../common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
+import { buildMcpResourceUri } from '../../common/mcpResourceUri.js';
 import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
 
 suite('AgentHostFileSystemProvider - URI helpers', () => {
@@ -319,17 +322,58 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		const original = URI.file('/remote/file.txt');
 		const remote = createAgentHostResourceUriMapper('remote-host');
 		const mapped = remote.fromAgentHost(original);
+		const otherHost = toAgentHostUri(original, 'other-host');
 
 		assert.deepStrictEqual({
 			mapped: mapped.toString(),
 			unmapped: remote.toAgentHost(mapped).toString(),
+			otherHost: remote.toAgentHost(otherHost).toString(),
 			localFrom: identityAgentHostResourceUriMapper.fromAgentHost(original).toString(),
 			localTo: identityAgentHostResourceUriMapper.toAgentHost(original).toString(),
 		}, {
 			mapped: toAgentHostUri(original, 'remote-host').toString(),
 			unmapped: original.toString(),
+			otherHost: otherHost.toString(),
 			localFrom: original.toString(),
 			localTo: original.toString(),
+		});
+	});
+
+	test('editor-remote resource URI mapper preserves workspace identities', () => {
+		const mapper = createEditorRemoteAgentHostResourceUriMapper('wsl+Ubuntu', 'editor-remote');
+		const remote = URI.parse('vscode-remote://wsl+Ubuntu/workspace?query=value#fragment');
+		const file = URI.parse('file:///workspace?query=value#fragment');
+		const otherRemote = URI.parse('vscode-remote://wsl+other/workspace');
+		const content = URI.parse('agenthost-content:/session/output?query=value#fragment');
+		const wrapped = toAgentHostUri(file, 'editor-remote');
+		const otherHost = toAgentHostUri(file, 'other-host');
+
+		assert.deepStrictEqual({
+			toHost: mapper.toAgentHost(remote).toString(),
+			filePassthrough: mapper.toAgentHost(file).toString(),
+			mixedCase: mapper.toAgentHost(remote.with({ authority: 'WSL+uBUNTU' })).toString(),
+			otherAuthority: mapper.toAgentHost(otherRemote).toString(),
+			unwrapped: mapper.toAgentHost(wrapped).toString(),
+			otherHostWrapped: mapper.toAgentHost(otherHost).toString(),
+			toClient: mapper.fromAgentHost(file).toString(),
+			remotePassthrough: mapper.fromAgentHost(remote).toString(),
+			otherRemotePassthrough: mapper.fromAgentHost(otherRemote).toString(),
+			content: mapper.fromAgentHost(content).toString(),
+			remoteRoundTrip: mapper.fromAgentHost(mapper.toAgentHost(remote)).toString(),
+			hostRoundTrip: mapper.toAgentHost(mapper.fromAgentHost(file)).toString(),
+		}, {
+			toHost: file.toString(),
+			filePassthrough: file.toString(),
+			mixedCase: file.toString(),
+			otherAuthority: otherRemote.toString(),
+			unwrapped: file.toString(),
+			otherHostWrapped: otherHost.toString(),
+			toClient: remote.toString(),
+			remotePassthrough: remote.toString(),
+			otherRemotePassthrough: otherRemote.toString(),
+			content: toAgentHostUri(content, 'editor-remote').toString(),
+			remoteRoundTrip: remote.toString(),
+			hostRoundTrip: file.toString(),
 		});
 	});
 
@@ -670,6 +714,29 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 	// stats every URI before reading it, so this broke "open diff of a
 	// modified file" entirely. The fix is the scheme allowlist in stat().
 
+	for (const authority of ['local', 'remote']) {
+		test(`opens MCP skill content read-only without filesystem resolution (${authority})`, async () => {
+			const provider = disposables.add(new AgentHostFileSystemProvider());
+			const connection = new StubConnection();
+			disposables.add(provider.registerAuthority(authority, connection));
+			const content = URI.parse(buildMcpResourceUri('opaque-mcp-channel:skills', 'skill://server/friendly/SKILL.md', 'Friendly'));
+			const wrapped = toAgentHostUri(content, authority);
+
+			const stat = await provider.stat(wrapped);
+			const path = await provider.realpath(wrapped);
+			const bytes = await provider.readFile(wrapped);
+
+			assert.deepStrictEqual({
+				type: stat.type, readonly: stat.permissions === FilePermission.Readonly, path,
+				content: VSBuffer.wrap(bytes).toString(), resources: connection.readCalls.map(uri => uri.toString()),
+				resolved: connection.resolveCalls, listed: connection.listCalls,
+			}, {
+				type: FileType.File, readonly: true, path: '/Friendly', content: 'stub-content',
+				resources: [content.toString()], resolved: [], listed: [],
+			});
+		});
+	}
+
 	test('stat returns File for git-blob: URIs without listing the parent', async () => {
 		const { provider, connection } = setup();
 		const inner = URI.from({ scheme: 'git-blob', authority: 'sess1', path: '/sha/encoded/file.ts' });
@@ -965,6 +1032,38 @@ suite('AgentHostFileSystemProvider - permission errors and requestResourceAccess
 		}
 	});
 
+	test('authentication failures remain Unavailable across filesystem operations', async () => {
+		const { provider, connection } = setup();
+		const wrapped = agentHostUri('remote', '/protected');
+		const error = new ProtocolError(AhpErrorCodes.AuthRequired, 'Relay identity authentication is required');
+		connection.readError = error;
+		connection.listError = error;
+		connection.resolveError = error;
+		connection.writeError = error;
+		connection.deleteError = error;
+		connection.moveError = error;
+		connection.copyError = error;
+		connection.mkdirError = error;
+		connection.requestError = error;
+		const operations = [
+			() => provider.stat(wrapped),
+			() => provider.realpath(wrapped),
+			() => provider.readFile(wrapped),
+			() => provider.readdir(wrapped),
+			() => provider.writeFile(wrapped, new Uint8Array(), { create: true, overwrite: true, unlock: false, atomic: false }),
+			() => provider.delete(wrapped, { recursive: false, useTrash: false, atomic: false }),
+			() => provider.rename(wrapped, agentHostUri('remote', '/dst'), { overwrite: true }),
+			() => provider.copy(wrapped, agentHostUri('remote', '/dst'), { overwrite: true }),
+			() => provider.mkdir(wrapped),
+			() => provider.requestResourceAccess(wrapped, { read: true }),
+		];
+		for (const operation of operations) {
+			await assert.rejects(operation(), err => err instanceof Error
+				&& err.message === error.message
+				&& toFileSystemProviderErrorCode(err) === FileSystemProviderErrorCode.Unavailable);
+		}
+	});
+
 	test('writeFile / delete / rename / readdir all surface NoPermissions on PermissionDenied', async () => {
 		const { provider, connection } = setup();
 		const wrapped = agentHostUri('remote', '/no-write');
@@ -1048,6 +1147,8 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		readonly copyCalls: ResourceCopyParams[] = [];
 		readonly watchCalls: CreateResourceWatchParams[] = [];
 		onDidReconnect?: Event<void>;
+		initializeResult?: IObservable<InitializeResult | undefined>;
+		rootState?: IAgentConnection['rootState'];
 		nextWatchHandle: { onDidChange: Event<readonly IFileChange[]>; dispose(): void } | undefined;
 		watchError: unknown | undefined;
 		nextResolveResult: ResourceResolveResult = { uri: '', type: ResourceType.File, size: 42, mtime: '2026-01-15T12:34:56.789Z', etag: 'etag-1' };
@@ -1182,6 +1283,88 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 
 		watchDisposable.dispose();
 		assert.strictEqual(handleDisposed, true, 'underlying handle should be disposed when wrapper is disposed');
+		sub.dispose();
+	});
+
+	async function fireChangeAfterWatch(pathStyle: PathStyle, watchedUri: string, changedUri: string, platform?: string): Promise<{ watched: URI; received: IFileChange[][] }> {
+		const { provider, connection } = setup();
+		connection.initializeResult = constObservable({ environment: { pathStyle } } as InitializeResult);
+		if (platform) {
+			connection.rootState = { value: { agents: [], activeSessions: 0, _meta: { 'vscode.agentHost.resources': { platform } } } } as unknown as IAgentConnection['rootState'];
+		}
+		const onDidChange = new Emitter<readonly IFileChange[]>();
+		connection.nextWatchHandle = { onDidChange: onDidChange.event, dispose: () => onDidChange.dispose() };
+		const watched = toAgentHostUri(URI.parse(watchedUri), 'remote');
+
+		const received: IFileChange[][] = [];
+		const sub = provider.onDidChangeFile(c => received.push([...c]));
+		const watchDisposable = provider.watch(watched, { recursive: false, excludes: [] });
+		await new Promise<void>(resolve => queueMicrotask(resolve));
+
+		onDidChange.fire([{ resource: URI.parse(changedUri), type: FileChangeType.UPDATED }]);
+		watchDisposable.dispose();
+		sub.dispose();
+		return { watched, received };
+	}
+
+	test('watch on a Windows host matches changes that only differ by case', async () => {
+		const { watched, received } = await fireChangeAfterWatch(PathStyle.Windows, 'file:///C:/Users/Test/simple-test.html', URI.file('/c:/users/test/simple-test.html').toString());
+
+		assert.deepStrictEqual(received, [[{ resource: watched, type: FileChangeType.UPDATED }]]);
+		assert.strictEqual(new FileChangesEvent(received[0], false).contains(watched, FileChangeType.UPDATED), true);
+	});
+
+	test('watch on a posix host keeps paths that only differ by case distinct', async () => {
+		const { watched, received } = await fireChangeAfterWatch(PathStyle.Posix, 'file:///C:/Users/test/a.html', 'file:///c:/Users/test/a.html');
+
+		assert.deepStrictEqual(received.map(e => e.map(c => c.resource.toString())), [[toAgentHostUri(URI.parse('file:///c:/Users/test/a.html'), 'remote').toString()]]);
+		assert.strictEqual(new FileChangesEvent(received[0], false).contains(watched, FileChangeType.UPDATED), false);
+	});
+
+	test('watch re-casing follows the path style even when the advertised platform conflicts', async () => {
+		const windowsStyleOnLinux = await fireChangeAfterWatch(PathStyle.Windows, 'file:///C:/Users/Test/a.html', 'file:///c:/Users/Test/a.html', 'linux');
+		const posixStyleOnMac = await fireChangeAfterWatch(PathStyle.Posix, 'file:///C:/Users/Test/a.html', 'file:///c:/Users/Test/a.html', 'macos');
+
+		assert.deepStrictEqual(
+			[windowsStyleOnLinux, posixStyleOnMac].map(r => new FileChangesEvent(r.received[0], false).contains(r.watched, FileChangeType.UPDATED)),
+			[true, false]);
+	});
+
+	test('watch attached before the handshake matches changes that only differ by case once the host is known', async () => {
+		const { provider, connection } = setup();
+		const onDidChange = new Emitter<readonly IFileChange[]>();
+		connection.nextWatchHandle = { onDidChange: onDidChange.event, dispose: () => onDidChange.dispose() };
+		const watched = toAgentHostUri(URI.parse('file:///C:/Users/Test/simple-test.html'), 'remote');
+
+		const received: IFileChange[][] = [];
+		const sub = provider.onDidChangeFile(c => received.push([...c]));
+		const watchDisposable = provider.watch(watched, { recursive: false, excludes: [] });
+		await new Promise<void>(resolve => queueMicrotask(resolve));
+
+		connection.initializeResult = constObservable({ environment: { pathStyle: PathStyle.Windows } } as InitializeResult);
+		onDidChange.fire([{ resource: URI.parse('file:///c%3A/Users/Test/simple-test.html'), type: FileChangeType.UPDATED }]);
+		watchDisposable.dispose();
+		sub.dispose();
+
+		assert.deepStrictEqual(received, [[{ resource: watched, type: FileChangeType.UPDATED }]]);
+	});
+
+	test('watch tags forwarded changes with the correlation ID of the watcher', async () => {
+		const { provider, connection } = setup();
+		const onDidChange = new Emitter<readonly IFileChange[]>();
+		connection.nextWatchHandle = {
+			onDidChange: onDidChange.event,
+			dispose: () => onDidChange.dispose(),
+		};
+		const received: IFileChange[][] = [];
+		const sub = provider.onDidChangeFile(c => received.push([...c]));
+		const watchDisposable = provider.watch(agentHostUri('remote', '/watched'), { recursive: false, excludes: [], correlationId: 7 });
+
+		await new Promise<void>(resolve => queueMicrotask(resolve));
+		onDidChange.fire([{ resource: URI.parse('file:///watched/a.txt'), type: FileChangeType.UPDATED }]);
+
+		assert.deepStrictEqual(received, [[{ resource: toAgentHostUri(URI.parse('file:///watched/a.txt'), 'remote'), type: FileChangeType.UPDATED, cId: 7 }]]);
+		watchDisposable.dispose();
 		sub.dispose();
 	});
 

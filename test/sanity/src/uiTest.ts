@@ -6,10 +6,11 @@
 import assert from 'assert';
 import fs from 'fs';
 import path from 'path';
-import { ConsoleMessage, Page, Request, Response } from 'playwright';
+import { Page } from 'playwright';
 import zlib from 'zlib';
 import { TestContext } from './context.js';
 import { GalleryRequestMonitor } from './galleryDiagnostics.js';
+import { WebviewDiagnostics } from './webviewDiagnostics.js';
 
 /** NetLogs larger than this are not uploaded. */
 const maxNetLogBytes = 200 * 1024 * 1024;
@@ -191,30 +192,7 @@ export class UITest {
 	 * being rejected with 401 (#341396).
 	 */
 	private async openMarkdownPreview(page: Page) {
-		const failedResources: string[] = [];
-		const diagnostics: string[] = [];
-		const onResponse = (response: Response) => {
-			if (response.status() >= 400 && response.url().includes('.vscode-resource.')) {
-				this.context.log(`Webview resource failed with ${response.status()}: ${response.url()}`);
-				failedResources.push(`${response.status()} ${response.url()}`);
-			}
-		};
-		const onRequestFailed = (request: Request) => {
-			if (/\.vscode-resource\.|vscode-cdn\.net/.test(request.url())) {
-				const message = `Webview request failed with ${request.failure()?.errorText}: ${request.url()}`;
-				this.context.log(message);
-				diagnostics.push(message);
-			}
-		};
-		const onConsole = (message: ConsoleMessage) => {
-			if (message.type() === 'error') {
-				diagnostics.push(`Console error: ${message.text()}`);
-			}
-		};
-
-		page.on('response', onResponse);
-		page.on('requestfailed', onRequestFailed);
-		page.on('console', onConsole);
+		const monitor = new WebviewDiagnostics(page, message => this.context.log(message));
 		try {
 			await this.createFile(page, 'preview.md', '# Webview Sanity');
 			await this.runCommand(page, 'Markdown: Open Preview');
@@ -224,7 +202,7 @@ export class UITest {
 				.frameLocator('iframe.webview.ready[src*="extensionId=vscode.markdown-language-features"]')
 				.frameLocator('#active-frame');
 			try {
-				await preview.getByRole('heading', { name: 'Webview Sanity' }).waitFor({ timeout: 60_000 });
+				await monitor.waitFor(preview.getByRole('heading', { name: 'Webview Sanity' }).waitFor({ timeout: 60_000 }));
 
 				// The heading can appear before asynchronous preview scripts finish loading.
 				const previewElement = await preview.owner().elementHandle();
@@ -232,36 +210,30 @@ export class UITest {
 				try {
 					const frame = await previewElement.contentFrame();
 					assert.ok(frame, 'Markdown preview frame is detached');
-					await frame.waitForLoadState('load', { timeout: 60_000 });
+					await monitor.waitFor(frame.waitForLoadState('load', { timeout: 60_000 }));
 				} finally {
 					await previewElement.dispose();
 				}
 			} catch (error) {
 				// Some browsers, such as Chromium on Debian 12, refuse to register the webview service worker,
 				// so no webview can load there at all. That is a property of the browser, not a resource loading failure.
-				if (failedResources.length === 0 && diagnostics.some(message => message.includes('NotSupportedError: Failed to register a ServiceWorker'))) {
+				if (monitor.failedResources.length === 0 && monitor.diagnostics.some(message => message.includes('NotSupportedError: Failed to register a ServiceWorker'))) {
 					this.context.warn('Skipping the Markdown preview check: this browser does not allow webviews to register their service worker');
 					await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
 					return;
 				}
 
-				throw new Error([
-					'Markdown preview did not render.',
-					`Failed webview resources: ${failedResources.join(', ') || 'none observed'}`,
-					...diagnostics.slice(0, 20),
-				].join('\n'), { cause: error });
+				throw new Error(monitor.formatFailure(), { cause: error });
 			}
 
 			// Keyboard focus is now inside the preview webview; return it to the workbench before later steps press F1.
 			this.context.log('Returning focus to the workbench');
 			await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
 		} finally {
-			page.off('response', onResponse);
-			page.off('requestfailed', onRequestFailed);
-			page.off('console', onConsole);
+			monitor.dispose();
 		}
 
-		assert.deepStrictEqual(failedResources, [], 'Markdown preview failed to load some webview resources');
+		assert.deepStrictEqual(monitor.failedResources, [], 'Markdown preview failed to load some webview resources');
 	}
 
 	/**

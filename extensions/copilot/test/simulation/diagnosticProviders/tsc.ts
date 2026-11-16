@@ -7,7 +7,6 @@ import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import ts from 'typescript/lib/tsserverlibrary';
-import { ITestingServicesAccessor } from '../../../src/platform/test/node/services';
 import { TestingCacheSalts } from '../../base/salts';
 import { CacheScope } from '../../base/simulationContext';
 import { REPO_ROOT } from '../../base/stest';
@@ -294,14 +293,6 @@ function withoutKeywords(identifiers: Set<string>): Set<string> {
 	return filteredIdentifiers;
 }
 
-/**
- * Runs `npm install` and proceeds to compile the files in the passed in folder. This is cached and is safe to use in tests.
- */
-export async function compileTSWorkspace(accessor: ITestingServicesAccessor, folderPath: string): Promise<ITestDiagnostic[]> {
-	const files = await readTSFiles(folderPath);
-	return await new TSServerDiagnosticsProvider().getDiagnostics(accessor, files);
-}
-
 export function doRunNpmInstall(projectRoot: string): Promise<void> {
 	return new Promise((resolve, reject) => {
 		cp.exec('npm install', { cwd: projectRoot }, (error, stdout, stderr) => {
@@ -311,33 +302,4 @@ export function doRunNpmInstall(projectRoot: string): Promise<void> {
 			return resolve();
 		});
 	});
-}
-
-async function readTSFiles(folderPath: string): Promise<IFile[]> {
-	const allFiles: string[] = [];
-	await rreaddir(folderPath, allFiles);
-	return await Promise.all(
-		allFiles.filter(
-			file => ['.ts', '.tsx', '.json'].includes(path.extname(file))
-		).map(async (filePath) => {
-			const relativeFilePath = path.relative(folderPath, filePath);
-			const fileContents = await fs.promises.readFile(filePath, 'utf8');
-			return {
-				fileName: relativeFilePath,
-				fileContents
-			};
-		})
-	);
-}
-
-async function rreaddir(folderPath: string, result: string[]): Promise<void> {
-	const entries = await fs.promises.readdir(folderPath, { withFileTypes: true });
-	for (const entry of entries) {
-		const fullPath = path.join(folderPath, entry.name);
-		if (entry.isDirectory()) {
-			await rreaddir(fullPath, result);
-		} else {
-			result.push(fullPath);
-		}
-	}
 }
