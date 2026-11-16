@@ -8,6 +8,8 @@ import { IAgentSessionsService } from '../browser/agentSessions/agentSessionsSer
 import { IChatService } from '../common/chatService/chatService.js';
 import { IChatPreventSleepActivitySource, isKeepAwakeSessionType, loadedChatsPreventSleep } from '../common/chatPreventSleep.js';
 import { isSessionInProgressStatus } from '../common/chatSessionsService.js';
+import { ITerminalChatService } from '../../terminal/browser/terminal.js';
+import { getChatSessionType } from '../common/model/chatUri.js';
 
 export class EditorChatPreventSleepActivity implements IChatPreventSleepActivitySource {
 	declare readonly _serviceBrand: undefined;
@@ -16,6 +18,7 @@ export class EditorChatPreventSleepActivity implements IChatPreventSleepActivity
 	constructor(
 		@IChatService chatService: IChatService,
 		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
+		@ITerminalChatService terminalChatService: ITerminalChatService,
 	) {
 		const loaded = loadedChatsPreventSleep(chatService);
 		// Defer the model getter: accessing it resolves all session providers.
@@ -26,6 +29,7 @@ export class EditorChatPreventSleepActivity implements IChatPreventSleepActivity
 			return (model.sessionsIncludingAutomationRuns ?? model.sessions).some(session =>
 				isKeepAwakeSessionType(session.providerType) && isSessionInProgressStatus(session.status));
 		});
-		this.busy = derived(reader => loaded.read(reader) || inventory.read(reader));
+		this.busy = derived(reader => loaded.read(reader) || inventory.read(reader) ||
+			terminalChatService.localRunningToolCommands.read(reader).some(resource => isKeepAwakeSessionType(getChatSessionType(resource))));
 	}
 }

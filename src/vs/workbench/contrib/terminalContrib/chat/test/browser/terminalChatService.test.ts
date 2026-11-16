@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -17,6 +17,8 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../platf
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { IAhpTerminalCommandSource, IChatTerminalOutputSource, IChatTerminalToolProgressPart, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { TerminalChatService } from '../../browser/terminalChatService.js';
+import { ICommandDetectionCapability, ITerminalCommand, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 
 /**
  * Peeks at the protected `_size` counter on a base Emitter to assert listener counts in tests.
@@ -51,6 +53,36 @@ suite('TerminalChatService', () => {
 		});
 
 		service = store.add(instantiationService.createInstance(TerminalChatService));
+	});
+
+	test('local tool commands survive the turn and stop on completion or terminal disposal', () => {
+		const capabilities = store.add(new TerminalCapabilityStore());
+		const finished = store.add(new Emitter<ITerminalCommand>());
+		const disposed = store.add(new Emitter<ITerminalInstance>());
+		capabilities.add(TerminalCapability.CommandDetection, upcastPartial<ICommandDetectionCapability>({ onCommandFinished: finished.event }));
+		const instance = upcastPartial<ITerminalInstance>({ capabilities, hasRemoteAuthority: false, isDisposed: false, onDisposed: disposed.event });
+		const session = URI.parse('vscode-chat-editor:/local');
+		const counts: number[] = [];
+		service.trackLocalToolCommand(instance, session);
+		counts.push(service.localRunningToolCommands.get().length);
+		onDidDisposeSessionEmitter.fire({ sessionResources: [session], reason: 'cleared' });
+		counts.push(service.localRunningToolCommands.get().length);
+		finished.fire(upcastPartial<ITerminalCommand>({}));
+		counts.push(service.localRunningToolCommands.get().length);
+		service.trackLocalToolCommand(instance, session);
+		disposed.fire(instance);
+		counts.push(service.localRunningToolCommands.get().length);
+		assert.deepStrictEqual(counts, [1, 1, 0, 0]);
+	});
+
+	test('does not track remote commands or terminals without shell command detection', () => {
+		const capabilities = store.add(new TerminalCapabilityStore());
+		const instance = upcastPartial<ITerminalInstance>({ capabilities, hasRemoteAuthority: false, isDisposed: false });
+		const session = URI.parse('vscode-chat-editor:/local');
+		service.trackLocalToolCommand(instance, session);
+		capabilities.add(TerminalCapability.CommandDetection, upcastPartial<ICommandDetectionCapability>({ onCommandFinished: Event.None }));
+		service.trackLocalToolCommand(upcastPartial<ITerminalInstance>({ capabilities, hasRemoteAuthority: true }), session);
+		assert.deepStrictEqual(service.localRunningToolCommands.get(), []);
 	});
 
 	test('registerTerminalInstanceWithToolSession does not accumulate onDidDisposeSession listeners when re-registering the same instance (#309906)', () => {

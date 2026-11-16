@@ -8,6 +8,8 @@ import { IChatPreventSleepActivitySource, isKeepAwakeSessionType, loadedChatsPre
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
+import { ITerminalChatService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
+import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 
 export class SessionsChatPreventSleepActivity implements IChatPreventSleepActivitySource {
 	declare readonly _serviceBrand: undefined;
@@ -16,11 +18,12 @@ export class SessionsChatPreventSleepActivity implements IChatPreventSleepActivi
 	constructor(
 		@IChatService chatService: IChatService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ITerminalChatService terminalChatService: ITerminalChatService,
 	) {
 		const loaded = loadedChatsPreventSleep(chatService);
 		const changed = observableSignalFromEvent(this, sessionsManagementService.onDidChangeSession);
 		this.busy = derived(reader => {
-			if (loaded.read(reader)) {
+			if (loaded.read(reader) || terminalChatService.localRunningToolCommands.read(reader).some(resource => isKeepAwakeSessionType(getChatSessionType(resource)))) {
 				return true;
 			}
 			changed.read(reader);

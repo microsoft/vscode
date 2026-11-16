@@ -21,6 +21,7 @@ import { IChatService } from '../../common/chatService/chatService.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { ChatPreventSleepClaimContribution } from '../../electron-browser/chatPreventSleep.js';
 import { EditorChatPreventSleepActivity } from '../../electron-browser/chatPreventSleepActivity.js';
+import { ITerminalChatService } from '../../../terminal/browser/terminal.js';
 
 suite('ChatPreventSleep', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -44,6 +45,7 @@ suite('ChatPreventSleep', () => {
 		const activity = new EditorChatPreventSleepActivity(
 			upcastPartial<IChatService>({ chatModels: models }),
 			upcastPartial<IAgentSessionsService>({ model: inventory }),
+			upcastPartial<ITerminalChatService>({ localRunningToolCommands: observableValue<readonly URI[]>('commands', []) }),
 		);
 		const values: boolean[] = [];
 		store.add(autorun(reader => values.push(activity.busy.read(reader))));
@@ -68,6 +70,7 @@ suite('ChatPreventSleep', () => {
 					return upcastPartial<IAgentSessionsModel>({ onDidChangeSessions: changed.event, sessions: [] });
 				},
 			}),
+			upcastPartial<ITerminalChatService>({ localRunningToolCommands: observableValue<readonly URI[]>('commands', []) }),
 		);
 		const busy = observableValue('busy', true);
 		const activity = upcastPartial<IChatPreventSleepActivitySource>({ busy: derived(reader => source.busy.read(reader) || busy.read(reader)) });
@@ -87,5 +90,22 @@ suite('ChatPreventSleep', () => {
 		assert.deepStrictEqual({ reports, subscribed: changed.hasListeners(), readsUnchanged: inventoryReads === readsAtDisable }, {
 			reports: [true, false], subscribed: false, readsUnchanged: true,
 		});
+
+	});
+
+	test('local background commands keep an otherwise idle editor busy and exclude cloud work', () => {
+		const commands = observableValue<readonly URI[]>('commands', []);
+		const changed = store.add(new Emitter<void>());
+		const activity = new EditorChatPreventSleepActivity(
+			upcastPartial<IChatService>({ chatModels: observableValue<Iterable<IChatModel>>('models', []) }),
+			upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsModel>({ onDidChangeSessions: changed.event, sessions: [] }) }),
+			upcastPartial<ITerminalChatService>({ localRunningToolCommands: commands }),
+		);
+		const values: boolean[] = [];
+		store.add(autorun(reader => values.push(activity.busy.read(reader))));
+		commands.set([URI.parse('copilot-cloud-agent:/cloud')], undefined);
+		commands.set([URI.parse('vscode-chat-editor:/local')], undefined);
+		commands.set([], undefined);
+		assert.deepStrictEqual(values, [false, true, false]);
 	});
 });

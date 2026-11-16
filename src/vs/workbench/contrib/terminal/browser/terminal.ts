@@ -10,6 +10,7 @@ import { Event, IDynamicListEventMultiplexer, type DynamicListEventMultiplexer }
 import { DisposableStore, IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { IObservable } from '../../../../base/common/observable.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeyMods } from '../../../../platform/quickinput/common/quickInput.js';
 import { IMarkProperties, ITerminalCapabilityImplMap, ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -162,6 +163,9 @@ export interface IChatTerminalOutputSource {
 
 export interface ITerminalChatService {
 	readonly _serviceBrand: undefined;
+	readonly localRunningToolCommands: IObservable<readonly URI[]>;
+	/** Tracks an executing local tool command until shell completion or terminal disposal. */
+	trackLocalToolCommand(instance: ITerminalInstance, sessionResource: URI): void;
 
 	/**
 	 * Fired when a terminal instance is registered for a tool session id. This can happen after

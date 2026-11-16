@@ -2070,6 +2070,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}));
 
 			// Start execution (non-blocking - runs in background)
+			this._terminalChatService.trackLocalToolCommand(toolTerminal.instance, chatSessionResource);
 			executionPromise = execution.start(command, executeCancellation.token, commandId, commandLineForMetadata);
 
 			if (executionOptions.waitStrategy === 'idle') {

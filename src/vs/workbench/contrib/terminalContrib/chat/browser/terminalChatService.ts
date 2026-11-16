@@ -15,6 +15,8 @@ import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { TerminalChatContextKeys } from './terminalChat.js';
 import { LocalChatSessionUri } from '../../../chat/common/model/chatUri.js';
 import { isNumber, isString } from '../../../../../base/common/types.js';
+import { observableValue } from '../../../../../base/common/observable.js';
+import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 
 const enum StorageKeys {
 	ToolSessionMappings = 'terminalChat.toolSessionMappings',
@@ -37,6 +39,9 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	private readonly _terminalInstanceListenersByExecutionId = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _ahpCommandSources = new Map<string, { source: IAhpTerminalCommandSource; promisedTerminal: Promise<ITerminalInstance> }>();
 	private readonly _outputSources = new Map<string, IChatTerminalOutputSource>();
+	private readonly _runningToolCommandListeners = this._register(new DisposableMap<ITerminalInstance>());
+	private readonly _runningToolCommands = new Map<ITerminalInstance, URI>();
+	readonly localRunningToolCommands = observableValue<readonly URI[]>(this, []);
 
 	private readonly _onDidContinueInBackground = this._register(new Emitter<string>());
 	readonly onDidContinueInBackground: Event<string> = this._onDidContinueInBackground.event;
@@ -93,6 +98,25 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 		// Update context keys when terminal instances change (registered once, not per-registration)
 		this._register(this._terminalService.onDidChangeInstances(() => this._updateHasToolTerminalContextKeys()));
+	}
+
+	trackLocalToolCommand(instance: ITerminalInstance, sessionResource: URI): void {
+		const detection = instance.capabilities.get(TerminalCapability.CommandDetection);
+		if (instance.hasRemoteAuthority || instance.isDisposed || !detection) {
+			return;
+		}
+		this._runningToolCommandListeners.deleteAndDispose(instance);
+		this._runningToolCommands.set(instance, sessionResource);
+		const listeners = new DisposableStore();
+		this._runningToolCommandListeners.set(instance, listeners);
+		listeners.add(toDisposable(() => {
+			this._runningToolCommands.delete(instance);
+			this.localRunningToolCommands.set([...this._runningToolCommands.values()], undefined);
+		}));
+		const finish = () => this._runningToolCommandListeners.deleteAndDispose(instance);
+		listeners.add(detection.onCommandFinished(finish));
+		listeners.add(instance.onDisposed(finish));
+		this.localRunningToolCommands.set([...this._runningToolCommands.values()], undefined);
 	}
 
 	registerTerminalInstanceWithToolSession(terminalToolSessionId: string | undefined, instance: ITerminalInstance): void {
