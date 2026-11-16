@@ -14,6 +14,7 @@ import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/virtualScheduling/index.js';
 import { cloudSandboxAddress } from '../../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { ExtensionRemoteAgentHostsService, IExtensionRemoteAgentHostsService } from '../../../../../../../platform/agentHost/common/extensionRemoteAgentHosts.js';
 import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost, IRemoteGitHubEnvironmentShare, IRemoteGitHubEnvironmentSharingService } from '../../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { addSSHRemoteAgentHostEntry, IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
@@ -114,6 +115,8 @@ suite('RemotesModel', () => {
 		let tunnelAuthentication: () => Promise<'github' | 'microsoft' | undefined> = async () => 'github';
 		instantiationService.stub(IStorageService, storage);
 		instantiationService.stub(IConfigurationService, configuration);
+		const extensionHosts = store.add(new ExtensionRemoteAgentHostsService(storage));
+		instantiationService.stub(IExtensionRemoteAgentHostsService, extensionHosts);
 		instantiationService.stub(IDialogService, new class extends TestDialogService {
 			override async confirm(confirmation: IConfirmation) {
 				confirmations.push(confirmation);
@@ -338,7 +341,7 @@ suite('RemotesModel', () => {
 			getWSLDiscoveryCalls: () => wslDiscoveryCalls, setSSHDiscovery: (discovery: () => Promise<string[]>) => { sshDiscovery = discovery; },
 			setTunnelDiscovery: (discovery: () => Promise<ITunnelInfo[]>) => { tunnelDiscovery = discovery; },
 			setTunnelAuthentication: (authentication: () => Promise<'github' | 'microsoft' | undefined>) => { tunnelAuthentication = authentication; },
-			environmentHosts, environmentAvailable, environmentState, environmentConnections, environmentNames, environmentDeletions, confirmations, sharing,
+			environmentHosts, environmentAvailable, environmentState, environmentConnections, environmentNames, environmentDeletions, confirmations, sharing, extensionHosts,
 			setConfiguration: async (key: string, value: boolean) => {
 				await configuration.setUserConfiguration(key, value);
 				configuration.onDidChangeConfigurationEmitter.fire({
@@ -359,6 +362,27 @@ suite('RemotesModel', () => {
 			{ kind: 'wsl', name: 'Ubuntu', canRemove: true },
 			{ kind: 'tunnel', name: 'Laptop', canRemove: false },
 		]);
+	});
+
+	test('lists extension remotes while registered, connects user-disconnected ones and refuses to remove them', async () => {
+		const { model, extensionHosts, reconnects } = setup();
+		const registration = extensionHosts.registerHost({ extensionId: 'publisher.airlock', extensionDisplayName: 'Airlock', name: 'Airlock Jobs', address: 'ws://127.0.0.1:8445', connectionToken: 'secret' });
+		extensionHosts.setDisconnected('127.0.0.1:8445', true);
+		const extensionRemotes = () => model.remotes.get().filter(remote => remote.kind === 'extension')
+			.map(({ id, name, detail, contributedBy, canRemove, connectionStatus }) => ({ id, name, detail, contributedBy, canRemove, status: connectionStatus.kind }));
+		const registered = extensionRemotes();
+		const removal = await model.remove('127.0.0.1:8445').then(() => 'removed', (error: Error) => error.message);
+		await model.setConnected('127.0.0.1:8445', true);
+		const disconnected = [...extensionHosts.disconnectedAddresses.get()];
+		registration.dispose();
+
+		assert.deepStrictEqual({ registered, removal, disconnected, reconnects, unregistered: extensionRemotes() }, {
+			registered: [{ id: '127.0.0.1:8445', name: 'Airlock Jobs', detail: '127.0.0.1:8445', contributedBy: 'Airlock', canRemove: false, status: 'disconnected' }],
+			removal: 'This remote cannot be removed. Only registered remotes that support removal can be removed.',
+			disconnected: [],
+			reconnects: ['127.0.0.1:8445'],
+			unregistered: [],
+		});
 	});
 
 	test('reads service-owned error metadata even when opened midway through a retry', async () => {
@@ -802,7 +826,7 @@ suite('RemotesModel', () => {
 			partial, failures, remaining: [...refreshing],
 			started: updates.filter(update => update.refreshing).map(update => update.kind).sort(),
 			finished: updates.filter(update => !update.refreshing).map(update => update.kind).sort(),
-		}, { partial: { ssh: false, tunnel: true }, failures: ['tunnel'], remaining: [], started: [...remoteKinds].sort(), finished: [...remoteKinds].sort() });
+		}, { partial: { ssh: false, tunnel: true }, failures: ['tunnel'], remaining: [], started: remoteKinds.filter(kind => kind !== 'extension').sort(), finished: remoteKinds.filter(kind => kind !== 'extension').sort() });
 	});
 
 	test('tunnel progress spans authentication and reports missing-scope failure before other discovery finishes', async () => {

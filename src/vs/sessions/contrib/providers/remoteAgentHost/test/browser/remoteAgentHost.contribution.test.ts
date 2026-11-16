@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type IAgentHostAdvertisedAuthenticationResolver, type IAgentHostAuthenticationSessionRemoval } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { type IRemoteAgentHostConnectionInfo, type IRemoteAgentHostEntry, getEntryAddress, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { type IRemoteAgentHostConnectionInfo, type IRemoteAgentHostEntry, type IRemoteAgentHostService, getEntryAddress, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AuthRequiredReason, NotificationType, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -43,6 +43,8 @@ import { CloudSandboxAgentHostService } from '../../../../../../workbench/contri
 import { createCloudSandboxConnectionCustomization } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxConnectionCustomization.js';
 import { SSHAgentHostContribution } from '../../browser/sshAgentHost.contribution.js';
 import { WebSocketAgentHostContribution } from '../../browser/webSocketAgentHost.contribution.js';
+import { ExtensionAgentHostContribution } from '../../browser/extensionAgentHost.contribution.js';
+import { IExtensionRemoteAgentHostsService } from '../../../../../../platform/agentHost/common/extensionRemoteAgentHosts.js';
 import { MissionControlAgentHostContribution } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/missionControlAgentHostContribution.js';
 import { IEntryDrivenProviderOptions } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/entryDrivenProviderContribution.js';
 import '../../browser/remoteAgentHost.contribution.js';
@@ -598,6 +600,12 @@ interface IMissionControlProviderOwnerHarness extends IProviderOwnerHarness {
 	_getProviderEntries(): readonly IRemoteAgentHostEntry[];
 }
 
+interface IExtensionProviderOwnerHarness {
+	_extensionRemoteAgentHostsService: Pick<IExtensionRemoteAgentHostsService, 'setDisconnected'>;
+	_remoteAgentHostService: Pick<IRemoteAgentHostService, 'removeRemoteAgentHost'>;
+	_getProviderOptions(entry: IRemoteAgentHostEntry): IEntryDrivenProviderOptions;
+}
+
 interface IRemoteAgentRegistrationHarness {
 	_connections: Map<string, {
 		readonly agents: DisposableMap<string, DisposableStore>;
@@ -666,6 +674,25 @@ suite('Remote agent host provider ownership', () => {
 			retained: options.retainSessionsOnDisconnect,
 			readOnlyOffline: options.readOnlyWhenDisconnected,
 		}, { entries: [entries[0]], connectable: true, canRemove: false, remove: undefined, retained: undefined, readOnlyOffline: true });
+	});
+
+	test('extension hosts cannot be removed, and disconnecting one keeps it from being dialed again', async () => {
+		const address = '127.0.0.1:8445';
+		const events: string[] = [];
+		const owner = Object.create(ExtensionAgentHostContribution.prototype) as IExtensionProviderOwnerHarness;
+		owner._extensionRemoteAgentHostsService = { setDisconnected: (address, disconnected) => { events.push(`${disconnected ? 'disconnected' : 'connected'} ${address}`); } };
+		owner._remoteAgentHostService = { removeRemoteAgentHost: async address => { events.push(`closed ${address}`); } };
+		const options = owner._getProviderOptions({
+			name: 'Airlock',
+			connection: { type: RemoteAgentHostEntryType.Extension, address, extensionId: 'publisher.airlock', extensionDisplayName: 'Airlock' },
+		});
+		await options.disconnectOnDemand?.();
+
+		assert.deepStrictEqual({ canRemove: options.canRemove, remove: options.removeOnDemand, events }, {
+			canRemove: false,
+			remove: undefined,
+			events: [`disconnected ${address}`, `closed ${address}`],
+		});
 	});
 
 	test('gives WebSocket and SSH entries distinct owners while the shared contribution registers none', () => {

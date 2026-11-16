@@ -11,6 +11,7 @@ import { autorun, IObservable, IReader, observableSignalFromEvent, observableVal
 import { isWindows, OperatingSystem } from '../../../../../../base/common/platform.js';
 import { localize } from '../../../../../../nls.js';
 import { cloudSandboxAddress } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { IExtensionRemoteAgentHost, IExtensionRemoteAgentHostsService } from '../../../../../../platform/agentHost/common/extensionRemoteAgentHosts.js';
 import { IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost, IRemoteGitHubEnvironmentShare, IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { addSSHRemoteAgentHostEntry, getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, IRemoteAgentHostSSHConnection, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { computeSSHConnectionKey, ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
@@ -32,7 +33,7 @@ import { ISessionsProvidersService } from '../../../browser/sessionsProvidersSer
 import { changeRemoteAgentHostLocationPreference, confirmTunnelDeletion, disconnectSSHEntry, reconnectRemoteHost, removeRemoteHost, renameRemoteHost, sshConnectionKey, upgradeRemoteHost } from './remoteHostOptions.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from './remoteAgentHostPickerVisibility.js';
 
-export const remoteKinds = ['ssh', 'wsl', 'tunnel', 'environment'] as const;
+export const remoteKinds = ['ssh', 'wsl', 'tunnel', 'environment', 'extension'] as const;
 export type RemoteKind = typeof remoteKinds[number];
 
 export const remoteKindLabels: Record<RemoteKind, string> = {
@@ -40,6 +41,7 @@ export const remoteKindLabels: Record<RemoteKind, string> = {
 	wsl: localize('remotes.wsl', "WSL"),
 	tunnel: localize('remotes.tunnels', "Dev Tunnels"),
 	environment: localize('remotes.environments', "GitHub Environments"),
+	extension: localize('remotes.extensions', "Extensions"),
 };
 
 export interface ICustomizationRemote {
@@ -47,6 +49,8 @@ export interface ICustomizationRemote {
 	readonly kind: RemoteKind;
 	readonly name: string;
 	readonly detail: string;
+	/** Display name of the extension that registered this remote, when an extension did. */
+	readonly contributedBy?: string;
 	readonly canRemove: boolean;
 	readonly canDelete?: boolean;
 	readonly connectionStatus: RemoteAgentHostConnectionStatus;
@@ -83,12 +87,17 @@ export interface IRemotesModel extends IDisposable {
 	setHidden(id: string, hidden: boolean): void;
 }
 
-export function getVisibleRemoteKinds(operatingSystem: OperatingSystem, environmentsEnabled = false): readonly RemoteKind[] {
+/**
+ * The kinds of remotes to show, in display order. Extensions are listed only while
+ * an extension registers a remote, since users cannot add remotes of that kind.
+ */
+export function getVisibleRemoteKinds(operatingSystem: OperatingSystem, environmentsEnabled = false, hasExtensionRemotes = false): readonly RemoteKind[] {
 	return [
 		...(environmentsEnabled ? ['environment' as const] : []),
 		'tunnel',
 		...(operatingSystem === OperatingSystem.Windows ? ['wsl' as const] : []),
 		'ssh',
+		...(hasExtensionRemotes ? ['extension' as const] : []),
 	];
 }
 
@@ -96,7 +105,8 @@ type RemoteTarget =
 	| { readonly kind: 'ssh'; readonly entry: IRemoteAgentHostEntry }
 	| { readonly kind: 'wsl'; readonly distro: string; readonly name: string }
 	| { readonly kind: 'tunnel'; readonly tunnel: ITunnelInfo; readonly authProvider?: 'github' | 'microsoft'; readonly source: 'discovered' | 'cached' }
-	| { readonly kind: 'environment'; readonly host: IMissionControlHost; readonly account: string };
+	| { readonly kind: 'environment'; readonly host: IMissionControlHost; readonly account: string }
+	| { readonly kind: 'extension'; readonly host: IExtensionRemoteAgentHost };
 
 export class RemotesModel extends Disposable implements IRemotesModel {
 	private readonly targets = new Map<string, RemoteTarget>();
@@ -134,6 +144,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		@IProductService private readonly productService: IProductService,
 		@IRemoteTunnelService remoteTunnelService: IRemoteTunnelService,
 		@IRemoteGitHubEnvironmentSharingService private readonly remoteSharing: IRemoteGitHubEnvironmentSharingService,
+		@IExtensionRemoteAgentHostsService private readonly extensionRemoteAgentHostsService: IExtensionRemoteAgentHostsService,
 	) {
 		super();
 		this.pickerVisibility = this._register(new RemoteAgentHostPickerVisibility(storageService));
@@ -296,6 +307,9 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			case 'tunnel':
 				this.tunnelService.clearTunnelDismissal(target.tunnel.tunnelId);
 				this.tunnelService.cacheTunnel(target.tunnel, target.authProvider);
+				break;
+			case 'extension':
+				this.extensionRemoteAgentHostsService.setDisconnected(target.host.address, false);
 				break;
 			case 'environment':
 				break;
@@ -547,7 +561,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					await this.environmentService.connect(target.host.id, CancellationToken.None);
 				} else if (target.kind === 'tunnel') {
 					await this.tunnelService.connect(target.tunnel, target.authProvider, { userInitiated: true });
-				} else if (target.kind === 'ssh' || target.kind === 'wsl') {
+				} else if (target.kind === 'ssh' || target.kind === 'wsl' || target.kind === 'extension') {
 					// Registration can precede the provider's scheduled reconciliation.
 					this.remoteAgentHostService.reconnect(id, true);
 					await this.remoteAgentHostService.waitForConnection(id);
@@ -586,6 +600,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			case 'wsl': return `${WSL_ADDRESS_PREFIX}${target.distro}`;
 			case 'tunnel': return `${TUNNEL_ADDRESS_PREFIX}${target.tunnel.tunnelId}`;
 			case 'environment': return cloudSandboxAddress(target.host.id);
+			case 'extension': return target.host.address;
 		}
 	}
 
@@ -642,6 +657,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		const sshEntries = readSSHRemoteAgentHostEntries(this.storageService);
 		const distros = this.wslService.getCachedDistros();
 		const tunnels = this.tunnelService.getCachedTunnels().filter(tunnel => !this.tunnelService.isTunnelDismissed(tunnel.tunnelId));
+		const extensionHosts = this.extensionRemoteAgentHostsService.hosts.read(reader);
 		const environments = this.environmentService.hosts.read(reader);
 		const environmentsEnabled = this.enabled && this.environmentService.enabled;
 		const shareable = environmentsEnabled ? this.remoteSharing.shareable.read(reader) : new Set<string>();
@@ -649,7 +665,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		// Remotes this client shares as GitHub environments are already listed under their own kind.
 		const sharedEnvironmentIds = environmentsEnabled ? this.remoteSharing.environmentIds.read(reader) : new Set<string>();
 		for (const [id, target] of this.targets) {
-			if (target.kind === 'environment') {
+			if (target.kind === 'environment' || target.kind === 'extension') {
 				this.targets.delete(id);
 			}
 		}
@@ -661,6 +677,11 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					this.targets.set(this.getId(target), target);
 				}
 			}
+		}
+		// Extensions own their remotes, so users have not registered them, even when they connected them.
+		for (const host of extensionHosts) {
+			const target = { kind: 'extension' as const, host };
+			this.targets.set(this.getId(target), target);
 		}
 		const providers = this.providersService.getProviders().filter(isAgentHostProvider);
 		const providersByAddress = new Map(providers.map(provider => [provider.remoteAddress, provider]));
@@ -715,6 +736,10 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					unavailableReason = target.host.status !== 'online'
 						? localize('remotes.environmentOffline', "This environment is not online. Start its owning application before connecting.") : undefined;
 					break;
+				case 'extension':
+					name = target.host.name;
+					detail = target.host.address;
+					break;
 			}
 			const provider = providersByAddress.get(id);
 			// This window already runs sessions on this computer, so its own sharing registrations are not remotes to manage.
@@ -728,6 +753,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			const hidden = this.pickerVisibility.isHidden(this.getPickerKey(target), reader);
 			remotes.push({
 				id, kind: target.kind, name, detail, canRemove, unavailableReason,
+				...(target.kind === 'extension' ? { contributedBy: target.host.extensionDisplayName } : {}),
 				...(target.kind === 'tunnel' ? {
 					canDelete: this.tunnelService.canDeleteTunnels && !!this.remoteTunnelStatus
 						&& !isTunnelHosted(this.remoteTunnelStatus.type === 'connected' ? this.remoteTunnelStatus.info : undefined, target.tunnel),

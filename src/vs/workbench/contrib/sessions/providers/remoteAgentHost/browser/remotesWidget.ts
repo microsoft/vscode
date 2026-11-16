@@ -65,6 +65,10 @@ const remoteSetup: Record<RemoteKind, { readonly label: string; readonly descrip
 		description: localize('remotes.empty.environments.description', "Sign in to GitHub and enable environment sharing on another machine."),
 		documentation: { label: localize('remotes.docs.environments', "GitHub Environments Setup Guide"), href: GITHUB_ENVIRONMENTS_DOCS_URL },
 	},
+	extension: {
+		label: localize('remotes.empty.extensions', "No remotes registered by extensions."),
+		description: localize('remotes.empty.extensions.description', "Extensions that provide agent hosts list them here while they are enabled."),
+	},
 };
 
 const horizontalScrollbarSize = 10;
@@ -243,9 +247,9 @@ export class RemotesWidget extends Disposable {
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('RemotesWidget', () => this.layout(), dom.getWindow(this.domNode)));
 		this._register(resizeObserver.observe(this.domNode));
 		this._register(autorun(reader => {
-			this.model.remotes.read(reader);
+			const remotes = this.model.remotes.read(reader);
 			this.model.tunnelAuthenticationRequired.read(reader);
-			this.kinds = getVisibleRemoteKinds(operatingSystem, this.model.environmentsEnabled.read(reader));
+			this.kinds = getVisibleRemoteKinds(operatingSystem, this.model.environmentsEnabled.read(reader), remotes.some(remote => remote.kind === 'extension'));
 			this.render();
 		}));
 	}
@@ -606,6 +610,9 @@ export class RemotesWidget extends Disposable {
 		if (gitHubEnvironment) {
 			label = localize('remotes.accessibleGitHubEnvironment', "{0}. {1}", label, gitHubEnvironment);
 		}
+		if (remote.contributedBy) {
+			label = localize('remotes.accessibleContributedBy', "{0}. Registered by the {1} extension", label, remote.contributedBy);
+		}
 		return remote.unavailableReason ? localize('remotes.accessibleUnavailableRow', "{0}. {1}", label, remote.unavailableReason) : label;
 	}
 
@@ -621,6 +628,7 @@ export class RemotesWidget extends Disposable {
 			case 'wsl': return localize('remotes.wslRefreshWarning', "Could not refresh WSL distributions. Check that WSL is available. See the Window log for more details.");
 			case 'tunnel': return localize('remotes.tunnelRefreshWarning', "Could not refresh tunnels. Check your sign-in and network connection. See the Window log for more details.");
 			case 'environment': return localize('remotes.environmentRefreshWarning', "Could not refresh environments. Check your GitHub sign-in and network connection. See the Window log for more details.");
+			case 'extension': return undefined;
 		}
 	}
 

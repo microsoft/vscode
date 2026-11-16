@@ -309,7 +309,10 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					template.actionProgress.hidden = !signingIn;
 				}
 				template.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(template.label, {
-					content: template.label.textContent, style: HoverStyle.Mouse,
+					content: entry.type === 'remote' && entry.remote.contributedBy
+						? localize('remotes.nameContributedBy', "{0} (registered by the {1} extension)", entry.remote.name, entry.remote.contributedBy)
+						: template.label.textContent,
+					style: HoverStyle.Mouse,
 				}, { groupId: this.hoverGroupId }));
 				template.description.textContent = entry.type === 'empty' ? entry.description ?? '' : '';
 				template.description.hidden = !template.description.textContent;
