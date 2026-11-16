@@ -85,6 +85,10 @@ import { ISessionHost, ISessionHostService } from '../../../../../workbench/serv
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
 import { ITestSessionWithChat, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISavedSessionDraft, ISavedSessionDraftTarget } from '../../../../../workbench/contrib/sessions/common/savedSessionDrafts.js';
+import '../../../../../base/browser/ui/codicons/codiconStyles.js';
+import '../../../../../workbench/browser/media/style.css';
+import '../../../../../workbench/contrib/chat/browser/widget/media/chat.css';
+import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsGridContent.css';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -587,7 +591,7 @@ suite('NewChatWidget', () => {
 	test('saved draft navigation captures only when the shown input hides, not on host disposal or send', () => {
 		const hostVisible = observableValue('hostVisible', true);
 		const inputVisible = observableValue('inputVisible', false);
-		const composer = { isSending: false };
+		const composer = { isSending: false, preview: constObservable(undefined), hasScheduledChanges: constObservable(false) };
 		let captures = 0;
 		const stowed: boolean[] = [];
 		const harness = {
@@ -619,6 +623,176 @@ suite('NewChatWidget', () => {
 		});
 	});
 
+	suite('scheduled draft submit', () => {
+		test('dispatch keeps the scheduled label until the composer clears', () => {
+			const store = disposables.add(new DisposableStore());
+			const request = observableValue<{ runAt: string } | undefined>('request', { runAt: new Date(Date.now() + 3_600_000).toISOString() });
+			const preview = observableValue<{ request: typeof request } | undefined>('preview', { request });
+			const harness = {
+				_savedDraftComposer: { preview },
+				_savingScheduledDraft: observableValue('saving', false),
+				_scheduledDraftLabel: observableValue<string | undefined>('label', undefined),
+				_register: <T extends IDisposable>(value: T): T => store.add(value),
+			};
+			const track = Reflect.get(NewChatWidget.prototype, '_trackScheduledDraftLabel') as (this: typeof harness, parent: HTMLElement) => void;
+			track.call(harness, $('div'));
+			const original = harness._scheduledDraftLabel.get();
+			const labels: (string | undefined)[] = [];
+			store.add(autorun(reader => { labels.push(harness._scheduledDraftLabel.read(reader)); }));
+			harness._savingScheduledDraft.set(true, undefined);
+			request.set(undefined, undefined);
+			preview.set(undefined, undefined);
+			harness._savingScheduledDraft.set(false, undefined);
+			assert.deepStrictEqual(labels, [original, undefined]);
+			store.clear();
+		});
+
+		test('the text-only control keeps its label and suppresses the icon in split and disabled states', () => {
+			const workbench = append(mainWindow.document.body, $('.monaco-workbench'));
+			disposables.add(toDisposable(() => workbench.remove()));
+			const sessionsPart = append(workbench, $('.part.sessionspart'));
+			const root = append(sessionsPart, $('.interactive-session'));
+			root.style.setProperty('--chat-input-control-height', '22px');
+			root.style.setProperty('--vscode-button-background', 'rgb(14, 99, 156)');
+			root.style.setProperty('--vscode-button-hoverBackground', 'rgb(14, 99, 156)');
+			root.style.setProperty('--vscode-button-foreground', 'rgb(255, 255, 255)');
+			root.style.setProperty('--vscode-icon-foreground', 'rgb(128, 128, 128)');
+			const toolbars = append(root, $('.chat-input-toolbars'));
+			const toolbar = append(toolbars, $('.chat-execute-toolbar'));
+			const actionBar = append(toolbar, $('.monaco-action-bar'));
+			const split = append(actionBar, $('.action-item.monaco-dropdown-with-default.chat-submit-button-label-only'));
+			const button = append(split, $('.action-container.menu-entry.chat-submit-button.labeled.label-only'));
+			const action = append(button, $('a.action-label.codicon.codicon-arrow-up-compact', { role: 'button', tabindex: '0' }));
+			action.textContent = 'Send in 19 minutes';
+			const duplicate = append(button, $('span.chat-submit-button-label'));
+			duplicate.textContent = action.textContent;
+			const disabledButton = append(actionBar, $('.action-item.disabled.chat-submit-button.labeled.label-only'));
+			const disabledAction = append(disabledButton, $('a.action-label.disabled.codicon.codicon-arrow-up-compact'));
+			disabledAction.textContent = action.textContent;
+			action.focus();
+			assert.deepStrictEqual({
+				height: button.getBoundingClientRect().height,
+				actionHeight: action.getBoundingClientRect().height,
+				background: mainWindow.getComputedStyle(button).backgroundColor,
+				foreground: mainWindow.getComputedStyle(action).color,
+				icon: mainWindow.getComputedStyle(action, '::before').display,
+				disabledIcon: mainWindow.getComputedStyle(disabledAction, '::before').display,
+				duplicate: mainWindow.getComputedStyle(duplicate).display,
+				focused: mainWindow.document.activeElement === action,
+			}, {
+				height: 22, actionHeight: 22, background: 'rgb(14, 99, 156)', foreground: 'rgb(255, 255, 255)',
+				icon: 'none', disabledIcon: 'none', duplicate: 'none', focused: true,
+			});
+		});
+
+		function createHarness(changed: boolean, fail = false, sendNow = false, failSend = false) {
+			let input: IChatDraft = { inputText: 'Scheduled request', attachments: [] };
+			const events: string[] = [];
+			const scheduled = {
+				request: constObservable({ runAt: new Date(Date.now() + 3_600_000).toISOString() }),
+				save: async () => {
+					events.push('save');
+					if (fail) {
+						throw new Error('Schedule changed');
+					}
+				},
+				sendNow: async () => {
+					events.push('send');
+					if (failSend) {
+						throw new Error('Send failed');
+					}
+				},
+				reschedule: async (_anchor?: HTMLElement, onSendNow?: () => Promise<void>) => {
+					events.push('picker');
+					if (sendNow) {
+						await onSendNow!();
+					}
+				},
+			};
+			const composer = {
+				preview: constObservable(scheduled),
+				hasScheduledChanges: constObservable(changed),
+				target: {},
+				isScheduling: false,
+				markScheduledSaved: () => { events.push('saved'); },
+			};
+			const harness = {
+				_savedDraftComposer: composer,
+				_savingScheduledDraft: observableValue('saving', false),
+				_session: constObservable(upcastPartial<ISession>({})),
+				_comparisonSelection: { enabled: constObservable(false) },
+				_feedbackItems: constObservable([]),
+				_captureSavedDraftTarget: () => { },
+				_newChatInput: {
+					getDraft: () => input,
+					setInputEnabled: (enabled: boolean) => { events.push(enabled ? 'enabled' : 'disabled'); },
+					focus: () => { events.push('focus'); },
+				},
+				sessionDraftsService: {
+					stowAndClear: () => {
+						assert.strictEqual(composer.isScheduling, false);
+						events.push('clear');
+						input = { inputText: '', attachments: [] };
+					},
+				},
+			};
+			const submit = Reflect.get(NewChatWidget.prototype, '_submitScheduledDraft') as (this: typeof harness, anchor?: HTMLElement, reschedule?: boolean) => Promise<boolean>;
+			return { submit: (reschedule = false) => submit.call(harness, undefined, reschedule), events, input: () => input.inputText };
+		}
+
+		for (const changed of [false, true]) {
+			test(`Send in saves and clears without opening the picker (edited: ${changed})`, async () => {
+				const fixture = createHarness(changed);
+				await fixture.submit();
+				assert.deepStrictEqual({ events: fixture.events, input: fixture.input() }, {
+					events: ['disabled', 'save', 'saved', 'clear', 'enabled', 'focus'], input: '',
+				});
+			});
+		}
+
+		test('the dropdown alone opens the picker and retains input', async () => {
+			const fixture = createHarness(true);
+			await fixture.submit(true);
+			assert.deepStrictEqual({ events: fixture.events, input: fixture.input() }, {
+				events: ['disabled', 'picker', 'enabled', 'focus'], input: 'Scheduled request',
+			});
+		});
+
+		test('a failed scheduled save keeps the editable input', async () => {
+			const fixture = createHarness(true, true);
+			await assert.rejects(() => fixture.submit(), /Schedule changed/);
+			assert.deepStrictEqual({ events: fixture.events, input: fixture.input() }, {
+				events: ['disabled', 'save', 'enabled', 'focus'], input: 'Scheduled request',
+			});
+		});
+
+		for (const changed of [false, true]) {
+			test(`Send Now saves before dispatch and clears only after acceptance (edited: ${changed})`, async () => {
+				const fixture = createHarness(changed, false, true);
+				await fixture.submit(true);
+				assert.deepStrictEqual({ events: fixture.events, input: fixture.input() }, {
+					events: ['disabled', 'picker', 'save', 'saved', 'send', 'clear', 'enabled', 'focus'], input: '',
+				});
+			});
+		}
+
+		test('Send Now does not dispatch when saving fails', async () => {
+			const fixture = createHarness(true, true, true);
+			await assert.rejects(() => fixture.submit(true), /Schedule changed/);
+			assert.deepStrictEqual({ events: fixture.events, input: fixture.input() }, {
+				events: ['disabled', 'picker', 'save', 'enabled', 'focus'], input: 'Scheduled request',
+			});
+		});
+
+		test('Send Now keeps the editable input when dispatch fails', async () => {
+			const fixture = createHarness(true, false, true, true);
+			await assert.rejects(() => fixture.submit(true), /Send failed/);
+			assert.deepStrictEqual({ events: fixture.events, input: fixture.input() }, {
+				events: ['disabled', 'picker', 'save', 'saved', 'send', 'enabled', 'focus'], input: 'Scheduled request',
+			});
+		});
+	});
+
 	suite('saved draft restoration', () => {
 		function createHarness(session: ISession) {
 			let input: IChatDraft = { inputText: 'previous input', attachments: [] };
@@ -628,6 +802,8 @@ suite('NewChatWidget', () => {
 			const harness = {
 				_store: disposables.add(new DisposableStore()),
 				_restoringSavedDraft: observableValue('restoring', false),
+				_isDraftPreview: constObservable(false),
+				_captureSavedDraftTarget: () => { },
 				_savedDraftTargetUnavailable: observableValue('unavailable', false),
 				_pendingPreferredUpgrade: disposables.add(new MutableDisposable<IDisposable>()),
 				_newSessionCreation: disposables.add(new MutableDisposable<IDisposable>()),
@@ -673,7 +849,11 @@ suite('NewChatWidget', () => {
 				modelId: constObservable('user-model'), mode: constObservable(undefined),
 				application: constObservable({ id: 'test' }),
 			};
-			const composer = { target: draft.target, isRestoring: true };
+			const composer = {
+				target: draft.target,
+				isRestoring: true,
+				updateTarget: (target: ISavedSessionDraftTarget) => { composer.target = target; },
+			};
 			const seeded: URI[] = [];
 			const harness = {
 				_savedDraftComposer: composer,
@@ -686,17 +866,20 @@ suite('NewChatWidget', () => {
 				_environment: constObservable(undefined),
 				sessionsProvidersService: { getProvider: () => undefined },
 			};
-			const capture = Reflect.get(NewChatWidget.prototype, '_captureSavedDraftTarget') as (this: typeof harness) => void;
+			const capture = Reflect.get(NewChatWidget.prototype, '_captureSavedDraftTarget') as (this: typeof harness, restorationComplete?: boolean) => void;
 			const restoreNoWorkspace = Reflect.get(NewChatWidget.prototype, '_restoreNoWorkspaceDraft') as (this: typeof harness) => Promise<void>;
 			seedWorkspaceDraft.call(harness);
 			await restoreNoWorkspace.call(harness);
 			capture.call(harness);
 			const startupTarget = composer.target;
+			harness._workspacePicker.selectedFolderUri = requested;
+			capture.call(harness, true);
+			const restoredTarget = composer.target.folderUri;
 			composer.isRestoring = false;
 			harness._workspacePicker.selectedFolderUri = URI.file('/user-picked');
 			capture.call(harness);
-			assert.deepStrictEqual({ seeded, startupTarget, userTarget: composer.target.folderUri }, {
-				seeded: [], startupTarget: draft.target, userTarget: URI.file('/user-picked'),
+			assert.deepStrictEqual({ seeded, startupTarget, restoredTarget, userTarget: composer.target.folderUri }, {
+				seeded: [], startupTarget: draft.target, restoredTarget: requested, userTarget: URI.file('/user-picked'),
 			});
 		});
 
@@ -817,6 +1000,7 @@ suite('NewChatWidget', () => {
 		});
 		const harness = {
 			_session: current,
+			_isDraftPreview: constObservable(false),
 			_newChatInput: { onDidChangeInput: changed.event, getInputValue: () => input },
 			sessionsProvidersService: {
 				getProvider: (id: string) => upcastPartial<ISessionsProvider>({

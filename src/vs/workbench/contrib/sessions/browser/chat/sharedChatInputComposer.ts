@@ -336,6 +336,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 					canSubmit: derived(this, reader => this._canSendRequest.read(reader) && !this._sending.read(reader)),
 					hasContent: this.options.hasAdditionalSendContent,
 					label: this.options.sendButtonLabel,
+					labelOnly: this.options.sendButtonLabelOnly,
 				},
 				submitHandler: async (query, _mode, attachedContext) => {
 					await this._send(query, attachedContext ?? [], false);
@@ -731,7 +732,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	saveState(): void {
 		const widget = this._widget;
 		// A host that keeps the input in a snapshot persists it itself.
-		if (widget && !this.options.inputSnapshot) {
+		if (widget && !this.options.inputSnapshot && this.options.shouldPersistInput?.() !== false) {
 			writeNewChatDraftState(this.storageService, { inputText: this.getInputValue(), attachments: [...this.attachments], references: this._getDraftReferences(widget) }, this.options.getSavedDraftId?.());
 		}
 	}
@@ -1075,6 +1076,20 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	}
 
 	private async _send(rawQuery: string, attachments: readonly IChatRequestVariableEntry[], background: boolean): Promise<boolean> {
+		if (this.options.submitOverride) {
+			try {
+				const overridden = await this.options.submitOverride(this._widget?.input.executeToolbarElement);
+				if (overridden !== undefined) {
+					return overridden;
+				}
+			} catch (error) {
+				if (!isCancellationError(error)) {
+					this.logService.error('[SharedChatInputComposer] Failed to submit request', error);
+					this.notificationService.error(error);
+				}
+				return false;
+			}
+		}
 		const widget = this._widget;
 		const query = rawQuery.trim();
 		const hasAdditionalSendContent = this.options.hasAdditionalSendContent?.get() ?? false;

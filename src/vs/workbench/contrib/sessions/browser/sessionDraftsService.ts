@@ -11,7 +11,7 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { createCommandUri } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -28,6 +28,9 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { IChatDraft } from '../../chat/common/attachments/chatDraft.js';
+import { IChatScheduledRequest } from '../../chat/common/model/chatViewModel.js';
+import { ISession } from '../../../services/sessions/common/session.js';
+import { equals } from '../../../../base/common/objects.js';
 import { readNewChatDraftState, writeNewChatDraftState } from '../common/newChatDraftState.js';
 import { hasSessionDraftContent, ISavedSessionDraft, ISavedSessionDraftTarget, SavedSessionDrafts } from '../common/savedSessionDrafts.js';
 import { SESSIONS_DRAFTS_ENABLED_SETTING } from '../common/sessionConfig.js';
@@ -41,6 +44,13 @@ const openDraftCommandId = 'sessions.drafts.open';
 
 export const ISessionDraftsService = createDecorator<ISessionDraftsService>('sessionDraftsService');
 
+export interface IScheduledSessionDraft {
+	readonly request: IObservable<IChatScheduledRequest | undefined>;
+	save(input: IChatDraft, target: ISavedSessionDraftTarget, session: ISession): Promise<void>;
+	sendNow(): Promise<void>;
+	reschedule(anchor?: HTMLElement, onSendNow?: () => Promise<void>): Promise<void>;
+}
+
 export interface ISessionDraftsService {
 	readonly _serviceBrand: undefined;
 	readonly enabled: IObservable<boolean>;
@@ -52,6 +62,7 @@ export interface ISessionDraftsService {
 	open(id: string, options?: { removeFromDrafts?: boolean }): Promise<void>;
 	save(input: IChatDraft, target: ISavedSessionDraftTarget, id?: string): ISavedSessionDraft;
 	restoreRecovery(input: IChatDraft, target: ISavedSessionDraftTarget): Promise<void>;
+	preview(input: IChatDraft, target: ISavedSessionDraftTarget, scheduled: IScheduledSessionDraft): Promise<void>;
 	getDraftRevision(composer: SessionDraftComposer): string | undefined;
 	finishScheduledComposer(composer: SessionDraftComposer, revision: string | undefined): void;
 	stow(composer: SessionDraftComposer, options?: { notifyCreated?: boolean }): ISavedSessionDraft | undefined;
@@ -66,6 +77,9 @@ export class SessionDraftComposer implements IDisposable {
 	isSending = false;
 	isScheduling = false;
 	isRestoring = false;
+	readonly preview = observableValue<IScheduledSessionDraft | undefined>(this, undefined);
+	readonly hasScheduledChanges = observableValue(this, false);
+	private scheduledSnapshot: { input: IChatDraft; target: ISavedSessionDraftTarget } | undefined;
 	recoveredDraft: ISavedSessionDraft | undefined;
 	disposed = false;
 	private sendTracked = false;
@@ -76,7 +90,22 @@ export class SessionDraftComposer implements IDisposable {
 
 	updateInput(input: IChatDraft): void {
 		this.input = input;
+		this.updateScheduledChanges();
 		this.service.updateNavigation(this);
+	}
+
+	updateTarget(target: ISavedSessionDraftTarget): void {
+		this.target = target;
+		this.updateScheduledChanges();
+	}
+
+	markScheduledSaved(input = this.input, target = this.target): void {
+		this.scheduledSnapshot = { input: { ...input, references: input.references ?? [] }, target };
+		this.updateScheduledChanges();
+	}
+
+	private updateScheduledChanges(): void {
+		this.hasScheduledChanges.set(!!this.preview.get() && !!this.scheduledSnapshot && !equals(this.scheduledSnapshot, { input: { ...this.input, references: this.input.references ?? [] }, target: this.target }), undefined);
 	}
 
 	willSend(input: IChatDraft): void {
@@ -147,6 +176,17 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		const hidden = observableFromEvent(this, entitlementService.onDidChangeSentiment, () => entitlementService.sentiment.hidden);
 		this.enabled = derived(this, reader => configured.read(reader) && !hidden.read(reader));
 		this.model = this._register(new SavedSessionDrafts(storageService));
+		this._register(lifecycleService.onBeforeShutdown(event => {
+			if (this.hasUnsavedScheduledChanges()) {
+				event.veto((async () => !(await this.dialogService.confirm({
+					message: localize('scheduledDraft.discardOnClose', "Discard unsaved changes to this scheduled request?"),
+					detail: this.current?.composer.preview.get()?.request.get()?.runAt
+						? localize('scheduledDraft.originalStillScheduled', "The last saved version will still be sent at its scheduled time.")
+						: localize('scheduledDraft.unavailableDiscard', "Your unsaved changes will be lost. Check Automations for the request's current status."),
+					primaryButton: localize('scheduledDraft.discard', "Discard Changes"),
+				})).confirmed)(), 'veto.scheduledDraft');
+			}
+		}));
 		this._register(CommandsRegistry.registerCommand(openDraftCommandId, async (_accessor, id: string) => {
 			if (!await this.openDraft(id, CancellationToken.None)) {
 				throw new Error(localize('draft.noLongerAvailable', "This draft is no longer available."));
@@ -250,7 +290,9 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 				await restore(draft, token, preserveFocus);
 				if (!token?.isCancellationRequested && !composer.disposed) {
 					composer.id = draft.id;
-					composer.target = draft.target;
+					if (!composer.preview.get()) {
+						composer.target = draft.target;
+					}
 					if (current && current === this.current) {
 						current.restoredId = draft.id;
 					}
@@ -292,11 +334,21 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 
 	stowAndClear(composer = this.current?.composer): ISavedSessionDraft | undefined {
 		const current = this.current;
-		if (!this.enabled.get() || !current || current.composer !== composer || current.composer.isSending) {
+		if (current && current.composer === composer && (this.opening || composer.isRestoring || composer.isScheduling)) {
+			throw new Error(localize('draft.newSessionBusy', "Wait for the draft to finish opening or scheduling before starting a new session."));
+		}
+		if (current && current.composer === composer && composer.preview.get()) {
+			this.prepareToReplaceScheduledDraft();
+			current.clear();
+			composer.id = generateUuid();
+			composer.updateInput({ inputText: '', attachments: [] });
+			composer.preview.set(undefined, undefined);
+			this.clearLegacyInput(composer);
+			this.updateNavigation(composer);
 			return undefined;
 		}
-		if (this.opening || current.composer.isScheduling) {
-			throw new Error(localize('draft.newSessionBusy', "Wait for the draft to finish opening or scheduling before starting a new session."));
+		if (!this.enabled.get() || !current || current.composer !== composer || current.composer.isSending) {
+			return undefined;
 		}
 		const saved = this.stow(current.composer, { notifyCreated: true });
 		if (saved) {
@@ -316,7 +368,7 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 	}
 
 	stow(composer: SessionDraftComposer, options?: { notifyCreated?: boolean }): ISavedSessionDraft | undefined {
-		if (!this.enabled.get() || this.lifecycleService.willShutdown || composer.isScheduling || composer.isRestoring) {
+		if (!this.enabled.get() || this.lifecycleService.willShutdown || composer.isScheduling || composer.isRestoring || composer.preview.get()) {
 			return undefined;
 		}
 		if (!hasSessionDraftContent(composer.input)) {
@@ -360,6 +412,9 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 	}
 
 	async restoreRecovery(input: IChatDraft, target: ISavedSessionDraftTarget): Promise<void> {
+		if (this.current?.composer.preview.get()) {
+			this.stowAndClear();
+		}
 		if (this.current && (this.current.composer.isSending || hasSessionDraftContent(this.current.composer.input))) {
 			throw new Error(localize('draft.recoveryOccupied', "The schedule is cancelled and its content is retained. Open an empty New Session and choose Edit as Draft again to recover it without replacing your current input."));
 		}
@@ -371,6 +426,33 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		await this.current.restore({ id: generateUuid(), revision: generateUuid(), createdAt: now, updatedAt: now, input, target });
 	}
 
+	preview(input: IChatDraft, target: ISavedSessionDraftTarget, scheduled: IScheduledSessionDraft): Promise<void> {
+		return this.queueRestore(async () => {
+			this.prepareToReplaceScheduledDraft();
+			if (this.current?.composer.isSending || this.current?.composer.isScheduling) {
+				throw new Error(localize('draft.busy', "Wait for the current request to start or finish scheduling before opening a draft."));
+			}
+			if (this.current) {
+				if (!this.enabled.get() && !this.current.composer.preview.get() && hasSessionDraftContent(this.current.composer.input)) {
+					throw new Error(localize('draft.previewOccupied', "Open an empty New Session before previewing this scheduled request."));
+				}
+				this.stow(this.current.composer);
+				this.clearLegacyInput(this.current.composer);
+			}
+			await this.sessionsService.openNewSession({ preserveNavigation: true });
+			const current = this.current;
+			if (!current) {
+				throw new Error(localize('draft.noComposer', "Could not open the new-session composer."));
+			}
+			current.composer.preview.set(scheduled, undefined);
+			current.composer.target = target;
+			current.composer.markScheduledSaved(input, target);
+			const now = Date.now();
+			await current.restore({ id: generateUuid(), revision: generateUuid(), createdAt: now, updatedAt: now, input, target });
+			current.composer.markScheduledSaved();
+		});
+	}
+
 	retain(draft: ISavedSessionDraft): void {
 		if (!this.model.drafts.get().some(candidate => candidate.id === draft.id)) {
 			this.model.save(draft.input, draft.target, draft.id);
@@ -379,7 +461,7 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 
 	updateNavigation(composer: SessionDraftComposer): void {
 		if (!this.opening && !this.stowing && this.current?.composer === composer) {
-			this.sessionsService.setCurrentDraftId(this.enabled.get() && hasSessionDraftContent(composer.input) ? composer.id : undefined);
+			this.sessionsService.setCurrentDraftId(this.enabled.get() && !composer.preview.get() && hasSessionDraftContent(composer.input) ? composer.id : undefined);
 		}
 	}
 
@@ -445,6 +527,7 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		if (!draft) {
 			return false;
 		}
+		this.prepareToReplaceScheduledDraft();
 		if (this.current?.composer.isSending || this.current?.composer.isScheduling) {
 			throw new Error(localize('draft.busy', "Wait for the current request to start or finish scheduling before opening a draft."));
 		}
@@ -465,6 +548,7 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		if (!current) {
 			throw new Error(localize('draft.noComposer', "Could not open the new-session composer."));
 		}
+		current.composer.preview.set(undefined, undefined);
 		if (alreadyRestored) {
 			current.focus?.();
 		} else {
@@ -481,6 +565,31 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 			this._onDidOpenDraft.fire(draft.id);
 		}
 		return true;
+	}
+
+	private hasUnsavedScheduledChanges(): boolean {
+		const composer = this.current?.composer;
+		return !!composer?.preview.get() && composer.hasScheduledChanges.get() && hasSessionDraftContent(composer.input);
+	}
+
+	private prepareToReplaceScheduledDraft(): void {
+		const composer = this.current?.composer;
+		if (composer?.preview.get() && composer.isScheduling) {
+			throw new Error(localize('scheduledDraft.saving', "Wait for the scheduled request to finish saving."));
+		}
+		if (this.hasUnsavedScheduledChanges()) {
+			if (composer && !composer.preview.get()?.request.get()?.runAt) {
+				if (!this.enabled.get()) {
+					composer.preview.set(undefined, undefined);
+					composer.updateInput(composer.input);
+					throw new Error(localize('scheduledDraft.keptAsInput', "This scheduled request is no longer editable here. Your changes have been kept in New Session and can be sent as a separate request. Check Automations before sending again."));
+				}
+				this.save(composer.input, composer.target);
+				composer.markScheduledSaved();
+				return;
+			}
+			throw new Error(localize('scheduledDraft.unsaved', "Use the Send control to save your changes before replacing this scheduled draft, or clear its input to discard local edits. The last saved version remains scheduled."));
+		}
 	}
 
 	private async delete(id: string): Promise<void> {

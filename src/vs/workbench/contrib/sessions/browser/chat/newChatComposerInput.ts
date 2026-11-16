@@ -113,6 +113,9 @@ export interface IComposerRepositoryControls extends IDisposable {
 /** Options a new-session or new-chat host supplies to its composer input. */
 export interface INewChatComposerInputOptions {
 	readonly inputEditorOptions?: IChatViewOptions['inputEditorOptions'];
+	/** A host-owned composition can save instead of sending; undefined keeps the normal send path. */
+	readonly submitOverride?: (anchor?: HTMLElement) => Promise<boolean | undefined>;
+	readonly shouldPersistInput?: () => boolean;
 	readonly session: IObservable<ISession | undefined>;
 	/**
 	 * The chat the input binds to. Defaults to the session's active chat, such as a new session's
@@ -163,6 +166,7 @@ export interface INewChatComposerInputOptions {
 	readonly sessionTypePickerOptions?: ISessionTypePickerOptions;
 	readonly supportsBackground?: boolean;
 	readonly sendButtonLabel?: IObservable<string | undefined>;
+	readonly sendButtonLabelOnly?: IObservable<boolean>;
 	readonly modelPickerComparison?: IModelPickerComparison;
 	readonly deferredNotificationsEnabled?: IObservable<boolean>;
 	readonly petHostPreferred?: IObservable<boolean>;
