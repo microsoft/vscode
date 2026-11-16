@@ -35,10 +35,6 @@ export function isPendingDividerVM(item: unknown): item is IChatPendingDividerVi
 	return !!item && typeof item === 'object' && (item as IChatPendingDividerViewModel).kind === 'pendingDivider';
 }
 
-export function isScheduledRequestVM(item: unknown): item is IChatScheduledRequestViewModel {
-	return !!item && typeof item === 'object' && 'kind' in item && item.kind === 'scheduledRequest';
-}
-
 interface IChatViewModelItemWithPendingState {
 	readonly id: string;
 	readonly kind?: string;
@@ -46,7 +42,7 @@ interface IChatViewModelItemWithPendingState {
 }
 
 function isPendingChatViewModelItem(item: IChatViewModelItemWithPendingState): boolean {
-	return item.kind === 'pendingDivider' || item.kind === 'scheduledRequest' || item.pendingKind !== undefined;
+	return item.kind === 'pendingDivider' || item.pendingKind !== undefined;
 }
 
 /**
@@ -106,7 +102,6 @@ export interface IChatViewModel {
 	readonly onDidChangeEditing: Event<void>;
 	readonly inputPlaceholder?: string;
 	getItems(): readonly ChatViewModelItem[];
-	setScheduledRequests(requests: readonly IChatScheduledRequest[]): void;
 	setInputPlaceholder(text: string): void;
 	resetInputPlaceholder(): void;
 	editing?: IChatRequestViewModel;
@@ -273,7 +268,8 @@ export interface IChatScheduledRequestEditing {
 	readonly retainedAttachments?: readonly string[];
 	readonly isSaving?: IObservable<boolean>;
 	runAt: string;
-	description: string;
+	/** When the edited request will send ("Tomorrow 9:00 AM"), following {@link runAt}. */
+	readonly description: string;
 	readonly selectTime: IAction;
 	save(): Promise<void>;
 	cancel(): void;
@@ -283,6 +279,7 @@ export interface IChatScheduledRequestEditing {
 export interface IChatScheduledRequest {
 	readonly id: string;
 	readonly text: string;
+	/** When the request sends ("Tomorrow 9:00 AM"), or its status while it cannot. */
 	readonly description: string;
 	readonly attachments: readonly string[];
 	readonly actions: readonly IAction[];
@@ -290,22 +287,14 @@ export interface IChatScheduledRequest {
 	readonly editing?: IChatScheduledRequestEditing;
 }
 
-export interface IChatScheduledRequestViewModel extends IChatScheduledRequest {
-	readonly kind: 'scheduledRequest';
-	readonly sessionResource: URI;
-	readonly dataId: string;
-	readonly isComplete: true;
-	currentRenderedHeight: number | undefined;
-}
-
-export type ChatViewModelItem = IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel | IChatScheduledRequestViewModel;
+export type ChatViewModelItem = IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel;
 
 export interface IChatPendingDividerViewModel {
 	readonly kind: 'pendingDivider';
 	readonly id: string; // e.g., 'pending-divider-steering' or 'pending-divider-queued'
 	readonly sessionResource: URI;
 	readonly isComplete: true;
-	readonly dividerKind: ChatRequestQueueKind | 'scheduled';
+	readonly dividerKind: ChatRequestQueueKind;
 	readonly isSystemInitiated?: boolean;
 	currentRenderedHeight: number | undefined;
 }
@@ -337,8 +326,6 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	/** Result of {@link getItems}, rebuilt lazily after any model or view-model change. */
 	private _visibleItemsCache: readonly ChatViewModelItem[] | undefined;
-	private _scheduledRequests: readonly IChatScheduledRequestViewModel[] = [];
-	private _scheduledRequestsVersion = 0;
 	private readonly _responseDisposables = this._register(new DisposableMap<string, DisposableStore>());
 
 	private _inputPlaceholder: string | undefined = undefined;
@@ -453,20 +440,6 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		this._items.splice(index, 0, response);
 	}
 
-	setScheduledRequests(requests: readonly IChatScheduledRequest[]): void {
-		const version = ++this._scheduledRequestsVersion;
-		this._scheduledRequests = requests.map(request => ({
-			...request,
-			id: `scheduled:${request.id}`,
-			dataId: `scheduled:${request.id}:${version}`,
-			kind: 'scheduledRequest',
-			sessionResource: this.sessionResource,
-			isComplete: true,
-			currentRenderedHeight: undefined,
-		}));
-		this._onDidChange.fire(null);
-	}
-
 	getItems(): readonly ChatViewModelItem[] {
 		return this._visibleItemsCache ??= this.computeItems();
 	}
@@ -523,11 +496,6 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 					items.push(requestVM);
 				}
 			}
-		}
-
-		if (this._scheduledRequests.length > 0) {
-			items.push({ kind: 'pendingDivider', id: 'pending-divider-scheduled', sessionResource: this._model.sessionResource, isComplete: true, dividerKind: 'scheduled', currentRenderedHeight: undefined });
-			items.push(...this._scheduledRequests);
 		}
 		return items;
 	}

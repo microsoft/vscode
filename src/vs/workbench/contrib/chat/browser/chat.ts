@@ -31,7 +31,7 @@ import { IParsedChatRequest } from '../common/requestParser/chatParserTypes.js';
 import { IHandOff } from '../common/promptSyntax/promptFileParser.js';
 import { CHAT_PROVIDER_ID } from '../common/participants/chatParticipantContribTypes.js';
 import { ChatRequestQueueKind, IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } from '../common/chatService/chatService.js';
-import { IChatResponseViewModel, IChatViewModel, ChatViewModelItem } from '../common/model/chatViewModel.js';
+import { IChatResponseViewModel, IChatViewModel, ChatViewModelItem, IChatScheduledRequest } from '../common/model/chatViewModel.js';
 import { ChatAgentLocation, ChatModeKind, IResolvedNewChatSessionType } from '../common/constants.js';
 import { ChatAttachmentModel } from './attachments/chatAttachmentModel.js';
 import { IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
@@ -559,6 +559,11 @@ export interface IChatWidget {
 	startEditing(requestId: string): void;
 	cancelEditing(): Promise<void>;
 	finishedEditing(completedEdit?: boolean): void;
+	/**
+	 * Messages scheduled to send later in this chat. The input shows them, and edits the one
+	 * whose {@link IChatScheduledRequest.editing} is set in place of the draft.
+	 */
+	setScheduledRequests(requests: readonly IChatScheduledRequest[]): void;
 	rerunLastRequest(): Promise<void>;
 	setInputPlaceholder(placeholder: string): void;
 	resetInputPlaceholder(): void;

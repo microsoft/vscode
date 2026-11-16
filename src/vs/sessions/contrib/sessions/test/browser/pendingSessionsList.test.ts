@@ -341,7 +341,7 @@ suite('Sessions - pending list items', () => {
 			disabled: list.getVisibleSessions().map(session => session.sessionId).sort(),
 			indicatorHidden: mainWindow.getComputedStyle(list.getItemRow({ session: scheduled.resource })!.querySelector('.session-scheduled-indicator')!).display,
 		}, {
-			before: { indicator: 'flex', aria: true }, hovered: 'none', filtered: ['scheduled'], draftHidden: true, afterDispatch: [],
+			before: { indicator: 'flex', aria: true }, hovered: 'flex', filtered: ['scheduled'], draftHidden: true, afterDispatch: [],
 			disabled: ['normal', 'scheduled'], indicatorHidden: 'none',
 		});
 	});

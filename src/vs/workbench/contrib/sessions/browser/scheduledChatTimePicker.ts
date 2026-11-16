@@ -15,6 +15,7 @@ import { localize } from '../../../../nls.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { defaultButtonStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { parseScheduledChatTime } from '../common/scheduledChatRequest.js';
+import { formatScheduledChatTime } from '../common/scheduledChatTime.js';
 
 function startOfDay(date: Date): Date {
 	return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -190,7 +191,7 @@ class ScheduledChatCalendar extends Disposable {
 
 export async function pickScheduledChatTime(quickInputService: IQuickInputService, anchor?: HTMLElement): Promise<Date | undefined> {
 	const now = new Date();
-	const formatTime = (date: Date) => date.toLocaleString(undefined, { timeZoneName: 'short' });
+	const formatTime = (date: Date) => formatScheduledChatTime(date, now.getTime());
 	const choices = [
 		{ minutes: 5, label: localize('sendLater.fiveMinutes', "In 5 Minutes") },
 		{ minutes: 10, label: localize('sendLater.tenMinutes', "In 10 Minutes") },

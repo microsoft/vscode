@@ -13,6 +13,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IPickOptions, IQuickInputHideEvent, IQuickInputService, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { pickScheduledChatTime } from '../../browser/scheduledChatTimePicker.js';
+import { formatScheduledChatTime } from '../../common/scheduledChatTime.js';
 
 suite('Scheduled chat time picker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -114,7 +115,7 @@ suite('Scheduled chat time picker', () => {
 			date: expected.getTime(),
 			options: 97,
 			selected: 'true',
-			summary: `Send ${expected.toLocaleString(undefined, { timeZoneName: 'short' })}`,
+			summary: `Send ${formatScheduledChatTime(expected)}`,
 		});
 	});
 
