@@ -8761,6 +8761,8 @@ suite('WorkspacePicker - a composer outside the main window', () => {
 			_openQuickChat: () => upcastPartial<ISession>({ providerId: 'p', sessionType: 't' }),
 			_reconcileWorkspaceEnvironment: () => { },
 			_replaceDraftOnUnservableHarness: () => { },
+			_pendingWorktreePlacement: observableValue('pendingWorktreePlacement', false),
+			_applyRequestedWorktreePlacement: () => { },
 		};
 		for (const method of ['_selectRequestedNoWorkspace', '_isRequestedAgent', '_seedRequestedTarget', '_syncWorkspacePickerDevContainerMode', 'selectNoWorkspace']) {
 			const implementation = Reflect.get(NewChatWidget.prototype, method) as (...args: unknown[]) => unknown;

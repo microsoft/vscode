@@ -66,6 +66,11 @@ export interface IChatViewNewChatTarget {
 	readonly modeId?: string;
 	/** Whether the session of the new chat runs in a Dev Container. */
 	readonly requireDevContainer?: boolean;
+	/**
+	 * Where the session of the new chat works: in a new worktree of {@link folder} (`worktree`), or without a folder
+	 * (`noWorkspace`, with no {@link folder}). Unset, it works in {@link folder}.
+	 */
+	readonly placement?: 'worktree' | 'noWorkspace';
 }
 
 /** How {@link IChatViewHost.newChat} starts a new chat. */
@@ -86,6 +91,8 @@ export interface IChatViewHostSessionStartOptions {
 	readonly importingConversation: boolean;
 	/** Called once the host shows, before the session loads. */
 	readonly beforeOpen?: () => void;
+	/** What a new-session composer that the host shows for the start aims at, such as a new worktree of a folder. */
+	readonly target?: IChatViewNewChatTarget;
 }
 
 /** A session that {@link IChatViewHost.startSession} started; disposing it ends the start without completing it. */
