@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { toAction } from '../../../../base/common/actions.js';
-import { Sequencer } from '../../../../base/common/async.js';
+import { RunOnceScheduler, Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { createCommandUri } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -85,6 +85,10 @@ export class SessionDraftComposer implements IDisposable {
 		this.service.updateSavedDraft(this);
 	}
 
+	cancelRecovery(): void {
+		this.service.cancelRecovery(this);
+	}
+
 	willSend(input: IChatDraft): void {
 		this.input = input;
 		this.sendTracked = false;
@@ -133,7 +137,10 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 	private readonly sends = new Map<ISendRequestOptions, { draft: ISavedSessionDraft; sessionId: string }>();
 	private readonly openQueue = new Sequencer();
 	private readonly pendingOpen = this._register(new MutableDisposable<IDisposable>());
-	private opening = false;
+	private readonly pendingRecovery = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly liveDraft = observableValue<Pick<ISavedSessionDraft, 'id' | 'input' | 'target'> | undefined>(this, undefined);
+	private readonly saveScheduler = this._register(new RunOnceScheduler(() => this.persistSavedDraft(), 300));
+	private opening: CancellationToken | undefined;
 	private stowing = false;
 
 	constructor(
@@ -153,6 +160,7 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		const hidden = observableFromEvent(this, entitlementService.onDidChangeSentiment, () => entitlementService.sentiment.hidden);
 		this.enabled = derived(this, reader => configured.read(reader) && !hidden.read(reader));
 		this.model = this._register(new SavedSessionDrafts(storageService));
+		this._register(storageService.onWillSaveState(() => this.persistSavedDraft()));
 		this._register(CommandsRegistry.registerCommand(openDraftCommandId, async (_accessor, id: string) => {
 			if (!await this.openDraft(id, CancellationToken.None)) {
 				throw new Error(localize('draft.noLongerAvailable', "This draft is no longer available."));
@@ -181,25 +189,29 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 			if (!this.enabled.read(reader)) {
 				return [];
 			}
-			const items = this.model.drafts.read(reader).map(draft => ({
-				pendingSession: true as const,
-				id: draft.id,
-				kind: 'draft' as const,
-				title: draft.input.inputText.trim().split('\n')[0] || localize('draft.attachmentTitle', "Attached Context"),
-				description: draft.target.folderUri ? basename(draft.target.folderUri) : '',
-				folderUri: draft.target.folderUri,
-				providerId: draft.target.providerId,
-				sessionType: draft.target.sessionTypeId,
-				environmentId: draft.target.environmentId,
-				harness: draft.target.harness,
-				applicationId: draft.target.applicationId,
-				isQuickChat: !draft.target.folderUri,
-				open: () => this.open(draft.id),
-				actions: [
-					toAction({ id: 'sessions.drafts.resume', label: localize('draft.resume', "Resume Draft"), class: ThemeIcon.asClassName(Codicon.play), run: () => this.open(draft.id) }),
-					toAction({ id: 'sessions.drafts.delete', label: localize('draft.delete', "Delete Draft"), class: ThemeIcon.asClassName(Codicon.trash), run: () => this.delete(draft.id) }),
-				],
-			}));
+			const liveDraft = this.liveDraft.read(reader);
+			const items = this.model.drafts.read(reader).map(saved => {
+				const draft = liveDraft?.id === saved.id ? liveDraft : saved;
+				return {
+					pendingSession: true as const,
+					id: draft.id,
+					kind: 'draft' as const,
+					title: draft.input.inputText.trim().split('\n')[0] || localize('draft.attachmentTitle', "Attached Context"),
+					description: draft.target.folderUri ? basename(draft.target.folderUri) : '',
+					folderUri: draft.target.folderUri,
+					providerId: draft.target.providerId,
+					sessionType: draft.target.sessionTypeId,
+					environmentId: draft.target.environmentId,
+					harness: draft.target.harness,
+					applicationId: draft.target.applicationId,
+					isQuickChat: !draft.target.folderUri,
+					open: () => this.open(draft.id),
+					actions: [
+						toAction({ id: 'sessions.drafts.resume', label: localize('draft.resume', "Resume Draft"), class: ThemeIcon.asClassName(Codicon.play), run: () => this.open(draft.id) }),
+						toAction({ id: 'sessions.drafts.delete', label: localize('draft.delete', "Delete Draft"), class: ThemeIcon.asClassName(Codicon.trash), run: () => this.delete(draft.id) }),
+					],
+				};
+			});
 			return items.length ? [{ id: 'drafts', label: localize('drafts', "Drafts"), items }] : [];
 		});
 		this._register(sessionsManagementService.onDidSendRequest(event => {
@@ -269,6 +281,8 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		const recoveredDraft = composer.recoveredDraft;
 		composer.recoveredDraft = undefined;
 		if (recoveredDraft) {
+			const recovery = new CancellationTokenSource();
+			this.pendingRecovery.value = recovery;
 			// Restore only the backed-up composer, not other saved entries, before startup can capture picker defaults.
 			void this.queueCancellableRestore(async token => {
 				try {
@@ -278,8 +292,11 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 					await restoreComposer({ ...recoveredDraft, input: composer.input }, token, true);
 				} finally {
 					composer.isRestoring = false;
+					if (this.pendingRecovery.value === recovery) {
+						this.pendingRecovery.clear();
+					}
 				}
-			}).catch(error => {
+			}, recovery.token).catch(error => {
 				if (isCancellationError(error)) {
 					return;
 				}
@@ -289,6 +306,8 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		}
 		this.updateNavigation(composer);
 		return toDisposable(() => {
+			this.persistSavedDraft();
+			this.cancelRecovery(composer);
 			composer.dispose();
 			if (this.current?.composer === composer) {
 				this.current = undefined;
@@ -296,12 +315,21 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		});
 	}
 
+	cancelRecovery(composer: SessionDraftComposer): void {
+		if (this.current?.composer === composer && this.pendingRecovery.value) {
+			this.pendingRecovery.value.cancel();
+			this.pendingRecovery.clear();
+			composer.isRestoring = false;
+		}
+	}
+
 	stowAndClear(composer = this.current?.composer): ISavedSessionDraft | undefined {
 		const current = this.current;
 		if (!this.enabled.get() || !current || current.composer !== composer || current.composer.isSending) {
 			return undefined;
 		}
-		if (this.opening || current.composer.isScheduling) {
+		this.cancelRecovery(current.composer);
+		if ((this.opening && !this.opening.isCancellationRequested) || current.composer.isScheduling) {
 			throw new Error(localize('draft.newSessionBusy', "Wait for the draft to finish opening or scheduling before starting a new session."));
 		}
 		const saved = this.stow(current.composer, { notifyCreated: true });
@@ -329,10 +357,12 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 			if (this.model.drafts.get().some(draft => draft.id === composer.id)) {
 				this.model.remove(composer.id);
 			}
+			this.clearPendingSave(composer);
 			return undefined;
 		}
 		const isNew = !this.model.drafts.get().some(draft => draft.id === composer.id);
 		const saved = this.model.save(composer.input, composer.target, composer.id);
+		this.clearPendingSave(composer);
 		if (isNew && options?.notifyCreated) {
 			this.notificationService.info(NotificationText.format(
 				localize('draft.created', "Created draft. {0}"),
@@ -359,17 +389,35 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 	}
 
 	updateSavedDraft(composer: SessionDraftComposer): void {
-		if (composer.isSending || composer.isRestoring || this.current?.composer !== composer || !this.getDraftRevision(composer)) {
+		if (!this.enabled.get() || composer.isSending || composer.isScheduling || composer.isRestoring || this.current?.composer !== composer || !hasSessionDraftContent(composer.input) || !this.getDraftRevision(composer)) {
+			return;
+		}
+		this.liveDraft.set({ id: composer.id, input: composer.input, target: composer.target }, undefined);
+		this.saveScheduler.schedule();
+	}
+
+	private persistSavedDraft(): void {
+		const composer = this.current?.composer;
+		if (!composer || this.liveDraft.get()?.id !== composer.id || !this.enabled.get() || composer.isSending || composer.isScheduling || composer.isRestoring || !hasSessionDraftContent(composer.input) || !this.getDraftRevision(composer)) {
 			return;
 		}
 		try {
-			this.stow(composer);
+			this.model.save(composer.input, composer.target, composer.id);
+			this.clearPendingSave(composer);
 		} catch (error) {
 			this.reportSaveError(error);
 		}
 	}
 
+	private clearPendingSave(composer: SessionDraftComposer): void {
+		if (this.liveDraft.get()?.id === composer.id) {
+			this.saveScheduler.cancel();
+			this.liveDraft.set(undefined, undefined);
+		}
+	}
+
 	finishScheduledComposer(composer: SessionDraftComposer, revision: string | undefined): void {
+		this.clearPendingSave(composer);
 		if (revision) {
 			this.model.remove(composer.id, revision);
 		}
@@ -395,7 +443,7 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 	}
 
 	updateNavigation(composer: SessionDraftComposer): void {
-		if (!this.opening && !this.stowing && this.current?.composer === composer) {
+		if ((!this.opening || this.opening.isCancellationRequested) && !this.stowing && this.current?.composer === composer) {
 			this.sessionsService.setCurrentDraftId(this.enabled.get() && hasSessionDraftContent(composer.input) ? composer.id : undefined);
 		}
 	}
@@ -434,16 +482,16 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 					this.pendingOpen.clear();
 				}
 			}
-		});
+		}, cancellation.token);
 	}
 
-	private queueRestore<T>(restore: () => Promise<T>): Promise<T> {
+	private queueRestore<T>(restore: () => Promise<T>, token: CancellationToken): Promise<T> {
 		return this.openQueue.queue(async () => {
-			this.opening = true;
+			this.opening = token;
 			try {
 				return await restore();
 			} finally {
-				this.opening = false;
+				this.opening = undefined;
 				if (this.current) {
 					this.updateNavigation(this.current.composer);
 				}
@@ -487,6 +535,10 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		} else {
 			await current.restore(draft, token);
 		}
+		if (!token.isCancellationRequested) {
+			// Reveal the restored destination, not an intermediate generic composer.
+			await this.sessionsService.openNewSession({ preserveNavigation: true }, token);
+		}
 		if (token.isCancellationRequested || current.composer.disposed || this.current !== current) {
 			return false;
 		}
@@ -508,10 +560,16 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 			this.model.remove(id);
 			if (this.current?.composer.id === id) {
 				const composer = this.current.composer;
+				this.clearPendingSave(composer);
 				composer.id = generateUuid();
 				composer.updateInput({ inputText: '', attachments: [] });
 				this.current.clear();
 			}
 		}
+	}
+
+	override dispose(): void {
+		this.persistSavedDraft();
+		super.dispose();
 	}
 }

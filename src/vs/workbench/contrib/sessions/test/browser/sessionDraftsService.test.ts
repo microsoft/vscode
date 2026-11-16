@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
@@ -26,7 +27,7 @@ import { SessionDraftsService } from '../../browser/sessionDraftsService.js';
 import { getPendingSessionAriaLabel } from '../../browser/views/pendingSessions.js';
 import { ISessionGroupsService } from '../../browser/sessionGroupsService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
-import { ISavedSessionDraft } from '../../common/savedSessionDrafts.js';
+import { ISavedSessionDraft, SavedSessionDrafts } from '../../common/savedSessionDrafts.js';
 import { readNewChatDraftState, writeNewChatDraftState } from '../../common/newChatDraftState.js';
 import { ISendRequestSentEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { SESSIONS_DRAFTS_ENABLED_SETTING } from '../../common/sessionConfig.js';
@@ -289,7 +290,7 @@ suite('Saved session draft lifecycle', () => {
 		assert.deepStrictEqual({ restoringBeforeStartup, restores, openedOnStartup, opens, target: changed?.target, input: changed?.input, infoNotifications }, {
 			restoringBeforeStartup: true,
 			restores: [{ id: saved.id, inputText: input.inputText, target, preserveFocus: true }],
-			openedOnStartup: [], opens: 0, target: changedTarget, input, infoNotifications: [],
+			openedOnStartup: [], opens: 1, target: changedTarget, input, infoNotifications: [],
 		});
 	});
 
@@ -313,7 +314,7 @@ suite('Saved session draft lifecycle', () => {
 		await service.open(draft.id);
 		await service.open(draft.id);
 		assert.deepStrictEqual({ opens, restores, focuses, input: composer.input.inputText }, {
-			opens: 0, restores: 1, focuses: 2, input: 'edited',
+			opens: 3, restores: 1, focuses: 2, input: 'edited',
 		});
 	});
 
@@ -330,6 +331,161 @@ suite('Saved session draft lifecycle', () => {
 		assert.deepStrictEqual(service.sections.get()[0].items.map(item => ({
 			id: item.id, title: item.title, description: item.description,
 		})), [{ id: draft.id, title: 'edited', description: 'selected' }]);
+	});
+
+	test('typing keeps sidebar labels live while coalescing storage revisions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { service, storage } = create();
+		const draft = service.save({ inputText: 'original', attachments: [] }, {});
+		const persisted = disposables.add(new SavedSessionDrafts(storage));
+		const composer = service.createComposer();
+		disposables.add(service.registerComposer(composer, async value => composer.updateInput(value.input), () => { }));
+		await service.open(draft.id);
+		let writes = 0;
+		disposables.add(storage.onDidChangeValue(StorageScope.PROFILE, undefined, disposables.add(new DisposableStore()))(event => {
+			if (event.key.startsWith('sessions.savedDrafts.revision.') && storage.get(event.key, StorageScope.PROFILE)) {
+				writes++;
+			}
+		}));
+		for (let i = 0; i < 20; i++) {
+			composer.updateInput({ inputText: `edit ${i}`, attachments: draft.input.attachments });
+		}
+		const before = { writes, title: service.sections.get()[0].items[0].title };
+		await timeout(299);
+		const pending = persisted.drafts.get()[0].input.inputText;
+		await timeout(1);
+		assert.deepStrictEqual({ before, pending, writes, saved: persisted.drafts.get()[0].input.inputText }, {
+			before: { writes: 0, title: 'edit 19' }, pending: 'original', writes: 1, saved: 'edit 19',
+		});
+	}));
+
+	for (const boundary of ['navigation', 'send', 'shutdown', 'disposal'] as const) {
+		test(`flushes pending saved edits on ${boundary}`, async () => {
+			const { service, storage, lifecycle } = create();
+			const draft = service.save({ inputText: 'original', attachments: [] }, {});
+			const persisted = disposables.add(new SavedSessionDrafts(storage));
+			const composer = service.createComposer();
+			const registration = disposables.add(service.registerComposer(composer, async value => composer.updateInput(value.input), () => { }));
+			await service.open(draft.id);
+			composer.updateInput({ inputText: 'latest', attachments: [] });
+			composer.updateTarget({ folderUri: URI.file('/latest') });
+			switch (boundary) {
+				case 'navigation':
+					service.stowAndClear();
+					break;
+				case 'send':
+					composer.willSend(composer.input);
+					break;
+				case 'shutdown':
+					lifecycle.willShutdown = true;
+					await storage.flush();
+					break;
+				case 'disposal':
+					registration.dispose();
+					break;
+			}
+			assert.deepStrictEqual(persisted.drafts.get().map(value => ({ id: value.id, text: value.input.inputText, target: value.target })), [
+				{ id: draft.id, text: 'latest', target: { folderUri: URI.file('/latest') } },
+			]);
+		});
+	}
+
+	for (const input of [
+		{ inputText: 'saved text', attachments: [] },
+		{ inputText: '', attachments: [{ kind: 'file' as const, id: 'file', name: 'file.ts', value: URI.file('/file.ts') }] },
+	]) {
+		test(`temporarily emptying a resumed draft preserves its identity for Undo (${input.inputText ? 'text' : 'attachments'})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { service, storage } = create();
+			const draft = service.save(input, {});
+			const composer = service.createComposer();
+			disposables.add(service.registerComposer(composer, async value => composer.updateInput(value.input), () => { }));
+			await service.open(draft.id);
+			composer.updateInput({ inputText: '', attachments: [] });
+			await timeout(300);
+			const emptyIds = service.sections.get()[0].items.map(item => item.id);
+			composer.updateInput(input);
+			await storage.flush();
+			assert.deepStrictEqual({ emptyIds, id: composer.id, saved: service.sections.get()[0].items.map(item => item.id) }, {
+				emptyIds: [draft.id], id: draft.id, saved: [draft.id],
+			});
+		}));
+	}
+
+	for (const accepted of [false, true]) {
+		test(`pending persistence respects a scheduling handoff (accepted: ${accepted})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { service, storage } = create();
+			const draft = service.save({ inputText: 'original', attachments: [] }, {});
+			const persisted = disposables.add(new SavedSessionDrafts(storage));
+			const composer = service.createComposer();
+			disposables.add(service.registerComposer(composer, async value => composer.updateInput(value.input), () => { }));
+			await service.open(draft.id);
+			composer.updateInput({ inputText: 'latest', attachments: [] });
+			composer.isScheduling = true;
+			await timeout(300);
+			const pendingRevision = persisted.drafts.get()[0].revision;
+			if (accepted) {
+				service.finishScheduledComposer(composer, draft.revision);
+			}
+			composer.isScheduling = false;
+			await storage.flush();
+			assert.deepStrictEqual({ unchangedWhileScheduling: pendingRevision === draft.revision, saved: persisted.drafts.get().map(value => value.input.inputText) }, {
+				unchangedWhileScheduling: true, saved: accepted ? [] : ['latest'],
+			});
+		}));
+	}
+
+	for (const action of ['newSession', 'targetSelection'] as const) {
+		test(`${action} cancels reload recovery without restoring stale input or target`, async () => {
+			const { service, storage, notifications } = create();
+			const saved = service.save({ inputText: 'recovered', attachments: [] }, { folderUri: URI.file('/old') });
+			const other = service.save({ inputText: 'other', attachments: [] }, {});
+			writeNewChatDraftState(storage, saved.input, saved.id);
+			const composer = service.createComposer();
+			const started = new DeferredPromise<void>();
+			let cancelled = false;
+			disposables.add(service.registerComposer(composer, async (draft, token, preserveFocus) => {
+				if (draft.id === saved.id && preserveFocus) {
+					await new Promise<void>(resolve => {
+						disposables.add(token!.onCancellationRequested(() => {
+							cancelled = true;
+							resolve();
+						}));
+						started.complete();
+					});
+					return;
+				}
+				composer.updateInput(draft.input);
+			}, () => { }));
+			await started.p;
+			if (action === 'newSession') {
+				service.stowAndClear();
+			} else {
+				composer.cancelRecovery();
+			}
+			const newId = composer.id;
+			composer.updateInput({ inputText: 'new choice', attachments: [] });
+			composer.updateTarget({ folderUri: URI.file('/new') });
+			await service.open(other.id);
+			await service.open(newId);
+			assert.deepStrictEqual({ cancelled, id: composer.id, input: composer.input.inputText, target: composer.target, notifications }, {
+				cancelled: true, id: newId, input: 'new choice', target: { folderUri: URI.file('/new') }, notifications: [],
+			});
+		});
+	}
+
+	test('reveals only the restored destination when a custom surface covers the composer', async () => {
+		const { service, view } = create();
+		const draft = service.save({ inputText: 'saved', attachments: [] }, {});
+		const composer = service.createComposer();
+		const revealed: string[] = [];
+		disposables.add(service.registerComposer(composer, async value => composer.updateInput(value.input), () => { }));
+		view.openNewSession = async options => {
+			assert.strictEqual(options?.preserveNavigation, true);
+			revealed.push(composer.input.inputText);
+			return { session: undefined, trustDeclined: false };
+		};
+		await service.open(draft.id);
+		await service.open(draft.id);
+		assert.deepStrictEqual(revealed, ['saved', 'saved']);
 	});
 
 	test('opening another draft cancels the recovered composer restoration', async () => {

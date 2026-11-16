@@ -423,6 +423,7 @@ export class NewChatWidget extends Disposable {
 			canRestoreWorkspace: () => !this._savedDraftComposer?.isRestoring && !this._savedDraftTargetUnavailable.get()
 				&& (!this._isQuickChatComposer.get() || this._newChatInput?.canApplyWorkspaceDefault === true),
 			onUserSelection: () => {
+				this._savedDraftComposer?.cancelRecovery();
 				this._savedDraftTargetUnavailable.set(false, undefined);
 				newSessionComposerService.notifyUserWorkspaceSelection();
 			},
@@ -659,7 +660,10 @@ export class NewChatWidget extends Disposable {
 			this._register(this._trackSavedDraftTarget());
 			savedDraftRegistration.value = this.sessionDraftsService.registerComposer(this._savedDraftComposer,
 				(draft, token, preserveFocus) => this._restoreSavedDraft(draft, token, preserveFocus),
-				() => this._newChatInput.setDraft({ inputText: '', attachments: [] }),
+				() => {
+					this._savedDraftTargetUnavailable.set(false, undefined);
+					this._newChatInput.setDraft({ inputText: '', attachments: [] });
+				},
 				() => this._newChatInput.focus());
 			this._register(this._trackSavedDraftVisibility());
 		}
@@ -759,6 +763,7 @@ export class NewChatWidget extends Disposable {
 			syncAttachedContext();
 		}));
 		this._register(this._newChatInput.sessionTypePicker.onDidSelectSessionType(async pick => {
+			this._savedDraftComposer?.cancelRecovery();
 			this._savedDraftTargetUnavailable.set(false, undefined);
 			this.newSessionComposerService.notifyUserWorkspaceSelection();
 			this._requestTarget(target => ({ ...target, providerId: pick?.providerId, sessionTypeId: pick?.sessionTypeId }));
@@ -1356,6 +1361,8 @@ export class NewChatWidget extends Disposable {
 
 	private _trackSavedDraftTarget(): IDisposable {
 		return autorun(reader => {
+			this._restoringSavedDraft.read(reader);
+			this._savedDraftTargetUnavailable.read(reader);
 			const session = this._session.read(reader);
 			session?.modelId.read(reader);
 			session?.mode.read(reader);
@@ -2318,6 +2325,10 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private async _selectEnvironment(environment: ISessionCreationEnvironment): Promise<void> {
+		if (this._savedDraftComposer) {
+			this._savedDraftComposer.cancelRecovery();
+			this._savedDraftTargetUnavailable.set(false, undefined);
+		}
 		const previousEnvironment = this._environment.get();
 		if (environment.id === previousEnvironment?.id) {
 			return;

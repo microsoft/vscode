@@ -1083,6 +1083,8 @@ suite('NewChatWidget', () => {
 				return value;
 			};
 			const harness = {
+				_savedDraftComposer: undefined as { cancelRecovery(): void } | undefined,
+				_savedDraftTargetUnavailable: observableValue('unavailable', false),
 				_environment: derived(reader => picked.read(reader) ?? local),
 				_environmentWorkspaces: new Map<string, URI>(),
 				_environmentWorkspaceChanged: { trigger: () => { } },
@@ -1121,6 +1123,16 @@ suite('NewChatWidget', () => {
 			const select = Reflect.get(NewChatWidget.prototype, '_selectEnvironment') as (this: typeof harness, environment: ISessionCreationEnvironment) => Promise<void>;
 			return { harness, calls, select: (environment: ISessionCreationEnvironment) => select.call(harness, environment) };
 		}
+
+		test('choosing an environment cancels saved draft recovery before applying the selection', async () => {
+			const { harness, calls, select } = createHarness(true);
+			harness._savedDraftComposer = { cancelRecovery: () => { calls.push('cancelRecovery'); } };
+			harness._savedDraftTargetUnavailable.set(true, undefined);
+			await select(cloud);
+			assert.deepStrictEqual({ firstAction: calls[0], unavailable: harness._savedDraftTargetUnavailable.get(), environment: harness._pickedEnvironment.get()?.id }, {
+				firstAction: 'cancelRecovery', unavailable: false, environment: 'cloud',
+			});
+		});
 
 		test('a composer outside the main window requests the Dev Container of the environment the user picks, and no longer once the user picks another environment', async () => {
 			const { harness, select } = createHarness(true);
