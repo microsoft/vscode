@@ -30,6 +30,7 @@ import { createFileSystemProviderError, FileOperationError, FileOperationResult,
 import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { TestProductService } from '../../../../../test/common/workbenchTestServices.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
@@ -185,7 +186,7 @@ suite('Mission Control sharing service', () => {
 			override readonly onDidChangeWorkspaceFolders = Event.None;
 			override getWorkspace() { return new Workspace('workspace', options.emptyWindow ? [] : [toWorkspaceFolder(workspaceRoot)], false, null, () => false); }
 		}());
-		instantiation.stub(IProductService, { quality: 'insider' });
+		instantiation.stub(IProductService, { quality: 'insider', defaultChatAgent: { ...TestProductService.defaultChatAgent, providerScopes: [[...session.scopes]] } });
 		const logService = store.add(new NullLogService());
 		instantiation.stub(ILogService, logService);
 		instantiation.stub(IStorageService, storage);

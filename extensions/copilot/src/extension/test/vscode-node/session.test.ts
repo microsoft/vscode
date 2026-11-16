@@ -23,7 +23,7 @@ suite('Session tests', function () {
 	const accessor = testingServiceCollection.createTestingAccessor();
 
 	let sandbox: sinon.SinonSandbox;
-	let getSessionStub: sinon.SinonStub<[providerId: string, scopeListOrRequest: readonly string[] | AuthenticationWwwAuthenticateRequest, options?: AuthenticationGetSessionOptions | undefined], Thenable<AuthenticationSession | undefined>>;
+	let getSessionStub: sinon.SinonStub<[providerId: string, scopeListOrRequest: readonly string[] | AuthenticationWwwAuthenticateRequest | undefined, options?: AuthenticationGetSessionOptions | undefined], Thenable<AuthenticationSession | undefined>>;
 	let getAccountsStub: sinon.SinonStub<[providerId: string], Thenable<readonly AuthenticationSessionAccountInformation[]>>;
 	let configurationStub: sinon.SinonStub<[section?: string | undefined, scope?: ConfigurationScope | null | undefined], WorkspaceConfiguration>;
 
@@ -43,8 +43,9 @@ suite('Session tests', function () {
 			sessionsByScope.set(scopeKey, sessionsWithScope);
 		}
 
-		getSessionStub.callsFake((_providerId: string, scopeListOrRequest: readonly string[] | AuthenticationWwwAuthenticateRequest, options?: AuthenticationGetSessionOptions | undefined) => {
-			const scopes = scopeListOrRequest as readonly string[];
+		getSessionStub.callsFake((_providerId: string, scopeListOrRequest: readonly string[] | AuthenticationWwwAuthenticateRequest | undefined, options?: AuthenticationGetSessionOptions | undefined) => {
+			// VS Code resolves undefined scopes to the aligned scopes.
+			const scopes = scopeListOrRequest === undefined ? GITHUB_SCOPE_ALIGNED : scopeListOrRequest as readonly string[];
 			let sessionsWithScope = sessionsByScope.get(scopes.join(' '));
 			if (sessionsWithScope) {
 				if (options?.account) {
@@ -181,7 +182,7 @@ suite('Session tests', function () {
 		});
 
 		test('should return undefined if there are no pre-existing sessions', async () => {
-			const alignedScopeSessionStub = getSessionStub.withArgs('github', GITHUB_SCOPE_ALIGNED, sinon.match.any);
+			const alignedScopeSessionStub = getSessionStub.withArgs('github', undefined, sinon.match.any);
 			const userEmailSessionStub = getSessionStub.withArgs('github', GITHUB_SCOPE_USER_EMAIL, sinon.match.any);
 			const readUserScopeSessionStub = getSessionStub.withArgs('github', GITHUB_SCOPE_READ_USER, sinon.match.any);
 

@@ -11,10 +11,9 @@ import { DisposableStore } from './util.js';
 export class AuthenticationError extends Error { }
 
 const github: typeof import('@vscode/internal-github') = createRequire(import.meta.url)('@vscode/internal-github');
-const scopes = ['repo', 'workflow', 'user:email', 'read:user'];
 
 export async function getSession(): Promise<AuthenticationSession> {
-	return await authentication.getSession('github', scopes, { createIfNone: true });
+	return await authentication.getSession('github', undefined, { createIfNone: true });
 }
 
 export class GitHubService {
@@ -45,7 +44,7 @@ export class GitHubService {
 		}
 		let session: AuthenticationSession | undefined;
 		try {
-			session = await authentication.getSession('github', scopes, silent ? { silent: true } : { createIfNone: true });
+			session = await authentication.getSession('github', undefined, silent ? { silent: true } : { createIfNone: true });
 		} catch (error) {
 			if (silent && error instanceof Error) {
 				throw new AuthenticationError(error.message, { cause: error });

@@ -289,7 +289,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		override readonly onDidRegisterAuthenticationProvider = providerRegistered.event;
 		override readonly onDidUnregisterAuthenticationProvider = providerUnregistered.event;
 	}());
-	instantiationService.stub(IProductService, { defaultChatAgent: undefined } as unknown as IProductService);
+	instantiationService.stub(IProductService, { defaultChatAgent: { provider: { default: { id: 'github' }, enterprise: { id: 'github-enterprise' } }, providerScopes: [['read:user', 'user:email', 'repo', 'workflow']] } } as unknown as IProductService);
 	instantiationService.stub(ILogService, options.logService ?? new NullLogService());
 	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
 		override readonly lifecycle = new CloudSandboxLifecycleTelemetry(new class extends mock<ITelemetryService>() {

@@ -183,6 +183,8 @@ class ContextAuthProvider extends Disposable implements AuthenticationProvider {
 	}
 }
 
+const defaultScopes = ['read:user', 'repo'];
+
 suite('ExtHostAuthentication', () => {
 	let extHostAuthentication: ExtHostAuthentication;
 	let mainInstantiationService: TestInstantiationService;
@@ -221,7 +223,8 @@ suite('ExtHostAuthentication', () => {
 		mainInstantiationService.stub(IOpenerService, {} as Partial<IOpenerService>);
 		mainInstantiationService.stub(ITelemetryService, NullTelemetryService);
 		mainInstantiationService.stub(IBrowserWorkbenchEnvironmentService, TestEnvironmentService);
-		mainInstantiationService.stub(IProductService, TestProductService);
+		// Configured explicitly because browser test runs use the fallback product, which has no provider scopes.
+		mainInstantiationService.stub(IProductService, { ...TestProductService, defaultChatAgent: { ...TestProductService.defaultChatAgent, providerScopes: [defaultScopes] } });
 
 		rpcProtocol = disposables.add(new TestRPCProtocol());
 
@@ -630,6 +633,51 @@ suite('ExtHostAuthentication', () => {
 				],
 				contexts: ['get', 'create'].map(operation => [operation, authorizationServer.toString(true), context.clientId, context.resource, context.audience])
 			});
+		});
+
+		test('resolves default scopes requests end to end', async () => {
+			const provider = disposables.add(new ContextAuthProvider());
+			registerProvider('github', provider);
+
+			// Without a session, a passive request asks the user to sign in.
+			const passive = await extHostAuthentication.getSession(extensionDescription, 'github', undefined, {});
+			const pending = getRequests('github', '2_signInRequests');
+			const created = await extHostAuthentication.getSession(extensionDescription, 'github', undefined, { createIfNone: true });
+			// The new session satisfies the pending request.
+			await mainInstantiationService.get(IAuthenticationExtensionsService).updateNewSessionRequests('github', [created]);
+			const silent = await extHostAuthentication.getSession(extensionDescription, 'github', undefined, { silent: true });
+			let rejected: string | undefined;
+			try {
+				await extHostAuthentication.getSession(extensionDescription, 'test', undefined, { silent: true });
+			} catch (error) {
+				rejected = error instanceof Error ? error.message : String(error);
+			}
+
+			assert.deepStrictEqual({
+				passive,
+				pending: pending.length,
+				created: created.scopes,
+				silent: silent?.id,
+				pendingAfterSignIn: getRequests('github', '2_signInRequests'),
+				rejected
+			}, {
+				passive: undefined,
+				pending: 1,
+				created: defaultScopes,
+				silent: created.id,
+				pendingAfterSignIn: [],
+				rejected: `Authentication provider 'test' does not define default scopes.`
+			});
+		});
+
+		test('a default scopes request and the same scope list share a sign-in request', async () => {
+			const provider = disposables.add(new ContextAuthProvider());
+			registerProvider('github', provider);
+
+			await extHostAuthentication.getSession(extensionDescription, 'github', undefined, {});
+			await extHostAuthentication.getSession(extensionDescription, 'github', defaultScopes, {});
+
+			assert.strictEqual(getRequests('github', '2_signInRequests').length, 1);
 		});
 
 		test('rejects incompatible interaction options before calling the provider', async () => {

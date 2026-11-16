@@ -9,6 +9,7 @@ import { filter } from '../../../../base/common/objects.js';
 import { compare } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 /**
  * Use this if you don't want the onDidChangeSessions event to fire in the extension host
@@ -80,6 +81,20 @@ export function isAuthenticationWwwAuthenticateRequest(obj: unknown): obj is IAu
 		&& obj !== null
 		&& 'wwwAuthenticate' in obj
 		&& (typeof obj.wwwAuthenticate === 'string');
+}
+
+/**
+ * Gets the default scopes that the product defines for an authentication provider. Only the default and enterprise
+ * providers of the default chat agent define default scopes.
+ * @returns The default scopes, or `undefined` if the provider does not define any.
+ */
+export function getAuthenticationDefaultScopes(productService: Pick<IProductService, 'defaultChatAgent'>, providerId: string): readonly string[] | undefined {
+	const defaultChatAgent = productService.defaultChatAgent;
+	if (!defaultChatAgent || (providerId !== defaultChatAgent.provider?.default?.id && providerId !== defaultChatAgent.provider?.enterprise?.id)) {
+		return undefined;
+	}
+	const scopes = defaultChatAgent.providerScopes?.[0];
+	return scopes?.length ? scopes : undefined;
 }
 
 /**
@@ -417,10 +432,13 @@ export function withoutWorkbenchOnlySessionOptions<T extends object>(options: T)
 }
 
 /** Builds a value-sensitive request key without splitting opaque provider scope strings. */
-export function getAuthenticationSessionRequestKey(scopeListOrRequest: readonly string[] | IAuthenticationWwwAuthenticateRequest, options: IAuthenticationProviderSessionOptions = {}): string {
-	const request = isAuthenticationWwwAuthenticateRequest(scopeListOrRequest)
-		? { wwwAuthenticate: scopeListOrRequest.wwwAuthenticate, fallbackScopes: scopeListOrRequest.fallbackScopes ? [...scopeListOrRequest.fallbackScopes].sort() : undefined }
-		: [...scopeListOrRequest].sort();
+export function getAuthenticationSessionRequestKey(scopeListOrRequest: readonly string[] | IAuthenticationWwwAuthenticateRequest | undefined, options: IAuthenticationProviderSessionOptions = {}): string {
+	// Undefined scopes ask for the default scopes, which must not share a key with an empty scope list.
+	const request = scopeListOrRequest === undefined
+		? null
+		: isAuthenticationWwwAuthenticateRequest(scopeListOrRequest)
+			? { wwwAuthenticate: scopeListOrRequest.wwwAuthenticate, fallbackScopes: scopeListOrRequest.fallbackScopes ? [...scopeListOrRequest.fallbackScopes].sort() : undefined }
+			: [...scopeListOrRequest].sort();
 	const keyOptions = {
 		...options,
 		account: options.account?.id,

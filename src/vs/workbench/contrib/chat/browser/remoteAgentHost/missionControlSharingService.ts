@@ -155,7 +155,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 				this._accountSessionIds.delete(session.id);
 			}
 			for (const session of e.event.added ?? []) {
-				if (session.account.id === this._accountId && this._getScopes().every(scope => session.scopes.includes(scope))) {
+				if (session.account.id === this._accountId && this._getScopes()?.every(scope => session.scopes.includes(scope))) {
 					this._accountSessionIds.add(session.id);
 				}
 			}
@@ -281,7 +281,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 		}
 	}
 
-	private _getScopes(): readonly string[] {
+	private _getScopes(): readonly string[] | undefined {
 		return getGitHubEnvironmentAuthentication(this._product).scopes;
 	}
 

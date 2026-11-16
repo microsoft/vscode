@@ -61,7 +61,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
 import { asText, IRequestService } from '../../../../../platform/request/common/request.js';
-import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { AuthenticationSession, IAuthenticationService, getAuthenticationDefaultScopes } from '../../../../services/authentication/common/authentication.js';
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 import { getCloudSandboxTaskCreationPath, ICloudSandboxTelemetryService, requestOutcomeForStatus, type CloudSandboxRequestAction, type ICloudSandboxDiscoveryTelemetryData } from './cloudSandboxTelemetry.js';
 import { type CloudSandboxLifecycleFailurePoint, type CloudSandboxLifecycleOperation } from './cloudSandboxLifecycleTelemetry.js';
@@ -123,9 +123,6 @@ const DISCOVERY_OVERLAP_MS = 60_000;
 
 /** Minimum automatic inventory retry interval after an authorization refusal. */
 const DISCOVERY_AUTHORIZATION_RETRY_INTERVAL_MS = 15 * 60_000;
-
-/** Fallback scopes when the product does not configure `defaultChatAgent.providerScopes`. */
-const FALLBACK_SCOPES = ['read:user', 'user:email', 'repo', 'workflow'];
 
 /** Coordinates sandbox lifecycle, discovery, and recorded history. Supported operations use typed GitHub clients with host-owned execution. */
 export class CloudSandboxApiService extends Disposable implements ICloudSandboxApiService {
@@ -1637,10 +1634,15 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		);
 	}
 
-	/** A GitHub session carrying at least the configured chat provider scopes. */
+	/** A GitHub session carrying at least the default scopes of the provider. */
 	private async _resolveGitHubSession(): Promise<AuthenticationSession | undefined> {
 		const providerId = this._authenticationProviderId;
-		const scopes = this._productService.defaultChatAgent?.providerScopes?.[0] ?? FALLBACK_SCOPES;
+
+		const scopes = getAuthenticationDefaultScopes(this._productService, providerId);
+		if (!scopes) {
+			this._logService.warn(`${LOG_PREFIX} Authentication provider '${providerId}' does not define default scopes`);
+			throw new CloudSandboxAuthenticationRequiredError();
+		}
 
 		let exact: readonly AuthenticationSession[];
 		try {
