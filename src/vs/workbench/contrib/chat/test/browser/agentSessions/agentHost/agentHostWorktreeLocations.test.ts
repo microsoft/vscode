@@ -63,12 +63,12 @@ suite('AgentHostWorktreeLocations', () => {
 	}
 
 	/**
-	 * A provider over the sessions the local agent host lists, once `loading` completes, and its one agent `copilotcli`, once
+	 * A provider over the sessions the local agent host lists, once `loading` completes (`listFailures` listings fail first), and its one agent `copilotcli`, once
 	 * `started` (by default). The shared sessions model, which extensions also
 	 * feed, has `sharedModel`. A folder in `realpaths` has that real path, read once `realpathHeld` completes;
 	 * `realpathFailures` reads fail first.
 	 */
-	function createProvider(sessions: readonly SessionSummary[], options: { readonly loading?: Promise<void>; readonly started?: boolean; readonly sharedModel?: readonly IAgentSession[]; readonly realpaths?: Record<string, string>; readonly realpathHeld?: Promise<void>; realpathFailures?: number; readonly folders?: readonly URI[] } = {}) {
+	function createProvider(sessions: readonly SessionSummary[], options: { readonly loading?: Promise<void>; listFailures?: number; readonly started?: boolean; readonly sharedModel?: readonly IAgentSession[]; readonly realpaths?: Record<string, string>; readonly realpathHeld?: Promise<void>; realpathFailures?: number; readonly folders?: readonly URI[] } = {}) {
 		const instantiationService = store.add(new TestInstantiationService());
 		// The local agent host: what it lists, and tells of
 		let listed = [...sessions];
@@ -84,6 +84,10 @@ suite('AgentHostWorktreeLocations', () => {
 			listSessions: async () => {
 				listings++;
 				await options.loading;
+				if (options.listFailures) {
+					options.listFailures--;
+					throw new Error('the agent host cannot list its sessions');
+				}
 				return listed.map(summary => upcastPartial<IAgentSessionMetadata>({
 					session: URI.parse(summary.resource),
 					provider: summary.provider,
@@ -308,6 +312,32 @@ suite('AgentHostWorktreeLocations', () => {
 		const offered = paths(await provider.provideLocations(primary, CancellationToken.None));
 
 		assert.deepStrictEqual({ first, offered, listings: provider.listings(), realpathsRead: provider.realpathsRead }, { first: [], offered: ['/work/vscode.worktrees/feature'], listings: 1, realpathsRead: ['/work/vscode'] });
+	});
+
+	test('lists the local agent host\'s sessions again as a folder is next asked about after a listing that failed, not as anything else changes', async () => {
+		const provider = createProvider([session('/work/vscode.worktrees/feature', '/work/vscode')], { listFailures: 1 });
+		const service = createService(provider);
+		let changes = 0;
+		store.add(service.onDidChangeLocations(() => changes++));
+		const failed = paths(await provider.provideLocations(primary, CancellationToken.None));
+		await tick();
+		const afterFailure = { changes, listings: provider.listings() };
+		// Such as another folder's session that starts: no listing
+		provider.changeSessions(sessions => sessions.push(session('/work/tools.worktrees/fix', '/work/tools')));
+		await tick();
+		const listingsOnChange = provider.listings();
+		const changed = Event.toPromise(service.onDidChangeLocations);
+		await provider.provideLocations(primary, CancellationToken.None);
+		await changed;
+		const recovered = paths(await provider.provideLocations(primary, CancellationToken.None));
+
+		assert.deepStrictEqual({ failed, afterFailure, listingsOnChange, recovered, listings: provider.listings() }, {
+			failed: [],
+			afterFailure: { changes: 0, listings: 1 },
+			listingsOnChange: 1,
+			recovered: ['/work/vscode.worktrees/feature'],
+			listings: 2,
+		});
 	});
 
 	test('resolves a worktree also before the local agent host\'s sessions are listed, such as to restore the folder\'s location, once they are', async () => {

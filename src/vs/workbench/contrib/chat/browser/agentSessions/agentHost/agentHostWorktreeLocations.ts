@@ -124,7 +124,8 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 		}));
 		// The agents the local agent host has, whose sessions alone count, change; as it starts, any can have changed
 		this._register(_agentHostService.rootState.onDidChange(() => {
-			this._checkOffered();
+			// As it reports agents, such as as it starts, the folders asked about can have worktrees among their sessions
+			this._checkOffered(this._offered.size > 0);
 			this._onDidChangeLocations.fire();
 		}));
 		this._register(_agentHostService.onAgentHostStart(() => {
@@ -203,9 +204,10 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 
 	/**
 	 * The sessions of the agents the local agent host has, as it lists them: none where it is disabled or has not reported
-	 * its agents. Starts listing them where it has not yet, which {@link onDidChangeLocations} follows.
+	 * its agents. Where `list`, as a folder is asked about, starts listing them where they are not listed yet, such as after a
+	 * listing that failed, which {@link onDidChangeLocations} follows.
 	 */
-	private _localSessions(): SessionSummary[] {
+	private _localSessions(list = true): SessionSummary[] {
 		const rootState = this._agentHostService.rootState.value;
 		if (!rootState || rootState instanceof Error || !this._agentHostEnablementService.enabled.get() || this._store.isDisposed) {
 			return [];
@@ -215,15 +217,21 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 			const created = this._instantiationService.createInstance(AgentHostSessionListStore, this._agentHostService, { filterToWorkspace: false });
 			this._sessions.value = sessions = created;
 			created.onDidChangeSessions(() => this._checkOffered(), undefined, this._store);
-			this._list(created);
+		}
+		// Lists them where it has not yet, such as after a listing that failed: once listed, the store keeps them
+		if (list && !sessions.isListed) {
+			this._list(sessions);
 		}
 		return rootState.agents.flatMap(agent => sessions.getSessions(agent.provider).map(entry => entry.summary));
 	}
 
-	/** Lists the agent host's sessions: once listed, a location unknown before them can be resolved. */
+	/**
+	 * Lists the agent host's sessions, at most once at a time: once listed, a location unknown before them can be resolved.
+	 * A listing that fails leaves them unlisted, to be listed as the next ask does.
+	 */
 	private _list(sessions: AgentHostSessionListStore): void {
 		void sessions.refresh(CancellationToken.None).then(() => {
-			if (this._sessions.value === sessions && !this._listed) {
+			if (this._sessions.value === sessions && sessions.isListed && !this._listed) {
 				this._listed = true;
 				this._onDidChangeLocations.fire();
 			}
@@ -233,14 +241,15 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 	/**
 	 * Fires once where the worktrees of any folder asked about are not those last offered. By the forms of each folder known
 	 * now, without reading any: a real path that could not be read is read again only as the folder is asked about again.
+	 * Where `list`, it lists the agent host's sessions where they are not listed yet.
 	 */
-	private _checkOffered(): void {
+	private _checkOffered(list = false): void {
 		if (this._store.isDisposed) {
 			return;
 		}
 		let changed = false;
 		for (const [folder, offered] of this._offered) {
-			const now = offeredKey(getAgentHostSessionWorktrees(this._localSessions(), this._knownForms.get(folder) ?? [folder]));
+			const now = offeredKey(getAgentHostSessionWorktrees(this._localSessions(list), this._knownForms.get(folder) ?? [folder]));
 			if (now !== offered) {
 				this._offered.set(folder, now);
 				changed = true;
