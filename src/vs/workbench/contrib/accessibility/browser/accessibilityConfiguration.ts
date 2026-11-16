@@ -820,6 +820,19 @@ const configuration: IConfigurationNode = {
 				'announcement': 'auto'
 			}
 		},
+		'accessibility.signals.dictationDisconnected': {
+			...defaultNoAnnouncement,
+			'description': localize('accessibility.signals.dictationDisconnected', "Plays a sound / audio cue when dictation has been disconnected."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.dictationDisconnected.sound', "Plays a sound when dictation has been disconnected."),
+					...soundFeatureBase,
+				},
+			},
+			'default': {
+				'sound': 'on'
+			}
+		},
 		'accessibility.signals.clear': {
 			...signalFeatureBase,
 			'description': localize('accessibility.signals.clear', "Plays a signal - sound (audio cue) and/or announcement (alert) - when a feature is cleared (for example, the terminal, Debug Console, or Output channel)."),
