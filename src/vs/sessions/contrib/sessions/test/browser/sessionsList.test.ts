@@ -3694,6 +3694,17 @@ suite('Sessions - SessionsList', () => {
 			]);
 		});
 
+		test('makes no section for a worktree whose sessions are all archived: they go to the archived section, and one unarchived makes it again', () => {
+			const sections = (isArchived: boolean) => groupSessionsForList([...worktreeSessions(), createWorktreeSession('archived-c', { workingDirectory: 'file:///work/repo.worktrees/c', repository: 'file:///work/repo' }, 1, { isArchived })], SessionsGrouping.Worktree, SessionsSorting.Updated, () => false)
+				.map(section => ({ id: section.id, sessions: section.sessions.map(session => session.sessionId) }))
+				.filter(section => section.id.endsWith('/c') || section.id === 'archived');
+
+			assert.deepStrictEqual({ whileArchived: sections(true), unarchived: sections(false) }, {
+				whileArchived: [{ id: 'archived', sessions: ['archived-c'] }],
+				unarchived: [{ id: 'worktree:file:///work/repo.worktrees/c', sessions: ['archived-c'] }],
+			});
+		});
+
 		test('puts one folder reported with different path casing in one section, where the platform ignores path case', () => {
 			const sections = groupByWorktree([
 				createWorktreeSession('upper', { workingDirectory: 'file:///c:/Work/repo' }, 1),
