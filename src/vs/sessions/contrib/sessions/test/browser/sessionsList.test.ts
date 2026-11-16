@@ -3738,7 +3738,8 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		test('lists quick chats, which have no workspace, only where it is asked to, as the Agents window does and an editor window does not', () => {
-			const visible = (listsQuickChats: boolean | undefined, revealed?: 'active' | 'onboarding') => {
+			const visible = (lists: boolean | undefined, revealed?: 'active' | 'onboarding') => {
+				const listsQuickChats = lists === undefined ? undefined : constObservable(lists);
 				const quick = createTestSession('quick', { isQuickChat: true }).session;
 				const activeSession = revealed === 'active' ? constObservable<ITestSessionWithChat>({ ...quick, activeChat: quick.mainChat }) : undefined;
 				const harness = createListHarness(disposables, [...worktreeSessions(), quick], { activeSession });
@@ -3777,6 +3778,30 @@ suite('Sessions - SessionsList', () => {
 				editorWindowOnboarding: { listed: false, revealFailed: true },
 				agentsWindowOnboarding: { listed: true, revealFailed: false },
 			});
+		});
+
+		test('lists quick chats again, or no longer, as whether it lists them changes', async () => {
+			const harness = createListHarness(disposables, [...worktreeSessions(), createTestSession('quick', { isQuickChat: true }).session]);
+			harness.instantiationService.get(IStorageService).store('sessionsListControl.sectionCollapseState', JSON.stringify({ [QUICK_CHATS_SECTION_ID]: false }), StorageScope.PROFILE, StorageTarget.USER);
+			const listsQuickChats = observableValue('listsQuickChats', false);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(400, 1400), {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Updated,
+				listsQuickChats,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			// As the list updates by itself, at the next frame
+			const listed = async () => {
+				await new Promise<void>(resolve => { disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve(), -1000)); });
+				return list.getVisibleSessions().some(session => session.sessionId === 'quick');
+			};
+			const before = await listed();
+			listsQuickChats.set(true, undefined);
+			const after = await listed();
+			listsQuickChats.set(false, undefined);
+
+			assert.deepStrictEqual({ before, after, again: await listed() }, { before: false, after: true, again: false });
 		});
 
 		test('shows the list by worktree, with the full path in a section\'s label for screen readers, and searches within it', async () => {
