@@ -203,7 +203,7 @@ suite('AgentHostSessionListStore - project root', () => {
 			sessionWithChats('worktree-of-a', ['/work/a.worktrees/x'], '/work/a'),
 			// Its own folder is B
 			sessionWithChats('first-b', ['/work/b', '/work/a'], '/work/b'),
-			// Without a workspace, every window lists it; without a folder, the window of its project does
+			// Without a workspace, no window lists it, as only the Sessions list shows it; without a folder, the window of its project does
 			sessionWithChats('workspaceless', ['/work/b.worktrees/y'], '/work/b', { workspaceless: true }),
 			sessionWithChats('no-folder', [], '/work/b'),
 		];
