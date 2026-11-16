@@ -829,6 +829,8 @@ export interface ICopilotAgentSessionOptions {
 	readonly realpath?: (path: string) => Promise<string>;
 	/** Overrides the control-plane RPC timeout for deterministic tests. */
 	readonly controlPlaneRpcTimeoutMs?: number;
+	/** Reads a canvas icon as {@link CopilotCanvasIconLoader} does; injectable so tests can control when reads finish. */
+	readonly readCanvasIcon?: (path: string, extensionId: string) => Promise<string | undefined>;
 	/** Bounds one Connector reconciliation attempt; a timed-out request remains pending. */
 	readonly connectorRefreshTimeoutMs?: number;
 	/** Bounds the Connector status read that classifies a server published Connector state does not know. */
@@ -2263,6 +2265,15 @@ export class CopilotAgentSession extends Disposable {
 	private _deferredCanvasCloseFlush: Promise<void> | undefined;
 	private _canvasExtensions: SessionEventPayload<'session.extensions_loaded'>['data']['extensions'] | undefined;
 	private _canvasIconLoader: CopilotCanvasIconLoader | undefined;
+	private readonly _readCanvasIconOverride: ((path: string, extensionId: string) => Promise<string | undefined>) | undefined;
+	/** The latest icon read of each canvas that one is in flight for, by instance ID; only the latest read shows its image. */
+	private readonly _canvasIconReads = new Map<string, number>();
+	private _canvasIconReadCount = 0;
+	/**
+	 * The revision of each canvas projection, created when first asked for. A projection that only shows a new icon shares
+	 * the revision of the one it replaced, so that restoration still recognizes it; any other new projection starts one.
+	 */
+	private readonly _canvasProjectionRevisions = new WeakMap<ICopilotCanvasProjection, object>();
 	private _canvasRegistryGeneration = 0;
 	private _canvasRegistrySettlementPending = false;
 	private readonly _ignoredRestoredCanvasInstanceIds = new Set<string>();
@@ -2443,6 +2454,7 @@ export class CopilotAgentSession extends Disposable {
 		this._getSessionPathRoots = options.getSessionPathRoots ?? (() => []);
 		this.launchOwner = options.owner.get();
 		this._controlPlaneRpcTimeoutMs = options.controlPlaneRpcTimeoutMs ?? CONTROL_PLANE_RPC_TIMEOUT_MS;
+		this._readCanvasIconOverride = options.readCanvasIcon;
 		this._extensionSessionApprovals = options.extensionSessionApprovals ?? new Set();
 		this._connectorRefreshTimeoutMs = options.connectorRefreshTimeoutMs ?? CONNECTOR_REFRESH_TIMEOUT_MS;
 		this._connectorOwnershipLookupTimeoutMs = options.connectorOwnershipLookupTimeoutMs ?? CONNECTOR_OWNERSHIP_LOOKUP_TIMEOUT_MS;
@@ -5275,8 +5287,8 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._publishSettledCanvasRegistry();
 		const extensionSources = new Map(extensions.extensions.map(extension => [extension.id, this._canvasExtensionSource(extension.source)]));
-		return Promise.all(result.canvases.map(async canvas => {
-			const icon = await this._canvasIcons.load(canvas.icon, canvas.extensionId);
+		const definitions = await Promise.all(result.canvases.map(async canvas => {
+			const icon = await this._readCanvasIcon(canvas.icon, canvas.extensionId);
 			return {
 				canvasId: canvas.canvasId,
 				extensionId: canvas.extensionId,
@@ -5289,6 +5301,12 @@ export class CopilotAgentSession extends Disposable {
 				actionCount: canvas.actions?.length ?? 0,
 			};
 		}));
+		// Extensions that reloaded, or a runtime handed off, while the icons were read make the listing stale.
+		if (generation !== this._canvasRegistryGeneration) {
+			this.publishCanvases();
+			return undefined;
+		}
+		return definitions;
 	}
 
 	async listExtensions(): Promise<readonly IAgentExtensionInfo[]> {
@@ -5464,8 +5482,15 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private get _canvasIcons(): CopilotCanvasIconLoader {
-		return this._canvasIconLoader ??= new CopilotCanvasIconLoader(this._logService);
+	private _readCanvasIcon(path: string | undefined, extensionId: string): Promise<string | undefined> {
+		if (!path) {
+			return Promise.resolve(undefined);
+		}
+		if (this._readCanvasIconOverride) {
+			return this._readCanvasIconOverride(path, extensionId);
+		}
+		this._canvasIconLoader ??= new CopilotCanvasIconLoader(this._logService);
+		return this._canvasIconLoader.load(path, extensionId);
 	}
 
 	/**
@@ -5893,14 +5918,15 @@ export class CopilotAgentSession extends Disposable {
 		}
 		for (const projection of projections) {
 			const { instanceId, extensionId, canvasId } = projection.canvas;
-			if (this._canvasByInstanceId.get(instanceId) !== projection) {
+			const current = this._canvasByInstanceId.get(instanceId);
+			if (!current || !this._isCurrentCanvasProjection(projection)) {
 				continue;
 			}
 			if (declared && !declared.some(canvas => canvas.extensionId === extensionId && canvas.canvasId === canvasId)) {
 				this._canvasByInstanceId.delete(instanceId);
 				continue;
 			}
-			const { handedOver: _handedOver, ...unavailable } = projection;
+			const { handedOver: _handedOver, ...unavailable } = current;
 			this._canvasByInstanceId.set(instanceId, unavailable);
 			if (declared) {
 				void this._reopenCanvas(wrapper, unavailable);
@@ -5921,7 +5947,7 @@ export class CopilotAgentSession extends Disposable {
 		const askedForConsent = () => this._extensionConsentShownCount(extensionId) > consentShownBefore;
 		const extension = await this._readCanvasOpenExtension(wrapper, extensionId);
 		// A close or a replaced runtime during the read supersedes the restore; opening now would bring the canvas back.
-		if (this._store.isDisposed || this._wrapper !== wrapper || this._canvasByInstanceId.get(instanceId) !== projection) {
+		if (this._store.isDisposed || this._wrapper !== wrapper || !this._isCurrentCanvasProjection(projection)) {
 			return;
 		}
 		let reopened: Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>> | undefined;
@@ -5943,7 +5969,7 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		// Events received during the request, such as a close, supersede its result.
-		if (!this._store.isDisposed && this._wrapper === wrapper && this._canvasByInstanceId.get(instanceId) === projection) {
+		if (!this._store.isDisposed && this._wrapper === wrapper && this._isCurrentCanvasProjection(projection)) {
 			this._projectOpenedCanvas(reopened);
 		}
 	}
@@ -6098,19 +6124,41 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Reads the icon of a projected canvas and republishes the canvas when its image changed, unless its state changed
-	 * meanwhile. An update that only changes the canvas's input keeps its state, so the image still applies.
+	 * Reads the icon of a projected canvas and republishes the canvas when its image changed. Only the latest read of a
+	 * canvas shows its image, which applies while the canvas still declares that icon, whatever else changed meanwhile.
 	 */
 	private async _showCanvasIcon(projection: ICopilotCanvasProjection): Promise<void> {
-		const icon = await this._canvasIcons.load(projection.iconPath, projection.canvas.extensionId);
 		const instanceId = projection.canvas.instanceId;
+		const read = ++this._canvasIconReadCount;
+		this._canvasIconReads.set(instanceId, read);
+		const icon = await this._readCanvasIcon(projection.iconPath, projection.canvas.extensionId);
+		if (this._canvasIconReads.get(instanceId) !== read) {
+			return;
+		}
+		this._canvasIconReads.delete(instanceId);
 		const current = this._canvasByInstanceId.get(instanceId);
-		if (this._store.isDisposed || current?.canvas !== projection.canvas || icon === readCanvasIcon(current.canvas)) {
+		if (this._store.isDisposed || !current || current.iconPath !== projection.iconPath || icon === readCanvasIcon(current.canvas)) {
 			return;
 		}
 		const shown: ICopilotCanvasProjection = { ...current, canvas: withCanvasIcon(current.canvas, icon) };
+		this._canvasProjectionRevisions.set(shown, this._canvasProjectionRevision(current));
 		this._canvasByInstanceId.set(instanceId, shown);
 		this._publishCanvasState(shown);
+	}
+
+	/** Whether `projection` is still its canvas's projection, also after updates that only showed a new icon. */
+	private _isCurrentCanvasProjection(projection: ICopilotCanvasProjection): boolean {
+		const current = this._canvasByInstanceId.get(projection.canvas.instanceId);
+		return current === projection || (!!current && this._canvasProjectionRevision(current) === this._canvasProjectionRevision(projection));
+	}
+
+	private _canvasProjectionRevision(projection: ICopilotCanvasProjection): object {
+		let revision = this._canvasProjectionRevisions.get(projection);
+		if (!revision) {
+			revision = {};
+			this._canvasProjectionRevisions.set(projection, revision);
+		}
+		return revision;
 	}
 
 	private _clearCanvasProjection(): void {
@@ -14182,7 +14230,12 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const { uri, ...canvas } = projection.canvas;
-			const unavailable: ICopilotCanvasProjection = { resource: projection.resource, canvas, ...(projection.input !== undefined ? { input: projection.input } : {}) };
+			const unavailable: ICopilotCanvasProjection = {
+				resource: projection.resource,
+				canvas,
+				...(projection.input !== undefined ? { input: projection.input } : {}),
+				...(projection.iconPath !== undefined ? { iconPath: projection.iconPath } : {}),
+			};
 			this._canvasByInstanceId.set(canvas.instanceId, unavailable);
 			if (uri !== undefined) {
 				this._publishCanvasState(unavailable);
