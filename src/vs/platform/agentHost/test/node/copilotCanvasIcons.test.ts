@@ -119,6 +119,21 @@ suite('CopilotCanvasIconLoader', () => {
 		}, { linked: undefined, own: undefined });
 	});
 
+	test('keeps an icon inside its extension when a sibling folder differs only in case', async function () {
+		const extension = await writeExtension('demo', {});
+		const sibling = join(root, 'DEMO');
+		try {
+			await mkdir(sibling);
+		} catch {
+			// This file system ignores case, so no such sibling can exist.
+			this.skip();
+		}
+		await writeFile(join(sibling, 'secret.png'), png);
+		await symlink(join(sibling, 'secret.png'), join(extension, 'linked.png'));
+		const loader = new CopilotCanvasIconLoader(new NullLogService());
+		assert.strictEqual(await loader.load(join(extension, 'linked.png'), 'user:demo'), undefined);
+	});
+
 	(isWindows ? test.skip : test)('never waits on a FIFO named as an icon', async () => {
 		const extension = await writeExtension('demo', {});
 		execFileSync('mkfifo', [join(extension, 'icon.png')]);
