@@ -8,7 +8,7 @@ import { ILogService } from '../../../log/common/log.js';
 import type { IAgentModelInfo, IAgentTurnModelResolution } from '../../common/agent.js';
 import { ContextSizeConfigKey } from '../../common/agentModelConfiguration.js';
 import { readUsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
-import { modelContextSizes, modelDefaultContextSize, modelRouterLabel, modelRouterNameFromModelId, resolveModelRouter, type IModelRouter, type IResolvedModelRoute, type ModelRouterContextSize, type ModelRouterEffortLevel } from '../../common/modelRouter.js';
+import { isSameModelFamily, modelContextSizes, modelDefaultContextSize, modelRouterLabel, modelRouterNameFromModelId, resolveModelRouter, type IModelRouter, type IResolvedModelRoute, type ModelRouterContextSize, type ModelRouterEffortLevel } from '../../common/modelRouter.js';
 import { describeModelRouterModel, describeModelRouterSituation, type IModelRouterSituation } from '../../common/modelRouterSituation.js';
 import { isReasoningEffortLevel, ReasoningEffortConfigKey, reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import { ResponsePartKind, ToolCallStatus, type IModelRoutedInfo, type ModelSelection, type Turn } from '../../common/state/sessionState.js';
@@ -216,7 +216,11 @@ export class CopilotModelRouter {
 			keepLongContext: isOnLongContext(request.previousTurns),
 		};
 		// Only this router's own pick is a model to keep: picking a router, or another one, asks for a fresh route.
-		const current = last?.router === router.name ? routes.find(route => routeKey(route) === (last.routeName ?? last.model)) : undefined;
+		const current = last?.router === router.name
+			? routes.find(route => routeKey(route) === (last.routeName ?? last.model))
+			// A route that names a family has moved to a newer model, and a chat that ran on an earlier one is still on that route.
+			?? (last.routeName ? undefined : routes.find(route => !route.route.name && route.family && isSameModelFamily(route.model.id, last.model)))
+			: undefined;
 		return current
 			? this._routeFollowUp(context, current, keptEffort(current, last?.effort))
 			: this._routeFresh(context, last?.model);
