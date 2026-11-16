@@ -712,20 +712,30 @@ interface IModelIdParts {
 	readonly date: readonly number[];
 }
 
-/** A model id's words, version and snapshot date: `gpt-5.1-mini` is `gpt`, `mini` and 5, 1. A letter after a number is part of that version, so `gpt-4o` is `gpt` and 4. */
+/**
+ * A model id's words, version and snapshot date: `gpt-5.1-mini` is `gpt`, `mini` and 5, 1.
+ * A number can follow a word and be followed by one letter: `llama3` is `llama` and 3, and
+ * `gpt-4o` is `gpt` and 4.
+ */
 function modelIdParts(id: string): IModelIdParts {
 	const words: string[] = [];
 	const version: number[] = [];
 	const date: number[] = [];
 	for (const part of id.toLowerCase().split(/[-._:]+/)) {
-		const number = /^v?(?<number>\d+)[a-z]?$/.exec(part)?.groups?.number;
+		const { word, number } = /^(?<word>[a-z]*)(?<number>\d+)[a-z]?$/.exec(part)?.groups ?? {};
 		if (number === undefined) {
 			if (part) {
 				words.push(part);
 			}
-		} else if (date.length > 0 || number.length >= 4) {
+			continue;
+		}
+		if (word && word !== 'v') {
+			words.push(word);
+		}
+		if (date.length > 0 || number.length >= 4) {
 			// A year or a whole date, and what follows it, says when a snapshot was made, not which version it is.
-			date.push(Number(number));
+			// A date written together is its year, month and day, as one written apart.
+			date.push(...(number.length === 8 ? [number.slice(0, 4), number.slice(4, 6), number.slice(6)] : [number]).map(Number));
 		} else {
 			version.push(Number(number));
 		}

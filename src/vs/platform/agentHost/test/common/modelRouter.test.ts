@@ -256,8 +256,8 @@ suite('modelRouter', () => {
 				model('acme-pro-1'), model('acme-pro-2'), model('acme-pro-3', { policy: PolicyState.Disabled }), model('acme-pro-2-fast'),
 				model('acme-lite-1'), model('acme-lite-2', { experimental: true }), model('acme-lab-1', { experimental: true }), model('acme-nightly', { experimental: true }),
 				model('acme-max-1', { policy: PolicyState.Disabled }), model('acme-max-1-fast'), model('acme-chat-4o'), model('acme-chat-5', { policy: PolicyState.Disabled }),
-				model('byok-dated', { byok: 'anthropic/Work/claude-haiku-4-20261001' }), model('byok-new', { byok: 'anthropic/Work/claude-haiku-4-5-20251001' }), model('byok-new-older', { byok: 'anthropic/Work/claude-haiku-4-5-20250901' }),
-				model('byok-home', { byok: 'anthropic/Home/claude-haiku-4-5-20251001' }), model('byok-nested', { byok: 'openrouter/OpenRouter 2/aion-labs/aion-3.0' }),
+				model('byok-dated', { byok: 'anthropic/Work/claude-haiku-4-20261001' }), model('byok-new', { byok: 'anthropic/Work/claude-haiku-4-5-20251001' }), model('byok-new-older', { byok: 'anthropic/Work/claude-haiku-4-5-20250901' }), model('byok-newest', { byok: 'anthropic/Work/claude-haiku-4-5-2025-11-01' }),
+				model('byok-home', { byok: 'anthropic/Home/claude-haiku-4-5-20251001' }), model('byok-nested', { byok: 'openrouter/OpenRouter 2/aion-labs/aion-3.0' }), model('byok-attached-older', { byok: 'ollama/llama3' }), model('byok-attached', { byok: 'ollama/llama3.2' }),
 			];
 			const match = (reference: string) => {
 				const result = matchModelReference(models, reference);
@@ -277,11 +277,13 @@ suite('modelRouter', () => {
 				allDisabled: match('max'),
 				// A letter after a number is part of the version: `4o` is the family's version 4, used while policy has the newer one turned off.
 				alphanumericVersion: match('chat'),
-				// A snapshot's date is not part of its version: 4.5 is newer than 4, whenever each was made.
+				// A snapshot's date is not part of its version: 4.5 is newer than 4, whenever each was made. A date is the same written together or apart.
 				byokInGroup: match('anthropic/Work/haiku'),
 				// The same family in two groups is two families, and an id's own path is written in full.
 				byokInTwoGroups: match('anthropic/haiku'),
 				byokNestedId: [match('openrouter/aion-labs/aion'), match('openrouter/aion')],
+				// A version can be written onto the name.
+				byokAttachedVersion: match('ollama/llama'),
 				// A version asks for that model, so a missing one is not replaced by its family.
 				missingVersion: match('claude-opus-7'),
 				missingAlphanumericVersion: match('gpt-4o'),
@@ -297,9 +299,10 @@ suite('modelRouter', () => {
 				experimentalById: 'acme-nightly',
 				allDisabled: 'acme-max-1',
 				alphanumericVersion: 'acme-chat-4o',
-				byokInGroup: 'byok-new',
+				byokInGroup: 'byok-newest',
 				byokInTwoGroups: ['anthropic/Work/claude-haiku', 'anthropic/Home/claude-haiku'],
 				byokNestedId: ['byok-nested', undefined],
+				byokAttachedVersion: 'byok-attached',
 				missingVersion: undefined,
 				missingAlphanumericVersion: undefined,
 				manyFamilies: ['claude-opus', 'claude-sonnet'],
