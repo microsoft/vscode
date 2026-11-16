@@ -18,6 +18,7 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '.
 import { ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import '../../../browser/chatBackgroundActions.js';
+import { Menus } from '../../../browser/menus.js';
 import { DefaultChatViewFactory } from '../../../browser/chat/defaultChatViewFactory.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../browser/chatBackgroundService.js';
@@ -105,6 +106,23 @@ suite('Agents Chat Part - chat background', () => {
 			editorWindowWithoutChatPart: [false, false, false],
 			highContrast: [false, false, false],
 			settings: true,
+		});
+	});
+
+	test('the chat background context menu lists its commands in the Agents window and while the chat area shows, not in an editor window whose chat area is hidden', () => {
+		const commands = ['workbench.action.chat.changeAgentSessionsBackground', 'workbench.action.chat.changeAgentSessionsBackgroundLayout'];
+		const menu = MenuRegistry.getMenuItems(Menus.SessionChatBackgroundContext).filter(isIMenuItem);
+		const shown = (values: Record<string, ContextKeyValue>) => commands.map(id => !!menu.find(item => item.command.id === id)?.when?.evaluate({ getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T }));
+		const background = { 'chatIsEnabled': true, 'sessionsChatBackgroundAvailable': true, 'sessionsChatBackgroundImageConfigured': true };
+
+		assert.deepStrictEqual({
+			chatAreaVisible: shown({ ...background, agentsChatPartVisible: true }),
+			agentsWindow: shown({ ...background, isSessionsWindow: true }),
+			chatAreaHidden: shown(background),
+		}, {
+			chatAreaVisible: [true, true],
+			agentsWindow: [true, true],
+			chatAreaHidden: [false, false],
 		});
 	});
 

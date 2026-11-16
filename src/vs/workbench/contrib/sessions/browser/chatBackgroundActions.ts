@@ -155,7 +155,7 @@ class SetChatBackgroundAction extends Action2 {
 				id: Menus.SessionChatBackgroundContext,
 				group: 'navigation',
 				order: 1,
-				when: SessionsChatBackgroundAvailableContext,
+				when: CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_WHEN,
 			}, {
 				id: MenuId.ChatContext,
 				group: 'zz_background',
@@ -266,7 +266,7 @@ class ChangeChatBackgroundLayoutAction extends Action2 {
 				id: Menus.SessionChatBackgroundContext,
 				group: 'navigation',
 				order: 2,
-				when: ContextKeyExpr.and(SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext),
+				when: CHANGE_AGENT_SESSIONS_CHAT_BACKGROUND_LAYOUT_WHEN,
 			}, {
 				id: MenuId.ChatContext,
 				group: 'zz_background',
