@@ -257,6 +257,7 @@ suite('modelRouter', () => {
 				model('acme-lite-1'), model('acme-lite-2', { experimental: true }), model('acme-lab-1', { experimental: true }), model('acme-nightly', { experimental: true }),
 				model('acme-max-1', { policy: PolicyState.Disabled }), model('acme-max-1-fast'),
 				model('byok-dated', { byok: 'anthropic/Work/claude-haiku-4-20261001' }), model('byok-new', { byok: 'anthropic/Work/claude-haiku-4-5-20251001' }), model('byok-new-older', { byok: 'anthropic/Work/claude-haiku-4-5-20250901' }),
+				model('byok-home', { byok: 'anthropic/Home/claude-haiku-4-5-20251001' }), model('byok-nested', { byok: 'openrouter/OpenRouter 2/aion-labs/aion-3.0' }),
 			];
 			const match = (reference: string) => {
 				const result = matchModelReference(models, reference);
@@ -275,7 +276,10 @@ suite('modelRouter', () => {
 				// A family whose models are all turned off is not replaced by its fast variant: the caller reports it and tries the next model.
 				allDisabled: match('max'),
 				// A snapshot's date is not part of its version: 4.5 is newer than 4, whenever each was made.
-				byok: match('anthropic/haiku'),
+				byokInGroup: match('anthropic/Work/haiku'),
+				// The same family in two groups is two families, and an id's own path is written in full.
+				byokInTwoGroups: match('anthropic/haiku'),
+				byokNestedId: [match('openrouter/aion-labs/aion'), match('openrouter/aion')],
 				// A version asks for that model, so a missing one is not replaced by its family.
 				missingVersion: match('claude-opus-7'),
 				missingAlphanumericVersion: match('gpt-4o'),
@@ -290,7 +294,9 @@ suite('modelRouter', () => {
 				onlyExperimental: { experimental: ['acme-lab-1'] },
 				experimentalById: 'acme-nightly',
 				allDisabled: 'acme-max-1',
-				byok: 'byok-new',
+				byokInGroup: 'byok-new',
+				byokInTwoGroups: ['anthropic/Work/claude-haiku', 'anthropic/Home/claude-haiku'],
+				byokNestedId: ['byok-nested', undefined],
 				missingVersion: undefined,
 				missingAlphanumericVersion: undefined,
 				manyFamilies: ['claude-opus', 'claude-sonnet'],

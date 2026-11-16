@@ -687,8 +687,7 @@ function modelMatchesReference(model: IAgentModelInfo, reference: string): boole
 }
 
 export type ModelReferenceMatch =
-	/** `family` when the reference names the model's family, not the model itself. */
-	| { readonly kind: 'model'; readonly model: IAgentModelInfo; readonly family?: true }
+	| { readonly kind: 'model'; readonly model: IAgentModelInfo }
 	/** `families` are the family names to write instead, when the reference names more than one family. */
 	| { readonly kind: 'ambiguous'; readonly models: readonly IAgentModelInfo[]; readonly families?: readonly string[] }
 	/** The reference names a family that has only experimental models, which a family never picks. `models` are its newest. */
@@ -761,29 +760,45 @@ function compareNewness(a: IModelIdParts, b: IModelIdParts): number {
  * is unavailable, never replaced by a variant of it. Within the family, experimental models
  * never count, since a router would otherwise move to an internal or early-access model the day
  * it appears, and models that policy turned off are passed over while another can be used.
+ *
+ * For a model on the user's own key the family is the last segment, `<vendor>/<group>/<family>`.
+ * What comes before it is written in full or without the group, as for an exact id, and the
+ * same family in two groups is two families.
  */
 function matchModelFamily(models: readonly IAgentModelInfo[], reference: string): ModelReferenceMatch | undefined {
 	const { vendor, id } = splitModelReference(reference);
+	const lastSlash = id.lastIndexOf('/');
+	const family = id.slice(lastSlash + 1);
+	const wantedPath = lastSlash < 0 ? '' : normalizeModelId(id.slice(0, lastSlash));
+	const wanted = modelIdParts(family);
 	// A digit names a version, as in `claude-opus-5` or `gpt-4o`, and a version asks for that model.
-	if (id.includes('/') || /\d/.test(id)) {
+	if (/\d/.test(family) || wanted.words.length === 0 || (vendor === COPILOT_VENDOR && lastSlash >= 0)) {
 		return undefined;
 	}
-	const wanted = modelIdParts(id);
 	const candidates = models.flatMap(model => {
 		const byok = readAgentModelByokIdentifier(model);
 		let modelId = model.id;
+		let path = '';
 		if (vendor !== COPILOT_VENDOR) {
-			// `<vendor>/<group>/<id>` or `<vendor>/<id>`: a family is matched against the id's last segment.
+			// `<vendor>/<group>/<id>` or `<vendor>/<id>`, where the id can have a path of its own.
 			const slash = byok?.indexOf('/') ?? -1;
 			if (!byok || slash < 0 || byok.slice(0, slash).toLowerCase() !== vendor) {
 				return [];
 			}
-			modelId = byok.slice(byok.lastIndexOf('/') + 1);
+			const rest = byok.slice(slash + 1);
+			const last = rest.lastIndexOf('/');
+			path = last < 0 ? '' : rest.slice(0, last);
+			const groupSlash = path.indexOf('/');
+			const pathWithoutGroup = groupSlash < 0 ? '' : path.slice(groupSlash + 1);
+			if (normalizeModelId(path) !== wantedPath && normalizeModelId(pathWithoutGroup) !== wantedPath) {
+				return [];
+			}
+			modelId = rest.slice(last + 1);
 		} else if (byok) {
 			return [];
 		}
 		const parts = modelIdParts(modelId);
-		return wanted.words.every(word => parts.words.includes(word)) ? [{ model, ...parts }] : [];
+		return wanted.words.every(word => parts.words.includes(word)) ? [{ model, path, ...parts }] : [];
 	});
 	if (candidates.length === 0) {
 		return undefined;
@@ -796,12 +811,11 @@ function matchModelFamily(models: readonly IAgentModelInfo[], reference: string)
 	const closest = candidates.filter(candidate => candidate.words.length === fewestWords);
 	const families = new Map<string, typeof closest>();
 	for (const candidate of closest) {
-		const name = candidate.words.join('-');
+		const name = `${vendor === COPILOT_VENDOR ? '' : `${vendor}/`}${candidate.path ? `${candidate.path}/` : ''}${candidate.words.join('-')}`;
 		families.set(name, [...families.get(name) ?? [], candidate]);
 	}
 	if (families.size > 1) {
-		const prefix = vendor === COPILOT_VENDOR ? '' : `${vendor}/`;
-		return { kind: 'ambiguous', models: [...families.values()].flatMap(newestOf), families: [...families.keys()].map(name => `${prefix}${name}`) };
+		return { kind: 'ambiguous', models: [...families.values()].flatMap(newestOf), families: [...families.keys()] };
 	}
 	const released = closest.filter(candidate => !isAgentModelExperimental(candidate.model));
 	if (released.length === 0) {
@@ -810,12 +824,13 @@ function matchModelFamily(models: readonly IAgentModelInfo[], reference: string)
 	// With every released model turned off, the newest is returned for the caller to report.
 	const usable = released.filter(candidate => candidate.model.policyState !== PolicyState.Disabled);
 	const newest = newestOf(usable.length > 0 ? usable : released);
-	return newest.length === 1 ? { kind: 'model', model: newest[0], family: true } : { kind: 'ambiguous', models: newest };
+	return newest.length === 1 ? { kind: 'model', model: newest[0] } : { kind: 'ambiguous', models: newest };
 }
 
-/** Whether two model ids are versions of one family: the same words, whatever their numbers. */
-export function isSameModelFamily(a: string, b: string): boolean {
-	return modelIdParts(a).words.join('-') === modelIdParts(b).words.join('-');
+/** Whether `reference` is one of the entries of a route's `model`, however its version is written. */
+export function routeListsModel(route: IModelRouterRoute, reference: string): boolean {
+	const wanted = normalizeModelReference(reference);
+	return route.models.some(model => normalizeModelReference(model) === wanted);
 }
 
 /** Efforts a model accepts, from its config schema, in the canonical low-to-high order. */
@@ -849,8 +864,6 @@ export interface IResolvedModelRoute {
 	readonly model: IAgentModelInfo;
 	/** The reference that matched, which is not the route's first when a fallback was used. */
 	readonly reference: string;
-	/** The reference names the model's family, so the route moves to a newer model when one ships. */
-	readonly family?: true;
 	readonly supportedEfforts: readonly ModelRouterEffortLevel[];
 	/** The fixed effort for this route (the route's, else the router's), when the model supports it. */
 	readonly effort?: ModelRouterEffortLevel;
@@ -883,7 +896,7 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 	const used = new Set<string>();
 	router.routes.forEach((route, index) => {
 		const label = modelRouterRouteLabel(route, index);
-		let match: { model: IAgentModelInfo; reference: string; family?: true } | undefined;
+		let match: { model: IAgentModelInfo; reference: string } | undefined;
 		for (const reference of route.models) {
 			const result = matchModelReference(routable, reference);
 			if (!result) {
@@ -903,7 +916,7 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 				warning(`${label}: ${result.model.name} is disabled by policy.`);
 				continue;
 			}
-			match = { model: result.model, reference, ...(result.family ? { family: true as const } : {}) };
+			match = { model: result.model, reference };
 			break;
 		}
 		if (!match) {
@@ -945,7 +958,7 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 		if (retiring) {
 			warning(`${label}: ${match.model.name} is being retired. ${retiring} Add a newer model to its \`model\` list.`);
 		}
-		routes.push({ route, model: match.model, reference: match.reference, ...(match.family ? { family: true as const } : {}), supportedEfforts, ...(effort ? { effort } : {}), ...(contextSize ? { contextSize } : {}), ...(retiring ? { retiring } : {}) });
+		routes.push({ route, model: match.model, reference: match.reference, supportedEfforts, ...(effort ? { effort } : {}), ...(contextSize ? { contextSize } : {}), ...(retiring ? { retiring } : {}) });
 	});
 	if (router.contextSize === 'long' && routes.length > 0 && !routes.some(route => route.contextSize)) {
 		warning('None of this router\'s models has a larger context size, so `context-size: long` is ignored.');

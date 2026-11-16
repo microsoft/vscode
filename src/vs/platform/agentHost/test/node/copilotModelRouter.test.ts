@@ -280,12 +280,18 @@ suite('CopilotModelRouter', () => {
 	});
 
 	test('a chat on a route that names a family stays on it when a newer model of the family ships', async () => {
-		const content = 'version: 1\ndescription: Test.\neffort: off\nroutes:\n  - model: opus\n    when: Building.\n  - model: haiku\n    when: Questions.\n';
+		const content = 'version: 1\ndescription: Test.\neffort: off\nroutes:\n  - model: opus\n    when: Building.\n  - model: haiku\n    when: Questions.\n  - model: claude-haiku-4.5\n    when: Chores.\n';
 		const file: IModelRouterFile = { ...routerFile(), router: parseModelRouter(content, 'daily.model-router.yaml').router };
-		// The chat started on the second route when `claude-haiku-4.5` was the newest Haiku.
-		const previousTurns = [routedTurn({ router: 'daily', chosenModel: 'claude-haiku-4.5' })];
-		const result = await engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file, text: 'continue', models: [model('claude-opus-5.5'), model('claude-haiku-4.5'), model('claude-haiku-5.5')], previousTurns, picker: undefined });
-		assert.deepStrictEqual(result, { selection: { id: 'claude-haiku-5.5' }, routed: { router: 'daily', chosenModel: 'claude-haiku-5.5', kept: true, firstTurnOnly: true }, notices: [] });
+		const next = async (previous: IModelRoutedInfo) => (await engine.resolve({ chat: 'chat-1', modelId: 'model-router:daily', file, text: 'continue', models: [model('claude-opus-5.5'), model('claude-haiku-4.5'), model('claude-haiku-5.5')], previousTurns: [routedTurn(previous)], picker: undefined })).routed;
+		assert.deepStrictEqual({
+			// The chat started on the `haiku` route when `claude-haiku-4.5` was the newest Haiku.
+			onFamilyRoute: await next({ router: 'daily', chosenModel: 'claude-haiku-4.5', routeReference: 'haiku' }),
+			// A chat on the route that names that version stays on it.
+			onExactRoute: await next({ router: 'daily', chosenModel: 'claude-haiku-4.5' }),
+		}, {
+			onFamilyRoute: { router: 'daily', chosenModel: 'claude-haiku-5.5', routeReference: 'haiku', kept: true, firstTurnOnly: true },
+			onExactRoute: { router: 'daily', chosenModel: 'claude-haiku-4.5', kept: true, firstTurnOnly: true },
+		});
 	});
 
 	test('a kept named route whose model has changed keeps an effort that model has', async () => {
