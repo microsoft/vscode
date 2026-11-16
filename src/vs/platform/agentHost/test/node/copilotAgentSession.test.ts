@@ -1489,6 +1489,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	getUserMcpServers?: () => Promise<Awaited<ReturnType<CopilotClient['rpc']['mcp']['config']['list']>>['servers']>;
 	disabledRootMcpServers?: readonly string[];
 	controlPlaneRpcTimeoutMs?: number;
+	readCanvasIcon?: (path: string, extensionId: string) => Promise<string | undefined>;
 	extensionSessionApprovals?: Set<string>;
 	connectorRefreshTimeoutMs?: number;
 	connectorOwnershipLookupTimeoutMs?: number;
@@ -2009,6 +2010,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			enableDevelopmentErrorInjection: options?.enableDevelopmentErrorInjection ?? true,
 			realpath: options?.realpath,
 			controlPlaneRpcTimeoutMs: options?.controlPlaneRpcTimeoutMs,
+			readCanvasIcon: options?.readCanvasIcon,
 			extensionSessionApprovals: options?.extensionSessionApprovals,
 			connectorRefreshTimeoutMs: options?.connectorRefreshTimeoutMs,
 			connectorOwnershipLookupTimeoutMs: options?.connectorOwnershipLookupTimeoutMs,
