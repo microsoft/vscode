@@ -284,11 +284,6 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		const container = this._container = dom.append(parent, dom.$('.new-chat-input-container.sessions-shared-chat-input'));
 		this._register(toDisposable(() => container.remove()));
 
-		// Mounted on the workbench container so suggest and other overflow widgets
-		// are not clipped by the composer.
-		const editorOverflowWidgetsDomNode = this.layoutService.getContainer(dom.getWindow(root)).appendChild(dom.$('.chat-editor-overflow.monaco-editor'));
-		this._register(toDisposable(() => editorOverflowWidgetsDomNode.remove()));
-
 		const widgetContainer = dom.append(container, dom.$('.sessions-shared-chat-widget'));
 		const widgetContextKeyService = this._widgetContextKeyService = this._register(this.contextKeyService.createScoped(widgetContainer));
 		const busyContextKey = SharedChatInputComposerBusyContext.bindTo(widgetContextKeyService);
@@ -326,7 +321,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				inputEditorPadding: COMPOSER_INPUT_EDITOR_PADDING,
 				inputPlaceholder: this.options.placeholder,
 				sandboxToggleChecked: observeSessionSandboxToggle(this.options.session, derived(this, reader => this._getChatResource(reader)), this.sessionsProvidersService),
-				editorOverflowWidgetsDomNode,
+				// No editorOverflowWidgetsDomNode: the composer renders before its view is attached, possibly to another window
+				// such as the Agents Launcher's, and the widget's own one follows the widget into the window it lays out in.
 				menus: {
 					inputToolbar: Menus.NewSessionChatInputToolbar,
 					telemetrySource: 'sessions.newChatComposer',
