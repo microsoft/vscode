@@ -1728,11 +1728,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			if (!creationReference) {
 				return undefined;
 			}
+			// Read first: it re-evaluates this as the host advertises sessions, such as a creator not known yet
+			const sourceDefaultChat = this._options.getBackendDefaultChat(URI.parse(creationReference.session), reader);
 			const session = this._options.mapBackendSessionResource(URI.parse(creationReference.session));
 			if (!session) {
 				return undefined;
 			}
-			const sourceDefaultChat = this._options.getBackendDefaultChat(URI.parse(creationReference.session), reader);
 			const chat = creationReference.chat === undefined
 				? undefined
 				: creationReference.chat === sourceDefaultChat ? session : session.with({ fragment: getAgentHostChatId(creationReference.chat) });

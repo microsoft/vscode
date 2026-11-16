@@ -2661,6 +2661,23 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({ createdBySession: session.createdBySession?.get(), sessions: provider.getSessions().length }, { createdBySession: undefined, sessions: 1 });
 	}));
 
+	test('a creation reference to a session of an unknown provider gets its creator once the host advertises that session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('created-before-creator'));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(candidate => candidate.resource.path === '/created-before-creator')!;
+		const observed: (string | undefined)[] = [];
+		disposables.add(autorun(reader => observed.push(session.createdBySession?.read(reader)?.session.toString())));
+
+		const creator = URI.parse('ahp-session:/opaque-creator');
+		fireSessionMetaChanged(agentHost, 'created-before-creator', withSessionCreationReference(undefined, { session: creator.toString(), turnId: 'turn-1' }));
+		// The host then advertises the creator, with its provider
+		fireSessionAdded(agentHost, 'opaque-creator', { resource: creator, provider: 'claude', title: 'Creator' });
+
+		assert.deepStrictEqual(observed, [undefined, 'agent-host-claude:/opaque-creator']);
+	}));
+
 	test('remote creation provenance is not remapped onto the child host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('remote-created'));
 		const provider = createProvider(disposables, agentHost);
