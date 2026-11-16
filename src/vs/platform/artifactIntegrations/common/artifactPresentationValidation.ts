@@ -107,6 +107,7 @@ export function isArtifactRequestPresentation(value: unknown): value is Artifact
 	return isRecord(value) && value.version === 1 && strings(value, 'integrationLabel')
 		&& (value.source === 'manual' || value.source === 'automation')
 		&& isRecord(value.action) && strings(value.action, 'label', 'iconId')
+		&& (value.action.activityLabel === undefined || strings(value.action, 'activityLabel'))
 		&& isRecord(value.artifact) && strings(value.artifact, 'resource', 'label')
 		&& (value.artifact.description === undefined || typeof value.artifact.description === 'string')
 		&& (value.artifact.icon === undefined || isArtifactIcon(value.artifact.icon))

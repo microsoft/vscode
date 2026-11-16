@@ -45,7 +45,7 @@ import { ModelCard } from '../../../browser/widget/input/modelPicker/modelPicker
 import { createModelAction } from '../../../browser/widget/input/modelPicker/modelPickerItemPrimitives.js';
 import { getModelConfigSummary } from '../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ICloudSandboxTelemetryService, type ICloudSandboxDiscoveryTelemetryData } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
-import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
+import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../../../../../services/github/common/githubService.js';
 import { ITelemetryService, type ITelemetryData } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { DidChangeUserDataProfileEvent, IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
@@ -345,7 +345,10 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		}
 	}, undefined, false, options.logService ?? new NullLogService()));
 	instantiationService.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
-		override async acquireAccountApiClient(authorization: IGitHubAccountClient['authorization']): Promise<IGitHubAccountClient> {
+		override async acquireAccountApiClient(...args: Parameters<IWorkbenchGitHubService['acquireAccountApiClient']>): Promise<IGitHubAccountClient> {
+			assert.ok(args.length === 3);
+			const [providerId, selectedSession] = args;
+			const authorization = toGitHubAuthorizationContext(providerId, selectedSession);
 			const session = selectedSessions.find(session => session.id === authorization.sessionId && session.account.id === authorization.accountId);
 			assert.ok(session);
 			assert.strictEqual(authorization.providerId, 'github');
@@ -1061,6 +1064,16 @@ suite('CloudSandboxApiService identity credentials', () => {
 		});
 	});
 
+	test('preserves network failure attribution when acquiring identity credentials', async () => {
+		const failure = new GitHubRequestError('network unavailable', 'network');
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			missionControlProvider: { request: async () => { throw failure; } },
+		});
+		await assert.rejects(service.getIdentityToken(accountKey, CancellationToken.None), error => error instanceof Error
+			&& error.name === 'CloudSandboxNetworkError' && error.cause === undefined);
+	});
+
 	test('refreshes the identity cache after a REST request recovers with a new GitHub credential', async () => {
 		let lookups = 0;
 		let environmentRequests = 0;
@@ -1581,7 +1594,7 @@ suite('CloudSandboxApiService session feed', () => {
 	test('negotiates on the GitHub gateway with the task account and strips unused credentials', async () => {
 		const requests: { url: string; headers: IHeaders | undefined }[] = [];
 		const connection = feedConnection();
-		const { service } = createService(store, {
+		const { service, typedRequests } = createService(store, {
 			tasks: [], repositories: new Map(),
 			onRequest: (url, _token, options) => {
 				requests.push({ url: url.toString(), headers: options.headers });
@@ -1593,10 +1606,12 @@ suite('CloudSandboxApiService session feed', () => {
 			url: requests[0].url,
 			integration: requests[0].headers?.['Copilot-Integration-Id'],
 			authenticated: !!requests[0].headers?.Authorization,
+			metadata: typedRequests.map(request => ({ caller: request.caller, priority: request.priority })),
 			result,
 		}, {
 			url: 'https://api.github.com/cmc_internal/api/agents/feed/connect',
 			integration: COPILOT_INTEGRATION_ID, authenticated: true, result: connection,
+			metadata: [{ caller: 'mc.sessionFeed.connect', priority: 'mutation' }],
 		});
 	});
 

@@ -88,6 +88,7 @@ export const enum AccessibilityVerbositySettingId {
 	AgentsWindowExtensions = 'accessibility.verbosity.agentsWindowExtensions',
 	ConnectionDiagnostics = 'accessibility.verbosity.connectionDiagnostics',
 	BrowserElementCommenting = 'accessibility.verbosity.browserElementCommenting',
+	ScreenshotTool = 'accessibility.verbosity.screenshotTool',
 	ChatPetAchievements = 'accessibility.verbosity.chatPetAchievements',
 	ChatPetJumpGame = 'accessibility.verbosity.chatPetJumpGame'
 }
@@ -195,7 +196,7 @@ const configuration: IConfigurationNode = {
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.KeybindingsEditor]: {
-			description: localize('verbosity.keybindingsEditor.description', 'Provide information about how to change a keybinding in the keybindings editor when a row is focused and how to navigate to the results table.'),
+			description: localize('verbosity.keybindingsEditor.description', 'Provide information about how to change a keybinding, edit its system-wide scope, and navigate to the results table in the keybindings editor.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.Notebook]: {
@@ -305,6 +306,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.BrowserElementCommenting]: {
 			description: localize('verbosity.browserElementCommenting', 'Provide information about how to access element commenting accessibility help in the Integrated Browser.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.ScreenshotTool]: {
+			description: localize('verbosity.screenshotTool', "Provide information about how to access the screenshot tool accessibility help when the screenshot tool opens."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.ChatPetAchievements]: {

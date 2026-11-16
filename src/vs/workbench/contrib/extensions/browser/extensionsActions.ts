@@ -1925,6 +1925,10 @@ export class EnableAIFeaturesInWorkspaceAction extends ExtensionAction {
 		if (!this.extensionEnablementService.canChangeWorkspaceEnablement(this.extension.local)) {
 			return;
 		}
+		if (this.extension.enablementState === EnablementState.DisabledWorkspace) {
+			this.enabled = true;
+			return;
+		}
 		const inspect = this.configurationService.inspect(ChatAIDisabledSettingId);
 		if (inspect.value === false) {
 			return;

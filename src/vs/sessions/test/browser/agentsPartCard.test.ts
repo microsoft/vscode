@@ -60,6 +60,39 @@ suite('Sessions - Agents Part Card', () => {
 		return { container, card };
 	}
 
+	test('keeps full-surface cards motionless while surrounding parts retain transitions', () => {
+		const container = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
+		store.add(toDisposable(() => container.remove()));
+		const sessionsCard = append(container, $('.part.sessionspart.agents-part-card'));
+		const customViewCard = append(container, $('.part.customviewgridpart.agents-part-card'));
+		const auxiliaryBar = append(container, $('.part.auxiliarybar'));
+		const panel = append(container, $('.part.panel'));
+		const sideBarContent = append(append(container, $('.part.sidebar')), $('.content'));
+		const transition = (element: HTMLElement) => {
+			const style = mainWindow.getComputedStyle(element);
+			return { property: style.transitionProperty, duration: style.transitionDuration };
+		};
+		const motionEnabled = !mainWindow.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+		assert.deepStrictEqual({
+			sessions: transition(sessionsCard),
+			customView: transition(customViewCard),
+			...(motionEnabled ? {
+				auxiliaryBar: transition(auxiliaryBar),
+				panel: transition(panel),
+				sideBarContent: transition(sideBarContent),
+			} : {}),
+		}, {
+			sessions: { property: 'all', duration: '0s' },
+			customView: { property: 'all', duration: '0s' },
+			...(motionEnabled ? {
+				auxiliaryBar: { property: 'opacity, margin-top, margin-right, margin-bottom', duration: '0.25s, 0.25s, 0.25s, 0.25s' },
+				panel: { property: 'opacity, margin-top, margin-right, margin-bottom', duration: '0.25s, 0.25s, 0.25s, 0.25s' },
+				sideBarContent: { property: 'opacity, transform', duration: '0.25s, 0.25s' },
+			} : {}),
+		});
+	});
+
 	for (const compact of [false, true]) {
 		test(`resolves component-specific semantic corners in Agents with compact layout ${compact}`, () => {
 			const configuration = new TestConfigurationService({

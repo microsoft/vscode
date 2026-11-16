@@ -11,6 +11,7 @@ import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ChatActivityLabelTransition } from '../../../../browser/widget/chatContentParts/chatActivityLabelTransition.js';
+import { registerTestIframe } from '../../../../../../../base/test/browser/testWindow.js';
 
 suite('ChatActivityLabelTransition', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -152,6 +153,7 @@ suite('ChatActivityLabelTransition', () => {
 		const frame = mainWindow.document.createElement('iframe');
 		mainWindow.document.body.appendChild(frame);
 		store.add(toDisposable(() => frame.remove()));
+		store.add(registerTestIframe(frame));
 		const frameDocument = frame.contentDocument!;
 		const style = frameDocument.createElement('style');
 		style.textContent = '.monaco-enable-motion .chat-activity-label-wipe-out { animation: chat-activity-label-wipe-out 220ms forwards; } @keyframes chat-activity-label-wipe-out { to { opacity: 0; } }';

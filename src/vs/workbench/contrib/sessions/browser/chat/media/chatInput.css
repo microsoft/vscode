@@ -46,6 +46,7 @@
  * Outside the Agents window it still outranks chat.css's input margin and
  * padding by specificity rather than stylesheet order. */
 .agent-sessions-workbench .new-chat-input-container.sessions-shared-chat-input .sessions-shared-chat-widget .interactive-session .interactive-input-part,
+.sessions-chat .new-chat-input-container.sessions-shared-chat-input .sessions-shared-chat-widget .interactive-session .interactive-input-part,
 .new-chat-input-container .interactive-session .interactive-input-part {
 	margin: 0;
 	padding: 0;
@@ -94,7 +95,8 @@
 	overflow: visible;
 }
 
-.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-container > .chat-context-usage-container {
+.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-container > .chat-context-usage-container,
+.chat-view-chat.experimental-session-composer.sessions-chat:not(.phone-layout *) .chat-input-container > .chat-context-usage-container {
 	position: absolute;
 	top: var(--vscode-spacing-size120);
 	right: calc(var(--vscode-spacing-size60) - 3px);
@@ -102,7 +104,9 @@
 }
 
 .agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-toolbar .action-item.model-picker-item,
-.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .chat-input-toolbar .action-item.model-picker-item {
+.chat-view-chat.experimental-session-composer.sessions-chat:not(.phone-layout *) .chat-input-toolbar .action-item.model-picker-item,
+.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .chat-input-toolbar .action-item.model-picker-item,
+.sessions-chat:not(.phone-layout *) .experimental-new-session-composer .chat-input-toolbar .action-item.model-picker-item {
 	margin-left: auto;
 }
 

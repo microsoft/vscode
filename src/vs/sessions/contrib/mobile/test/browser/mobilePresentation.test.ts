@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
@@ -15,16 +16,27 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { IInputOptions, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IChatExternalEdit } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ScreenshotContextValuePick } from '../../../../../workbench/contrib/chat/browser/actions/chatContext.js';
+import { IChatWidget } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatWindowProvider } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { AbstractChatView, IChatViewOptions } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { IMobileDiffViewData, MOBILE_OPEN_DIFF_VIEW_COMMAND_ID } from '../../../../browser/parts/mobile/contributions/mobileDiffView.js';
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { ISessionsListPresentation, SessionNameKind } from '../../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
 import { createListHarness, createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
-import { ChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chat/chatView.js';
+import { DefaultChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chat/defaultChatViewFactory.js';
+import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
+import { ISessionsChatBackgroundService } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
+import { SessionsGridContent } from '../../../../../workbench/contrib/sessions/browser/parts/sessionsGridContent.js';
+import { ISessionsPartContentHost } from '../../../../../workbench/browser/parts/sessions/sessionsPartContent.js';
 import { MobileChatEditPresenter } from '../../browser/mobileChatEditPresenter.js';
 import { MobileChatViewFactory } from '../../browser/mobileChatViewFactory.js';
 import { MobileNullChatWindowService } from '../../browser/mobileNullChatWindowService.js';
@@ -38,6 +50,19 @@ suite('Mobile presentation composition', () => {
 		const windows = new MobileNullChatWindowService();
 		await assert.rejects(windows.open(URI.parse('chat:/test')), /Separate chat windows are not available/);
 		assert.throws(() => windows.registerProvider(upcastPartial<IChatWindowProvider>({})), /Separate chat windows are not available/);
+	});
+
+	test('chat screenshot attachments retain the existing browser capture path on mobile', async () => {
+		let captures = 0;
+		const host = new class extends mock<IHostService>() {
+			override async getScreenshot() {
+				captures++;
+				return VSBuffer.fromString('screenshot');
+			}
+		}();
+		const picker = new ScreenshotContextValuePick(host);
+		const attachment = await picker.asAttachment(upcastPartial<IChatWidget>({}));
+		assert.deepStrictEqual({ captures, kind: attachment?.kind }, { captures: 1, kind: 'image' });
 	});
 
 	test('new-session headers retain the instantiation scope of their own view', () => {
@@ -71,7 +96,10 @@ suite('Mobile presentation composition', () => {
 		test(`all chat views receive entry-owned input options (${mobile})`, () => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const createInstance = sinon.stub(instantiationService, 'createInstance').returns(upcastPartial<AbstractChatView>({}));
-			const factory = mobile ? new MobileChatViewFactory() : new ChatViewFactory();
+			const factory: IChatViewFactory = mobile ? new MobileChatViewFactory() : new DefaultChatViewFactory(upcastPartial<ISessionsChatBackgroundService>({
+				onDidChangeBackground: Event.None,
+				getBackground: () => ({ kind: 'codicons' }),
+			}));
 			assert.deepStrictEqual(factory.inputEditorOptions, mobile ? { fontSize: 16, lineHeight: 24 } : undefined);
 			const options: IChatViewOptions = { renderChatPet: false };
 			factory.createNewChatView(false, options, instantiationService);
@@ -80,12 +108,32 @@ suite('Mobile presentation composition', () => {
 			const passedOptions = createInstance.getCalls().map(call => call.args.at(-1) as IChatViewOptions);
 			assert.deepStrictEqual(passedOptions.map(value => ({
 				input: value.inputEditorOptions, icon: value.showEmptyStateIcon, header: typeof value.renderNewSessionHeader, pet: value.renderChatPet,
+				background: value.background?.hasBackground() ?? false,
+				composerPresentation: typeof value.newSessionInput?.createComposer,
+				isolationPresentation: typeof factory.newSessionInput?.createIsolationPicker,
 			})), Array.from({ length: 3 }, (_, index) => ({
 				input: mobile ? { fontSize: 16, lineHeight: 24 } : undefined,
 				icon: mobile ? false : undefined, header: mobile && index < 2 ? 'function' : 'undefined', pet: false,
+				background: !mobile,
+				composerPresentation: mobile ? 'undefined' : 'function',
+				isolationPresentation: mobile ? 'undefined' : 'function',
 			})));
 		});
 	}
+
+	test('mobile session grids create no background surface and require no background service', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IThemeService, new TestThemeService());
+		instantiationService.stub(IChatViewFactory, new MobileChatViewFactory());
+		const grid = store.add(instantiationService.createInstance(SessionsGridContent, upcastPartial<ISessionsPartContentHost>({})));
+		const createInstance = sinon.spy(instantiationService, 'createInstance');
+		const container = dom.$('div');
+		grid.renderBackground(container);
+		assert.deepStrictEqual({ content: container.innerHTML, classes: container.className, created: createInstance.callCount }, {
+			content: '', classes: '', created: 0,
+		});
+	});
 
 	for (const kind of ['newGroup', 'group', 'session', 'chat'] satisfies SessionNameKind[]) {
 		for (const value of [undefined, '  New name  ']) {

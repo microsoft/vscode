@@ -62,6 +62,11 @@ export interface ICommentThreadFloatingWidgetLayout {
 	readonly width: number;
 	/** The height chosen by the user, or `undefined` when the widget sizes itself to its content. */
 	readonly height: number | undefined;
+	/**
+	 * Whether the user moved or resized the widget. Other widgets are placed around such a widget, rather than moving
+	 * it to keep the widgets in the order of their code.
+	 */
+	readonly isChosenByUser: boolean;
 }
 
 /**
@@ -260,6 +265,33 @@ function rectsIntersect(a: IRect, b: IRect): boolean {
 	return a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height;
 }
 
+/**
+ * An area, in document coordinates, that another widget takes up, and where the code that widget is about starts.
+ */
+export interface IFloatingWidgetObstacle extends IRect {
+	/** The top of the code that the other widget is about, in document coordinates, which orders the widgets. */
+	readonly codeTop: number;
+}
+
+/**
+ * Whether two widgets, one above the other, are out of the order of their code: the widget for the later code is above
+ * the other one.
+ */
+function areOutOfOrder(a: IFloatingWidgetObstacle, b: IFloatingWidgetObstacle): boolean {
+	if (a.left >= b.left + b.width || b.left >= a.left + a.width) {
+		return false;
+	}
+	return a.codeTop < b.codeTop ? b.top + b.height <= a.top : b.codeTop < a.codeTop && a.top + a.height <= b.top;
+}
+
+/**
+ * Whether a widget is in the way of another widget: it covers it, or it's above or below it, out of the order of their
+ * code.
+ */
+export function isInTheWayOf(widget: IFloatingWidgetObstacle, other: IFloatingWidgetObstacle): boolean {
+	return rectsIntersect(widget, other) || areOutOfOrder(widget, other);
+}
+
 export interface IFloatingWidgetPlacementRequest {
 	/** The leftmost position the widget may take. */
 	readonly minLeft: number;
@@ -269,8 +301,8 @@ export interface IFloatingWidgetPlacementRequest {
 	readonly height: number;
 	/** The commented code, in document coordinates, or `undefined` for comments on the whole file. */
 	readonly code: IRect | undefined;
-	/** The areas, in document coordinates, that the widget should not cover. */
-	readonly obstacles: readonly IRect[];
+	/** The areas that other widgets take up, which the widget should not cover, and stays in the order of their code with. */
+	readonly obstacles: readonly IFloatingWidgetObstacle[];
 	/** The height of the area that the editor can scroll through, which the widget is kept within. */
 	readonly scrollableHeight: number;
 	/**
@@ -296,8 +328,12 @@ export interface IFloatingWidgetPlacement {
  * Places a widget at the right edge of the editor, vertically centered on the commented code. When requested and there
  * is room, the widget goes right after the end of the code, level with its top, or right after the end of the lines
  * next to the code instead. When the code leaves no room for the widget at the right edge, the widget goes below the
- * code, so that it doesn't cover it. When the widget would cover the code or one of the obstacles, it moves to the
- * closest position above or below them that is free, within the area that the editor can scroll through.
+ * code, still at the right edge, so that it covers neither the code nor the start of the lines below it. When the
+ * widget would cover the code or one of the obstacles, it moves to the closest position above or below them that is
+ * free, within the area that the editor can scroll through.
+ *
+ * Widgets stay in the order of their code: a widget that moves out of the way of another one goes to the side of it
+ * that its code is on. It only goes to the other side when there's no room on its own side.
  */
 export function computeFloatingWidgetPlacement(request: IFloatingWidgetPlacementRequest): IFloatingWidgetPlacement {
 	const { minLeft, width, height, code } = request;
@@ -311,7 +347,6 @@ export function computeFloatingWidgetPlacement(request: IFloatingWidgetPlacement
 		preferredTop = code.top;
 		centered = false;
 	} else if (code && codeRight + CODE_GAP > maxLeft) {
-		left = clamp(code.left, minLeft, maxLeft);
 		preferredTop = code.top + code.height + EDGE_MARGIN;
 		centered = false;
 	} else if (code && request.linesRight !== undefined) {
@@ -326,17 +361,30 @@ export function computeFloatingWidgetPlacement(request: IFloatingWidgetPlacement
 	for (const area of areas) {
 		candidates.push(area.top + area.height + EDGE_MARGIN, area.top - EDGE_MARGIN - height);
 	}
-	// When no position is free, the widget stays as close to the preferred position as it can.
-	let top = clamp(preferredTop, 0, maxTop);
-	let topDistance = Number.POSITIVE_INFINITY;
-	for (const candidate of candidates) {
-		const candidateTop = clamp(candidate, 0, maxTop);
-		const distance = Math.abs(candidateTop - preferredTop);
-		if (distance < topDistance && !areas.some(area => rectsIntersect({ top: candidateTop, left, width, height }, area))) {
-			top = candidateTop;
-			topDistance = distance;
+	const getClosestFreeTop = (isAllowed: (top: number) => boolean) => {
+		let closest: number | undefined;
+		for (const candidate of candidates) {
+			const candidateTop = clamp(candidate, 0, maxTop);
+			if ((closest === undefined || Math.abs(candidateTop - preferredTop) < Math.abs(closest - preferredTop))
+				&& isAllowed(candidateTop) && !areas.some(area => rectsIntersect({ top: candidateTop, left, width, height }, area))) {
+				closest = candidateTop;
+			}
 		}
-	}
+		return closest;
+	};
+
+	// The widget is out of order with a widget above or below it when it's on the side of it that its code isn't on.
+	const codeTop = code?.top ?? 0;
+	const isOutOfOrder = (top: number, obstacle: IFloatingWidgetObstacle) => areOutOfOrder({ top, left, width, height, codeTop }, obstacle);
+	// Widgets that are out of order with the preferred position anyway don't keep the widget from the others. Those are
+	// ones that the user moved there, and ones for code that starts earlier but goes on long enough for them to be
+	// centered below this one, which would otherwise push this one far from its code.
+	const unmovedTop = clamp(preferredTop, 0, maxTop);
+	const orderedObstacles = request.obstacles.filter(obstacle => !isOutOfOrder(unmovedTop, obstacle));
+	// When no position is free, the widget stays as close to the preferred position as it can.
+	const top = getClosestFreeTop(top => !orderedObstacles.some(obstacle => isOutOfOrder(top, obstacle)))
+		?? getClosestFreeTop(() => true)
+		?? unmovedTop;
 	return { top, left, centered: centered && top === preferredTop };
 }
 

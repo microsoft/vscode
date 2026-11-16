@@ -6,9 +6,10 @@
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { matchesSomeScheme, Schemas } from '../../../base/common/network.js';
-import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { extUri, extUriBiasedIgnorePathCase, extUriIgnorePathCase, IExtUri } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
+import { AGENT_HOST_SCHEME, fromAgentHostUri, toAgentHostUri } from '../../agentHost/common/agentHostUri.js';
 import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
 import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
 import { IPermissionCategoryState, ISerializedBrowserPermissionsSnapshot, IBrowserDeviceCandidate, BrowserDeviceType, PermissionCategory } from './browserPermissions.js';
@@ -164,29 +165,63 @@ export interface IBrowserViewWindowConfiguration {
 	/** Maximum number of entries to retain per browser session history. */
 	readonly maxHistoryEntries?: number;
 	/**
-	 * Tunnel-proxy credentials for each {@link IBrowserViewNetwork} the
-	 * window's views use, keyed by {@link IBrowserViewNetwork.authority}.
-	 * Produced by the window's local extension host, which hosts the proxy
-	 * servers. Applied to the Electron sessions of views whose storage is bound
-	 * to that network; other views always use the local network.
+	 * The remote networks the window's views use, keyed by {@link IBrowserViewNetwork.authority}.
+	 * Applied to the Electron sessions of views whose storage is bound to that network;
+	 * other views always use the local network. Sessions on a network read `file:` requests
+	 * from the remote's file system, within the trusted roots of the network.
 	 */
-	readonly networkProxies?: { readonly [authority: string]: ITunnelProxyInfo };
+	readonly remoteNetworks?: { readonly [authority: string]: IBrowserViewRemoteNetwork };
 	/**
-	 * The window's contribution to the `file://` allowlist used by integrated
-	 * browser sessions. Main unions every window's contribution into a
-	 * process-wide allowlist; entries are dropped when the window is destroyed.
-	 * Usually `getTrustedUris()` plus, when the workspace itself is trusted, its
-	 * workspace folder paths.
+	 * The window's contribution to the allowlist of `file:` requests of sessions on the local network,
+	 * as file system paths. Main unions every window's contribution. Entries are dropped when the window is destroyed.
+	 * Usually `getTrustedUris()` plus, when the workspace itself is trusted, its workspace folders.
 	 */
-	readonly trustedFileRoots: readonly string[];
+	readonly trustedLocalFileRoots: readonly string[];
 	/**
-	 * Whether Workspace Trust is disabled entirely
-	 * (`security.workspace.trust.enabled: false`) for this window. When
-	 * `true`, every `file://` request is allowed regardless of
-	 * {@link trustedFileRoots} since there is no meaningful notion of an
-	 * untrusted folder to enforce.
+	 * Whether Workspace Trust is disabled entirely (`security.workspace.trust.enabled: false`).
+	 * When `true`, every `file://` request of sessions on the local network is allowed,
+	 * since there is no meaningful notion of an untrusted folder to enforce.
 	 */
+	readonly trustAllLocalFiles: boolean;
+}
+
+/** What is behind a remote network's files. */
+export interface IBrowserViewNetworkFileSystem {
+	/** The scheme the remote's files are read with: `vscode-remote` or `vscode-agent-host`. */
+	readonly scheme: string;
+	/** Whether the remote's file system distinguishes paths by case, which depends on its operating system. */
+	readonly caseSensitive: boolean;
+}
+
+/** A remote network a window's views use, with what is needed to serve the remote's files. */
+export interface IBrowserViewRemoteNetwork extends IBrowserViewNetworkFileSystem {
+	/** Tunnel-proxy credentials, produced by the window's local extension host, which hosts the proxy servers. */
+	readonly proxy: ITunnelProxyInfo;
+	/** Trusted folders, as paths on the remote's file system. */
+	readonly trustedRoots: readonly string[];
+	/** Whether every file on the remote is allowed, because Workspace Trust is disabled. */
 	readonly trustAllFiles: boolean;
+}
+
+/** Resource schemes that address files on a remote's own file system: the window's remote, or a remote agent host. */
+export const BROWSER_REMOTE_FILE_SCHEMES: readonly string[] = [Schemas.vscodeRemote, AGENT_HOST_SCHEME];
+
+/**
+ * The remote a `vscode-remote:` or `vscode-agent-host:` URI points into, and the `file:` URI of the same
+ * location on that remote's own file system, or `undefined` for anything else. The inverse of {@link fileUrlToRemoteUri}.
+ */
+export function getBrowserViewRemoteFile(uri: URI): { readonly scheme: string; readonly authority: string; readonly fileUri: URI } | undefined {
+	if (uri.scheme === Schemas.vscodeRemote) {
+		return { scheme: uri.scheme, authority: uri.authority, fileUri: uri.with({ scheme: Schemas.file, authority: '' }) };
+	}
+	if (uri.scheme === AGENT_HOST_SCHEME) {
+		const fileUri = fromAgentHostUri(uri);
+		// A file with an authority (`file://server/share`) is not on the host's own file system.
+		if (fileUri.scheme === Schemas.file && !fileUri.authority) {
+			return { scheme: uri.scheme, authority: uri.authority, fileUri };
+		}
+	}
+	return undefined;
 }
 
 export interface IBrowserViewBounds {
@@ -214,6 +249,11 @@ export interface IBrowserViewCaptureScreenshotOptions {
 	format?: 'jpeg' | 'png';
 	screenRect?: IBrowserViewRect;
 	pageRect?: IBrowserViewRect;
+	/**
+	 * When true, a docked DevTools panel is included in the capture of the whole view.
+	 * Only meant for UI placeholders: DevTools content must not reach agents or other consumers.
+	 */
+	includeDevTools?: boolean;
 	/**
 	 * When true, capture the full scrollable document, not just the visible viewport.
 	 * Ignored when `screenRect` or `pageRect` is set.
@@ -340,12 +380,68 @@ export interface IBrowserViewCreateOptions extends IBrowserViewCreationContext {
 	readonly openSource?: IntegratedBrowserOpenSource;
 }
 
-export function isBrowserViewAssociatedResourceNavigation(associatedResource: URI, target: string): boolean {
-	const targetResource = URI.parse(target);
-	return extUriBiasedIgnorePathCase.isEqual(
-		associatedResource.with({ query: null, fragment: null }),
+/** Splits a URL into what precedes its query, its raw query including `?` and its raw fragment including `#`. */
+export function splitUrlSuffix(url: string): { readonly base: string; readonly query: string; readonly fragment: string } {
+	const hashIndex = url.indexOf('#');
+	const fragment = hashIndex === -1 ? '' : url.slice(hashIndex);
+	const beforeFragment = hashIndex === -1 ? url : url.slice(0, hashIndex);
+	const queryIndex = beforeFragment.indexOf('?');
+	return queryIndex === -1
+		? { base: beforeFragment, query: '', fragment }
+		: { base: beforeFragment.slice(0, queryIndex), query: beforeFragment.slice(queryIndex), fragment };
+}
+
+/**
+ * Maps a `vscode-remote:` or `vscode-agent-host:` URL of the remote a session is bound to onto the
+ * `file:` URL that sessions on that network serve from the remote's file system.
+ * Other URLs are returned as is.
+ */
+export function remoteUrlToFileUrl(network: IBrowserViewNetwork | undefined, url: string): string {
+	const remote = network && getBrowserViewRemoteFile(URI.parse(url));
+	if (!remote || !extUri.isEqualAuthority(remote.authority, network.authority)) {
+		return url;
+	}
+	const original = remote.fileUri;
+	// Encode each segment so literal percent sequences in file names survive. Colons are valid in
+	// both POSIX paths and Windows drive letters, and must stay literal for relative URLs to resolve.
+	const fileUrl = 'file://' + original.path.split('/').map(segment => encodeURIComponent(segment).replace(/%3A/gi, ':')).join('/');
+	// The query and fragment stay exactly as written, since decoding them would change their meaning.
+	const { query, fragment } = splitUrlSuffix(url);
+	if (remote.scheme === Schemas.vscodeRemote) {
+		return fileUrl + query + fragment;
+	}
+	// The query of an agent host URL is encoded metadata, so the page's query is the one of the file URL it wraps.
+	const pageQuery = URI.from({ scheme: Schemas.file, path: '/', query: original.query }).toString(true).slice('file:///'.length);
+	return fileUrl + pageQuery + fragment;
+}
+
+/**
+ * The inverse of {@link remoteUrlToFileUrl} for a resource: maps a `file:` URI on the file system of the
+ * remote {@link network} onto the `vscode-remote:` or `vscode-agent-host:` URI that reads it, as given by {@link scheme}.
+ */
+export function fileUrlToRemoteUri(network: IBrowserViewNetwork, scheme: string, fileUri: URI): URI {
+	if (scheme === Schemas.vscodeRemote) {
+		return fileUri.with({ scheme, authority: network.authority });
+	}
+	return toAgentHostUri(fileUri, network.authority);
+}
+
+/**
+ * Whether navigating to {@link target} stays on the {@link associatedResource}, apart from its query and fragment.
+ * Pass the session's {@link network} when the page can display the resource as a `file:` URL (see {@link remoteUrlToFileUrl}),
+ * and a {@link comparer} with the case rules of its file system. By default, as for local resources, paths compare by the client's rules.
+ */
+export function isBrowserViewAssociatedResourceNavigation(associatedResource: URI, target: string, network?: IBrowserViewNetwork, comparer: IExtUri = extUriBiasedIgnorePathCase): boolean {
+	const targetResource = URI.parse(remoteUrlToFileUrl(network, target));
+	return comparer.isEqual(
+		URI.parse(remoteUrlToFileUrl(network, associatedResource.toString())).with({ query: null, fragment: null }),
 		targetResource.with({ query: null, fragment: null })
 	);
+}
+
+/** The path comparer for a file system that is {@link caseSensitive}, or for the client's own when that is `undefined`. */
+export function getBrowserViewPathComparer(caseSensitive: boolean | undefined): IExtUri {
+	return caseSensitive === undefined ? extUriBiasedIgnorePathCase : caseSensitive ? extUri : extUriIgnorePathCase;
 }
 
 /** `applicationSharedStorage` keys this session writes to. Empty for ephemeral sessions. */

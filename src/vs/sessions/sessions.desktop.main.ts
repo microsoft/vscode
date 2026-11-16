@@ -112,8 +112,6 @@ import { ILocalGitService } from '../platform/git/common/localGitService.js';
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IRemoteAgentHostService } from '../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentsWindowRemoteAgentHostService } from '../platform/agentHost/browser/remoteAgentHostServiceImpl.js';
-import { IRemoteAgentHostLocationPreferenceService } from '../platform/agentHost/common/remoteAgentHostLocationPreference.js';
-import { RemoteAgentHostLocationPreferenceService } from '../platform/agentHost/browser/remoteAgentHostLocationPreferenceService.js';
 import { ISSHHostKeyTrustService } from '../platform/agentHost/common/sshHostKeyTrust.js';
 import { SSHHostKeyTrustService } from '../platform/agentHost/browser/sshHostKeyTrustService.js';
 import { registerSharedProcessRemoteService } from '../platform/ipc/electron-browser/services.js';
@@ -128,7 +126,6 @@ registerSingleton(IUserDataInitializationService, new SyncDescriptor(UserDataIni
 // runs git locally via the shared process.
 registerSingleton(IPluginGitService, NativePluginGitCommandService, InstantiationType.Delayed);
 registerSingleton(IRemoteAgentHostService, AgentsWindowRemoteAgentHostService, InstantiationType.Delayed);
-registerSingleton(IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreferenceService, InstantiationType.Delayed);
 registerSingleton(ISSHHostKeyTrustService, SSHHostKeyTrustService, InstantiationType.Delayed);
 registerSharedProcessRemoteService(ILocalGitService, 'localGit');
 
@@ -153,6 +150,9 @@ import '../workbench/contrib/codeEditor/electron-browser/codeEditor.contribution
 // Debug
 import '../workbench/contrib/debug/electron-browser/extensionHostDebugService.js';
 
+// Workspaces
+import '../workbench/contrib/workspaces/electron-browser/workspaces.contribution.js';
+
 // Extension devtools
 import '../workbench/contrib/extensions/electron-browser/devtoolsExtensionHost.contribution.js';
 
@@ -162,6 +162,9 @@ import '../workbench/contrib/extensions/electron-browser/extensions.contribution
 
 // Issues
 import '../workbench/contrib/issue/electron-browser/issue.contribution.js';
+
+// Screenshot Tool
+import '../workbench/contrib/screenshotTool/electron-browser/screenshotTool.contribution.js';
 
 // Surveys
 import '../workbench/contrib/surveys/browser/survey.contribution.js';
@@ -237,6 +240,9 @@ import '../workbench/contrib/keybindingsExport/electron-browser/keybindingsExpor
 // Computer Use setup: drag Copilot Computer Use into System Settings
 import '../workbench/contrib/chat/electron-browser/agentSessions/computerUseHelperApp.contribution.js';
 
+// Chat: attach a screenshot of the window of another app
+import '../workbench/contrib/chat/electron-browser/actions/chatAppWindowScreenshotActions.js';
+
 //#endregion
 
 
@@ -245,6 +251,7 @@ import '../workbench/contrib/chat/electron-browser/agentSessions/computerUseHelp
 import './electron-browser/sessions.desktop.contribution.js';
 import './contrib/openAgentsWindow/electron-browser/openAgentsWindow.contribution.js';
 import './contrib/openAgentsWindow/electron-browser/openAgentsWindowKeybindingTip.js';
+import './contrib/agentsLauncher/electron-browser/agentsLauncher.contribution.js';
 
 // Remote Agent Host
 import '../workbench/services/agentHost/electron-browser/agentHostService.js';

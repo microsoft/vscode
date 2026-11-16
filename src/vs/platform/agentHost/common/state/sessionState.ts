@@ -70,7 +70,7 @@ import {
 
 // Re-export everything from the protocol state module
 export {
-	ChangesetOperationScope, ChangesetOperationStatus, ChangesetStatus, CustomizationLoadStatus,
+	ChangesetFileStatus, ChangesetOperationScope, ChangesetOperationStatus, ChangesetStatus, CustomizationLoadStatus,
 	CustomizationType, MessageAttachmentKind, MessageKind,
 	PendingMessageKind,
 	PolicyState,
@@ -265,7 +265,15 @@ export interface IModelRoutedInfo {
 	readonly router: string;
 	/** The router's display name, when its file gives one. */
 	readonly routerLabel?: string;
+	/** The chosen route's name, when it has one. A chat stays on a named route by this name. */
+	readonly routeName?: string;
 	readonly chosenModel: string;
+	/**
+	 * The entry of the route's `model` that matched, when it is not the chosen model's id: a family
+	 * such as `opus`, or a model on the user's own key. A chat stays on a route without a name by it,
+	 * so the route can move to a newer model.
+	 */
+	readonly routeReference?: string;
 	/** The user's note on the chosen model, when it decided the pick. */
 	readonly preference?: string;
 	/** The thinking effort the router chose for this turn. */

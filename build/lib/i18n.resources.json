@@ -227,6 +227,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/screenshotTool",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/search",
 			"project": "vscode-workbench"
 		},
@@ -702,6 +706,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/openAgentsWindow",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/agentsLauncher",
 			"project": "vscode-sessions"
 		},
 		{

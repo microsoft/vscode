@@ -56,7 +56,7 @@ export function getSessionCreationEnvironments(providers: readonly ISessionsProv
 	const visible = providers.filter(provider => provider.supportsWorkspaceSelection !== false
 		&& (!isAgentHostProvider(provider) || provider.isVisibleInEnvironmentPicker?.get() !== false && !provider.devContainerSourceWorkspace));
 	const local = visible.filter(provider => provider.environment.id === 'local');
-	const cloud = visible.filter(provider => provider.environment.id === 'cloud' && !isAgentHostProvider(provider));
+	const cloud = visible.filter(provider => provider.environment.id === 'cloud' && !isAgentHostProvider(provider) && provider.sessionTypes.length > 0);
 	const environments: ISessionCreationEnvironment[] = [];
 	if (local.length) {
 		environments.push({ id: 'local', kind: 'local', label: localize('environmentPicker.local', "This Computer"), icon: Codicon.deviceDesktop, providerIds: local.map(provider => provider.id) });

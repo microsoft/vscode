@@ -18,7 +18,14 @@ import { ContextKeyExpr, ContextKeyValue, IContext } from '../../../platform/con
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../platform/accessibility/common/accessibility.js';
 import { ToggleAuxiliaryBarAction } from '../../../workbench/browser/parts/auxiliarybar/auxiliaryBarActions.js';
 import { LayoutDensityMenu } from '../../../workbench/browser/actions/layoutDensityActions.js';
-import { LayoutModeContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
+import { IsAuxiliaryWindowContext, IsSessionsWindowContext, LayoutModeContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
+import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
+import { decodeKeybinding } from '../../../base/common/keybindings.js';
+import { OperatingSystem } from '../../../base/common/platform.js';
+import { KeybindingsRegistry } from '../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingResolver, ResultKind } from '../../../platform/keybinding/common/keybindingResolver.js';
+import { ResolvedKeybindingItem } from '../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { USLayoutResolvedKeybinding } from '../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { DesktopLayoutContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
 import { IWorkbenchLayoutService, LayoutSettings, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
@@ -118,6 +125,40 @@ suite('Sessions - Layout Actions', () => {
 				'undefined: workbench.action.alignPanelCenter',
 				'undefined: workbench.action.alignPanelJustify',
 			],
+		});
+	});
+
+	test('Cmd/Ctrl+B toggles the Agents window\'s side bar in its main window and nothing in a chat window, which has no side bar of its own, while it still toggles VS Code\'s', () => {
+		const keyOn = (os: OperatingSystem) => {
+			const rules = KeybindingsRegistry.getDefaultKeybindingsForOS(os);
+			const resolver = new KeybindingResolver(rules.flatMap(rule => rule.keybinding && rule.command
+				? USLayoutResolvedKeybinding.resolveKeybinding(rule.keybinding, os).map(resolved => new ResolvedKeybindingItem(resolved, rule.command, rule.commandArgs, rule.when ?? undefined, true, null, false))
+				: []), [], () => { });
+			const [key] = USLayoutResolvedKeybinding.resolveKeybinding(decodeKeybinding(KeyMod.CtrlCmd | KeyCode.KeyB, os)!, os);
+			const resolve = (values: Record<string, ContextKeyValue>) => {
+				const result = resolver.resolve({ getValue: <T extends ContextKeyValue>(name: string) => values[name] as T | undefined }, [], key.getDispatchChords()[0]!);
+				return result.kind === ResultKind.KbFound ? result.commandId : undefined;
+			};
+			const agentsWindow = { [IsSessionsWindowContext.key]: true, chatIsEnabled: true };
+			const vsCodeRule = rules.find(rule => rule.command === 'workbench.action.toggleSidebarVisibility')!;
+			return {
+				key: key.getUserSettingsLabel(),
+				agentsWindow: resolve(agentsWindow),
+				chatWindow: resolve({ ...agentsWindow, [IsAuxiliaryWindowContext.key]: true, [LayoutModeContext.key]: 'sideBySide' }),
+				// The Agents window's rule is not registered in VS Code, where VS Code's own rule claims the key
+				vsCodeWindow: vsCodeRule.when?.evaluate({ getValue: () => undefined }) !== false && vsCodeRule.keybinding?.getHashCode() === decodeKeybinding(KeyMod.CtrlCmd | KeyCode.KeyB, os)!.getHashCode(),
+			};
+		};
+		const expected = (key: string) => ({ key, agentsWindow: 'workbench.action.agentToggleSidebarVisibility', chatWindow: undefined, vsCodeWindow: true });
+
+		assert.deepStrictEqual({
+			macOS: keyOn(OperatingSystem.Macintosh),
+			linux: keyOn(OperatingSystem.Linux),
+			windows: keyOn(OperatingSystem.Windows),
+		}, {
+			macOS: expected('cmd+b'),
+			linux: expected('ctrl+b'),
+			windows: expected('ctrl+b'),
 		});
 	});
 

@@ -36,6 +36,7 @@ import { isDevContainerWorktreeEnabled } from '../../common/devContainerAgentHos
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { ISessionFileChange, isSessionCreated, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { CHANGES_VIEW_ID } from '../../common/changes.js';
 import { ISessionChangesService } from '../../../../services/sessions/common/sessionChangesService.js';
 import { createWorktreeSuggestionTour } from '../tours/worktreeSuggestionTour.js';
@@ -131,6 +132,12 @@ export interface IWorktreeSuggestionService {
 	/** Whether the user closed the inline hint, which then never shows again. */
 	isHintClosed(reader: IReader | undefined): boolean;
 
+	/**
+	 * Whether the user started a session in a new worktree, after which New Worktree is recommended less
+	 * prominently. A preview starts without one, but records one the user starts during it.
+	 */
+	hasCreatedWorktreeSession(reader: IReader | undefined): boolean;
+
 	/** Stops showing the inline hint. */
 	closeHint(suggestion: IWorktreeSuggestion): void;
 
@@ -152,7 +159,10 @@ export interface IWorktreeSuggestionService {
 	 */
 	setPreview(variant: WorktreeSuggestionVariant | undefined): void;
 
-	/** Forgets earlier responses, so a closed hint and a spotlight that was shown can appear again. */
+	/**
+	 * Forgets earlier responses and sessions started in a new worktree, so a closed hint, a spotlight that
+	 * was shown and the prominent recommendation can appear again.
+	 */
 	reset(): void;
 }
 
@@ -163,9 +173,11 @@ const STATE_STORAGE_KEY = 'sessions.worktreeSuggestion.state';
 interface IWorktreeSuggestionState {
 	/** Whether the user closed the inline hint. */
 	readonly hintClosed: boolean;
+	/** Whether the user started a session in a new worktree. */
+	readonly worktreeSessionCreated: boolean;
 }
 
-const INITIAL_STATE: IWorktreeSuggestionState = { hintClosed: false };
+const INITIAL_STATE: IWorktreeSuggestionState = { hintClosed: false, worktreeSessionCreated: false };
 
 type WorktreeSuggestionAction = 'shown' | 'opened' | 'reviewed' | 'accepted' | 'declined' | 'dismissed';
 
@@ -217,6 +229,7 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 		@ISessionsHostLayoutService private readonly _layoutService: ISessionsHostLayoutService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
 
@@ -253,6 +266,12 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 			watchProviders(event.added);
 		}));
 		watchProviders(_sessionsProvidersService.getProviders({ includeSessionBackends: true }));
+
+		this._register(sessionsManagementService.onDidSendRequest(({ isNewSession, newSessionConfig }) => {
+			if (isNewSession && newSessionConfig?.isolation === 'worktree') {
+				this._recordWorktreeSessionCreated();
+			}
+		}));
 	}
 
 	getSuggestion(session: ISession | undefined, reader: IReader | undefined): IWorktreeSuggestion | undefined {
@@ -412,6 +431,10 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 		this._report(WorktreeSuggestionVariant.InlineHint, 'dismissed', suggestion);
 	}
 
+	hasCreatedWorktreeSession(reader: IReader | undefined): boolean {
+		return this._getState(reader).worktreeSessionCreated;
+	}
+
 	canShowSpotlight(): boolean {
 		return this._preview.get() !== undefined
 			|| this._configurationService.getValue<boolean>(ONBOARDING_ENABLED_CONFIG) !== false && !this._onboardingService.hasBeenShown(WORKTREE_SUGGESTION_TOUR_ID);
@@ -501,9 +524,13 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 		if (this._preview.read(reader) !== undefined) {
 			return this._previewState.read(reader);
 		}
+		return this._getStoredState(reader);
+	}
+
+	private _getStoredState(reader: IReader | undefined): IWorktreeSuggestionState {
 		this._stateChanged.read(reader);
 		const state = this._storageService.getObject<Partial<IWorktreeSuggestionState>>(STATE_STORAGE_KEY, StorageScope.PROFILE);
-		return { hintClosed: state?.hintClosed === true };
+		return { hintClosed: state?.hintClosed === true, worktreeSessionCreated: state?.worktreeSessionCreated === true };
 	}
 
 	private _updateState(update: Partial<IWorktreeSuggestionState>): void {
@@ -512,5 +539,16 @@ export class WorktreeSuggestionService extends Disposable implements IWorktreeSu
 			return;
 		}
 		this._storageService.store(STATE_STORAGE_KEY, { ...this._getState(undefined), ...update }, StorageScope.PROFILE, StorageTarget.MACHINE);
+	}
+
+	/** Unlike a response to a suggestion, a session started in a new worktree is stored during a preview too. */
+	private _recordWorktreeSessionCreated(): void {
+		if (this._preview.get() !== undefined) {
+			this._previewState.set({ ...this._previewState.get(), worktreeSessionCreated: true }, undefined);
+		}
+		const stored = this._getStoredState(undefined);
+		if (!stored.worktreeSessionCreated) {
+			this._storageService.store(STATE_STORAGE_KEY, { ...stored, worktreeSessionCreated: true }, StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
 	}
 }

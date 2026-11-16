@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../../base/common/event.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { autorun, constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { isIMenuItem, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
-import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -27,12 +31,20 @@ import {
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { aiCustomizationManagementSectionRegistry } from '../../../browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
-import { AICustomizationManagementSection, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection, AICustomizationSources, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { createCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../common/customizationMarketplaceInstallService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IConfirmationResult, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
+import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
+import { AICustomizationWorkspaceService } from '../../../browser/aiCustomization/aiCustomizationWorkspaceService.js';
+import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { resolveWorkspaceTargetDirectory } from '../../../browser/aiCustomization/customizationCreatorService.js';
+import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 
 suite('AI customization management contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -47,6 +59,96 @@ suite('AI customization management contribution', () => {
 
 	test('Marketplace is not registered as a separate management section', () => {
 		assert.strictEqual(aiCustomizationManagementSectionRegistry.getDefault(AICustomizationManagementSection.Marketplace), undefined);
+	});
+
+	test('an explicit sessionResource uses its workspace in a different project or an empty editor window', async () => {
+		const resource = URI.parse('agent-host-copilot:/selected-session');
+		const harnessTargets: URI[] = [];
+		const opened: { description: string | undefined; project: string | undefined; root: string | undefined; creationDirectory: string | undefined }[] = [];
+		const instantiationService = workbenchInstantiationService({}, store);
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
+			lastFocusedWidget: upcastPartial<IChatWidget>({
+				input: upcastPartial<IChatWidget['input']>({ pendingDelegationTarget: 'agent-host-claude' }),
+				viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: URI.parse('local:/focused-session') }),
+			}),
+		}));
+		instantiationService.stub(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+			override setActiveSession(target: URI) { harnessTargets.push(target); }
+			override getActiveDescriptor() { return { id: 'agent-host-copilot', label: 'Copilot', icon: Codicon.copilot }; }
+		}());
+		const command = CommandsRegistry.getCommand(AICustomizationManagementCommands.OpenEditor)!;
+		for (const windowRoots of [[URI.file('/window-project')], []]) {
+			const workspaceService = new AICustomizationWorkspaceService(
+				upcastPartial<IWorkspaceContextService>({
+					onDidChangeWorkspaceFolders: Event.None,
+					getWorkspace: () => testWorkspace(...windowRoots),
+				}),
+				upcastPartial<ICommandService>({}),
+				upcastPartial<IPromptsService>({}),
+				upcastPartial<IAgentHostCustomizationService>({
+					onDidChangeCustomizations: Event.None,
+					getClientWorkingDirectoryUris: target => target.toString() === resource.toString() ? [URI.file('/target-project')] : [],
+				}),
+			);
+			instantiationService.stub(IAICustomizationWorkspaceService, workspaceService);
+			instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
+				openEditor: async input => {
+					assert.ok(input instanceof AICustomizationManagementEditorInput);
+					store.add(input);
+					opened.push({
+						description: input.getDescription(),
+						project: workspaceService.activeProjectLabel.get(),
+						root: workspaceService.getActiveProjectRoot()?.path,
+						creationDirectory: resolveWorkspaceTargetDirectory(workspaceService, PromptsType.skill)?.path,
+					});
+					return undefined;
+				},
+			}));
+			await instantiationService.invokeFunction(accessor => command.handler(accessor, { sessionResource: resource }));
+		}
+		assert.deepStrictEqual({ harnessTargets, opened }, {
+			harnessTargets: [resource, resource],
+			opened: Array(2).fill({
+				description: '(Copilot · target-project)',
+				project: 'target-project',
+				root: '/target-project',
+				creationDirectory: '/target-project/.agents/skills',
+			}),
+		});
+	});
+
+	test('session workspace hydration updates the target and clearing it restores the window workspace', () => {
+		const changed = store.add(new Emitter<void>());
+		const resource = URI.parse('remote-devbox-copilot:/selected-session');
+		const targetRoot = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+devbox', path: '/target-project' });
+		let roots: readonly URI[] = [];
+		const service = new AICustomizationWorkspaceService(
+			upcastPartial<IWorkspaceContextService>({
+				onDidChangeWorkspaceFolders: Event.None,
+				getWorkspace: () => testWorkspace(URI.file('/window-project')),
+			}),
+			upcastPartial<ICommandService>({}),
+			upcastPartial<IPromptsService>({}),
+			upcastPartial<IAgentHostCustomizationService>({
+				onDidChangeCustomizations: changed.event,
+				getClientWorkingDirectoryUris: () => roots,
+			}),
+		);
+		const observed: { root: string | undefined; label: string | undefined }[] = [];
+		store.add(autorun(reader => {
+			observed.push({ root: service.activeProjectRoot.read(reader)?.toString(), label: service.activeProjectLabel.read(reader) });
+		}));
+		service.setActiveSessionResource(resource);
+		roots = [targetRoot];
+		changed.fire();
+		service.setActiveSessionResource(undefined);
+		service.setActiveSessionResource(LocalChatSessionUri.forSession('local'));
+		assert.deepStrictEqual(observed, [
+			{ root: URI.file('/window-project').toString(), label: 'window-project' },
+			{ root: undefined, label: undefined },
+			{ root: targetRoot.toString(), label: 'target-project' },
+			{ root: URI.file('/window-project').toString(), label: 'window-project' },
+		]);
 	});
 
 	test('routes deletion of a recorded skill through marketplace uninstall', async () => {

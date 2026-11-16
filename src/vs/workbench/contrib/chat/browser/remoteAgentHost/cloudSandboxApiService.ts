@@ -49,7 +49,7 @@ import { SessionModelInfo } from '../../../../../platform/agentHost/common/state
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
 import { GITHUB_DOT_COM_COPILOT_API_BASE_URI } from '../../../../../platform/github/common/githubEndpoints.js';
-import { GitHubAuthorizationContext, GitHubRequestError, GitHubRequestTimeoutError, isEqualAuthorization } from '../../../../../platform/github/common/githubTypes.js';
+import { GitHubRequestError, GitHubRequestTimeoutError, isEqualAuthorization } from '../../../../../platform/github/common/githubTypes.js';
 import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
 import { ApiRequestOptions, ApiResponse } from '../../../../../platform/github/common/client/request.js';
 import { RequestError } from '../../../../../platform/github/common/types.js';
@@ -69,7 +69,7 @@ import { CloudSandboxHistoryCache } from './cloudSandboxHistoryCache.js';
 import { createCloudSandboxContextTierSchema } from './cloudSandboxSessionConfig.js';
 import { CloudSandboxIdentityTokenProvider, ICloudSandboxIdentityTokenResponse } from './cloudSandboxIdentityTokenProvider.js';
 import { retryAfterSeconds } from './cloudSandboxRateLimit.js';
-import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
+import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../../../../services/github/common/githubService.js';
 
 interface IScannedTask extends Task {
 	readonly hasRepository: boolean;
@@ -255,10 +255,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	private async _getApiClient(session: AuthenticationSession, signal: AbortSignal): Promise<IGitHubAccountClient> {
-		const authorization: GitHubAuthorizationContext = {
-			providerId: this._authenticationProviderId, sessionId: session.id, accountId: session.account.id,
-			scopes: session.scopes, authorizationServer: session.authorizationServer?.toString(),
-		};
+		const authorization = toGitHubAuthorizationContext(this._authenticationProviderId, session);
 		const current = this._apiClient.value?.object;
 		if (current && isEqualAuthorization(current.authorization, authorization)) {
 			return current;
@@ -266,7 +263,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const generation = this._accountGeneration;
 		const lifetime = new DisposableStore();
 		try {
-			const acquired = lifetime.add(await this._githubService.acquireAccountApiClient(authorization, signal));
+			const acquired = lifetime.add(await this._githubService.acquireAccountApiClient(this._authenticationProviderId, session, signal));
 			signal.throwIfAborted();
 			if (generation !== this._accountGeneration || this._store.isDisposed) {
 				throw new CancellationError();
@@ -416,10 +413,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				CancellationToken.toAbortSignal(token, store),
 				CancellationToken.toAbortSignal(this._lifetimeToken, store),
 			]);
-			const client = store.add(await this._githubService.acquireAccountApiClient({
-				providerId: this._authenticationProviderId, sessionId: session.id, accountId: session.account.id,
-				scopes: session.scopes, authorizationServer: session.authorizationServer?.toString(),
-			}, signal));
+			const client = store.add(await this._githubService.acquireAccountApiClient(this._authenticationProviderId, session, signal));
 			const result = await client.environments.mintIdentityToken(signal, { caller: 'mc.tokens.create' });
 			this._telemetry.reportRequest('mintIdentityToken', 'succeeded');
 			return result;
@@ -434,6 +428,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				});
 			}
 			this._telemetry.reportRequest('mintIdentityToken', 'networkError');
+			if (error instanceof GitHubRequestError && error.kind === 'network') {
+				throw new CloudSandboxNetworkError(localize('cloudSandbox.identityNetworkFailed', "The sandbox identity-token request failed because of a network error."));
+			}
 			throw new Error(localize('cloudSandbox.identityClientFailed', "The sandbox identity-token request failed or returned an invalid response."));
 		} finally {
 			store.dispose();
@@ -454,11 +451,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			if (!authentication) {
 				throw new CloudSandboxAuthenticationRequiredError();
 			}
-			const client = store.add(await this._githubService.acquireAccountApiClient({
-				providerId: this._authenticationProviderId, sessionId: authentication.id,
-				accountId: authentication.account.id, scopes: authentication.scopes,
-				authorizationServer: authentication.authorizationServer?.toString(),
-			}, signal));
+			const client = store.add(await this._githubService.acquireAccountApiClient(this._authenticationProviderId, authentication, signal));
 			requested = true;
 			connection = await client.tasks.connectFeed(signal, { caller: 'mc.sessionFeed.connect' });
 			const current = await raceCancellationError(this._resolveGitHubSession(), requestToken);
@@ -544,7 +537,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	async getEnvironment(environmentId: string, token: CancellationToken): Promise<ICloudSandboxEnvironment> {
-		const environment = await this._withApiClient(token, { caller: 'mc.environmentClient.get', priority: 'interactive' },
+		const environment = await this._withApiClient(token, { caller: 'mc.environmentClient.get' },
 			(client, signal, options) => client.environments.get(environmentId, signal, options),
 			{ action: 'get' });
 		// `status` comes from heartbeat age: a stale one means `/connect` will attempt a resume and
@@ -564,7 +557,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		if (!options?.refresh && cached) {
 			return cached;
 		}
-		const environments = await this._withApiClient(token, { caller: 'mc.environmentClient.list', priority: 'interactive' },
+		const environments = await this._withApiClient(token, { caller: 'mc.environmentClient.list' },
 			(client, signal, options) => client.environments.list(signal, options),
 			{ action: 'list environments' });
 		const values = environments.map(({ id, name, kind, status }) => ({ id, name, kind, status }));
@@ -739,7 +732,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			try {
 				telemetry.listOperationCount = (telemetry.listOperationCount ?? 0) + 1;
 				const response = await this._withApiClient(token, {
-					caller: 'mc.taskClient.list', priority: options?.trigger === 'manual' ? 'interactive' : 'background',
+					caller: 'mc.taskClient.list', priority: options?.trigger === 'manual' ? undefined : 'background',
 				}, (client, signal, requestOptions) => client.tasks.list(signal, {
 					...requestOptions, query, maxPages: DISCOVERY_TASK_SCAN_MAX_PAGES, pageLimitBehavior: 'returnPartial',
 				}), { authentication: session });
@@ -1011,7 +1004,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			const source = new CancellationTokenSource(this._lifetimeToken);
 			this._sessionResolutionSources.set(taskId, source);
 			const pending = raceCancellationError((async () => {
-				const full = await this._withApiClient(source.token, { caller: 'mc.taskClient.get', priority: 'interactive' },
+				const full = await this._withApiClient(source.token, { caller: 'mc.taskClient.get' },
 					(client, signal, options) => client.tasks.get(taskId, signal, options), { authentication });
 				if (source.token.isCancellationRequested || generation !== this._accountGeneration || this._store.isDisposed) {
 					throw new CancellationError();
@@ -1572,7 +1565,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	async listModels(token: CancellationToken): Promise<ICloudSandboxModelCatalog> {
-		const catalog = await this._withApiClient(token, { caller: 'mc.models.list', priority: 'interactive' },
+		const catalog = await this._withApiClient(token, { caller: 'mc.models.list' },
 			(client, signal, options) => client.missionControlModels.list(signal, options),
 			{ action: 'model catalog' });
 		const models: SessionModelInfo[] = [];

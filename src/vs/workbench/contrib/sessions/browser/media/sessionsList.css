@@ -13,6 +13,27 @@
 	border-radius: var(--vscode-cornerRadius-large);
 }
 
+.sessions-list-control .session-item .session-scheduled-indicator {
+	display: none;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	/* Match the adjacent action labels' icon width and horizontal padding. */
+	width: calc(var(--vscode-codiconFontSize) + var(--vscode-spacing-size60));
+	margin-right: var(--vscode-spacing-size40);
+	font-size: var(--vscode-codiconFontSize);
+	color: var(--vscode-descriptionForeground);
+
+	&.visible {
+		display: flex;
+		margin-left: auto;
+
+		+ .session-title-toolbar {
+			margin-left: 0;
+		}
+	}
+}
+
 .agent-sessions-navigation-container {
 	.monaco-list-row {
 		left: var(--vscode-spacing-size40);
@@ -354,12 +375,18 @@
 	.monaco-list-row:is(:hover, .hovered):not(.external-application-badge-hovered),
 	.monaco-list-row.focused:not(.selected),
 	.monaco-list:focus-within .monaco-list-row.focused,
-	.session-item.archive-onboarding {
+	.session-item.archive-onboarding:not(.renaming) {
 		.session-title-toolbar {
 			display: block;
 		}
 
-		.session-external-application-badge-title {
+		/* An inline rename gives the actions' width to the title input. */
+		.renaming .session-title-toolbar {
+			display: none;
+		}
+
+		.session-external-application-badge-title,
+		.session-scheduled-indicator.visible {
 			display: none;
 		}
 
@@ -701,7 +728,6 @@
 
 	&.renaming {
 		.session-title,
-		.session-title-toolbar,
 		.session-compact-hover-description,
 		.session-search-hint-title,
 		.session-pending-voice-indicator {
@@ -789,32 +815,6 @@
 			}
 		}
 	}
-}
-
-.sessions-list-control .session-inline-actions {
-	display: flex;
-	align-items: center;
-	min-width: 0;
-	grid-column: 1 / -1;
-
-	.monaco-button {
-		width: auto;
-		min-width: 0;
-		max-width: 100%;
-		font-size: var(--vscode-fontSize-label1);
-		overflow: hidden;
-		white-space: nowrap;
-		text-overflow: ellipsis;
-	}
-
-	&[hidden] {
-		display: none;
-	}
-}
-
-.phone-layout .sessions-list-control .session-inline-actions .monaco-button {
-	min-height: 44px;
-	box-sizing: border-box;
 }
 
 .sessions-list-control.compact {
@@ -1280,10 +1280,6 @@
 		.session-chat-title-input {
 			display: block;
 		}
-
-		.session-title-toolbar {
-			display: none;
-		}
 	}
 
 	.session-approval-row {
@@ -1447,6 +1443,7 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+		color: var(--session-group-interaction-foreground, var(--session-group-foreground, inherit));
 	}
 
 	.session-section-icon {
@@ -1555,7 +1552,28 @@
 
 .sessions-list-control {
 	.monaco-list-row:is(:hover, .hovered) .session-section .session-section-label,
-	.monaco-list-row.focused .session-section .session-section-label,
+	.monaco-list-row.focused .session-section .session-section-label {
+		color: var(--session-group-interaction-foreground, var(--session-group-hover-foreground, var(--vscode-strongForeground)));
+	}
+
+	.monaco-list .monaco-list-row.focused .session-section-label {
+		--session-group-interaction-foreground: var(--session-group-inactive-focus-foreground);
+	}
+
+	.monaco-list .monaco-list-row.selected .session-section-label {
+		--session-group-interaction-foreground: var(--session-group-inactive-selection-foreground);
+	}
+
+	.monaco-list:focus .monaco-list-row.focused .session-section-label,
+	.monaco-list.sticky-scroll-focused .monaco-tree-sticky-row.focused .session-section-label {
+		--session-group-interaction-foreground: var(--session-group-focus-foreground);
+	}
+
+	.monaco-list:focus .monaco-list-row.selected .session-section-label,
+	.monaco-list.sticky-scroll-focused .monaco-tree-sticky-row.selected .session-section-label {
+		--session-group-interaction-foreground: var(--session-group-selection-foreground);
+	}
+
 	.monaco-list-row:is(:hover, .hovered) .session-show-more-folders .session-show-more-label,
 	.monaco-list-row.focused .session-show-more-folders .session-show-more-label {
 		color: var(--vscode-strongForeground);
@@ -1939,6 +1957,16 @@
 		top: 50%;
 		transform: translateY(-50%);
 		height: auto;
+	}
+
+	.monaco-list-row .renaming .session-title-toolbar {
+		display: none;
+	}
+
+	/* Give the space reserved for the hidden actions to the rename input. */
+	.session-item.renaming .session-main,
+	.session-chat-item.renaming .session-chat-title-row {
+		padding-right: 0;
 	}
 
 	.monaco-list-row .session-external-application-badge-title {

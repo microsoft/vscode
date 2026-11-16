@@ -47,6 +47,7 @@ import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
 import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { buildModalNavigationForPagedList } from '../../extensions/browser/extensionsViewer.js';
+import { IMcpGalleryManifestService } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
 
 export interface McpServerListViewOptions {
 	showMarketplaceWelcome?: boolean;
@@ -79,6 +80,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 	private readonly modalNavigationDisposable = this._register(new MutableDisposable());
 	private input: IQueryResult | undefined;
 	private currentQuery = '@mcp';
+	private queryGeneration = 0;
 
 	constructor(
 		private readonly mpcViewOptions: McpServerListViewOptions,
@@ -95,14 +97,16 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ILogService private readonly logService: ILogService,
+		@IMcpGalleryManifestService mcpGalleryManifestService: IMcpGalleryManifestService,
 	) {
 		super(options, keybindingService, contextMenuService, marketplaceConfigurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this._register(this.marketplaceConfigurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled) && this.isBodyVisible()) {
-				void this.show(this.currentQuery);
+			if (event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)) {
+				this.refreshCurrentQuery();
 			}
 		}));
+		this._register(mcpGalleryManifestService.onDidChangeMcpGalleryManifest(() => this.refreshCurrentQuery()));
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -214,33 +218,50 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 
 	async show(query: string): Promise<IPagedModel<IWorkbenchMcpServer>> {
 		this.currentQuery = query;
-		if (this.input) {
-			this.input.disposables.dispose();
-			this.input = undefined;
-		}
+		const queryGeneration = ++this.queryGeneration;
 
 		if (this.mpcViewOptions.showMarketplaceWelcome && this.marketplaceConfigurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true) {
-			this.input = { model: new PagedModel([]), disposables: new DisposableStore(), showWelcomeContent: true };
-		} else {
-			this.input = await this.query(query.trim());
+			const input = { model: new PagedModel<IWorkbenchMcpServer>([]), disposables: new DisposableStore(), showWelcomeContent: true };
+			this.setInput(input);
+			return input.model;
 		}
 
-		this.renderInput();
+		this.setInput({ model: new PagedModel([]), disposables: new DisposableStore() }, false);
+		const input = await this.query(query.trim());
+		if (queryGeneration !== this.queryGeneration) {
+			input.disposables.dispose();
+			return this.input?.model ?? new PagedModel([]);
+		}
+		this.setInput(input);
+		return input.model;
+	}
 
-		if (this.input.onDidChangeModel) {
-			this.input.disposables.add(this.input.onDidChangeModel(model => {
-				if (!this.input) {
+	private refreshCurrentQuery(): void {
+		if (this.isBodyVisible()) {
+			void this.show(this.currentQuery);
+		} else {
+			++this.queryGeneration;
+			this.setInput({ model: new PagedModel([]), disposables: new DisposableStore() }, false);
+		}
+	}
+
+	private setInput(input: IQueryResult, announce = true): void {
+		this.input?.disposables.dispose();
+		this.input = input;
+		this.renderInput(announce);
+
+		if (input.onDidChangeModel) {
+			input.disposables.add(input.onDidChangeModel(model => {
+				if (this.input !== input) {
 					return;
 				}
-				this.input.model = model;
+				input.model = model;
 				this.renderInput();
 			}));
 		}
-
-		return this.input.model;
 	}
 
-	private renderInput() {
+	private renderInput(announce = true) {
 		if (!this.input) {
 			return;
 		}
@@ -249,7 +270,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		}
 		this.showWelcomeContent(!!this.input.showWelcomeContent);
 		if (!this.input.showWelcomeContent) {
-			this.updateBody();
+			this.updateBody(undefined, announce);
 		}
 	}
 
@@ -268,7 +289,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		}));
 	}
 
-	private updateBody(message?: Message): void {
+	private updateBody(message?: Message, announce = true): void {
 		if (this.bodyTemplate) {
 
 			const count = this.input?.model.length ?? 0;
@@ -283,7 +304,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 					this.bodyTemplate.messageSeverityIcon.className = '';
 					this.bodyTemplate.messageBox.textContent = localize('no extensions found', "No MCP Servers found.");
 				}
-				if (this.bodyTemplate.messageBox.textContent) {
+				if (announce && this.bodyTemplate.messageBox.textContent) {
 					alert(this.bodyTemplate.messageBox.textContent);
 				}
 			}

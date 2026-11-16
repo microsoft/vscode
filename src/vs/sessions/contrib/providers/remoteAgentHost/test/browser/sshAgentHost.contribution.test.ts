@@ -12,7 +12,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { getEntryAddress, IRemoteAgentHostService, IRemoteAgentHostSSHConnection, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, type IRemoteAgentHostConnectionInfo, type IRemoteAgentHostEntry } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { ISSHRemoteAgentHostService, SSHHostKeyDeniedError } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { ISSHRemoteAgentHostService, SSHAuthenticationFailedError, SSHHostKeyDeniedError } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -115,6 +115,7 @@ suite('SSHAgentHostContribution reconnect ownership', () => {
 		for (const { name, error } of [
 			{ name: 'cancellation', error: new CancellationError() },
 			{ name: 'host key denial', error: new SSHHostKeyDeniedError('machine') },
+			{ name: 'authentication failure', error: new SSHAuthenticationFailedError('Credentials rejected') },
 			{ name: 'network failure', error: new Error('connect ETIMEDOUT') },
 		]) {
 			test(`${name} is not retried by provider events or timers (auto-connect ${autoConnect})`, () => runWithFakedTimers({}, async () => {
@@ -287,14 +288,16 @@ suite('SSH reconnect state', () => {
 suite('shouldPauseSSHReconnectAfterFailure', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('pauses reconnect after cancellation or host key denial but not after regular failures', () => {
+	test('pauses reconnect after cancellation, host key denial, or authentication rejection but not after regular failures', () => {
 		assert.deepStrictEqual({
 			cancellation: shouldPauseSSHReconnectAfterFailure(new CancellationError()),
 			hostKeyDenial: shouldPauseSSHReconnectAfterFailure(new SSHHostKeyDeniedError('test-host')),
+			authenticationFailure: shouldPauseSSHReconnectAfterFailure(new SSHAuthenticationFailedError('Credentials rejected')),
 			regularError: shouldPauseSSHReconnectAfterFailure(new Error('boom')),
 		}, {
 			cancellation: true,
 			hostKeyDenial: true,
+			authenticationFailure: true,
 			regularError: false,
 		});
 	});

@@ -6,12 +6,14 @@
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { autorun, IObservable, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { AGENT_HOST_PULL_REQUEST_OPERATION_IDS } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
-import { DesktopChangesEditorTransitionContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext } from '../../sessions/common/contextkeys.js';
+import { ArtifactIntegrationsSettingId } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { DesktopChangesEditorTransitionContext, SessionArtifactIntegrationsEnabledContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext } from '../../sessions/common/contextkeys.js';
 import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { IGitHubSessionPullRequestObservables } from '../../sessions/browser/github/githubService.js';
 import { IChangesSessionObservables } from '../../sessions/common/changesViewService.js';
@@ -56,11 +58,18 @@ export function registerSessionActionContextKeyBinder(binder: SessionActionConte
 export function bindSessionActionContextKeys(instantiationService: IInstantiationService, source: ISessionActionContextKeysSource, contextKeyService: IContextKeyService): IDisposable {
 	const store = new DisposableStore();
 	store.add(instantiationService.invokeFunction(accessor => bindChangesetOperationContextKeys(source, contextKeyService, accessor.get(ILogService))));
+	store.add(instantiationService.invokeFunction(accessor => bindArtifactIntegrationsContextKey(source, contextKeyService, accessor.get(IConfigurationService))));
 	store.add(bindSessionCIChecksContextKeys(source.pullRequest, contextKeyService));
 	for (const binder of sessionActionContextKeyBinders) {
 		store.add(instantiationService.invokeFunction(accessor => binder(accessor, source, contextKeyService)));
 	}
 	return store;
+}
+
+function bindArtifactIntegrationsContextKey(source: ISessionActionContextKeysSource, contextKeyService: IContextKeyService, configurationService: IConfigurationService): IDisposable {
+	const enabled = observableConfigValue(ArtifactIntegrationsSettingId, false, configurationService);
+	return bindContextKey(SessionArtifactIntegrationsEnabledContext, contextKeyService, reader =>
+		enabled.read(reader) === true && source.session.read(reader)?.capabilities.read(reader).supportsArtifactIntegrations === true);
 }
 
 function bindChangesetOperationContextKeys(source: ISessionActionContextKeysSource, contextKeyService: IContextKeyService, logService: ILogService): IDisposable {

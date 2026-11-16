@@ -6,10 +6,11 @@
 import assert from 'assert';
 import { spy, stub } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
+import { IAction, Separator } from '../../../../../../../base/common/actions.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { addDisposableListener, scheduleAtNextAnimationFrame } from '../../../../../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { Event } from '../../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
@@ -30,14 +31,20 @@ import { IConfigurationService } from '../../../../../../../platform/configurati
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IMarkdownRenderer, MarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { BrowserResourceService } from '../../../../../../../platform/files/browser/browserResourceService.js';
-import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { IOpenerService, OpenOptions } from '../../../../../../../platform/opener/common/opener.js';
+import { IFileDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
+import { IEditorOptions } from '../../../../../../../platform/editor/common/editor.js';
+import { AccessibleViewType } from '../../../../../../../platform/accessibility/browser/accessibleView.js';
+import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostFileSystemProvider, IRemoteFilesystemConnection } from '../../../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { ContentEncoding, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceType } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { createInMemoryFileService } from '../../../../../../../platform/files/test/common/inMemoryFileService.js';
-import { NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { getSizeRegistry } from '../../../../../../../platform/theme/common/sizeRegistry.js';
+import { ISizeService } from '../../../../../../../platform/theme/common/sizeService.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatMarkdownContentPart, IChatMarkdownContentPartOptions } from '../../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
@@ -56,12 +63,39 @@ import { getChatMarkdownImageId } from '../../../../common/chatImageExtraction.j
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
 import { ChatRequestSlashPromptPart } from '../../../../common/requestParser/chatParserTypes.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
+import { IChatLayoutService } from '../../../../common/widget/chatLayoutService.js';
+import { ChatLayoutService } from '../../../../browser/widget/chatLayoutService.js';
 import { MarkedKatexSupport } from '../../../../../markdown/browser/markedKatexSupport.js';
-import { rewriteAgentHostLinkTarget } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { messageAttachmentsToVariableData, rewriteAgentHostLinkTarget } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { MessageAttachmentKind, type MessageAttachment } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { agentHostConnectionKinds } from '../../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
+import { ChatRequestParser } from '../../../../common/requestParser/chatRequestParser.js';
+import { IChatAgentService } from '../../../../common/participants/chatAgents.js';
+import { IChatSlashCommandService } from '../../../../common/participants/chatSlashCommands.js';
+import { IChatVariablesService } from '../../../../common/attachments/chatVariables.js';
+import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ToolAndToolSetEnablementMap } from '../../../../common/tools/languageModelToolsService.js';
+import { getInlineRequestAttachments } from '../../../../common/attachments/chatInlineAttachments.js';
 import { IAiEditTelemetryService } from '../../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { IViewDescriptorService } from '../../../../../../common/views.js';
 import { IDisposableReference } from '../../../../browser/widget/chatContentParts/chatCollections.js';
 import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
+import { ChatHtmlPreviewPart, isHtmlPreviewCodeBlock } from '../../../../browser/widget/chatContentParts/chatHtmlPreviewPart.js';
+import { chatNativeComponentsRenderer } from '../../../../browser/widget/chatContentParts/chatNativeComponentsPart.js';
+import { createHtmlPreviewDocument } from '../../../../browser/widget/chatContentParts/chatHtmlPreviewDocument.js';
+import { ChatHtmlPreviewAccessibleView, ChatHtmlPreviewEditorInput } from '../../../../browser/widget/chatContentParts/chatHtmlPreviewEditorInput.js';
+import { IOverlayWebview, IWebviewElement, IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED, WebviewInitInfo } from '../../../../../webview/browser/webview.js';
+import { CONTEXT_ACTIVE_WEBVIEW_PANEL_ID } from '../../../../../webviewPanel/browser/webviewEditor.js';
+import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
+import { IChatWidgetService } from '../../../../browser/chat.js';
+import { IEditorPane } from '../../../../../../common/editor.js';
+import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
+import { IWorkbenchLayoutService } from '../../../../../../services/layout/browser/layoutService.js';
+import { OverlayWebview } from '../../../../../webview/browser/overlayWebview.js';
+import { EditorInput } from '../../../../../../common/editor/editorInput.js';
+import { isWeb } from '../../../../../../../base/common/platform.js';
+import { Schemas } from '../../../../../../../base/common/network.js';
+import { BrowserViewEditorId } from '../../../../../browserView/common/browserView.js';
 
 suite('ChatMarkdownContentPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -82,6 +116,7 @@ suite('ChatMarkdownContentPart', () => {
 		return {
 			get(): IDisposableReference<CodeBlockPart> {
 				const element = mainWindow.document.createElement('div');
+				element.tabIndex = 0;
 				const mockPart = {
 					element,
 					get uri() { return undefined; },
@@ -90,7 +125,7 @@ suite('ChatMarkdownContentPart', () => {
 						renderedCodeBlockWidths.push(width);
 					},
 					layout() { },
-					focus() { },
+					focus() { element.focus(); },
 					reset() { },
 					onDidRemount() { },
 				} as unknown as CodeBlockPart;
@@ -281,10 +316,10 @@ suite('ChatMarkdownContentPart', () => {
 			const text = `/${name}`;
 			const part = new ChatRequestSlashPromptPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), name);
 			const markdown = decorationsRenderer.convertParsedRequestToMarkdown(URI.parse('chat-session://test/session1'), { text, parts: [part] });
-			const rendered = disposables.add(renderer.render(new MarkdownString(markdown)));
+			const rendered = disposables.add(renderer.render(markdown));
 			const anchor = rendered.element.querySelector('a');
 			const href = anchor?.getAttribute('data-href');
-			disposables.add(decorationsRenderer.walkTreeAndAnnotateReferenceLinks({ kind: 'markdownContent', content: new MarkdownString(markdown) }, rendered.element));
+			disposables.add(decorationsRenderer.walkTreeAndAnnotateReferenceLinks({ kind: 'markdownContent', content: markdown }, rendered.element));
 			return {
 				text: rendered.element.textContent,
 				decorationCount: rendered.element.querySelectorAll('.chat-resource-widget').length,
@@ -293,6 +328,59 @@ suite('ChatMarkdownContentPart', () => {
 		});
 		assert.deepStrictEqual(actual, names.map(name => ({ text: `/${name}`, decorationCount: 1, href: `http://_vscodedecoration_?${JSON.stringify({ title: name })}` })));
 	});
+
+	for (const kind of agentHostConnectionKinds) {
+		test(`opens sent skill references through resource widgets by click and keyboard (${kind.name})`, async () => {
+			const text = '/review and /review /compact';
+			const hostResources = [URI.file('/workspace/review (one)/SKILL.md'), URI.parse('custom-skill:/review?view=with%20spaces&bare&vscodeLinkType=opaque#details')];
+			const attachments: MessageAttachment[] = hostResources.map((uri, index) => ({
+				type: MessageAttachmentKind.Resource, uri: uri.toString(), label: '/review', displayKind: 'skill',
+				range: { start: { line: 0, character: index * 12 }, end: { line: 0, character: index * 12 + 7 } },
+				...(index === 0 ? { _meta: { uri: 'file:///wrong/SKILL.md' } } : {}),
+			}));
+			attachments.push({
+				type: MessageAttachmentKind.Simple, label: '/compact', displayKind: 'command', _meta: { command: 'compact' },
+				range: { start: { line: 0, character: 20 }, end: { line: 0, character: 28 } },
+			});
+			const variables = messageAttachmentsToVariableData(attachments, 'test', text, kind.resourceUris)!.variables;
+			const parser = new ChatRequestParser(
+				upcastPartial<IChatAgentService>({ getDefaultAgent: () => undefined }),
+				upcastPartial<IChatVariablesService>({}),
+				upcastPartial<IChatSlashCommandService>({ getCommands: () => [] }),
+				upcastPartial<IPromptsService>({ hasPromptSlashCommand: () => false, isValidSlashCommandName: () => false }),
+			);
+			const parsed = parser.parseChatRequestWithReferences(variables.map(variable => ({
+				id: variable.id, data: variable.value, _meta: variable._meta,
+				range: new Range(1, variable.range!.start + 1, 1, variable.range!.endExclusive + 1),
+			})), ToolAndToolSetEnablementMap.fromEntries([]), text);
+			const inlineAttachments = getInlineRequestAttachments(parsed.parts, variables, text);
+			const decorations = disposables.add(instantiationService.createInstance(ChatMarkdownDecorationsRenderer));
+			const markdown = decorations.convertParsedRequestToMarkdown(URI.parse('chat-session://test/session1'), parsed, new Set(inlineAttachments.keys()));
+			const opens: string[] = [];
+			instantiationService.stub(IOpenerService, new class extends mock<IOpenerService>() {
+				override async open(resource: URI | string): Promise<boolean> {
+					opens.push(resource.toString());
+					return true;
+				}
+			}());
+			renderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
+			const rendered = disposables.add(renderer.render(markdown));
+			disposables.add(decorations.walkTreeAndAnnotateReferenceLinks({ kind: 'markdownContent', content: markdown }, rendered.element));
+			const anchors = rendered.element.querySelectorAll<HTMLAnchorElement>('.chat-inline-anchor-widget');
+			assert.strictEqual(anchors.length, 2);
+			anchors[0].click();
+			anchors[1].dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 13, bubbles: true, cancelable: true }));
+			anchors[0].dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 32, bubbles: true, cancelable: true }));
+			await timeout(0);
+			const resources = [kind.toClient(hostResources[0]), kind.resourceUris.fromAgentHost(hostResources[1])].map(uri => uri.toString());
+			assert.deepStrictEqual({
+				opens,
+				labels: Array.from(anchors, anchor => anchor.textContent),
+				commandDecorations: rendered.element.querySelectorAll('.chat-resource-widget').length,
+				inlineAttachments: inlineAttachments.size,
+			}, { opens: [resources[0], resources[1], resources[0]], labels: ['/review', '/review'], commandDecorations: 1, inlineAttachments: 0 });
+		});
+	}
 
 	test('decorates a response with 1000 ordinary links and one preview link in a single anchor scan', () => {
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
@@ -1137,6 +1225,1098 @@ suite('ChatMarkdownContentPart', () => {
 		assert.strictEqual(part.codeblocks[0].languageId, 'mermaid');
 		assert.ok(part.domNode.querySelector('.chat-output-code-block'));
 		assert.ok(part.domNode.textContent?.includes('Rendering code block'));
+	});
+
+	suite('HTML previews', () => {
+		// WebKit never runs animation frame callbacks in a sandboxed document without allow-scripts, so wait on
+		// the host window's frame, which also renders these same-origin preview iframes.
+		function nextHostFrame(): Promise<void> {
+			return new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		}
+
+		class TestPreviewWebview extends mock<IWebviewElement & IOverlayWebview>() {
+			html = '';
+			disposed = false;
+			remounts = 0;
+			override isFocused = false;
+			readonly fatalError = disposables.add(new Emitter<{ message: string }>());
+			override readonly onFatalError = this.fatalError.event;
+			override readonly onDidWheel = Event.None;
+			override readonly onDidDispose = Event.None;
+			override readonly onDidFocus = Event.None;
+			override readonly onDidBlur = Event.None;
+			override readonly onDidClickLink = Event.None;
+			override readonly onMessage = Event.None;
+			override readonly onMissingCsp = Event.None;
+			override readonly onDidUpdateState = Event.None;
+			readonly scroll = disposables.add(new Emitter<{ scrollYPercentage: number }>());
+			override readonly onDidScroll = this.scroll.event;
+			override initialScrollProgress = 0;
+			override state: string | undefined;
+			override readonly intrinsicContentSize = observableValue<{ width: number; height: number } | undefined>('preview size', undefined);
+			override setHtml(html: string): void { this.html = html; }
+			override setContextKeyService(): void { }
+			override mountTo(): void { }
+			override reinitializeAfterDismount(): void { this.remounts++; }
+			override dispose(): void { this.disposed = true; }
+			override focus(): void { }
+		}
+
+		let webviews: { init: WebviewInitInfo; webview: TestPreviewWebview }[];
+		let contextMenu: Parameters<IContextMenuService['showContextMenu']>[0] | undefined;
+		const html = '<style>h2 { color: red }</style><h2>Quarterly report</h2><details><summary>More</summary>Details</details>';
+		const fenced = (text = html, fence = '```') => `${fence}html-preview\n${text}\n${fence}`;
+		const options = { renderHtmlPreviews: true };
+
+		function action(part: ChatMarkdownContentPart, label: string): IAction {
+			part.domNode.querySelector('.chat-html-preview')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			const action = contextMenu?.getActions?.().find(action => action.label === label);
+			assert.ok(action, `Missing preview action: ${label}`);
+			return action;
+		}
+
+		setup(() => {
+			webviews = [];
+			contextMenu = undefined;
+			instantiationService.stub(IContextMenuService, {
+				showContextMenu: delegate => { contextMenu = delegate; },
+				onDidHideContextMenu: Event.None,
+			});
+			instantiationService.stub(IChatLayoutService, disposables.add(instantiationService.createInstance(ChatLayoutService)));
+			instantiationService.stub(ISizeService, {
+				onDidChangeSizes: Event.None,
+				getSize: (id, theme) => getSizeRegistry().resolveDefaultSize(id, theme),
+			});
+			instantiationService.stub(IWebviewService, new class extends mock<IWebviewService>() {
+				override createWebviewElement(init: WebviewInitInfo): IWebviewElement {
+					const webview = new TestPreviewWebview();
+					webviews.push({ init, webview });
+					return webview;
+				}
+				override createWebviewOverlay(init: WebviewInitInfo): IOverlayWebview {
+					const webview = new TestPreviewWebview();
+					webviews.push({ init, webview });
+					return webview;
+				}
+			}());
+			instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() { }());
+		});
+
+		test('renders an explicit response preview in a restricted webview and retains its source', () => {
+			const part = createMarkdownPart(fenced(), undefined, false, false, options);
+			const document = new DOMParser().parseFromString(webviews[0].webview.html, 'text/html');
+			assert.deepStrictEqual({
+				previews: webviews.length,
+				contentOptions: webviews[0].init.contentOptions,
+				serviceWorkerDisabled: webviews[0].init.options.disableServiceWorker,
+				title: webviews[0].init.title,
+				heading: document.querySelector('h2')?.textContent,
+				style: document.querySelector('body style')?.textContent,
+				source: renderedCodeBlocks.map(block => ({ language: block.languageId, text: block.text })),
+				sourceHidden: part.domNode.querySelector<HTMLElement>('.chat-html-preview-source')?.hidden,
+				noticeHidden: part.domNode.querySelector<HTMLElement>('.chat-html-preview-notice')?.hidden,
+				chrome: part.domNode.querySelectorAll('.chat-html-preview-header, .chat-html-preview-actions').length,
+				outputRenderers: renderedCodeBlockOutputs.length,
+			}, {
+				previews: 1,
+				contentOptions: { allowScripts: false, allowForms: false, enableCommandUris: false, localResourceRoots: [] },
+				serviceWorkerDisabled: true,
+				title: 'HTML preview for code block 1',
+				heading: 'Quarterly report',
+				style: 'h2 { color: red }',
+				source: [{ language: 'html', text: html }],
+				sourceHidden: true,
+				noticeHidden: true,
+				chrome: 0,
+				outputRenderers: 0,
+			});
+		});
+
+		test('keeps inline chrome transparent and uses short content height without a card minimum', () => {
+			const part = createMarkdownPart(fenced('<p>Short report</p>'), undefined, false, false, options);
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			webviews[0].webview.intrinsicContentSize.set({ width: 500, height: 24 }, undefined);
+			const preview = part.domNode.querySelector<HTMLElement>('.chat-html-preview')!;
+			const style = mainWindow.getComputedStyle(preview);
+			assert.deepStrictEqual({
+				background: style.backgroundColor,
+				border: style.borderTopWidth,
+				height: part.domNode.querySelector('.chat-html-preview-content')!.getBoundingClientRect().height,
+				label: preview.getAttribute('aria-label'),
+				webviewActions: webviews[0].init.options.getContextMenuActions!().filter(action => !(action instanceof Separator)).map(action => action.label),
+			}, { background: 'rgba(0, 0, 0, 0)', border: '0px', height: 24, label: 'HTML preview for code block 1', webviewActions: ['Open Preview', 'Show Source', 'Save HTML...'] });
+		});
+
+		test('uses chat typography and refreshes it when chat font settings change', async () => {
+			const part = createMarkdownPart(fenced(), undefined, false, false, options);
+			const theme = { 'vscode-font-family': 'system-ui', 'vscode-font-size': '13px', 'vscode-foreground': '#123456' };
+			const before = webviews[0].init.options.transformCssVariables!(theme);
+			const configuration = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			await configuration.setUserConfiguration('chat.fontFamily', 'serif');
+			await configuration.setUserConfiguration('chat.fontSize', 18);
+			configuration.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: key => key === 'chat.fontFamily' || key === 'chat.fontSize',
+				affectedKeys: new Set(['chat.fontFamily', 'chat.fontSize']),
+				source: 1,
+				change: { keys: ['chat.fontFamily', 'chat.fontSize'], overrides: [] },
+			});
+			assert.deepStrictEqual({
+				before,
+				after: webviews.at(-1)!.init.options.transformCssVariables!(theme),
+				oldDisposed: webviews[0].webview.disposed,
+				sourceHidden: part.domNode.querySelector<HTMLElement>('.chat-html-preview-source')!.hidden,
+			}, {
+				before: theme,
+				after: { ...theme, 'vscode-font-family': 'serif', 'vscode-font-size': '18px' },
+				oldDisposed: true,
+				sourceHidden: true,
+			});
+		});
+
+		test('does not reinterpret normal code, requests, incomplete fences, filtered responses, or annotated files', () => {
+			const request = {
+				...createRenderContext(),
+				element: upcastPartial<IChatRequestViewModel>({
+					id: 'request',
+					sessionResource: URI.parse('chat-session://test/session1'),
+					message: { text: fenced(), parts: [] },
+					contentReferences: [],
+				}),
+			};
+			const filtered = createRenderContext();
+			Object.assign(filtered.element, { errorDetails: { responseIsFiltered: true, message: 'Filtered' } });
+			const cases = [
+				{ markdown: fenced().replace('html-preview', 'html'), context: createRenderContext(), options },
+				{ markdown: fenced(), context: createRenderContext(), options: {} },
+				{ markdown: fenced(), context: request, options },
+				{ markdown: '```html-preview\n<h2>Still streaming</h2>', context: createRenderContext(false), options },
+				{ markdown: '```html-preview\n<h2>Stopped without closing fence</h2>', context: createRenderContext(), options },
+				{ markdown: fenced(html, '````').slice(0, -1), context: createRenderContext(), options },
+				{ markdown: fenced(), context: filtered, options },
+				{ markdown: fenced(`${html}\n<vscode_codeblock_uri>file:///report.html</vscode_codeblock_uri>`), context: createRenderContext(), options },
+			];
+			const results = cases.map(testCase => {
+				const part = createMarkdownPart(testCase.markdown, testCase.context, true, false, testCase.options);
+				return { preview: !!part.domNode.querySelector('.chat-html-preview'), codeblocks: part.codeblocks.length };
+			});
+			assert.deepStrictEqual({ results, webviews: webviews.length }, {
+				results: cases.map(() => ({ preview: false, codeblocks: 1 })),
+				webviews: 0,
+			});
+		});
+
+		test('accepts closed backtick and tilde fences, not short or mismatched closing fences', () => {
+			assert.deepStrictEqual([
+				['html-preview', fenced()],
+				['HTML-PREVIEW', fenced(html, '~~~~')],
+				['html-preview', fenced(html, '````')],
+				['html-preview', fenced(html, '````').slice(0, -1)],
+				['html-preview', '```html-preview\n<p>Hi</p>\n~~~'],
+				['html-preview', undefined],
+				['html', fenced()],
+			].map(([language, raw]) => isHtmlPreviewCodeBlock(language!, raw)), [true, true, true, false, false, false, false]);
+			createMarkdownPart(fenced(html, '~~~'), createRenderContext(false), true, false, options);
+			assert.strictEqual(webviews.length, 1);
+		});
+
+		test('leaves invalidly indented closing fences as source, including stopped responses', () => {
+			const results = [false, true].flatMap(complete => [0, 3, 4].map(indentation => {
+				const count = webviews.length;
+				const markdown = '```html-preview\n<h2>Report</h2>\n' + ' '.repeat(indentation) + '```';
+				const context = createRenderContext(complete);
+				if (complete) {
+					Object.assign(context.element, { isCanceled: true });
+				}
+				const part = createMarkdownPart(markdown, context, true, false, options);
+				return { preview: !!part.domNode.querySelector('.chat-html-preview'), created: webviews.length > count };
+			}));
+			assert.deepStrictEqual(results, [true, true, false, true, true, false].map(preview => ({ preview, created: preview })));
+		});
+
+		test('focuses the preview context menu and source editor without permanent controls', async () => {
+			const part = createMarkdownPart(fenced(), undefined, false, false, options);
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			part.codeblocks[0].focus();
+			const preview = { focused: part.codeblocks[0].isFocused, region: mainWindow.document.activeElement === part.domNode.querySelector('.chat-html-preview') };
+			mainWindow.document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'F10', keyCode: 121, shiftKey: true, bubbles: true, cancelable: true }));
+			const menuLabels = contextMenu!.getActions!().filter(action => !(action instanceof Separator)).map(action => action.label);
+			await action(part, 'Show Source').run();
+			part.codeblocks[0].focus();
+			const source = { focused: part.codeblocks[0].isFocused, editor: part.domNode.querySelector('.chat-html-preview-source')?.contains(mainWindow.document.activeElement) };
+			assert.deepStrictEqual({ preview, source, menuLabels }, {
+				preview: { focused: true, region: true },
+				source: { focused: true, editor: true },
+				menuLabels: ['Open Preview', 'Show Source', 'Save HTML...'],
+			});
+		});
+
+		test('preserves the source toggle and webview while the rest of the response streams', async () => {
+			const part = createMarkdownPart(fenced(), createRenderContext(false), true, false, options);
+			const sourceAction = action(part, 'Show Source');
+			await sourceAction.run();
+			const updated = part.tryIncrementalUpdate({ kind: 'markdownContent', content: new MarkdownString(`${fenced()}\n\nExplanation.`) });
+			assert.deepStrictEqual({
+				updated,
+				webviews: webviews.length,
+				disposed: webviews[0].webview.disposed,
+				sameAction: sourceAction === action(part, 'Show Source'),
+				checked: sourceAction.checked,
+				sourceHidden: part.domNode.querySelector<HTMLElement>('.chat-html-preview-source')?.hidden,
+				previewHidden: part.domNode.querySelector<HTMLElement>('.chat-html-preview-content')?.hidden,
+				sourceRenders: renderedCodeBlocks.length,
+				remounts: webviews[0].webview.remounts,
+			}, { updated: true, webviews: 1, disposed: false, sameAction: true, checked: true, sourceHidden: false, previewHidden: true, sourceRenders: 1, remounts: 0 });
+		});
+
+		test('uses the full content height and replaces its detached webview on remount', () => {
+			const visibility = disposables.add(new Emitter<boolean>());
+			const part = createMarkdownPart(fenced(), { ...createRenderContext(), onDidChangeVisibility: visibility.event }, false, false, options);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			mainWindow.document.body.appendChild(part.domNode);
+			const webview = webviews[0].webview;
+			webview.intrinsicContentSize.set({ width: 500, height: 100_000 }, undefined);
+			const preview = part.domNode.querySelector<HTMLElement>('.chat-html-preview-content')!;
+			const height = preview.style.height;
+			const measuredHeight = preview.getBoundingClientRect().height;
+			part.onDidRemount();
+			const previousDisposed = webview.disposed;
+			webviews[1].webview.intrinsicContentSize.set({ width: 0, height: 0 }, undefined);
+			const loadingHeight = part.domNode.querySelector<HTMLElement>('.chat-html-preview-content')?.style.height;
+			visibility.fire(true);
+			part.dispose();
+			assert.deepStrictEqual({
+				height,
+				measuredHeight,
+				loadingHeight,
+				previousDisposed,
+				created: webviews.length,
+				reusedDetachedFrame: webviews.some(view => view.webview.remounts > 0),
+				allDisposed: webviews.every(view => view.webview.disposed),
+			}, { height: '100000px', measuredHeight: 100000, loadingHeight: '100000px', previousDisposed: true, created: 3, reusedDetachedFrame: false, allDisposed: true });
+		});
+
+		test('keeps source mode on remount and creates a fresh webview when returning to preview', async () => {
+			const part = createMarkdownPart(fenced(), undefined, false, false, options);
+			await action(part, 'Show Source').run();
+			part.onDidRemount();
+			const inSource = {
+				created: webviews.length,
+				oldDisposed: webviews[0].webview.disposed,
+				sourceHidden: part.domNode.querySelector<HTMLElement>('.chat-html-preview-source')?.hidden,
+			};
+			await action(part, 'Show Source').run();
+			assert.deepStrictEqual({
+				inSource,
+				createdAfterToggle: webviews.length,
+				previewHidden: part.domNode.querySelector<HTMLElement>('.chat-html-preview-content')?.hidden,
+				sourceChecked: action(part, 'Show Source').checked,
+			}, { inSource: { created: 1, oldDisposed: true, sourceHidden: false }, createdAfterToggle: 2, previewHidden: false, sourceChecked: false });
+		});
+
+		test('restores source mode and reserved height after rebuilding a recycled HTML part', async () => {
+			const context = createRenderContext();
+			const part = createMarkdownPart(fenced(), context, false, false, options);
+			webviews[0].webview.intrinsicContentSize.set({ width: 500, height: 480 }, undefined);
+			await action(part, 'Show Source').run();
+			part.dispose();
+
+			const restored = createMarkdownPart(fenced(), context, false, false, options);
+			const beforeToggle = {
+				created: webviews.length,
+				sourceHidden: restored.domNode.querySelector<HTMLElement>('.chat-html-preview-source')?.hidden,
+				checked: action(restored, 'Show Source').checked,
+				height: restored.domNode.querySelector<HTMLElement>('.chat-html-preview-content')?.style.height,
+			};
+			await action(restored, 'Show Source').run();
+			const other = createRenderContext();
+			Object.assign(other.element, { id: 'another-response' });
+			const separate = createMarkdownPart(fenced(), other, false, false, options);
+			assert.deepStrictEqual({
+				beforeToggle,
+				createdAfterToggle: webviews.length,
+				previewHidden: restored.domNode.querySelector<HTMLElement>('.chat-html-preview-content')?.hidden,
+				separateSourceHidden: separate.domNode.querySelector<HTMLElement>('.chat-html-preview-source')?.hidden,
+				separateHeight: separate.domNode.querySelector<HTMLElement>('.chat-html-preview-content')?.style.height,
+			}, {
+				beforeToggle: { created: 1, sourceHidden: false, checked: true, height: '480px' },
+				createdAfterToggle: 3, previewHidden: false, separateSourceHidden: true, separateHeight: '',
+			});
+		});
+
+		test('resynchronizes a retained HTML part after another row changes the shared view state', async () => {
+			const context = createRenderContext();
+			const retained = createMarkdownPart(fenced(), context, false, false, options);
+			const replacement = createMarkdownPart(fenced(), context, false, false, options);
+			webviews[1].webview.intrinsicContentSize.set({ width: 500, height: 480 }, undefined);
+			const state = () => ({
+				sourceHidden: retained.domNode.querySelector<HTMLElement>('.chat-html-preview-source')?.hidden,
+				previewHidden: retained.domNode.querySelector<HTMLElement>('.chat-html-preview-content')?.hidden,
+				checked: action(retained, 'Show Source').checked,
+				height: retained.domNode.querySelector<HTMLElement>('.chat-html-preview-content')?.style.height,
+				created: webviews.length,
+			});
+			await action(replacement, 'Show Source').run();
+			retained.onDidRemount();
+			const inSource = state();
+			await action(replacement, 'Show Source').run();
+			retained.onDidRemount();
+			assert.deepStrictEqual({ inSource, inPreview: state(), oldDisposed: webviews[0].webview.disposed }, {
+				inSource: { sourceHidden: false, previewHidden: true, checked: true, height: '480px', created: 2 },
+				inPreview: { sourceHidden: true, previewHidden: false, checked: false, height: '480px', created: 3 },
+				oldDisposed: true,
+			});
+		});
+
+		test('does not reload a failed retained preview when another row switches back to preview', async () => {
+			const context = createRenderContext();
+			const failed = createMarkdownPart(fenced(), context, false, false, options);
+			webviews[0].webview.fatalError.fire({ message: 'Webview unavailable' });
+			const replacement = createMarkdownPart(fenced(), context, false, false, options);
+			await action(replacement, 'Show Source').run();
+			failed.onDidRemount();
+			assert.deepStrictEqual({
+				created: webviews.length,
+				sourceHidden: failed.domNode.querySelector<HTMLElement>('.chat-html-preview-source')?.hidden,
+				previewHidden: failed.domNode.querySelector<HTMLElement>('.chat-html-preview-content')?.hidden,
+				checked: action(failed, 'Show Source').checked,
+				enabled: action(failed, 'Show Source').enabled,
+			}, { created: 2, sourceHidden: false, previewHidden: true, checked: true, enabled: false });
+		});
+
+		test('keeps oversized output as source without allocating a webview', () => {
+			const atLimit = 'x'.repeat(ChatHtmlPreviewPart.maxPreviewLength);
+			createMarkdownPart(fenced(atLimit), undefined, false, false, options);
+			const overLimit = atLimit + 'x';
+			const part = createMarkdownPart(fenced(overLimit), undefined, false, false, options);
+			assert.deepStrictEqual({
+				webviews: webviews.length,
+				sourcePreserved: renderedCodeBlocks.at(-1)?.text === overLimit,
+				sourceHidden: part.domNode.querySelector<HTMLElement>('.chat-html-preview-source')?.hidden,
+				message: part.domNode.querySelector('.chat-html-preview-notice')?.textContent,
+				noticeHidden: part.domNode.querySelector<HTMLElement>('.chat-html-preview-notice')?.hidden,
+			}, { webviews: 1, sourcePreserved: true, sourceHidden: false, message: 'HTML preview is too large. Showing source instead.', noticeHidden: false });
+		});
+
+		test('shows and logs webview failures while preserving the original source', () => {
+			const logError = stub(instantiationService.get(ILogService), 'error');
+			disposables.add(toDisposable(() => logError.restore()));
+			const part = createMarkdownPart(fenced(), undefined, false, false, options);
+			webviews[0].webview.fatalError.fire({ message: 'Webview unavailable' });
+			assert.deepStrictEqual({
+				logged: logError.calledOnce,
+				sourceHidden: part.domNode.querySelector<HTMLElement>('.chat-html-preview-source')?.hidden,
+				message: part.domNode.querySelector('[role="alert"]')?.textContent,
+				noticeHidden: part.domNode.querySelector<HTMLElement>('.chat-html-preview-notice')?.hidden,
+				source: renderedCodeBlocks[0].text,
+			}, { logged: true, sourceHidden: false, message: 'Unable to load HTML preview. Showing source instead.', noticeHidden: false, source: html });
+		});
+
+		test('opens a restricted larger editor, reuses it, and keeps it alive independently of chat rendering', async () => {
+			const opened: EditorInput[] = [];
+			const editors = stub(instantiationService.get(IEditorService), 'editors').get(() => opened);
+			const open = stub(instantiationService.get(IEditorService), 'openEditor').callsFake(async input => {
+				opened.push(input);
+				store.add(input);
+				return upcastPartial<IEditorPane>({ input });
+			});
+			disposables.add(toDisposable(() => open.restore()));
+			disposables.add(toDisposable(() => editors.restore()));
+			const markdown = fenced('<h1>Review</h1><p>Summary</p><script>unsafe()</script>');
+			const part = createMarkdownPart(markdown, undefined, false, false, options);
+			await action(part, 'Open Preview').run();
+			await action(part, 'Open Preview').run();
+			part.dispose();
+			const restored = createMarkdownPart(markdown, undefined, false, false, options);
+			await action(restored, 'Open Preview').run();
+			restored.dispose();
+			const document = new DOMParser().parseFromString(webviews[1].webview.html, 'text/html');
+			assert.deepStrictEqual({
+				count: webviews.length,
+				reused: opened[0] === opened[1],
+				reusedAfterRecycling: opened[0] === opened[2],
+				editor: opened[0] instanceof ChatHtmlPreviewEditorInput,
+				editorDisposed: opened[0].isDisposed(),
+				inlineDisposed: webviews[0].webview.disposed,
+				expandedDisposed: webviews[1].webview.disposed,
+				contentOptions: webviews[1].init.contentOptions,
+				find: webviews[1].init.options.enableFindWidget,
+				heading: document.querySelector('h1')?.textContent,
+				scripts: document.scripts.length,
+			}, {
+				count: 3, reused: true, reusedAfterRecycling: true, editor: true, editorDisposed: false, inlineDisposed: true, expandedDisposed: false,
+				contentOptions: { allowScripts: false, allowForms: false, enableCommandUris: false, localResourceRoots: [] },
+				find: true, heading: 'Review', scripts: 0,
+			});
+		});
+
+		test('disposes a new expanded preview if opening its editor fails', async () => {
+			const failure = new Error('Editor unavailable');
+			instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+				override readonly editors = [];
+				override async openEditor(): Promise<never> { throw failure; }
+			}());
+			const part = createMarkdownPart(fenced(), undefined, false, false, options);
+			await assert.rejects(async () => action(part, 'Open Preview').run(), /Editor unavailable/);
+			assert.deepStrictEqual({
+				disposed: webviews[1].webview.disposed,
+				retryEnabled: action(part, 'Open Preview').enabled,
+			}, { disposed: true, retryEnabled: true });
+		});
+
+		test('restores expanded preview scroll after releasing and reclaiming its editor', () => {
+			const service = instantiationService.get(IWebviewService);
+			const createOverlay = stub(service, 'createWebviewOverlay').callsFake(init => instantiationService.createInstance(OverlayWebview, init));
+			disposables.add(toDisposable(() => createOverlay.restore()));
+			instantiationService.stub(IWorkbenchLayoutService, { getContainer: () => mainWindow.document.body });
+			const input = store.add(instantiationService.createInstance(ChatHtmlPreviewEditorInput, '<h1>Long report</h1>', 'scroll-preview'));
+			const owner = {};
+			input.webview.claim(owner, mainWindow, undefined);
+			webviews[0].webview.scroll.fire({ scrollYPercentage: 0.6 });
+			input.webview.release(owner);
+			input.webview.claim(owner, mainWindow, undefined);
+			assert.deepStrictEqual({
+				created: webviews.length,
+				oldDisposed: webviews[0].webview.disposed,
+				restoredScroll: webviews[1].webview.initialScrollProgress,
+			}, { created: 2, oldDisposed: true, restoredScroll: 0.6 });
+		});
+
+		test('exports a sanitized standalone file and opens it through the existing file preview path', async () => {
+			const files = createInMemoryFileService(disposables, Schemas.file);
+			instantiationService.stub(IFileService, files);
+			const target = URI.file('/html-report.html');
+			instantiationService.stub(IFileDialogService, {
+				defaultFilePath: async () => URI.file('/'),
+				showSaveDialog: async () => target,
+			});
+			const didOpen = new DeferredPromise<void>();
+			let opened: URI | string | undefined;
+			let override: IEditorOptions['override'];
+			instantiationService.stub(IOpenerService, {
+				open: async (resource, options: OpenOptions | undefined) => {
+					opened = resource;
+					override = options?.editorOptions?.override;
+					void didOpen.complete();
+					return true;
+				},
+			});
+			instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+				override async openEditor(): Promise<undefined> {
+					opened = target;
+					void didOpen.complete();
+					return undefined;
+				}
+			}());
+			const part = createMarkdownPart(fenced('<h1 id="summary">Saved report</h1><a href="#summary">Summary</a><script>unsafe()</script><form><input></form><style>h1 {color:var(--vscode-editor-foreground)}</style>'), undefined, false, false, options);
+			await action(part, 'Save HTML...').run();
+			await didOpen.p;
+			const saved = (await files.readFile(target)).value.toString();
+			const document = new DOMParser().parseFromString(saved, 'text/html');
+			const reopened = store.add(instantiationService.createInstance(ChatHtmlPreviewEditorInput, saved, 'saved-preview'));
+			assert.deepStrictEqual({
+				opened: opened?.toString(),
+				override,
+				heading: document.querySelector('h1')?.textContent,
+				activeContent: document.querySelectorAll('script,form,input').length,
+				csp: document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.getAttribute('content')?.includes(`script-src 'none'`),
+				navigation: document.querySelector('a')?.getAttribute('href'),
+				font: document.documentElement.style.getPropertyValue('--vscode-font-family').length > 0,
+				reopened: new DOMParser().parseFromString(reopened.html, 'text/html').querySelector('h1')?.textContent,
+				originalSource: renderedCodeBlocks[0].text.includes('<script>unsafe()</script>'),
+			}, {
+				opened: target.toString(), override: isWeb ? undefined : BrowserViewEditorId, heading: 'Saved report',
+				activeContent: 0, csp: true, navigation: '#summary', font: true, reopened: 'Saved report', originalSource: true,
+			});
+		});
+
+		test('reports an export failure without opening a successful-looking preview', async () => {
+			const failure = new Error('Write denied');
+			instantiationService.stub(IFileService, { writeFile: async () => { throw failure; } });
+			instantiationService.stub(IFileDialogService, {
+				defaultFilePath: async () => URI.file('/'),
+				showSaveDialog: async () => URI.file('/report.html'),
+			});
+			const opener = spy();
+			instantiationService.stub(IOpenerService, { open: opener });
+			const part = createMarkdownPart(fenced(), undefined, false, false, options);
+			await assert.rejects(async () => action(part, 'Save HTML...').run(), /Write denied/);
+			assert.deepStrictEqual({
+				opened: opener.called,
+				retryEnabled: action(part, 'Save HTML...').enabled,
+			}, { opened: false, retryEnabled: true });
+		});
+
+		test('provides readable expanded content and restores focus after accessibility help', () => {
+			const input = store.add(instantiationService.createInstance(ChatHtmlPreviewEditorInput, '<style>p { color: red }</style><h1>Plan</h1><p>Review this change.</p><details><summary>Risks</summary><p>Offline only.</p></details><table><tr><th>Area</th><th>Status</th></tr><tr><td>Preview</td><td>Ready</td></tr></table>', 'accessible-preview'));
+			webviews[0].webview.isFocused = true;
+			instantiationService.stub(IEditorService, { activeEditor: input });
+			const focus = spy(input.webview, 'focus');
+			disposables.add(toDisposable(() => focus.restore()));
+			const view = store.add(new ChatHtmlPreviewAccessibleView(AccessibleViewType.View).getProvider(instantiationService)!);
+			const help = store.add(new ChatHtmlPreviewAccessibleView(AccessibleViewType.Help).getProvider(instantiationService)!);
+			help.onClose();
+			assert.deepStrictEqual({
+				content: view.provideContent(),
+				help: help.provideContent().includes('Save HTML exports a sanitized, self-contained document'),
+				findCommand: help.provideContent().includes('<keybinding:editor.action.webvieweditor.showFind>'),
+				focusRestored: focus.calledOnce,
+			}, { content: '# Plan\nReview this change.\n\nRisks\n\nOffline only.\n\nArea | Status\n\nPreview | Ready', help: true, findCommand: true, focusRestored: true });
+		});
+
+		test('leaves accessibility commands with chat and Find when the preview content is not focused', () => {
+			const input = store.add(instantiationService.createInstance(ChatHtmlPreviewEditorInput, '<h1>Report</h1>', 'focused-preview'));
+			const editorService: { activeEditor: EditorInput | undefined } = { activeEditor: input };
+			instantiationService.stub(IEditorService, editorService);
+			const configuration = new TestConfigurationService();
+			disposables.add(configuration.onDidChangeConfigurationEmitter);
+			const context = disposables.add(new ContextKeyService(configuration));
+			ChatContextKeys.enabled.bindTo(context).set(true);
+			CONTEXT_ACTIVE_WEBVIEW_PANEL_ID.bindTo(context).set(ChatHtmlPreviewEditorInput.viewType);
+			const findFocused = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED.bindTo(context);
+			const focus = spy(input.webview, 'focus');
+			disposables.add(toDisposable(() => focus.restore()));
+			const results = [AccessibleViewType.Help, AccessibleViewType.View].map(type => {
+				const implementation = new ChatHtmlPreviewAccessibleView(type);
+				const unfocused = implementation.getProvider(instantiationService);
+				if (unfocused) {
+					store.add(unfocused);
+				}
+				const matchesPreview = context.contextMatchesRules(implementation.when);
+				findFocused.set(true);
+				const matchesFind = context.contextMatchesRules(implementation.when);
+				findFocused.set(false);
+				webviews[0].webview.isFocused = true;
+				const provider = store.add(implementation.getProvider(instantiationService)!);
+				editorService.activeEditor = undefined;
+				provider.onClose();
+				editorService.activeEditor = input;
+				webviews[0].webview.isFocused = false;
+				return { suppliedOutsidePreview: !!unfocused, matchesPreview, matchesFind };
+			});
+			assert.deepStrictEqual({ results, refocusedAfterEditorChanged: focus.called }, {
+				results: [{ suppliedOutsidePreview: false, matchesPreview: true, matchesFind: false }, { suppliedOutsidePreview: false, matchesPreview: true, matchesFind: false }],
+				refocusedAfterEditorChanged: false,
+			});
+		});
+
+		test('allows only normalized in-document anchor navigation', () => {
+			const document = new DOMParser().parseFromString(createHtmlPreviewDocument(`
+				<a href="#summary">Summary</a><a href="#code%20review">Encoded</a><a href="#code review">Spaces</a><a href="#">Top</a>
+				<a href="#broken%zz">Malformed</a><a href="https://example.com/#summary">External</a>
+				<a href="//example.com">Protocol relative</a><a href="command:unsafe">Command</a><a href="javascript:unsafe()">Script</a>
+				<svg><a href="#summary"><text>SVG link</text></a></svg>
+				<h2 id="summary">Summary</h2><h2 id="code review">Code review</h2>
+			`), 'text/html');
+			assert.deepStrictEqual([...document.querySelectorAll('a')].map(anchor => anchor.getAttribute('href')),
+				['#summary', '#code%20review', '#code%20review', '#', null, null, null, null, null, null]);
+		});
+
+		test('preserves common section targets and their ARIA and SVG references without DOM collisions', () => {
+			const ids = ['title', 'timeline', 'implementation', 'style', 'summary', 'vscode-html-preview-title'];
+			const document = new DOMParser().parseFromString(createHtmlPreviewDocument(
+				ids.map(id => `<a href="#${id}">${id}</a><h2 id="${id}">${id}</h2>`).join('')
+				+ '<section aria-labelledby="title summary"></section><svg><defs><marker id="target"></marker></defs><path marker-end="url(#%74arget)"></path></svg>'
+			), 'text/html');
+			const markerId = document.querySelector('path')?.getAttribute('marker-end')?.slice(5, -1);
+			assert.deepStrictEqual({
+				targets: [...document.querySelectorAll('a')].map(anchor => document.getElementById(decodeURIComponent(anchor.hash.slice(1)))?.textContent),
+				ariaTargets: document.querySelector('section')?.getAttribute('aria-labelledby')?.split(' ').map(id => document.getElementById(id)?.textContent),
+				svgTarget: !!markerId && document.getElementById(decodeURIComponent(markerId)) === document.querySelector('marker'),
+				noClobberingTitle: document.getElementById('title') === null,
+				distinctIds: new Set([...document.querySelectorAll('[id]')].map(element => element.id)).size,
+			}, { targets: ids, ariaTargets: ['title', 'summary'], svgTarget: true, noClobberingTitle: true, distinctIds: ids.length + 1 });
+		});
+
+		test('exports only referenced theme variables without introducing active markup', () => {
+			const document = new DOMParser().parseFromString(createHtmlPreviewDocument('<p style="color: var(--vscode-foreground)">Themed</p>', {
+				activeTheme: 'vscode-dark',
+				styles: { 'vscode-foreground': '#123456', 'vscode-font-family': 'font"</style><script>unsafe()</script>', 'vscode-unused': 'not exported' },
+			}), 'text/html');
+			assert.deepStrictEqual({
+				color: document.documentElement.style.getPropertyValue('--vscode-foreground'),
+				unused: document.documentElement.style.getPropertyValue('--vscode-unused'),
+				scripts: document.scripts.length,
+				class: document.body.className,
+			}, { color: '#123456', unused: '', scripts: 0, class: 'vscode-dark' });
+		});
+
+		test('preserves quoted platform fonts and subsequent theme variables in saved HTML', () => {
+			const fonts = ['"Segoe WPC", "Segoe UI", sans-serif', 'system-ui, "Ubuntu", "Droid Sans", sans-serif', '-apple-system, BlinkMacSystemFont, sans-serif'];
+			const results = fonts.map(font => {
+				const document = new DOMParser().parseFromString(createHtmlPreviewDocument('<p>Report</p>', {
+					activeTheme: 'vscode-dark',
+					styles: { 'vscode-font-family': font, 'vscode-editor-foreground': '#d4d4d4', 'vscode-editor-background': '#1e1e1e' },
+				}), 'text/html');
+				return {
+					font: document.documentElement.style.getPropertyValue('--vscode-font-family'),
+					foreground: document.documentElement.style.getPropertyValue('--vscode-editor-foreground'),
+					background: document.documentElement.style.getPropertyValue('--vscode-editor-background'),
+					attributes: document.documentElement.getAttributeNames(),
+				};
+			});
+			assert.deepStrictEqual(results, fonts.map(font => ({
+				font, foreground: '#d4d4d4', background: '#1e1e1e', attributes: ['style'],
+			})));
+		});
+
+		test('blends inline documents with chat without removing authored surfaces or standalone styling', async () => {
+			const frame = mainWindow.document.createElement('iframe');
+			frame.setAttribute('sandbox', 'allow-same-origin');
+			disposables.add(toDisposable(() => frame.remove()));
+			mainWindow.document.body.appendChild(frame);
+			const results = [];
+			for (const presentation of ['inline', 'document'] as const) {
+				const loaded = new DeferredPromise<void>();
+				const listener = disposables.add(addDisposableListener(frame, 'load', () => loaded.complete()));
+				frame.srcdoc = createHtmlPreviewDocument('<section style="background:#abc">Report</section>', {
+					activeTheme: 'vscode-dark',
+					styles: { 'vscode-foreground': '#123456', 'vscode-editor-foreground': '#abcdef', 'vscode-editor-background': '#182d50' },
+				}, presentation);
+				await loaded.p;
+				listener.dispose();
+				const body = frame.contentWindow!.getComputedStyle(frame.contentDocument!.body);
+				results.push({
+					presentation,
+					background: body.backgroundColor,
+					color: body.color,
+					padding: body.padding,
+					authored: frame.contentWindow!.getComputedStyle(frame.contentDocument!.querySelector('section')!).backgroundColor,
+				});
+			}
+			assert.deepStrictEqual(results, [
+				{ presentation: 'inline', background: 'rgba(0, 0, 0, 0)', color: 'rgb(18, 52, 86)', padding: '0px', authored: 'rgb(170, 187, 204)' },
+				{ presentation: 'document', background: 'rgb(24, 45, 80)', color: 'rgb(171, 205, 239)', padding: '12px', authored: 'rgb(170, 187, 204)' },
+			]);
+		});
+
+		test('preserves native horizontal scrolling without a layout wrapper', async () => {
+			const frame = mainWindow.document.createElement('iframe');
+			frame.setAttribute('sandbox', 'allow-same-origin');
+			frame.style.cssText = 'position: absolute; top: 0; left: 0; width: 440px; height: 300px; border: 0;';
+			const loaded = new DeferredPromise<void>();
+			disposables.add(addDisposableListener(frame, 'load', () => loaded.complete()));
+			disposables.add(toDisposable(() => frame.remove()));
+			frame.srcdoc = createHtmlPreviewDocument('<style>html { scrollbar-color: auto; } ::-webkit-scrollbar { height: 16px; width: 16px; }</style><pre>' + ('Wide content '.repeat(30) + '\n').repeat(4) + '</pre>');
+			mainWindow.document.body.appendChild(frame);
+			await loaded.p;
+			const document = frame.contentDocument!;
+			const contentWindow = frame.contentWindow!;
+			// Headless browsers can hide scrollbars even when their size is specified in CSS.
+			const scrollbarHeight = contentWindow.innerHeight - document.documentElement.clientHeight;
+			frame.style.height = `${Math.ceil(document.documentElement.getBoundingClientRect().height + scrollbarHeight)}px`;
+			contentWindow.scrollTo(100, 100);
+			assert.deepStrictEqual({
+				rootFitsVertically: document.documentElement.scrollHeight === document.documentElement.clientHeight,
+				contentOverflows: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+				scrollbarHeight: contentWindow.innerHeight - document.documentElement.clientHeight,
+				scrollPosition: { x: contentWindow.scrollX, y: contentWindow.scrollY },
+				unwrapped: document.querySelector('pre')?.parentElement === document.body,
+			}, { rootFitsVertically: true, contentOverflows: true, scrollbarHeight, scrollPosition: { x: 100, y: 0 }, unwrapped: true });
+		});
+
+		test('keeps a viewport-height body minimum stable while auto-sizing', async () => {
+			const frame = mainWindow.document.createElement('iframe');
+			frame.setAttribute('sandbox', 'allow-same-origin');
+			frame.style.cssText = 'position: absolute; top: 0; left: 0; width: 440px; height: 300px; border: 0;';
+			const loaded = new DeferredPromise<void>();
+			disposables.add(addDisposableListener(frame, 'load', () => loaded.complete()));
+			disposables.add(toDisposable(() => frame.remove()));
+			frame.srcdoc = createHtmlPreviewDocument('<style>body{min-height:100vh}</style><p>Viewport-height document</p>');
+			mainWindow.document.body.appendChild(frame);
+			await loaded.p;
+			const heights: number[] = [];
+			for (let index = 0; index < 3; index++) {
+				const root = frame.contentDocument!.documentElement;
+				const height = Math.ceil(root.getBoundingClientRect().height + frame.contentWindow!.innerHeight - root.clientHeight);
+				heights.push(height);
+				frame.style.height = `${height}px`;
+				await nextHostFrame();
+			}
+			assert.deepStrictEqual(heights, [300, 300, 300]);
+		});
+
+		test('preserves body grid layout, ID selectors and sticky navigation', async () => {
+			const frame = mainWindow.document.createElement('iframe');
+			frame.setAttribute('sandbox', 'allow-same-origin');
+			frame.style.cssText = 'position: absolute; top: 0; left: 0; width: 800px; height: 300px; border: 0;';
+			const loaded = new DeferredPromise<void>();
+			disposables.add(addDisposableListener(frame, 'load', () => loaded.complete()));
+			disposables.add(toDisposable(() => frame.remove()));
+			frame.srcdoc = createHtmlPreviewDocument('<style>body{display:grid;grid-template-columns:160px 1fr;gap:12px}nav{position:sticky;top:0;align-self:start}main{min-height:1200px}#\\74 itle{color:rgb(255,0,0)}[id="timeline" i]{font-weight:600}a[href="#title"]{color:rgb(0,128,0)}#title\u00e9{font-style:italic}.literal::after{content:"#title"}</style><nav><a href="#title">Contents</a></nav><main><h1 id="title">Report</h1><p id="timeline">Timeline</p><p id="Timeline">Case variant</p><p id="title\u00e9">Unicode ID</p><p class="literal"></p></main>');
+			mainWindow.document.body.appendChild(frame);
+			await loaded.p;
+			const document = frame.contentDocument!;
+			const nav = document.querySelector('nav')!;
+			const main = document.querySelector('main')!;
+			const before = { sameRow: nav.getBoundingClientRect().top === main.getBoundingClientRect().top, separateColumns: main.getBoundingClientRect().left > nav.getBoundingClientRect().right };
+			frame.contentWindow!.scrollTo(0, 200);
+			await nextHostFrame();
+			assert.deepStrictEqual({
+				before,
+				stickyTop: nav.getBoundingClientRect().top,
+				titleColor: frame.contentWindow!.getComputedStyle(document.querySelector('h1')!).color,
+				linkColor: frame.contentWindow!.getComputedStyle(document.querySelector('a')!).color,
+				timelineWeight: frame.contentWindow!.getComputedStyle(document.querySelector('p')!).fontWeight,
+				variantWeight: frame.contentWindow!.getComputedStyle(document.getElementById('Timeline')!).fontWeight,
+				unicodeStyle: frame.contentWindow!.getComputedStyle(document.getElementById('title\u00e9')!).fontStyle,
+				literal: frame.contentWindow!.getComputedStyle(document.querySelector('.literal')!, '::after').content,
+				children: [...document.body.children].filter(element => element.tagName !== 'STYLE').map(element => element.tagName),
+			}, {
+				before: { sameRow: true, separateColumns: true }, stickyTop: 0, titleColor: 'rgb(255, 0, 0)', linkColor: 'rgb(0, 128, 0)', timelineWeight: '600', variantWeight: '600', unicodeStyle: 'italic', literal: '"#title"', children: ['NAV', 'MAIN'],
+			});
+		});
+
+		test('removes active markup, navigations, resource URLs, and webview context while preserving static visuals', () => {
+			const document = new DOMParser().parseFromString(createHtmlPreviewDocument(`
+				<!DOCTYPE html><html><head><style>.card { color: red }</style>
+				<meta http-equiv="refresh" content="0;url=https://example.com">
+				<meta http-equiv="Content-Security-Policy" content="default-src *">
+				<base href="https://example.com"><link rel="stylesheet" href="https://example.com/style.css"></head>
+				<body><section class="card" style="padding: 12px" data-vscode-context='{"webviewSection":"unsafe"}' aria-label="Report">
+				<script>acquireVsCodeApi().postMessage({command:'unsafe'})</script>
+				<img src="https://example.com/tracker" onerror="alert(1)">
+				<img src="file:///private.txt"><img src="vscode-webview-resource://private.txt">
+				<img src="data:image/png;base64,AAAA" alt="Embedded">
+				<img src="data:image/svg+xml;base64,AAAA">
+				<iframe srcdoc="<script>alert(1)</script>"></iframe><object data="https://example.com"></object>
+				<form action="https://example.com"><input autofocus><button formaction="https://example.com">Send</button></form>
+				<a href="command:unsafe" ping="https://example.com" target="_top">Link</a>
+				<svg viewBox="0 0 100 100" aria-label="Chart"><title>Chart</title><rect width="50" height="25" fill="red"/><foreignObject><p>Unsafe</p></foreignObject><use href="https://example.com/chart.svg"/></svg>
+				<details open><summary>More</summary>Visible details</details>
+				</section></body></html>
+			`), 'text/html');
+			assert.deepStrictEqual({
+				activeElements: document.querySelectorAll('script, iframe, object, form, input, button, base, link, foreignObject, use').length,
+				refresh: document.querySelectorAll('meta[http-equiv="refresh"]').length,
+				cspCount: document.querySelectorAll('meta[http-equiv="Content-Security-Policy"]').length,
+				csp: document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.getAttribute('content'),
+				resourceUrls: [...document.querySelectorAll('[src]')].map(element => element.getAttribute('src')),
+				unsafeAttributes: document.querySelectorAll('[href], [ping], [target], [onerror], [data-vscode-context]').length,
+				label: document.querySelector('section')?.getAttribute('aria-label'),
+				style: document.querySelector('section')?.getAttribute('style'),
+				svg: document.querySelector('svg')?.getAttribute('viewBox'),
+				rectangle: document.querySelector('rect')?.getAttribute('width'),
+				details: document.querySelector('details')?.hasAttribute('open'),
+				authorStyle: document.querySelector('body style')?.textContent,
+			}, {
+				activeElements: 0, refresh: 0, cspCount: 1,
+				csp: `default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';`,
+				resourceUrls: ['data:image/png;base64,AAAA'], unsafeAttributes: 0, label: 'Report',
+				style: 'padding: 12px', svg: '0 0 100 100', rectangle: '50', details: true, authorStyle: '.card { color: red }',
+			});
+		});
+	});
+
+	suite('Native components', () => {
+		const visual = [
+			'<Columns>',
+			'  <Metric label="Full build" value="12.4 s" />',
+			'  <Metric label="Incremental build" value="1.8 s" tone="positive" />',
+			'</Columns>',
+			'<Disclosure summary="Method"><Text>Median of five runs.</Text></Disclosure>',
+		].join('\n');
+		const fenced = (text = visual, fence = '```', info = 'vscode-ui') => `${fence}${info}\n${text}\n${fence}`;
+		const options: IChatMarkdownContentPartOptions = { nativeComponents: chatNativeComponentsRenderer };
+		let contextMenu: Parameters<IContextMenuService['showContextMenu']>[0] | undefined;
+
+		setup(() => {
+			contextMenu = undefined;
+			instantiationService.stub(IContextMenuService, {
+				showContextMenu: delegate => { contextMenu = delegate; },
+				onDidHideContextMenu: Event.None,
+			});
+		});
+
+		const root = (part: ChatMarkdownContentPart) => part.domNode.querySelector<HTMLElement>('.chat-native-components');
+
+		/** What a block shows: its visual, its source, or the source with the reason it is not a visual. */
+		function shown(part: ChatMarkdownContentPart) {
+			const element = root(part);
+			return element && {
+				visual: !element.querySelector<HTMLElement>('.chat-native-components-visual')!.hidden,
+				source: !element.querySelector<HTMLElement>('.chat-native-components-source')!.hidden,
+				notice: element.querySelector('.chat-native-components-notice')?.textContent,
+				expanded: Array.from(element.querySelectorAll('details'), details => details.open),
+			};
+		}
+
+		/** Returns the context menu that was requested since the last call, if any. */
+		function takeContextMenu() {
+			const delegate = contextMenu;
+			contextMenu = undefined;
+			return delegate;
+		}
+
+		function openContextMenu(part: ChatMarkdownContentPart): readonly IAction[] {
+			root(part)!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			return takeContextMenu()?.getActions?.() ?? [];
+		}
+
+		/** Expands or collapses the disclosure as a user would, without waiting for the event the browser queues. */
+		function toggleDisclosure(part: ChatMarkdownContentPart, open: boolean): void {
+			const details = root(part)!.querySelector('details')!;
+			details.open = open;
+			details.dispatchEvent(new mainWindow.Event('toggle'));
+		}
+
+		function attach(part: ChatMarkdownContentPart): ChatMarkdownContentPart {
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+			return part;
+		}
+
+		test('renders a closed response fence as a labelled visual between its prose, with the source one action away', () => {
+			const part = createMarkdownPart(`Before.\n\n${fenced()}\n\nAfter.`, undefined, false, false, options);
+			const element = root(part)!;
+			assert.deepStrictEqual({
+				shown: shown(part),
+				group: [element.getAttribute('role'), element.getAttribute('aria-label'), element.tabIndex],
+				values: Array.from(element.querySelectorAll('.chat-native-metric-value'), value => value.textContent),
+				prose: Array.from(part.domNode.querySelectorAll('p'), paragraph => paragraph.textContent),
+				permanentControls: element.querySelectorAll('button, .monaco-toolbar, .monaco-action-bar').length,
+				frames: element.querySelectorAll('iframe, webview').length + renderedCodeBlockOutputs.length,
+				source: renderedCodeBlocks.map(block => ({ language: block.languageId, text: block.text })),
+				codeblocks: part.codeblocks.map(block => block.languageId),
+				menu: openContextMenu(part).map(action => `${action.label}${action.checked ? ' (checked)' : ''}`),
+			}, {
+				shown: { visual: true, source: false, notice: undefined, expanded: [false] },
+				group: ['group', 'Visual for code block 1', 0],
+				values: ['12.4 s', '1.8 s'],
+				prose: ['Before.', 'After.'],
+				permanentControls: 0,
+				frames: 0,
+				source: [{ language: 'xml', text: visual }],
+				codeblocks: ['vscode-ui'],
+				menu: ['Show Source'],
+			});
+		});
+
+		test('leaves other code, requests, open fences, filtered responses and annotated files as code', () => {
+			const request = {
+				...createRenderContext(),
+				element: upcastPartial<IChatRequestViewModel>({
+					id: 'request',
+					sessionResource: URI.parse('chat-session://test/session1'),
+					message: { text: fenced(), parts: [] },
+					contentReferences: [],
+				}),
+			};
+			const filtered = createRenderContext();
+			Object.assign(filtered.element, { errorDetails: { responseIsFiltered: true, message: 'Filtered' } });
+			const cases = [
+				{ markdown: fenced(visual, '```', 'xml'), context: createRenderContext(), options },
+				{ markdown: fenced(visual, '```', 'jsx'), context: createRenderContext(), options },
+				{ markdown: fenced(), context: createRenderContext(), options: {} },
+				{ markdown: fenced(), context: request, options },
+				{ markdown: `\`\`\`vscode-ui\n${visual}`, context: createRenderContext(false), options },
+				{ markdown: `\`\`\`vscode-ui\n${visual}`, context: createRenderContext(), options },
+				{ markdown: fenced(visual, '````').slice(0, -1), context: createRenderContext(), options },
+				{ markdown: fenced(), context: filtered, options },
+				{ markdown: fenced(`${visual}\n<vscode_codeblock_uri>file:///report.xml</vscode_codeblock_uri>`), context: createRenderContext(), options },
+			];
+			assert.deepStrictEqual(cases.map(testCase => {
+				const part = createMarkdownPart(testCase.markdown, testCase.context, true, false, testCase.options);
+				return { visual: !!root(part), codeblocks: part.codeblocks.length };
+			}), cases.map(() => ({ visual: false, codeblocks: 1 })));
+		});
+
+		test('renders a block once its fence closes, in tilde and longer fences and inside a list item or a block quote too, while the response still streams', () => {
+			const streaming = () => createRenderContext(false);
+			assert.deepStrictEqual([
+				`Intro.\n\n\`\`\`vscode-ui\n${visual}`,
+				`Intro.\n\n${fenced()}\n\nStill writ`,
+				fenced(visual, '~~~~'),
+				fenced(visual, '````', 'VSCODE-UI v1'),
+				`- Results\n\n${fenced().replace(/^/gm, '  ')}`,
+				fenced().replace(/^/gm, '> '),
+			].map(markdown => shown(createMarkdownPart(markdown, streaming(), true, false, options))?.visual ?? false), [false, true, true, true, true, true]);
+		});
+
+		test('keeps the vscode-ui and html-preview fences independent of each other', () => {
+			const both = `${fenced()}\n\n\`\`\`html-preview\n<p>Report</p>\n\`\`\``;
+			const render = (rendererOptions: IChatMarkdownContentPartOptions) => {
+				const part = createMarkdownPart(both, undefined, false, false, rendererOptions);
+				return { visual: !!root(part), preview: !!part.domNode.querySelector('.chat-html-preview'), codeblocks: part.codeblocks.length };
+			};
+			assert.deepStrictEqual([render({}), render(options)], [
+				{ visual: false, preview: false, codeblocks: 2 },
+				{ visual: true, preview: false, codeblocks: 2 },
+			]);
+		});
+
+		test('shows the source and a readable reason for a block that is not valid, as an ordinary code block', () => {
+			const invalid = '<Metric label="Full build" value="12.4 s" />\n<Chart type="pie" />';
+			const part = attach(createMarkdownPart(fenced(invalid), undefined, false, false, options));
+			const unsupported = createMarkdownPart(fenced(visual, '```', 'vscode-ui v2'), undefined, false, false, options);
+			const element = root(part)!;
+			part.codeblocks[0].focus();
+			assert.deepStrictEqual({
+				shown: shown(part),
+				unsupported: shown(unsupported),
+				group: [element.getAttribute('role'), element.getAttribute('aria-label'), element.tabIndex],
+				menu: openContextMenu(part).length,
+				sourceFocused: element.querySelector('.chat-native-components-source')!.contains(mainWindow.document.activeElement),
+				source: renderedCodeBlocks.map(block => block.text),
+			}, {
+				shown: {
+					visual: false, source: true, expanded: [],
+					notice: 'This block could not be shown as a visual, so its source is shown instead. Line 2: Unknown component "Chart". Available here: Stack, Columns, Text, Metric, Badge, Table, BarChart, Disclosure.',
+				},
+				unsupported: {
+					visual: false, source: true, expanded: [],
+					notice: 'This block could not be shown as a visual, so its source is shown instead. The block uses schema version 2, but this version of VS Code supports version 1.',
+				},
+				group: [null, null, -1],
+				menu: 0,
+				sourceFocused: true,
+				source: [invalid, visual],
+			});
+		});
+
+		test('toggles the source from the context menu with the pointer or the keyboard, moving focus to what is shown', async () => {
+			const part = attach(createMarkdownPart(fenced(), undefined, false, false, options));
+			let heightChanges = 0;
+			disposables.add(part.onDidChangeHeight(() => heightChanges++));
+			part.codeblocks[0].focus();
+			const visualFocused = mainWindow.document.activeElement === root(part) && part.codeblocks[0].isFocused;
+			mainWindow.document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'F10', keyCode: 121, shiftKey: true, bubbles: true, cancelable: true }));
+			const keyboardMenu = takeContextMenu()?.getActions?.().map(action => action.label);
+
+			await openContextMenu(part)[0].run();
+			const inSource = { ...shown(part), checked: openContextMenu(part)[0].checked, focused: root(part)!.querySelector('.chat-native-components-source')!.contains(mainWindow.document.activeElement) };
+			await openContextMenu(part)[0].run();
+			assert.deepStrictEqual({
+				visualFocused, keyboardMenu, inSource,
+				inVisual: { ...shown(part), checked: openContextMenu(part)[0].checked, focused: mainWindow.document.activeElement === root(part) },
+				heightChanges,
+			}, {
+				visualFocused: true,
+				keyboardMenu: ['Show Source'],
+				inSource: { visual: false, source: true, notice: undefined, expanded: [false], checked: true, focused: true },
+				inVisual: { visual: true, source: false, notice: undefined, expanded: [false], checked: false, focused: true },
+				heightChanges: 2,
+			});
+		});
+
+		test('keeps the visual, its expanded details and its tables intact while the rest of the response streams', () => {
+			const table = '<Table><Column>Target</Column><Row><Cell>Full</Cell></Row></Table>';
+			const block = fenced(`${visual}\n${table}`);
+			const markdownTable = '| Target |\n| --- |\n| Full |';
+			const part = createMarkdownPart(`${block}\n\n${markdownTable}`, createRenderContext(false), true, false, options);
+			const element = root(part)!;
+			toggleDisclosure(part, true);
+			const updates = ['\n\nExplan', '\n\nExplanation.'].map(suffix => part.tryIncrementalUpdate({ kind: 'markdownContent', content: new MarkdownString(`${block}\n\n${markdownTable}${suffix}`) }));
+			assert.deepStrictEqual({
+				updates,
+				samePart: root(part) === element && part.domNode.contains(element),
+				shown: shown(part),
+				sourceRenders: renderedCodeBlocks.length,
+				ownTable: element.querySelector('table')!.parentElement!.className,
+				markdownTableWrappers: Array.from(part.domNode.querySelectorAll('.rendered-markdown-table-scroll-wrapper'), wrapper => element.contains(wrapper) ? 'inside the visual' : 'outside the visual'),
+				prose: part.domNode.querySelector('p')?.textContent,
+			}, {
+				updates: [true, true],
+				samePart: true,
+				shown: { visual: true, source: false, notice: undefined, expanded: [true] },
+				sourceRenders: 1,
+				ownTable: 'chat-native-table-scroll',
+				markdownTableWrappers: ['outside the visual'],
+				prose: 'Explanation.',
+			});
+		});
+
+		test('restores the source toggle and expanded details when a recycled row is rendered again', async () => {
+			const context = createRenderContext();
+			const part = createMarkdownPart(fenced(), context, false, false, options);
+			let heightChanges = 0;
+			disposables.add(part.onDidChangeHeight(() => heightChanges++));
+			toggleDisclosure(part, true);
+			await openContextMenu(part)[0].run();
+			part.dispose();
+
+			const restored = createMarkdownPart(fenced(), context, false, false, options);
+			const restoredInSource = shown(restored);
+			await openContextMenu(restored)[0].run();
+			const other = createRenderContext();
+			Object.assign(other.element, { id: 'another-response' });
+			assert.deepStrictEqual({
+				heightChanges,
+				restoredInSource,
+				restoredInVisual: shown(restored),
+				otherResponse: shown(createMarkdownPart(fenced(), other, false, false, options)),
+				rememberedBlocks: outputStateCache.size,
+			}, {
+				heightChanges: 2,
+				restoredInSource: { visual: false, source: true, notice: undefined, expanded: [true] },
+				restoredInVisual: { visual: true, source: false, notice: undefined, expanded: [true] },
+				otherResponse: { visual: true, source: false, notice: undefined, expanded: [false] },
+				rememberedBlocks: 1,
+			});
+		});
+
+		test('follows the view state that another part of the same block changed, when it is shown again', async () => {
+			const context = createRenderContext();
+			const retained = createMarkdownPart(fenced(), context, false, false, options);
+			const replacement = createMarkdownPart(fenced(), context, false, false, options);
+			let heightChanges = 0;
+			disposables.add(retained.onDidChangeHeight(() => heightChanges++));
+			toggleDisclosure(replacement, true);
+			await openContextMenu(replacement)[0].run();
+			const stale = shown(retained);
+			retained.onDidRemount();
+			const synchronized = shown(retained);
+			retained.onDidRemount();
+			assert.deepStrictEqual({ stale, synchronized, heightChanges }, {
+				stale: { visual: true, source: false, notice: undefined, expanded: [false] },
+				synchronized: { visual: false, source: true, notice: undefined, expanded: [true] },
+				heightChanges: 1,
+			});
+		});
+
+		test('toggles a disclosure with Enter on its own summary, before chat takes the key for Edit Request', () => {
+			const nested = '<Disclosure summary="Outer"><Disclosure summary="Inner"><Text>Nested.</Text></Disclosure></Disclosure>';
+			const part = attach(createMarkdownPart(fenced(`${visual}\n${nested}`), undefined, false, false, options));
+			const [method, , inner] = Array.from(root(part)!.querySelectorAll('details'));
+			// Stands for the keybinding service, which listens above the visual. In a chat it runs Edit Request
+			// on Enter wherever no text input has focus, and has nothing bound to Space.
+			const reachedKeybindings: string[] = [];
+			disposables.add(addDisposableListener(part.domNode, 'keydown', event => reachedKeybindings.push(`${event.key === ' ' ? 'Space' : event.key} on ${(event.target as Element).tagName}`)));
+			const press = (target: Element, key: string, keyCode: number) => {
+				target.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true, cancelable: true }));
+				return shown(part)!.expanded;
+			};
+			assert.deepStrictEqual({
+				enterOnSummary: press(method.querySelector('summary')!, 'Enter', 13),
+				enterOnNestedSummary: press(inner.querySelector('summary')!, 'Enter', 13),
+				enterAgain: press(method.querySelector('summary')!, 'Enter', 13),
+				spaceIsLeftToTheBrowser: press(method.querySelector('summary')!, ' ', 32),
+				enterElsewhere: press(method.querySelector('.chat-native-text')!, 'Enter', 13),
+				reachedKeybindings,
+			}, {
+				enterOnSummary: [true, false, false],
+				enterOnNestedSummary: [true, false, true],
+				enterAgain: [false, false, true],
+				spaceIsLeftToTheBrowser: [false, false, true],
+				enterElsewhere: [false, false, true],
+				reachedKeybindings: ['Space on SUMMARY', 'Enter on DIV'],
+			});
+		});
+
+		test('stops reacting to its visual once disposed', () => {
+			const part = attach(createMarkdownPart(fenced(), undefined, false, false, options));
+			const element = root(part)!;
+			let heightChanges = 0;
+			disposables.add(part.onDidChangeHeight(() => heightChanges++));
+			part.dispose();
+			element.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			element.dispatchEvent(new KeyboardEvent('keydown', { key: 'F10', keyCode: 121, shiftKey: true, bubbles: true, cancelable: true }));
+			const details = element.querySelector('details')!;
+			details.open = true;
+			details.dispatchEvent(new mainWindow.Event('toggle'));
+			assert.deepStrictEqual({ menu: takeContextMenu(), heightChanges, rememberedBlocks: outputStateCache.size }, { menu: undefined, heightChanges: 0, rememberedBlocks: 0 });
+		});
 	});
 
 	test('renders multiple code blocks with correct indices', () => {

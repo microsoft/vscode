@@ -187,8 +187,12 @@
 	margin-inline: 0;
 }
 
-/* Add spacing between the session action group and the layout actions that follow it. */
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container:not(.has-no-actions) + :is(.titlebar-right-layout-container, .titlebar-window-layout-container):not(.has-no-actions) {
+/*
+ * Add spacing between the session action group and the actions that follow it: extension actions or layout actions.
+ * Empty or overflowing extension actions don't take part, the layout actions after them get the spacing.
+ */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container:not(.has-no-actions) + :is(.titlebar-extension-actions-container, .titlebar-right-layout-container, .titlebar-window-layout-container):not(.has-no-actions),
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container:not(.has-no-actions) + .titlebar-extension-actions-container:is(.has-no-actions, .overflowing) + .titlebar-right-layout-container:not(.has-no-actions) {
 	margin-left: var(--vscode-spacing-size40);
 }
 

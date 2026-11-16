@@ -32,6 +32,7 @@ import '../../../../contrib/chat/browser/widget/media/chat.css';
 import '../../../../contrib/chat/browser/widget/chatContentParts/media/chatConfirmationWidget.css';
 import '../../../../contrib/chat/browser/widget/chatContentParts/media/chatAgentFeedbackReviewConfirmation.css';
 import '../../../../contrib/chat/browser/widget/chatContentParts/media/chatToolConfirmationCarousel.css';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 function createMockContext(sessionResource: URI): IChatContentPartRenderContext {
 	const element = new class extends mock<IChatResponseViewModel>() {
@@ -136,7 +137,7 @@ function renderConfirmations(context: ComponentFixtureContext, commentSets: read
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
 			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
-			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: '', folders: [], configuration: undefined }; } }());
+			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return testIWorkspace({ id: '', folders: [], configuration: undefined }); } }());
 			reg.defineInstance(INotebookDocumentService, new class extends mock<INotebookDocumentService>() { }());
 			reg.defineInstance(IEditorService, new class extends mock<IEditorService>() { override onDidActiveEditorChange = Event.None; }());
 			reg.defineInstance(ICommandService, createCommandService(commentsBySession));

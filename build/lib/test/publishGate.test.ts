@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { suite, test } from 'node:test';
-import { artifactsByGatingJob, getGatingJob, type TimelineRecord } from '../../azure-pipelines/common/publishGate.ts';
+import { artifactsByGatingJob, getGatingJob, runArtifactPublishOperation, warnIfMobileArtifactMissing, type TimelineRecord } from '../../azure-pipelines/common/publishGate.ts';
 
 function phase(identifier: string, state: string, result: string | null = null): TimelineRecord {
 	return { type: 'Phase', identifier, name: identifier.split('.').pop()!, state, result };
@@ -22,6 +22,38 @@ function gate(records: TimelineRecord[], artifact = 'vscode_cli_linux_x64_cli') 
 }
 
 suite('Publish gate', () => {
+	test('an enabled mobile job that produces no archive warns instead of silently disappearing', t => {
+		const messages: string[] = [];
+		t.mock.method(console, 'log', (message: string) => messages.push(message));
+		warnIfMobileArtifactMissing({ records: [] }, []);
+		const mobile: TimelineRecord = { type: 'Stage', identifier: 'Mobile', name: 'Mobile target', state: 'inProgress', result: null };
+		warnIfMobileArtifactMissing({ records: [mobile] }, []);
+		const timeline = { records: [{ ...mobile, state: 'completed', result: 'succeededWithIssues' }] };
+		warnIfMobileArtifactMissing(timeline, ['vscode_web_linux_mobile_archive-unsigned']);
+		warnIfMobileArtifactMissing(timeline, ['vscode_web_linux_standalone_archive-unsigned']);
+		assert.deepStrictEqual(messages, ['##vso[task.logissue type=warning]Mobile was enabled but vscode_web_linux_mobile_archive-unsigned was not produced. Check the Mobile stage; continuing the ordinary release.']);
+	});
+
+	test('mobile operation failures warn without reporting a successful publication', async t => {
+		const messages: string[] = [];
+		t.mock.method(console, 'log', (message: string) => messages.push(message));
+		const result = await runArtifactPublishOperation('vscode_web_linux_mobile_archive-unsigned', async () => {
+			throw new Error('download failed: 100%\r\nretry');
+		});
+		assert.deepStrictEqual({ result, messages }, {
+			result: { succeeded: false },
+			messages: ['##vso[task.logissue type=warning][vscode_web_linux_mobile_archive-unsigned] Mobile publication failed; continuing the ordinary release: Error: download failed: 100%AZP25%0D%0Aretry'],
+		});
+	});
+
+	test('ordinary artifact failures still reject and successful mobile operations retain their value', async () => {
+		const error = new Error('publication failed');
+		for (const artifact of ['vscode_web_linux_standalone_archive-unsigned', 'vscode_client_linux_x64_archive-unsigned', 'vscode_web_linux_mobile_archive']) {
+			await assert.rejects(runArtifactPublishOperation(artifact, async () => { throw error; }), error);
+		}
+		assert.deepStrictEqual(await runArtifactPublishOperation('vscode_web_linux_mobile_archive-unsigned', async () => 'archive.tar.gz'), { succeeded: true, value: 'archive.tar.gz' });
+	});
+
 	test('artifacts without a gating job are not gated', () => {
 		assert.strictEqual(gate([phase('LinuxX64.Linux_x64_Test_Unit', 'pending')], 'vscode_cli_alpine_x64_cli'), undefined);
 	});

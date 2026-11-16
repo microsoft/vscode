@@ -11,7 +11,7 @@ import type { ILogService } from '../../../log/common/log.js';
 import type { IAgentModelInfo } from '../../common/agent.js';
 import { readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js';
 import { readAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
-import { readAgentModelPricingMeta } from '../../common/meta/agentModelMeta.js';
+import { isAgentModelExperimental, readAgentModelPricingMeta } from '../../common/meta/agentModelMeta.js';
 import { isRoutableModel, modelContextSizes, modelRouterNameFromFileName, parseModelRouter, resolveModelRouter, supportedModelEfforts, type IModelRouterDiagnostic } from '../../common/modelRouter.js';
 import { PolicyState } from '../../common/state/protocol/channels-root/state.js';
 import type { IModelRouterFile } from './copilotModelRouterCatalog.js';
@@ -45,7 +45,7 @@ export interface IModelRouterCheck {
 	readonly path: string;
 	readonly valid: boolean;
 	readonly diagnostics: readonly ICheckedDiagnostic[];
-	readonly routes?: readonly { readonly route: number; readonly model: string; readonly matched: string; readonly effort?: string; readonly supportedEfforts: readonly string[]; readonly contextSize?: string; readonly retiring?: string }[];
+	readonly routes?: readonly { readonly route: number; readonly name?: string; readonly model: string; readonly matched: string; readonly effort?: string; readonly supportedEfforts: readonly string[]; readonly contextSize?: string; readonly retiring?: string }[];
 }
 
 export function createCopilotModelRouterTools(enabled: boolean, host: IModelRouterToolHost, logService: ILogService): Tool<unknown>[] {
@@ -112,7 +112,7 @@ async function checkRouter(host: IModelRouterToolHost, file: IModelRouterFile, m
 
 function check(name: string, uri: URI, router: IModelRouterFile['router'], parseDiagnostics: readonly IModelRouterDiagnostic[], models: readonly IAgentModelInfo[], content: string | undefined): IModelRouterCheck {
 	const resolution = router ? resolveModelRouter(router, models) : undefined;
-	const diagnostics = [...parseDiagnostics, ...resolution?.diagnostics ?? []].map(diagnostic => ({
+	const diagnostics = [...parseDiagnostics, ...resolution?.diagnostics ?? []].map((diagnostic: IModelRouterDiagnostic) => ({
 		severity: diagnostic.severity,
 		message: diagnostic.message,
 		...(content !== undefined && diagnostic.startOffset !== undefined ? { line: lineOf(content, diagnostic.startOffset) } : {}),
@@ -125,6 +125,7 @@ function check(name: string, uri: URI, router: IModelRouterFile['router'], parse
 		...(router && resolution ? {
 			routes: resolution.routes.map(resolved => ({
 				route: router.routes.indexOf(resolved.route) + 1,
+				...(resolved.route.name ? { name: resolved.route.name } : {}),
 				model: resolved.reference,
 				matched: readAgentModelByokIdentifier(resolved.model) ?? resolved.model.id,
 				...(resolved.effort ? { effort: resolved.effort } : {}),
@@ -147,6 +148,7 @@ function describeModels(models: readonly IAgentModelInfo[]) {
 			// Listed only when `context-size: long` would change something.
 			...(contextSizes.length > 1 ? { contextSizes, ...(longContextCostsMore(model) ? { longContextCostsMore: true } : {}) } : {}),
 			...(retiring ? { retiring } : {}),
+			...(isAgentModelExperimental(model) ? { experimental: true } : {}),
 			...(model.policyState === PolicyState.Disabled ? { disabledByPolicy: true } : {}),
 		};
 	});

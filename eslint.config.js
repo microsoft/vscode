@@ -3,20 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-import { fixupPluginRules } from '@eslint/compat';
-import { defineConfig } from 'eslint/config';
 import fs from 'fs';
 import { builtinModules } from 'module';
 import path from 'path';
-import tseslint from 'typescript-eslint';
-
-import stylistic from '@stylistic/eslint-plugin';
-import * as pluginLocal from './.eslint-plugin-local/index.ts';
-import * as pluginCopilotLocal from './extensions/copilot/.eslintplugin/index.ts';
-import pluginJsdoc from 'eslint-plugin-jsdoc';
-
-import pluginHeader from 'eslint-plugin-header';
-pluginHeader.rules.header.meta.schema = false;
 
 const ignores = fs.readFileSync(path.join(import.meta.dirname, '.eslint-ignore'), 'utf8')
 	.toString()
@@ -45,7 +34,7 @@ const codeLayers = {
 	'electron-main': ['common', 'node', 'electron-utility'],
 };
 
-export default defineConfig(
+export default [
 	// Global ignores
 	{
 		ignores: [
@@ -55,13 +44,6 @@ export default defineConfig(
 	},
 	// All files (JS and TS)
 	{
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'local': pluginLocal,
-			'header': fixupPluginRules(/** @type {any} */ (pluginHeader)),
-		},
 		rules: {
 			'constructor-super': 'warn',
 			'curly': 'warn',
@@ -72,7 +54,7 @@ export default defineConfig(
 					'destructuring': 'all'
 				}
 			],
-			'no-buffer-constructor': 'warn',
+			'eslint-js/no-buffer-constructor': 'warn',
 			'no-caller': 'warn',
 			'no-case-declarations': 'warn',
 			'no-debugger': 'warn',
@@ -80,7 +62,7 @@ export default defineConfig(
 			'no-duplicate-imports': 'warn',
 			'no-eval': 'warn',
 			'no-async-promise-executor': 'warn',
-			'no-extra-semi': 'warn',
+			'@stylistic/no-extra-semi': 'warn',
 			'no-new-wrappers': 'warn',
 			'no-redeclare': 'off',
 			'no-sparse-arrays': 'warn',
@@ -101,7 +83,7 @@ export default defineConfig(
 				'context'
 			], // non-complete list of globals that are easy to access unintentionally
 			'no-var': 'warn',
-			'semi': 'warn',
+			'@stylistic/semi': 'warn',
 			'local/code-translation-remind': 'warn',
 			'local/code-no-declare-const-enum': 'warn',
 			'local/code-parameter-properties-must-have-explicit-accessibility': 'warn',
@@ -200,9 +182,6 @@ export default defineConfig(
 			'.eslint-plugin-local/**/*.ts',
 		],
 		ignores: allowedBracketNotationFiles,
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-no-bracket-notation-for-identifiers': 'warn',
 		},
@@ -212,19 +191,7 @@ export default defineConfig(
 		files: [
 			'**/*.{ts,tsx,mts,cts}',
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'@stylistic': stylistic,
-			'@typescript-eslint': tseslint.plugin,
-			'local': pluginLocal,
-			'jsdoc': pluginJsdoc,
-		},
 		rules: {
-			// Disable built-in semi rules in favor of stylistic
-			'semi': 'off',
-			'@stylistic/semi': 'warn',
 			'@stylistic/member-delimiter-style': 'warn',
 			'local/code-no-unused-expressions': [
 				'warn',
@@ -232,55 +199,28 @@ export default defineConfig(
 					'allowTernary': true
 				}
 			],
-			'jsdoc/no-types': 'warn',
+			'jsdoc-js/no-types': 'warn',
 			'local/code-no-static-self-ref': 'warn',
 			'local/code-class-name-pascal-case': 'warn'
 		}
-	},
-	{
-		files: [
-			'src/vs/platform/agentHost/test/**/missionControl*.test.ts',
-			'src/vs/platform/agentHost/test/**/protocolServerHandler.test.ts',
-			'src/vs/platform/agentHost/test/**/agentHostProtocolClient.test.ts',
-			'src/vs/platform/agentHost/test/**/webPubSubRelayTransport.test.ts',
-			'src/vs/platform/agentHost/test/common/webPubSub/*.test.ts',
-			'src/vs/workbench/contrib/chat/test/browser/remoteAgentHost/cloudSandbox*.test.ts',
-			'src/vs/sessions/contrib/providers/remoteAgentHost/test/browser/remoteAgentHost.contribution.test.ts',
-		],
-		plugins: {
-			'agent-host-test': {
-				rules: {
-					'no-nested-tests': {
-						meta: {
-							type: 'problem',
-							schema: [],
-							messages: { nested: 'Declare tests in the suite, not inside another test; Mocha does not execute nested declarations.' },
-						},
-						create(context) {
-							return {
-								'CallExpression[callee.name="test"] CallExpression[callee.name="test"]'(node) {
-									context.report({ node, messageId: 'nested' });
-								},
-							};
-						},
-					},
-				},
-			},
-		},
-		rules: {
-			'agent-host-test/no-nested-tests': 'error',
-		},
 	},
 	// Disallow common telemetry properties in event data
 	{
 		files: [
 			'src/**/*.ts',
 		],
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-no-telemetry-common-property': 'warn',
+		}
+	},
+	// src compiles with useDefineForClassFields: false, but must keep working with JavaScript class field semantics,
+	// which src/tsconfig.defineClassFields.json checks (see define-class-fields-check in package.json)
+	{
+		files: [
+			'src/**/*.ts',
+		],
+		rules: {
+			'local/code-no-parameter-property-before-init': 'warn',
 		}
 	},
 	// Force all gulp imports under build/ to go through the gulp facade
@@ -288,9 +228,6 @@ export default defineConfig(
 		files: [
 			'build/**/*.ts',
 		],
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-no-direct-gulp-import': 'warn',
 		}
@@ -439,9 +376,6 @@ export default defineConfig(
 			'test/automation/src/playwrightDriver.ts',
 			'.eslint-plugin-local/**/*',
 		],
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-no-in-operator': 'warn',
 		}
@@ -473,9 +407,6 @@ export default defineConfig(
 			// Codex's own generated app-server protocol (not AHP `_meta`).
 			'src/vs/platform/agentHost/node/codex/protocol/**',
 		],
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-no-untyped-meta-access': 'warn',
 		}
@@ -909,12 +840,6 @@ export default defineConfig(
 			'**/*.test.ts',
 			'**/*.integrationTest.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'@typescript-eslint': tseslint.plugin,
-		},
 		rules: {
 			'@typescript-eslint/no-explicit-any': [
 				'warn',
@@ -929,12 +854,6 @@ export default defineConfig(
 		files: [
 			'**/*.test.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-no-dangerous-type-assertions': 'off',
 			'local/code-must-use-super-dispose': 'off',
@@ -960,12 +879,6 @@ export default defineConfig(
 		files: [
 			'src/vs/**/*.test.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-ensure-no-disposables-leak-in-test': [
 				'warn',
@@ -997,15 +910,9 @@ export default defineConfig(
 		ignores: [
 			'extensions/git/src/api/git.constants.ts',
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'@typescript-eslint': tseslint.plugin,
-		},
 		rules: {
 			'no-restricted-imports': 'off',
-			'@typescript-eslint/no-restricted-imports': [
+			'ts-eslint-js/no-restricted-imports': [
 				'warn',
 				{
 					'patterns': [
@@ -1025,14 +932,8 @@ export default defineConfig(
 			'**/vscode.d.ts',
 			'**/vscode.proposed.*.d.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
-			'no-restricted-syntax': [
+			'eslint-js/no-restricted-syntax': [
 				'warn',
 				{
 					'selector': `TSArrayType > TSUnionType`,
@@ -1118,19 +1019,16 @@ export default defineConfig(
 		files: [
 			'**/vscode.d.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
 		rules: {
-			'jsdoc/tag-lines': 'off',
-			'jsdoc/valid-types': 'off',
-			'jsdoc/no-multi-asterisks': [
+			'jsdoc-js/tag-lines': 'off',
+			'jsdoc-js/valid-types': 'off',
+			'jsdoc-js/no-multi-asterisks': [
 				'warn',
 				{
 					'allowWhitespace': true
 				}
 			],
-			'jsdoc/require-jsdoc': [
+			'jsdoc-js/require-jsdoc': [
 				'warn',
 				{
 					'enableFixer': false,
@@ -1148,7 +1046,7 @@ export default defineConfig(
 					]
 				}
 			],
-			'jsdoc/check-param-names': [
+			'jsdoc-js/check-param-names': [
 				'warn',
 				{
 					'enableFixer': false,
@@ -1163,12 +1061,6 @@ export default defineConfig(
 		files: [
 			'src/**/{common,browser}/**/*.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-amd-node-module': 'warn'
 		}
@@ -1179,12 +1071,6 @@ export default defineConfig(
 			'src/*.ts',
 			'src/**/{node,electron-main,electron-utility}/**/*.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'no-restricted-globals': [
 				'warn',
@@ -1213,12 +1099,6 @@ export default defineConfig(
 			'src/vs/platform/*/electron-main/**/*.ts',
 			'src/vs/platform/*/node/**/*.ts',
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-no-static-node-module-import': [
 				'error',
@@ -1236,15 +1116,9 @@ export default defineConfig(
 		files: [
 			'src/**/{browser,electron-browser}/**/*.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-no-global-document-listener': 'warn',
-			'no-restricted-syntax': [
+			'eslint-js/no-restricted-syntax': [
 				'warn',
 				{
 					'selector': `NewExpression[callee.object.name='Intl']`,
@@ -1586,9 +1460,6 @@ export default defineConfig(
 		files: [
 			'src/**/electron-utility/**/*.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
 		rules: {
 			'no-restricted-imports': [
 				'warn',
@@ -1611,12 +1482,6 @@ export default defineConfig(
 		files: [
 			'src/**/*.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'no-restricted-imports': [
 				'warn',
@@ -1660,6 +1525,7 @@ export default defineConfig(
 						'@vscode/spdlog',
 						'@vscode/windows-process-tree',
 						'assert',
+						'async_hooks',
 						'child_process',
 						'console',
 						'cookie',
@@ -2501,12 +2367,6 @@ export default defineConfig(
 		files: [
 			'test/**/*.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-import-patterns': [
 				'warn',
@@ -2619,9 +2479,6 @@ export default defineConfig(
 			'src/vs/sessions/contrib/providers/copilotChatSessions/**/*.ts',
 			'src/vs/workbench/contrib/sessions/providers/copilotChatSessions/**/*.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
 		rules: {
 			'no-restricted-imports': [
 				'warn',
@@ -2652,9 +2509,6 @@ export default defineConfig(
 			'src/vs/workbench/contrib/chat/test/browser/chatTipService.test.ts',
 			'src/vs/workbench/contrib/chat/test/browser/widget/chatContentParts/chatToolAuthenticationSubPart.test.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
 		rules: {
 			'local/code-no-restricted-path-imports': [
 				'error',
@@ -2673,12 +2527,6 @@ export default defineConfig(
 		files: [
 			'src/vs/workbench/contrib/notebook/browser/view/renderers/*.ts'
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-no-runtime-import': [
 				'error',
@@ -2705,11 +2553,8 @@ export default defineConfig(
 			'src/vs/workbench/contrib/terminal/**/*.ts',
 			'src/vs/workbench/contrib/terminalContrib/**/*.ts',
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
 		rules: {
-			'@typescript-eslint/naming-convention': [
+			'ts-eslint-js/naming-convention': [
 				'warn',
 				// variableLike
 				{ 'selector': 'variable', 'format': ['camelCase', 'UPPER_CASE', 'PascalCase'] },
@@ -2726,7 +2571,7 @@ export default defineConfig(
 			],
 			// Covered by the `typeLike` naming convention above
 			'local/code-class-name-pascal-case': 'off',
-			'comma-dangle': ['warn', 'only-multiline']
+			'@stylistic/comma-dangle': ['warn', 'only-multiline']
 		}
 	},
 	// Ban dynamic require() and import() calls in extensions to ensure tree-shaking works
@@ -2739,7 +2584,7 @@ export default defineConfig(
 			'extensions/copilot/**/*',
 		],
 		rules: {
-			'no-restricted-syntax': [
+			'eslint-js/no-restricted-syntax': [
 				'warn',
 				{
 					'selector': `CallExpression[callee.name='require'][arguments.0.type!='Literal']`,
@@ -2757,14 +2602,8 @@ export default defineConfig(
 		files: [
 			'extensions/markdown-language-features/**/*.ts',
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'@typescript-eslint': tseslint.plugin,
-		},
 		rules: {
-			'no-restricted-syntax': [
+			'eslint-js/no-restricted-syntax': [
 				'warn',
 				{
 					selector: ':matches(PropertyDefinition, TSParameterProperty, MethodDefinition[key.name!="constructor"])[accessibility="private"]',
@@ -2784,32 +2623,7 @@ export default defineConfig(
 			'extensions/simple-browser/**/*.ts',
 			'extensions/typescript-language-features/**/*.ts',
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-			parserOptions: {
-				project: [
-					// Markdown
-					'extensions/markdown-language-features/tsconfig.json',
-					'extensions/markdown-language-features/notebook/tsconfig.json',
-					'extensions/markdown-language-features/preview-src/tsconfig.json',
-
-					// Simple browser
-					'extensions/simple-browser/tsconfig.json',
-					'extensions/simple-browser/preview-src/tsconfig.json',
-
-					// Mermaid markdown features
-					'extensions/mermaid-markdown-features/tsconfig.json',
-					'extensions/mermaid-markdown-features/preview-src/chat/tsconfig.json',
-
-					// TypeScript
-					'extensions/typescript-language-features/tsconfig.json',
-					'extensions/typescript-language-features/web/tsconfig.json',
-				],
-			}
-		},
-		plugins: {
-			'@typescript-eslint': tseslint.plugin,
-		},
+		// These rules need type information: oxlint runs them with --type-aware (see typeAwareLintFolders in build/lib/changedFiles.ts).
 		rules: {
 			'@typescript-eslint/prefer-optional-chain': 'warn',
 			'@typescript-eslint/prefer-readonly': 'warn',
@@ -2826,12 +2640,6 @@ export default defineConfig(
 			'extensions/copilot/**/.esbuild.ts',
 			'extensions/copilot/src/extension/completions-core/vscode-node/bridge/src/completionsTelemetryServiceBridge.ts',
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'copilot-local': pluginCopilotLocal,
-		},
 		rules: {
 			'local/code-no-dangerous-type-assertions': 'off',
 			'local/code-no-any-casts': 'off',
@@ -2947,9 +2755,6 @@ export default defineConfig(
 		files: [
 			'extensions/copilot/src/extension/**/*.tsx',
 		],
-		plugins: {
-			'copilot-local': pluginCopilotLocal,
-		},
 		rules: {
 			'copilot-local/no-missing-linebreak': 'warn'
 		}
@@ -2960,9 +2765,6 @@ export default defineConfig(
 			'extensions/copilot/**/*.test.ts',
 			'extensions/copilot/**/*.test.tsx',
 		],
-		plugins: {
-			'copilot-local': pluginCopilotLocal,
-		},
 		rules: {
 			'copilot-local/no-test-only': 'warn'
 		}
@@ -3104,7 +2906,6 @@ export default defineConfig(
 			'extensions/copilot/src/platform/parser/node/parserWorker.ts',
 			'extensions/copilot/src/platform/parser/node/treeSitterQueries.ts',
 			'extensions/copilot/src/platform/remoteCodeSearch/common/githubCodeSearchService.ts',
-			'extensions/copilot/src/platform/remoteSearch/node/codeOrDocsSearchClientImpl.ts',
 			'extensions/copilot/src/platform/review/vscode/reviewServiceImpl.ts',
 			'extensions/copilot/src/platform/scopeSelection/vscode-node/scopeSelectionImpl.ts',
 			'extensions/copilot/src/platform/snippy/common/snippyTypes.ts',
@@ -3150,12 +2951,6 @@ export default defineConfig(
 			'extensions/copilot/src/util/common/types.ts',
 			'extensions/copilot/src/util/node/worker.ts',
 		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'@typescript-eslint': tseslint.plugin,
-		},
 		rules: {
 			'@typescript-eslint/no-explicit-any': [
 				'warn',
@@ -3182,7 +2977,7 @@ export default defineConfig(
 			'extensions/**/test/**/*.ts',
 		],
 		rules: {
-			'no-restricted-syntax': [
+			'eslint-js/no-restricted-syntax': [
 				'warn',
 				// Keep the Intl helper restriction even in tests
 				{
@@ -3207,10 +3002,8 @@ export default defineConfig(
 			'**/*.mjs',
 		],
 		ignores: allowedJavaScriptFiles,
-		plugins: {
-			'local': pluginLocal,
-		},
 		rules: {
 			'local/code-no-new-javascript-files': 'error',
 		},
-	});
+	},
+];

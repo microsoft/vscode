@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { computeFloatingWidgetPlacement, FloatingWidgetSizeModel, getCenteredTop, getConnectorPoints, getPlacementBesideLines, getRevealScrollTop, getRowsOutlinePath, getWidthBesideCode, IFloatingWidgetPlacementRequest, IRect } from '../../browser/commentThreadFloatingWidgetLayout.js';
+import { computeFloatingWidgetPlacement, FloatingWidgetSizeModel, getCenteredTop, getConnectorPoints, getPlacementBesideLines, getRevealScrollTop, getRowsOutlinePath, getWidthBesideCode, IFloatingWidgetPlacementRequest, IRect, isInTheWayOf } from '../../browser/commentThreadFloatingWidgetLayout.js';
 
 suite('Comment thread floating widget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -103,15 +103,15 @@ suite('Comment thread floating widget', () => {
 			assert.deepStrictEqual(computeFloatingWidgetPlacement(request), { top: 420, left: 592, centered: true });
 		});
 
-		test('places the widget below the code when there is no room next to it', () => {
+		test('places the widget below the code, at the right edge of the editor, when there is no room next to it', () => {
 			assert.deepStrictEqual({
 				longCode: computeFloatingWidgetPlacement({ ...request, code: { top: 500, left: 60, width: 560, height: 40 } }),
 				indentedCode: computeFloatingWidgetPlacement({ ...request, code: { top: 500, left: 700, width: 280, height: 20 } }),
 				narrowEditor: computeFloatingWidgetPlacement({ ...request, maxRight: 500 }),
 			}, {
-				longCode: { top: 548, left: 60, centered: false },
+				longCode: { top: 548, left: 592, centered: false },
 				indentedCode: { top: 528, left: 592, centered: false },
-				narrowEditor: { top: 548, left: 60, centered: false },
+				narrowEditor: { top: 548, left: 92, centered: false },
 			});
 		});
 
@@ -123,9 +123,9 @@ suite('Comment thread floating widget', () => {
 			assert.deepStrictEqual(computeFloatingWidgetPlacement({
 				...request,
 				obstacles: [
-					{ top: 300, left: 600, width: 300, height: 150 },
-					{ top: 460, left: 500, width: 300, height: 100 },
-					{ top: 0, left: 600, width: 300, height: 100 },
+					{ top: 300, left: 600, width: 300, height: 150, codeTop: 360 },
+					{ top: 460, left: 500, width: 300, height: 100, codeTop: 480 },
+					{ top: 0, left: 600, width: 300, height: 100, codeTop: 20 },
 				]
 			}), { top: 568, left: 592, centered: false });
 		});
@@ -134,10 +134,10 @@ suite('Comment thread floating widget', () => {
 			assert.deepStrictEqual({
 				room: computeFloatingWidgetPlacement({ ...request, besideCode: true }),
 				noRoom: computeFloatingWidgetPlacement({ ...request, besideCode: true, code: { top: 500, left: 60, width: 560, height: 40 } }),
-				besideOtherWidget: computeFloatingWidgetPlacement({ ...request, besideCode: true, obstacles: [{ top: 480, left: 400, width: 300, height: 100 }] }),
+				besideOtherWidget: computeFloatingWidgetPlacement({ ...request, besideCode: true, obstacles: [{ top: 480, left: 400, width: 300, height: 100, codeTop: 440 }] }),
 			}, {
 				room: { top: 500, left: 384, centered: false },
-				noRoom: { top: 548, left: 60, centered: false },
+				noRoom: { top: 548, left: 592, centered: false },
 				besideOtherWidget: { top: 588, left: 384, centered: false },
 			});
 		});
@@ -156,20 +156,57 @@ suite('Comment thread floating widget', () => {
 
 		test('moves the widget to the closest free position above or below the widgets it would cover', () => {
 			assert.deepStrictEqual({
-				closerAbove: computeFloatingWidgetPlacement({ ...request, obstacles: [{ top: 380, left: 600, width: 300, height: 300 }] }),
+				closerAbove: computeFloatingWidgetPlacement({ ...request, obstacles: [{ top: 380, left: 600, width: 300, height: 300, codeTop: 600 }] }),
 				// The document ends at 1000 and can't be scrolled further, so there is no room below the other widget.
 				belowOutOfReach: computeFloatingWidgetPlacement({
 					...request,
 					height: 360,
 					code: { top: 940, left: 60, width: 300, height: 20 },
-					obstacles: [{ top: 632, left: 592, width: 400, height: 360 }],
+					obstacles: [{ top: 632, left: 592, width: 400, height: 360, codeTop: 960 }],
 					scrollableHeight: 1000
 				}),
-				noFreePosition: computeFloatingWidgetPlacement({ ...request, obstacles: [{ top: 0, left: 600, width: 300, height: 400 }], scrollableHeight: 400 }),
+				noFreePosition: computeFloatingWidgetPlacement({ ...request, obstacles: [{ top: 0, left: 600, width: 300, height: 400, codeTop: 520 }], scrollableHeight: 400 }),
 			}, {
 				closerAbove: { top: 172, left: 592, centered: false },
 				belowOutOfReach: { top: 264, left: 592, centered: false },
 				noFreePosition: { top: 192, left: 592, centered: false },
+			});
+		});
+
+		test('keeps the widgets in the order of their code', () => {
+			assert.deepStrictEqual({
+				aboveWidgetForLaterCode: computeFloatingWidgetPlacement({ ...request, obstacles: [{ top: 340, left: 600, width: 300, height: 200, codeTop: 600 }] }),
+				belowWidgetForEarlierCode: computeFloatingWidgetPlacement({ ...request, obstacles: [{ top: 480, left: 600, width: 300, height: 300, codeTop: 400 }] }),
+				noRoomOnItsSide: computeFloatingWidgetPlacement({ ...request, obstacles: [{ top: 100, left: 600, width: 300, height: 400, codeTop: 600 }] }),
+				// A widget that was moved above the code of this one doesn't keep this one from staying above the others.
+				besideMovedWidget: computeFloatingWidgetPlacement({
+					...request,
+					obstacles: [{ top: 380, left: 600, width: 300, height: 100, codeTop: 560 }, { top: 0, left: 600, width: 300, height: 100, codeTop: 600 }]
+				}),
+			}, {
+				aboveWidgetForLaterCode: { top: 132, left: 592, centered: false },
+				belowWidgetForEarlierCode: { top: 788, left: 592, centered: false },
+				noRoomOnItsSide: { top: 508, left: 592, centered: false },
+				besideMovedWidget: { top: 172, left: 592, centered: false },
+			});
+		});
+	});
+
+	suite('isInTheWayOf', () => {
+		test('is in the way of a widget that it covers, or that it is out of the order of their code with', () => {
+			const earlier = { top: 400, left: 600, width: 300, height: 200, codeTop: 300 };
+			assert.deepStrictEqual({
+				covering: isInTheWayOf({ top: 500, left: 650, width: 300, height: 200, codeTop: 600 }, earlier),
+				aboveForLaterCode: isInTheWayOf({ top: 100, left: 650, width: 300, height: 200, codeTop: 600 }, earlier),
+				belowForLaterCode: isInTheWayOf({ top: 700, left: 650, width: 300, height: 200, codeTop: 600 }, earlier),
+				besideForLaterCode: isInTheWayOf({ top: 100, left: 100, width: 300, height: 200, codeTop: 600 }, earlier),
+				aboveForSameCode: isInTheWayOf({ top: 100, left: 650, width: 300, height: 200, codeTop: 300 }, earlier),
+			}, {
+				covering: true,
+				aboveForLaterCode: true,
+				belowForLaterCode: false,
+				besideForLaterCode: false,
+				aboveForSameCode: false,
 			});
 		});
 	});

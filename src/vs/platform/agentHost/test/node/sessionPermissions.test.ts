@@ -269,6 +269,36 @@ suite('SessionPermissionManager', () => {
 		assert.deepStrictEqual(results, [ToolCallConfirmationReason.Setting, undefined]);
 	});
 
+	test('root MCP grants approve pending calls by raw server or tool identity', async () => {
+		const signal = confirmationSignal({ permissionKind: AgentPermissionKind.Mcp, mcpServerName: 'corp', mcpToolName: 'get_me' });
+		startConfirmation({ ...signal, state: { ...signal.state, toolName: 'corp-get_me' } });
+		const event: IToolApprovalEvent = {
+			toolCallId: signal.state.toolCallId, session: signal.chat, permissionKind: signal.permissionKind,
+			mcpServerName: signal.mcpServerName, mcpToolName: signal.mcpToolName,
+		};
+		const results = [];
+		for (const rule of ['Mcp(corp)', 'Mcp(corp/get_me)', 'Mcp(corp/other)']) {
+			configService.updateRootConfig({ [SessionConfigKey.Permissions]: { allow: [rule], deny: [] } });
+			results.push(await permissions.getAutoApproval(event, signal.chat.toString()));
+		}
+		assert.deepStrictEqual(results, [ToolCallConfirmationReason.Setting, ToolCallConfirmationReason.Setting, undefined]);
+	});
+
+	test('root MCP ask and deny rules use raw identity alongside allow rules', async () => {
+		const event: IToolApprovalEvent = {
+			toolCallId: 'tc-mcp', toolName: 'corp-get_me', session: URI.parse(sessionUri),
+			permissionKind: AgentPermissionKind.Mcp, mcpServerName: 'corp', mcpToolName: 'get_me',
+		};
+		configService.updateRootConfig({ [SessionConfigKey.Permissions]: { allow: ['Mcp(corp)'], deny: [], ask: ['Mcp(corp/get_me)'] } });
+		const asked = await permissions.getAutoApproval(event, sessionUri);
+		configService.updateRootConfig({ [SessionConfigKey.Permissions]: { allow: ['Mcp(corp)'], deny: ['Mcp(corp/get_me)'] } });
+		assert.deepStrictEqual({
+			asked,
+			denied: await permissions.isDeniedByPermissions(event, sessionUri),
+			otherToolDenied: await permissions.isDeniedByPermissions({ ...event, mcpToolName: 'other' }, sessionUri),
+		}, { asked: undefined, denied: true, otherToolDenied: false });
+	});
+
 	test('Read and Edit rules approve matching paths outside the working directory', async () => {
 		const target = join(outsideDir, 'allowed.txt');
 		setPermissionRules([`Read(//${target.replace(/\\/g, '/').replace(/^\//, '')})`, `Edit(//${target.replace(/\\/g, '/').replace(/^\//, '')})`]);

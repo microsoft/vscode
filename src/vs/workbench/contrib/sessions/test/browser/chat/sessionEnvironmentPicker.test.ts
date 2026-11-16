@@ -46,6 +46,7 @@ suite('SessionEnvironmentPicker', () => {
 	function provider(id: string, environment: string, options: Partial<ISessionsProvider> = {}): ISessionsProvider {
 		return upcastPartial<ISessionsProvider>({
 			id, environment: { id: environment, label: environment }, label: id, icon: Codicon.remote,
+			sessionTypes: [{ id: 'test', label: 'Test', icon: Codicon.remote, authRequirement: SessionTypeAuthRequirement.GitHub }],
 			resolveWorkspace: () => workspace,
 			getSessionTypes: () => [],
 			...options,
@@ -116,6 +117,15 @@ suite('SessionEnvironmentPicker', () => {
 			getEnvironmentWorkspaceProvider(cloud, [localProvider, cloudProvider], folder)?.id,
 			getEnvironmentWorkspaceProvider(cloud, [localProvider, supportedCloud], folder)?.id,
 		], [LOCAL_AGENT_HOST_PROVIDER_ID, undefined, 'cloud']);
+	});
+
+	test('hides Cloud creation without disabling its workspace browse contributions', () => {
+		const cloudProvider = provider('cloud', 'cloud', { sessionTypes: [] });
+		assert.deepStrictEqual({
+			environments: getSessionCreationEnvironments([cloudProvider]),
+			workspace: cloudProvider.resolveWorkspace(folder),
+			workspaceSelection: cloudProvider.supportsWorkspaceSelection !== false,
+		}, { environments: [], workspace, workspaceSelection: true });
 	});
 
 	test('connection descriptions use the shared Connected, Connecting and Disconnected labels', () => {

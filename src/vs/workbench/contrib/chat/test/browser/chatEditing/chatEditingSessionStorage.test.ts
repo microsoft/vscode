@@ -107,4 +107,27 @@ suite('ChatEditingSessionStorage', () => {
 		const s = await storage.restoreState();
 		assert.strictEqual(s, undefined);
 	});
+
+	test('does not write a folder for an empty state', async () => {
+		const emptyState: StoredSessionState = {
+			initialFileContents: new ResourceMap<string>(),
+			recentSnapshot: { stopId: undefined, entries: new ResourceMap<ISnapshotEntry>() },
+			timeline: {
+				checkpoints: [{ checkpointId: generateUuid(), requestId: undefined, undoStopId: undefined, epoch: 0, label: 'Initial State' }],
+				currentEpoch: 1,
+				fileBaselines: [],
+				operations: [],
+				epochCounter: 1,
+			},
+		};
+
+		await storage.storeState(emptyState);
+		const writtenWhenEmpty = await fs.exists(storage.storageLocation);
+
+		await storage.storeState(generateState());
+		await storage.storeState(emptyState);
+		const keptAfterEmptied = await fs.exists(storage.storageLocation);
+
+		assert.deepStrictEqual({ writtenWhenEmpty, keptAfterEmptied }, { writtenWhenEmpty: false, keptAfterEmptied: false });
+	});
 });

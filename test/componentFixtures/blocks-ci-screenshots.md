@@ -7,10 +7,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/dfbb0ce3586e7a15bdb7354ff70df81563ed19b5b857c71d7a02e11ef7ad13fd)
 
 #### chat/chatCustomizationsHover/Default/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/734f5dc70ad31bda6fabf42e583315a5c21317a06e59e705e078d480474f551d)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/ee82e7855b504c48ca9487cc06428fa0144b134c8a21f96f25ba1c0c34da7382)
 
 #### chat/chatCustomizationsHover/MigrationsAndMcpAuthentication/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/0832b2ae75bd7259fd9601df3d42a4cb8767922dd9ed5a51e5ff7527a1e9b9a6)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/5e63fb51d5307fd8614817015b731adcd7f18acdaf7230aab5bde94359172c7c)
 
 #### chat/chatPetAccessoryRig/chatPetAccessoryRig/AllAccessoriesFacing/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/53dc97e97d4f9e8d02d144012794cce528d3d25d659149df8c854f7c42e54d74)
@@ -85,7 +85,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/ba9f3a1f916231953b82851a61bafbe0e2738056cac9d9a5be47da573d8ea5da)
 
 #### editor/inlineChatZoneWidget/InlineChatZoneWidget/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/149a3762c5eef80f2a1c74385c9d45871821de012a9cc36ecaa8d22858ac1ad2)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/a50c6b1aa065a2b53a2e70cc226298c36bd04617f3163ffe11892fba9b141cf1)
 
 #### editor/inlineChatZoneWidget/InlineChatZoneWidgetTerminated/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/8d8b39f9a3dd85453ad1594df888c7ac1908d5c7ed80a5b15238d818a89aeb1b)
@@ -199,7 +199,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/72a8a6536056d6346030d6f6c7818ac7bf766efbe4bcbf5eb1ff98c1a5dcfc59)
 
 #### sessions/sessionsList/SessionsList_CompactSessionRename/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/eae654d7b4ff4c5fc8fb397d7e4439e26cf8db259f67a1c49acbb872b1f63200)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/55159b1e807948be4ca3754b80df31b39731aaf283837016e3b0c6a8966e333b)
 
 #### sessions/sessionsList/SessionsList_CompactUnreadStatusIcons/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/d9a2ae34e8d118e1006023600907f022d1ef272062c9df74206c5810b11f4152)

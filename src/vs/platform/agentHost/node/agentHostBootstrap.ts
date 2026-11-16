@@ -38,6 +38,7 @@ import { SessionDataService } from './sessionDataService.js';
 import { CompatibleAgentHostDatabase } from './compatibleAgentHostDatabase.js';
 import { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
+import type { AgentHostStartupPhase } from '../common/agentHostProcessExit.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { AgentHostSystemWakeService, IAgentHostSystemWakeService } from './agentHostSystemWakeService.js';
 import { AgentHostMacAccessibilityTrustService, IAgentHostMacAccessibilityTrustService } from './agentHostMacAccessibilityTrustService.js';
@@ -63,6 +64,8 @@ export interface ICreateAgentHostRuntimeOptions {
 	readonly byok: { readonly kind: 'renderer'; readonly bridgeRegistry: IByokLmBridgeRegistry } | { readonly kind: 'unavailable' };
 	/** Only the local utility-process host supports on-device models; omitted means unavailable. */
 	readonly localModel?: { readonly kind: 'localUtilityProcess' } | { readonly kind: 'unavailable' };
+	/** Called as startup reaches each phase, so a crash can be attributed to the phase it interrupted. */
+	readonly onStartupPhase?: (phase: AgentHostStartupPhase) => void;
 }
 
 export interface IAgentHostRuntime extends IDisposable {
@@ -120,6 +123,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		const orchestratorDatabase = infrastructure.add(new CompatibleAgentHostDatabase(
 			joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host.db').fsPath,
 		));
+		options.onStartupPhase?.('database');
 		await orchestratorDatabase.initialize();
 		const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService, undefined, orchestratorDatabase.identity);
 		const services = new StrictServiceCollection(
@@ -153,6 +157,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		});
 		const { fetchFn } = foundation;
 		startup.mark('configuration', { since: 'bootstrapStart' });
+		options.onStartupPhase?.('telemetry');
 		const telemetryService = await createAgentHostTelemetryService({
 			environmentService,
 			productService,
@@ -165,6 +170,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			requestService: foundation.requestService,
 		});
 		startup.mark('telemetry', { since: 'configuration' });
+		options.onStartupPhase?.('services');
 		services.set(ITelemetryService, telemetryService);
 		const byokBridgeRegistry = options.byok.kind === 'renderer' ? options.byok.bridgeRegistry : new NullByokLmBridgeRegistry();
 		services.set(IByokLmBridgeRegistry, byokBridgeRegistry);

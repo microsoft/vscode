@@ -140,11 +140,6 @@
 	display: none;
 }
 
-.automations-ownership-summary:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-strokeThickness);
-}
-
 .automations-ownership-chevron,
 .automations-ownership-info {
 	display: inline-flex;
@@ -215,13 +210,25 @@
 	touch-action: manipulation;
 }
 
-.automations-card:hover {
-	background-color: var(--vscode-list-hoverBackground);
+.automations-card.agent-sessions-interactive.agent-sessions-interactive-list.agent-sessions-interactive-bordered:has(> .automations-card-actions:is(:hover, .hovered, .menu-open, :focus-within, .focus-within)) {
+	background-color: transparent;
+	outline: none;
 }
 
-.automations-card:has(> .automations-card-main:focus-visible) {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
+:is(.hc-black, .hc-light) .automations-card.agent-sessions-interactive.agent-sessions-interactive-list.agent-sessions-interactive-bordered:has(> .automations-card-actions:is(:hover, .hovered, .menu-open, :focus-within, .focus-within)) {
+	border-color: var(--vscode-editorWidget-border);
+}
+
+.automations-card.agent-sessions-interactive.agent-sessions-interactive-list.agent-sessions-interactive-bordered:has(> .automations-card-main:is(:focus-visible, .focus-visible)) {
+	background-color: transparent;
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+:is(.hc-black, .hc-light) .automations-card.agent-sessions-interactive.agent-sessions-interactive-list.agent-sessions-interactive-bordered:has(> .automations-card-main:is(:focus-visible, .focus-visible)) {
+	border-color: transparent;
+	outline-width: calc(2 * var(--vscode-strokeThickness));
+	outline-offset: calc(-2 * var(--vscode-strokeThickness));
 }
 
 /* Card Main Content */
@@ -354,9 +361,9 @@
 	opacity: 0;
 }
 
-.automations-card:hover .automations-card-actions,
+.automations-card:is(:hover, .hovered) .automations-card-actions,
 .automations-card:focus-within .automations-card-actions,
-.automations-card .automations-card-actions.menu-open {
+.automations-card .automations-card-actions:is(.hovered, .menu-open) {
 	opacity: 1;
 }
 
@@ -378,11 +385,6 @@
 
 .automations-card-actions .monaco-button.automations-card-action-button:hover:not(.disabled) {
 	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.automations-card-actions .monaco-button.automations-card-action-button:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
 }
 
 .automations-card-actions .monaco-button.automations-card-action-button.disabled {
@@ -424,6 +426,23 @@
 .automations-cards-create-button .monaco-button {
 	padding: 6px 16px;
 	font-size: 12px;
+}
+
+.automations-cards-create-dropdown > .automations-cards-create-button,
+.automations-cards-create-dropdown > .automations-cards-state-create-button {
+	max-width: none;
+	margin-top: 0;
+	white-space: nowrap;
+}
+
+.automations-cards-state > .automations-cards-create-dropdown {
+	margin-top: var(--vscode-spacing-size120);
+}
+
+/* The header's flex row would otherwise leave the chevron shorter than the primary button. */
+.custom-view-header-actions .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	height: auto;
+	align-self: stretch;
 }
 
 /* Loading and error states */
@@ -492,8 +511,21 @@
 	display: inline;
 }
 
-.automations-cards-partial-state-content > .automations-manage-remotes-link {
+.automations-cards-partial-state-message:not(:empty) + .automations-manage-remotes {
 	margin-left: var(--vscode-spacing-size80);
+}
+
+.automations-manage-remotes {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.automations-manage-remotes-count {
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+	white-space: nowrap;
 }
 
 .automations-cards-partial-state {
@@ -557,11 +589,6 @@
 
 .automations-template-section-summary::-webkit-details-marker {
 	display: none;
-}
-
-.automations-template-section-summary:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-strokeThickness);
 }
 
 .automations-template-section-chevron {
@@ -632,15 +659,6 @@
 	text-align: left;
 	cursor: pointer;
 	touch-action: manipulation;
-}
-
-.automations-template-card:hover {
-	background-color: var(--vscode-list-hoverBackground);
-}
-
-.automations-template-card:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .automations-template-card-name {
