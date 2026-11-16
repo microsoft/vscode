@@ -12,7 +12,9 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { getWorktreeFilterKey } from '../../../../../../platform/agentHost/common/sessionWorktreeFolders.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { AgentSessionsWorktreeOpener } from '../../../browser/agentSessions/agentSessionsWorktreeOpener.js';
+import { IChatViewHostService, IChatViewHostShownSession } from '../../../browser/chatViewHost.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { AgentSessionsModel, IAgentSession, isAgentSession, isAgentSessionsModel, isLocalAgentSessionItem } from '../../../browser/agentSessions/agentSessionsModel.js';
@@ -1333,6 +1335,76 @@ suite('AgentSessions', () => {
 				arrived: [true],
 				unchanged: [true],
 				gone: [true, false],
+			});
+		});
+
+		test('tells only of the worktree folders the user picks, not of All Worktrees nor of a stored one that applies again', () => {
+			const filterMenuId = new MenuId('agentSessionsWorktreeFilterPickTest');
+			const inFolder = (name: string, path: string) => createSession({ resource: URI.parse(`test://${name}`), metadata: { workingDirectoryPath: path } });
+			const main = inFolder('main', '/work/vscode');
+			const first = inFolder('first', '/work/vscode.worktrees/first');
+			// Stored before, its sessions not there yet, as at startup
+			instantiationService.get(IStorageService).store('agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu', JSON.stringify({ worktree: getWorktreeFilterKey(URI.file('/work/vscode.worktrees/first')) }), StorageScope.PROFILE, StorageTarget.USER);
+			modelSessions = [main];
+			const picked: string[] = [];
+			disposables.add(instantiationService.createInstance(AgentSessionsFilter, { filterMenuId, onDidPickWorktree: worktree => picked.push(worktree) }));
+			modelSessions = [main, first];
+			onDidChangeModelSessions.fire();
+			const late = [...picked];
+			const worktreesMenuId = MenuId.for(`${filterMenuId.id}.worktrees`);
+			const pick = (title: string) => {
+				const item = MenuRegistry.getMenuItems(worktreesMenuId).filter(isIMenuItem).find(candidate => candidate.command.title === title)!;
+				instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(item.command.id)!.handler(accessor));
+			};
+			pick('All Worktrees');
+			pick('vscode');
+
+			assert.deepStrictEqual({ late, picks: picked }, {
+				late: [],
+				picks: [getWorktreeFilterKey(URI.file('/work/vscode'))],
+			});
+		});
+
+		test('opens the session of a picked worktree folder shown last, else its most recent one not archived, and nothing while the shown one works in it', async () => {
+			const inFolder = (name: string, path: string, created: number, isArchived = false) => createSession({ resource: URI.parse(`test://${name}`), metadata: { workingDirectoryPath: path }, timing: { created, lastRequestStarted: undefined, lastRequestEnded: undefined }, isArchived: () => isArchived });
+			const main = inFolder('main', '/work/vscode', 100);
+			const older = inFolder('older', '/work/vscode.worktrees/first', 10);
+			const newer = inFolder('newer', '/work/vscode.worktrees/first', 20);
+			// The most recent of the folder, but archived
+			const archived = inFolder('archived', '/work/vscode.worktrees/first', 90, true);
+			const second = inFolder('second', '/work/vscode.worktrees/second', 50);
+			modelSessions = [main, older, newer, archived, second];
+			const shown = observableValue<IChatViewHostShownSession | undefined>('shown', { resource: main.resource, reason: 'open' });
+			instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ shownSession: shown }));
+			instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+				override readonly model = new class extends mock<IAgentSessionsService['model']>() {
+					override get sessions() { return modelSessions; }
+				}();
+				override getSession(resource: URI) { return modelSessions.find(session => session.resource.toString() === resource.toString()); }
+			}());
+			const opened: string[] = [];
+			class RecordingOpener extends AgentSessionsWorktreeOpener {
+				protected override async openAgentSession(session: IAgentSession): Promise<void> {
+					opened.push(session.resource.authority);
+				}
+			}
+			const opener = disposables.add(instantiationService.createInstance(RecordingOpener));
+			const first = getWorktreeFilterKey(URI.file('/work/vscode.worktrees/first'));
+			const show = (session: IAgentSession) => shown.set({ resource: session.resource, reason: 'open' }, undefined);
+
+			await opener.open(first);
+			const mostRecent = [...opened];
+			show(older);
+			show(second);
+			await opener.open(first);
+			const remembered = opened.slice(mostRecent.length);
+			show(newer);
+			await opener.open(first);
+
+			assert.deepStrictEqual({ mostRecent, remembered, alreadyShown: opened.slice(mostRecent.length + remembered.length) }, {
+				mostRecent: ['newer'],
+				remembered: ['older'],
+				alreadyShown: [],
 			});
 		});
 

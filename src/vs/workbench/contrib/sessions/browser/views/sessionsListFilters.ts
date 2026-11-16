@@ -5,11 +5,11 @@
 
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { getComparisonKey } from '../../../../../base/common/resources.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
-import { getSessionWorktreeFolder, getWorktreeFilterKey, getWorktreeFilterOptions, ISessionWorktreeFolder } from '../../../../../platform/agentHost/common/sessionWorktreeFolders.js';
+import { getSessionWorktreeFolder, getWorktreeFilterKey, getWorktreeFilterOptions, getWorktreeSessionToOpen, ISessionWorktreeFolder, IWorktreeFilterSession, WorktreeLastSessions } from '../../../../../platform/agentHost/common/sessionWorktreeFolders.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { getSessionApplication, UNKNOWN_SESSION_APPLICATION_ID } from '../../../../services/sessions/common/sessionApplication.js';
@@ -183,6 +183,17 @@ export function getSessionFilterOptions(sessions: readonly ISession[], environme
 	return options;
 }
 
+/** `session` as the Worktrees filter picks one to open as the user picks its folder. */
+export function getWorktreeFilterSession(session: ISession): IWorktreeFilterSession {
+	const worktree = getSessionWorktreeFilterFolder(session);
+	return {
+		id: session.sessionId,
+		worktree: worktree && getWorktreeFilterKey(worktree.folder),
+		isArchived: session.isArchived.get(),
+		time: (session.updatedAt.get() ?? session.createdAt).getTime(),
+	};
+}
+
 /** The Worktrees filter's options: the folders that listed sessions not archived work in. */
 function getListedWorktreeOptions(sessions: readonly ISession[], isSessionListed: (session: ISession, reader: IReader | undefined) => boolean, reader?: IReader) {
 	return getWorktreeFilterOptions(sessions.filter(session => isSessionListed(session, reader) && !session.isArchived.read(reader)).map(session => getSessionWorktreeFilterFolder(session, reader)));
@@ -191,6 +202,40 @@ function getListedWorktreeOptions(sessions: readonly ISession[], isSessionListed
 /** The keys of the folders the Worktrees filter offers for `sessions`: of those the list includes, not archived. */
 export function getWorktreeFilterKeys(sessions: readonly ISession[], isSessionListed: (session: ISession, reader: IReader | undefined) => boolean, reader?: IReader): ReadonlySet<string> {
 	return new Set(getListedWorktreeOptions(sessions, isSessionListed, reader).map(option => option.key));
+}
+
+/**
+ * Opens a session of the worktree folder the user picks in the Worktrees filter, unless the shown session works in it already:
+ * the one of it shown last, else its most recent session that is not archived.
+ */
+export class SessionsWorktreeOpener extends Disposable {
+
+	private readonly _lastSessions = new WorktreeLastSessions();
+
+	constructor(
+		private readonly _shown: IObservable<ISession | undefined>,
+		private readonly _sessions: () => readonly ISession[],
+		private readonly _open: (session: ISession) => void,
+	) {
+		super();
+		this._register(autorun(reader => {
+			const shown = this._shown.read(reader);
+			const worktree = shown && getWorktreeFilterSession(shown).worktree;
+			if (shown && worktree) {
+				this._lastSessions.remember(worktree, shown.sessionId);
+			}
+		}));
+	}
+
+	open(worktree: string): void {
+		const shown = this._shown.get();
+		const sessions = this._sessions();
+		const pick = getWorktreeSessionToOpen(worktree, shown && getWorktreeFilterSession(shown), sessions.map(getWorktreeFilterSession), this._lastSessions.get(worktree));
+		const session = pick && sessions.find(candidate => candidate.sessionId === pick.id);
+		if (session) {
+			this._open(session);
+		}
+	}
 }
 
 export class SessionsListFilters extends Disposable implements ISessionsListResettableState {
