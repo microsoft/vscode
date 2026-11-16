@@ -340,7 +340,7 @@ suite('Sessions list context menus', () => {
 				inbox: actions(ready.session),
 				acknowledged: actions(acknowledged.session),
 			}, {
-				inbox: ['Acknowledge: Remove from Inbox until new activity', organizeAction, 'Mark as Done'],
+				inbox: ['Acknowledge: Move to Acknowledged until new activity', organizeAction, 'Mark as Done'],
 				acknowledged: ['Return to Inbox', organizeAction, 'Mark as Done'],
 			}), 10, 100);
 		});
