@@ -81,6 +81,7 @@ import { resetShownWarnings } from '../../../common/chatPermissionWarnings.js';
 import { IOpenSettingsOptions, IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import '../../../browser/agentSessions/agentHost/media/agentHostChatInputPicker.css';
 import '../../../browser/widget/media/chat.css';
+import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -294,7 +295,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			},
 		});
 		instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, { resolve: () => undefined });
-		instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: 'test', folders: [] }) });
+		instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => (testIWorkspace({ id: 'test', folders: [] })) });
 		instantiationService.set(IWorkspaceTrustManagementService, store.add(new TestWorkspaceTrustManagementService()));
 		instantiationService.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined, getDefaultFolder: () => undefined });
 		const resolvedRefreshes: Record<string, unknown>[] = [];
@@ -1096,12 +1097,16 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		const withoutMetadata = permissionPicker['_getSandboxStandaloneToggle']()!.disabled;
 		await sandboxReady();
 		await permissionPicker['_showPicker'](dom.$('div'));
-		const staleToggle = actionWidget.items.find(item => item.standaloneToggle)!.standaloneToggle!;
+		const initialRow = actionWidget.items.find(item => item.standaloneToggle)!;
+		const staleToggle = initialRow.standaloneToggle!;
+		assert.strictEqual(initialRow.hover?.content, staleToggle.title);
 		state._meta = withSessionSandboxPolicy(undefined, { enabled: true, allowBypass: false });
 		permissionPicker['_sandboxConfigChanged'].trigger(undefined);
 		staleToggle.onChange(true);
-		const required = actionWidget.items.find(item => item.standaloneToggle)!.standaloneToggle!;
+		const requiredRow = actionWidget.items.find(item => item.standaloneToggle)!;
+		const required = requiredRow.standaloneToggle!;
 		const enforced = { checked: required.checked, disabled: required.disabled, title: required.title };
+		assert.strictEqual(requiredRow.hover?.content, required.title);
 		state._meta = withSessionSandboxPolicy(undefined, { enabled: false });
 		permissionPicker['_sandboxConfigChanged'].trigger(undefined);
 		const removed = actionWidget.items.find(item => item.standaloneToggle)!.standaloneToggle!;

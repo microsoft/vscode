@@ -197,3 +197,5 @@ steps:
         VSCODE_BUILD_SERVER_WEB: ${{ parameters.VSCODE_BUILD_SERVER_WEB }}
         VSCODE_BUILD_INTEGRATION_TESTS: ${{ parameters.VSCODE_BUILD_INTEGRATION_TESTS }}
         VSCODE_COMPILE_TEST_SUITES: ${{ parameters.VSCODE_COMPILE_TEST_SUITES }}
+
+  - template: product-build-win32-network-diagnostics.yml@self

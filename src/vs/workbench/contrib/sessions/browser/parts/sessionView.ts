@@ -59,9 +59,13 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 
 	readonly element: HTMLElement = $('.session-view.modern-ui-editor-tab-group');
 
+	/** The minimum height of the chat content below the session header, which the chat groups grid and standalone chats also keep. */
+	private static readonly MINIMUM_CONTENT_HEIGHT = 200;
+
 	readonly minimumWidth = 200;
 	readonly maximumWidth = Number.POSITIVE_INFINITY;
-	readonly minimumHeight = 200;
+	// The header sits above the chat content, so a session at its minimum still leaves the content its own minimum (see #339850).
+	get minimumHeight(): number { return SessionView.MINIMUM_CONTENT_HEIGHT + this._headerHeight.get(); }
 	readonly maximumHeight = Number.POSITIVE_INFINITY;
 
 	private readonly _onDidChange = this._register(new Emitter<IViewSize | undefined>());
@@ -128,9 +132,6 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 
 	private readonly _headerHeight = observableValue<number>(this, 0);
 
-
-	/** The title of the session header. */
-	get headerTitleElement(): HTMLElement { return this._header.titleElement; }
 
 	/**
 	 * The services of its own scope, which what it shows is created with: disposed after it, as what disposes may still
@@ -360,6 +361,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	}
 
 	private _showSessionGroups(content: ISessionPaneContent, options: ISessionViewOptions): void {
+		this._standaloneView.get()?.setVisible(false);
 		this._standaloneView.set(undefined, undefined);
 		this._contentContainer.replaceChildren(this._groupsView.element);
 		this._groupsView.setSession(content, options);
@@ -411,7 +413,11 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		}
 
 		const barHeight = this._header.visible ? this._header.height : 0;
-		this._headerHeight.set(barHeight, undefined);
+		if (this._headerHeight.get() !== barHeight) {
+			this._headerHeight.set(barHeight, undefined);
+			// Let the session grid re-read the minimum height, which includes the header.
+			this._onDidChange.fire(undefined);
+		}
 		const contentHeight = Math.max(0, height - barHeight);
 		const contentTop = top + barHeight;
 		this._standaloneSessionActivityBar?.layout(barHeight, contentHeight);

@@ -15,6 +15,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AhpJsonlLogger, AhpJsonlLogRetention, getAhpLogByteLength, isAhpJsonlLoggingEnabled, isAhpLogFileFor, stringifyAhpLogEntry } from '../../common/ahpJsonlLogger.js';
+import { AnswerShellAuthenticationExtensionMethod, RegisterGitHubEnvironmentExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 
 suite('AhpJsonlLogger', () => {
 
@@ -338,6 +339,56 @@ suite('AhpJsonlLogger', () => {
 		});
 	});
 
+	test('redacts GitHub environment credentials without mutating live requests, including oversized entries', async () => {
+		const fileService = createInMemoryFileService(store, Schemas.file);
+		const logger = store.add(new AhpJsonlLogger(
+			{ logsHome: URI.file('/logs'), logId: 'github-environment', connectionId: 'client', transport: 'websocket' },
+			fileService, new NullLogService(),
+		));
+		const request = { jsonrpc: '2.0', id: 1, method: RegisterGitHubEnvironmentExtensionMethod, params: { accountId: '42', credential: 'private-credential' } };
+		logger.log(request, 'c2s');
+		logger.log({ ...request, id: 2, params: { ...request.params, extra: 'x'.repeat(2 * 1024 * 1024) } }, 'c2s');
+		await logger.flush();
+		const content = (await fileService.readFile(logger.resource)).value.toString();
+		const entries = content.trim().split('\n').map(line => JSON.parse(line));
+		assert.deepStrictEqual({
+			credentials: entries.map(entry => entry.params.credential),
+			accountIds: entries.map(entry => entry.params.accountId),
+			containsCredential: content.includes(request.params.credential),
+			liveCredential: request.params.credential,
+			truncated: entries[1]._ahpLog.truncated,
+		}, {
+			credentials: ['<redacted>', '<redacted>'],
+			accountIds: ['42', '42'],
+			containsCredential: false, liveCredential: 'private-credential', truncated: true,
+		});
+	});
+
+	test('redacts shell authentication answers without mutating live requests, including oversized entries', async () => {
+		const fileService = createInMemoryFileService(store, Schemas.file);
+		const logger = store.add(new AhpJsonlLogger(
+			{ logsHome: URI.file('/logs'), logId: 'shell-authentication', connectionId: 'client', transport: 'websocket' },
+			fileService, new NullLogService(),
+		));
+		const request = { jsonrpc: '2.0', id: 1, method: AnswerShellAuthenticationExtensionMethod, params: { chat: 'ahp-chat://copilot/s/c', requestId: 'r', answer: 'private-password' } };
+		logger.log(request, 'c2s');
+		logger.log({ ...request, id: 2, params: { ...request.params, extra: 'x'.repeat(2 * 1024 * 1024) } }, 'c2s');
+		await logger.flush();
+		const content = (await fileService.readFile(logger.resource)).value.toString();
+		const entries = content.trim().split('\n').map(line => JSON.parse(line));
+		assert.deepStrictEqual({
+			answers: entries.map(entry => entry.params.answer),
+			requestIds: entries.map(entry => entry.params.requestId),
+			containsAnswer: content.includes(request.params.answer),
+			liveAnswer: request.params.answer,
+			truncated: entries[1]._ahpLog.truncated,
+		}, {
+			answers: ['<redacted>', '<redacted>'],
+			requestIds: ['r', 'r'],
+			containsAnswer: false, liveAnswer: 'private-password', truncated: true,
+		});
+	});
+
 	test('bounds shared history across reconnects and concurrent writers while preserving unrelated files', async () => {
 		const log = new NullLogService();
 		const files = store.add(new FileService(log));
@@ -494,7 +545,7 @@ suite('AhpJsonlLogger', () => {
 		]);
 	});
 
-	test('redacts canvas URLs in actions and snapshots without mutating live state', async () => {
+	test('redacts canvas URIs in actions and snapshots without mutating live state', async () => {
 		const fileService = createInMemoryFileService(store, Schemas.file);
 		const logger = store.add(new AhpJsonlLogger(
 			{ logsHome: URI.file('/logs'), logId: 'canvas-source', connectionId: 'canvas-source', transport: 'websocket' },
@@ -502,7 +553,7 @@ suite('AhpJsonlLogger', () => {
 			new NullLogService(),
 		));
 
-		const canvas = { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview', url: 'https://secret.example/path?token=sensitive' };
+		const canvas = { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview', uri: 'https://secret.example/path?token=sensitive' };
 		const action = { type: 'canvas/stateChanged', canvas };
 		logger.log({ jsonrpc: '2.0', method: 'action', params: { channel: 'ahp-canvas:/preview', action } }, 's2c');
 		logger.log({ jsonrpc: '2.0', id: 7, result: { snapshot: { resource: 'ahp-canvas:/preview', state: canvas, fromSeq: 1 } } }, 's2c');
@@ -510,9 +561,9 @@ suite('AhpJsonlLogger', () => {
 		await logger.flush();
 		const entries = (await fileService.readFile(logger.resource)).value.toString().split('\n').filter(Boolean).map(line => JSON.parse(line));
 		assert.deepStrictEqual({
-			urls: [entries[0].params.action.canvas.url, entries[1].result.snapshot.state.url, entries[2].result.snapshots[0].state.url],
-			liveSource: canvas.url,
-		}, { urls: Array(3).fill('<redacted canvas source>'), liveSource: 'https://secret.example/path?token=sensitive' });
+			uris: [entries[0].params.action.canvas.uri, entries[1].result.snapshot.state.uri, entries[2].result.snapshots[0].state.uri],
+			liveSource: canvas.uri,
+		}, { uris: Array(3).fill('<redacted canvas source>'), liveSource: 'https://secret.example/path?token=sensitive' });
 	});
 
 	test('redacts replayed canvas actions and incomplete canvas state fail closed', async () => {
@@ -526,20 +577,24 @@ suite('AhpJsonlLogger', () => {
 		logger.log({
 			jsonrpc: '2.0', id: 1, result: {
 				type: 'replay', actions: [{
-					channel: 'ahp-canvas:/preview', action: { type: 'canvas/stateChanged', canvas: { url: 'https://secret.example/replay' } },
+					channel: 'ahp-canvas:/preview', action: { type: 'canvas/stateChanged', canvas: { uri: 'https://secret.example/replay', url: 'https://secret.example/legacy-replay' } },
 				}]
 			}
 		}, 's2c');
-		logger.log({ jsonrpc: '2.0', id: 2, result: { snapshot: { resource: 'ahp-canvas:/preview', state: { url: 'https://secret.example/snapshot' } } } }, 's2c');
-		logger.log({ jsonrpc: '2.0', id: 3, result: { url: 'https://example.test/unrelated' } }, 's2c');
+		logger.log({ jsonrpc: '2.0', id: 2, result: { snapshot: { resource: 'ahp-canvas:/preview', state: { uri: 'https://secret.example/snapshot', url: 'https://secret.example/legacy-snapshot' } } } }, 's2c');
+		logger.log({ jsonrpc: '2.0', id: 3, result: { uri: 'https://example.test/unrelated' } }, 's2c');
 		await logger.flush();
 
 		const entries = (await fileService.readFile(logger.resource)).value.toString().split('\n').filter(Boolean).map(line => JSON.parse(line));
 		assert.deepStrictEqual([
-			entries[0].result.actions[0].action.canvas.url,
-			entries[1].result.snapshot.state.url,
-			entries[2].result.url,
-		], ['<redacted canvas source>', '<redacted canvas source>', 'https://example.test/unrelated']);
+			entries[0].result.actions[0].action.canvas,
+			entries[1].result.snapshot.state,
+			entries[2].result.uri,
+		], [
+			{ uri: '<redacted canvas source>', url: '<redacted canvas source>' },
+			{ uri: '<redacted canvas source>', url: '<redacted canvas source>' },
+			'https://example.test/unrelated',
+		]);
 	});
 
 	test('flush waits for batched writes and ordering is preserved across drains', async () => {

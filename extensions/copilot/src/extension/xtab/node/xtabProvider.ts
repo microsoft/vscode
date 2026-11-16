@@ -24,6 +24,7 @@ import { AggressivenessSetting, EarlyDivergenceCancellationMode, isEagernessProm
 import { InlineEditRequestLogContext } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
 import { ResponseProcessor } from '../../../platform/inlineEdits/common/responseProcessor';
+import { withoutOtherSensitiveFiles } from '../../../platform/inlineEdits/common/sensitiveFiles';
 import { EditStreaming, EditStreamingWithTelemetry, IStatelessNextEditProvider, NoNextEditReason, RequestEditWindow, RequestEditWindowWithCursorJump, StatelessNextEditDocument, StatelessNextEditRequest, StatelessNextEditTelemetryBuilder, WithStatelessProviderTelemetry } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { editWouldDeleteWhatWasJustInserted, editWouldDeleteWhatWasJustInserted2, IgnoreEmptyLineAndLeadingTrailingWhitespaceChanges, IgnoreWhitespaceOnlyChanges } from '../../../platform/inlineEdits/common/statelessNextEditProviders';
 import { ILanguageContextProviderService, ProviderTarget } from '../../../platform/languageContextProvider/common/languageContextProviderService';
@@ -1444,13 +1445,14 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					new Edits(StringEdit, []),
 				);
 
+				// The follow-up request is for a different document, so filter the history for it again.
 				const syntheticRequest = new StatelessNextEditRequest(
 					request.headerRequestId,
 					request.opportunityId,
 					targetContent,
 					[syntheticDoc],
 					0,
-					request.xtabEditHistory,
+					withoutOtherSensitiveFiles(request.xtabEditHistory, targetDocumentId),
 					new DeferredPromise<Result<unknown, NoNextEditReason>>(),
 					request.expandedEditWindowNLines,
 					request.isSpeculative,
@@ -1458,7 +1460,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					request.recordingBookmark,
 					request.recording,
 					request.providerRequestStartDateTime,
-					request.xtabRejectedEditHistory,
+					withoutOtherSensitiveFiles(request.xtabRejectedEditHistory, targetDocumentId),
 				);
 
 				return yield* this.doGetNextEditWithSelection(

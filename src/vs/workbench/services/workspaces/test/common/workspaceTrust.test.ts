@@ -20,7 +20,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IRemoteAuthorityResolverService, WebSocketRemoteConnection } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IWorkspaceContextService, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, toWorkspaceFolder, Workspace as BaseWorkspace } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustInfo, IWorkspaceTrustManagementService, WorkspaceTrustUriResponse } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { Memento } from '../../../../common/memento.js';
@@ -1410,6 +1410,27 @@ suite('Workspace Trust', () => {
 				});
 			});
 		}
+
+		test('trust targets the folder the window is on while at an alternate location', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
+			const primary = URI.file('/work/project');
+			const alternate = URI.file('/work/worktrees/feature');
+			workspaceService.setWorkspace(new BaseWorkspace('alternate-workspace', [toWorkspaceFolder(alternate)], false, null, () => false, undefined, primary));
+			const testObject = await initializeTestObject();
+			await testObject.workspaceResolved;
+			await testObject.setUrisTrust([alternate], true);
+			const canSetAfterTrustingAlternate = testObject.canSetWorkspaceTrust();
+			await testObject.setUrisTrust([alternate], false);
+			await testObject.setParentFolderTrust(true);
+
+			assert.deepStrictEqual({
+				canSetAfterTrustingAlternate,
+				trustedUris: testObject.getTrustedUris().map(uri => uri.path),
+			}, {
+				canSetAfterTrustingAlternate: true,
+				trustedUris: ['/work/worktrees'],
+			});
+		});
 
 		test('registered authority trust does not extend to other schemes or authorities', async () => {
 			await configurationService.setUserConfiguration('security', getUserSettings(true, true));

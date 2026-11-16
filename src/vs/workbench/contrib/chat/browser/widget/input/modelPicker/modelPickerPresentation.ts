@@ -15,6 +15,12 @@ export function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boo
 	return isAutoLanguageModel(model);
 }
 
+export function isPendingLegacyAutoModel(model: ILanguageModelChatMetadataAndIdentifier | undefined, languageModelsService: ILanguageModelsService): boolean {
+	return !!model && isAutoModel(model) && !model.metadata.autoModelFusion
+		&& !isUserProvidedModel(model, languageModelsService)
+		&& !languageModelsService.getLanguageModelIds().includes(model.identifier);
+}
+
 /**
  * Whether the model is a Copilot CLI HydraFusion research preview (HydraFusion or HydraFusion Max).
  * Fusion offers them among its tiers; otherwise HydraFusion is a model of its own, with

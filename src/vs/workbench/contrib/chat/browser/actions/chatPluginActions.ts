@@ -18,7 +18,9 @@ import { IDialogService, IFileDialogService } from '../../../../../platform/dial
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
@@ -47,6 +49,11 @@ export class ManagePluginsAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
+		// The Agents window has no Extensions view, so show the plugins in Chat Customizations instead.
+		if (accessor.get(IWorkbenchEnvironmentService).isSessionsWindow) {
+			await accessor.get(ICommandService).executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Plugins);
+			return;
+		}
 		accessor.get(IExtensionsWorkbenchService).openSearch('@agentPlugins ');
 	}
 }
@@ -87,6 +94,7 @@ export class InstallFromSourceAction extends Action2 {
 		const fileDialogService = accessor.get(IFileDialogService);
 		const customizationHarnessService = accessor.get(ICustomizationHarnessService);
 		const notificationService = accessor.get(INotificationService);
+		const progressService = accessor.get(IProgressService);
 
 		const store = new DisposableStore();
 		const inputBox = store.add(quickInputService.createInputBox());
@@ -136,7 +144,11 @@ export class InstallFromSourceAction extends Action2 {
 				let success: boolean;
 				let installedUri: URI | undefined;
 				if (pluginInstallProvider) {
-					await pluginInstallProvider.installFromSource(sessionResource, source);
+					await progressService.withProgress({
+						location: ProgressLocation.Notification,
+						title: localize('installingPluginFromSource', "Installing plugin from source..."),
+						cancellable: false,
+					}, () => pluginInstallProvider.installFromSource(sessionResource, source));
 					success = true;
 				} else {
 					const result = await pluginInstallService.installPluginFromSource(source);

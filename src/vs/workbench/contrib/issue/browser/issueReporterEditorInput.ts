@@ -7,7 +7,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
 import { EditorInputCapabilities, GroupIdentifier } from '../../../common/editor.js';
 import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IssueReporterAttachment, IssueReporterData } from '../common/issue.js';
+import { IssueReporterAttachment, IssueReporterData, IssueReporterLayout, IssueType } from '../common/issue.js';
 import { IIssueReporterDiagnosticsState, IScreenshot } from './issueReporterOverlay.js';
 import { $, addDisposableListener, EventType } from '../../../../base/browser/dom.js';
 import { DisposableMap, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -25,6 +25,8 @@ export class IssueReporterEditorInput extends EditorInput {
 	static readonly RESOURCE = URI.from({ scheme: 'vscode-issue-reporter', path: 'reporter' });
 
 	readonly data: IssueReporterData | undefined;
+	/** The category that the report was opened with, unlike the draft's category in {@link data}, which the form sets to a default. */
+	readonly initialIssueType: IssueType | undefined;
 	/** Both hosts reuse the draft's native text control rather than reconstructing its contents. */
 	readonly descriptionInput = $<HTMLTextAreaElement>('textarea.wizard-description-input');
 	private descriptionScrollTop = 0;
@@ -84,6 +86,12 @@ export class IssueReporterEditorInput extends EditorInput {
 	private attachments: readonly IssueReporterAttachment<IScreenshot>[] | undefined;
 	private readonly importedFiles = this._register(new DisposableMap<string>());
 
+	/**
+	 * The screenshot of the window the user was in, which the simple layout attaches when the report
+	 * opens. An edit replaces the attachment, so while it is attached unchanged it is no user input.
+	 */
+	automaticScreenshot: IssueReporterAttachment<IScreenshot> | undefined;
+
 	get savedAttachments(): readonly IssueReporterAttachment<IScreenshot>[] | undefined {
 		return this.attachments;
 	}
@@ -111,10 +119,13 @@ export class IssueReporterEditorInput extends EditorInput {
 
 	constructor(
 		data: IssueReporterData | undefined,
+		/** Chosen when the report opens, so the report keeps it when it moves or the setting changes. */
+		readonly layout: IssueReporterLayout = 'detailed',
 		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 		this.data = data;
+		this.initialIssueType = data?.issueType;
 		this.initialTitle = data?.issueTitle ?? '';
 		this.initialDescription = data?.issueBody ?? '';
 		this.descriptionInput.value = this.initialDescription;
@@ -127,7 +138,7 @@ export class IssueReporterEditorInput extends EditorInput {
 		this._register(toDisposable(() => this.descriptionInput.remove()));
 
 		this.closeHandler = {
-			showConfirm: () => this.hasUserInputFn?.() ?? (this.hasContentChanges || !!this.savedAttachments?.length),
+			showConfirm: () => this.hasUserInputFn?.() ?? (this.hasContentChanges || !!this.savedAttachments?.some(attachment => attachment !== this.automaticScreenshot)),
 			confirm: async () => {
 				const { confirmed } = await this.dialogService.confirm({
 					message: localize('discardIssue', "Discard issue report?"),

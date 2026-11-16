@@ -23,7 +23,7 @@ const pullRequest = {
 
 const checks: ArtifactRequestPresentation = {
 	version: 1, integrationLabel: 'GitHub Pull Requests', source: 'automation',
-	action: { label: 'Fix CI', iconId: 'tools' },
+	action: { label: 'Fix CI', iconId: 'lightbulb' },
 	artifact: pullRequest,
 	details: [{
 		title: 'Checks', description: '1 of 5 checks passed; 3 failed; 1 in progress.',
@@ -40,7 +40,7 @@ const checks: ArtifactRequestPresentation = {
 
 const comments: ArtifactRequestPresentation = {
 	...checks,
-	action: { label: 'Address Comments', iconId: 'comment-discussion' },
+	action: { label: 'Address Comments', iconId: 'comment' },
 	details: [{
 		title: 'Comments', description: '2 unresolved review comments.',
 		availability: { kind: 'available' }, links: [], completeness: 'complete',

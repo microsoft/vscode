@@ -21,6 +21,19 @@ suite('SessionsListFilters', () => {
 		return store.add(new SessionsListFilters(storage, store.add(new NullLogService())));
 	}
 
+	test('scheduled-only filtering persists and participates in reset and undo', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const filters = createFilters(storage);
+		filters.setScheduledOnly(true);
+		const restored = createFilters(storage);
+		const persisted = restored.isScheduledOnly();
+		const undo = restored.capture();
+		restored.reset();
+		const reset = restored.isScheduledOnly();
+		undo();
+		assert.deepStrictEqual({ persisted, reset, undone: restored.isScheduledOnly() }, { persisted: true, reset: false, undone: true });
+	});
+
 	test('Inbox scope distinguishes exact workspaces and environments without separating harnesses', () => {
 		const filters = createFilters();
 		const sessions = [

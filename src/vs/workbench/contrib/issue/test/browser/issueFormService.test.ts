@@ -25,10 +25,11 @@ import { IGitHubAccountClient } from '../../../../../platform/github/common/acco
 import { IGitHubAnonymousClient } from '../../../../../platform/github/common/anonymous/anonymous.js';
 import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
 import { Issue } from '../../../../../platform/github/common/core/issues.js';
-import { GitHubAuthorizationContext, GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
+import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
 import { SchemaError } from '../../../../../platform/github/common/client/schema.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import product from '../../../../../platform/product/common/product.js';
+import { AuthenticationSession } from '../../../../services/authentication/common/authentication.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
@@ -501,6 +502,17 @@ suite('IssueFormService', () => {
 		});
 	});
 
+	test('uploads an image file that was marked up under its name, and numbers only the other screenshots', async () => {
+		const attachments = [
+			capturedScreenshot({ dataUrl: issueReporterImageFixture }, 'first'),
+			capturedScreenshot({ dataUrl: issueReporterGifFixture, annotatedDataUrl: issueReporterImageFixture, name: 'diagram.gif' }, 'diagram'),
+			capturedScreenshot({ dataUrl: issueReporterImageFixture }, 'second'),
+		];
+		const { service, host, data, mediaUploads } = createSubmissionService(false, false, { attachments });
+		await service.submitIssue(host, data, 'Marked-up image file', 'Description');
+		assert.deepStrictEqual(mediaUploads.map(upload => upload.name), ['screenshot-1.png', 'diagram.png', 'screenshot-2.png']);
+	});
+
 	test('keeps mixed file, capture and recording order through cached retries', async () => {
 		const attachments = [
 			attachedFile({ filePath: '/owned/report.zip', name: 'report.zip', mimeType: 'application/zip' }),
@@ -842,8 +854,8 @@ suite('IssueFormService', () => {
 	});
 
 	suite('GitHub creation', () => {
-		const authorization: GitHubAuthorizationContext = {
-			providerId: 'github', sessionId: 'selected-session', accountId: 'selected-account', scopes: ['public_repo'],
+		const session: AuthenticationSession = {
+			id: 'selected-session', account: { id: 'selected-account', label: 'Selected' }, scopes: ['public_repo'], accessToken: 'selected-token',
 		};
 		const repository = { owner: 'publisher', repo: 'extension' };
 		const request = { title: 'Title', body: 'Body' };
@@ -851,12 +863,12 @@ suite('IssueFormService', () => {
 
 		function createService(create: IGitHubAccountClient['issues']['create'], acquire?: () => Promise<void>) {
 			const instantiationService = createInstantiationService();
-			const grants: GitHubAuthorizationContext[] = [];
+			const acquisitions: { providerId: string; session: AuthenticationSession }[] = [];
 			const signals: AbortSignal[] = [];
 			const leases = { released: 0 };
 			instantiationService.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
-				override async acquireAccountApiClient(authorization: GitHubAuthorizationContext, signal: AbortSignal) {
-					grants.push(authorization);
+				override async acquireAccountApiClient(providerId: string, session: AuthenticationSession, signal: AbortSignal) {
+					acquisitions.push({ providerId, session });
 					signals.push(signal);
 					await acquire?.();
 					return upcastPartial<IGitHubAccountClient>({
@@ -865,18 +877,18 @@ suite('IssueFormService', () => {
 					});
 				}
 			}());
-			return { service: store.add(instantiationService.createInstance(IssueFormService)), grants, signals, leases };
+			return { service: store.add(instantiationService.createInstance(IssueFormService)), acquisitions, signals, leases };
 		}
 
 		test('uses a disposable typed account client and preserves the destination and payload', async () => {
 			const calls: Parameters<IGitHubAccountClient['issues']['create']>[] = [];
-			const { service, grants, signals, leases } = createService(async (...args) => {
+			const { service, acquisitions, signals, leases } = createService(async (...args) => {
 				calls.push(args);
 				return upcastPartial<Issue>({ html_url: issueUrl });
 			});
-			const result = await service.createGitHubIssue(authorization, repository, request, new AbortController().signal);
-			assert.deepStrictEqual({ result, grants, calls: calls.map(([repository, request, , options]) => ({ repository, request, options })), sameSignal: calls[0][2] === signals[0], leases }, {
-				result: issueUrl, grants: [authorization],
+			const result = await service.createGitHubIssue('github', session, repository, request, new AbortController().signal);
+			assert.deepStrictEqual({ result, acquisitions, calls: calls.map(([repository, request, , options]) => ({ repository, request, options })), sameSignal: calls[0][2] === signals[0], leases }, {
+				result: issueUrl, acquisitions: [{ providerId: 'github', session }],
 				calls: [{ repository, request, options: { caller: 'issueReporter', priority: 'mutation' } }],
 				sameSignal: true, leases: { released: 1 },
 			});
@@ -885,9 +897,9 @@ suite('IssueFormService', () => {
 		test('releases the client and propagates a failed write without retrying', async () => {
 			let calls = 0;
 			const error = new GitHubRequestError('Connection lost', 'network');
-			const { service, grants, leases } = createService(async () => { calls++; throw error; });
-			await assert.rejects(service.createGitHubIssue(authorization, repository, request, new AbortController().signal), candidate => candidate === error);
-			assert.deepStrictEqual({ calls, grants, leases }, { calls: 1, grants: [authorization], leases: { released: 1 } });
+			const { service, acquisitions, leases } = createService(async () => { calls++; throw error; });
+			await assert.rejects(service.createGitHubIssue('github', session, repository, request, new AbortController().signal), candidate => candidate === error);
+			assert.deepStrictEqual({ calls, acquisitions, leases }, { calls: 1, acquisitions: [{ providerId: 'github', session }], leases: { released: 1 } });
 		});
 
 		test('cancellation during acquisition releases the late client without creating an issue', async () => {
@@ -898,7 +910,7 @@ suite('IssueFormService', () => {
 				() => { void started.complete(); return pending.p; },
 			);
 			const controller = new AbortController();
-			const rejected = assert.rejects(service.createGitHubIssue(authorization, repository, request, controller.signal), isCancellationError);
+			const rejected = assert.rejects(service.createGitHubIssue('github', session, repository, request, controller.signal), isCancellationError);
 			await started.p;
 			controller.abort(new CancellationError());
 			await pending.complete();

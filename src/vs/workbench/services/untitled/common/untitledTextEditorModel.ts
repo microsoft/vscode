@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISaveOptions } from '../../../common/editor.js';
+import { ISaveOptions, UntitledTextEditorOrigin } from '../../../common/editor.js';
 import { BaseTextEditorModel } from '../../../common/editor/textEditorModel.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
@@ -55,6 +55,11 @@ export interface IUntitledTextEditorModel extends ITextEditorModel, ILanguageSup
 	 * Whether this model has an explicit language or not.
 	 */
 	readonly hasLanguageSetExplicitly: boolean;
+
+	/**
+	 * Where the untitled editor was created from. Only used for telemetry.
+	 */
+	readonly origin?: UntitledTextEditorOrigin;
 
 	/**
 	 * Sets the encoding to use for this untitled model.
@@ -141,6 +146,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		private readonly initialValue: string | undefined,
 		private preferredLanguageId: string | undefined,
 		private preferredEncoding: string | undefined,
+		readonly origin: UntitledTextEditorOrigin | undefined,
 		@ILanguageService languageService: ILanguageService,
 		@IModelService modelService: IModelService,
 		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,

@@ -20,6 +20,8 @@ import { IChangesViewService } from '../../../../../workbench/contrib/sessions/c
 import { SessionsChatResponseFileChangesService } from '../../browser/sessionTurnChanges.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { isIChatSessionFileChange2 } from '../../../../../workbench/common/chatSessionFileChange.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 
 suite('SessionTurnChanges', () => {
@@ -31,6 +33,12 @@ suite('SessionTurnChanges', () => {
 		}();
 	}
 
+	const noChatWindowService = new class extends mock<IChatWindowService>() {
+		override getWindow(): IChatWindow | undefined { return undefined; }
+	}();
+	const chatWindowServiceOf = (chatWindow: IChatWindow) => new class extends mock<IChatWindowService>() {
+		override getWindow(windowId: number): IChatWindow | undefined { return windowId === 7 ? chatWindow : undefined; }
+	}();
 	const noChatWindows = new class extends mock<ISessionHostService>() {
 		override getHostOfChat(): ISessionHost | undefined {
 			return undefined;
@@ -100,6 +108,8 @@ suite('SessionTurnChanges', () => {
 			layoutService,
 			createChangesViewService(),
 			noChatWindows,
+			noChatWindowService,
+			new NullLogService(),
 		));
 
 		service.openChangesForRequest(chatResource, undefined, { isLastTurn: true });
@@ -190,6 +200,8 @@ suite('SessionTurnChanges', () => {
 			layoutService,
 			createChangesViewService(),
 			noChatWindows,
+			noChatWindowService,
+			new NullLogService(),
 		));
 		disposables.add(service.registerProvider('chat', {
 			getChangesForRequest: () => constObservable([{
@@ -294,6 +306,8 @@ suite('SessionTurnChanges', () => {
 			layoutService,
 			createChangesViewService(),
 			noChatWindows,
+			noChatWindowService,
+			new NullLogService(),
 		));
 		disposables.add(service.registerProvider('chat', {
 			getChangesForRequest: () => constObservable([]),
@@ -315,7 +329,7 @@ suite('SessionTurnChanges', () => {
 			mainChat: constObservable(mainWindowChat),
 			activeChat: constObservable(chatWindowChat),
 		});
-		const chatWindowHost = upcastPartial<ISessionHost>({ kind: SessionHostKind.ChatWindow, parent: undefined });
+		const chatWindowHost = upcastPartial<ISessionHost>({ kind: SessionHostKind.ChatWindow, parent: undefined, windowId: constObservable(7) });
 		const mainWindowHost = upcastPartial<ISessionHost>({ kind: SessionHostKind.MainWindow, parent: undefined });
 		const opened: object[] = [];
 		const service = disposables.add(new SessionsChatResponseFileChangesService(
@@ -349,6 +363,8 @@ suite('SessionTurnChanges', () => {
 					return chatResource.toString() === chatWindowChat.resource.toString() ? chatWindowHost : mainWindowHost;
 				}
 			}(),
+			chatWindowServiceOf(upcastPartial<IChatWindow>({ mainPart: upcastPartial<IChatWindow['mainPart']>({}), showEditor: () => { } })),
+			new NullLogService(),
 		));
 		disposables.add(service.registerProvider('chat', {
 			getChangesForRequest: () => constObservable([]),
@@ -365,6 +381,63 @@ suite('SessionTurnChanges', () => {
 			{ sessionResource: 'agent-host:session', chatResource: undefined, changesetId: TURN_CHANGES_CHANGESET_ID },
 		]);
 	});
+
+	for (const registered of [true, false]) {
+		test(registered ? 'the changes of a chat shown in a chat window open there while the main window is the focused host, and leave the main window alone' : 'the changes of a chat in a chat window that is not available open nowhere, not even in the main window', async () => {
+			const chat = upcastPartial<IChat>({ resource: URI.parse('chat:nested'), updatedAt: constObservable(new Date('2026-08-13T10:00:00Z')) });
+			const session = upcastPartial<ITestSessionWithChat>({
+				resource: URI.parse('agent-host:session'),
+				providerId: 'local-agent-host',
+				chats: constObservable([chat]),
+				mainChat: constObservable(chat),
+				activeChat: constObservable(chat),
+			});
+			const otherSession = upcastPartial<ITestSessionWithChat>({
+				resource: URI.parse('agent-host:other'),
+				chats: constObservable([]),
+				activeChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('chat:other') })),
+			});
+			const chatWindowHost = upcastPartial<ISessionHost>({ kind: SessionHostKind.ChatWindow, parent: undefined, windowId: constObservable(7) });
+			const calls: string[] = [];
+			const group = { id: 42 };
+			const chatWindow = upcastPartial<IChatWindow>({
+				mainPart: upcastPartial<IChatWindow['mainPart']>({ activeGroup: upcastPartial<IChatWindow['mainPart']['activeGroup']>(group) }),
+				showEditor: () => { calls.push('chatWindow.showEditor'); },
+			});
+			let openedIn: unknown;
+			const service = disposables.add(new SessionsChatResponseFileChangesService(
+				new class extends mock<IEditorService>() { }(),
+				new class extends mock<ISessionsManagementService>() {
+					override getSessionForChatResource() {
+						return { session, chat };
+					}
+				}(),
+				new class extends mock<ISessionsService>() {
+					override async openChat(): Promise<void> { calls.push('main.openChat'); }
+					override showSession(): void { calls.push('main.showSession'); }
+				}(),
+				// The main window stays the focused host, as it does while windows do not report focus.
+				focusedSessionHostServiceOf(constObservable<ITestSessionWithChat | undefined>(otherSession)),
+				new class extends mock<ISessionChangesService>() {
+					override async openChangesEditor(_resource: URI, _options?: ISessionChangesEditorOptions, targetGroup?: unknown): Promise<undefined> { calls.push('openChangesEditor'); openedIn = targetGroup; return undefined; }
+				}(),
+				new class extends mock<IAgentWorkbenchLayoutService>() {
+					override revealEditorPartExplicitly(): void { calls.push('main.revealEditorPartExplicitly'); }
+				}(),
+				createChangesViewService(),
+				new class extends mock<ISessionHostService>() {
+					override getHostOfChat(): ISessionHost | undefined { return chatWindowHost; }
+				}(),
+				registered ? chatWindowServiceOf(chatWindow) : noChatWindowService,
+				new NullLogService(),
+			));
+
+			service.openChangesForRequest(chat.resource, 'latest', { isLastTurn: true });
+			await timeout(0);
+
+			assert.deepStrictEqual({ calls, openedIn }, registered ? { calls: ['chatWindow.showEditor', 'openChangesEditor'], openedIn: group } : { calls: [], openedIn: undefined });
+		});
+	}
 
 	test('selects the chat-owned Last Turn Changes when another chat is more recent', () => {
 		const chatResource = URI.parse('chat:older');
@@ -430,6 +503,8 @@ suite('SessionTurnChanges', () => {
 			}(),
 			createChangesViewService(),
 			noChatWindows,
+			noChatWindowService,
+			new NullLogService(),
 		));
 		disposables.add(service.registerProvider('chat', {
 			getChangesForRequest: () => constObservable([{
@@ -479,6 +554,8 @@ suite('SessionTurnChanges', () => {
 			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
 			createChangesViewService(),
 			noChatWindows,
+			noChatWindowService,
+			new NullLogService(),
 		));
 		disposables.add(service.registerProvider('test', {
 			getChangesForRequest: () => constObservable([{
@@ -536,6 +613,8 @@ suite('SessionTurnChanges', () => {
 				override readonly activeSessionResourceObs = constObservable<URI | undefined>(session.resource);
 			}(),
 			noChatWindows,
+			noChatWindowService,
+			new NullLogService(),
 		));
 		disposables.add(service.registerProvider('chat', {
 			getChangesForRequest: () => constObservable(AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES),
@@ -586,6 +665,8 @@ suite('SessionTurnChanges', () => {
 			new class extends mock<IAgentWorkbenchLayoutService>() { }(),
 			changesViewService,
 			noChatWindows,
+			noChatWindowService,
+			new NullLogService(),
 		));
 
 		const stats = service.getChangeStatsForRequest(chatResource, 'request', { isLastTurn: true });
@@ -664,6 +745,8 @@ suite('SessionTurnChanges', () => {
 				override readonly activeSessionResourceObs = constObservable<URI | undefined>(session.resource);
 			}(),
 			noChatWindows,
+			noChatWindowService,
+			new NullLogService(),
 		));
 		disposables.add(service.registerProvider('chat', {
 			getChangesForRequest: () => constObservable([{
@@ -735,6 +818,8 @@ suite('SessionTurnChanges', () => {
 				override readonly activeSessionResourceObs = constObservable<URI | undefined>(session.resource);
 			}(),
 			noChatWindows,
+			noChatWindowService,
+			new NullLogService(),
 		));
 
 		const stats = service.getChangeStatsForRequest(chatResource, 'request', { isLastTurn: true });

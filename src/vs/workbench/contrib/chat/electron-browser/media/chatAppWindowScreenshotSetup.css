@@ -1,0 +1,96 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.app-window-screenshot-setup-dialog .app-window-screenshot-setup-icon {
+	width: 64px;
+	height: 64px;
+	background: url('../../../../browser/media/code-icon.svg') center / contain no-repeat;
+}
+
+/* The body holds every control, so the modal has no buttons of its own. */
+.monaco-dialog-box.app-window-screenshot-setup-dialog > .dialog-buttons-row {
+	display: none;
+}
+
+.app-window-screenshot-setup-dialog .app-window-screenshot-setup {
+	display: flex;
+	flex-direction: column;
+	align-self: stretch;
+	gap: var(--vscode-spacing-size160);
+	width: 420px;
+	max-width: 100%;
+	margin-top: var(--vscode-spacing-size40);
+	margin-bottom: var(--vscode-spacing-size120);
+	text-align: start;
+}
+
+.app-window-screenshot-setup-dialog .app-window-screenshot-setup-description {
+	margin: 0;
+	text-align: center;
+	text-wrap: balance;
+	color: var(--vscode-descriptionForeground);
+}
+
+.app-window-screenshot-setup-dialog .app-window-screenshot-setup-steps {
+	display: flex;
+	flex-direction: column;
+	/* The dialog's surface is translucent, so the stroke tints the foreground rather than use an opaque color. */
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-foreground) 14%, transparent));
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+.app-window-screenshot-setup-dialog .app-window-screenshot-setup-step {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: center;
+	gap: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	min-height: 32px;
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120);
+}
+
+.app-window-screenshot-setup-dialog .app-window-screenshot-setup-step + .app-window-screenshot-setup-step {
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-foreground) 14%, transparent));
+}
+
+.app-window-screenshot-setup-dialog .app-window-screenshot-setup-step-icon {
+	color: var(--vscode-icon-foreground);
+}
+
+.app-window-screenshot-setup-dialog .app-window-screenshot-setup-step-text {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.app-window-screenshot-setup-dialog .app-window-screenshot-setup-step-name {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.app-window-screenshot-setup-dialog .app-window-screenshot-setup-step-description {
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
+}
+
+/* A step shows either its done check or its controls. */
+.app-window-screenshot-setup-dialog .app-window-screenshot-setup-step-status,
+.app-window-screenshot-setup-dialog .app-window-screenshot-setup-step-controls {
+	grid-row: 1;
+	grid-column: 3;
+}
+
+.app-window-screenshot-setup-dialog .app-window-screenshot-setup-step-status.done {
+	color: var(--vscode-testing-iconPassed);
+}
+
+.app-window-screenshot-setup-dialog .app-window-screenshot-setup-step-controls {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.app-window-screenshot-setup-dialog .app-window-screenshot-setup-step-controls > .monaco-button {
+	width: fit-content;
+	white-space: nowrap;
+}

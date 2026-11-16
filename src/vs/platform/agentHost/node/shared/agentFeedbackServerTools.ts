@@ -20,7 +20,7 @@ import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } f
  * These tools used to be registered on the client (agents window) and keyed
  * off an in-memory store. For agent-host sessions they now execute on the
  * server against the session's annotations channel: each comment is an
- * {@link Annotation} on `<session>/annotations`, with feedback semantics
+ * {@link Annotation} on the session's annotations channel, with feedback semantics
  * carried in {@link Annotation._meta} under {@link FEEDBACK_ANNOTATION_META_KEY}
  * (see `agentFeedbackAnnotations.ts`). The functions here are pure — they read
  * the current {@link AnnotationsState} and return the annotation actions to

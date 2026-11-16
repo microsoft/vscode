@@ -828,6 +828,14 @@ per-word capitalization does not survive translation. */
 	line-height: 16px;
 }
 
+.plugin-list-widget .plugin-scope-badge.monaco-text-button {
+	width: auto;
+	padding: 0 var(--vscode-spacing-size40);
+	font-size: var(--vscode-fontSize-label3);
+	border-radius: var(--vscode-cornerRadius-small);
+	border-color: var(--vscode-contrastBorder, transparent);
+}
+
 /* "Managed by your organization" tag for customizations controlled by the user's organization */
 .inline-badge.organization-managed-tag {
 	display: inline-flex;
@@ -1474,7 +1482,11 @@ per-word capitalization does not survive translation. */
 	font-weight: var(--vscode-fontWeight-regular);
 }
 
-.ai-customization-management-editor .copilot-customization-tree-item.disabled .copilot-customization-tree-text {
+.ai-customization-management-editor .copilot-customization-tree-icon {
+	flex-shrink: 0;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-item.disabled :is(.copilot-customization-tree-text, .copilot-customization-tree-icon) {
 	opacity: 0.6;
 }
 

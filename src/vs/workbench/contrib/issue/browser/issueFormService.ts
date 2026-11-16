@@ -16,12 +16,12 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier, ExtensionIdentifierSet } from '../../../../platform/extensions/common/extensions.js';
 import { RepositoryRef } from '../../../../platform/github/common/client/types.js';
 import { CreateIssueRequest } from '../../../../platform/github/common/core/issues.js';
-import { GitHubAuthorizationContext } from '../../../../platform/github/common/githubTypes.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import product from '../../../../platform/product/common/product.js';
 import { IRectangle } from '../../../../platform/window/common/window.js';
+import { AuthenticationSession } from '../../../services/authentication/common/authentication.js';
 import { AuxiliaryWindowMode, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchGitHubService } from '../../../services/github/common/githubService.js';
@@ -146,12 +146,12 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 		}
 	}
 
-	async createGitHubIssue(authorization: GitHubAuthorizationContext, repository: RepositoryRef, request: CreateIssueRequest, signal: AbortSignal): Promise<string> {
+	async createGitHubIssue(providerId: string, session: AuthenticationSession, repository: RepositoryRef, request: CreateIssueRequest, signal: AbortSignal): Promise<string> {
 		signal = AbortSignal.any([signal, this.disposeSignal]);
 		signal.throwIfAborted();
 		const lifetime = new DisposableStore();
 		try {
-			const client = lifetime.add(await this.gitHubService.acquireAccountApiClient(authorization, signal));
+			const client = lifetime.add(await this.gitHubService.acquireAccountApiClient(providerId, session, signal));
 			signal.throwIfAborted();
 			const issue = await client.issues.create(repository, request, signal, { caller: 'issueReporter', priority: 'mutation' });
 			signal.throwIfAborted();
@@ -251,9 +251,11 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 				for (const attachment of attachments) {
 					signal.throwIfAborted();
 					if (attachment.kind === 'screenshot') {
-						screenshotNumber++;
-						attachmentName = localize('screenshotAttachment', "Screenshot {0}", screenshotNumber);
+						if (!attachment.screenshot.name) {
+							screenshotNumber++;
+						}
 						const { dataUrl, name, format } = getIssueReporterScreenshotFile(attachment.screenshot, screenshotNumber);
+						attachmentName = attachment.screenshot.name ? name : localize('screenshotAttachment', "Screenshot {0}", screenshotNumber);
 						const bytes = this.dataUrlToBytes(dataUrl);
 						if (!bytes || format.kind !== 'image') {
 							throw new Error(localize('invalidScreenshotAttachment', "The screenshot could not be read."));

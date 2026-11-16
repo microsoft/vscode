@@ -113,6 +113,7 @@ export function readGithubEnvironmentOptions(env: NodeJS.ProcessEnv): IServerGit
  */
 interface IConnectionTrackerService {
 	readonly onDidChangeConnectionCount: Event<number>;
+	readonly onDidChangeGitHubEnvironmentRegistered: Event<boolean>;
 	waitForConfiguredWebSocketServer(): Promise<void>;
 }
 
@@ -131,11 +132,12 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 	private readonly _connectionStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _startMode: 'eager' | 'lazy';
 
-	/** Lifetime token held while sessions are active or standalone WebSocket clients are connected. */
+	/** Lifetime token held while sessions are active, standalone WebSocket clients are connected, or a client registered a GitHub environment. */
 	private readonly _lifetimeToken = this._register(new MutableDisposable());
 
 	private _hasActiveSessions = false;
 	private _connectionCount = 0;
+	private _githubEnvironmentRegistered = false;
 
 	constructor(
 		private readonly _starter: IAgentHostStarter,
@@ -287,6 +289,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 
 		this._hasActiveSessions = false;
 		this._connectionCount = 0;
+		this._githubEnvironmentRegistered = false;
 		this._lifetimeToken.clear();
 
 		const willRestart = this._restartCount < Constants.MaxRestarts;
@@ -362,11 +365,15 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 			this._connectionCount = count;
 			this._updateLifetimeToken();
 		}));
+		connection.store.add(connectionTracker.onDidChangeGitHubEnvironmentRegistered(registered => {
+			this._githubEnvironmentRegistered = registered;
+			this._updateLifetimeToken();
+		}));
 		await connectionTracker.waitForConfiguredWebSocketServer();
 	}
 
 	private _updateLifetimeToken(): void {
-		if (this._hasActiveSessions || this._connectionCount > 0) {
+		if (this._hasActiveSessions || this._connectionCount > 0 || this._githubEnvironmentRegistered) {
 			this._lifetimeToken.value ??= this._serverLifetimeService.active('AgentHost');
 		} else {
 			this._lifetimeToken.clear();
