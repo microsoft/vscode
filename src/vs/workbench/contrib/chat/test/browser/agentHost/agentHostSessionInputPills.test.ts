@@ -743,6 +743,29 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
+	test('a recorded resource of a text content provider\'s scheme can show above the chat input once the provider registers', async () => {
+		const appLink = 'app-link:/devbox.cdp.link';
+		const harness = createActivityPills(upcastPartial<SessionState>({
+			defaultChat: 'vendor-chat:/main', chats: [],
+			_meta: withSessionArtifacts(undefined, [{ id: 'viewer', label: 'Devbox', uri: appLink, type: SessionArtifactType.Resource, isArtifact: true }]),
+		}), undefined, undefined, 'local', undefined, undefined, { configurationService: new TestConfigurationService({ [ChatResourcesEnabledSettingId]: true }) });
+		const textModelService = harness.instantiationService.get(ITextModelService);
+		await timeout(0);
+		await harness.dropdown('1 Artifact').flatMap(item => item.toolbarActions ?? []).find(action => action.label.startsWith('Pin '))?.run();
+		await timeout(0);
+		const showAction = () => harness.menu(harness.persistentContent.querySelector<HTMLElement>('.chat-pill-item'))?.find(action => action.id === 'chatResources.showAboveInput');
+		const beforeProvider = !!showAction();
+		// Like an extension that registers its provider after activating.
+		store.add(textModelService.registerTextModelContentProvider('app-link', { provideTextContent: async () => null }));
+		await timeout(0);
+		const rendered = new DeferredPromise<string>();
+		harness.instantiationService.stub(ITextModelService, upcastPartial<ITextModelService>({ createModelReference: resource => { rendered.complete(resource.toString()); return Promise.reject(new Error('unreadable')); } }));
+		const afterProvider = !!showAction();
+		await showAction()?.run();
+
+		assert.deepStrictEqual({ beforeProvider, afterProvider, rendered: await rendered.p }, { beforeProvider: false, afterProvider: true, rendered: appLink });
+	});
+
 	test('a file shown above the chat input is the agent host\'s file, also in a remote window', async () => {
 		const showFile = async (resourceUris: IAgentHostResourceUriMapper) => {
 			const harness = createActivityPills(upcastPartial<SessionState>({

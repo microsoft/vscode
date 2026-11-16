@@ -13,7 +13,7 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IChatPillEntry, IChatPillSection } from '../../../../browser/chatPills.js';
-import { IExtensionService, isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
+import { isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../../services/extensions/common/extensionsRegistry.js';
 import { IChatResourceProviders, observeChatResourceExists } from './chatResourceExistence.js';
 
@@ -157,10 +157,9 @@ export class ChatResourceContributionEntries extends Disposable {
 		open: (resource: URI) => void,
 		@IFileService fileService: IFileService,
 		@ITextModelService textModelService: ITextModelService,
-		@IExtensionService extensionService: IExtensionService,
 	) {
 		super();
-		const providers: IChatResourceProviders = { fileService, textModelService, extensionService };
+		const providers: IChatResourceProviders = { fileService, textModelService };
 		const candidates = derived(this, reader => {
 			const current = ids.read(reader);
 			return current ? contributionList.read(reader).flatMap(contribution => {

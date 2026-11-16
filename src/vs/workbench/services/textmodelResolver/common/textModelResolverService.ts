@@ -6,6 +6,7 @@
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IDisposable, toDisposable, IReference, ReferenceCollection, Disposable, AsyncReferenceCollection } from '../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { TextResourceEditorModel } from '../../../common/editor/textResourceEditorModel.js';
 import { ITextFileService, TextFileResolveReason } from '../../textfile/common/textfiles.js';
@@ -263,8 +264,16 @@ export class TextModelResolverService extends Disposable implements ITextModelSe
 		return this.asyncModelCollection.acquire(resource.toString(), value, languageSelection);
 	}
 
+	private readonly _onDidChangeTextModelContentProviders = this._register(new Emitter<string>());
+	readonly onDidChangeTextModelContentProviders = this._onDidChangeTextModelContentProviders.event;
+
 	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
-		return this.resourceModelCollection.registerTextModelContentProvider(scheme, provider);
+		const registration = this.resourceModelCollection.registerTextModelContentProvider(scheme, provider);
+		this._onDidChangeTextModelContentProviders.fire(scheme);
+		return toDisposable(() => {
+			registration.dispose();
+			this._onDidChangeTextModelContentProviders.fire(scheme);
+		});
 	}
 
 	canHandleResource(resource: URI): boolean {

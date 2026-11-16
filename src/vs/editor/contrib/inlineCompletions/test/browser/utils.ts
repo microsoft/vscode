@@ -433,6 +433,8 @@ class MockTextModelService implements ITextModelService {
 		throw new Error('MockTextModelService.registerTextModelContentProvider not implemented');
 	}
 
+	readonly onDidChangeTextModelContentProviders = Event.None;
+
 	createSyntheticDocument(): never {
 		throw new Error('MockTextModelService.createSyntheticDocument not implemented');
 	}

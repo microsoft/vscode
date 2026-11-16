@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { Lazy } from '../../../base/common/lazy.js';
 import { Disposable, IDisposable, IReference, ReferenceCollection } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
@@ -50,6 +50,8 @@ export class InMemoryTextModelService implements ITextModelService {
 	public registerTextModelContentProvider(): IDisposable {
 		return Disposable.None;
 	}
+
+	public readonly onDidChangeTextModelContentProviders: Event<string> = Event.None;
 
 	public canHandleResource(): boolean {
 		return false;

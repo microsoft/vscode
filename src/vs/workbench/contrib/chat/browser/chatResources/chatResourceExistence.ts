@@ -8,13 +8,11 @@ import { IObservable, observableValue } from '../../../../../base/common/observa
 import { URI } from '../../../../../base/common/uri.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 
 /** The services that tell what provides a chat resource's scheme. */
 export interface IChatResourceProviders {
 	readonly fileService: IFileService;
 	readonly textModelService: ITextModelService;
-	readonly extensionService: IExtensionService;
 }
 
 /**
@@ -31,7 +29,7 @@ export function getChatResourceProviderKind(resource: URI, providers: IChatResou
 
 /** Whether a resource exists (see {@link ChatResourceProviderKind}), following changes to it until `store` is disposed. */
 export function observeChatResourceExists(providers: IChatResourceProviders, resource: URI, store: DisposableStore): IObservable<boolean> {
-	const { fileService, extensionService } = providers;
+	const { fileService } = providers;
 	const exists = observableValue<boolean>('chatResourceExists', false);
 	let version = 0;
 	const refresh = async () => {
@@ -62,9 +60,9 @@ export function observeChatResourceExists(providers: IChatResourceProviders, res
 			void refresh();
 		}
 	}));
-	// Text content providers register without an event, when their extension activates.
-	store.add(extensionService.onDidChangeExtensionsStatus(() => {
-		if (!fileService.hasProvider(resource)) {
+	// Text content providers register as their extension activates, or later.
+	store.add(providers.textModelService.onDidChangeTextModelContentProviders(scheme => {
+		if (scheme === resource.scheme) {
 			void refresh();
 		}
 	}));

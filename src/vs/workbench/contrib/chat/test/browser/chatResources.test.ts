@@ -15,7 +15,6 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { observeChatResourceExists } from '../../browser/chatResources/chatResourceExistence.js';
 import { ChatResourceContributionEntries, IChatResourceContribution, IChatResourceSessionIds, resolveChatResourceTemplate } from '../../browser/chatResources/chatResourceContributions.js';
@@ -24,32 +23,30 @@ import { defaultChatEmbeddedResourceSize, getChatEmbeddedResourceHeight, IChatEm
 
 suite('ChatResources', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const noTextContent = upcastPartial<ITextModelService>({ canHandleResource: () => false });
-	const extensions = upcastPartial<IExtensionService>({ onDidChangeExtensionsStatus: Event.None });
+	const noTextContent = upcastPartial<ITextModelService>({ canHandleResource: () => false, onDidChangeTextModelContentProviders: Event.None });
 
-	test('a resource exists as its file system says, or always for a text content provider\'s scheme, which activates later', async () => {
+	test('a resource exists as its file system says, or always for a text content provider\'s scheme, which can register later', async () => {
 		const fileService = store.add(new FileService(new NullLogService()));
 		store.add(fileService.registerProvider('chat-status', store.add(new InMemoryFileSystemProvider())));
 		await fileService.writeFile(URI.parse('chat-status:/status.md'), VSBuffer.fromString('# Status'));
 		const textContentSchemes = new Set<string>();
-		const activated = store.add(new Emitter<never[]>());
+		const registered = store.add(new Emitter<string>());
 		const providers = {
 			fileService,
-			textModelService: upcastPartial<ITextModelService>({ canHandleResource: resource => textContentSchemes.has(resource.scheme) }),
-			extensionService: upcastPartial<IExtensionService>({ onDidChangeExtensionsStatus: activated.event }),
+			textModelService: upcastPartial<ITextModelService>({ canHandleResource: resource => textContentSchemes.has(resource.scheme), onDidChangeTextModelContentProviders: registered.event }),
 		};
 		const observe = (uri: string) => observeChatResourceExists(providers, URI.parse(uri), store.add(new DisposableStore()));
 		const existing = observe('chat-status:/status.md');
 		const missing = observe('chat-status:/missing.md');
 		const appLink = observe('app-link:/a.cdp.link');
 		await waitForState(existing, value => value);
-		const beforeActivation = appLink.get();
+		const beforeRegistration = appLink.get();
 		textContentSchemes.add('app-link');
-		activated.fire([]);
+		registered.fire('app-link');
 		await waitForState(appLink, value => value);
 
-		assert.deepStrictEqual({ existing: existing.get(), missing: missing.get(), beforeActivation, afterActivation: appLink.get() }, {
-			existing: true, missing: false, beforeActivation: false, afterActivation: true,
+		assert.deepStrictEqual({ existing: existing.get(), missing: missing.get(), beforeRegistration, afterRegistration: appLink.get() }, {
+			existing: true, missing: false, beforeRegistration: false, afterRegistration: true,
 		});
 	});
 
@@ -68,7 +65,7 @@ suite('ChatResources', () => {
 		store.add(fileService.registerProvider('chat-status', store.add(new InMemoryFileSystemProvider())));
 		const contribution: IChatResourceContribution = { extensionId: new ExtensionIdentifier('pub.ext'), id: 'status', label: 'Status', icon: undefined, resource: 'chat-status:/${agentSessionId}.md' };
 		const ids = observableValue<IChatResourceSessionIds | undefined>('ids', { chatSessionId: 'chat-1', agentSessionId: 'cli-42' });
-		const entries = store.add(new ChatResourceContributionEntries(observableValue('contributions', [contribution]), ids, () => { }, fileService, noTextContent, extensions));
+		const entries = store.add(new ChatResourceContributionEntries(observableValue('contributions', [contribution]), ids, () => { }, fileService, noTextContent));
 		const listed = () => entries.sections.get().flatMap(section => section.entries.map(entry => `${entry.id} ${entry.label} ${entry.resource?.toString()}`));
 		// Like the pill that reads them, an observer keeps the entries and their file watchers alive.
 		store.add(autorun(reader => entries.sections.read(reader)));
@@ -90,7 +87,7 @@ suite('ChatResources', () => {
 	test('watches a resource whose file system provider registers later', async () => {
 		const fileService = store.add(new FileService(new NullLogService()));
 		const contribution: IChatResourceContribution = { extensionId: new ExtensionIdentifier('pub.ext'), id: 'status', label: 'Status', icon: undefined, resource: 'chat-status:/${chatSessionId}.md' };
-		const entries = store.add(new ChatResourceContributionEntries(observableValue('contributions', [contribution]), observableValue('ids', { chatSessionId: 'chat-1', agentSessionId: undefined }), () => { }, fileService, noTextContent, extensions));
+		const entries = store.add(new ChatResourceContributionEntries(observableValue('contributions', [contribution]), observableValue('ids', { chatSessionId: 'chat-1', agentSessionId: undefined }), () => { }, fileService, noTextContent));
 		store.add(autorun(reader => entries.sections.read(reader)));
 		const provider = store.add(new InMemoryFileSystemProvider());
 		const watched: string[] = [];

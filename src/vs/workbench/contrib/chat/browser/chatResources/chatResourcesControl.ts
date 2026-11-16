@@ -17,7 +17,6 @@ import { localize } from '../../../../../nls.js';
 import { SessionArtifactMode } from '../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -92,7 +91,6 @@ export class ChatResourcesControl extends Disposable {
 		private readonly _pin: (resource: IChatResource) => boolean,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -108,7 +106,7 @@ export class ChatResourcesControl extends Disposable {
 		this._chatKey = derived(this, reader => sessionResource.read(reader)?.toString());
 		// A recorded file can be missing: the agent can record it before writing it, or delete it later.
 		const recordedTargets = derived(this, reader => [...new Set(recorded.read(reader).map(resource => resource.resource.toString()))]);
-		const providers: IChatResourceProviders = { fileService: this._fileService, textModelService: this._textModelService, extensionService: this._extensionService };
+		const providers: IChatResourceProviders = { fileService: this._fileService, textModelService: this._textModelService };
 		const recordedExistence = mapObservableArrayCached(this, recordedTargets, (target, store) => [target, observeChatResourceExists(providers, URI.parse(target), store)] as const);
 		this._resources = derived(this, reader => {
 			if (this._chatKey.read(reader) === undefined) {
