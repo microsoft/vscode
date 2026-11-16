@@ -79,7 +79,7 @@ const LAST_SESSIONS_LIMIT = 20;
  * the chat that the host in use shows ({@link IChatViewHostService.shownSession}), whichever surface that is.
  *
  * - A chat the user opens moves the folder to where it works: the working directory of a local agent host session, or the
- *   folder's own location for a local chat. It supersedes any switch under way.
+ *   folder's own location for a local chat. It supersedes any switch under way. An archived chat moves nothing.
  * - A shown session that comes to work elsewhere, such as in the worktree its agent created, or whose working directory
  *   becomes known only after its first request, moves the folder on its own: such an automatic switch gives way to any
  *   other switch, and applies only while the user asked for none since it started.
@@ -327,6 +327,11 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 
 	/** Moves the folder to where the shown chat works: on the user's behalf, or on its own (`automatic`). */
 	private _follow(shown: IShownChat, automatic: boolean): void {
+		// An archived chat moves nothing: the folder does not go to a worktree only archived chats work in
+		if (this._agentSessionsService.getSession(shown.resource)?.isArchived()) {
+			this._trace(`not followed: ${shown.resource.toString()} is archived`);
+			return;
+		}
 		const folder = this._workspaceContextService.getWorkspace().folders[0];
 		const primary = this._workspaceContextService.getWorkspace().uri;
 		if (!folder || !primary || !this._folderLocationService.canSetLocation(folder)) {
