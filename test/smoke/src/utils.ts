@@ -18,7 +18,11 @@ export interface MockLlmServer {
 	close(): Promise<void>;
 }
 
-/** Checks only the latest user message so scenario tags from earlier turns cannot match. */
+/**
+ * Checks only the latest user message so scenario tags from earlier turns cannot match.
+ * The runtime may append user items that contain only `<system_reminder>` blocks (for
+ * example, when deferred tools are available) after the prompt; those are skipped.
+ */
 export function latestUserInputCarriesTag(body: unknown, scenarioTag: string): boolean {
 	if (!body || typeof body !== 'object') {
 		return false;
@@ -29,18 +33,31 @@ export function latestUserInputCarriesTag(body: unknown, scenarioTag: string): b
 		return false;
 	}
 
-	const message = input.findLast((item: unknown): item is Record<string, unknown> =>
-		!!item && typeof item === 'object' && (item as Record<string, unknown>).role === 'user');
-	const content = message?.content;
-	const text = typeof content === 'string'
-		? content
-		: Array.isArray(content)
-			? content.map((part: unknown) => {
-				const text = part && typeof part === 'object' ? (part as Record<string, unknown>).text : undefined;
-				return typeof text === 'string' ? text : '';
-			}).join('')
-			: '';
-	return text.includes(scenarioTag);
+	for (let i = input.length - 1; i >= 0; i--) {
+		const item: unknown = input[i];
+		if (!item || typeof item !== 'object' || (item as Record<string, unknown>).role !== 'user') {
+			continue;
+		}
+		const text = getMessageText((item as Record<string, unknown>).content);
+		if (!text.replace(/<system_reminder>[\s\S]*?<\/system_reminder>/g, '').trim()) {
+			continue;
+		}
+		return text.includes(scenarioTag);
+	}
+	return false;
+}
+
+function getMessageText(content: unknown): string {
+	if (typeof content === 'string') {
+		return content;
+	}
+	if (!Array.isArray(content)) {
+		return '';
+	}
+	return content.map((part: unknown) => {
+		const text = part && typeof part === 'object' ? (part as Record<string, unknown>).text : undefined;
+		return typeof text === 'string' ? text : '';
+	}).join('');
 }
 
 /**
