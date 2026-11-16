@@ -12,7 +12,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IViewletViewOptions } from '../../../../browser/parts/views/viewsViewlet.js';
 import { Extensions as ViewExtensions, IViewContainerDescriptor, IViewsRegistry } from '../../../../common/views.js';
 import { AGENTS_VIEW_SETUP_VIEW_ID, AgentsViewAvailable, AgentsViewNeedsSetup, AgentsViewWhen } from '../../browser/agentsView/agentsView.js';
-import { createEditorWindowSessionsViewOptions, EDITOR_WINDOW_SESSIONS_GROUPINGS, registerEditorWindowSessionsList, registerEditorWindowSessionsViews } from '../../browser/agentsView/editorWindowSessionsList.js';
+import { createEditorWindowSessionsViewOptions, EDITOR_WINDOW_SESSIONS_GROUPINGS, EditorWindowSessionsListService, IEditorWindowSessionsListService, registerEditorWindowSessionsList, registerEditorWindowSessionsViews } from '../../browser/agentsView/editorWindowSessionsList.js';
 import { EditorWindowSessionsContext, SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { SessionsGrouping } from '../../browser/views/sessionsList.js';
@@ -89,6 +89,7 @@ suite('EditorWindowSessionsList', () => {
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: visibility.event, isViewVisible: () => false }));
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ onDidChangePartVisibility: Event.None, isVisible: () => false }));
 		instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({ when: () => new Promise<void>(() => { }) }));
+		instantiationService.stub(IEditorWindowSessionsListService, store.add(instantiationService.createInstance(EditorWindowSessionsListService)));
 		// The registrations of the sessions list's settings, beyond those of other suites, such as of the Agents window. Its actions
 		// register once too: a second registration of the archive contribution would throw on its command ids.
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -113,6 +114,23 @@ suite('EditorWindowSessionsList', () => {
 			afterBoth: { settings: 0, contextKey: false },
 			more: ['agents view', 'chat view'],
 		});
+	});
+
+	test('the shared state of the sessions lists belongs to the window\'s service: the lists of another window mark that window', () => {
+		const windows = [0, 1].map(() => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const contextKeyService = store.add(new MockContextKeyService());
+			instantiationService.stub(IContextKeyService, contextKeyService);
+			instantiationService.stub(IConfigurationService, new TestConfigurationService());
+			instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: Event.None, isViewVisible: () => false }));
+			instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ onDidChangePartVisibility: Event.None, isVisible: () => false }));
+			instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({ when: () => new Promise<void>(() => { }) }));
+			instantiationService.stub(IEditorWindowSessionsListService, store.add(instantiationService.createInstance(EditorWindowSessionsListService)));
+			store.add(registerEditorWindowSessionsList(instantiationService, () => toDisposable(() => { })));
+			return contextKeyService.getContextKeyValue(EditorWindowSessionsContext.key) ?? false;
+		});
+
+		assert.deepStrictEqual(windows, [true, true]);
 	});
 
 	function localize2Value(value: string) {
