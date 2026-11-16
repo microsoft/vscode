@@ -41,6 +41,7 @@ type ModelCallTurnCorrelatedClassification = {
 		"exp_assignment_context": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Experiment assignment context from the Copilot CLI runtime." },
 		"session_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier for the Copilot CLI session." },
 		"sdk_session_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier for the SDK session that forwarded the event." },
+		"client_turn_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Caller turn captured by the runtime for this work, separate from the host-remapped execution turn. Standard events carry only UUIDv4 or request_-prefixed UUIDv4 values, unchanged for cross-boundary correlation. Other caller strings are restricted-only." },
 		"copilot_tracking_id": { "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight", "comment": "Pseudonymous Copilot user identifier supplied by the runtime." },
 		"kind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Kind of SDK telemetry event." },
 		"cli_version": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Version of the Copilot CLI runtime." },
