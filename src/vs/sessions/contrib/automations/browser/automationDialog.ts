@@ -7,6 +7,7 @@ import * as DOM from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Button, IButton, unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
@@ -15,7 +16,7 @@ import { Radio } from '../../../../base/browser/ui/radio/radio.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { AnchorPosition } from '../../../../base/browser/ui/contextview/contextview.js';
 import { ISelectBoxOptions, ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
-import { IAction } from '../../../../base/common/actions.js';
+import { Action, IAction } from '../../../../base/common/actions.js';
 import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -24,6 +25,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { extUriIgnorePathCase, getComparisonKey, isEqual } from '../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isStringArray } from '../../../../base/common/types.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -38,6 +40,8 @@ import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../.
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { isAutomationAfterDate, isAutomationAfterDateExpired } from '../../../../platform/agentHost/common/automationDisableConditions.js';
+import { AutomationDisableConditionKind, type AutomationAfterDateCondition } from '../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
@@ -244,7 +248,8 @@ export interface IFormState extends IAutomationTriggerFormState {
 	sessionTypeId: string | undefined;
 	isolationMode: string | undefined;
 	branch: string | undefined;
-	enabled: boolean;
+	readonly enabled: boolean;
+	endDate?: string;
 	timeZone?: 'UTC';
 	timezoneOffset?: number;
 	resolvedFolderUri?: URI;
@@ -254,6 +259,7 @@ export interface IFormState extends IAutomationTriggerFormState {
 }
 
 export interface IValidationState {
+	endDateError?: string;
 	scheduleError?: string;
 	cronError?: string;
 	nameError: string | undefined;
@@ -278,6 +284,44 @@ export function getAutomationDialogProviders(automationService: IAutomationServi
 	});
 }
 
+export function buildAutomationDisableConditions(endDate: string | undefined): AutomationAfterDateCondition[] {
+	return endDate === undefined ? [] : [{ kind: AutomationDisableConditionKind.AfterDate, date: endDate }];
+}
+
+export function getAutomationEndDateError(endDate: string | undefined, initial: string | undefined): string | undefined {
+	if (endDate === undefined) {
+		return undefined;
+	}
+	if (!isAutomationAfterDate(endDate)) {
+		return localize('automation.form.invalidEndDate', "The saved end date is invalid. In Advanced Settings, change Disables after or select Never.");
+	}
+	return endDate !== initial && Date.parse(endDate) <= Date.now()
+		? localize('automation.form.futureEndDate', "The end date has passed. In Advanced Settings, change Disables after or select Never.")
+		: undefined;
+}
+
+type AutomationDurationUnit = 'days' | 'weeks' | 'months';
+
+/** Returns a local-calendar cutoff, or undefined when the duration cannot produce a supported end date. */
+export function getAutomationDurationEndDate(amount: number, unit: AutomationDurationUnit, now = Date.now()): string | undefined {
+	if (!Number.isSafeInteger(amount) || amount <= 0) {
+		return undefined;
+	}
+	const date = new Date(now);
+	if (unit === 'months') {
+		const month = date.getMonth() + amount;
+		const lastDay = new Date(date.getFullYear(), month + 1, 0).getDate();
+		date.setMonth(month, Math.min(date.getDate(), lastDay));
+	} else {
+		date.setDate(date.getDate() + amount * (unit === 'weeks' ? 7 : 1));
+	}
+	if (!Number.isFinite(date.getTime())) {
+		return undefined;
+	}
+	const result = date.toISOString();
+	return isAutomationAfterDate(result) ? result : undefined;
+}
+
 interface IRenderFormHandle {
 	readonly getPrompt: () => string;
 	readonly getSessionConfiguration: (token: CancellationToken) => Promise<AutomationSessionConfigurationCapture>;
@@ -296,6 +340,7 @@ interface IRenderFormHandle {
 	readonly getFocusableElements: () => readonly HTMLElement[];
 	readonly acceptPromptSuggestion: () => boolean;
 	readonly cancelInputPopup: () => boolean;
+	readonly refreshDisableConditionsWarning: () => void;
 }
 
 export type AutomationDialogMessageSource = 'immutableSettings' | 'repositoryWarning' | 'targetValidation' | 'scheduleValidation' | 'toolCatalogError' | 'operationError' | 'saveError';
@@ -1221,8 +1266,9 @@ export function renderForm(
 	const scheduleError = DOM.append(formContent, $('span.automation-target-error.automation-visually-hidden'));
 	scheduleError.id = 'automation-schedule-error';
 	DOM.hide(scheduleError);
+	const durationContent = $('.automation-duration-settings');
 	const customizationSelection = disposables.add(new AutomationCustomizationSelection(
-		formContent, customizations?.service, customizations?.hoverService, logService, customizations?.existingId, triggerFields,
+		formContent, customizations?.service, customizations?.hoverService, logService, customizations?.existingId, triggerFields, durationContent,
 	));
 
 	const cronGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group.automation-form-cron-group'));
@@ -1957,6 +2003,120 @@ export function renderForm(
 	}, DOM.getWindow(promptHost)));
 	disposables.add(resizeObserver.observe(promptHost));
 
+	const durationRow = DOM.append(durationContent, $('.automation-form-row.automation-form-duration-row'));
+	const endDateError = DOM.append(formContent, $('span.automation-form-error', {
+		id: 'automation-end-date-error', role: 'status', 'aria-live': 'polite',
+	}));
+	const units: { value: 'never' | AutomationDurationUnit; label: string }[] = [
+		{ value: 'never', label: localize('automation.form.duration.never', "Never") },
+		{ value: 'days', label: localize('automation.form.duration.days', "Days") },
+		{ value: 'weeks', label: localize('automation.form.duration.weeks', "Weeks") },
+		{ value: 'months', label: localize('automation.form.duration.months', "Months") },
+	];
+	let unit = state.endDate === undefined ? units[0].value : units[1].value;
+	let durationChanged = false;
+	DOM.append(durationRow, $('label.automation-form-label', { for: 'automation-duration' }, localize('automation.form.disablesAfter', "Disables after")));
+	const amountInput = disposables.add(new InputBox(durationRow, contextViewService, {
+		type: 'number',
+		ariaLabel: localize('automation.form.duration.amount', "Disables after: duration"),
+		inputBoxStyles: automationNameInputBoxStyles,
+	}));
+	amountInput.element.classList.add('automation-form-duration-input');
+	amountInput.inputElement.id = 'automation-duration';
+	amountInput.inputElement.step = '1';
+	amountInput.value = state.endDate === undefined ? '1' : String(Math.max(0, Math.ceil((Date.parse(state.endDate) - Date.now()) / 86_400_000)));
+	amountInput.inputElement.min = amountInput.value === '0' ? '0' : '1';
+	const stepAmount = (direction: 1 | -1) => {
+		const current = amountInput.inputElement.valueAsNumber;
+		amountInput.value = String(Number.isFinite(current)
+			? Math.max(1, direction > 0 ? Math.floor(current) + 1 : Math.ceil(current) - 1)
+			: 1);
+		amountInput.focus();
+	};
+	const increase = disposables.add(new Action('automation.duration.increase', localize('automation.form.duration.increase', "Increase Duration"), ThemeIcon.asClassName(Codicon.chevronUpCompact), true, () => stepAmount(1)));
+	const decrease = disposables.add(new Action('automation.duration.decrease', localize('automation.form.duration.decrease', "Decrease Duration"), ThemeIcon.asClassName(Codicon.chevronDownCompact), amountInput.inputElement.valueAsNumber > 1, () => stepAmount(-1)));
+	const stepper = disposables.add(new ActionBar(amountInput.element, {
+		orientation: ActionsOrientation.VERTICAL,
+		focusOnlyEnabledItems: true,
+		ariaLabel: localize('automation.form.duration.controls', "Duration controls"),
+		// The dialog captures keyup, so activate these actions on keydown.
+		triggerKeys: { keyDown: true },
+	}));
+	stepper.push([increase, decrease], { icon: true, label: false });
+	disposables.add(decrease.onDidChange(event => {
+		if (event.enabled !== undefined) {
+			stepper.setFocusable(false);
+			stepper.setFocusable(true);
+		}
+	}));
+	DOM.setVisibility(unit !== 'never', amountInput.element);
+	const unitContainer = DOM.append(durationRow, $('.automation-form-duration-unit'));
+	const unitSelect = disposables.add(new SelectBox(
+		units.map(option => ({ text: option.label })),
+		unit === 'never' ? 0 : 1,
+		contextViewService,
+		defaultSelectBoxStyles,
+		{ ...scheduleSelectOptions, ariaLabel: localize('automation.form.duration.unit', "Disables after: unit") },
+	));
+	unitSelect.render(unitContainer);
+	const durationHint = DOM.append(durationContent, $('span.automation-form-hint.automation-form-duration-hint', { id: 'automation-duration-hint' }));
+	amountInput.inputElement.setAttribute('aria-describedby', `${endDateError.id} ${durationHint.id}`);
+	disposables.add(amountInput.onDidChange(() => {
+		decrease.enabled = amountInput.inputElement.valueAsNumber > 1;
+		durationChanged = true;
+		revalidate();
+	}));
+	disposables.add(unitSelect.onDidSelect(event => {
+		unit = units[event.index].value;
+		durationChanged = true;
+		DOM.setVisibility(unit !== 'never', amountInput.element);
+		revalidate();
+	}));
+
+	const conditionsWarning = DOM.append(formContent, $('span.automation-form-hint', {
+		id: 'automation-conditions-warning', role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true',
+	}));
+	const initialEndDate = isEdit ? state.endDate : undefined;
+	const refreshDisableConditionsWarning = () => {
+		const supportsEndDate = !runInCloud.get();
+		customizationSelection.setEndDateContentVisible(supportsEndDate);
+		let durationError: string | undefined;
+		if (durationChanged) {
+			amountInput.inputElement.min = '1';
+			const date = unit === 'never' ? undefined : getAutomationDurationEndDate(amountInput.inputElement.valueAsNumber, unit);
+			if (unit !== 'never' && date === undefined) {
+				durationError = localize('automation.form.duration.invalid', "Enter a positive whole number that produces an end date before year 10000.");
+			} else {
+				state.endDate = date;
+			}
+		}
+		durationHint.textContent = durationError || state.endDate === undefined
+			? ''
+			: localize('automation.form.duration.estimatedEndDate', "Estimated end date: {0}", new Date(state.endDate).toLocaleString(undefined, {
+				year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit',
+			}));
+		DOM.setVisibility(!!durationHint.textContent, durationHint);
+		validation.endDateError = supportsEndDate
+			? durationError ?? getAutomationEndDateError(state.endDate, initialEndDate)
+			: state.endDate !== undefined
+				? localize('automation.form.cloudEndDate', "Cloud automations do not support end dates. Select Never before switching to the cloud.")
+				: undefined;
+		amountInput.inputElement.setAttribute('aria-invalid', String(!!validation.endDateError));
+		DOM.setVisibility(!!validation.endDateError, endDateError);
+		const errorMessage = validation.endDateError ?? '';
+		if (endDateError.textContent !== errorMessage) {
+			endDateError.textContent = errorMessage;
+		}
+		const expired = state.enabled && isAutomationAfterDateExpired(buildAutomationDisableConditions(state.endDate));
+		DOM.setVisibility(expired, conditionsWarning);
+		const message = expired
+			? localize('automation.form.expiredDuration', "The end date has passed. Scheduling will stop immediately. Change the duration or select Never before re-enabling scheduling.")
+			: '';
+		if (conditionsWarning.textContent !== message) {
+			conditionsWarning.textContent = message;
+		}
+	};
+	refreshDisableConditionsWarning();
 	const providerOptions = DOM.append(promptSection, $('.automation-provider-options'));
 	const providerDetails = DOM.append(providerOptions, $('.automation-provider-details.automation-form-row', { role: 'group', 'aria-labelledby': 'automation-tools-label' }));
 	DOM.append(providerDetails, $('span.automation-form-label', { id: 'automation-tools-label' }, localize('automation.tools', "Tools")));
@@ -2227,11 +2387,13 @@ export function renderForm(
 			}
 			setDialogMessage('targetValidation', message ? { severity: 'error', text: message } : undefined);
 		},
-		getSaveBlockedReason: (targetMessage, scheduleMessage) => scheduleMessage
-			? { message: scheduleMessage, elementId: scheduleError.id }
-			: !isEdit && targetMessage === cloudUnavailableMessage()
-				? { message: targetMessage, elementId: targetError.id }
-				: undefined,
+		getSaveBlockedReason: (targetMessage, scheduleMessage) => validation.endDateError
+			? { message: validation.endDateError, elementId: endDateError.id }
+			: scheduleMessage
+				? { message: scheduleMessage, elementId: scheduleError.id }
+				: !isEdit && targetMessage === cloudUnavailableMessage()
+					? { message: targetMessage, elementId: targetError.id }
+					: undefined,
 		waitForAutomationSessionSync: token => {
 			updateAutomationSessionTarget();
 			return automationSessionDraftSynchronizer.waitForSync(token);
@@ -2246,6 +2408,7 @@ export function renderForm(
 			sessionConfigurationErrorMessage.set(message, undefined);
 		},
 		focusSaveError: focusDialogMessage,
+		refreshDisableConditionsWarning,
 		getFocusableElements: () => {
 			// eslint-disable-next-line eslint-js/no-restricted-syntax -- the dialog owns this form subtree and supplies its dynamic focus order.
 			return Array.from(form.querySelectorAll<HTMLElement>('input, select, textarea, button, a[href], [tabindex]'));
@@ -2280,6 +2443,7 @@ export class AutomationCustomizationSelection extends Disposable {
 	private readonly content: HTMLElement;
 	private readonly body: HTMLElement;
 	private additionalContentVisible = false;
+	private endDateContentVisible = false;
 	private customizationsVisible = false;
 	private readonly rows = this._register(new DisposableStore());
 	private readonly request = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -2296,6 +2460,7 @@ export class AutomationCustomizationSelection extends Disposable {
 		private readonly logService: ILogService,
 		private readonly existingId?: string,
 		private readonly additionalContent?: HTMLElement,
+		private readonly endDateContent?: HTMLElement,
 	) {
 		super();
 		this._register(toDisposable(() => this.request.value?.cancel()));
@@ -2304,11 +2469,14 @@ export class AutomationCustomizationSelection extends Disposable {
 		this.disclosure.element.classList.add('automation-advanced-disclosure', 'automation-form-label');
 		this.chevron = DOM.append(this.disclosure.element, $('span.automation-advanced-chevron', { 'aria-hidden': 'true' }));
 		DOM.append(this.chevron, renderIcon(Codicon.chevronRight));
-		DOM.append(this.disclosure.element, $('span', undefined, localize('automation.advanced', "Advanced")));
+		DOM.append(this.disclosure.element, $('span', undefined, localize('automation.advanced', "Advanced Settings")));
 		this.summary = DOM.append(this.disclosure.element, $('span.automation-advanced-summary'));
 		this.body = DOM.append(this.section, $('.automation-advanced-content', { id: 'automation-advanced-content' }));
 		if (additionalContent) {
 			DOM.append(this.body, additionalContent);
+		}
+		if (endDateContent) {
+			DOM.append(this.body, endDateContent);
 		}
 		this.content = DOM.append(this.body, $('.automation-customizations', { id: 'automation-customizations' }));
 		this.disclosure.element.setAttribute('aria-controls', this.body.id);
@@ -2330,8 +2498,21 @@ export class AutomationCustomizationSelection extends Disposable {
 		this.updateVisibility();
 	}
 
+	setEndDateContentVisible(visible: boolean): void {
+		this.endDateContentVisible = visible;
+		if (visible) {
+			this.disclosure.element.setAttribute('aria-describedby', 'automation-end-date-error automation-conditions-warning');
+		} else {
+			this.disclosure.element.removeAttribute('aria-describedby');
+		}
+		if (this.endDateContent) {
+			setAutomationControlVisible(this.endDateContent, visible);
+		}
+		this.updateVisibility();
+	}
+
 	private updateVisibility(): void {
-		setAutomationControlVisible(this.section, this.additionalContentVisible || this.customizationsVisible);
+		setAutomationControlVisible(this.section, this.additionalContentVisible || this.customizationsVisible || this.endDateContentVisible);
 		setAutomationControlVisible(this.body, this.expanded);
 		setAutomationControlVisible(this.content, this.customizationsVisible);
 		this.summary.hidden = this.expanded || !this.customizationsVisible || this.additionalContentVisible;
@@ -2570,7 +2751,7 @@ export function updateSaveButtonState(
 		? getAutomationCronValidationError(state.cronExpression ?? '', state.cronTimeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone)
 		: undefined;
 	const cronComplete = state.interval !== 'cron' || !!state.cronExpression?.trim();
-	const valid = cronComplete && !validation.cronError && !validation.nameError && !validation.promptError && !validation.folderError && !validation.sessionTypeError && !validation.branchError && !validation.scheduleError;
+	const valid = cronComplete && !validation.cronError && !validation.nameError && !validation.promptError && !validation.folderError && !validation.sessionTypeError && !validation.branchError && !validation.scheduleError && !validation.endDateError;
 	if (saveButton) {
 		saveButton.enabled = valid && !state.targetPending;
 	}

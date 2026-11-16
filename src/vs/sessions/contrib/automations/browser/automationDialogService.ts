@@ -27,6 +27,8 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { getAutomationAfterDate } from '../../../../platform/agentHost/common/automationDisableConditions.js';
+import { AutomationDisableConditionKind } from '../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { defaultButtonStyles, defaultDialogStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { createWorkbenchDialogOptions } from '../../../../workbench/browser/parts/dialogs/dialog.js';
 import { IAutomationSchedule } from '../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -38,7 +40,7 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChatViewFactory } from '../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { IAutomationSessionConfiguration } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { AutomationDialogMessageSource, AutomationSessionConfigurationCapture, createAutomationTarget, getAutomationDialogProviders, IAutomationDialogMessage, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
+import { AutomationDialogMessageSource, AutomationSessionConfigurationCapture, buildAutomationDisableConditions, createAutomationTarget, getAutomationDialogProviders, IAutomationDialogMessage, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
 import { AutomationDialogTelemetry } from './automationTelemetry.js';
 
 const $ = DOM.$;
@@ -155,6 +157,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				: initialWorkspaceTarget?.isolation.kind === 'worktree' ? 'worktree' : 'workspace',
 			branch: initialWorkspaceTarget?.isolation.kind === 'worktree' ? initialWorkspaceTarget.isolation.branch : undefined,
 			enabled: initial?.enabled ?? true,
+			endDate: getAutomationAfterDate(initial?.disableConditions),
 			timeZone: initial?.schedule.timeZone,
 			timezoneOffset,
 			cloudTrigger: existing?.schedule.interval === 'custom' ? existing.cloudTrigger : undefined,
@@ -268,6 +271,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			if (!target) {
 				return undefined;
 			}
+			const disableConditions = buildAutomationDisableConditions(state.endDate);
 			if (existing) {
 				const patch: IUpdateAutomationOptions = {
 					name: state.name,
@@ -279,11 +283,15 @@ export class AutomationDialogService implements IAutomationDialogService {
 					...(sessionConfigurationCapture.kind === 'captured' ? {
 						sessionTemplate: sessionTemplate ?? null,
 					} : {}),
-					enabled: state.enabled,
+					...(state.endDate !== getAutomationAfterDate(existing.disableConditions) ? { disableConditions } : {}),
 					...(customizationIds !== undefined ? { customizationIds } : {}),
 				};
 				return { kind: 'update', id: existing.id, value: patch };
 			}
+			const createDisableConditions = [
+				...initial?.disableConditions?.filter(condition => condition.kind !== AutomationDisableConditionKind.AfterDate) ?? [],
+				...disableConditions,
+			];
 			const create: ICreateAutomationOptions = {
 				...(this.automationService.getProviderConfiguration?.(state.providerId) && state.ownership === 'repository' ? { ownership: state.ownership } : {}),
 				name: state.name.trim() ? state.name : deriveAutomationName(prompt),
@@ -299,7 +307,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						...(sessionConfiguration.permissionLevel !== undefined ? { permissionLevel: sessionConfiguration.permissionLevel } : {}),
 					} : {}),
 				enabled: state.enabled,
-				...(initial?.disableConditions ? { disableConditions: initial.disableConditions } : {}),
+				...(createDisableConditions.length > 0 ? { disableConditions: createDisableConditions } : {}),
 				...(customizationIds !== undefined ? { customizationIds } : {}),
 			};
 			return { kind: 'create', value: create };
@@ -323,7 +331,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			if (state.targetPending) {
 				return;
 			}
-			if (validation.nameError || validation.promptError || validation.folderError || validation.sessionTypeError || validation.branchError || validation.scheduleError || validation.cronError
+			if (validation.nameError || validation.promptError || validation.folderError || validation.sessionTypeError || validation.branchError || validation.scheduleError || validation.cronError || validation.endDateError
 				|| (state.interval === 'cron' && !state.cronExpression?.trim())) {
 				dialogTelemetry.validationFailed();
 				return;
@@ -358,7 +366,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					return;
 				}
 				revalidate();
-				if (state.targetPending || validation.sessionTypeError || validation.scheduleError) {
+				if (state.targetPending || validation.sessionTypeError || validation.scheduleError || validation.endDateError) {
 					return;
 				}
 				const result = buildResult(sessionConfigurationCapture);
@@ -532,6 +540,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					const saveBlockedHover = disposables.add(new MutableDisposable());
 					let saveBlockedMessage: string | undefined;
 					revalidate = () => {
+						handle.refreshDisableConditionsWarning();
 						const providerAvailable = state.providerId !== undefined && allowedProviders.get().includes(state.providerId);
 						updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch, this.sessionsManagementService, providerAvailable, existing?.target.providerId, isEdit);
 						handle.showTargetValidationError(validation.sessionTypeError);

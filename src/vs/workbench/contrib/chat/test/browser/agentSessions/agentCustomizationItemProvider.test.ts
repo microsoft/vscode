@@ -298,6 +298,14 @@ suite('AgentCustomizationItemProvider', () => {
 						type: CustomizationType.Plugin, id: name, uri: `file:///plugins/${name}`, name,
 						...(organization ? { _meta: withCustomizationOrganizationMeta(undefined, organization) } : {}),
 					})),
+					// A runtime-installed plugin states what the organization requires with its activation.
+					...([['runtime-required', true], ['runtime-blocked', false], ['runtime-unmanaged', undefined]] as const).map(([name, managedDesiredEnabled]): PluginCustomization => ({
+						type: CustomizationType.Plugin, id: name, uri: `file:///plugins/${name}`, name,
+						_meta: withRuntimePluginEnablement(undefined, {
+							provider: 'copilotcli', plugin: `${name}@enterprise`, globalEnabled: false, effectiveEnabled: managedDesiredEnabled ?? false,
+							repositorySupported: true, managedDesiredEnabled,
+						}),
+					})),
 				];
 			}
 		}
@@ -310,6 +318,9 @@ suite('AgentCustomizationItemProvider', () => {
 			{ key: 'required', organizationControl: { requiredEnabled: true } },
 			{ key: 'supplied', organizationControl: {} },
 			{ key: 'unmanaged', organizationControl: undefined },
+			{ key: 'runtime-required', organizationControl: { requiredEnabled: true } },
+			{ key: 'runtime-blocked', organizationControl: { requiredEnabled: false } },
+			{ key: 'runtime-unmanaged', organizationControl: undefined },
 			{ key: 'hook-0', organizationControl: { requiredEnabled: true } },
 			{ key: 'hook-1', organizationControl: {} },
 			{ key: 'hook-2', organizationControl: undefined },

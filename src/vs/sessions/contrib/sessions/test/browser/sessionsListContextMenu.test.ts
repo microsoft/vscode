@@ -7,7 +7,7 @@ import assert from 'assert';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IAction, Separator, SubmenuAction } from '../../../../../base/common/actions.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { retry, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { isDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -47,6 +47,9 @@ import type { SessionView } from '../../../../../workbench/contrib/sessions/brow
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
+import { SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
+import { SessionsViewGroupingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
 import { createListHarness, createSession, createTestSession, TestCommandService, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionMoveRefusedError } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -219,6 +222,129 @@ suite('Sessions list context menus', () => {
 		const section = contextMenuService.delegate?.getActions().some(action => action.id === 'sessions.createGroup') ?? false;
 		assert.deepStrictEqual({ empty, section }, { empty: false, section: false });
 	});
+
+	for (const surface of ['context menu', 'toolbar'] as const) {
+		test(`Inbox pin and unpin preserve triage state from the ${surface}`, async () => {
+			const sessions = [createTestSession('First').session, createTestSession('Second', { createdAt: new Date(1) }).session];
+			const harness = createListHarness(disposables, sessions);
+			const { instantiationService, store } = harness;
+			const model = store.add(instantiationService.createInstance(SessionsListModelService));
+			instantiationService.stub(ISessionsListModelService, model);
+			const contextKeyService = store.add(new ContextKeyService(instantiationService.get(IConfigurationService)));
+			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+			SessionsViewGroupingContext.bindTo(contextKeyService).set(SessionsGrouping.Inbox);
+			instantiationService.stub(IContextKeyService, contextKeyService);
+			instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+			const contextMenuService = new TestContextMenuService();
+			instantiationService.stub(IContextMenuService, contextMenuService);
+			instantiationService.stub(ICommandService, 'executeCommand', async (id: string, targets: ISession[]) => {
+				for (const session of targets) {
+					if (id === 'sessionsViewPane.pinSession') {
+						model.pinSession(session);
+					} else if (id === 'sessionsViewPane.unpinSession') {
+						model.unpinSession(session);
+					}
+				}
+			});
+			const container = harness.createContainer(400, 600);
+			const list = store.add(instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => SessionsGrouping.Inbox,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(600, 400);
+			const snapshot = () => ({
+				states: sessions.map(session => model.getInboxState(session)?.kind),
+				pinned: sessions.map(session => model.isSessionPinned(session)),
+				sections: list.getTreeSnapshot().flatMap(node => node.type === 'section' ? [[node.id, node.children.flatMap(child => child.type === 'session' ? [child.session.sessionId] : [])]] : []),
+			});
+			const results = [];
+			for (const state of [undefined, 'hold', 'done'] as const) {
+				if (state) {
+					model.setInboxState(sessions, state);
+				}
+				list.update();
+				if (state) {
+					list.setItemCollapsed({ section: state === 'hold' ? SessionInboxSection.OnHold : SessionInboxSection.Acknowledged }, false);
+				}
+				list.setSelectedItems(sessions.map(session => ({ session: session.resource })));
+				await timeout(100);
+				for (const pin of [true, false]) {
+					const row = list.getItemRow({ session: sessions[0].resource })!;
+					if (surface === 'context menu') {
+						dispatchContextMenu(row);
+						const delegate = contextMenuService.delegate!;
+						const action = delegate.getActions().find(action => action.id === `sessionsViewPane.${pin ? 'pinSession' : 'unpinSession'}`)!;
+						await delegate.actionRunner!.run(action, delegate.getActionsContext?.());
+						delegate.onHide?.(false);
+					} else {
+						row.querySelector<HTMLElement>(`.session-title-toolbar [aria-label="${pin ? 'Pin' : 'Unpin'}"]`)!.click();
+						await timeout(0);
+					}
+					list.update();
+					await timeout(100);
+					if (pin) {
+						const pinnedRow = list.getItemRow({ session: sessions[0].resource })!;
+						dispatchContextMenu(pinnedRow);
+						results.push({
+							state, ...snapshot(),
+							returnToInboxInMenu: contextMenuService.delegate!.getActions().some(action => action.id === 'sessionsViewPane.inboxResume'),
+							returnToInboxInToolbar: !!pinnedRow.querySelector('.session-title-toolbar [aria-label="Return to Inbox"]'),
+						});
+						contextMenuService.delegate!.onHide?.(false);
+					} else {
+						results.push({ state, ...snapshot() });
+					}
+				}
+			}
+			const ids = sessions.map(session => session.sessionId);
+			assert.deepStrictEqual(results, [undefined, 'hold', 'done'].flatMap(state => [
+				{ state, states: [state, state], pinned: [true, true], sections: [['pinned', ids], [SessionInboxSection.ReadyForYou, []]], returnToInboxInMenu: false, returnToInboxInToolbar: false },
+				{ state, states: [state, state], pinned: [false, false], sections: state ? [[SessionInboxSection.ReadyForYou, []], [state === 'hold' ? SessionInboxSection.OnHold : SessionInboxSection.Acknowledged, ids]] : [[SessionInboxSection.ReadyForYou, ids]] },
+			]));
+		});
+	}
+
+	for (const promoteNewChat of [false, true]) {
+		test(`Inbox triage actions share a toolbar position with ${promoteNewChat ? 'New Nested Session' : 'Pin'}`, async () => {
+			const ready = createTestSession('Ready');
+			const acknowledged = createTestSession('Acknowledged');
+			for (const item of [ready, acknowledged]) {
+				item.capabilities.set({ ...item.capabilities.get(), supportsMultipleChats: true }, undefined);
+			}
+			const harness = createListHarness(disposables, [ready.session, acknowledged.session]);
+			const { instantiationService, store } = harness;
+			const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			await configurationService.setUserConfiguration(ChatSessionArchiveActionWordingSettingId, ChatSessionArchiveActionWording.MarkAsDone);
+			const model = store.add(instantiationService.createInstance(SessionsListModelService));
+			instantiationService.stub(ISessionsListModelService, model);
+			model.setInboxState([acknowledged.session], 'done');
+			const contextKeyService = store.add(new ContextKeyService(instantiationService.get(IConfigurationService)));
+			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+			SessionsViewGroupingContext.bindTo(contextKeyService).set(SessionsGrouping.Inbox);
+			SessionsListPromoteNewChatActionContext.bindTo(contextKeyService).set(promoteNewChat);
+			instantiationService.stub(IContextKeyService, contextKeyService);
+			instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+			store.add(instantiationService.createInstance(SessionsArchiveActionsContribution));
+			const list = store.add(instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Inbox,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(600, 400);
+			list.setItemCollapsed({ section: SessionInboxSection.Acknowledged }, false);
+			const actions = (session: ISession) => [...list.getItemRow({ session: session.resource })!
+				.querySelectorAll('.session-title-toolbar .action-label')].map(action => action.getAttribute('aria-label'));
+			const organizeAction = promoteNewChat ? 'New Nested Session' : 'Pin';
+			await retry(async () => assert.deepStrictEqual({
+				inbox: actions(ready.session),
+				acknowledged: actions(acknowledged.session),
+			}, {
+				inbox: ['Acknowledge: Move to Acknowledged until new activity', organizeAction, 'Mark as Done'],
+				acknowledged: ['Return to Inbox', organizeAction, 'Mark as Done'],
+			}), 10, 100);
+		});
+	}
 
 	test('multiselection disables single-session context menu actions', async () => {
 		const first = createTestSession('First');

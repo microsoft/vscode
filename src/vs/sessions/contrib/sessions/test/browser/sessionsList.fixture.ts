@@ -1026,7 +1026,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		interaction: { focused: { session: 'terminal-confirmation' }, listFocused: false, renaming: { session: 'terminal-confirmation' } },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The first compact session row is being renamed inline. The input text and border are vertically centered with the status icon and row actions, without shifting the row height.'],
+		expectedVisualDescriptions: ['The first compact session row is being renamed inline. The input text and border are vertically centered with the status icon without shifting the row height, and the row actions are hidden so the input extends to the end of the row.'],
 	}),
 	SessionsList_CompactChatRename: defineSessionsListFixture({
 		sessions: COMPACT_RENAME_SESSIONS,

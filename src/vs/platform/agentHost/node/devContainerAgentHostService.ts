@@ -548,8 +548,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 					signal.throwIfAborted();
 					const client = lifetime.add(this._gitHubService.acquireAnonymousClient());
 					const repository = { owner: 'microsoft', repo: getDevContainerSampleFolder(sample) };
-					const commitSha = await client.content.resolveRef(repository, 'HEAD', signal);
-					const content = await client.content.getRawFile(repository, commitSha, '.devcontainer/devcontainer.json', signal);
+					const commitSha = await client.content.resolveRef(repository, 'HEAD', signal, { caller: 'agentHost.devContainerSample' });
+					const content = await client.content.getRawFile(repository, commitSha, '.devcontainer/devcontainer.json', signal, { caller: 'agentHost.devContainerSample' });
 					return { commitSha, content };
 				} finally {
 					lifetime.dispose();
