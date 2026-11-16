@@ -61,6 +61,20 @@ suite('WorkspaceFolderLocationService', () => {
 		assert.deepStrictEqual({ labels: actual.map(l => l.label), reported }, { labels: ['A', 'B'], reported: ['fail'] });
 	});
 
+	test('relays a change of the locations that a provider knows while it is registered', () => {
+		const service = disposables.add(createService());
+		const onDidChangeLocations = disposables.add(new Emitter<void>());
+		const provider: IWorkspaceFolderLocationProvider = { id: 'changing', provideLocations: async () => [], resolveLocation: async () => undefined, onDidChangeLocations: onDidChangeLocations.event };
+		let changes = 0;
+		disposables.add(service.onDidChangeLocations(() => changes++));
+		const registration = service.registerProvider(provider);
+		onDidChangeLocations.fire();
+		registration.dispose();
+		onDidChangeLocations.fire();
+
+		assert.strictEqual(changes, 1);
+	});
+
 	test('resolveLocation reports provider and built-in flag', async () => {
 		const service = disposables.add(createService());
 		const registration = disposables.add(service.registerProvider(provider('x', [{ uri: a, label: 'A' }]), { builtIn: true }));

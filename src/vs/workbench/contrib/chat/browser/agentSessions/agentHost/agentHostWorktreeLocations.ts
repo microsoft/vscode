@@ -6,51 +6,61 @@
 import { raceCancellation } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { isAbsolute } from '../../../../../../base/common/path.js';
-import { basename, dirname, extUriBiasedIgnorePathCase, joinPath, normalizePath } from '../../../../../../base/common/resources.js';
-import { isDefined } from '../../../../../../base/common/types.js';
+import { basename, extUriBiasedIgnorePathCase, normalizePath, removeTrailingPathSeparator } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../../platform/files/common/files.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IFolderLocation, IWorkspaceFolderLocationProvider } from '../../../../../../platform/workspace/common/folderLocations.js';
-import { readFolderGitCheckout } from '../../../../../services/workspaces/common/gitFolderCheckout.js';
 import { IChatSessionsService, isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
 import { IAgentSession } from '../agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
-import { IAgentHostWorktreeSessionSources } from './agentHostWorktreeSessionSources.js';
 
 /** The id of the provider of the worktrees that the local agent host's sessions work in. */
 export const AGENT_HOST_WORKTREE_LOCATIONS_PROVIDER_ID = 'agentHost.sessionWorktrees';
 
 /**
- * The working directories of the local agent host's sessions in `sessions`, without duplicates: the folders their agents
- * work in, such as a worktree a session created. Archived sessions and those of other providers, such as local chats,
- * which belong to the window's primary folder, are left out.
+ * The worktrees of the local folder `folder` that the local agent host's `sessions` work in, without duplicates: the working
+ * directories of the sessions whose project, as the agent host resolves it with git (the primary worktree's root), is
+ * `folder`, other than `folder` itself and the folders inside it. Archived sessions, those of other providers and those
+ * without a project are left out. Each is described by the branch the session reports, as far as it does.
+ *
+ * `folder` is any of the forms of the one folder, such as the path the window opened and its real path: git, and so the
+ * project, names a folder by its real path, such as `/private/tmp/x` of `/tmp/x` on macOS.
  */
-export function getAgentHostSessionWorkingDirectories(sessions: readonly IAgentSession[]): URI[] {
-	const result: URI[] = [];
+export function getAgentHostSessionWorktrees(sessions: readonly IAgentSession[], folder: URI | readonly URI[]): IFolderLocation[] {
+	const forms = (URI.isUri(folder) ? [folder] : folder).filter(form => form.scheme === Schemas.file).map(form => removeTrailingPathSeparator(normalizePath(form)));
+	if (!forms.length) {
+		return [];
+	}
+	const result: IFolderLocation[] = [];
 	for (const session of sessions) {
-		const path = session.metadata?.workingDirectoryPath;
-		if (!isLocalAgentHostTarget(session.providerType) || session.isArchived() || typeof path !== 'string' || !path) {
+		const workingDirectory = toFolder(session.metadata?.workingDirectoryPath);
+		const project = toFolder(session.metadata?.projectPath);
+		if (!isLocalAgentHostTarget(session.providerType) || session.isArchived() || !workingDirectory || !project
+			|| !forms.some(form => extUriBiasedIgnorePathCase.isEqual(project, form))
+			// The folder itself, or a folder inside it, is no location of it
+			|| forms.some(form => extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectory, form))
+			|| result.some(location => extUriBiasedIgnorePathCase.isEqual(location.uri, workingDirectory))) {
 			continue;
 		}
-		const directory = URI.file(path);
-		if (!result.some(candidate => extUriBiasedIgnorePathCase.isEqual(candidate, directory))) {
-			result.push(directory);
-		}
+		const branch = session.metadata?.branchName;
+		result.push({ uri: workingDirectory, label: basename(workingDirectory), description: typeof branch === 'string' && branch ? branch : undefined, icon: Codicon.gitBranchCheckout });
 	}
 	return result;
 }
 
+function toFolder(path: unknown): URI | undefined {
+	return typeof path === 'string' && path ? removeTrailingPathSeparator(normalizePath(URI.file(path))) : undefined;
+}
+
 /**
- * The alternate locations of a local folder that its agent host sessions know: the worktrees of the folder's git
- * repository that sessions work in. There is no discovery of the repository's worktrees; a session's working directory is
- * one only when it is a linked checkout of that repository, as the editor window decides that a folder belongs to a
- * window's repository (see `WorkspaceFolderRepositories`), and when that repository's entry for it names its `.git` back.
- * That keeps a folder that only points into the repository from inheriting the primary's trust.
+ * The alternate locations of a local folder that its agent host sessions know: the worktrees that sessions work in whose
+ * agent host project is the folder ({@link getAgentHostSessionWorktrees}). It reads no git data: the agent host decides with
+ * git what a session's project is, so a location inherits the folder's trust on its word. It reads only the folder's real
+ * path, once for each folder, as git names the project by it. There is no discovery of the repository's worktrees.
  */
 export class AgentHostWorktreeLocationProvider extends Disposable implements IWorkspaceFolderLocationProvider {
 
@@ -59,12 +69,19 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 	/** The local agent host providers whose sessions the sessions list has resolved. */
 	private readonly _resolvedProviders = new Set<string>();
 
+	/** The forms of each folder asked about: as given, and its real path, read once. */
+	private readonly _forms = new ResourceMap<Promise<readonly URI[]>>(uri => extUriBiasedIgnorePathCase.getComparisonKey(uri));
+	/** The forms of the folders whose real path is read. */
+	private readonly _knownForms = new ResourceMap<readonly URI[]>(uri => extUriBiasedIgnorePathCase.getComparisonKey(uri));
+
+	private readonly _onDidChangeLocations = this._register(new Emitter<void>());
+	/** Fires as the real path of a folder asked about is known to differ, which can make more of its worktrees known. */
+	readonly onDidChangeLocations = this._onDidChangeLocations.event;
+
 	constructor(
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
-		@IAgentHostWorktreeSessionSources private readonly _sessionSources: IAgentHostWorktreeSessionSources,
 		@IFileService private readonly _fileService: IFileService,
-		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._register(_agentSessionsService.model.onDidResolve(provider => {
@@ -74,145 +91,75 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 		}));
 	}
 
-	async provideLocations(primary: URI, token: CancellationToken): Promise<IFolderLocation[]> {
-		const worktreesDir = await this._worktreesDir(primary);
-		if (!worktreesDir || token.isCancellationRequested) {
-			return [];
+	/**
+	 * The worktrees of `primary` among the sessions the sessions list has now: cheap, as it is asked at every start. It does
+	 * not wait for the folder's real path the first time: those of a project named by it follow with {@link onDidChangeLocations}.
+	 */
+	async provideLocations(primary: URI, _token: CancellationToken): Promise<IFolderLocation[]> {
+		return getAgentHostSessionWorktrees(this._agentSessionsService.model.sessions, this.getFolderForms(primary));
+	}
+
+	/**
+	 * The forms of `folder` known now: itself, and its real path where it differs, once read. The first ask starts reading it,
+	 * and {@link onDidChangeLocations} fires once it is known to differ, such as for a folder reached through a symbolic link.
+	 */
+	getFolderForms(folder: URI): readonly URI[] {
+		const forms = this._knownForms.get(folder);
+		if (!forms) {
+			void this._formsOf(folder);
 		}
-		// Before the sessions list first resolves a local agent host provider, it has only the sessions it cached of it:
-		// wait for that provider, also while others have resolved, and leave the others alone
+		return forms ?? [folder];
+	}
+
+	/**
+	 * `location` as a worktree of `primary`, once the local agent host's sessions are known: also before the sessions list
+	 * first resolves them, such as to restore the location that the window's folder was at.
+	 */
+	async resolveLocation(primary: URI, location: URI, token: CancellationToken): Promise<IFolderLocation | undefined> {
+		const forms = await this._formsOf(primary);
+		const find = () => getAgentHostSessionWorktrees(this._agentSessionsService.model.sessions, forms).find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate.uri, removeTrailingPathSeparator(normalizePath(location))));
+		const found = find();
+		if (found) {
+			return found;
+		}
 		const model = this._agentSessionsService.model;
 		const unresolved = this._chatSessionsService.getRegisteredChatSessionItemProviders().filter(provider => isLocalAgentHostTarget(provider) && !this._resolvedProviders.has(provider));
 		if (unresolved.length) {
 			await raceCancellation(model.resolve(unresolved, undefined, 'automatic'), token);
-			if (token.isCancellationRequested) {
-				return [];
-			}
-		}
-		// Also where the sessions that other sources know work, such as those of the editor window's session layer: they
-		// only nominate a working directory, which is a location only once git links it to the primary below
-		await raceCancellation(this._sessionSources.whenReady(token), token);
-		if (token.isCancellationRequested) {
-			return [];
-		}
-		const candidates = new ResourceMap<URI>(uri => extUriBiasedIgnorePathCase.getComparisonKey(uri));
-		for (const directory of [...getAgentHostSessionWorkingDirectories(model.sessions), ...this._sessionSources.getWorkingDirectories()]) {
-			if (!extUriBiasedIgnorePathCase.isEqual(directory, primary)) {
-				candidates.set(directory, directory);
-			}
-		}
-		const locations = await Promise.all([...candidates.values()].map(async candidate => {
+		} else if (!this._resolvedProviders.size) {
+			// Before the local agent host registers its sessions: once it lists them
+			const listed = Event.toPromise(Event.filter(model.onDidResolve, isLocalAgentHostTarget));
 			try {
-				const location = await this._resolve(worktreesDir, primary, candidate);
-				return location && { location, real: await this._real(candidate) };
-			} catch (error) {
-				// One working directory that fails to read, such as a pruned worktree, does not hide the others
-				this._logService.warn(`[AgentHostWorktreeLocations] Could not read the git checkout of ${candidate.toString()}`, error);
-				return undefined;
+				await raceCancellation(listed, token);
+			} finally {
+				listed.cancel();
 			}
-		}));
-		if (token.isCancellationRequested) {
-			return [];
-		}
-		// A worktree that sessions work in by several paths, such as through a symbolic link, is offered once, by the first
-		const offered = new ResourceMap<IFolderLocation>(uri => extUriBiasedIgnorePathCase.getComparisonKey(uri));
-		for (const resolved of locations.filter(isDefined)) {
-			if (!offered.has(resolved.real)) {
-				offered.set(resolved.real, resolved.location);
-			}
-		}
-		return [...offered.values()];
-	}
-
-	async resolveLocation(primary: URI, location: URI, token: CancellationToken): Promise<IFolderLocation | undefined> {
-		// Any linked checkout of the repository resolves, also before the sessions load, such as to restore the location
-		// that the window's folder was at
-		const worktreesDir = await this._worktreesDir(primary);
-		return worktreesDir && !token.isCancellationRequested ? this._resolve(worktreesDir, primary, location) : undefined;
-	}
-
-	/** Where the worktrees of the repository of the local folder `primary` are kept: `.git/worktrees` of its real path. */
-	private async _worktreesDir(primary: URI): Promise<URI | undefined> {
-		if (primary.scheme !== Schemas.file) {
+		} else {
 			return undefined;
 		}
-		try {
-			const checkout = await readFolderGitCheckout(this._fileService, await this._real(primary));
-			// Its real path also where `.git` or `.git/worktrees` is a symbolic link
-			return checkout && await this._real(joinPath(await this._real(checkout.repository), '.git', 'worktrees'));
-		} catch (error) {
-			this._logService.warn(`[AgentHostWorktreeLocations] Could not read the git repository of ${primary.toString()}`, error);
-			return undefined;
-		}
+		return token.isCancellationRequested ? undefined : find();
 	}
 
-	/**
-	 * `location` as a location of the folder at `primary`, when git links it both ways with an entry of `worktreesDir`: its
-	 * `.git` file names the entry, and the entry's `gitdir` file names the location's `.git` back, by their real paths, such
-	 * as of a folder reached through a symbolic link.
-	 */
-	private async _resolve(worktreesDir: URI, primary: URI, location: URI): Promise<IFolderLocation | undefined> {
-		if (location.scheme !== Schemas.file) {
-			return undefined;
+	/** `folder`, and its real path where it differs, such as of a folder reached through a symbolic link: read once for each folder. */
+	private _formsOf(folder: URI): Promise<readonly URI[]> {
+		let forms = this._forms.get(folder);
+		if (!forms) {
+			forms = folder.scheme !== Schemas.file ? Promise.resolve([folder]) : this._fileService.realpath(folder).then(
+				real => {
+					const known = real && !extUriBiasedIgnorePathCase.isEqual(real, folder) ? [folder, real] : [folder];
+					this._knownForms.set(folder, known);
+					if (known.length > 1) {
+						this._onDidChangeLocations.fire();
+					}
+					return known;
+				},
+				() => {
+					// Read again next time, such as once the folder is there
+					this._forms.delete(folder);
+					return [folder];
+				});
+			this._forms.set(folder, forms);
 		}
-		const realLocation = await this._real(location);
-		if (extUriBiasedIgnorePathCase.isEqual(await this._real(primary), realLocation)) {
-			return undefined;
-		}
-		const locationGitFile = joinPath(realLocation, '.git');
-		const entry = await this._readLink(locationGitFile, realLocation, /^gitdir:\s*(?<path>.+?)\s*$/m);
-		if (!entry || !extUriBiasedIgnorePathCase.isEqual(dirname(await this._real(entry)), worktreesDir)) {
-			return undefined;
-		}
-		const backlink = await this._readLink(joinPath(entry, 'gitdir'), entry);
-		// The entry names the checkout itself: the folder of the `.git` file it names is the location, by their real paths,
-		// and that file is the location's `.git`, also where it is a symbolic link. Another folder whose `.git` links to the
-		// same file is no checkout of the entry, and must not inherit the primary's trust.
-		if (!backlink
-			|| !extUriBiasedIgnorePathCase.isEqual(await this._real(dirname(backlink)), realLocation)
-			|| !extUriBiasedIgnorePathCase.isEqual(await this._real(backlink), await this._real(locationGitFile))) {
-			return undefined;
-		}
-		// Its branch, from the entry's HEAD: read again each time the location is resolved
-		const head = await this._readOrUndefined(async () => (await this._fileService.readFile(joinPath(entry, 'HEAD'))).value.toString());
-		return { uri: location, label: basename(location), description: head !== undefined ? parseGitHead(head) : undefined, icon: Codicon.gitBranchCheckout };
+		return forms;
 	}
-
-	/** The path a link file names, absolute and normalized: its content, or the `pattern`'s `path` group of it, relative to `base`. */
-	private async _readLink(file: URI, base: URI, pattern?: RegExp): Promise<URI | undefined> {
-		const content = await this._readOrUndefined(async () => (await this._fileService.readFile(file)).value.toString());
-		const path = content && (pattern ? pattern.exec(content)?.groups?.path : content.trim());
-		if (!path) {
-			return undefined;
-		}
-		return normalizePath(isAbsolute(path) ? URI.file(path) : joinPath(base, path));
-	}
-
-	/** `resource` with its symbolic links resolved, or itself where it is not there. */
-	private async _real(resource: URI): Promise<URI> {
-		return normalizePath(await this._readOrUndefined(() => this._fileService.realpath(resource)) ?? resource);
-	}
-
-	/** The result of `read`, or `undefined` where what it reads is not there or is a folder, such as an ordinary checkout's `.git`; any other failure throws. */
-	private async _readOrUndefined<T>(read: () => Promise<T>): Promise<T | undefined> {
-		try {
-			return await read();
-		} catch (error) {
-			const result = error instanceof Error ? toFileOperationResult(error) : undefined;
-			if (result === FileOperationResult.FILE_NOT_FOUND || result === FileOperationResult.FILE_IS_DIRECTORY) {
-				return undefined;
-			}
-			throw error;
-		}
-	}
-}
-
-/** The branch a git HEAD names (`ref: refs/heads/<branch>`), the short commit of a detached one, or `undefined`. */
-export function parseGitHead(head: string): string | undefined {
-	const content = head.trim();
-	const branch = /^ref:\s*refs\/heads\/(?<branch>.+)$/.exec(content)?.groups?.branch;
-	if (branch) {
-		return branch;
-	}
-	return /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/i.test(content) ? content.slice(0, 7) : undefined;
 }
