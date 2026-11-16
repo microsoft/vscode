@@ -502,6 +502,45 @@ suite('Agent Host provider seams', () => {
 
 	suite('AgentHostSessionTitleSignal', () => {
 
+		test('reads retained tool-chat and parent titles without hydrating their conversations', () => {
+			const signal = disposables.add(new AgentHostSessionTitleSignal(manager));
+			manager.createSession(summary());
+			const parent = buildChatUri(sessionKey, 'parent');
+			const child = buildChatUri(sessionKey, 'child');
+			let resolutions = 0;
+			for (const [chat, title, spawningChat] of [
+				[parent, 'Investigate tests', buildDefaultChatUri(sessionKey)],
+				[child, 'Check failures', parent],
+			]) {
+				manager.registerRestoredChatSummary(sessionKey, chat, {
+					storageResource: chat,
+					title,
+					origin: { kind: ChatOriginKind.Tool, chat: spawningChat, toolCallId: `spawn-${title}` },
+					resolver: async () => {
+						resolutions++;
+						return { turns: [] };
+					},
+				});
+			}
+
+			const identities = [parent, child].map(chat => {
+				const identity = signal.getChatPathIdentity(URI.parse(chat), session);
+				return { ...identity, parentSession: identity.parentSession?.toString() };
+			});
+			assert.deepStrictEqual({
+				identities,
+				states: [parent, child].map(chat => manager.getChatState(chat)),
+				resolutions,
+			}, {
+				identities: [
+					{ title: 'Investigate tests', parentSession: buildDefaultChatUri(sessionKey), parentTitle: 'Seams' },
+					{ title: 'Check failures', parentSession: parent, parentTitle: 'Investigate tests' },
+				],
+				states: [undefined, undefined],
+				resolutions: 0,
+			});
+		});
+
 		test('reads conversation titles and recorded parents independently of the session grouping', () => {
 			const signal = disposables.add(new AgentHostSessionTitleSignal(manager));
 			manager.createSession({ ...summary(), title: 'Parent' });
