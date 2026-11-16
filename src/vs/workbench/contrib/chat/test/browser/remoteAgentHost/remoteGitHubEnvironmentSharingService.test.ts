@@ -20,6 +20,7 @@ import { IDefaultAccountService } from '../../../../../../platform/defaultAccoun
 import { IDialogService, IPrompt } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { TestProductService } from '../../../../../test/common/workbenchTestServices.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -77,7 +78,8 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 				override readonly onDidChangeDefaultAccount = Event.None;
 				override async getDefaultAccount() { return null; }
 			}(),
-			new class extends mock<IProductService>() { }(),
+			// Sharing signs in with the default scopes of the GitHub provider, which the product defines.
+			new class extends mock<IProductService>() { override readonly defaultChatAgent = { ...TestProductService.defaultChatAgent, providerScopes: [['read:user', 'user:email', 'repo', 'workflow']] }; }(),
 			storage,
 			new NullLogService(),
 			new class extends mock<IDialogService>() {
