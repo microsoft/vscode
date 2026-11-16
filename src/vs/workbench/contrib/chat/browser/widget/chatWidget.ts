@@ -362,6 +362,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
 
+	/** Whether it sets the model of the session its first request made, which its view model change reports. */
+	private _settingCommittedModel = false;
 	private _onDidChangeViewModel = this._register(new Emitter<IChatWidgetViewModelChangeEvent>());
 	readonly onDidChangeViewModel = this._onDidChangeViewModel.event;
 	private readonly _onDidChangeDraft = this._register(new Emitter<void>());
@@ -579,7 +581,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.logService.debug('ChatWidget#setViewModel: no viewModel');
 		}
 
-		this._onDidChangeViewModel.fire({ previousSessionResource, currentSessionResource: this._viewModel?.sessionResource });
+		this._onDidChangeViewModel.fire({ previousSessionResource, currentSessionResource: this._viewModel?.sessionResource, committed: this._settingCommittedModel || undefined });
 		this.updateSessionStateIndicator();
 	}
 
@@ -2749,8 +2751,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputContainer = dom.$('.chat-edit-input-container');
 		item.requestTimestampContainer.before(this.inputContainer);
 		this.createInput(this.inputContainer, undefined, store);
+		if (this._respondent) {
+			this.input.setModelSessionTypeOverride({ sessionType: this._respondent.respondent.modelSessionType }, this._respondent.resource);
+		}
 		this.input.setChatMode(this.inputPart.currentModeObs.get().id);
 		this.input.setPermissionLevel(this.inputPart.currentModeInfo.permissionLevel ?? ChatPermissionLevel.Default);
+		if (this._scheduledRequestEdit && this.inputPart.currentLanguageModel) {
+			void this.input.requestModelByIdentifier(this.inputPart.currentLanguageModel, this.inputPart.getModelConfiguration(this.inputPart.currentLanguageModel));
+		}
 		this.input.setEditing(true, type);
 		this._onDidChangeActiveInputEditor.fire();
 	}
@@ -3255,6 +3263,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private _applyListPaddingBottom(): void {
 		this.listWidget?.setPaddingBottom(this._getListPaddingBottom());
+	}
+
+	/** Shows the session that its first request made of the one it shows, such as an untitled chat's committed session. */
+	private setCommittedModel(model: IChatModel): void {
+		this._settingCommittedModel = true;
+		try {
+			this.setModel(model);
+		} finally {
+			this._settingCommittedModel = false;
+		}
 	}
 
 	setModel(model: IChatModel | undefined): void {
@@ -4305,7 +4323,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (result.newSessionResource) {
 				const newModel = this.chatService.getSession(result.newSessionResource);
 				if (newModel) {
-					this.setModel(newModel);
+					this.setCommittedModel(newModel);
 				}
 			}
 			return;
@@ -4359,7 +4377,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (sent.newSessionResource) {
 			const newModel = this.chatService.getSession(sent.newSessionResource);
 			if (newModel) {
-				this.setModel(newModel);
+				this.setCommittedModel(newModel);
 			}
 		}
 

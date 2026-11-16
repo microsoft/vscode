@@ -38,7 +38,7 @@ import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../../../../workbench/contrib/
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
@@ -92,6 +92,27 @@ suite('SessionsChatAccessibilityHelp', () => {
 			secondaryActions: content.includes('The More Actions menu includes Edit and Add to Comment.'),
 			states: content.includes('Accepted means it is ready to submit; Investigating means it has been submitted to the agent.'),
 		}, { preview: true, keyboard: true, scrolling: true, secondaryActions: true, states: true });
+	});
+
+	test('documents showing and hiding the other customization categories with More and Less', () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiation.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiation, configuration);
+		instantiation.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiation.stub(ISessionsHostLayoutService, {});
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
+
+		assert.deepStrictEqual({
+			more: content.includes('Activate More with Enter or Space to show those categories in place, followed by Less, and move focus to the first category shown.'),
+			less: content.includes('Activate Less to hide them again and return focus to More.'),
+			remembered: content.includes('The section remembers which of the two you used last.'),
+			allCategories: content.includes(`To always show every category, set ${SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING} to all.`),
+		}, { more: true, less: true, remembered: true, allCategories: true });
 	});
 
 	for (const { aiDisabled, hidden, htmlEnabled } of [

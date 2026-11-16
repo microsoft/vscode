@@ -939,6 +939,31 @@ suite('AgentHostSandboxNotification', () => {
 			assert.deepStrictEqual({ hasInstallButton: hasInstallButton(service), actions: service.notifications.get(id)?.actions }, { hasInstallButton: false, actions: [] });
 		});
 
+		test('transcript guidance wraps below the reply with the action aligned to the description', () => {
+			const subscription = store.add(new TestSubscription());
+			subscription.setValue();
+			subscription.setCertificate(certificate);
+			const service = new NotificationService();
+			enableRefresh(async () => { });
+			focus(resource);
+			createNotification(resource, subscription, service);
+			const widget = renderWarning(service, [], inputUri, 'transcript');
+			const row = document.createElement('div');
+			row.className = 'interactive-item-container';
+			row.append(widget.domNode);
+			document.body.append(row);
+			try {
+				for (const width of [680, 300, 680]) {
+					row.style.width = `${width}px`;
+					const text = row.querySelector('.chat-input-notification-description')!.getBoundingClientRect();
+					const action = row.querySelector('.monaco-button')!.getBoundingClientRect();
+					assert.ok(text.height > 0 && action.top >= text.bottom && action.left === text.left && action.right <= row.getBoundingClientRect().right);
+				}
+			} finally {
+				row.remove();
+			}
+		});
+
 		const remoteGuidance = 'Install the sandbox certificate authority (CA) on the remote agent host so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. On the host, run code agent sandbox ca create, then code agent sandbox ca trust. Learn more.';
 
 		function enableRefresh(refresh: (chat: string, scopeId: string) => Promise<void>) {
@@ -1060,7 +1085,9 @@ suite('AgentHostSandboxNotification', () => {
 				focus(resource);
 				createNotification(resource, subscription, service);
 				const commands: Parameters<ICommandService['executeCommand']>[] = [];
-				const widget = renderWarning(service, commands, inputUri);
+				const composer = renderWarning(service, commands, inputUri);
+				assert.strictEqual(composer.domNode.querySelector('.chat-input-notification-actions'), null);
+				const widget = renderWarning(service, commands, inputUri, 'transcript');
 				const button = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-actions .monaco-button');
 				assert.ok(button);
 				const description = widget.domNode.querySelector('.chat-input-notification-description');
@@ -1231,6 +1258,7 @@ suite('AgentHostSandboxNotification', () => {
 					hostVisible: constObservable(true),
 					modelTargetChatSessionType: constObservable('agent-host-copilot'),
 					sessionResource: constObservable(resource),
+					placement: 'transcript',
 				}));
 				const descriptionElement = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-description');
 				assert.ok(descriptionElement);
@@ -1263,7 +1291,7 @@ suite('AgentHostSandboxNotification', () => {
 				}, {
 					renderedButton: { label: 'Install', role: 'button', tabIndex: 0, ariaLabel: 'Sandbox trusted CA is not installed (optional) Install' },
 					calls: outcome === 'cancelled' ? 0 : 1, confirmations: 1,
-					description: 'Install the sandbox certificate authority (CA) so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. Learn more.',
+					description: 'Install the sandbox certificate authority (CA) so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. You can install it later from the Command Palette with Sandbox: Manage Trusted CA. Learn more.',
 					descriptionLinks: ['Learn more'], descriptionEnding: true, untrustedContent: false,
 					keepOpen: true,
 					actions: 1, pending: id,
@@ -1519,10 +1547,10 @@ suite('AgentHostSandboxNotification', () => {
 			assert.deepStrictEqual({ before, body: { ...body, description: rendered.element.textContent }, links: links.map(link => link.textContent), openedLinks, dismissible: typeof onDismiss, dispatched }, {
 				before: 0,
 				body: {
-					id, inputUri,
+					id, inputUri, placement: 'transcript',
 					severity: ChatInputNotificationSeverity.Info,
 					message: 'Sandbox trusted CA is not installed (optional)',
-					description: isWeb ? remoteGuidance : 'Install the sandbox certificate authority (CA) so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. Learn more.',
+					description: isWeb ? remoteGuidance : 'Install the sandbox certificate authority (CA) so developer tools can connect securely through a proxy that adds credentials to outgoing requests without exposing them to agent tools. You can install it later from the Command Palette with Sandbox: Manage Trusted CA. Learn more.',
 					actions: [], dismissible: true, autoDismissOnMessage: false, sessionResources: [resource],
 				},
 				links: ['Learn more'],
@@ -1626,8 +1654,12 @@ suite('AgentHostSandboxNotification', () => {
 			service.dismissNotification(warning.id);
 			const info = service.getActiveNotification();
 			assert.ok(info);
-			const certificateRendered = widget.domNode.textContent?.includes('Sandbox trusted CA is not installed (optional)');
-			const installButton = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-actions .monaco-button');
+			assert.strictEqual(widget.domNode.textContent?.includes('Sandbox trusted CA is not installed (optional)'), false);
+			const transcriptWidget = store.add(widgetInstantiationService.createInstance(ChatInputNotificationWidget, {
+				placement: 'transcript', inputUri, sessionResource: constObservable(resource),
+			}));
+			const certificateRendered = transcriptWidget.domNode.textContent?.includes('Sandbox trusted CA is not installed (optional)');
+			const installButton = transcriptWidget.domNode.querySelector<HTMLElement>('.chat-input-notification-actions .monaco-button');
 			const renderedButton = { label: installButton?.textContent, tabIndex: installButton?.tabIndex };
 			service.dismissNotification(info.id);
 			subscription.setCertificate(certificate);
@@ -1831,7 +1863,7 @@ suite('AgentHostSandboxNotification', () => {
 		});
 	});
 
-	function renderWarning(service: NotificationService, commands: Parameters<ICommandService['executeCommand']>[] = [], inputUri?: URI): ChatInputNotificationWidget {
+	function renderWarning(service: NotificationService, commands: Parameters<ICommandService['executeCommand']>[] = [], inputUri?: URI, placement?: 'transcript'): ChatInputNotificationWidget {
 		const widgetInstantiationService = store.add(workbenchInstantiationService(undefined, store));
 		widgetInstantiationService.stub(IChatInputNotificationService, {
 			onDidChange: Event.None,
@@ -1846,7 +1878,7 @@ suite('AgentHostSandboxNotification', () => {
 			},
 		});
 		return store.add(widgetInstantiationService.createInstance(ChatInputNotificationWidget, {
-			inputUri,
+			placement, inputUri,
 			hostVisible: constObservable(true),
 			modelTargetChatSessionType: constObservable('agent-host-copilot'),
 			sessionResource: constObservable(resource),
