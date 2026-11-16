@@ -41,7 +41,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IConfirmation, IConfirmationResult, IDialogService, IFileDialogService, ISaveDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IConfirmation, IConfirmationResult, IDialogService, IFileDialogService, IPrompt, ISaveDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
@@ -61,7 +61,7 @@ import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } fr
 import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderConfiguration, IAutomationProviderDescriptor, IAutomationRefreshOptions, IAutomationService, ICreateAutomationOptions, IDeleteAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
-import { openOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { openOnboardingTarget, resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { ICustomViewDescriptor, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -84,6 +84,7 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { ISessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
 import { readNewChatDraftState, writeNewChatDraftState } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -409,9 +410,16 @@ class FakeDialogService extends mock<IDialogService>() {
 	readonly errors: { message: string; detail: string }[] = [];
 	readonly infos: string[] = [];
 	readonly confirmations: IConfirmation[] = [];
+	readonly prompts: IPrompt<unknown>[] = [];
 	readonly errorCalled = new DeferredPromise<void>();
 	readonly infoCalled = new DeferredPromise<void>();
 	confirmResult: IConfirmationResult = { confirmed: false };
+	promptButtonIndex = -1;
+
+	override async prompt<T>(prompt: IPrompt<T>) {
+		this.prompts.push(prompt);
+		return { result: await prompt.buttons?.[this.promptButtonIndex]?.run({}) };
+	}
 
 	override async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		this.confirmations.push(confirmation);
@@ -454,6 +462,7 @@ class FakeSessionsService extends mock<ISessionsService>() {
 	readonly activeSession = constObservable<ITestSessionWithChat | undefined>(undefined);
 	readonly openGate = new DeferredPromise<void>();
 	openCalls = 0;
+	openNewSessionCalls = 0;
 	error: Error | undefined;
 
 	constructor(private readonly onOpen: () => Promise<void>) {
@@ -467,6 +476,11 @@ class FakeSessionsService extends mock<ISessionsService>() {
 			throw this.error;
 		}
 		await this.onOpen();
+	}
+
+	override async openNewSession() {
+		this.openNewSessionCalls++;
+		return { session: undefined, trustDeclined: false };
 	}
 }
 
@@ -840,6 +854,7 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IAutomationRunner, runner);
 		stubSessionsService(instantiationService, sessionsService);
 		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
+		instantiationService.stub(ISessionDraftsService, { enabled: constObservable(false) });
 		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
 		instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService);
 		instantiationService.stub(IMissionControlEnvironmentService, missionControlEnvironmentService);
@@ -1316,7 +1331,10 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('header offers Create with Agent once automations exist, with Create Manually in its dropdown', async () => {
-		const { actionFactories, automationService, commandService, contextKeyService, contextMenuService, instantiationService } = setup();
+		const { actionFactories, automationService, commandService, contextKeyService, contextMenuService, instantiationService, widget } = setup();
+		const loadingTarget = widget.element.querySelector('.automations-cards-loading [data-onboarding-id="sessions.automations.create"]')!;
+		automationService.setCatalogueState('ready');
+		const emptyTarget = widget.element.querySelector('.automations-cards-empty [data-onboarding-id="sessions.automations.create"]')!;
 		const headerActions = () => instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
 			.flatMap(([, actions]) => actions);
 		const empty = headerActions().map(action => action.id);
@@ -1338,15 +1356,28 @@ suite('AutomationsCardsWidget', () => {
 		disposables.add(actionFactories.get(action.id)!(action, {}, instantiationService, 1)!).render(container);
 
 		const [primary, chevron] = container.querySelectorAll<HTMLElement>('.monaco-button');
+		const headerTarget = resolveOnboardingTarget(getWindow(container), 'sessions.automations.create')!;
+		let activations = 0;
+		disposables.add(headerTarget.onDidActivate!(() => activations++));
 		primary.click();
 		await timeout(0);
 		chevron.click();
 		const dropdown = contextMenuService.delegate!.getActions();
 		await dropdown[0].run();
 
-		assert.deepStrictEqual({ empty, populated, label: primary.textContent, dropdown: dropdown.map(action => action.label), executed }, {
+		assert.deepStrictEqual({
+			empty, populated,
+			spotlightButtons: [loadingTarget, emptyTarget, headerTarget.element].map(target => Array.from(target.querySelectorAll('.monaco-button')).map(button => button.getAttribute('aria-label'))),
+			activations, label: primary.textContent, dropdown: dropdown.map(action => action.label), executed,
+		}, {
 			empty: ['sessions.automations.import', 'sessions.automations.refresh'],
 			populated: ['sessions.automations.createWithAgent', 'sessions.automations.import', 'sessions.automations.refresh'],
+			spotlightButtons: [
+				['Create with Agent', 'More Actions...'],
+				['Create with Agent', 'More Actions...'],
+				['Create Automation with Agent', 'More Actions...'],
+			],
+			activations: 2,
 			label: 'Create with Agent',
 			dropdown: ['Create Manually'],
 			executed: [
@@ -1358,10 +1389,10 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	for (const content of ['empty', 'text', 'attachment', 'mounted'] as const) {
-		for (const confirmed of [false, true]) {
-			test(`Create with Agent confirms replacing a ${content} draft (confirmed: ${confirmed})`, async () => {
+		for (const choice of ['cancel', 'replace', 'view'] as const) {
+			test(`Create with Agent handles ${choice} for a ${content} draft`, async () => {
 				const storageService = disposables.add(new InMemoryStorageService());
-				const { commandService, dialogService, instantiationService } = setup('archive', NullHoverService, undefined, storageService);
+				const { commandService, dialogService, instantiationService, sessionsService } = setup('archive', NullHoverService, undefined, storageService);
 				const draft = {
 					inputText: content === 'text' ? 'Keep my draft' : '',
 					attachments: content === 'attachment' ? [toPasteVariableEntry('Notes', 'Attached notes', { id: 'notes' })] : [],
@@ -1371,27 +1402,75 @@ suite('AutomationsCardsWidget', () => {
 				if (content === 'mounted') {
 					instantiationService.stub(INewSessionComposerService, { hasDraftInput: true });
 				}
-				dialogService.confirmResult = { confirmed };
+				dialogService.promptButtonIndex = choice === 'replace' ? 0 : choice === 'view' ? 1 : -1;
 				const execute = stub(commandService, 'executeCommand').resolves();
 				disposables.add(toDisposable(() => execute.restore()));
 
 				await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessions.automations.createWithAgent')!.handler(accessor));
 
 				assert.deepStrictEqual({
-					confirmations: dialogService.confirmations.map(confirmation => confirmation.primaryButton),
-					details: dialogService.confirmations.map(confirmation => confirmation.detail),
+					prompts: dialogService.prompts.map(prompt => ({
+						type: prompt.type, message: prompt.message, detail: prompt.detail,
+						buttons: prompt.buttons?.map(button => button.label), cancelButton: prompt.cancelButton,
+					})),
 					commands: execute.args,
+					draftNavigations: sessionsService.openNewSessionCalls,
 					savedDraft: readNewChatDraftState(storageService),
 				}, {
-					confirmations: content === 'empty' ? [] : ['Replace Draft'],
-					details: content === 'empty' ? [] : ['The draft\'s text will be replaced with /automate. Existing attachments will be kept.'],
-					commands: content === 'empty' || confirmed
+					prompts: content === 'empty' ? [] : [{
+						type: 'warning',
+						message: 'Replace your existing draft?',
+						detail: 'This action will overwrite the existing new session draft, it will not be recoverable.',
+						buttons: ['Replace Draft', 'View Draft'],
+						cancelButton: true,
+					}],
+					commands: content === 'empty' || choice === 'replace'
 						? [['workbench.action.sessions.newChat', { prompt: '/automate ', prefillPrompt: true }]]
 						: [],
+					draftNavigations: content !== 'empty' && choice === 'view' ? 1 : 0,
 					savedDraft,
 				});
 			});
 		}
+	}
+
+	for (const source of ['saved', 'mounted'] as const) {
+		test(`Create with Agent skips the ${source} draft warning only while saved drafts are enabled`, async () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			const { commandService, dialogService, instantiationService, sessionsService } = setup('archive', NullHoverService, undefined, storageService);
+			writeNewChatDraftState(storageService, {
+				inputText: 'Keep my draft',
+				attachments: [toPasteVariableEntry('Notes', 'Attached notes', { id: 'notes' })],
+			});
+			const savedDraft = readNewChatDraftState(storageService);
+			if (source === 'mounted') {
+				instantiationService.stub(INewSessionComposerService, { hasDraftInput: true });
+			}
+			const enabled = observableValue('savedDraftsEnabled', true);
+			instantiationService.stub(ISessionDraftsService, { enabled });
+			const execute = stub(commandService, 'executeCommand').resolves();
+			disposables.add(toDisposable(() => execute.restore()));
+			const invoke = () => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessions.automations.createWithAgent')!.handler(accessor));
+
+			await invoke();
+			const enabledPrompts = dialogService.prompts.length;
+			enabled.set(false, undefined);
+			await invoke();
+
+			assert.deepStrictEqual({
+				enabledPrompts,
+				disabledPrompts: dialogService.prompts.length,
+				commands: execute.args,
+				draftNavigations: sessionsService.openNewSessionCalls,
+				savedDraft: readNewChatDraftState(storageService),
+			}, {
+				enabledPrompts: 0,
+				disabledPrompts: 1,
+				commands: [['workbench.action.sessions.newChat', { prompt: '/automate ', prefillPrompt: true }]],
+				draftNavigations: 0,
+				savedDraft,
+			});
+		});
 	}
 
 	for (const chatEnabled of [true, false]) {
@@ -6086,7 +6165,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual(provider.provideContent().split('\n').filter(line => line.startsWith('Create with Agent')), [
 			'Create with Agent opens a new session with /automate prefilled and the input focused. This button is in the empty state, or in the view header once automations exist. Choose Create Manually from its adjacent More Actions dropdown to open the automation dialog. In the header, use Left Arrow and Right Arrow to move between the button and dropdown; in the empty state, use Tab and Shift+Tab. Press Enter or Space to activate either control. Create Manually remains available while chat is not ready.',
 		]);
-		assert.ok(provider.provideContent().includes('Existing attachments are kept. Choose Cancel to keep the draft unchanged.'));
+		assert.ok(provider.provideContent().includes('Existing attachments are kept. Choose View Draft to return to the new session page without changing the draft, or Cancel to stay in Automations.'));
 	});
 
 	test('accessibility help explains the disconnected remote management link', () => {
