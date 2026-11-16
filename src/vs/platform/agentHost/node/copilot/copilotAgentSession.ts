@@ -2316,6 +2316,15 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private readonly _onDidChangeRuntimePlugins = this._register(new Emitter<void>());
 	readonly onDidChangeRuntimePlugins = this._onDidChangeRuntimePlugins.event;
+	/**
+	 * Fires when the runtime reloads its top-level skills, custom agents or MCP
+	 * servers, as every runtime plugin reload does. Unlike
+	 * {@link onDidChangeRuntimePlugins} it also fires after a partially failed
+	 * or best-effort plugin preparation, so listeners should cheaply re-check
+	 * plugin state rather than rediscover.
+	 */
+	private readonly _onDidReloadRuntimeContributions = this._register(new Emitter<void>());
+	readonly onDidReloadRuntimeContributions = this._onDidReloadRuntimeContributions.event;
 
 	/** In-flight server and MCP App sampling executions, keyed by their SDK cancellation handle. */
 	private readonly _pendingMcpSamplings = new Set<string>();
@@ -12776,6 +12785,21 @@ export class CopilotAgentSession extends Disposable {
 			this._mcpCustomizations.clearSkills();
 			this._mcpSkillCacheWriter.write(new Map());
 		}
+		store.add(wrapper.onSkillsLoaded(e => {
+			if (!e.agentId) {
+				this._onDidReloadRuntimeContributions.fire();
+			}
+		}));
+		store.add(wrapper.onCustomAgentsUpdated(e => {
+			if (!e.agentId) {
+				this._onDidReloadRuntimeContributions.fire();
+			}
+		}));
+		store.add(wrapper.onMcpServersLoaded(e => {
+			if (!e.agentId) {
+				this._onDidReloadRuntimeContributions.fire();
+			}
+		}));
 		store.add(wrapper.onMcpServersLoaded(() => {
 			// The SDK re-emits a cached loaded snapshot on later turns, not live connection state.
 			this._logService.trace(`[Copilot:${sessionId}] MCP server inventory invalidated by session.mcp_servers_loaded; refreshing rpc.mcp.listConfigured`);

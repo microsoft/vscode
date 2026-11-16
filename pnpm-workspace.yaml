@@ -105,7 +105,7 @@ allowBuilds:
   '@vscode/ripgrep@1.17.1': true
   '@vscode/spdlog@0.15.8': true
   '@vscode/sqlite3@5.1.12-vscode': true
-  '@vscode/vsce-sign@2.1.0': true
+  '@vscode/vsce-sign@2.1.1': true
   '@vscode/windows-ca-certs@0.3.4': true
   '@vscode/windows-mutex@0.5.3': true
   '@vscode/windows-process-tree@0.8.0': true
