@@ -127,4 +127,28 @@ suite('parseEnvFile', () => {
 		const RNPayload = parseEnvFile('SERVER=localhost\r\nPASSWORD=password\r\nDB=tests\r\n');
 		assert.deepStrictEqual([...RNPayload], expectedPayload);
 	});
+
+	test('parses multi-line quoted values', () => {
+		const parsed = parseEnvFile([
+			'PRIVATE_KEY="-----BEGIN PRIVATE KEY-----',
+			'MIIEow==',
+			'-----END PRIVATE KEY-----"',
+			'MULTI_SINGLE_QUOTED=\'first',
+			'  second\'',
+			'MULTI_BACKTICKED=`first',
+			'second` # comment',
+			'MULTI_CRLF="first\r\nsecond"',
+			'UNTERMINATED="unterminated',
+			'AFTER=after',
+		].join('\n'));
+
+		assert.deepStrictEqual([...parsed], [
+			['PRIVATE_KEY', '-----BEGIN PRIVATE KEY-----\nMIIEow==\n-----END PRIVATE KEY-----'],
+			['MULTI_SINGLE_QUOTED', 'first\n  second'],
+			['MULTI_BACKTICKED', 'first\nsecond'],
+			['MULTI_CRLF', 'first\nsecond'],
+			['UNTERMINATED', '"unterminated'],
+			['AFTER', 'after'],
+		]);
+	});
 });
