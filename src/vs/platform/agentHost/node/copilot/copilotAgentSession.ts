@@ -2098,7 +2098,7 @@ export class CopilotAgentSession extends Disposable {
 	private _clientToolConfiguration: ICopilotClientToolConfiguration | undefined;
 	/** Whether the launched system message is eligible for the progress-update experiment, fixed with it at launch. */
 	private _progressUpdatesPromptEligible = false;
-	/** Whether the launched session enabled Copilot Memory, so the memory placement experiment applies to it. */
+	/** Whether the launched session enabled Copilot Memory with an experiment-controlled placement, fixed with its SDK config at launch. */
 	private _memoryModeEligible = false;
 	private _pendingClientToolReplacement: ICopilotClientToolReplacement | undefined;
 	private readonly _appliedPluginSources: ReadonlySet<string>;
@@ -9127,9 +9127,7 @@ export class CopilotAgentSession extends Disposable {
 				? CopilotCliConfigKey.ExecutionSubagentModelDefaultControlled
 				: settingId === AgentHostCopilotProgressUpdatesPromptSettingId
 					? CopilotCliConfigKey.ProgressUpdatesPromptDefaultControlled
-					: settingId === AgentHostCopilotMemoryModeSettingId
-						? CopilotCliConfigKey.MemoryModeDefaultControlled
-						: undefined;
+					: undefined;
 		if (defaultControlledKey !== undefined && this._configurationService.getRootValue(copilotCliConfigSchema, defaultControlledKey) !== true) {
 			this._pendingSettingExperimentTriggers.delete(settingId);
 			return;

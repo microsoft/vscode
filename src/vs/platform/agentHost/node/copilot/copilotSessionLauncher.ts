@@ -417,8 +417,8 @@ export interface ICopilotSessionRuntime {
 	 */
 	setProgressUpdatesPromptEligible?(eligible: boolean): void;
 	/**
-	 * Whether this launch enabled Copilot Memory, so the memory placement experiment applies to it.
-	 * Independent of the experiment arm, so both arms report the same exposure.
+	 * Whether this launch enabled Copilot Memory with the placement following its configuration default, so the
+	 * memory placement experiment applies to it. Independent of the experiment arm, so both arms report the same exposure.
 	 */
 	setMemoryModeEligible?(eligible: boolean): void;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1518,7 +1518,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const memoryEnabled = !plan.isEphemeral;
 		const localMemoryEnabled = plan.workspace?.kind !== 'virtual' && memoryEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalMemory) === true;
 		const memoryUserPromptMode = memoryEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.MemoryMode) === 'user-prompt';
-		runtime.setMemoryModeEligible?.(memoryEnabled);
+		// The mode is fixed with the SDK config, so the experiment's provenance must be too.
+		runtime.setMemoryModeEligible?.(memoryEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.MemoryModeDefaultControlled) === true);
 		const searchSubagentEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SearchSubagent) === true;
 		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
 		const stabilityOrderedPromptEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.StabilityOrderedPrompt) === true;

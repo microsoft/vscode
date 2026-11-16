@@ -24704,14 +24704,16 @@ Use the attached image as context.
 			});
 		});
 
-		test('reports the memory placement trigger in both arms at root turn start, for memory-enabled launches whose setting follows the experiment', async () => {
+		test('reports the memory placement trigger in both arms at root turn start, for launches whose memory placement followed the experiment', async () => {
 			const trigger = `config.${AgentHostCopilotMemoryModeSettingId}`;
 			const results: Record<string, { beforeRootTurn: readonly string[]; afterRootTurn: readonly string[] }> = {};
-			for (const [name, eligible, mode, defaultControlled] of [
+			// Eligibility is the launcher's snapshot of memory enablement and default-controlled provenance; later
+			// provenance changes don't relaunch the SDK session, so they must not change its exposure.
+			for (const [name, eligible, mode, liveDefaultControlled] of [
 				['control', true, 'system-prompt', true],
 				['treatment', true, 'user-prompt', true],
-				['memory disabled', false, 'user-prompt', true],
-				['explicit user value', true, 'user-prompt', false],
+				['ineligible launch', false, 'user-prompt', true],
+				['override added after launch', true, 'user-prompt', false],
 			] as const) {
 				const telemetryService = new TestExperimentTriggerTelemetryService();
 				const { session, mockSession } = await createAgentSession(disposables, {
@@ -24719,7 +24721,7 @@ Use the attached image as context.
 					duringLaunch: runtime => runtime.setMemoryModeEligible?.(eligible),
 					rootValues: {
 						[CopilotCliConfigKey.MemoryMode]: mode,
-						[CopilotCliConfigKey.MemoryModeDefaultControlled]: defaultControlled,
+						[CopilotCliConfigKey.MemoryModeDefaultControlled]: liveDefaultControlled,
 						[CopilotCliVSCodeAssignmentContextKey]: 'assignment-context',
 					},
 				});
@@ -24733,8 +24735,8 @@ Use the attached image as context.
 			assert.deepStrictEqual(results, {
 				control: { beforeRootTurn: [], afterRootTurn: [trigger] },
 				treatment: { beforeRootTurn: [], afterRootTurn: [trigger] },
-				'memory disabled': { beforeRootTurn: [], afterRootTurn: [] },
-				'explicit user value': { beforeRootTurn: [], afterRootTurn: [] },
+				'ineligible launch': { beforeRootTurn: [], afterRootTurn: [] },
+				'override added after launch': { beforeRootTurn: [], afterRootTurn: [trigger] },
 			});
 		});
 

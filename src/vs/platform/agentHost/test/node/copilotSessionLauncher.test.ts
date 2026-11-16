@@ -4386,7 +4386,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
-	test('places memories in user messages only for the user-prompt memory mode, and reports eligibility for memory-enabled launches', async () => {
+	test('places memories in user messages only for the user-prompt memory mode, and reports eligibility for memory-enabled launches whose mode follows the experiment', async () => {
 		const store = disposables.add(new DisposableStore());
 		const launch = async (values: SchemaValues<typeof copilotCliConfigSchema.definition>, isEphemeral?: boolean) => {
 			let eligible: boolean | undefined;
@@ -4395,14 +4395,16 @@ suite('CopilotSessionLauncher resume config', () => {
 		};
 
 		assert.deepStrictEqual({
-			unset: await launch({}),
-			systemPrompt: await launch({ [CopilotCliConfigKey.MemoryMode]: 'system-prompt' }),
-			userPrompt: await launch({ [CopilotCliConfigKey.MemoryMode]: 'user-prompt' }),
-			ephemeralUserPrompt: await launch({ [CopilotCliConfigKey.MemoryMode]: 'user-prompt' }, true),
+			unknownProvenance: await launch({}),
+			systemPrompt: await launch({ [CopilotCliConfigKey.MemoryMode]: 'system-prompt', [CopilotCliConfigKey.MemoryModeDefaultControlled]: true }),
+			userPrompt: await launch({ [CopilotCliConfigKey.MemoryMode]: 'user-prompt', [CopilotCliConfigKey.MemoryModeDefaultControlled]: true }),
+			explicitUserPrompt: await launch({ [CopilotCliConfigKey.MemoryMode]: 'user-prompt', [CopilotCliConfigKey.MemoryModeDefaultControlled]: false }),
+			ephemeralUserPrompt: await launch({ [CopilotCliConfigKey.MemoryMode]: 'user-prompt', [CopilotCliConfigKey.MemoryModeDefaultControlled]: true }, true),
 		}, {
-			unset: { memory: { enabled: true }, eligible: true },
+			unknownProvenance: { memory: { enabled: true }, eligible: false },
 			systemPrompt: { memory: { enabled: true }, eligible: true },
 			userPrompt: { memory: { enabled: true, mode: 'user-prompt' }, eligible: true },
+			explicitUserPrompt: { memory: { enabled: true, mode: 'user-prompt' }, eligible: false },
 			ephemeralUserPrompt: { memory: { enabled: false }, eligible: false },
 		});
 	});
