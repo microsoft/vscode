@@ -1366,7 +1366,8 @@ suite('AgentSessions', () => {
 		});
 
 		test('opens the session of a picked worktree folder shown last, else its most recent one not archived, and nothing while the shown one works in it', async () => {
-			const inFolder = (name: string, path: string, created: number, isArchived = false) => createSession({ resource: URI.parse(`test://${name}`), metadata: { workingDirectoryPath: path }, timing: { created, lastRequestStarted: undefined, lastRequestEnded: undefined }, isArchived: () => isArchived });
+			const archivedNow = new Set<string>();
+			const inFolder = (name: string, path: string, created: number, isArchived = false) => createSession({ resource: URI.parse(`test://${name}`), metadata: { workingDirectoryPath: path }, timing: { created, lastRequestStarted: undefined, lastRequestEnded: undefined }, isArchived: () => isArchived || archivedNow.has(name) });
 			const main = inFolder('main', '/work/vscode', 100);
 			const older = inFolder('older', '/work/vscode.worktrees/first', 10);
 			const newer = inFolder('newer', '/work/vscode.worktrees/first', 20);
@@ -1400,11 +1401,21 @@ suite('AgentSessions', () => {
 			const remembered = opened.slice(mostRecent.length);
 			show(newer);
 			await opener.open(first);
+			const alreadyShown = opened.slice(mostRecent.length + remembered.length);
+			// The remembered one is archived, then works in another folder: the folder's most recent one opens instead
+			show(older);
+			show(second);
+			archivedNow.add('older');
+			await opener.open(first);
+			archivedNow.delete('older');
+			modelSessions = modelSessions.map(session => session === older ? inFolder('older', '/work/vscode.worktrees/second', 10) : session);
+			await opener.open(first);
 
-			assert.deepStrictEqual({ mostRecent, remembered, alreadyShown: opened.slice(mostRecent.length + remembered.length) }, {
+			assert.deepStrictEqual({ mostRecent, remembered, alreadyShown, fallback: opened.slice(mostRecent.length + remembered.length + alreadyShown.length) }, {
 				mostRecent: ['newer'],
 				remembered: ['older'],
 				alreadyShown: [],
+				fallback: ['newer', 'newer'],
 			});
 		});
 

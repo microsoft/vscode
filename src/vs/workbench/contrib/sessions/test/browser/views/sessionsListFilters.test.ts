@@ -71,7 +71,8 @@ suite('SessionsListFilters', () => {
 			return { ...buildTestSession({ id, title: id, minutesAgo, isArchived }).session, workspace: constObservable(workspace) };
 		};
 		const main = inFolder('main', '/work/vscode', 1);
-		const older = inFolder('older', '/work/vscode.worktrees/first', 30);
+		const olderArchived = observableValue('olderArchived', false);
+		const older = { ...inFolder('older', '/work/vscode.worktrees/first', 30), isArchived: olderArchived };
 		const newer = inFolder('newer', '/work/vscode.worktrees/first', 20);
 		// The most recent of the folder, but archived
 		const archived = inFolder('archived', '/work/vscode.worktrees/first', 5, true);
@@ -91,11 +92,23 @@ suite('SessionsListFilters', () => {
 		const remembered = opened.slice(mostRecent.length);
 		shown.set(newer, undefined);
 		opener.open(first);
+		const alreadyShown = opened.slice(mostRecent.length + remembered.length);
+		// The remembered one is archived, then works in another folder: the folder's most recent one opens instead
+		shown.set(older, undefined);
+		shown.set(second, undefined);
+		olderArchived.set(true, undefined);
+		opener.open(first);
+		olderArchived.set(false, undefined);
+		const movedRoot = URI.file('/work/vscode.worktrees/second');
+		const moved = { ...older, workspace: constObservable<ISessionWorkspace>({ uri: movedRoot, label: 'older', icon: Codicon.folder, requiresWorkspaceTrust: false, isVirtualWorkspace: false, folders: [{ root: movedRoot, workingDirectory: movedRoot, name: 'older', description: undefined, gitRepository: undefined }] }) };
+		sessions.splice(sessions.indexOf(older), 1, moved);
+		opener.open(first);
 
-		assert.deepStrictEqual({ mostRecent, remembered, alreadyShown: opened.slice(mostRecent.length + remembered.length) }, {
+		assert.deepStrictEqual({ mostRecent, remembered, alreadyShown, fallback: opened.slice(mostRecent.length + remembered.length + alreadyShown.length) }, {
 			mostRecent: ['newer'],
 			remembered: ['older'],
 			alreadyShown: [],
+			fallback: ['newer', 'newer'],
 		});
 	});
 
