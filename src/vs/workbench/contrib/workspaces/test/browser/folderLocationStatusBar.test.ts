@@ -12,7 +12,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../base/common/resources.js';
@@ -47,7 +47,6 @@ suite('FolderLocationStatusBarContribution', () => {
 		const entries: IStatusbarEntry[] = [];
 		const added: { alignment: unknown; priority: unknown }[] = [];
 		let visible = false;
-		const executed: string[] = [];
 		const onDidChangeCurrentLocation = ds.add(new Emitter<void>());
 		const onDidChangeWorkspaceFolders = ds.add(new Emitter<void>());
 		const onDidChangeEntryVisibility = ds.add(new Emitter<{ id: string; visible: boolean }>());
@@ -72,12 +71,11 @@ suite('FolderLocationStatusBarContribution', () => {
 				}
 			} as unknown as IStatusbarService,
 			{ getContainer: () => statusbarContainer, onDidChangePartVisibility: onDidChangePartVisibility.event } as unknown as IWorkbenchLayoutService,
-			{ executeCommand: async (id: string) => { executed.push(id); } } as unknown as ICommandService,
 			{ hasBeenShown: () => shown.value } as unknown as IOnboardingScenarioService
 		));
 
 		return {
-			contribution, entries, executed, added, statusbarContainer,
+			contribution, entries, added, statusbarContainer,
 			entryVisibilityChanged: () => onDidChangeEntryVisibility.fire({ id: 'status.workspace.folderLocation', visible: true }),
 			partVisibilityChanged: () => onDidChangePartVisibility.fire({ partId: Parts.STATUSBAR_PART, visible: true }),
 			isVisible: () => visible,
@@ -113,7 +111,7 @@ suite('FolderLocationStatusBarContribution', () => {
 		assert.strictEqual(fixture.isVisible(), false);
 	});
 
-	test('the introduction is a spotlight on the entry that can return to the primary', async () => {
+	test('the introduction is a spotlight on the entry with only Got It', async () => {
 		const fixture = createFixture();
 		const scenario = () => onboardingScenarioRegistry.getScenario('workbench.folderLocation.introduction')!;
 		const signal = () => {
@@ -139,11 +137,8 @@ suite('FolderLocationStatusBarContribution', () => {
 		}
 		const [step] = await (scenario().presentation.payload as ISpotlightPayload).resolveSteps!();
 		assert.deepStrictEqual(
-			{ whileHidden, signal: signal(), target: resolveOnboardingTarget(mainWindow, step.targetId)?.element === element, primaryAction: step.primaryAction?.label, endTour: step.endTourLabel, focusEndTour: step.focusEndTour },
-			{ whileHidden: false, signal: true, target: true, primaryAction: 'Return to project', endTour: 'Got It', focusEndTour: true });
-
-		await step.primaryAction!.run(undefined as never);
-		assert.deepStrictEqual(fixture.executed, [RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID]);
+			{ whileHidden, signal: signal(), target: resolveOnboardingTarget(mainWindow, step.targetId)?.element === element, primaryAction: step.primaryAction, endTour: step.endTourLabel, focusEndTour: step.focusEndTour, hideNext: step.hideNext },
+			{ whileHidden: false, signal: true, target: true, primaryAction: undefined, endTour: 'Got It', focusEndTour: true, hideNext: true });
 
 		fixture.returnToPrimary();
 		assert.strictEqual(signal(), false);
