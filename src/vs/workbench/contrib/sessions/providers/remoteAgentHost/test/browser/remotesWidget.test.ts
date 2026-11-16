@@ -344,7 +344,7 @@ suite('RemotesWidget', () => {
 	}
 
 	function getRowStatus(row: Element): string | undefined {
-		return row.closest('.monaco-list-row')?.getAttribute('aria-label')?.match(/Status: (?<status>.+?)\. Connection method:/)?.groups?.status;
+		return row.closest('.monaco-list-row')?.getAttribute('aria-label')?.match(/Status: (?<status>.+?)\./)?.groups?.status;
 	}
 
 	test('preserves search and collapsed groups through discovery updates without connecting', async () => {
@@ -391,8 +391,8 @@ suite('RemotesWidget', () => {
 			task: parent.querySelector('.remotes-task-title')?.textContent,
 			connections: model.connectionChanges,
 		}, {
-			live: ['Connected', 'SSH', 'build.example.com', '2 sessions \u00b7 Last activity now', 'Linux'],
-			stale: ['Connected', 'SSH', 'build.example.com', '', 'Linux'], unknown: ['Offline', 'SSH', 'build.example.com', '', ''],
+			live: ['Connected', '2 sessions \u00b7 Last activity now', 'Linux', 'SSH', 'build.example.com'],
+			stale: ['Connected', '', 'Linux', 'SSH', 'build.example.com'], unknown: ['Offline', '', '', 'SSH', 'build.example.com'],
 			sessionActions: ['open', 'agenthost-remote-build'], recoveryHidden: true,
 			task: undefined, connections: [],
 		});
@@ -471,7 +471,7 @@ suite('RemotesWidget', () => {
 			}, {
 				tables: 1,
 				trees: 0,
-				columns: ['Name', 'Availability', 'Connection method', 'Address', 'Activity', 'System', '', ''],
+				columns: ['Name', 'Availability', 'Activity', 'System', 'Connection method', 'Address', '', ''],
 				roots: operatingSystem === OperatingSystem.Windows ? ['Dev Tunnels', 'WSL', 'SSH'] : ['Dev Tunnels', 'SSH'],
 				switches: 0,
 				checkboxes: 0,
@@ -656,11 +656,11 @@ suite('RemotesWidget', () => {
 		const empty = parent.querySelector('.remotes-message')?.textContent;
 		parent.querySelector<HTMLElement>('[data-empty-action="clearFilter"]')!.click();
 		assert.deepStrictEqual({ ungrouped, byMethod, byAvailability, empty, restored: columns() }, {
-			ungrouped: ['Name', 'Availability', 'Connection method', 'Address', 'Activity', 'System'],
-			byMethod: ['Name', 'Availability', 'Address', 'Activity', 'System'],
-			byAvailability: ['Name', 'Connection method', 'Address', 'Activity', 'System'],
+			ungrouped: ['Name', 'Availability', 'Activity', 'System', 'Connection method', 'Address'],
+			byMethod: ['Name', 'Availability', 'Activity', 'System', 'Address'],
+			byAvailability: ['Name', 'Activity', 'System', 'Connection method', 'Address'],
 			empty: 'No environments match your filters.Clear Filter',
-			restored: ['Name', 'Connection method', 'Address', 'Activity', 'System'],
+			restored: ['Name', 'Activity', 'System', 'Connection method', 'Address'],
 		});
 	});
 
@@ -834,10 +834,10 @@ suite('RemotesWidget', () => {
 		model.remotes.set(remotes.map(remote => ({ ...remote, connectionStatus: RemoteAgentHostConnectionStatus.connected })), undefined);
 		const connected = snapshot();
 		const expected = [
-			{ name: 'environment', metadata: ['GitHub Environment (Preview)', 'Linux'] },
-			{ name: 'ssh', metadata: ['SSH', 'Linux'] },
-			{ name: 'tunnel', metadata: ['Dev Tunnel', 'Linux'] },
-			{ name: 'wsl', metadata: ['WSL', 'WSL 2'] },
+			{ name: 'environment', metadata: ['Linux', 'GitHub Environment (Preview)'] },
+			{ name: 'ssh', metadata: ['Linux', 'SSH'] },
+			{ name: 'tunnel', metadata: ['Linux', 'Dev Tunnel'] },
+			{ name: 'wsl', metadata: ['WSL 2', 'WSL'] },
 		].map(row => ({ ...row, status: 'Not verified', height: 36 }));
 		assert.deepStrictEqual({ offline, byType, restored, unknown, available, connected }, {
 			offline: expected.map(row => ({ ...row, status: 'Offline' })),
@@ -1340,8 +1340,8 @@ suite('RemotesWidget', () => {
 			accessibleCount: widget.getAccessibilityContent().includes('Active sessions: 2'),
 			connections: model.connectionChanges,
 		}, {
-			columns: ['Name', 'Availability', 'Connection method', 'Address', 'Activity', 'System', '', ''],
-			known: ['Connected', 'SSH', 'build.example.com', '', 'Linux'], missing: ['Available', 'Dev Tunnel', '', '', ''], unknowns: false, accessibleCount: false, connections: [],
+			columns: ['Name', 'Availability', 'Activity', 'System', 'Connection method', 'Address', '', ''],
+			known: ['Connected', '', 'Linux', 'SSH', 'build.example.com'], missing: ['Available', '', '', 'Dev Tunnel', ''], unknowns: false, accessibleCount: false, connections: [],
 		});
 	});
 
@@ -1734,6 +1734,54 @@ suite('RemotesWidget', () => {
 			})));
 		});
 	}
+
+	test('task context outlasts secondary connection columns through resizing while hidden fields stay usable', async () => {
+		const { parent, widget, model } = createWidget(OperatingSystem.Windows, 'default', 1400);
+		const remote = model.remotes.get()[0];
+		model.remotes.set([{
+			...remote,
+			metadata: { operatingSystem: OperatingSystem.Linux, architecture: 'arm64', observedSessionCount: 2, observedAt: Date.now() },
+		}], undefined);
+		const layouts = [1400, 1200, 900, 700, 360, 900, 1400].map(width => {
+			parent.style.width = `${width}px`;
+			widget.layout();
+			const container = parent.querySelector<HTMLElement>('.remotes-table-container')!;
+			const row = container.querySelector<HTMLElement>('[data-remote-id]')!;
+			return {
+				columns: [...container.querySelectorAll<HTMLElement>('.monaco-table-th')]
+					.filter(cell => cell.clientWidth > 0 && dom.getWindow(cell).getComputedStyle(cell).display !== 'none')
+					.map(cell => cell.textContent).filter(Boolean),
+				fits: row.scrollWidth === row.clientWidth && container.scrollWidth === container.clientWidth,
+				height: row.getBoundingClientRect().height,
+			};
+		});
+		parent.style.width = '900px';
+		widget.layout();
+		const matches = ['build.example.com', 'SSH', 'arm64'].map(query => {
+			widget.setSearchQuery(query);
+			return parent.querySelectorAll('[data-remote-id]').length;
+		});
+		runMenuAction(parent, remote.id, 'copyAddress');
+		await timeout(0);
+		const accessible = widget.getAccessibilityContent();
+		assert.deepStrictEqual({
+			layouts, matches, copies: model.copiedAddresses, connections: model.connectionChanges,
+			accessibleOrder: accessible.indexOf('2 sessions') < accessible.indexOf('Linux')
+				&& accessible.indexOf('Linux') < accessible.indexOf('Connection method: SSH')
+				&& accessible.indexOf('Connection method: SSH') < accessible.indexOf('Address: build.example.com'),
+		}, {
+			layouts: [
+				['Name', 'Availability', 'Activity', 'System', 'Connection method', 'Address'],
+				['Name', 'Availability', 'Activity', 'System', 'Connection method'],
+				['Name', 'Availability', 'Activity', 'System'],
+				['Name', 'Availability', 'System'],
+				['Name', 'Availability'],
+				['Name', 'Availability', 'Activity', 'System'],
+				['Name', 'Availability', 'Activity', 'System', 'Connection method', 'Address'],
+			].map(columns => ({ columns, fits: true, height: 36 })),
+			matches: [1, 1, 1], copies: [remote.id], connections: [], accessibleOrder: true,
+		});
+	});
 
 	test('compact lists retain session and connection actions in the menu and recover focus on resize', async () => {
 		const { parent, widget, model, sessionActions } = createWidget(OperatingSystem.Windows, 'status', 1400);

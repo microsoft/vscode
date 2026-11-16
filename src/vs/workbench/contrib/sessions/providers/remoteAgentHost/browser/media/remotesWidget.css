@@ -146,7 +146,7 @@
 }
 
 .remotes-widget .remotes-group-by-type .remotes-type-column,
-.remotes-widget .remotes-group-by-type .monaco-table-th[data-col-index='2'],
+.remotes-widget .remotes-group-by-type .monaco-table-th[data-col-index='4'],
 .remotes-widget .remotes-group-by-status .remotes-status-column,
 .remotes-widget .remotes-group-by-status .monaco-table-th[data-col-index='1'] {
 	display: none;
@@ -264,14 +264,18 @@
 	height: 100%;
 }
 
-.remotes-widget .remotes-table-compact :is(.remotes-type-column, .remotes-activity-column, .remotes-system-column),
-.remotes-widget .remotes-table-compact .monaco-table-th:is([data-col-index='2'], [data-col-index='4'], [data-col-index='5']),
 .remotes-widget .remotes-table-compact .remotes-actions-column > .monaco-button {
 	display: none;
 }
 
+.remotes-widget .remotes-hide-method .remotes-type-column,
+.remotes-widget .remotes-hide-method .monaco-table-th[data-col-index='4'],
+.remotes-widget .remotes-hide-activity .remotes-activity-column,
+.remotes-widget .remotes-hide-activity .monaco-table-th[data-col-index='2'],
+.remotes-widget .remotes-hide-system .remotes-system-column,
+.remotes-widget .remotes-hide-system .monaco-table-th[data-col-index='3'],
 .remotes-widget .remotes-hide-identity .remotes-identity-column,
-.remotes-widget .remotes-hide-identity .monaco-table-th[data-col-index='3'] {
+.remotes-widget .remotes-hide-identity .monaco-table-th[data-col-index='5'] {
 	display: none;
 }
 

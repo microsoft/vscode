@@ -257,23 +257,26 @@ export class RemotesWidget extends Disposable {
 		this.tableContainer = dom.append(overviewBody, dom.$('.remotes-table-container'));
 		this.tableInner = dom.append(this.tableContainer, dom.$('.remotes-table-inner'));
 
-		let label = localize('remotes.tableLabel', "Remote environments. Name, Availability, Connection method, Address, Activity, System, and Actions. Grouped columns are shown in group headings.");
+		let label = localize('remotes.tableLabel', "Remote environments. Name, Availability, Activity, System, Connection method, Address, and Actions. Grouped columns are shown in group headings.");
 		const helpKeybinding = keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
 		if (configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Remotes) && helpKeybinding) {
 			label = localize('remotes.tableLabelWithHelp', "{0} Use {1} for accessibility help.", label, helpKeybinding);
 		}
 		const compact = () => this.tableContainer.classList.contains('remotes-table-compact');
 		const identityHidden = () => this.tableContainer.classList.contains('remotes-hide-identity');
+		const methodHidden = () => this.tableContainer.classList.contains('remotes-hide-method');
+		const activityHidden = () => this.tableContainer.classList.contains('remotes-hide-activity');
+		const systemHidden = () => this.tableContainer.classList.contains('remotes-hide-system');
 		const groupedByType = () => this.groupBy === 'type';
 		const groupedByStatus = () => this.groupBy === 'status';
 		const actionsWidth = () => this.rows.some(row => row.entry.type === 'remote' && RemoteAgentHostConnectionStatus.isConnected(row.entry.remote.connectionStatus)) ? 224 : 160;
 		const columnDefinitions = [
 			{ id: 'name', label: localize('remotes.nameColumn', "Name"), weight: 300, minimumWidth: 100, maximumWidth: Number.POSITIVE_INFINITY },
 			{ id: 'status', label: localize('remotes.availabilityColumn', "Availability"), weight: 144, get minimumWidth() { return groupedByStatus() ? 0 : 124; }, get maximumWidth() { return groupedByStatus() ? 0 : Number.POSITIVE_INFINITY; } },
-			{ id: 'type', label: remoteConnectionMethodLabel, weight: 216, get minimumWidth() { return compact() || groupedByType() ? 0 : 216; }, get maximumWidth() { return compact() || groupedByType() ? 0 : Number.POSITIVE_INFINITY; } },
-			{ id: 'identity', label: localize('remotes.addressColumn', "Address"), weight: 240, get minimumWidth() { return identityHidden() ? 0 : 160; }, get maximumWidth() { return identityHidden() ? 0 : Number.POSITIVE_INFINITY; } },
-			{ id: 'activity', label: localize('remotes.activityColumn', "Activity"), weight: 224, get minimumWidth() { return compact() ? 0 : 192; }, get maximumWidth() { return compact() ? 0 : Number.POSITIVE_INFINITY; } },
-			{ id: 'system', label: localize('remotes.systemColumn', "System"), weight: 220, get minimumWidth() { return compact() ? 0 : 128; }, get maximumWidth() { return compact() ? 0 : Number.POSITIVE_INFINITY; } },
+			{ id: 'activity', label: localize('remotes.activityColumn', "Activity"), weight: 240, get minimumWidth() { return activityHidden() ? 0 : 192; }, get maximumWidth() { return activityHidden() ? 0 : Number.POSITIVE_INFINITY; } },
+			{ id: 'system', label: localize('remotes.systemColumn', "System"), weight: 240, get minimumWidth() { return systemHidden() ? 0 : 160; }, get maximumWidth() { return systemHidden() ? 0 : Number.POSITIVE_INFINITY; } },
+			{ id: 'type', label: remoteConnectionMethodLabel, weight: 216, get minimumWidth() { return methodHidden() || groupedByType() ? 0 : 216; }, get maximumWidth() { return methodHidden() || groupedByType() ? 0 : Number.POSITIVE_INFINITY; } },
+			{ id: 'identity', label: localize('remotes.addressColumn', "Address"), weight: 160, get minimumWidth() { return identityHidden() ? 0 : 160; }, get maximumWidth() { return identityHidden() ? 0 : Number.POSITIVE_INFINITY; } },
 			{ id: 'actions', label: '', weight: 0, get minimumWidth() { return compact() ? 64 : actionsWidth(); }, get maximumWidth() { return this.minimumWidth; } },
 		] as const;
 		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
@@ -1091,17 +1094,17 @@ export class RemotesWidget extends Disposable {
 		const availability = getRemoteAvailabilityLabel(remote);
 		const sentences = [
 			availability ? localize('remotes.accessibleRow', "{0}. Status: {1}.", name, availability) : localize('remotes.accessibleRowWithoutStatus', "{0}.", name),
-			localize('remotes.accessibleConnectionMethod', "Connection method: {0}.", getRemoteTypeLabel(remote.kind)),
 		];
-		const address = getRemoteAddressLabel(remote);
-		if (address && address !== remote.name) {
-			sentences.push(localize('remotes.accessibleIdentity', "Address: {0}.", address));
-		}
-		const metadata = (['system', 'activity'] as const).map(column => {
+		const metadata = (['activity', 'system'] as const).map(column => {
 			return getRemoteMetadataLabel(remote, column);
 		}).filter(Boolean);
 		if (metadata.length) {
 			sentences.push(localize('remotes.accessibleMetadata', "Last known details: {0}.", metadata.join(', ')));
+		}
+		sentences.push(localize('remotes.accessibleConnectionMethod', "Connection method: {0}.", getRemoteTypeLabel(remote.kind)));
+		const address = getRemoteAddressLabel(remote);
+		if (address && address !== remote.name) {
+			sentences.push(localize('remotes.accessibleIdentity', "Address: {0}.", address));
 		}
 		const gitHubEnvironment = getGitHubEnvironmentLabel(remote);
 		if (gitHubEnvironment) {
@@ -1214,13 +1217,16 @@ export class RemotesWidget extends Disposable {
 			const contentOffset = Math.max(0, this.tableContainer.getBoundingClientRect().top - this.domNode.getBoundingClientRect().top);
 			const height = Math.max(0, this.domNode.clientHeight - contentOffset);
 			const width = this.tableContainer.clientWidth;
-			const compact = width < (this.groupBy === 'none' ? compactTableWidth + 176 : compactTableWidth);
+			const compact = width < compactTableWidth;
 			const activeElement = dom.getActiveElement();
 			if (compact && !this.tableContainer.classList.contains('remotes-table-compact') && dom.isHTMLElement(activeElement) && this.tableContainer.contains(activeElement) && activeElement.closest('.monaco-button')) {
 				this.table.domFocus();
 			}
 			this.tableContainer.classList.toggle('remotes-table-compact', compact);
-			this.tableContainer.classList.toggle('remotes-hide-identity', width < 1200 || !this.rows.some(row => row.entry.type === 'remote' && getRemoteAddressLabel(row.entry.remote)));
+			this.tableContainer.classList.toggle('remotes-hide-identity', width < 1320 || !this.rows.some(row => row.entry.type === 'remote' && getRemoteAddressLabel(row.entry.remote)));
+			this.tableContainer.classList.toggle('remotes-hide-method', width < 1120);
+			this.tableContainer.classList.toggle('remotes-hide-activity', width < 720);
+			this.tableContainer.classList.toggle('remotes-hide-system', width < 520);
 			this.tableContainer.style.height = `${height}px`;
 			this.tableInner.style.height = `${height}px`;
 			this.tableInner.style.width = `${width}px`;
