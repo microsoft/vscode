@@ -8,7 +8,6 @@ import { getErrorMessage } from '../../../../base/common/errors.js';
 import { isEqualOrParent } from '../../../../base/common/extpath.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { basename, dirname, extname, isAbsolute, join } from '../../../../base/common/path.js';
-import { isLinux } from '../../../../base/common/platform.js';
 import { ILogService } from '../../../log/common/log.js';
 import { isBoundedPngSize, MAX_CANVAS_ICON_BYTES, toCanvasIconDataUri } from '../../common/meta/agentCanvasIconMeta.js';
 
@@ -62,7 +61,8 @@ export class CopilotCanvasIconLoader {
 			return undefined;
 		}
 		const [icon, directory] = await Promise.all([fs.realpath(path), fs.realpath(extensionDirectory)]);
-		if (icon === directory || !isEqualOrParent(icon, directory, !isLinux)) {
+		// Both paths are canonical, so they compare exactly, even on a file system that ignores case.
+		if (icon === directory || !isEqualOrParent(icon, directory, false)) {
 			return undefined;
 		}
 		// Opening a FIFO waits for a writer, so only a regular file is opened.
