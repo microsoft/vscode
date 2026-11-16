@@ -75,11 +75,11 @@ export interface IAgentHostWorktreeSendChoiceService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Where the new chat of `sessionResource` works: as the user chose before, else as they choose now in the Work in
-	 * Parallel callout on `control`, its worktree control, which it remembers for the profile. The caller applies it, and
-	 * decides when to ask, such as with {@link isRecentChatInFolder}.
+	 * Where a new chat in the window's own folder works: as the user chose before, else as they choose now in the Work in
+	 * Parallel callout on `control`, its worktree control, which it remembers for the profile. The caller decides when to
+	 * ask, such as with {@link isRecentChatInFolder}, holds its send meanwhile, and applies the answer to its own new chat.
 	 */
-	runWorktreeSendChoice(sessionResource: URI, control: HTMLElement): Promise<WorktreeSendChoice>;
+	askWorktreeOnSend(control: HTMLElement): Promise<WorktreeSendChoice>;
 }
 
 /**
@@ -153,7 +153,7 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 			if (!control && !this._rememberedChoice()) {
 				return false;
 			}
-			const choice = await this.runWorktreeSendChoice(resource, control);
+			const choice = await this._choose(resource, control);
 			if (choice === 'worktree') {
 				await choices.setNewWorktree(true);
 				if (!choices.isNewWorktreeSelected()) {
@@ -166,12 +166,26 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 		}
 	}
 
-	async runWorktreeSendChoice(sessionResource: URI, control: HTMLElement | undefined): Promise<WorktreeSendChoice> {
+	async askWorktreeOnSend(control: HTMLElement): Promise<WorktreeSendChoice> {
+		return this._rememberedChoice() ?? this._askAndRemember(control);
+	}
+
+	/** Where the Chat view's new chat of `resource` works; a request sent again meanwhile is held, not sent twice. */
+	private async _choose(resource: URI, control: HTMLElement | undefined): Promise<WorktreeSendChoice> {
 		const remembered = this._rememberedChoice();
 		if (remembered || !control) {
 			return remembered ?? 'folder';
 		}
-		const choice = await this._ask(sessionResource, control);
+		this._asking.add(resource);
+		try {
+			return await this._askAndRemember(control);
+		} finally {
+			this._asking.delete(resource);
+		}
+	}
+
+	private async _askAndRemember(control: HTMLElement): Promise<WorktreeSendChoice> {
+		const choice = await this._ask(control);
 		this._storageService.store(AGENT_HOST_WORKTREE_SEND_CHOICE_STORAGE_KEY, choice, StorageScope.PROFILE, StorageTarget.USER);
 		return choice;
 	}
@@ -181,15 +195,13 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 		return stored === 'worktree' || stored === 'folder' ? stored : undefined;
 	}
 
-	private async _ask(resource: URI, control: HTMLElement): Promise<WorktreeSendChoice> {
-		this._asking.add(resource);
+	private async _ask(control: HTMLElement): Promise<WorktreeSendChoice> {
 		this._target = control;
 		this._useWorktree = false;
 		try {
 			await this._onboardingService.runScenario(AGENT_HOST_WORKTREE_SEND_CHOICE_ID, CancellationToken.None);
 			return this._useWorktree ? 'worktree' : 'folder';
 		} finally {
-			this._asking.delete(resource);
 			this._target = undefined;
 		}
 	}

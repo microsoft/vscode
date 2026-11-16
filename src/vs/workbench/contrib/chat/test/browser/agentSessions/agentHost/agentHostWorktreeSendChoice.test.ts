@@ -258,18 +258,16 @@ suite('Agent host Work in Parallel choice on send', () => {
 		});
 	});
 
-	test('tells another chat surface where its new chat works: asked once on its control, then as remembered, and the folder without a control to ask on', async () => {
+	test('tells another chat surface where its new chat works: asked once on its control, then as remembered without asking', async () => {
 		const window = createWindow({});
-		const draft = window.newDraft();
-		const withoutControl = await window.service.runWorktreeSendChoice(draft, undefined);
 		window.setAnswer('useWorktree');
-		const first = await window.service.runWorktreeSendChoice(draft, window.control);
+		const first = await window.service.askWorktreeOnSend(window.control);
 		window.setAnswer('continue');
-		const second = await window.service.runWorktreeSendChoice(window.newDraft(), window.control);
-		const asked = window.asked.length;
+		const second = await window.service.askWorktreeOnSend(window.control);
+		const asked = window.asked;
 		window.dispose();
 
-		assert.deepStrictEqual({ withoutControl, first, second, asked }, { withoutControl: 'folder', first: 'worktree', second: 'worktree', asked: 1 });
+		assert.deepStrictEqual({ first, second, asked }, { first: 'worktree', second: 'worktree', asked: [{ onControl: true }] });
 	});
 
 	test('its callout offers Use New Worktree and Continue in Folder', () => {
