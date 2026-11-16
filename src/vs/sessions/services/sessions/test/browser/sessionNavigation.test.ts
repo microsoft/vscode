@@ -1001,6 +1001,25 @@ suite('SessionsNavigation', () => {
 		});
 	});
 
+	test('switching directly between saved drafts preserves both Back/Forward destinations', async () => {
+		const opened: string[] = [];
+		store.savedDraftOpener = async id => {
+			opened.push(id);
+			nav.setCurrentDraftId(id);
+			return true;
+		};
+		nav.setCurrentDraftId('first');
+		nav.setCurrentDraftId('second');
+		const before = recency.entries.map(getRecencyEntryKey);
+		await nav.goBack();
+		await nav.goForward();
+		assert.deepStrictEqual({ opened, before, after: recency.entries.map(getRecencyEntryKey) }, {
+			opened: ['first', 'second'],
+			before: ['["newSession","second"]', '["newSession","first"]'],
+			after: ['["newSession","second"]', '["newSession","first"]'],
+		});
+	});
+
 	test('unavailable saved drafts are skipped without opening the composer or disturbing the remaining order', async () => {
 		const first = stubSession('first');
 		const last = stubSession('last');

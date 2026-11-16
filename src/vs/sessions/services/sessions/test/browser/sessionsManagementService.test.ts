@@ -27,6 +27,7 @@ import { IRemoteAgentHostService } from '../../../../../platform/agentHost/commo
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -60,6 +61,8 @@ import { SessionsManagementService } from '../../../../../workbench/contrib/sess
 import { VisibleSessions } from '../../../../../workbench/services/sessions/browser/visibleSessions.js';
 import { ISessionsManagementService, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, INewSessionDraftSlot, ISendRequestSentEvent, trackNewSessionRequestEnd, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService, SessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { SessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
+import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionGridState } from '../../../../../workbench/browser/parts/sessions/sessionGridState.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../../../../workbench/contrib/sessions/browser/sessionOpenTelemetryService.js';
 import { ISessionGridSlot, ISessionsPartService, SessionGridRequest } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
@@ -78,7 +81,7 @@ import { SessionsGridContent } from '../../../../../workbench/contrib/sessions/b
 import { SessionGridLayout } from '../../../../../workbench/browser/parts/sessions/sessionGridLayout.js';
 import { createSessionsPartTestHarness } from '../../../../test/browser/sessionViewTestUtils.js';
 import { getChatLayoutOwnerAfterReplacement } from '../../../../common/chatLayout.js';
-import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_DRAFTS_ENABLED_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, getSessionChatDragData, SessionsDataTransfers } from '../../../../../workbench/contrib/sessions/browser/dnd.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/services/sessions/browser/chatHostOpener.js';
@@ -91,6 +94,7 @@ import { getSingletonServiceDescriptors } from '../../../../../platform/instanti
 import { InstantiationService } from '../../../../../platform/instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ISessionPaneContent } from '../../../../../workbench/services/sessions/common/sessionPane.js';
+import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -4394,6 +4398,49 @@ suite('SessionsManagementService', () => {
 	});
 
 	suite('session navigation', () => {
+		for (const surface of ['customView', 'canvas'] as const) {
+			test(`restores a saved quick-chat draft above a ${surface} without an intermediate composer or lost history`, async () => {
+				const quickChat = stubSession({ sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled), isQuickChat: constObservable(true) });
+				let creations = 0;
+				const provider = new class extends TestSessionsProvider {
+					override readonly supportsQuickChats = true;
+					override createQuickChat(): ISession { creations++; return quickChat; }
+				}(quickChat);
+				const { service, view, customViewService, canvasService } = createSessionsManagementService(quickChat, disposables, provider);
+				const drafts = disposables.add(new SessionDraftsService(
+					disposables.add(new InMemoryStorageService()),
+					new TestConfigurationService({ [SESSIONS_DRAFTS_ENABLED_SETTING]: true }),
+					view, service, new TestDialogService(),
+					upcastPartial<INotificationService>({ error: error => assert.fail(String(error)) }),
+					new NullLogService(),
+					upcastPartial<ISessionGroupsService>({ getPendingNewSessionGroup: () => undefined, setPendingNewSessionGroup: () => { } }),
+					upcastPartial<IChatEntitlementService>({ sentiment: {}, onDidChangeSentiment: Event.None }),
+					disposables.add(new TestLifecycleService()),
+				));
+				const composer = drafts.createComposer();
+				const saved = drafts.save({ inputText: 'saved prompt', attachments: [] }, {});
+				disposables.add(drafts.registerComposer(composer, async draft => {
+					view.openQuickChat(undefined, true);
+					composer.updateInput(draft.input);
+				}, () => { }));
+				if (surface === 'customView') {
+					showTestCustomView(customViewService, disposables);
+				} else {
+					disposables.add(canvasService.registerCanvas(upcastPartial<IWindowCanvasDescriptor>({ id: 'test.canvas' })));
+					await canvasService.openCanvas('test.canvas');
+				}
+				const destination = () => customViewService.activeCustomView.get()?.id ?? canvasService.activeCanvasOpen.get()?.id ?? composer.id;
+				await drafts.open(saved.id);
+				const opened = destination();
+				await view.openPreviousSession();
+				const previous = destination();
+				await view.openNextSession();
+				assert.deepStrictEqual({ opened, previous, next: destination(), creations, input: composer.input.inputText }, {
+					opened: saved.id, previous: surface === 'customView' ? 'test.customView' : 'test.canvas', next: saved.id, creations: 1, input: 'saved prompt',
+				});
+			});
+		}
+
 		test('restores saved drafts through a disposable opener without promoting MRU', async () => {
 			const first = stubSession({ sessionId: 'first', providerId: 'test', status: constObservable(SessionStatus.Completed) });
 			const second = stubSession({ sessionId: 'second', providerId: 'test', status: constObservable(SessionStatus.Completed) });
