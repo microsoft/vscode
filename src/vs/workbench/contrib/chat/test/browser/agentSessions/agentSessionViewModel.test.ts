@@ -11,6 +11,7 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { getWorktreeFilterKey } from '../../../../../../platform/agentHost/common/sessionWorktreeFolders.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
@@ -1219,7 +1220,7 @@ suite('AgentSessions', () => {
 			disposables.clear();
 		});
 
-		test('offers the worktrees of archived sessions too, as the list can show those, and keeps an unchecked folder whose last session is archived', () => {
+		test('offers the worktrees of archived sessions too, as the list can show those, and keeps the selected folder whose last session is archived', () => {
 			const filterMenuId = new MenuId('agentSessionsWorktreeFilterArchivedTest');
 			let archived = new Set<string>();
 			const inFolder = (name: string, path: string) => createSession({ resource: URI.parse(`test://${name}`), metadata: { workingDirectoryPath: path }, isArchived: () => archived.has(name) });
@@ -1230,7 +1231,7 @@ suite('AgentSessions', () => {
 			modelSessions = [main, first, second];
 			disposables.add(instantiationService.createInstance(AgentSessionsFilter, { filterMenuId }));
 			const worktreesMenuId = MenuId.for(`${filterMenuId.id}.worktrees`);
-			const options = () => MenuRegistry.getMenuItems(worktreesMenuId).filter(isIMenuItem).map(item => `${item.command.title}${(item.command.toggled as ContextKeyExpression).serialize() === 'true' ? '' : ' (unchecked)'}`);
+			const options = () => MenuRegistry.getMenuItems(worktreesMenuId).filter(isIMenuItem).map(item => `${item.command.title}${(item.command.toggled as ContextKeyExpression).serialize() === 'true' ? ' (checked)' : ''}`);
 			const allArchived = options();
 			archived = new Set();
 			onDidChangeModelSessions.fire();
@@ -1240,12 +1241,12 @@ suite('AgentSessions', () => {
 			onDidChangeModelSessions.fire();
 
 			assert.deepStrictEqual({ allArchived, lastArchived: options() }, {
-				allArchived: ['vscode', 'first', 'second'],
-				lastArchived: ['vscode', 'first (unchecked)', 'second'],
+				allArchived: ['All Worktrees (checked)', 'vscode', 'first', 'second'],
+				lastArchived: ['All Worktrees', 'vscode', 'first (checked)', 'second'],
 			});
 		});
 
-		test('offers the worktrees that sessions work in with their repository, all shown, and hides the sessions of an unchecked one until reset', () => {
+		test('shows the sessions of all worktree folders or of the one selected, with a single checkmark, until All Worktrees or reset', () => {
 			const filterMenuId = new MenuId('agentSessionsWorktreeFilterTest');
 			const inFolder = (name: string, metadata: { [key: string]: unknown }) => createSession({ resource: URI.parse(`test://${name}`), metadata });
 			const main = inFolder('main', { workingDirectoryPath: '/work/vscode' });
@@ -1256,26 +1257,93 @@ suite('AgentSessions', () => {
 			const filter = disposables.add(instantiationService.createInstance(AgentSessionsFilter, { filterMenuId }));
 			const worktreesMenuId = MenuId.for(`${filterMenuId.id}.worktrees`);
 			const submenu = () => MenuRegistry.getMenuItems(filterMenuId).some(item => !isIMenuItem(item) && item.submenu === worktreesMenuId);
-			const options = () => MenuRegistry.getMenuItems(worktreesMenuId).filter(isIMenuItem).map(item => `${item.command.title}${(item.command.toggled as ContextKeyExpression).serialize() === 'true' ? '' : ' (unchecked)'}`);
-			const toggle = (title: string) => {
+			const checked = () => MenuRegistry.getMenuItems(worktreesMenuId).filter(isIMenuItem).filter(item => (item.command.toggled as ContextKeyExpression).serialize() === 'true').map(item => item.command.title);
+			const pick = (title: string) => {
 				const item = MenuRegistry.getMenuItems(worktreesMenuId).filter(isIMenuItem).find(candidate => candidate.command.title === title)!;
 				instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(item.command.id)!.handler(accessor));
 			};
-			const excluded = () => [main, first, second, chat].filter(session => filter.exclude(session)).map(session => session.resource.authority);
+			// Chats without a folder never hide
+			const shown = () => ({ checked: checked(), shown: [main, first, second, chat].filter(session => !filter.exclude(session)).map(session => session.resource.authority), isDefault: filter.isDefault() });
 
 			const withoutWorktrees = { submenu: submenu() };
 			modelSessions = [main, first, second, chat];
 			onDidChangeModelSessions.fire();
-			const offered = { submenu: submenu(), options: options() };
-			toggle('first');
-			const unchecked = { options: options(), excluded: excluded() };
+			const offered = { submenu: submenu(), options: MenuRegistry.getMenuItems(worktreesMenuId).filter(isIMenuItem).map(item => item.command.title), ...shown() };
+			pick('first');
+			const firstOnly = shown();
+			pick('second');
+			const secondOnly = shown();
+			pick('All Worktrees');
+			const all = shown();
+			pick('first');
 			filter.reset();
+			const reset = shown();
+			pick('second');
+			// Its last session goes: the folder is no longer offered, and all folders show again
+			modelSessions = [main, first, chat];
+			onDidChangeModelSessions.fire();
+			const stale = { ...shown(), shown: [main, first, chat].filter(session => !filter.exclude(session)).map(session => session.resource.authority) };
 
-			assert.deepStrictEqual({ withoutWorktrees, offered, unchecked, reset: { options: options(), excluded: excluded() } }, {
+			const everything = { checked: ['All Worktrees'], shown: ['main', 'first', 'second', 'chat'], isDefault: true };
+			assert.deepStrictEqual({ withoutWorktrees, offered, firstOnly, secondOnly, all, reset, stale }, {
 				withoutWorktrees: { submenu: false },
-				offered: { submenu: true, options: ['vscode', 'first', 'second'] },
-				unchecked: { options: ['vscode', 'first (unchecked)', 'second'], excluded: ['first'] },
-				reset: { options: ['vscode', 'first', 'second'], excluded: [] },
+				offered: { submenu: true, options: ['All Worktrees', 'vscode', 'first', 'second'], ...everything },
+				firstOnly: { checked: ['first'], shown: ['first', 'chat'], isDefault: false },
+				secondOnly: { checked: ['second'], shown: ['second', 'chat'], isDefault: false },
+				all: everything,
+				reset: everything,
+				stale: { checked: ['All Worktrees'], shown: ['main', 'first', 'chat'], isDefault: true },
+			});
+		});
+
+		test('tells its consumers as the selected worktree folder comes to apply or no longer does, as its sessions arrive or go', () => {
+			const filterMenuId = new MenuId('agentSessionsWorktreeFilterEffectiveTest');
+			const inFolder = (name: string, path: string) => createSession({ resource: URI.parse(`test://${name}`), metadata: { workingDirectoryPath: path } });
+			const main = inFolder('main', '/work/vscode');
+			const first = inFolder('first', '/work/vscode.worktrees/first');
+			const second = inFolder('second', '/work/vscode.worktrees/second');
+			// A folder selected before, whose sessions are not there yet, as at startup
+			instantiationService.get(IStorageService).store('agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu', JSON.stringify({ worktree: getWorktreeFilterKey(URI.file('/work/vscode.worktrees/first')) }), StorageScope.PROFILE, StorageTarget.USER);
+			modelSessions = [main, second];
+			const filter = disposables.add(instantiationService.createInstance(AgentSessionsFilter, { filterMenuId }));
+			// As the Chat view's toolbar shows the list filtered
+			const filtered: boolean[] = [];
+			disposables.add(filter.onDidChange(() => filtered.push(!filter.isDefault())));
+			const initial = !filter.isDefault();
+
+			modelSessions = [main, first, second];
+			onDidChangeModelSessions.fire();
+			const arrived = [...filtered];
+			// Another session in a known folder changes nothing it shows
+			modelSessions = [main, first, second, inFolder('another', '/work/vscode')];
+			onDidChangeModelSessions.fire();
+			const unchanged = [...filtered];
+			modelSessions = [main, second];
+			onDidChangeModelSessions.fire();
+
+			assert.deepStrictEqual({ initial, arrived, unchanged, gone: filtered }, {
+				initial: false,
+				arrived: [true],
+				unchanged: [true],
+				gone: [true, false],
+			});
+		});
+
+		test('shows all worktree folders for the hidden folders that earlier builds stored', () => {
+			const filterMenuId = new MenuId('agentSessionsWorktreeFilterLegacyTest');
+			const inFolder = (name: string, path: string) => createSession({ resource: URI.parse(`test://${name}`), metadata: { workingDirectoryPath: path } });
+			const main = inFolder('main', '/work/vscode');
+			const first = inFolder('first', '/work/vscode.worktrees/first');
+			modelSessions = [main, first];
+			instantiationService.get(IStorageService).store('agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu', JSON.stringify({ worktrees: [getWorktreeFilterKey(URI.file('/work/vscode.worktrees/first'))] }), StorageScope.PROFILE, StorageTarget.USER);
+			const filter = disposables.add(instantiationService.createInstance(AgentSessionsFilter, { filterMenuId }));
+			const worktreesMenuId = MenuId.for(`${filterMenuId.id}.worktrees`);
+			const checked = MenuRegistry.getMenuItems(worktreesMenuId).filter(isIMenuItem).filter(item => (item.command.toggled as ContextKeyExpression).serialize() === 'true').map(item => item.command.title);
+
+			assert.deepStrictEqual({ checked, shown: [main, first].filter(session => !filter.exclude(session)).map(session => session.resource.authority), isDefault: filter.isDefault() }, {
+				checked: ['All Worktrees'],
+				shown: ['main', 'first'],
+				isDefault: true,
 			});
 		});
 

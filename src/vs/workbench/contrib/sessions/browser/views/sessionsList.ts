@@ -116,7 +116,7 @@ import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../common/sessionComparis
 // eslint-disable-next-line no-restricted-imports
 import { IAgentSessionsService } from '../../../chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
-import { compareSessionEnvironments, getSessionEnvironments, ISessionsListResettableState, SessionsListFilters } from './sessionsListFilters.js';
+import { compareSessionEnvironments, getSessionEnvironments, getWorktreeFilterKeys, ISessionsListResettableState, SessionsListFilters } from './sessionsListFilters.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { clearChatReferenceDragData, LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
@@ -5997,12 +5997,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// Scope to the selected host's providers; an empty set (a declared
 		// group with no members yet) matches nothing rather than everything.
 		let filtered = this.sessions.filter(session => this.isSessionListed(session));
+		const availableWorktrees = getWorktreeFilterKeys(filtered, () => true);
 		const scopedProviderIds = this._agentHostFilterService.selectedHost?.providerIds;
 		if (scopedProviderIds) {
 			const scoped = new Set(scopedProviderIds);
 			filtered = filtered.filter(s => scoped.has(s.providerId));
 		}
-		filtered = filtered.filter(session => this.filters.matches(session, inbox));
+		filtered = filtered.filter(session => this.filters.matches(session, inbox, availableWorktrees));
 		const scheduledOnly = this.options.schedulingEnabled?.get() && this.filters.isScheduledOnly();
 		if (scheduledOnly) {
 			filtered = filtered.filter(session => this.options.scheduledSessionResources?.get().has(session.resource.toString()));

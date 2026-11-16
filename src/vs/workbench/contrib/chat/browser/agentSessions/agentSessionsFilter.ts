@@ -58,8 +58,13 @@ const DEFAULT_EXCLUDES: IAgentSessionsFilterExcludes = Object.freeze({
 	read: false as const,
 	automation: true as const,
 	repositoryGroupCapped: true as const /* when true, repo groups are capped at a limit with a "show more" item */,
-	worktrees: [] as const,
 });
+
+/** `excludes` showing the sessions of the worktree folder `worktree` alone, or of all folders where `undefined`. */
+function withWorktree(excludes: IAgentSessionsFilterExcludes, worktree: string | undefined): IAgentSessionsFilterExcludes {
+	const { worktree: _previous, ...rest } = excludes;
+	return worktree === undefined ? rest : { ...rest, worktree };
+}
 
 /**
  * Where `session` works, for the Worktrees filter: its worktree, else its working directory, of the repository it knows,
@@ -98,6 +103,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		super();
 
 		this.restoreSorting();
+		this.worktreeOptions = this.getWorktreeOptions();
 		this.updateExcludes(false);
 
 		this.registerListeners();
@@ -109,19 +115,24 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.STORAGE_KEY, this._store)(() => this.updateExcludes(true)));
 
-		// The Worktrees submenu follows the worktrees that sessions work in
-		if (this.options.filterMenuId) {
-			this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
-				if (!equals(this.getWorktreeOptions(), this.worktreeOptions)) {
-					this.updateFilterActions();
+		// The Worktrees submenu, and which folder's sessions show, follow the worktrees that sessions work in
+		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
+			const worktreeOptions = this.getWorktreeOptions();
+			if (!equals(worktreeOptions, this.worktreeOptions)) {
+				const selected = this.getSelectedWorktree();
+				this.worktreeOptions = worktreeOptions;
+				this.updateFilterActions();
+				// The selected folder comes to apply, as its sessions arrive, or no longer does, as they go
+				if (this.getSelectedWorktree() !== selected) {
+					this._onDidChange.fire();
 				}
-			}));
-		}
+			}
+		}));
 	}
 
 	/**
-	 * The options of the Worktrees submenu, also of archived sessions: the list can show those, and a folder whose last
-	 * session the user archives stays in the submenu, so that it can be checked again.
+	 * The options of the Worktrees submenu, also of archived sessions: the list can show those, and the selected folder
+	 * stays in the submenu when the user archives its last session.
 	 */
 	private getWorktreeOptions(): IWorktreeFilterOption[] {
 		return getWorktreeFilterOptions(this.agentSessionsService.model.sessions.map(getAgentSessionWorktreeFolder));
@@ -132,7 +143,9 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			const excludedTypesRaw = this.storageService.get(this.STORAGE_KEY, StorageScope.PROFILE);
 			if (excludedTypesRaw) {
 				try {
-					this.excludes = { ...DEFAULT_EXCLUDES, ...JSON.parse(excludedTypesRaw) as Partial<IAgentSessionsFilterExcludes> };
+					// Earlier builds stored the hidden worktree folders (`worktrees`): those show all folders again
+					const { worktrees: _hiddenWorktrees, worktree, ...stored } = JSON.parse(excludedTypesRaw) as Partial<IAgentSessionsFilterExcludes> & { readonly worktrees?: unknown };
+					this.excludes = withWorktree({ ...DEFAULT_EXCLUDES, ...stored }, typeof worktree === 'string' ? worktree : undefined);
 				} catch {
 					this.excludes = { ...DEFAULT_EXCLUDES };
 				}
@@ -298,11 +311,19 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	}
 
 	/**
-	 * A Worktrees submenu with the worktrees that sessions work in and their repository's own folder, all checked by
-	 * default: the filter keeps the folders unchecked, so a worktree seen later starts checked.
+	 * The worktree folder whose sessions alone show: the selected one while sessions work in it, else none, so that the
+	 * list never stays empty for a folder the Worktrees submenu no longer offers.
+	 */
+	private getSelectedWorktree(): string | undefined {
+		const selected = this.excludes.worktree;
+		return selected !== undefined && this.worktreeOptions.some(option => option.key === selected) ? selected : undefined;
+	}
+
+	/**
+	 * A Worktrees submenu to show the sessions of all folders (the default) or of one: of the worktrees that sessions work
+	 * in, or of their repository's own folder.
 	 */
 	private registerWorktreeActions(disposables: DisposableStore, menuId: MenuId): void {
-		this.worktreeOptions = this.getWorktreeOptions();
 		if (this.worktreeOptions.length === 0) {
 			return;
 		}
@@ -314,26 +335,36 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			order: 1000,
 		}));
 		const that = this;
+		const selected = this.getSelectedWorktree();
+		disposables.add(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `agentSessions.filter.allWorktrees.${menuId.id.toLowerCase()}`,
+					title: localize('agentSessions.filter.allWorktrees', "All Worktrees"),
+					menu: { id: worktreesMenuId, group: '0_all', order: 0 },
+					toggled: selected === undefined ? ContextKeyExpr.true() : ContextKeyExpr.false(),
+				});
+			}
+			run(): void {
+				that.storeExcludes(withWorktree(that.excludes, undefined));
+			}
+		}));
 		for (const [index, option] of this.worktreeOptions.entries()) {
 			disposables.add(registerAction2(class extends Action2 {
 				constructor() {
 					super({
-						id: `agentSessions.filter.toggleExcludeWorktree:${encodeURIComponent(option.key)}.${menuId.id.toLowerCase()}`,
+						id: `agentSessions.filter.selectWorktree:${encodeURIComponent(option.key)}.${menuId.id.toLowerCase()}`,
 						title: option.label,
 						menu: {
 							id: worktreesMenuId,
 							group: option.isRepository ? '1_repository' : '2_worktrees',
 							order: index,
 						},
-						toggled: that.excludes.worktrees?.includes(option.key) ? ContextKeyExpr.false() : ContextKeyExpr.true(),
+						toggled: selected === option.key ? ContextKeyExpr.true() : ContextKeyExpr.false(),
 					});
 				}
 				run(): void {
-					const worktreeExcludes = new Set(that.excludes.worktrees);
-					if (!worktreeExcludes.delete(option.key)) {
-						worktreeExcludes.add(option.key);
-					}
-					that.storeExcludes({ ...that.excludes, worktrees: Array.from(worktreeExcludes) });
+					that.storeExcludes(withWorktree(that.excludes, option.key));
 				}
 			}));
 		}
@@ -468,7 +499,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	}
 
 	isDefault(): boolean {
-		return equals(this.excludes, DEFAULT_EXCLUDES) && this.currentSorting === AgentSessionsSorting.Created;
+		return equals(withWorktree(this.excludes, this.getSelectedWorktree()), DEFAULT_EXCLUDES) && this.currentSorting === AgentSessionsSorting.Created;
 	}
 
 	getExcludes(): IAgentSessionsFilterExcludes {
@@ -497,9 +528,10 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			return true;
 		}
 
-		if (this.excludes.worktrees?.length) {
+		const selectedWorktree = this.getSelectedWorktree();
+		if (selectedWorktree !== undefined) {
 			const worktree = getAgentSessionWorktreeFolder(session);
-			if (worktree && this.excludes.worktrees.includes(getWorktreeFilterKey(worktree.folder))) {
+			if (worktree && getWorktreeFilterKey(worktree.folder) !== selectedWorktree) {
 				return true;
 			}
 		}

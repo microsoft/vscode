@@ -72,6 +72,7 @@ import { AgentHostChatInputPicker, getAgentHostSandboxSettingId, getConfigPicker
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { IChatSessionOptionsChangeEvent, IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { getAgentHostPickerProperty, OpenAgentHostAutoApprovePickerAction, OpenAgentHostFolderPickerAction, OpenAgentHostCodexApprovalsPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
+import { ChatAgentHostFolderChipVisible } from '../../../browser/agentSessions/agentHost/agentHostNewWorktreeToggle.js';
 import { isAutoApproveValuePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
@@ -408,6 +409,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			context.setValue(WorkbenchStateContext.key, 'folder');
 			context.setValue(RemoteNameContext.key, '');
 			context.setValue(IsSessionsWindowContext.key, false);
+			// As the chat input sets it while the chip offers more than the folder
+			context.setValue(ChatAgentHostFolderChipVisible.key, true);
 			return !!worktreeItem?.when?.evaluate(context);
 		};
 		assert.deepStrictEqual({ local: visible('agent-host-copilot'), remote: visible('remote-localhost__8081-copilot') }, { local: true, remote: false });

@@ -21,6 +21,10 @@ import { ChatAgentHostNewWorktreeSelected, ChatAgentHostNewWorktreeToggleVisible
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
+import { asCssVariableName, getSizeRegistry, sizeValueToCss } from '../../../../../../../platform/theme/common/sizeUtils.js';
+import '../../../../../../../platform/theme/common/sizes/baseSizes.js';
+import { TestColorTheme } from '../../../../../../../platform/theme/test/common/testThemeService.js';
+import '../../../../browser/widget/media/chat.css';
 
 suite('Agent host New Worktree checkbox', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -74,6 +78,69 @@ suite('Agent host New Worktree checkbox', () => {
 			started: { glyph: false, label: 'New Worktree', role: 'checkbox', checked: 'true', disabled: true },
 			runs: [ToggleAgentHostNewWorktreeAction.ID, ToggleAgentHostNewWorktreeAction.ID],
 			context: { widget },
+		});
+	});
+
+	test('sizes the checkbox as the chips beside it in the chat input toolbar: the compact checkbox, its check as their icons, its name as their names, its row as theirs', async () => {
+		const instantiation = workbenchInstantiationService(undefined, store);
+		instantiation.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.EditorWindowEnableWorktree]: true }));
+		const context = store.add(instantiation.createInstance(ContextKeyService));
+		instantiation.stub(IContextKeyService, context);
+		instantiation.stub(ICommandService, upcastPartial<ICommandService>({ executeCommand: async () => undefined }));
+		instantiation.stub(IMenuService, store.add(instantiation.createInstance(MenuService)));
+		context.createKey(ChatContextKeys.enabled.key, true);
+		context.createKey(ChatContextKeys.chatIsAgentHostSession.key, true);
+		context.createKey(ChatContextKeys.chatSessionType.key, SessionType.AgentHostCopilot);
+		context.createKey(ChatContextKeys.chatSessionIsEmpty.key, true);
+		context.createKey('workbenchState', 'folder');
+		context.createKey('remoteName', '');
+		context.createKey(ChatAgentHostNewWorktreeToggleVisible.key, true);
+		// The chat input's secondary toolbar in the workbench, with the design tokens the theme provides
+		const workbench = append(mainWindow.document.body, $('.monaco-workbench'));
+		store.add({ dispose: () => workbench.remove() });
+		const theme = new TestColorTheme();
+		for (const contribution of getSizeRegistry().getSizes()) {
+			const value = getSizeRegistry().resolveDefaultSize(contribution.id, theme);
+			if (value) {
+				workbench.style.setProperty(asCssVariableName(contribution.id), sizeValueToCss(value));
+			}
+		}
+		const row = append(append(workbench, $('.interactive-session')), $('.chat-secondary-toolbar'));
+		const chips = append(row, $('.chat-secondary-input-toolbar'));
+		// A chip as the toolbar renders the others, such as Manual permissions: its icon and its name
+		const chip = append(append(append(append(chips, $('.monaco-action-bar')), $('.actions-container')), $('.action-item.chat-input-picker-item')), $('a.action-label'));
+		const chipIcon = append(chip, $('span.codicon.codicon-shield'));
+		const chipName = append(chip, $('span.chat-input-picker-label', undefined, 'Manual permissions'));
+		store.add(instantiation.createInstance(MenuWorkbenchToolBar, append(chips, $('div')), MenuId.ChatInputSecondary, {
+			eventDebounceDelay: 0,
+			actionViewItemProvider: (action, options) => createNewWorktreeCheckboxViewItem(action, options),
+		}));
+		const item = row.querySelector<HTMLElement>('.checkbox-action-item')!;
+		const size = (element: Element) => {
+			const { width, height } = element.getBoundingClientRect();
+			return `${width}x${height}`;
+		};
+		const middle = (element: Element) => {
+			const { top, height } = element.getBoundingClientRect();
+			return top + height / 2;
+		};
+		const box = item.querySelector('.monaco-custom-toggle')!;
+		const name = item.querySelector('.checkbox-label')!;
+		const font = (element: Element) => mainWindow.getComputedStyle(element).fontSize;
+
+		assert.deepStrictEqual({
+			box: size(box),
+			glyph: font(box),
+			name: font(name),
+			rowHeight: item.getBoundingClientRect().height,
+			centered: middle(box) === middle(item) && middle(name) === middle(item),
+		}, {
+			// The workbench's compact checkbox, as in other toolbars and chip rows
+			box: '14x14',
+			glyph: font(chipIcon),
+			name: font(chipName),
+			rowHeight: chip.getBoundingClientRect().height,
+			centered: true,
 		});
 	});
 });

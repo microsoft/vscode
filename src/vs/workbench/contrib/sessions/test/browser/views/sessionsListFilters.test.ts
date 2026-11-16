@@ -9,11 +9,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { URI } from '../../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { getSessionApplication } from '../../../../../services/sessions/common/sessionApplication.js';
 import { ISession, ISessionEnvironment, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { buildTestSession, buildTestWorkspace } from '../../common/testSessionBuilder.js';
-import { getInboxWorkspaceFilter, getInboxWorkspaceOptions, getSessionFilterOptions, sessionFilterKey, SessionsListFilters } from '../../../browser/views/sessionsListFilters.js';
+import { getInboxWorkspaceFilter, getInboxWorkspaceOptions, getSessionFilterOptions, getWorktreeFilterKeys, sessionFilterKey, SessionsListFilters } from '../../../browser/views/sessionsListFilters.js';
 
 suite('SessionsListFilters', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -23,7 +23,7 @@ suite('SessionsListFilters', () => {
 		return store.add(new SessionsListFilters(storage, store.add(new NullLogService())));
 	}
 
-	test('offers the worktrees that listed sessions work in with their repository, all shown, and hides only an unchecked one until reset', () => {
+	test('shows the sessions of all worktree folders or of the one selected, until All Worktrees or reset, and all where the selected or a stored hidden folder is not offered', () => {
 		const inFolder = (id: string, path: string, repository?: { readonly uri: string; readonly workTree?: string }): ISession => {
 			const root = URI.file(path);
 			const workspace: ISessionWorkspace = {
@@ -38,26 +38,55 @@ suite('SessionsListFilters', () => {
 		const main = inFolder('main', '/work/vscode', { uri: '/work/vscode' });
 		const first = inFolder('first', '/work/vscode.worktrees/first', { uri: '/work/vscode', workTree: '/work/vscode.worktrees/first' });
 		const second = inFolder('second', '/work/vscode.worktrees/second');
+		// Quick chats never hide
 		const quick = buildTestSession({ id: 'quick', title: 'Quick', isQuickChat: true }).session;
-		const filters = createFilters();
-		const worktreeOptions = (sessions: readonly ISession[]) => getSessionFilterOptions(sessions, [], listAll)
-			.filter(option => option.filter.kind === 'worktree')
-			.map(option => `${option.label}${filters.isExcluded(option.filter) ? ' (unchecked)' : ''}`);
+		const storage = store.add(new InMemoryStorageService());
+		const filters = createFilters(storage);
+		const keyOf = (label: string) => getSessionFilterOptions([main, first, second], [], listAll).find(option => option.filter.kind === 'worktree' && option.label === label)!.filter.id;
+		const state = (sessions: readonly ISession[], target = filters) => {
+			const available = getWorktreeFilterKeys(sessions, listAll);
+			const options = getSessionFilterOptions(sessions, [], listAll).filter(option => option.filter.kind === 'worktree');
+			const selected = target.getSelectedWorktree(available);
+			return {
+				checked: selected === undefined ? 'All Worktrees' : options.find(option => option.filter.id === selected)?.label,
+				visible: sessions.filter(session => target.matches(session, false, available)).map(session => session.sessionId),
+			};
+		};
 		const sessions = [main, first, second, quick];
-		const visible = () => sessions.filter(session => filters.matches(session)).map(session => session.sessionId);
 
-		const withoutWorktrees = worktreeOptions([main, quick]);
-		const offered = worktreeOptions(sessions);
-		const firstOption = getSessionFilterOptions(sessions, [], listAll).find(option => option.filter.kind === 'worktree' && option.label === 'first')!;
-		filters.setExcluded(firstOption.filter, true);
-		const unchecked = { options: worktreeOptions(sessions), visible: visible() };
+		const withoutWorktrees = getSessionFilterOptions([main, quick], [], listAll).filter(option => option.filter.kind === 'worktree').map(option => option.label);
+		const offered = getSessionFilterOptions(sessions, [], listAll).filter(option => option.filter.kind === 'worktree').map(option => option.label);
+		const initial = state(sessions);
+		filters.setSelectedWorktree(keyOf('first'));
+		const firstOnly = state(sessions);
+		const restored = state(sessions, createFilters(storage));
+		filters.setSelectedWorktree(keyOf('second'));
+		const secondOnly = state(sessions);
+		filters.setSelectedWorktree(undefined);
+		const all = state(sessions);
+		filters.setSelectedWorktree(keyOf('first'));
 		filters.reset();
+		const reset = state(sessions);
+		filters.setSelectedWorktree(keyOf('second'));
+		// Its last session goes: the folder is no longer offered, and all folders show again
+		const stale = state([main, first, quick]);
+		// Earlier builds stored hidden folders with the other filters
+		const legacyStorage = store.add(new InMemoryStorageService());
+		legacyStorage.store('sessionsListControl.filters', JSON.stringify([[sessionFilterKey({ kind: 'worktree', id: keyOf('first') }), true]]), StorageScope.PROFILE, StorageTarget.USER);
+		const legacy = state(sessions, createFilters(legacyStorage));
 
-		assert.deepStrictEqual({ withoutWorktrees, offered, unchecked, reset: { options: worktreeOptions(sessions), visible: visible() } }, {
+		const everything = { checked: 'All Worktrees', visible: ['main', 'first', 'second', 'quick'] };
+		assert.deepStrictEqual({ withoutWorktrees, offered, initial, firstOnly, restored, secondOnly, all, reset, stale, legacy }, {
 			withoutWorktrees: [],
 			offered: ['vscode', 'first', 'second'],
-			unchecked: { options: ['vscode', 'first (unchecked)', 'second'], visible: ['main', 'second', 'quick'] },
-			reset: { options: ['vscode', 'first', 'second'], visible: ['main', 'first', 'second', 'quick'] },
+			initial: everything,
+			firstOnly: { checked: 'first', visible: ['first', 'quick'] },
+			restored: { checked: 'first', visible: ['first', 'quick'] },
+			secondOnly: { checked: 'second', visible: ['second', 'quick'] },
+			all: everything,
+			reset: everything,
+			stale: { checked: 'All Worktrees', visible: ['main', 'first', 'quick'] },
+			legacy: everything,
 		});
 	});
 
