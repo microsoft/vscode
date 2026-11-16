@@ -112,8 +112,15 @@ export function waitForSessionChat(sessionsManagementService: ISessionsManagemen
 		};
 
 		disposables.add(token.onCancellationRequested(() => finish(undefined)));
-		// As a provider registers, its sessions are added
+		// As a provider registers, its sessions are added; an empty change asks to read every session again
 		disposables.add(sessionsManagementService.onDidChangeSession(changes => {
+			if (changes.length === 0) {
+				const found = sessionsManagementService.getSessionForChatResource(chatResource);
+				if (found) {
+					finish(found);
+				}
+				return;
+			}
 			for (const change of changes) {
 				if (change.kind !== 'removed') {
 					follow(change.session);

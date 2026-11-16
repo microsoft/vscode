@@ -158,6 +158,22 @@ suite('waitForSessionChat', () => {
 		assert.deepStrictEqual({ session: result?.session === added.session, lookups: lookups(), listening: sessionChanged.hasListeners() }, { session: true, lookups: 1, listening: false });
 	}));
 
+	test('looks the chat up again as a provider asks to read every session again, such as as its sessions\' visibility changes', () => runWithFakedTimers({}, async () => {
+		const hidden = sessionWithChats('agent-host-copilot:/hidden');
+		const known: ISession[] = [];
+		const { sessionChanged, sessionsManagementService } = create(known);
+		const cts = disposables.add(new CancellationTokenSource());
+
+		const start = Date.now();
+		const found = waitForSessionChat(sessionsManagementService, hidden.session.mainChat.get().resource, cts.token, SESSION_OPEN_WAIT_TIMEOUT);
+		await timeout(10);
+		known.push(hidden.session);
+		sessionChanged.fire([]);
+		const result = await found;
+
+		assert.deepStrictEqual({ session: result?.session === hidden.session, beforeTimeout: Date.now() - start < SESSION_OPEN_WAIT_TIMEOUT, listening: sessionChanged.hasListeners() }, { session: true, beforeTimeout: true, listening: false });
+	}));
+
 	test('ends at once, with no chat, as it is cancelled, such as as its host is deactivated, and once the timeout passes', () => runWithFakedTimers({}, async () => {
 		const { sessionChanged, sessionsManagementService } = create([]);
 		const unknown = URI.parse('agent-host-copilot:/unknown');
