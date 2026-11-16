@@ -4,12 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'node:assert';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import type { API } from '@typescript/native/async';
 import type { TypeScriptSDK } from '@typescript/native/vscode';
-import { afterAll, afterEach, beforeAll, suite, test } from 'vitest';
+import { afterAll, afterEach, suite, test } from 'vitest';
 import * as vscode from 'vscode';
 import { TestLogService } from '../../../../../platform/testing/common/testLogService';
 import { DisposableStore } from '../../../../../util/vs/base/common/lifecycle';
@@ -17,28 +14,18 @@ import { TypeScript7Connection } from '../ts7Api';
 
 suite('TypeScript 7 connection', () => {
 	const store = new DisposableStore();
-	let directory: string;
-
-	beforeAll(() => {
-		directory = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-ts7-api-'));
-	});
 
 	afterEach(() => store.clear());
-	afterAll(() => {
-		store.dispose();
-		fs.rmSync(directory, { recursive: true, force: true });
-	});
+	afterAll(() => store.dispose());
 
 	test('connects only to language servers that provide the TypeScript 7.1 API', async () => {
-		const sourceBuildManifest = path.join(directory, 'package.json');
-		fs.writeFileSync(sourceBuildManifest, JSON.stringify({ name: 'typescript', version: '7.1.0' }));
-		const packageManifest = path.join(directory, 'node_modules', 'typescript', 'package.json');
 		const servers: [string, TypeScriptSDK | undefined][] = [
-			['7.1 prerelease', createSdk('7.1.0-dev.20261105.1', packageManifest)],
-			['8.0', createSdk('8.0.0', packageManifest)],
-			['build from source', createSdk('local', sourceBuildManifest)],
-			['7.0', createSdk('7.0.2', packageManifest)],
-			['bare executable', createSdk('local', undefined)],
+			['7.1 prerelease', createSdk('7.1.0-dev.20261105.1')],
+			['7.1 without patch version', createSdk('7.1')],
+			['8.0', createSdk('8.0.0')],
+			['7.0', createSdk('7.0.2')],
+			['unrecognized version', createSdk('v7.1.0')],
+			['build from source', createSdk('local')],
 			['extension without SDK', undefined],
 		];
 
@@ -56,10 +43,11 @@ suite('TypeScript 7 connection', () => {
 		const warning = (reason: string) => `TypeScript 7 support requires a language server with the TypeScript 7.1 API, but ${reason}.`;
 		assert.deepStrictEqual(actual, [
 			{ server: '7.1 prerelease', connected: true, warnings: [] },
+			{ server: '7.1 without patch version', connected: true, warnings: [] },
 			{ server: '8.0', connected: true, warnings: [] },
-			{ server: 'build from source', connected: true, warnings: [] },
 			{ server: '7.0', connected: false, warnings: [warning('the language server is version 7.0.2')] },
-			{ server: 'bare executable', connected: false, warnings: [warning('the language server version is unknown')] },
+			{ server: 'unrecognized version', connected: false, warnings: [warning('the language server is version v7.1.0')] },
+			{ server: 'build from source', connected: false, warnings: [warning('the language server version is unknown')] },
 			{ server: 'extension without SDK', connected: false, warnings: [warning('the TypeScript 7 extension is too old')] },
 		]);
 	});
@@ -78,11 +66,11 @@ suite('TypeScript 7 connection', () => {
 		};
 
 		await step();
-		extensionApi.initialize(createSdk('7.1.0', undefined, 'first'));
+		extensionApi.initialize(createSdk('7.1.0', 'first'));
 		await step();
-		extensionApi.initialize(createSdk('7.1.0', undefined, 'second'));
+		extensionApi.initialize(createSdk('7.1.0', 'second'));
 		await step();
-		extensionApi.initialize(createSdk('7.0.2', undefined, 'third'));
+		extensionApi.initialize(createSdk('7.0.2', 'third'));
 		await step();
 
 		assert.deepStrictEqual({ steps, connected: connector.connected, closed: connector.closed, warnings: logService.warnings.length }, {
@@ -99,10 +87,10 @@ suite('TypeScript 7 connection', () => {
 	});
 });
 
-function createSdk(version: string, packageJsonPath: string | undefined, pipe: string = version): TypeScriptSDK {
+function createSdk(version: string, pipe: string = version): TypeScriptSDK {
 	return {
 		version,
-		packageJsonPath,
+		packageJsonPath: undefined,
 		isCurrent: () => true,
 		initializeAPIConnection: async () => pipe,
 		importModule: async () => {
@@ -112,7 +100,7 @@ function createSdk(version: string, packageJsonPath: string | undefined, pipe: s
 }
 
 /**
- * Like the TypeScript 7 extension, invokes new listeners immediately once the language server initialized.
+ * Like the TypeScript 7 extension, invokes new listeners immediately if the language server has already initialized.
  */
 class TestExtensionApi {
 	private readonly onDidInitialize = new vscode.EventEmitter<TypeScriptSDK | undefined>();

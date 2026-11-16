@@ -5,7 +5,6 @@
 
 import { API } from '@typescript/native/async';
 import type { TypeScriptSDK } from '@typescript/native/vscode';
-import { readFile } from 'fs/promises';
 import * as vscode from 'vscode';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
@@ -69,10 +68,10 @@ export class TypeScript7Connection implements vscode.Disposable {
 	private apiPromise: Promise<API<true> | undefined> | undefined;
 	private subscribed: boolean = false;
 	/**
-	 * Resolves to the SDK of the latest language server initialization, or to undefined if that server is unsupported.
-	 * Undefined while no language server has initialized.
+	 * The SDK of the latest language server initialization. Undefined if no language server has initialized yet or the
+	 * latest one doesn't provide the TypeScript 7.1 API.
 	 */
-	private sdk: Promise<TypeScriptSDK | undefined> | undefined;
+	private sdk: TypeScriptSDK | undefined;
 	private generation: number = 0;
 	private disposed: boolean = false;
 
@@ -114,7 +113,7 @@ export class TypeScript7Connection implements vscode.Disposable {
 			}
 			for (let attempt = 0; attempt < TypeScript7Connection.maxConnectAttempts; attempt++) {
 				const generation = this.generation;
-				const sdk = await this.sdk;
+				const sdk = this.sdk;
 				if (sdk === undefined) {
 					return undefined;
 				}
@@ -163,16 +162,17 @@ export class TypeScript7Connection implements vscode.Disposable {
 		this.reconnect();
 	}
 
-	private async getSupportedSdk(sdk: TypeScriptSDK | undefined): Promise<TypeScriptSDK | undefined> {
+	private getSupportedSdk(sdk: TypeScriptSDK | undefined): TypeScriptSDK | undefined {
 		let reason: string;
 		if (sdk === undefined) {
 			reason = 'the TypeScript 7 extension is too old';
+		} else if (providesTypeScript71Api(sdk.version)) {
+			return sdk;
+		} else if (sdk.version === 'local' || sdk.version === 'unknown') {
+			// Builds from source report `local`, and their API package manifest only has a placeholder version.
+			reason = 'the language server version is unknown';
 		} else {
-			const version = await getVersion(sdk);
-			if (version !== undefined && providesTypeScript71Api(version)) {
-				return sdk;
-			}
-			reason = version === undefined ? 'the language server version is unknown' : `the language server is version ${version}`;
+			reason = `the language server is version ${sdk.version}`;
 		}
 		this.logService.warn(`TypeScript 7 support requires a language server with the TypeScript 7.1 API, but ${reason}.`);
 		return undefined;
@@ -203,30 +203,11 @@ export class TypeScript7Connection implements vscode.Disposable {
 }
 
 /**
- * Returns the language server's version. Builds from source report `local` and take their version from their API
- * package manifest, which bare executables don't have.
- */
-async function getVersion(sdk: TypeScriptSDK): Promise<string | undefined> {
-	if (sdk.version !== 'local' && sdk.version !== 'unknown') {
-		return sdk.version;
-	}
-	if (sdk.packageJsonPath === undefined) {
-		return undefined;
-	}
-	try {
-		const manifest: { version?: unknown } = JSON.parse(await readFile(sdk.packageJsonPath, 'utf8'));
-		return typeof manifest.version === 'string' ? manifest.version : undefined;
-	} catch {
-		return undefined;
-	}
-}
-
-/**
  * Whether a language server of the given version provides the TypeScript 7.1 API that Copilot's client uses, for
  * example `createSnapshot`. Prereleases like `7.1.0-dev.20261105.1` count as 7.1.
  */
 function providesTypeScript71Api(version: string): boolean {
-	const match = /^(?<major>\d+)\.(?<minor>\d+)\./.exec(version);
+	const match = /^(?<major>\d+)\.(?<minor>\d+)/.exec(version);
 	if (match?.groups === undefined) {
 		return false;
 	}
