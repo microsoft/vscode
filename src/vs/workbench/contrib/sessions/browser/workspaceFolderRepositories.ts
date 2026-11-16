@@ -7,8 +7,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IObservable, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
-import { isAbsolute } from '../../../../base/common/path.js';
-import { basename, dirname, isEqual, joinPath } from '../../../../base/common/resources.js';
+import { isEqual, joinPath } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
@@ -16,6 +15,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ISessionsListingScope } from '../common/sessionsProvider.js';
 import { parseGitHubRepositoryFromGitConfig } from './gitHubRepositoryResolver.js';
+import { readFolderGitCheckout } from '../../../services/workspaces/common/gitFolderCheckout.js';
 
 /** The hosts of the GitHub repositories that Copilot Cloud sessions work in (`github-remote-file://github/...`). */
 const GITHUB_HOSTS = ['github.com'];
@@ -111,7 +111,7 @@ export class WorkspaceFolderRepositories extends Disposable implements ISessions
 
 	/** The checkout of `folder`, and whether to read it again as the folders change, as its `origin` could not be read. */
 	private async _readCheckout(folder: URI): Promise<{ readonly checkout: IFolderCheckout; readonly readAgain: boolean }> {
-		const repository = await WorkspaceFolderRepositories._readFolderGitRepository(this._fileService, folder);
+		const repository = (await readFolderGitCheckout(this._fileService, folder))?.repository;
 		if (!repository) {
 			return { checkout: { repository, gitHubRepository: undefined }, readAgain: false };
 		}
@@ -122,39 +122,6 @@ export class WorkspaceFolderRepositories extends Disposable implements ISessions
 			this._logService.warn(`[WorkspaceFolderRepositories] Could not read the git origin of ${repository.toString()}`, error);
 			return { checkout: { repository, gitHubRepository: undefined }, readAgain: true };
 		}
-	}
-
-	/**
-	 * The git repository that a local folder is a checkout of, read from its `.git`: the folder itself when `.git` is a
-	 * directory, and the main checkout when `.git` is the file of a worktree (`gitdir: <repository>/.git/worktrees/<name>`).
-	 * `undefined` for a folder without `.git`, or whose `.git` names no worktree, such as a submodule's. Throws when `.git`
-	 * exists but cannot be read.
-	 */
-	private static async _readFolderGitRepository(fileService: IFileService, folder: URI): Promise<URI | undefined> {
-		const dotGit = joinPath(folder, '.git');
-		let isDirectory: boolean;
-		try {
-			isDirectory = (await fileService.stat(dotGit)).isDirectory;
-		} catch (error) {
-			if (error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
-				return undefined;
-			}
-			throw error;
-		}
-		if (isDirectory) {
-			return folder;
-		}
-		const content = (await fileService.readFile(dotGit)).value.toString();
-		const gitdir = /^gitdir:\s*(?<path>.+?)\s*$/m.exec(content)?.groups?.path;
-		if (!gitdir) {
-			return undefined;
-		}
-		const worktreeGitDir = isAbsolute(gitdir) ? URI.file(gitdir) : joinPath(folder, gitdir);
-		const worktreesDir = dirname(worktreeGitDir);
-		const commonGitDir = dirname(worktreesDir);
-		return basename(worktreesDir) === 'worktrees' && basename(commonGitDir) === '.git' && !isEqual(commonGitDir, worktreesDir)
-			? dirname(commonGitDir)
-			: undefined;
 	}
 
 	/**
