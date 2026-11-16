@@ -72,7 +72,8 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 
 	/**
 	 * The forms of each folder asked about: as given, and its real path, read once. Like {@link _knownForms} and
-	 * {@link _offered}, only for the folders of the workspace, and at most {@link MAX_FOLDERS} of them.
+	 * {@link _offered}, only for the folders of the current workspace ({@link _isWorkspaceFolder}): another folder is answered
+	 * without keeping anything of it.
 	 */
 	private readonly _forms = new ResourceMap<Promise<readonly URI[]>>(folderKey);
 	/** The forms of the folders whose real path is read. */
@@ -122,17 +123,20 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 	 */
 	async provideLocations(primary: URI, _token: CancellationToken): Promise<IFolderLocation[]> {
 		const locations = getAgentHostSessionWorktrees(this._agentSessionsService.model.sessions, this.getFolderForms(primary));
-		this._remember(this._offered, primary, offeredKey(locations));
+		if (this._isWorkspaceFolder(primary)) {
+			this._offered.set(primary, offeredKey(locations));
+		}
 		return locations;
 	}
 
 	/**
-	 * The forms of `folder` known now: itself, and its real path where it differs, once read. The first ask starts reading it,
-	 * and {@link onDidChangeLocations} fires once it is known to differ, such as for a folder reached through a symbolic link.
+	 * The forms of `folder` known now: itself, and its real path where it differs, once read. For a folder of the workspace,
+	 * the first ask starts reading it, and {@link onDidChangeLocations} fires once it is known to differ, such as for a folder
+	 * reached through a symbolic link; another folder is itself only.
 	 */
 	getFolderForms(folder: URI): readonly URI[] {
 		const forms = this._knownForms.get(folder);
-		if (!forms) {
+		if (!forms && this._isWorkspaceFolder(folder)) {
 			void this._formsOf(folder);
 		}
 		return forms ?? [folder];
@@ -191,16 +195,20 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 		}
 	}
 
-	/** `folder`, and its real path where it differs, such as of a folder reached through a symbolic link: read once for each folder. */
+	/**
+	 * `folder`, and its real path where it differs, such as of a folder reached through a symbolic link: read once for each
+	 * folder of the workspace, and each time for another folder, of which nothing is kept.
+	 */
 	private _formsOf(folder: URI): Promise<readonly URI[]> {
 		let forms = this._forms.get(folder);
 		if (!forms) {
+			const keep = this._isWorkspaceFolder(folder);
 			forms = folder.scheme !== Schemas.file ? Promise.resolve([folder]) : this._fileService.realpath(folder).then(
 				real => {
 					const known = real && !extUriBiasedIgnorePathCase.isEqual(real, folder) ? [folder, real] : [folder];
 					// Not for a folder retired meanwhile, nor once disposed
-					if (this._forms.get(folder) === forms && !this._store.isDisposed) {
-						this._remember(this._knownForms, folder, known);
+					if (keep && this._forms.get(folder) === forms && !this._store.isDisposed) {
+						this._knownForms.set(folder, known);
 						if (known.length > 1) {
 							this._checkOffered();
 						}
@@ -214,44 +222,31 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 					}
 					return [folder];
 				});
-			this._remember(this._forms, folder, forms);
+			if (keep) {
+				this._forms.set(folder, forms);
+			}
 		}
 		return forms;
 	}
 
-	/** Sets `folder`'s `value` in `map`, keeping at most {@link MAX_FOLDERS} folders: the most recently set. */
-	private _remember<T>(map: ResourceMap<T>, folder: URI, value: T): void {
-		map.delete(folder);
-		map.set(folder, value);
-		for (const [oldest] of map) {
-			if (map.size <= MAX_FOLDERS) {
-				break;
-			}
-			map.delete(oldest);
-		}
+	/** Whether `folder` is of the current workspace: its own location, or one of its folders. */
+	private _isWorkspaceFolder(folder: URI): boolean {
+		const workspace = this._workspaceContextService.getWorkspace();
+		const key = folderKey(folder);
+		return [workspace.uri, ...workspace.folders.map(candidate => candidate.uri)].some(uri => !!uri && folderKey(uri) === key);
 	}
 
 	/** Forgets the folders that are no longer the workspace's, as its folders change. */
 	private _retireFolders(): void {
-		const workspace = this._workspaceContextService.getWorkspace();
-		const current = new ResourceMap<true>(folderKey);
-		for (const uri of [workspace.uri, ...workspace.folders.map(folder => folder.uri)]) {
-			if (uri) {
-				current.set(uri, true);
-			}
-		}
 		for (const map of [this._forms, this._knownForms, this._offered] as ResourceMap<unknown>[]) {
 			for (const [folder] of [...map]) {
-				if (!current.has(folder)) {
+				if (!this._isWorkspaceFolder(folder)) {
 					map.delete(folder);
 				}
 			}
 		}
 	}
 }
-
-/** The folders it keeps what it knows of: a window has one, as alternate locations are of a single-folder workspace. */
-const MAX_FOLDERS = 4;
 
 /** One folder however it is written: without `.` segments or a trailing separator, ignoring path case where the platform does. */
 function folderKey(folder: URI): string {

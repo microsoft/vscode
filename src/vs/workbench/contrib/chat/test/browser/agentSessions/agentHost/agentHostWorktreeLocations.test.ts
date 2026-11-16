@@ -47,7 +47,7 @@ suite('AgentHostWorktreeLocations', () => {
 	 * which `loading` holds. Without `registered`, the window has no local agent host's sessions. A folder in `realpaths` has
 	 * that real path, read once `realpathHeld` completes; `realpathFailures` reads fail first.
 	 */
-	function createProvider(sessions: readonly IAgentSession[], options: { readonly uncached?: readonly IAgentSession[]; readonly loading?: Promise<void>; readonly registered?: boolean; readonly realpaths?: Record<string, string>; readonly realpathHeld?: Promise<void>; realpathFailures?: number } = {}) {
+	function createProvider(sessions: readonly IAgentSession[], options: { readonly uncached?: readonly IAgentSession[]; readonly loading?: Promise<void>; readonly registered?: boolean; readonly realpaths?: Record<string, string>; readonly realpathHeld?: Promise<void>; realpathFailures?: number; readonly folders?: readonly URI[] } = {}) {
 		const onDidResolve = store.add(new Emitter<string>());
 		const onDidChangeSessions = store.add(new Emitter<void>());
 		const resolving: string[] = [];
@@ -71,8 +71,8 @@ suite('AgentHostWorktreeLocations', () => {
 			getRegisteredChatSessionItemProviders: () => registered ? ['remote', SessionType.AgentHostCopilot] : ['remote'],
 			onDidChangeItemsProviders: onDidChangeItemsProviders.event,
 		}));
-		// The window's workspace: its folder, which can change
-		let workspaceFolders = [primary];
+		// The window's workspace: its folders, which can change
+		let workspaceFolders = [...options.folders ?? [primary]];
 		const onDidChangeWorkspaceFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			getWorkspace: () => upcastPartial<IWorkspace>({ uri: workspaceFolders[0], folders: workspaceFolders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
@@ -162,7 +162,7 @@ suite('AgentHostWorktreeLocations', () => {
 			session('/private/tmp/vscode.worktrees/feature', '/private/tmp/vscode'),
 			session('/private/tmp/vscode/src', '/private/tmp/vscode'),
 			session('/private/tmp/vscode', '/private/tmp/vscode'),
-		], { realpaths: { '/tmp/vscode': '/private/tmp/vscode' }, realpathHeld: realpathHeld.p });
+		], { realpaths: { '/tmp/vscode': '/private/tmp/vscode' }, realpathHeld: realpathHeld.p, folders: [aliased] });
 		// The first lookup does not wait for the real path: the worktree follows once it is known, which the folder location
 		// service, and so whatever asks it, hears of
 		const service = createService(provider);
@@ -285,8 +285,8 @@ suite('AgentHostWorktreeLocations', () => {
 	});
 
 	test('reads the folder\'s real path again after a failed read, and once for a folder however it is written', async () => {
-		const provider = createProvider([session('/private/tmp/vscode.worktrees/feature', '/private/tmp/vscode')], { realpaths: { '/tmp/vscode': '/private/tmp/vscode' }, realpathFailures: 1 });
 		const aliased = URI.file('/tmp/vscode');
+		const provider = createProvider([session('/private/tmp/vscode.worktrees/feature', '/private/tmp/vscode')], { realpaths: { '/tmp/vscode': '/private/tmp/vscode' }, realpathFailures: 1, folders: [aliased] });
 		const afterFailure = await provider.resolveLocation(aliased, URI.file('/private/tmp/vscode.worktrees/feature'), CancellationToken.None);
 		const afterRetry = (await provider.resolveLocation(aliased, URI.file('/private/tmp/vscode.worktrees/feature'), CancellationToken.None))?.uri.path;
 		await provider.resolveLocation(URI.file('/tmp/vscode/'), URI.file('/private/tmp/vscode.worktrees/feature'), CancellationToken.None);
@@ -330,7 +330,7 @@ suite('AgentHostWorktreeLocations', () => {
 		assert.deepStrictEqual({ afterChanges, afterAsk: provider.realpathsRead }, { afterChanges: ['/work/vscode'], afterAsk: ['/work/vscode', '/work/vscode'] });
 	});
 
-	test('forgets a folder the workspace no longer has, and does nothing once disposed', async () => {
+	test('forgets a folder the workspace no longer has, keeps nothing of one it does not have, and does nothing once disposed', async () => {
 		const provider = createProvider([]);
 		const service = createService(provider);
 		let changes = 0;
@@ -341,13 +341,32 @@ suite('AgentHostWorktreeLocations', () => {
 		// A worktree of the folder that is retired
 		provider.changeSessions(sessions => sessions.push(session('/work/vscode.worktrees/feature', '/work/vscode')));
 		const afterRetiring = changes;
-		// Its real path is read again as it is asked about again
+		// Answered without keeping anything of it, or reading its real path
 		await service.getLocations(primary, CancellationToken.None);
+		provider.changeSessions(sessions => sessions.push(session('/work/vscode.worktrees/other', '/work/vscode')));
+		const afterAskingAgain = changes - afterRetiring;
 		const realpathsRead = [...provider.realpathsRead];
 		provider.disposeProvider();
 		provider.changeSessions(sessions => sessions.push(session('/work/vscode.worktrees/fix', '/work/vscode')));
 
-		assert.deepStrictEqual({ afterRetiring, afterDispose: changes - afterRetiring, realpathsRead }, { afterRetiring: 0, afterDispose: 0, realpathsRead: ['/work/vscode', '/work/vscode'] });
+		assert.deepStrictEqual({ afterRetiring, afterAskingAgain, afterDispose: changes - afterRetiring - afterAskingAgain, realpathsRead }, { afterRetiring: 0, afterAskingAgain: 0, afterDispose: 0, realpathsRead: ['/work/vscode'] });
+	});
+
+	test('keeps what it knows of every folder of the workspace, however many: each tells of its changes, and its real path is read once', async () => {
+		const roots = [1, 2, 3, 4, 5].map(index => URI.file(`/work/root${index}`));
+		const provider = createProvider([session('/work/root1.worktrees/feature', '/work/root1')], { folders: roots });
+		const service = createService(provider);
+		let changes = 0;
+		store.add(service.onDidChangeLocations(() => changes++));
+		for (let rotation = 0; rotation < 2; rotation++) {
+			for (const root of roots) {
+				await service.getLocations(root, CancellationToken.None);
+				await new Promise<void>(resolve => setTimeout(resolve, 0));
+			}
+		}
+		provider.changeSessions(sessions => { sessions[0] = session('/work/root1.worktrees/feature', '/work/root1', { branchName: 'feature' }); });
+
+		assert.deepStrictEqual({ changes, realpathsRead: provider.realpathsRead }, { changes: 1, realpathsRead: roots.map(root => root.path) });
 	});
 
 	test('grants the folder\'s trust only to a worktree of a session whose project is the folder, not to a folder of a session of another project', async () => {
