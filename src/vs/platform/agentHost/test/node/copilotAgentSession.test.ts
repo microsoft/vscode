@@ -10323,6 +10323,16 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('signals plugin changes when some managed plugins could not be prepared, which the runtime reports without a completion', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		let pluginChanges = 0;
+		disposables.add(session.onDidChangeRuntimePlugins(() => pluginChanges++));
+		mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Some plugins required by your organization admin could not be prepared.' }, { agentId: 'agent-1' });
+		const afterSubagentEvent = pluginChanges;
+		mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Some plugins required by your organization admin could not be prepared.' });
+		assert.deepStrictEqual({ afterSubagentEvent, pluginChanges }, { afterSubagentEvent: 0, pluginChanges: 1 });
+	});
+
 	test('`/review` invokes runtime command when listed', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		mockSession.commandListResult = {
