@@ -211,7 +211,7 @@ export async function pickScheduledChatTime(quickInputService: IQuickInputServic
 		{ label: localize('sendLater.customTime', "Choose Date and Time..."), date: undefined },
 	], {
 		title: localize('sendLater.title', "Send Later"),
-		placeHolder: localize('sendLater.pickTime', "Choose when to send. Times use this device's time zone."),
+		placeHolder: localize('sendLater.pickTime', "Choose when to send."),
 		anchor, anchorPosition: anchor ? 'above' : undefined,
 	});
 	if (!picked || picked.date) {
