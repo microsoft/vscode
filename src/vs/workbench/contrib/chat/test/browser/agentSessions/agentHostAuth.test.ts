@@ -282,6 +282,18 @@ suite('AgentHostAuthTokenCache', () => {
 		assert.deepStrictEqual({ results, authenticateCalls }, { results: [true, false], authenticateCalls: 1 });
 	});
 
+	test('a rejected response is surfaced and does not suppress a same-token retry', async () => {
+		const cache = new AgentHostAuthTokenCache();
+		let accepted = false;
+		let calls = 0;
+		const authenticate = async () => { calls++; return { authenticated: accepted }; };
+		await assert.rejects(cache.authenticate('https://service.example/token', ['read'], 'token', authenticate), /did not accept/);
+		accepted = true;
+		const forwarded = await cache.authenticate('https://service.example/token', ['read'], 'token', authenticate);
+		const repeated = await cache.authenticate('https://service.example/token', ['read'], 'token', authenticate);
+		assert.deepStrictEqual({ calls, forwarded, repeated }, { calls: 2, forwarded: true, repeated: false });
+	});
+
 	test('tracks identical MCP tokens independently by host session and customization id', async () => {
 		const cache = new AgentHostAuthTokenCache();
 		const targets = [
@@ -2323,7 +2335,7 @@ suite('authenticateProtectedResources', () => {
 			assert.deepStrictEqual({ request, scopedQueries: calls.filter(([, scopes]) => scopes !== undefined) }, {
 				request: {
 					resource: resource.resource, scopes: resource.scopes_supported, token: scoped.accessToken,
-					_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: account.id, label: account.label }),
+					_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: account.id }),
 				},
 				scopedQueries: [['microsoft', resource.scopes_supported, { account, authorizationServer: URI.parse(resource.authorization_servers[0]), silent: true }, true]],
 			});

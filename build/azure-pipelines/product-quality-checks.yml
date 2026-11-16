@@ -1,14 +1,15 @@
 parameters:
-  # Hygiene and oxlint check only the files that the commits of the build change, unless a change can affect other
-  # files (see build/lib/changedFiles.ts). Other builds check every file.
-  - name: VSCODE_CHECK_CHANGED_FILES
-    type: boolean
-    default: false
   # Whether to include the steps that need a privileged service connection
   # (source map upload). Only product-build-ci.yml sets this to false.
   - name: VSCODE_PRIVILEGED_CONNECTIONS
     type: boolean
     default: true
+  # Whether to fail on an unreviewed contribution or forbidden module in the mobile web
+  # package (see build/next/MOBILE.md). Product builds keep the mobile package best-effort
+  # in their Web stage, so only product-build-ci.yml sets this.
+  - name: VSCODE_CHECK_MOBILE_BOUNDARY
+    type: boolean
+    default: false
 
 jobs:
   - job: Quality
@@ -399,33 +400,14 @@ jobs:
       - script: rm -rf .oss-build-out ThirdPartyNotices.generated.txt
         displayName: Remove NOTICE intermediates
 
-      - ${{ if eq(parameters.VSCODE_CHECK_CHANGED_FILES, true) }}:
-        - script: node build/azure-pipelines/common/computeChangedSince.ts
-          env:
-            SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-          displayName: Determine hygiene and oxlint scope
+      - script: pnpm exec npm-run-all2 -lp core-ci hygiene oxlint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+        env:
+          GITHUB_TOKEN: "$(github-token-code-oss)"
+        displayName: Compile & Hygiene
 
-        # With VSCODE_CHANGED_SINCE, hygiene and oxlint check only the files that changed since that commit, so they
-        # take seconds and fail the job before the compilation checks start. --continue-on-error reports both when both
-        # fail. oxlint runs the rules of eslint.config.js (see oxlint.config.ts) and stays out of the compilation checks
-        # so that the memory of its processes doesn't overlap theirs. No `--` before the arguments: pnpm passes it on to
-        # the script, where it ends option parsing.
-        - script: |
-            set -e
-            changed_since="${VSCODE_CHANGED_SINCE:+ --changed-since $VSCODE_CHANGED_SINCE}"
-            pnpm exec npm-run-all2 -lp --continue-on-error "hygiene$changed_since" "oxlint$changed_since"
-          displayName: Hygiene & oxlint
-
-        - script: pnpm exec npm-run-all2 -lp core-ci valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
-          env:
-            GITHUB_TOKEN: "$(github-token-code-oss)"
-          displayName: Compile
-
-      - ${{ else }}:
-        - script: pnpm exec npm-run-all2 -lp core-ci hygiene oxlint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
-          env:
-            GITHUB_TOKEN: "$(github-token-code-oss)"
-          displayName: Compile & Hygiene
+      - ${{ if eq(parameters.VSCODE_CHECK_MOBILE_BOUNDARY, true) }}:
+        - script: pnpm run check-mobile-boundary
+          displayName: Check mobile dependency boundary
 
       # Copilot has its own TypeScript projects and code style, which the steps above don't check (see
       # build/filters.ts). Like the build of the built-in Copilot (see copilot/builtin-steps.yml), the checks run after

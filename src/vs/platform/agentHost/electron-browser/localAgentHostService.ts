@@ -39,7 +39,7 @@ import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.j
 import { reviveConnectionDiagnosticError } from '../common/connectionDiagnostics.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
 import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from '../common/agentHostSavedChat.js';
-import type { AgentProvider, AgentSandboxCertificateOperation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationPreparation } from '../common/agent.js';
+import type { AgentCanvasOpenAnswer, AgentCanvasOpenResult, AgentProvider, AgentSandboxCertificateOperation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationPreparation } from '../common/agent.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
@@ -543,6 +543,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().stopBackgroundWork(chat, id);
 	}
 
+	answerShellAuthentication(chat: URI, requestId: string, answer: string | undefined): Promise<boolean> {
+		return this._requireClient().answerShellAuthentication(chat, requestId, answer);
+	}
+
 	readonly sandboxCertificateInstallationSupported = constObservable(true);
 	readonly sandboxCertificateRotationSupported = constObservable(true);
 	readonly sandboxCertificateRemovalSupported = constObservable(true);
@@ -624,7 +628,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().listPluginInstallations(provider, session, chat);
 	}
 
-	setPluginEnabled(provider: string, plugin: string, enabled: boolean, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void> {
+	setPluginEnabled(provider: string, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void> {
 		return this._getManagementService().setPluginEnabled(provider, plugin, enabled, scope, session, chat);
 	}
 
@@ -640,8 +644,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().listSessionCanvases(session, chat);
 	}
 
-	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
-		return this._getManagementService().openSessionCanvas(session, request, chat);
+	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI, answer?: AgentCanvasOpenAnswer): Promise<AgentCanvasOpenResult> {
+		return this._getManagementService().openSessionCanvas(session, request, chat, answer);
 	}
 
 	closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void> {
@@ -656,15 +660,15 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().retryManagedPlugins(provider, session, chat);
 	}
 
-	listPluginMarketplaces(provider: string, session: URI, chat?: URI) {
+	listPluginMarketplaces(provider: string, session?: URI, chat?: URI) {
 		return this._getManagementService().listPluginMarketplaces(provider, session, chat);
 	}
 
-	addPluginMarketplace(provider: string, session: URI, source: string, chat?: URI) {
+	addPluginMarketplace(provider: string, session: URI | undefined, source: string, chat?: URI) {
 		return this._getManagementService().addPluginMarketplace(provider, session, source, chat);
 	}
 
-	browsePluginMarketplace(provider: string, session: URI, name: string, chat?: URI) {
+	browsePluginMarketplace(provider: string, session: URI | undefined, name: string, chat?: URI) {
 		return this._getManagementService().browsePluginMarketplace(provider, session, name, chat);
 	}
 

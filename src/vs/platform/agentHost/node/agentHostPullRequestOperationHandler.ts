@@ -10,6 +10,7 @@ import { equals } from '../../../base/common/objects.js';
 import { isEqualOrParent, relativePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
+import { AgentSession } from '../common/agent.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
@@ -379,6 +380,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			try {
 				const generatedBranchName = await this._branchNameGenerator.generateBranchName({
 					sessionId: URI.parse(sessionUri).path.split('/').filter(Boolean).pop() ?? sessionUri,
+					agentSessionId: AgentSession.id(sessionUri),
 					message: conversationState.turns.find(turn => turn.message.text.trim())?.message.text,
 					githubToken: authToken,
 					signal,
@@ -692,6 +694,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		try {
 			raw = await this._utilityModelService.chatCompletion(modelContext, {
 				messages: this._buildTitleAndDescriptionPrompt(branchName, base, conversation, changeSummary),
+				telemetry: { source: 'githubPullRequestTitleAndDescriptionGenerator' },
 			}, { signal });
 		} catch (err) {
 			if (err instanceof AgentHostUtilityModelUnavailableError) {

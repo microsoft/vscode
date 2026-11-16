@@ -442,6 +442,12 @@ export interface ISessionsService extends ISessionGridPanes {
 
 	/** Navigate to the next session in the navigation history. */
 	openNextSession(): Promise<void>;
+
+	/** Registers history restoration; return false without changing input when unavailable, and honor cancellation and preserveNavigation when opening. */
+	registerSavedDraftOpener(opener: (draftId: string, token: CancellationToken) => Promise<boolean>): IDisposable;
+
+	/** Identifies the current composition; preserve its history entry when clearing a draft during navigation. */
+	setCurrentDraftId(draftId: string | undefined, preserveCurrentEntry?: boolean): void;
 }
 
 export const ISessionsService = createDecorator<ISessionsService>('sessionsService');
@@ -495,6 +501,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	private readonly _pendingRestoredChatResources = new ResourceMap<URI>();
 	private readonly _pendingExplicitChatOpens = new ResourceMap<{ readonly chatResource: URI; readonly token: CancellationToken }>();
 	private readonly _navigation: SessionsNavigation;
+	private _savedDraftOpener: ((draftId: string, token: CancellationToken) => Promise<boolean>) | undefined;
 	/**
 	 * The single source of truth for session recency (most-recently-opened
 	 * first), persisted across restarts. Both the recent-sessions picker (via
@@ -590,6 +597,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				openSession: (resource, options) => this._openSession(resource, options, 'history'),
 				openChat: (session, resource) => this._openChatSession(session, resource, { source: 'navigation' }, 'history'),
 				openNewSession: async () => { await this._openNewSession({ cancelRestore: true }, CancellationToken.None, 'history'); },
+				openSavedDraft: async (draftId, token) => this._savedDraftOpener?.(draftId, token) ?? false,
 			},
 			this.activePane,
 			this.customViewService,
@@ -650,7 +658,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 		// Reflect both provider session replacement (e.g. a draft graduating)
 		// and pre-send draft replacement onto the same visible grid slot.
-		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => this._onDidReplaceSession(from, to)));
+		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to, chats }) => this._onDidReplaceSession(from, to, chats)));
 		this._register(this.sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => this._onDidReplaceSession(from, to)));
 
 		// A chat that moved to another session keeps being shown there.
@@ -714,10 +722,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}));
 	}
 
-	private _onDidReplaceSession(from: ISession, to: ISession): void {
+	private _onDidReplaceSession(from: ISession, to: ISession, chats?: ResourceMap<URI>): void {
 		const sessionView = this.sessionsPartService.getSessionView(from.sessionId);
 		const preserveFocus = !sessionView || this.sessionsPartService.getFocusedSessionView() !== sessionView;
-		this._visibility.updateSession(from, to, preserveFocus);
+		this._visibility.updateSession(from, to, preserveFocus, chats);
 	}
 
 	/**
@@ -1983,6 +1991,21 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return this._openNewSession(options, token, 'explicit');
 	}
 
+	registerSavedDraftOpener(opener: (draftId: string, token: CancellationToken) => Promise<boolean>): IDisposable {
+		this._navigation.cancelPendingDraftOpen();
+		this._savedDraftOpener = opener;
+		return toDisposable(() => {
+			if (this._savedDraftOpener === opener) {
+				this._savedDraftOpener = undefined;
+				this._navigation.cancelPendingDraftOpen();
+			}
+		});
+	}
+
+	setCurrentDraftId(draftId: string | undefined, preserveCurrentEntry?: boolean): void {
+		this._navigation.setCurrentDraftId(draftId, preserveCurrentEntry);
+	}
+
 	private async _openNewSession(options: IOpenNewSessionOptions | undefined, token: CancellationToken, intent: SessionNavigationIntent): Promise<IOpenNewSessionResult> {
 		// A draft of another slot is never shown in the grid, so it does not navigate, like a preserved custom view.
 		const draftSlot = options?.draftSlot && options.draftSlot !== this.sessionsManagementService.defaultNewSessionSlot ? options.draftSlot : undefined;
@@ -2044,7 +2067,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 					this._activateOrInsert(session, options?.toSide, intent);
 				}
 				if (intent === 'explicit' && !options?.preserveNavigation) {
-					this._navigation.recordOpened({ kind: 'newSession' });
+					this._navigation.recordNewSessionOpened();
 				}
 				return { session, trustDeclined: false };
 			} catch (e) {
@@ -2075,7 +2098,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				}
 			}
 			if (intent === 'explicit' && !options?.preserveNavigation) {
-				this._navigation.recordOpened({ kind: 'newSession' });
+				this._navigation.recordNewSessionOpened();
 			}
 			return { session: undefined, trustDeclined: false };
 		}
@@ -2094,7 +2117,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			: newSession;
 		this._activateOrInsert(targetSession, options?.toSide, intent, options?.preserveCustomView);
 		if (intent === 'explicit' && !options?.preserveNavigation) {
-			this._navigation.recordOpened({ kind: 'newSession' });
+			this._navigation.recordNewSessionOpened();
 		}
 		return { session: targetSession, trustDeclined: false };
 	}
@@ -2791,7 +2814,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const target = targets[idx];
 			let session: ISession | null | undefined;
 			if (!target.resource) {
-				session = null; // empty new-session slot
+				const draft = this.sessionsManagementService.newSession.get();
+				// Workspace restoration can populate the composer before the persisted grid is applied.
+				session = draft && this._slotSessions.get().some(visible => visible?.sessionId === draft.sessionId) ? draft : null;
 			} else if (idx === activeIdx) {
 				session = activeSession;
 			} else {

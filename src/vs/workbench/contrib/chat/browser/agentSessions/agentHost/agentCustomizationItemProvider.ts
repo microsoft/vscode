@@ -140,7 +140,9 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				: undefined),
 			enabled: runtime && runtime.effectiveEnabled === undefined ? undefined : isCustomizationEnabled(customization),
 			disabledReason: getCustomizationDisabledReason(customization),
-			organizationControl: readCustomizationOrganizationMeta(customization),
+			// A plugin the runtime installed states what the organization requires with its activation.
+			organizationControl: readCustomizationOrganizationMeta(customization)
+				?? (runtime?.managedDesiredEnabled !== undefined ? { requiredEnabled: runtime.managedDesiredEnabled } : undefined),
 			extensionId: undefined,
 			pluginUri: uri,
 			userInvocable: undefined,
@@ -318,13 +320,14 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				id: uri.toString(),
 				kind: isAsk ? ChatModeKind.Ask : undefined,
 				uri,
+				sourceUri: sources[index].sourceUri,
 				name: agent.name,
 				description: agent.description,
 				sessionTypes: sessionTypes,
 				enabled: true,
 				// fill default/empty values for all other properties they will not be used by the UI
 				// when making a request, all that's needed is the agent id.
-				source: sources[index],
+				source: sources[index].source,
 				tools: undefined,
 				agents: undefined,
 				argumentHint: meta['vscode.argumentHint'],
@@ -525,7 +528,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		return sessionAgents.length > 0 ? sessionAgents : this._draftCustomAgents?.get() ?? [];
 	}
 
-	private async getAgentSources(sessionResource: URI, agents: readonly AgentCustomization[], token: CancellationToken): Promise<readonly IAgentSource[]> {
+	private async getAgentSources(sessionResource: URI, agents: readonly AgentCustomization[], token: CancellationToken): Promise<readonly { readonly source: IAgentSource; readonly sourceUri: URI | undefined }[]> {
 		let extensionFiles: readonly IPromptPath[] = [];
 		try {
 			extensionFiles = await this._promptsService.listPromptFilesForStorage(PromptsType.agent, PromptStorage.extension, token);
@@ -571,7 +574,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			const isDraft = drafts.some(candidate => isEqual(URI.parse(candidate.uri), uri));
 			const extensionId = extensionIds.get(agent);
 			const extensionLabel = extensionId
-				? localize('agentSource.extension', "Extension: {0}", extensionLabels.get(ExtensionIdentifier.toKey(extensionId)) ?? extensionId)
+				? localize('agentSource.extension', "Extension: {0}", extensionLabels.get(ExtensionIdentifier.toKey(extensionId)) ?? origins.get(agent)?.extensionLabel ?? extensionId)
 				: undefined;
 			const draftContainers = !published && isDraft
 				? containers.filter(candidate => {
@@ -625,7 +628,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			const source: IAgentSource = extensionId
 				? { storage: PromptStorage.extension, extensionId: new ExtensionIdentifier(extensionId) }
 				: { storage: readAgentCustomizationMeta(agent)['vscode.chatMode'] === 'ask' ? PromptStorage.builtIn : PromptStorage.local };
-			return { ...source, label: disambiguatedLabels[index] };
+			return { source: { ...source, label: disambiguatedLabels[index] }, sourceUri: origins.get(agent)?.uri };
 		});
 	}
 
@@ -660,6 +663,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			uri: origin.uri,
 			source: origin.source,
 			extensionId: origin.extensionId,
+			extensionLabel: origin.extensionLabel,
 			pluginUri: origin.pluginUri,
 		};
 	}

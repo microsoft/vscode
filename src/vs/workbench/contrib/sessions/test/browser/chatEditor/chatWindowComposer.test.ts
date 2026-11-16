@@ -28,7 +28,7 @@ import { ISessionsProvider } from '../../../common/sessionsProvider.js';
 import { ISessionGroupsService } from '../../../browser/sessionGroupsService.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../services/sessions/common/session.js';
-import { ICreateNewSessionSlotOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { ICreateNewSessionSlotOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, ISessionsManagementService, WorkspaceNotTrustedError } from '../../../common/sessionsManagement.js';
 import { IChatRequestVariableEntry } from '../../../../chat/common/attachments/chatVariableEntries.js';
 import { ChatDynamicVariableModel } from '../../../../chat/browser/attachments/chatDynamicVariables.js';
 import { IDynamicVariable } from '../../../../chat/common/attachments/chatVariables.js';
@@ -219,7 +219,7 @@ suite('Chat window composer', () => {
 		const { slot } = slots[0];
 		const send = (sessionId: string) => {
 			const session = createSession(sessionId, { folder: '/repo' });
-			return { session, tracked: composer.trackBackgroundSend({ session, query: 'hello', attachedContext: undefined, isLatest: () => true }) };
+			return { session, tracked: composer.trackBackgroundSend({ session, query: 'hello', attachedContext: undefined, requestedInBackground: true, isLatest: () => true }) };
 		};
 		const failed = send('failed');
 		const replaced = send('replaced');
@@ -257,7 +257,7 @@ suite('Chat window composer', () => {
 			const attempt = composer.input.beginSendAttempt(written);
 			composer.input.set({ inputText: '', attachments: [] });
 			const session = createSession(name, { folder: '/repo' });
-			composer.trackBackgroundSend({ session, query: 'fix it', attachedContext: undefined, isLatest: () => latest });
+			composer.trackBackgroundSend({ session, query: 'fix it', attachedContext: undefined, requestedInBackground: true, isLatest: () => latest });
 			composer.input.endSendAttempt(attempt);
 			return session;
 		};
@@ -307,6 +307,50 @@ suite('Chat window composer', () => {
 		});
 	});
 
+	test('an ordinary send that the composer sent in the background and the user did not start, by declining to trust its workspace or cancelling it, gives its prompt back without an error, with its inline references; once the user typed, it offers Restore Prompt and Copy Prompt; one the user sent in the background gives nothing back', async () => {
+		const store = disposables.add(new DisposableStore());
+		const { events, actions, onDidEnd, slots, createComposer } = createServices(store);
+		const composer = store.add(createComposer());
+		const { slot } = slots[0];
+		events.length = 0;
+		const written = { inputText: '#attachment:index.ts fix it', attachments: [], references: [{ id: 'a', range: new Range(1, 1, 1, 21), data: URI.file('/repo/index.ts') }] };
+		store.add(composer.input.registerRestorer(() => true));
+		// As the composer sends in the background: it records what was written, clears its input, and sends.
+		const send = (name: string, requestedInBackground: boolean) => {
+			const attempt = composer.input.beginSendAttempt(written);
+			composer.input.set({ inputText: '', attachments: [] });
+			const session = createSession(name, { folder: '/repo' });
+			composer.trackBackgroundSend({ session, query: 'fix it', attachedContext: undefined, requestedInBackground, isLatest: () => true });
+			composer.input.endSendAttempt(attempt);
+			return session;
+		};
+		const end = (session: ISession, error: unknown) => onDidEnd.fire({ session, owner: slot, started: false, readopted: false, error });
+
+		end(send('untrusted', false), new WorkspaceNotTrustedError());
+		const untrusted = { input: composer.input.get().input, events: events.splice(0) };
+		composer.input.set({ inputText: '', attachments: [] });
+		end(send('cancelled', false), new CancellationError());
+		const cancelled = { input: composer.input.get().input.inputText, events: events.splice(0) };
+		composer.input.set({ inputText: '', attachments: [] });
+		const typedOver = send('typed', false);
+		composer.input.set({ inputText: 'next', attachments: [] });
+		end(typedOver, new CancellationError());
+		const typed = { input: composer.input.get().input.inputText, events: events.splice(0) };
+		await actions[1].run();
+		const copied = events.splice(0);
+		composer.input.set({ inputText: '', attachments: [] });
+		end(send('requested', true), new WorkspaceNotTrustedError());
+		const requested = { input: composer.input.get().input.inputText, events: events.splice(0) };
+
+		assert.deepStrictEqual({ untrusted, cancelled, typed, copied, requested }, {
+			untrusted: { input: written, events: ['status: The prompt of the session that wasn\'t started is back in the composer.'] },
+			cancelled: { input: '#attachment:index.ts fix it', events: ['status: The prompt of the session that wasn\'t started is back in the composer.'] },
+			typed: { input: 'next', events: ['notify: The session in repo with type wasn\'t started. [Restore Prompt, Copy Prompt]'] },
+			copied: ['copied: #attachment:index.ts fix it'],
+			requested: { input: '', events: [] },
+		});
+	});
+
 	test('a background send that fails while the composer\'s input still sends, such as while it reseeds after the send was accepted, is not reported as given back: its prompt stays in the notification, which restores it once the input shows it, and copies it while the input cannot; one that fails once the input is idle shows in the input', async () => {
 		const store = disposables.add(new DisposableStore());
 		const { events, actions, onDidAccept, onDidEnd, slots, createComposer } = createServices(store);
@@ -351,7 +395,7 @@ suite('Chat window composer', () => {
 			composer.input.beginSendAttempt({ inputText: state.text, attachments: [...state.attachments], references: [...state.references] });
 			state.text = ''; state.attachments = []; state.references = []; changed.fire();
 			const session = createSession(name, { folder: '/repo' });
-			composer.trackBackgroundSend({ session, query: 'fix it', attachedContext: undefined, isLatest: () => true });
+			composer.trackBackgroundSend({ session, query: 'fix it', attachedContext: undefined, requestedInBackground: true, isLatest: () => true });
 			onDidAccept.fire({ session, owner: slot, background: true });
 			return session;
 		};
@@ -397,7 +441,7 @@ suite('Chat window composer', () => {
 			const attempt = composer.input.beginSendAttempt(written);
 			composer.input.set({ inputText: '', attachments: [] });
 			const session = createSession(name, { folder: '/repo' });
-			composer.trackBackgroundSend({ session, query: 'fix it', attachedContext: undefined, isLatest: () => true });
+			composer.trackBackgroundSend({ session, query: 'fix it', attachedContext: undefined, requestedInBackground: true, isLatest: () => true });
 			composer.input.endSendAttempt(attempt);
 			return session;
 		};
@@ -424,6 +468,27 @@ suite('Chat window composer', () => {
 			restoreUnrendered: { snapshot: '', events: ['copied: fix it', 'info: The composer can\'t take the prompt back now, so it was copied to the clipboard instead.'] },
 			goneInput: { snapshot: '', events: offered },
 			restoreShown: { snapshot: 'fix it', events: [], shownBy: ['fix it'] },
+		});
+	});
+
+	test('a composer of a window with folders creates sessions only in them and in the folder it aims at; one of a window without folders anywhere', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createServices(store);
+		const composers = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const windowFolders = observableValue<readonly URI[]>('windowFolders', [URI.file('/repo')]);
+		const allowed = (target: string | undefined) => {
+			const composer = store.add(composers.create(URI.parse(`vscode-agents-composer:/${target ?? 'none'}`), { target: target ? { folderUri: URI.file(target) } : undefined, allowedFolders: windowFolders }, async () => { }));
+			return composer.allowedFolders?.get().map(folder => folder.path);
+		};
+		const inWindow = { window: allowed('/repo'), sibling: allowed('/repo.worktrees/feature'), none: allowed(undefined) };
+		windowFolders.set([], undefined);
+
+		assert.deepStrictEqual({ ...inWindow, emptyWindow: allowed('/repo.worktrees/feature'), chatWindow: store.add(composers.create(URI.parse('vscode-agents-composer:/chat-window'), {}, async () => { })).allowedFolders }, {
+			window: ['/repo'],
+			sibling: ['/repo', '/repo.worktrees/feature'],
+			none: ['/repo'],
+			emptyWindow: [],
+			chatWindow: undefined,
 		});
 	});
 

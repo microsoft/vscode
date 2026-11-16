@@ -9,6 +9,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
 import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
@@ -64,8 +65,10 @@ import {
 	IBrowserViewHost,
 	IBrowserViewAccessibilitySnapshot,
 	IBrowserViewNetwork,
+	IBrowserViewNetworkFileSystem,
 	IBrowserViewSessionOptions,
 	getBrowserViewSessionNetwork,
+	BROWSER_REMOTE_FILE_SCHEMES,
 } from '../../../../platform/browserView/common/browserView.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
@@ -287,6 +290,9 @@ export interface IBrowserViewOpenHandler {
 	shouldOpenEditor(input: BrowserEditorInput, owner: IBrowserViewOwner, editorOptions: IBrowserViewEditorOpenOptions): boolean;
 }
 
+/** Resource schemes of HTML files that can be opened in the integrated browser. */
+export const BROWSER_FILE_SCHEMES: readonly string[] = [Schemas.file, ...BROWSER_REMOTE_FILE_SCHEMES];
+
 /** Whether browser views may use remote networks (see {@link IBrowserViewNetworkResolver}). */
 export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemoteProxy';
 
@@ -314,6 +320,15 @@ export interface IBrowserViewNetworkResolver {
 	 * Called synchronously alongside {@link resolveNetwork}.
 	 */
 	resolveStorageAffinity?(owner: IBrowserViewOwner): string | undefined;
+	/** Trusted folders on the file systems of the networks this resolver resolves views to, which tabs of any session may load files from. */
+	getTrustedFileRoots?(): readonly URI[];
+	/**
+	 * Whether the file system of a network distinguishes paths by case, or `undefined` if unknown.
+	 * Only asked for networks that are not the window's own remote.
+	 */
+	isPathCaseSensitive?(network: IBrowserViewNetwork): boolean | undefined;
+	/** Fires when what tabs may read from the networks' file systems may have changed: {@link getTrustedFileRoots} or {@link isPathCaseSensitive}. */
+	readonly onDidChangeFileAccess?: Event<void>;
 	/** The status of a network this resolver resolves views to. */
 	getNetworkStatus(network: IBrowserViewNetwork): IBrowserViewNetworkStatus;
 	/** Fires when the status of any network may have changed. */
@@ -366,6 +381,12 @@ export interface IBrowserViewWorkbenchService {
 	 * An existing view's network is its model's {@link IBrowserViewModel.network}.
 	 */
 	resolveNetwork(owner: IBrowserViewOwner): IBrowserViewNetwork | undefined;
+
+	/**
+	 * The file system behind a remote network: the scheme of the URIs that read it (`vscode-remote` for the window's own remote,
+	 * otherwise the agent host scheme), and whether it distinguishes paths by case (strict if unknown).
+	 */
+	getNetworkFileSystem(network: IBrowserViewNetwork): IBrowserViewNetworkFileSystem;
 
 	/**
 	 * Hold a network's proxy until the returned reference is disposed, so

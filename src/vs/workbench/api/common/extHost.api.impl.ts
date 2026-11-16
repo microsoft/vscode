@@ -729,6 +729,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider, metadata?: vscode.DocumentSymbolProviderMetadata): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentSymbolProvider(extension, checkSelector(selector), provider, metadata);
 			},
+			registerStructuralDiffProvider(selector: vscode.DocumentSelector, provider: vscode.StructuralDiffProvider): vscode.Disposable {
+				return extHostLanguageFeatures.registerStructuralDiffProvider(extension, checkSelector(selector), provider);
+			},
 			registerWorkspaceSymbolProvider(provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerWorkspaceSymbolProvider(extension, provider);
 			},
@@ -2127,6 +2130,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			SnippetString: extHostTypes.SnippetString,
 			SourceBreakpoint: extHostTypes.SourceBreakpoint,
 			StandardTokenType: extHostTypes.StandardTokenType,
+			StructuralDiffClassification: extHostTypes.StructuralDiffClassification,
+			StructuralDiffTag: extHostTypes.StructuralDiffTag,
 			SyntaxHighlightingTokenFontStyle: extHostTypes.SyntaxHighlightingTokenFontStyle,
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
 			SymbolInformation: extHostTypes.SymbolInformation,

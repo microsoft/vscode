@@ -51,9 +51,9 @@ export class TestSessionsList extends SessionsList {
 		return true;
 	}
 
-	/** Selects the referenced session and chat rows. Returns `false` when a row is missing or is a header. */
+	/** Selects the referenced content rows. Returns `false` when a row is missing or is a header. */
 	setSelectedItems(items: readonly SessionsListItemReference[]): boolean {
-		if (!items.every(item => hasKey(item, { session: true }))) {
+		if (!items.every(item => hasKey(item, { session: true }) || hasKey(item, { pendingSession: true }))) {
 			return false;
 		}
 		const elements = items.map(item => this.findItem(item));

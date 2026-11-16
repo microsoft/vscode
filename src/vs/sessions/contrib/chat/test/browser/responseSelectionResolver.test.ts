@@ -58,6 +58,8 @@ suite('resolveResponseSelection', () => {
 		const store = disposables.add(new DisposableStore());
 		const doc = dom.getActiveDocument();
 		const widgetDomNode = doc.createElement('div');
+		widgetDomNode.style.userSelect = 'text';
+		widgetDomNode.style.webkitUserSelect = 'text';
 		doc.body.appendChild(widgetDomNode);
 		store.add(toDisposable(() => widgetDomNode.remove()));
 		return { store, doc, widgetDomNode };
@@ -499,6 +501,92 @@ suite('resolveResponseSelection', () => {
 		});
 
 		assert.strictEqual(resolveResponseSelection(widget)?.text, 'hello world');
+	});
+
+	for (const direction of ['forward', 'backward'] as const) {
+		test(`ignores unselectable metadata at the ${direction} native selection focus`, () => {
+			const { store, doc, widgetDomNode } = setup();
+			const metadata = dom.$('div');
+			metadata.style.userSelect = 'none';
+			metadata.style.webkitUserSelect = 'none';
+			dom.append(metadata, dom.$('span')).textContent = 'Completed 10 steps';
+			const markdown = dom.$('.chat-markdown-part');
+			const textNode = doc.createTextNode('hello world');
+			markdown.appendChild(textNode);
+			widgetDomNode.append(...(direction === 'backward' ? [metadata, markdown] : [markdown, metadata]));
+
+			const selection = dom.getWindow(widgetDomNode).getSelection();
+			assert.ok(selection);
+			store.add(toDisposable(() => selection.removeAllRanges()));
+			selection.setBaseAndExtent(
+				textNode,
+				direction === 'backward' ? textNode.data.length : 0,
+				metadata,
+				direction === 'backward' ? 0 : metadata.childNodes.length,
+			);
+			const response = makeResponse('turn-1');
+			const widget = upcastPartial<IChatWidget>({
+				domNode: widgetDomNode,
+				getElementFromNode: () => response,
+			});
+			const resolved = resolveResponseSelection(widget);
+
+			assert.deepStrictEqual({
+				nativeText: selection.toString().trim(),
+				rangeIncludesMetadata: selection.getRangeAt(0).toString().includes('Completed 10 steps'),
+				response: resolved?.response,
+				text: resolved?.text,
+				direction: resolved?.direction,
+				focusContainer: resolved?.focusRange.startContainer,
+				focusOffset: resolved?.focusRange.startOffset,
+			}, {
+				nativeText: 'hello world',
+				rangeIncludesMetadata: true,
+				response,
+				text: selection.toString().trimEnd(),
+				direction,
+				focusContainer: textNode,
+				focusOffset: direction === 'backward' ? 0 : textNode.data.length - 1,
+			});
+		});
+	}
+
+	test('preserves selectable markdown inside an unselectable ancestor', () => {
+		const { store, doc, widgetDomNode } = setup();
+		const wrapper = dom.append(widgetDomNode, dom.$('div'));
+		wrapper.style.userSelect = 'none';
+		wrapper.style.webkitUserSelect = 'none';
+		dom.append(wrapper, dom.$('span')).textContent = 'Completed 10 steps';
+		const markdown = dom.append(wrapper, dom.$('.chat-markdown-part'));
+		markdown.style.userSelect = 'text';
+		markdown.style.webkitUserSelect = 'text';
+		const textNode = doc.createTextNode('hello world');
+		markdown.appendChild(textNode);
+
+		const selection = dom.getWindow(widgetDomNode).getSelection();
+		assert.ok(selection);
+		store.add(toDisposable(() => selection.removeAllRanges()));
+		selection.setBaseAndExtent(textNode, textNode.data.length, widgetDomNode, 0);
+		const response = makeResponse('turn-1');
+		const widget = upcastPartial<IChatWidget>({
+			domNode: widgetDomNode,
+			getElementFromNode: () => response,
+		});
+		const resolved = resolveResponseSelection(widget);
+
+		assert.deepStrictEqual({
+			nativeText: selection.toString(),
+			response: resolved?.response,
+			text: resolved?.text,
+			direction: resolved?.direction,
+			focusContainer: resolved?.focusRange.startContainer,
+		}, {
+			nativeText: 'hello world',
+			response,
+			text: 'hello world',
+			direction: 'backward',
+			focusContainer: textNode,
+		});
 	});
 
 	test('rejects a selection outside the markdown scope', () => {

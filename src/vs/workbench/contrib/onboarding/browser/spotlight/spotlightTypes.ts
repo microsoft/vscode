@@ -69,6 +69,9 @@ export interface ISpotlightStep {
 		readonly advance?: boolean;
 	};
 
+	/** Focuses the end tour button instead of the primary action when the step is shown, so Enter does not run the action. */
+	readonly focusEndTour?: boolean;
+
 	/** Preferred placement of the callout. Defaults to `'auto'`. */
 	readonly placement?: SpotlightPlacement;
 

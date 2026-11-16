@@ -8,7 +8,7 @@ import { Range } from '../range.js';
 import { OffsetRange } from '../ranges/offsetRange.js';
 
 /**
- * Represents a non-negative length of text in terms of line and column count.
+ * Represents a non-negative length of text in terms of line and UTF-16 column count.
 */
 export class TextLength {
 	public static zero = new TextLength(0, 0);
@@ -48,7 +48,7 @@ export class TextLength {
 				line++;
 				column = 0;
 			} else {
-				column++;
+				column += c.length;
 			}
 		}
 		return new TextLength(line, column);

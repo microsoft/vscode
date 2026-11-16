@@ -7,7 +7,7 @@ import { RunOnceScheduler, Throttler, timeout } from '../../../../../base/common
 import { equals } from '../../../../../base/common/arrays.js';
 import { CancellationToken, cancelOnDispose } from '../../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
-import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
+import { getErrorMessage, isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -17,19 +17,20 @@ import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { getConnectionDiagnosticError, IConnectionDiagnosticError } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
+import { getConnectionDiagnosticError } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { getConnectionTelemetryError } from '../../../../../platform/agentHost/common/connectionTelemetry.js';
-import { AgentHostDefaultCloneDirectorySettingId, AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlSharingService, isGitHubEnvironmentBackend, MissionControlOwnerMismatchErrorCode, MissionControlUseLocalCredentialsSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { AgentHostDefaultCloneDirectorySettingId, AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, GitHubEnvironmentSharingError, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlSharingService, isGitHubEnvironmentBackend, MissionControlOwnerMismatchErrorCode, MissionControlUseLocalCredentialsSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
+import { FileOperationResult, FileSystemProviderErrorCode, IFileService, toFileOperationResult, toFileSystemProviderErrorCode } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IPathService } from '../../../../../platform/path/common/pathService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { AuthenticationSessionAccount, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { getGitHubEnvironmentAuthentication, getGitHubEnvironmentSessions } from './gitHubEnvironmentAccount.js';
 
 const sharingStorageKey = 'agentHost.missionControl.sharing';
 const gitDefaultCloneDirectorySetting = 'git.defaultCloneDirectory';
@@ -37,10 +38,12 @@ const environmentNameStorageKey = 'agentHost.missionControl.environmentName';
 const missionControlIgnoreRemoteControlPolicy = 'chat.agentHost.experimentalMissionControl.ignoreRemoteControlPolicy';
 const missionControlDisableRepositoryMetadata = 'chat.agentHost.experimentalMissionControl.disableRepositoryMetadata';
 
-class MissionControlConfigurationError extends Error {
-	constructor(message: string, readonly diagnostic: IConnectionDiagnosticError, cause: unknown) {
-		super(message, { cause });
-	}
+/** Keeps the original message, so the notification is unchanged, and adds the file system error code. */
+function toFileSharingError(error: unknown, reason: 'fileSystemRoot' | 'projectFolder'): GitHubEnvironmentSharingError {
+	return new GitHubEnvironmentSharingError(getErrorMessage(error), reason, {
+		cause: error,
+		fileErrorCode: error instanceof Error ? toFileSystemProviderErrorCode(error) : FileSystemProviderErrorCode.Unknown,
+	});
 }
 
 export class MissionControlSharingService extends Disposable implements IMissionControlSharingService {
@@ -192,7 +195,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 
 	async setEnabled(enabled: boolean): Promise<void> {
 		if (enabled && !this._canShare()) {
-			throw new Error(localize('missionControlSharing.unavailable', "GitHub environment sharing is unavailable."));
+			throw new GitHubEnvironmentSharingError(localize('missionControlSharing.unavailable', "GitHub environment sharing is unavailable."), 'unavailable');
 		}
 		this._enabled = enabled;
 		this._generation++;
@@ -279,7 +282,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 	}
 
 	private _getScopes(): readonly string[] {
-		return this._product.defaultChatAgent?.providerScopes?.[0] ?? ['read:user', 'user:email', 'repo', 'workflow'];
+		return getGitHubEnvironmentAuthentication(this._product).scopes;
 	}
 
 	private async _getFileSystemRoots(): Promise<URI[]> {
@@ -300,7 +303,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 				return drive;
 			} catch (error) {
 				if (!(error instanceof Error) || toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
-					throw error;
+					throw toFileSharingError(error, 'fileSystemRoot');
 				}
 				return undefined;
 			}
@@ -338,7 +341,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 					retryDelay = 0;
 					continue;
 				}
-				const diagnostic = error instanceof MissionControlConfigurationError ? error.diagnostic : getConnectionDiagnosticError(error);
+				const diagnostic = error instanceof GitHubEnvironmentSharingError ? error.diagnostic ?? getConnectionDiagnosticError(error.cause) : getConnectionDiagnosticError(error);
 				const { errorCategory } = getConnectionTelemetryError(diagnostic);
 				if (enablement && retries < 2 && (errorCategory === 'timeout' || errorCategory === 'network' || errorCategory === 'dns')) {
 					this._logService.warn('Retrying GitHub environment connection', error);
@@ -368,47 +371,18 @@ export class MissionControlSharingService extends Disposable implements IMission
 		if (!this._configured) {
 			this.state.set('connecting', undefined);
 		}
-		const providerId = this._product.defaultChatAgent?.provider?.default?.id ?? 'github';
-		const scopes = this._getScopes();
 		const defaultAccount = await this._defaultAccountService.getDefaultAccount();
 		if (generation !== this._generation || this._store.isDisposed) {
 			return;
 		}
 		this._defaultAccount = defaultAccount;
-		let account: AuthenticationSessionAccount | undefined;
-		if (defaultAccount) {
-			if (defaultAccount.authenticationProvider.id !== providerId) {
-				throw new Error(localize('missionControlSharing.githubAccountRequired', "GitHub environment sharing requires a GitHub.com Copilot account."));
-			}
-			const allSessions = await this._authentication.getSessions(providerId, undefined, undefined, true);
-			account = allSessions.find(session => session.id === defaultAccount.sessionId)?.account;
-			if (!account) {
-				throw new Error(localize('missionControlSharing.accountUnavailable', "The selected Copilot account is unavailable. Sign in to GitHub again to enable environment sharing."));
-			}
-		}
-		const sessionOptions = account ? { account } : undefined;
-		let sessions = await this._authentication.getSessions(providerId, [...scopes], sessionOptions, true);
-		if (account) {
-			const accountId = account.id;
-			sessions = sessions.filter(session => session.account.id === accountId);
-		}
-		if (!sessions.length && interactive && generation === this._generation && !this._store.isDisposed) {
-			const session = await this._authentication.createSession(providerId, [...scopes], sessionOptions).catch(error => {
-				if (error === 'Cancelled' || (error instanceof Error && error.message === 'Cancelled')) {
-					throw new CancellationError();
-				}
-				throw error;
-			});
-			if (account && session.account.id !== account.id) {
-				throw new Error(localize('missionControlSharing.accountMismatch', "Sign in with the selected Copilot account to enable GitHub environment sharing."));
-			}
-			sessions = [session];
-		}
+		const sessions = await getGitHubEnvironmentSessions(this._authentication, this._product, defaultAccount, () => interactive && generation === this._generation && !this._store.isDisposed);
 		if (generation !== this._generation || this._store.isDisposed) {
 			return;
 		}
-		if (new Set(sessions.map(session => session.account.id)).size !== 1) {
-			throw new Error(localize('missionControlSharing.accountRequired', "Select a GitHub account for Copilot and sign in with the required permissions to enable environment sharing."));
+		const accountCount = new Set(sessions.map(session => session.account.id)).size;
+		if (accountCount !== 1) {
+			throw new GitHubEnvironmentSharingError(localize('missionControlSharing.accountRequired', "Select a GitHub account for Copilot and sign in with the required permissions to enable environment sharing."), accountCount ? 'multipleAccounts' : 'signInRequired');
 		}
 		const home = this._pathService.userHome({ preferLocal: true });
 		const fileSystemRoots = await this._getFileSystemRoots();
@@ -422,7 +396,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 			} catch (error) {
 				const result = error instanceof Error ? toFileOperationResult(error) : undefined;
 				if (result !== FileOperationResult.FILE_NOT_FOUND && result !== FileOperationResult.FILE_NOT_DIRECTORY) {
-					throw error;
+					throw toFileSharingError(error, 'projectFolder');
 				}
 				this._logService.warn('[Mission Control] Ignoring a missing or invalid recent project directory', folder.toString());
 			}
@@ -477,7 +451,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 			this._logService.warn('GitHub environment connection failed', error);
 			const diagnostic = getConnectionDiagnosticError(error);
 			if (diagnostic.code === MissionControlOwnerMismatchErrorCode) {
-				throw new MissionControlConfigurationError(localize('missionControlSharing.ownerMismatch', "This Agent Host belongs to a different GitHub account. Restart VS Code to share it with another account."), diagnostic, error);
+				throw new GitHubEnvironmentSharingError(localize('missionControlSharing.ownerMismatch', "This Agent Host belongs to a different GitHub account. Restart VS Code to share it with another account."), 'ownerMismatch', { cause: error, diagnostic });
 			}
 			const { errorCategory } = getConnectionTelemetryError(diagnostic);
 			let message: string;
@@ -498,7 +472,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 				default:
 					message = localize('missionControlSharing.configurationFailed', "Could not set up GitHub environment sharing. See the Agent Host log for details.");
 			}
-			throw new MissionControlConfigurationError(message, diagnostic, error);
+			throw new GitHubEnvironmentSharingError(message, 'connection', { cause: error, diagnostic });
 		});
 		if (generation === this._generation && !this._store.isDisposed) {
 			this._configured = true;

@@ -14,6 +14,7 @@ import { autorun, derived, IObservable, IReader, ISettableObservable, mapObserva
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { SessionArtifactMode } from '../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -30,6 +31,11 @@ import { defaultChatEmbeddedResourceSize, getChatEmbeddedResourceAutomaticHeight
 export interface IChatResource extends IChatResourceTarget {
 	/** The ID of the pill entry that stands for the resource. */
 	readonly id: string;
+	/**
+	 * How whoever recorded the file asked the chat to show it, and how often that request changed; see
+	 * {@link ChatResourcesControl}.
+	 */
+	readonly requested?: { readonly mode: SessionArtifactMode; readonly revision: number };
 }
 
 /** The transcript height that shown resources leave visible. */
@@ -37,6 +43,7 @@ const MIN_TRANSCRIPT_HEIGHT = 80;
 /** The height a shown resource takes up besides its body: its header, its resize edge, its border, and spacing. */
 const SHOWN_RESOURCE_CHROME_HEIGHT = 36;
 const OPENS_IN_CHAT_STORAGE_KEY = 'chat.resources.opensInChat';
+const APPLIED_REQUESTS_STORAGE_KEY = 'chat.resources.appliedRequests';
 
 /**
  * Lets the pinned pills of a chat's files open them above the chat input instead of in an editor.
@@ -44,6 +51,10 @@ const OPENS_IN_CHAT_STORAGE_KEY = 'chat.resources.opensInChat';
  * Pinning is the pills' own: any entry can be pinned into a pill of its own. On top of that, the user chooses for each
  * pinned file where its pill opens it (see {@link presentOwnPill}). The pills of the files that open in the chat act as
  * tabs: one of them is shown at a time, and clicking the shown one hides it.
+ *
+ * Whoever recorded a file can ask for it to be pinned or shown above the input ({@link IChatResource.requested}). The
+ * control does that once per request, as the user would, and remembers it: the user's later changes stick until the file
+ * is recorded with another request.
  */
 export class ChatResourcesControl extends Disposable {
 
@@ -68,6 +79,7 @@ export class ChatResourcesControl extends Disposable {
 	 * @param chatElement The chat widget. Shown resources never grow past the top of the element that clips it, and are clipped to it.
 	 * @param recorded Files recorded for the chat, such as files its agent added as artifacts.
 	 * @param isPinned Whether the user pinned the entry of a resource into a pill of its own; only pinned resources open in the chat.
+	 * @param pin Pins the entry of a resource, as its pin action does. Returns whether it could.
 	 */
 	constructor(
 		container: HTMLElement,
@@ -75,6 +87,7 @@ export class ChatResourcesControl extends Disposable {
 		sessionResource: IObservable<URI | undefined>,
 		recorded: IObservable<readonly IChatResource[]>,
 		isPinned: (id: string, reader: IReader) => boolean,
+		private readonly _pin: (resource: IChatResource) => boolean,
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -106,6 +119,16 @@ export class ChatResourcesControl extends Disposable {
 			const inChat = [...this._resources.read(reader).values()].filter(resource => isPinned(resource.id, reader) && this._opensInChatFor(resource.id, reader));
 			return getShownChatResource(inChat, chat === undefined ? undefined : this._selection.read(reader).get(chat));
 		});
+		this._register(autorun(reader => {
+			const chat = this._chatKey.read(reader);
+			if (chat === undefined) {
+				return;
+			}
+			const resources = [...this._resources.read(reader).values()];
+			// Pinning can become possible only later, such as once the chat's pills exist: reading the pins runs this again then.
+			resources.forEach(resource => resource.requested && isPinned(resource.id, reader));
+			this._applyRequests(chat, resources);
+		}));
 
 		// The resource floats upwards from the pills, over the transcript and whatever else the chat's container shows above the
 		// input (such as the sessions list of an empty chat), so that container's top bounds it. It is looked up when measuring,
@@ -238,6 +261,46 @@ export class ChatResourcesControl extends Disposable {
 		const chat = this._chatKey.get();
 		if (chat !== undefined) {
 			this._selection.set(new Map(this._selection.get()).set(chat, id), undefined);
+		}
+	}
+
+	/** Does what each resource's request asks once, as the user would; see {@link IChatResource.requested}. */
+	private _applyRequests(chat: string, resources: readonly IChatResource[]): void {
+		const all = this._readAppliedRequests();
+		const applied = { ...all[chat] };
+		let changed = false;
+		for (const resource of resources) {
+			if (!resource.requested) {
+				continue;
+			}
+			// The revision tells a new request from the applied one even if the chat missed the requests in between.
+			const request = `${resource.requested.mode}#${resource.requested.revision}`;
+			if (applied[resource.id] === request || !this._pin(resource)) {
+				continue;
+			}
+			// A pinned file opens in an editor; one shown above the input opens there.
+			this._setOpensInChat(resource.id, resource.requested.mode === 'aboveInput');
+			if (resource.requested.mode === 'aboveInput') {
+				this._select(resource.id);
+			}
+			applied[resource.id] = request;
+			changed = true;
+		}
+		if (changed) {
+			this._storageService.store(APPLIED_REQUESTS_STORAGE_KEY, JSON.stringify({ ...all, [chat]: applied }), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
+	}
+
+	private _readAppliedRequests(): Record<string, Record<string, string>> {
+		try {
+			const value: unknown = JSON.parse(this._storageService.get(APPLIED_REQUESTS_STORAGE_KEY, StorageScope.WORKSPACE, '{}'));
+			const result: Record<string, Record<string, string>> = {};
+			for (const [chat, requests] of Object.entries(value && typeof value === 'object' ? value : {})) {
+				result[chat] = Object.fromEntries(Object.entries(requests && typeof requests === 'object' ? requests : {}).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
+			}
+			return result;
+		} catch {
+			return {};
 		}
 	}
 

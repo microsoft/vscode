@@ -32,12 +32,14 @@ The main implementation layers are:
 
 Account selection and sign-in UX belong to the caller or host binding, not the engine. The [workbench service](../../workbench/services/github/common/githubService.ts) offers:
 
-- `acquireAccountApiClient(authorization, signal)`: bind an explicit provider/session/account/scopes/issuer grant.
+- `acquireAccountApiClient(providerId, session, signal)`: capture the exact provider/session/account/scopes/issuer grant from an existing authentication session, without forwarding its token or choosing another session.
 - `acquireDefaultAccountApiClient(signal)`: use the selected default account's existing repository grant.
 - `acquireAnonymousApiClient(signal)`: read GitHub.com data without selecting an account or obtaining credentials.
 
+Callers retaining a grant for cache keys or comparisons can use `toGitHubAuthorizationContext(providerId, session)`, which shares the session-based acquisition's token-free conversion.
+
 ```ts
-const client = await gitHubService.acquireAccountApiClient(authorization, signal);
+const client = await gitHubService.acquireAccountApiClient(providerId, session, signal);
 try {
 	const repository = await client.repositories.get(
 		{ owner: 'microsoft', repo: 'vscode' },
@@ -76,7 +78,7 @@ The [account interface](common/account/account.ts) is the authoritative list of 
 | Mission Control | [Automations](common/missionControl/automations.ts), [tasks](common/missionControl/tasks.ts), [environments](common/missionControl/environments.ts) |
 | Copilot Connector catalog and connection management | [Connectors](common/connectors/connectors.ts) |
 
-Repository operations use `RepositoryRef` (`{ owner, repo }`). Typed request methods take an `AbortSignal` and optional trailing request options. They normally return parsed domain data or `void`, not transport objects, ETags, or header collections. Domain-specific counts, cursors, nullable values, and acceptance states remain meaningful; HTTP success does not necessarily mean an asynchronous operation has completed.
+Repository operations use `RepositoryRef` (`{ owner, repo }`); [toRepositoryRef](common/client/routing.ts) converts an `owner/repository` identifier without silently dropping extra path segments. Typed request methods take an `AbortSignal` and optional trailing request options. They normally return parsed domain data or `void`, not transport objects, ETags, or header collections. Domain-specific counts, cursors, nullable values, and acceptance states remain meaningful; HTTP success does not necessarily mean an asynchronous operation has completed.
 
 ### Domain-specific boundaries
 
@@ -101,7 +103,11 @@ The [transport](common/githubTransport.ts), [queue](common/requestQueue.ts), and
 
 Current numeric defaults are defined in the queue and transport, not promised as public API or server quotas.
 
-[ApiRequestOptions](common/client/request.ts) carries `caller`, an absolute millisecond `deadline`, `priority`, and `noCache`. Query parameters belong under `query`; request metadata must not become URL parameters, GraphQL variables, or request-body fields. Use background/enrichment priorities for passive work rather than giving every request interactive priority.
+[ApiRequestOptions](common/client/request.ts) carries `caller`, an absolute millisecond `deadline`, `priority`, and `noCache`. Supply a stable, code-defined caller identifying the owning feature; never derive it from account, repository, or request content. Helpers accepting request options must preserve the caller's attribution and priority, supplying a caller fallback when needed. Query parameters belong under `query`; request metadata must not become URL parameters, GraphQL variables, or request-body fields.
+
+Typed-client GET/HEAD and GraphQL reads default to `interactive`, so omit that priority for user-initiated reads. REST and GraphQL writes default to `mutation`. The lower-level `transport.graphql()` wrapper instead defaults to `interactive` regardless of operation kind, so its direct mutation callers must pass `mutation`. Mission Control additionally treats credential operations as mutations regardless of HTTP method. Override scheduling for the workflow: use `background` for automatic refreshes, `enrichment` for optional metadata such as avatars, `visible` for visible-resource subscriptions, and `mutationReconciliation` for reads confirming a dispatched write. Subscription contracts have their own priority requirements; their explicit interest priorities are not redundant request options.
+
+[RequestError](common/types.ts) provides `isResponseTooLarge` and `isRateLimited` predicates. Rate-limit detection uses the transport's `rateLimit` classification, including HTTP 429 and secondary-rate-limit HTTP 403 responses; an ordinary authorization failure is not a rate limit.
 
 Lists fetch one page by default. `maxPages` opts into bounded collection; reaching the bound with more results available throws `PaginationLimitError` unless `pageLimitBehavior: 'returnPartial'` was explicitly requested. Collection follows validated REST links or GraphQL cursors, preserves server order and totals, and does not implicitly collect nested connections. `returnPartial` does not add a completeness flag to plain arrays.
 

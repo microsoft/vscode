@@ -16,6 +16,7 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService, IVisibleEditorsChangeEvent } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent } from '../../../chat/browser/chat.js';
 import { ChatEditor } from '../../../chat/browser/widgetHosts/editor/chatEditor.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
@@ -63,6 +64,8 @@ suite('EditorCanvasContextService', () => {
 		});
 		activeGroup = addGroup(1);
 		const groupsService = upcastPartial<IEditorGroupsService>({ mainPart });
+		// The chat part beside the editor area, which shows chats in editors of a part of its own
+		const chatPart = mainWindow.document.createElement('div');
 		const service = store.add(new EditorCanvasContextService(
 			upcastPartial<IChatWidgetService>({
 				getAllWidgets: () => widgets,
@@ -76,8 +79,9 @@ suite('EditorCanvasContextService', () => {
 			}),
 			groupsService,
 			new TestConfigurationService(),
+			upcastPartial<IWorkbenchLayoutService>({ getContainer: ((_window: Window, part?: Parts) => part === Parts.CHAT_PART ? chatPart : undefined) as IWorkbenchLayoutService['getContainer'] }),
 		));
-		function createOwner(id: string, group?: IEditorGroup, editorResource?: URI) {
+		function createOwner(id: string, group?: IEditorGroup, editorResource?: URI, inChatPart = false) {
 			const resource = URI.parse(`agent-host-copilotcli:/${id}`);
 			const owner: ICanvasOwner = { providerId: 'local/copilotcli', session: URI.parse(`ahp-session:/${id}`), chat: URI.parse(`ahp-session:/${id}/chats/peer`) };
 			const canvas: ICanvas = {
@@ -90,9 +94,13 @@ suite('EditorCanvasContextService', () => {
 			const viewModel = upcastPartial<IChatViewModel>({ sessionResource: resource, model });
 			const changed = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
 			let visible = true;
+			const domNode = mainWindow.document.createElement('div');
+			if (inChatPart) {
+				chatPart.appendChild(domNode);
+			}
 			const widget = upcastPartial<IChatWidget>({
-				domNode: mainWindow.document.createElement('div'), location: ChatAgentLocation.Chat,
-				viewContext: group ? {} : { viewId: ChatViewId },
+				domNode, location: ChatAgentLocation.Chat,
+				viewContext: group || inChatPart ? {} : { viewId: ChatViewId },
 				viewModel, get visible() { return visible; },
 				onDidChangeViewModel: changed.event,
 			});
@@ -190,6 +198,19 @@ suite('EditorCanvasContextService', () => {
 		const harness = createHarness();
 		const owner = harness.createOwner('view');
 		assert.deepStrictEqual({ group: harness.service.getEditorGroup(owner.owner, owner.input)?.id, additions: harness.additions }, { group: 1, additions: [] });
+	});
+
+	test('a chat of the chat part beside the editor area presents its canvases as the Chat view does, in the editor area; a chat in no editor does not', () => {
+		const harness = createHarness();
+		const owner = harness.createOwner('chatPart', undefined, undefined, true);
+		const elsewhere = harness.createOwner('elsewhere', undefined, undefined, false);
+		Object.assign(elsewhere.widget, { viewContext: {} });
+		assert.deepStrictEqual({
+			visible: harness.service.isOwnerVisible(owner.owner),
+			group: harness.service.getEditorGroup(owner.owner, owner.input)?.id,
+			additions: harness.additions,
+			elsewhere: harness.service.isOwnerVisible(elsewhere.owner),
+		}, { visible: true, group: 1, additions: [], elsewhere: false });
 	});
 
 	test('retains metadata after widget backgrounding but forgets an authoritative deletion', () => {

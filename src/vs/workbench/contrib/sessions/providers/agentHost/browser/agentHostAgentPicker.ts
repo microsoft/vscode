@@ -7,10 +7,10 @@ import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../../ba
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, IReader, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, observableFromEvent, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
 import * as nls from '../../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
-import { Action2, MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { agentHostAgentPickerStorageKey, resolveAgentHostAgent } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -18,6 +18,7 @@ import { IStorageService, StorageScope } from '../../../../../../platform/storag
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { registerAgentPickerSpotlight } from '../../../../chat/browser/onboarding/agentPickerSpotlight.js';
+import { AgentsWindowUsage } from '../../../../chat/common/agentsWindowUsage.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { ChatMode, IChatMode } from '../../../../chat/common/chatModes.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
@@ -43,11 +44,16 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { logSettingExperimentTrigger } from '../../../../../../platform/telemetry/common/experimentTrigger.js';
 import { getAgentHostAgentPickerState, setAgentHostAgent } from './agentHostAgentSelection.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 
 const IsActiveSessionAgentHost = ContextKeyExpr.or(
 	ContextKeyExpr.equals(SessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID),
 	ContextKeyExpr.regex(SessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE),
 );
+
+/** Session-starting Agents Window requests a user must have sent before the custom agents spotlight shows, so it does not overwhelm new users. */
+const AGENT_PICKER_SPOTLIGHT_MIN_CREATED_SESSIONS = 3;
 
 // -- Agent Host Agent Picker Action --
 
@@ -234,6 +240,8 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 			&& !isCustomAgentSelected(chat, reader);
 
 		if (environmentService.isSessionsWindow) {
+			const usage = new AgentsWindowUsage(storageService);
+			const hasEnoughRequests = observableFromEvent(this, usage.onDidChangeCreatedSessionCount(this._store), () => usage.createdSessionCount >= AGENT_PICKER_SPOTLIGHT_MIN_CREATED_SESSIONS);
 			const widgetsChanged = observableSignalFromEvent(this, Event.any(
 				chatWidgetService.onDidAddWidget,
 				chatWidgetService.onDidRemoveWidget,
@@ -244,6 +252,9 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 			this._register(registerAgentPickerSpotlight(derived(this, reader => {
 				widgetsChanged.read(reader);
 				configurationChanged.read(reader);
+				if (!hasEnoughRequests.read(reader)) {
+					return [];
+				}
 				const host = focusedSessionHostService.focusedHost.read(reader);
 				const session = host.session.read(reader);
 				const chat = host.chat.read(reader);
@@ -252,7 +263,7 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 				}
 				const widget = chat && chatWidgetService.getWidgetBySessionResource(chat.resource);
 				return widget?.visible ? [widget] : [];
-			}), productService));
+			}), productService, storageService));
 		}
 
 		const renderedPickers = new Set<{ readonly session: IObservable<ISession | undefined>; readonly item: AgentHostModePickerActionViewItem }>();
@@ -458,4 +469,26 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 	private _setAgent(session: ISession, provider: IAgentHostSessionsProvider, agent: ISessionAgentRef | undefined): void {
 		setAgentHostAgent(session, provider, agent, this.storageService);
 	}
+}
+
+/**
+ * Registers the agent picker of agent host sessions and its keybinding, until the returned disposable is disposed.
+ *
+ * Call it once per window, from the one module or contribution that owns these registrations: its registrations are
+ * global, and registering them twice throws or duplicates them.
+ */
+export function registerAgentHostAgentPickerActions(): IDisposable {
+	const store = new DisposableStore();
+
+	store.add(KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: OPEN_AGENT_HOST_AGENT_PICKER_COMMAND_ID,
+		weight: KeybindingWeight.EditorContrib + 1,
+		when: AgentHostAgentPickerKeybindingContext,
+		primary: KeyMod.CtrlCmd | KeyCode.Period,
+		handler: () => openActiveAgentHostAgentPicker(),
+	}));
+
+	store.add(registerAction2(AgentHostAgentPickerAction));
+
+	return store;
 }
