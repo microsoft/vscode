@@ -28,11 +28,6 @@ abstract class ClassPropertyBlueprintSearch<T extends tt.MethodDeclaration | tt.
 	}
 
 
-	public isSame(other: T): boolean {
-		return this.declaration === other ||
-			(this.declaration.getSourceFile().fileName === other.getSourceFile().fileName && this.declaration.pos === other.pos);
-	}
-
 	public score(program: tt.Program, context: RequestContext): number {
 		if (program.getSourceFile(this.declaration.getSourceFile().fileName) === undefined) {
 			return 0;

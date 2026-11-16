@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 import type tt from 'typescript/lib/tsserverlibrary';
 
-export type DocumentUri = string;
 export type FilePath = string;
 
 export enum CacheScopeKind {
@@ -94,12 +93,6 @@ export type CacheInfo = {
 	emitMode: EmitMode;
 	scope: CacheScope;
 };
-export namespace CacheInfo {
-	export type has = { cache: CacheInfo };
-	export function has(item: unknown): item is has {
-		return (item as has).cache !== undefined;
-	}
-}
 export type CachedContextItem = {
 	key: ContextItemKey;
 	sizeInChars?: number;
@@ -158,7 +151,6 @@ export type RelatedFile = {
 };
 
 export enum TraitKind {
-	Unknown = 'unknown',
 	Module = 'module',
 	ModuleResolution = 'moduleResolution',
 	Lib = 'lib',
@@ -245,7 +237,6 @@ export namespace CodeSnippet {
 export type FullContextItem = RelatedFile | Trait | CodeSnippet;
 export type ContextItem = FullContextItem | ContextItemReference;
 export namespace ContextItem {
-	export type keyed = { key: ContextItemKey } & ContextItem;
 	export function hasKey(item: ContextItem): item is { key: ContextItemKey } & ContextItem {
 		return (item as { key: ContextItemKey }).key !== undefined;
 	}
@@ -382,7 +373,6 @@ export namespace Timings {
 export enum ContextRequestResultState {
 	Created = 'created',
 	InProgress = 'inProgress',
-	Cancelled = 'cancelled',
 	Finished = 'finished'
 }
 
@@ -486,10 +476,6 @@ export namespace RegionContextResponse {
 		}
 		const body = response.body as OK | undefined;
 		return Array.isArray(body?.regions) && Array.isArray(body?.paths?.smallest);
-	}
-
-	export function isError(response: RegionContextResponse | undefined): response is Omit<tt.server.protocol.Response, 'body'> & { body: Failed } {
-		return response?.type === 'response' && CustomResponse.isError(response);
 	}
 }
 
@@ -595,10 +581,6 @@ export namespace PrepareNesRenameResponse {
 
 	export type Failed = CustomResponse.Failed;
 
-	export function isCancelled(response: PrepareNesRenameResponse): boolean {
-		return (response.type === 'cancelled');
-	}
-
 	export function isOk(response: PrepareNesRenameResponse): response is Omit<tt.server.protocol.Response, 'body'> & { body: OK } {
 		return response.type === 'response' && (response.body as OK).canRename !== undefined;
 	}
@@ -644,15 +626,8 @@ export namespace NesRenameResponse {
 
 	export type Failed = CustomResponse.Failed;
 
-	export function isCancelled(response: NesRenameResponse): boolean {
-		return (response.type === 'cancelled');
-	}
-
 	export function isOk(response: NesRenameResponse): response is Omit<tt.server.protocol.Response, 'body'> & { body: OK } {
 		return response.type === 'response' && (response.body as NesRenameResult.OK).groups !== undefined;
-	}
-	export function isError(response: NesRenameResponse): response is Omit<tt.server.protocol.Response, 'body'> & { body: Failed } {
-		return response.type === 'response' && (response.body as NesRenameResult.Failed).error !== undefined;
 	}
 }
 

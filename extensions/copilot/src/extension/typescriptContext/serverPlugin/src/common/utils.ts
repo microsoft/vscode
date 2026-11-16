@@ -16,7 +16,7 @@ export const enum Touch {
 	AsNew = 2
 }
 
-export class LinkedMap<K, V> implements Map<K, V> {
+class LinkedMap<K, V> implements Map<K, V> {
 
 	readonly [Symbol.toStringTag] = 'LinkedMap';
 
@@ -43,20 +43,8 @@ export class LinkedMap<K, V> implements Map<K, V> {
 		this._state++;
 	}
 
-	isEmpty(): boolean {
-		return !this._head && !this._tail;
-	}
-
 	get size(): number {
 		return this._size;
-	}
-
-	get first(): V | undefined {
-		return this._head?.value;
-	}
-
-	get last(): V | undefined {
-		return this._tail?.value;
 	}
 
 	has(key: K): boolean {
@@ -113,20 +101,6 @@ export class LinkedMap<K, V> implements Map<K, V> {
 			return undefined;
 		}
 		this._map.delete(key);
-		this.removeItem(item);
-		this._size--;
-		return item.value;
-	}
-
-	shift(): V | undefined {
-		if (!this._head && !this._tail) {
-			return undefined;
-		}
-		if (!this._head || !this._tail) {
-			throw new Error('Invalid list');
-		}
-		const item = this._head;
-		this._map.delete(item.key);
 		this.removeItem(item);
 		this._size--;
 		return item.value;
@@ -246,29 +220,6 @@ export class LinkedMap<K, V> implements Map<K, V> {
 		this._size = currentSize;
 		if (current) {
 			current.previous = undefined;
-		}
-		this._state++;
-	}
-
-	protected trimNew(newSize: number) {
-		if (newSize >= this.size) {
-			return;
-		}
-		if (newSize === 0) {
-			this.clear();
-			return;
-		}
-		let current = this._tail;
-		let currentSize = this.size;
-		while (current && currentSize > newSize) {
-			this._map.delete(current.key);
-			current = current.previous;
-			currentSize--;
-		}
-		this._tail = current;
-		this._size = currentSize;
-		if (current) {
-			current.next = undefined;
 		}
 		this._state++;
 	}
@@ -409,14 +360,6 @@ export class LinkedMap<K, V> implements Map<K, V> {
 
 		return data;
 	}
-
-	fromJSON(data: [K, V][]): void {
-		this.clear();
-
-		for (const [key, value] of data) {
-			this.set(key, value);
-		}
-	}
 }
 
 abstract class Cache<K, V> extends LinkedMap<K, V> {
@@ -430,31 +373,10 @@ abstract class Cache<K, V> extends LinkedMap<K, V> {
 		this._ratio = Math.min(Math.max(0, ratio), 1);
 	}
 
-	get limit(): number {
-		return this._limit;
-	}
-
-	set limit(limit: number) {
-		this._limit = limit;
-		this.checkTrim();
-	}
-
-	get ratio(): number {
-		return this._ratio;
-	}
-
-	set ratio(ratio: number) {
-		this._ratio = Math.min(Math.max(0, ratio), 1);
-		this.checkTrim();
-	}
-
 	override get(key: K, touch: Touch = Touch.AsNew): V | undefined {
 		return super.get(key, touch);
 	}
 
-	peek(key: K): V | undefined {
-		return super.get(key, Touch.None);
-	}
 
 	override set(key: K, value: V): this {
 		super.set(key, value, Touch.AsNew);
@@ -483,26 +405,6 @@ export class LRUCache<K, V> extends Cache<K, V> {
 	override set(key: K, value: V): this {
 		super.set(key, value);
 		this.checkTrim();
-		return this;
-	}
-}
-
-export class MRUCache<K, V> extends Cache<K, V> {
-
-	constructor(limit: number, ratio: number = 1) {
-		super(limit, ratio);
-	}
-
-	protected override trim(newSize: number) {
-		this.trimNew(newSize);
-	}
-
-	override set(key: K, value: V): this {
-		if (this._limit <= this.size && !this.has(key)) {
-			this.trim(Math.round(this._limit * this._ratio) - 1);
-		}
-
-		super.set(key, value);
 		return this;
 	}
 }

@@ -17,7 +17,7 @@ import { NullCancellationToken } from '../../common/typescripts';
 import { NodeHost } from '../host';
 import { LanguageServices } from './languageServices';
 
-export class SingleLanguageServiceSession extends ComputeContextSession {
+class SingleLanguageServiceSession extends ComputeContextSession {
 
 	private readonly languageService: tt.LanguageService;
 

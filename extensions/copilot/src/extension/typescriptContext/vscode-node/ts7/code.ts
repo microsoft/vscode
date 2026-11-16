@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SymbolFlags, type Project, type Symbol as NativeSymbol } from '@typescript/native/async';
+import { SymbolFlags, type Symbol as NativeSymbol } from '@typescript/native/async';
 import {
 	ModifierFlags,
 	getLeadingCommentRanges,
@@ -39,7 +39,7 @@ import {
 } from '@typescript/native/ast';
 import * as protocol from '../../common/serverProtocol';
 import type { RequestContext } from './contextProvider';
-import { ProgramContext, type SnippetProvider } from './types';
+import type { SnippetProvider } from './types';
 import { Symbols } from './typescripts';
 
 namespace Nodes {
@@ -472,17 +472,15 @@ class ModuleEmitter extends AbstractEmitter {
 	}
 }
 
-export class CodeSnippetBuilder extends ProgramContext implements SnippetProvider {
+export class CodeSnippetBuilder implements SnippetProvider {
 	private readonly context: RequestContext;
 	private readonly symbols: Symbols;
 	private readonly currentSourceFile: SourceFile;
 	private readonly lines: string[] = [];
 	private readonly additionalSources: Set<string> = new Set();
 	private source: string | undefined;
-	private indent: number = 0;
 
 	constructor(context: RequestContext, symbols: Symbols, currentSourceFile: SourceFile) {
-		super();
 		this.context = context;
 		this.symbols = symbols;
 		this.currentSourceFile = currentSourceFile;
@@ -510,7 +508,7 @@ export class CodeSnippetBuilder extends ProgramContext implements SnippetProvide
 	}
 
 	public addLines(lines: readonly string[]): void {
-		this.lines.push(...(this.indent === 0 ? lines : lines.map(line => `${'\t'.repeat(this.indent)}${line}`)));
+		this.lines.push(...lines);
 	}
 
 	public async addClassSymbol(clazz: NativeSymbol, name: string, includeSuperClasses: boolean = true, includePrivates: boolean = false): Promise<void> {
@@ -596,14 +594,6 @@ export class CodeSnippetBuilder extends ProgramContext implements SnippetProvide
 		} else if ((type.flags & SymbolFlags.TypeLiteral) !== 0) {
 			await this.addTypeLiteralSymbol(type, symbolName);
 		}
-	}
-
-	protected override getProject(): Project {
-		return this.symbols.getProject();
-	}
-
-	protected override getSymbols(): Symbols {
-		return this.symbols;
 	}
 
 	private async addEmitter(emitter: AbstractEmitter): Promise<void> {

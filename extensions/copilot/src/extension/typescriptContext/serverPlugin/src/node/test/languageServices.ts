@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import crypto from 'crypto';
 import { statSync } from 'fs';
 import path from 'path';
 
@@ -10,8 +9,6 @@ import type tt from 'typescript';
 import TS from '../../common/typescript';
 const ts = TS();
 
-import { ComputeContextSession, type Logger } from '../../common/contextProvider';
-import type { Host } from '../../common/host';
 import { LanguageServiceProxy } from './languageServerProxy';
 
 const isWindows = process.platform === 'win32';
@@ -26,15 +23,11 @@ function _normalizePath(value: string): string {
 	return result.length > 0 && result.charAt(result.length - 1) === '/' ? result.substr(0, result.length - 1) : result;
 }
 
-function makeAbsolute(p: string, root?: string): string {
+function makeAbsolute(p: string): string {
 	if (path.isAbsolute(p)) {
 		return _normalizePath(p);
 	}
-	if (root === undefined) {
-		return _normalizePath(path.join(process.cwd(), p));
-	} else {
-		return _normalizePath(path.join(root, p));
-	}
+	return _normalizePath(path.join(process.cwd(), p));
 }
 
 interface InternalCompilerOptions extends tt.CompilerOptions {
@@ -211,10 +204,10 @@ export namespace LanguageServices {
 
 	export function createLanguageService(fileOrDirectory: string): [tt.LanguageService, tt.LanguageServiceHost] {
 		const config = ParseCommandLine.create(fileOrDirectory);
-		return LanguageServices._createLanguageService(config);
+		return _createLanguageService(config);
 	}
 
-	export function _createLanguageService(config: tt.ParsedCommandLine): [tt.LanguageService, tt.LanguageServiceHost] {
+	function _createLanguageService(config: tt.ParsedCommandLine): [tt.LanguageService, tt.LanguageServiceHost] {
 		const configFilePath = CompileOptions.getConfigFilePath(config.options);
 		const host: LocalLanguageServiceHost = new LocalLanguageServiceHost(config, configFilePath);
 
@@ -230,121 +223,5 @@ export namespace LanguageServices {
 		}
 		host.setLanguageServiceProxy(languageService);
 		return [languageService, host];
-	}
-}
-
-class ConsoleLogger implements Logger {
-
-	info(s: string): void {
-		console.info(s);
-	}
-
-	msg(s: string, type?: tt.server.Msg): void {
-		type = type ?? ts.server.Msg.Info;
-		switch (type) {
-			case ts.server.Msg.Err:
-				console.error(s);
-				break;
-			case ts.server.Msg.Info:
-				console.info(s);
-				break;
-			case ts.server.Msg.Perf:
-				console.log(s);
-				break;
-			default:
-				console.error(s);
-		}
-
-	}
-
-	startGroup(): void {
-		console.group();
-	}
-
-	endGroup(): void {
-		console.groupEnd();
-	}
-}
-
-export class LanguageServicesSession extends ComputeContextSession {
-
-	private readonly languageServices: Map<string, tt.LanguageService>;
-
-	public readonly logger: Logger;
-
-	constructor(root: tt.LanguageService | string, languageServiceHost: tt.LanguageServiceHost, host: Host) {
-		super(languageServiceHost, host, true);
-		this.logger = new ConsoleLogger();
-		this.languageServices = new Map();
-		let languageService: tt.LanguageService;
-		let key: string | undefined;
-		if (typeof root === 'string') {
-			languageService = LanguageServices.createLanguageService(root)[0];
-			key = makeAbsolute(root);
-		} else {
-			languageService = root;
-			key = CompileOptions.getConfigFilePath(languageService.getProgram()!.getCompilerOptions());
-		}
-		if (key === undefined) {
-			throw new Error('Failed to create key');
-		}
-		this.languageServices.set(key, languageService);
-		this.createDeep(languageService);
-	}
-
-	public override logError(error: Error, cmd: string): void {
-		console.error(`Error in ${cmd}: ${error.message}`, error);
-	}
-
-	public override getScriptVersion(_sourceFile: tt.SourceFile): string | undefined {
-		return '1';
-	}
-
-	public *getLanguageServices(sourceFile?: tt.SourceFile): IterableIterator<tt.LanguageService> {
-		if (sourceFile === undefined) {
-			yield* this.languageServices.values();
-		} else {
-			const file = ts.server.toNormalizedPath(sourceFile.fileName);
-			for (const languageService of this.languageServices.values()) {
-				const scriptInfo = languageService.getProgram()?.getSourceFile(file);
-				if (scriptInfo === undefined) {
-					continue;
-				}
-				yield languageService;
-			}
-		}
-	}
-
-	public entries() {
-		return this.languageServices.values();
-	}
-
-	private createDeep(languageService: tt.LanguageService): void {
-		const program = languageService.getProgram();
-		if (program === undefined) {
-			throw new Error(`Failed to create program`);
-		}
-		const references = program.getResolvedProjectReferences();
-		if (references !== undefined) {
-			for (const reference of references) {
-				if (reference === undefined) {
-					continue;
-				}
-				const configFilePath = CompileOptions.getConfigFilePath(reference.commandLine.options);
-				const key = configFilePath ?? LanguageServicesSession.makeKey(reference.commandLine);
-				if (this.languageServices.has(key)) {
-					continue;
-				}
-				const [languageService] = LanguageServices._createLanguageService(reference.commandLine);
-				this.languageServices.set(key, languageService);
-				this.createDeep(languageService);
-			}
-		}
-	}
-
-	private static makeKey(config: tt.ParsedCommandLine): string {
-		const hash = crypto.createHash('md5'); // CodeQL [SM04514] The 'md5' algorithm is used to compute a shorter string to represent command line arguments in a map. It has no security implications.
-		hash.update(JSON.stringify(config.options, undefined, 0));
-		return hash.digest('base64');
 	}
 }

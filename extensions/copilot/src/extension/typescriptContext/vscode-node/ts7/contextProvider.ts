@@ -19,8 +19,8 @@ import {
 } from '@typescript/native/ast';
 import { CodeSnippetBuilder } from './code';
 import * as protocol from '../../common/serverProtocol';
-import { type CodeCacheItem, type EmitterContext, ProgramContext, RecoverableError, type SnippetProvider } from './types';
-import tss, { type CancellationTokenWithTimer, Symbols, Types } from './typescripts';
+import { type CodeCacheItem, type EmitterContext, RecoverableError, type SnippetProvider } from './types';
+import tss, { type CancellationTokenWithTimer, Symbols } from './typescripts';
 
 export class RequestContext {
 	private readonly symbols: Map<Project, Symbols> = new Map();
@@ -52,17 +52,6 @@ export class RequestContext {
 		return result;
 	}
 
-	public async getPreferredNeighborFiles(project: Project): Promise<SourceFile[]> {
-		const result: SourceFile[] = [];
-		for (const file of this.neighborFiles) {
-			const sourceFile = await project.program.getSourceFile(file);
-			if (sourceFile !== undefined) {
-				result.push(sourceFile);
-			}
-		}
-		return result;
-	}
-
 	public createContextItemReferenceIfManaged(key: protocol.ContextItemKey): protocol.ContextItemReference | undefined {
 		const cachedItem = this.clientSideContextItems.get(key);
 		return cachedItem === undefined ? undefined : protocol.ContextItemReference.create(cachedItem.key);
@@ -73,25 +62,16 @@ export class RequestContext {
 	}
 }
 
-export abstract class Search<R> extends ProgramContext {
+export abstract class Search<R> {
 	protected readonly project: Project;
 	protected readonly symbols: Symbols;
 
 	constructor(project: Project, symbols: Symbols) {
-		super();
 		if (project !== symbols.getProject()) {
 			throw new Error('Project and symbols project must match');
 		}
 		this.project = project;
 		this.symbols = symbols;
-	}
-
-	public getSymbols(): Symbols {
-		return this.symbols;
-	}
-
-	protected getProject(): Project {
-		return this.project;
 	}
 
 	public abstract with(project: Project, symbols: Symbols): Search<R>;
@@ -249,10 +229,6 @@ class RunnableResultReference {
 		this.cached = cached;
 	}
 
-	public get items(): protocol.ContextItem[] {
-		return this.cached.items.map(item => protocol.ContextItemReference.create(item.key));
-	}
-
 	public toJson(): protocol.ContextRunnableResultReference {
 		return { kind: protocol.ContextRunnableResultKind.Reference, id: this.cached.id };
 	}
@@ -275,10 +251,6 @@ export class ContextResult implements RunnableResultContext {
 		this.primaryBudget = primaryBudget;
 		this.secondaryBudget = secondaryBudget;
 		this.context = context;
-	}
-
-	public getSession(): ComputeContextSession {
-		return this.context.session;
 	}
 
 	public addPath(path: number[]): void {
@@ -701,16 +673,9 @@ export interface ProviderComputeContext {
 
 export type ContextProviderFactory = (node: Node, tokenInfo: tss.TokenInfo, context: ProviderComputeContext) => ContextProvider | undefined;
 
-export class TokenBudgetExhaustedError extends Error {
-	constructor() {
-		super('Budget exhausted');
-	}
-}
-
 export class CharacterBudget {
 	private charBudget: number;
 	private readonly lowWaterMark: number;
-	private itemRejected: boolean = false;
 
 	constructor(budget: number, lowWaterMark: number = 256) {
 		this.charBudget = budget;
@@ -722,31 +687,10 @@ export class CharacterBudget {
 	}
 
 	public hasRoom(chars: number): boolean {
-		const result = this.charBudget - this.lowWaterMark >= chars;
-		if (!result) {
-			this.itemRejected = true;
-		}
-		return result;
+		return this.charBudget - this.lowWaterMark >= chars;
 	}
 
 	public isExhausted(): boolean {
 		return this.charBudget <= 0;
 	}
-
-	public wasItemRejected(): boolean {
-		return this.itemRejected;
-	}
-
-	public throwIfExhausted(): void {
-		if (this.isExhausted()) {
-			throw new TokenBudgetExhaustedError();
-		}
-	}
-
-	public spentAndThrowIfExhausted(chars: number): void {
-		this.spent(chars);
-		this.throwIfExhausted();
-	}
 }
-
-export { Types };

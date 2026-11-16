@@ -13,7 +13,7 @@ import { IExperimentationService } from '../../../platform/telemetry/common/null
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import * as protocol from '../common/serverProtocol';
-import { CacheState, ContextItemUsageMode, ResolvedRunnableResult, type CacheInfo, type OnCachePopulatedEvent, type OnContextComputedEvent, type OnContextComputedOnTimeoutEvent } from './types';
+import { CacheState, ContextItemUsageMode, ResolvedRunnableResult, type CacheInfo, type OnCachePopulatedEvent, type OnContextComputedEvent } from './types';
 import { TelemetrySender } from './telemetrySender';
 
 export const currentTokenBudget: number = 8 * 1024;
@@ -277,10 +277,6 @@ class RunnableResultManager implements vscode.Disposable {
 
 	public getNodePath(): number[] {
 		return this.requestInfo?.path ?? [0];
-	}
-
-	public getRunnableResult(id: protocol.ContextRunnableResultId): ResolvedRunnableResult | undefined {
-		return this.results.get(id);
 	}
 
 	public getCachedRunnableResults(document: vscode.TextDocument, position: vscode.Position, emitMode?: protocol.EmitMode): ResolvedRunnableResult[] {
@@ -613,16 +609,12 @@ class NeighborFileModel implements vscode.Disposable {
 
 class CharacterBudget {
 
-	public readonly overall: number;
 	private mandatory: number;
 	private optional: number;
-	private start: { mandatory: number; optional: number };
 
 	constructor(mandatory: number, optional: number) {
-		this.overall = mandatory;
 		this.mandatory = mandatory;
 		this.optional = optional;
-		this.start = { mandatory, optional };
 	}
 
 	spend(chars: number): void {
@@ -638,15 +630,11 @@ class CharacterBudget {
 		return this.optional <= 0;
 	}
 
-	public fresh(): CharacterBudget {
-		return new CharacterBudget(this.start.mandatory, this.start.optional);
-	}
 }
 
 export interface TSLanguageContextService extends Omit<ILanguageContextService, '_serviceBrand'>, vscode.Disposable {
 	readonly onCachePopulated: vscode.Event<OnCachePopulatedEvent>;
 	readonly onContextComputed: vscode.Event<OnContextComputedEvent>;
-	readonly onContextComputedOnTimeout: vscode.Event<OnContextComputedOnTimeoutEvent>;
 }
 
 export abstract class AbstractTSLanguageContextService implements TSLanguageContextService {
@@ -672,8 +660,6 @@ export abstract class AbstractTSLanguageContextService implements TSLanguageCont
 	protected _onContextComputed: vscode.EventEmitter<OnContextComputedEvent>;
 	public readonly onContextComputed: vscode.Event<OnContextComputedEvent>;
 
-	protected _onContextComputedOnTimeout: vscode.EventEmitter<OnContextComputedOnTimeoutEvent>;
-	public readonly onContextComputedOnTimeout: vscode.Event<OnContextComputedOnTimeoutEvent>;
 
 	constructor(
 		telemetryService: ITelemetryService,
@@ -711,8 +697,6 @@ export abstract class AbstractTSLanguageContextService implements TSLanguageCont
 		this._onContextComputed = this.disposables.add(new vscode.EventEmitter<OnContextComputedEvent>());
 		this.onContextComputed = this._onContextComputed.event;
 
-		this._onContextComputedOnTimeout = this.disposables.add(new vscode.EventEmitter<OnContextComputedOnTimeoutEvent>());
-		this.onContextComputedOnTimeout = this._onContextComputedOnTimeout.event;
 	}
 
 	public dispose(): void {
@@ -764,13 +748,11 @@ export class NullTSLanguageContextService implements TSLanguageContextService {
 
 	public readonly onCachePopulated: vscode.Event<OnCachePopulatedEvent>;
 	public readonly onContextComputed: vscode.Event<OnContextComputedEvent>;
-	public readonly onContextComputedOnTimeout: vscode.Event<OnContextComputedOnTimeoutEvent>;
 
 	constructor() {
 		this.disposables = new DisposableStore();
 		this.onCachePopulated = this.disposables.add(new vscode.EventEmitter<OnCachePopulatedEvent>()).event;
 		this.onContextComputed = this.disposables.add(new vscode.EventEmitter<OnContextComputedEvent>()).event;
-		this.onContextComputedOnTimeout = this.disposables.add(new vscode.EventEmitter<OnContextComputedOnTimeoutEvent>()).event;
 	}
 
 	public dispose(): void {

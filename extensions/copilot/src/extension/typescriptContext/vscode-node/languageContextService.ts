@@ -18,7 +18,7 @@ import { DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { InspectorDataProvider } from './inspector';
 import { ThrottledDebouncer } from './throttledDebounce';
-import { ContextItemSummary, ErrorLocation, ErrorPart, type OnCachePopulatedEvent, type OnContextComputedEvent, type OnContextComputedOnTimeoutEvent } from './types';
+import { ContextItemSummary, ErrorLocation, ErrorPart, type OnCachePopulatedEvent, type OnContextComputedEvent } from './types';
 import { TS6LanguageContextService } from './ts6/tsContextService';
 import { TS7LanguageContextService } from './ts7/tsContextService';
 import { currentTokenBudget, NullTSLanguageContextService, type TSLanguageContextService } from './tsContextService';
@@ -34,7 +34,6 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 
 	private readonly _onCachePopulated: vscode.EventEmitter<OnCachePopulatedEvent>;
 	private readonly _onContextComputed: vscode.EventEmitter<OnContextComputedEvent>;
-	private readonly _onContextComputedOnTimeout: vscode.EventEmitter<OnContextComputedOnTimeoutEvent>;
 
 	private tsLanguageContextService: TSLanguageContextService;
 
@@ -48,7 +47,6 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 		this.serviceListeners = this.disposables.add(new DisposableStore());
 		this._onCachePopulated = this.disposables.add(new vscode.EventEmitter<OnCachePopulatedEvent>());
 		this._onContextComputed = this.disposables.add(new vscode.EventEmitter<OnContextComputedEvent>());
-		this._onContextComputedOnTimeout = this.disposables.add(new vscode.EventEmitter<OnContextComputedOnTimeoutEvent>());
 		const runsTS7 = TypeScript.runsVersion7();
 		const enableTS7 = TypeScript.isVersion7SupportEnabled(this.configurationService);
 		this.tsLanguageContextService = runsTS7
@@ -77,9 +75,6 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 		return this._onContextComputed.event;
 	}
 
-	public get onContextComputedOnTimeout() {
-		return this._onContextComputedOnTimeout.event;
-	}
 
 	async isActivated(documentOrLanguageId: vscode.TextDocument | string): Promise<boolean> {
 		return this.tsLanguageContextService.isActivated(documentOrLanguageId);
@@ -127,7 +122,6 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 		this.serviceListeners.clear();
 		this.serviceListeners.add(this.tsLanguageContextService.onCachePopulated(e => this._onCachePopulated.fire(e)));
 		this.serviceListeners.add(this.tsLanguageContextService.onContextComputed(e => this._onContextComputed.fire(e)));
-		this.serviceListeners.add(this.tsLanguageContextService.onContextComputedOnTimeout(e => this._onContextComputedOnTimeout.fire(e)));
 	}
 
 }

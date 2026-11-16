@@ -11,22 +11,13 @@ import type { KeyComputationContext } from './types';
 
 const EmptyIterator = (function* () { })();
 namespace tss {
-	export type SymbolId = number;
 	type InternalTypeScript = {
 		getTokenAtPosition(sourceFile: tt.SourceFile, position: number): tt.Node;
-		getTouchingToken(sourceFile: tt.SourceFile, position: number, includePrecedingTokenAtEndPosition?: (n: tt.Node) => boolean): tt.Node;
-		getNameTable(sourceFile: tt.SourceFile): Map<tt.__String, number>;
-		findReferencedSymbols(program: tt.Program, cancellationToken: tt.CancellationToken, sourceFiles: readonly tt.SourceFile[], sourceFile: tt.SourceFile, position: number): tt.ReferencedSymbol[] | undefined;
-		getSymbolId(symbol: tt.Symbol): SymbolId;
 	} & typeof ts;
 
 	const its = ts as unknown as InternalTypeScript;
 
 	export const getTokenAtPosition: (sourceFile: tt.SourceFile, position: number) => tt.Node = its.getTokenAtPosition;
-	export const getTouchingToken: (sourceFile: tt.SourceFile, position: number, includePrecedingTokenAtEndPosition?: (n: tt.Node) => boolean) => tt.Node = its.getTouchingToken;
-	export const getNameTable: (sourceFile: tt.SourceFile) => Map<tt.__String, number> = its.getNameTable;
-	export const findReferencedSymbols: (program: tt.Program, cancellationToken: tt.CancellationToken, sourceFiles: readonly tt.SourceFile[], sourceFile: tt.SourceFile, position: number) => tt.ReferencedSymbol[] | undefined = its.findReferencedSymbols;
-	export const getSymbolId: (symbol: tt.Symbol) => SymbolId = its.getSymbolId;
 
 	export type TokenInfo = {
 		token: tt.Node;
@@ -304,20 +295,6 @@ namespace tss {
 		}
 	}
 
-	export namespace TypeChecker {
-
-		interface InternalTypeChecker extends tt.TypeChecker {
-			getAccessibleSymbolChain(symbol: tt.Symbol, enclosingDeclaration: tt.Node | undefined, meaning: tt.SymbolFlags, useOnlyExternalAliasing: boolean): tt.Symbol[] | undefined;
-		}
-		export function getAccessibleSymbolChain(typeChecker: tt.TypeChecker, symbol: tt.Symbol, enclosingDeclaration: tt.Node | undefined, meaning: tt.SymbolFlags, useOnlyExternalAliasing: boolean): tt.Symbol[] | undefined {
-			const internalTypeChecker = typeChecker as InternalTypeChecker;
-			if (typeof internalTypeChecker.getAccessibleSymbolChain !== 'function') {
-				return undefined;
-			}
-			return internalTypeChecker.getAccessibleSymbolChain(symbol, enclosingDeclaration, meaning, useOnlyExternalAliasing);
-		}
-	}
-
 	export namespace Types {
 
 		export function isIntersection(type: tt.Type): type is tt.IntersectionType {
@@ -326,35 +303,6 @@ namespace tss {
 
 		export function isUnion(type: tt.Type): type is tt.UnionType {
 			return (type.flags & ts.TypeFlags.Union) !== 0;
-		}
-
-		export function getBaseTypes(type: tt.Type): tt.Type[] | undefined {
-			return type.getBaseTypes();
-		}
-
-		export function getExtendsTypes(typeChecker: tt.TypeChecker, type: tt.Type): tt.Type[] | undefined {
-			const symbol = type.getSymbol();
-			if (symbol === undefined) {
-				return undefined;
-			}
-			const declarations = symbol.getDeclarations();
-			if (declarations === undefined) {
-				return undefined;
-			}
-			const result: tt.Type[] = []; // Changed from tts.Type[] to tts.Type[]
-			for (const declaration of declarations) {
-				if (ts.isClassDeclaration(declaration)) {
-					const heritageClauses = declaration.heritageClauses;
-					if (heritageClauses !== undefined) {
-						for (const heritageClause of heritageClauses) {
-							for (const type of heritageClause.types) {
-								result.push(typeChecker.getTypeAtLocation(type.expression));
-							}
-						}
-					}
-				}
-			}
-			return result;
 		}
 	}
 
@@ -373,7 +321,6 @@ namespace tss {
 
 	interface InternalSymbol extends tt.Symbol {
 		parent?: tt.Symbol;
-		containingType?: tt.UnionOrIntersectionType;
 	}
 
 	export enum Traversal {
@@ -472,10 +419,6 @@ namespace tss {
 			this.typeChecker = program.getTypeChecker();
 		}
 
-		public static Unknown = 'unknown';
-		public static Undefined = 'undefined';
-		public static None = 'none';
-
 		public static getParent(symbol: tt.Symbol): tt.Symbol | undefined {
 			return (symbol as InternalSymbol).parent;
 		}
@@ -512,10 +455,6 @@ namespace tss {
 			return symbol !== undefined && (symbol.getFlags() & ts.SymbolFlags.Class) !== 0;
 		}
 
-		public static isObjectLiteral(symbol: tt.Symbol | undefined): boolean {
-			return symbol !== undefined && (symbol.getFlags() & ts.SymbolFlags.ObjectLiteral) !== 0;
-		}
-
 		public static isInterface(symbol: tt.Symbol | undefined): boolean {
 			return symbol !== undefined && (symbol.getFlags() & ts.SymbolFlags.Interface) !== 0;
 		}
@@ -544,16 +483,8 @@ namespace tss {
 			return symbol !== undefined && (symbol.getFlags() & ts.SymbolFlags.ValueModule) !== 0;
 		}
 
-		public static isNamespaceModule(symbol: tt.Symbol | undefined): boolean {
-			return symbol !== undefined && (symbol.getFlags() & ts.SymbolFlags.NamespaceModule) !== 0;
-		}
-
 		public static isEnum(symbol: tt.Symbol | undefined): boolean {
 			return symbol !== undefined && (symbol.getFlags() & ts.SymbolFlags.Enum) !== 0;
-		}
-
-		public static isRegularEnum(symbol: tt.Symbol | undefined): boolean {
-			return symbol !== undefined && (symbol.getFlags() & ts.SymbolFlags.RegularEnum) !== 0;
 		}
 
 		public static isConstEnum(symbol: tt.Symbol | undefined): boolean {
@@ -579,10 +510,6 @@ namespace tss {
 
 		public static isAbstract(symbol: tt.Symbol): boolean {
 			return this.hasModifierFlags(symbol, ts.ModifierFlags.Abstract);
-		}
-
-		public static isStatic(symbol: tt.Symbol): boolean {
-			return this.hasModifierFlags(symbol, ts.ModifierFlags.Static);
 		}
 
 		public static isPrivate(symbol: tt.Symbol): boolean {
@@ -615,14 +542,6 @@ namespace tss {
 					sources.add(sourceFile.fileName);
 				}
 			}
-		}
-
-		public static getPrimarySourceFile(symbol: tt.Symbol): tt.SourceFile | undefined {
-			const declarations = symbol.declarations;
-			if (declarations === undefined || declarations.length === 0) {
-				return undefined;
-			}
-			return declarations[0].getSourceFile();
 		}
 
 		public static getDeclaration<T extends tt.Declaration>(symbol: tt.Symbol, kind: tt.SyntaxKind): T | undefined {
@@ -735,59 +654,6 @@ namespace tss {
 			return hash.digest('base64');
 		}
 
-		public getFullyQualifiedSymbolName(symbol: tt.Symbol): string | undefined {
-			const declarations = symbol.getDeclarations();
-			if (declarations === undefined || declarations.length === 0) {
-				return undefined;
-			}
-
-			// Make sure all declarations come out of the same source file. We only need to check
-			// this for the first declaration since all parent declarations are in the same source file
-			// when using a module system (see below).
-			const sourceFile = declarations[0].getSourceFile();
-			for (let i = 1; i < declarations.length; i++) {
-				const otherSourceFile = declarations[i].getSourceFile();
-				if (otherSourceFile !== sourceFile) {
-					return undefined;
-				}
-			}
-
-			// We can only compute a reasonable moniker for symbols used in module systems.
-			// These are the huge majority of the TypeScript project so we ignore the rest
-			// for now. In a module system the source file has an attached symbol.
-			if (this.getSymbolAtLocation(sourceFile) === undefined) {
-				return undefined;
-			}
-
-			const parts: string[] = [];
-			let current: tt.Symbol | undefined = symbol;
-			while (current !== undefined) {
-				const declarations = current.declarations;
-				if (declarations === undefined || declarations.length === 0) {
-					return undefined;
-				}
-				// The symbol represents a source file. Use the file path as a moniker.
-				if (declarations.length === 1 && ts.isSourceFile(declarations[0])) {
-					break;
-				}
-				parts.push(this.getExportSymbolName(current));
-				current = Symbols.getParent(current);
-			}
-			return parts.length === 0 ? undefined : `${parts.reverse().join('.')}`;
-		}
-
-		private static escapeRegExp: RegExp = new RegExp('\\.', 'g');
-		private getExportSymbolName(symbol: tt.Symbol): string {
-			let escapedName = symbol.getEscapedName() as string;
-			if (escapedName.charAt(0) === '\"' || escapedName.charAt(0) === '\'') {
-				escapedName = escapedName.substr(1, escapedName.length - 2);
-			}
-			// We use `.` as a path separator so escape `.` into `..`
-			escapedName = escapedName.replace(Symbols.escapeRegExp, '..');
-			return escapedName;
-		}
-
-
 		public getProgram(): tt.Program {
 			return this.program;
 		}
@@ -802,33 +668,6 @@ namespace tss {
 				result = Nodes.getSymbol(node);
 			}
 			return result;
-		}
-
-		public getExtendsSymbol(symbol: tt.Symbol): [tt.Symbol | undefined, string | undefined] {
-			const declarations = symbol.declarations;
-			if (declarations === undefined) {
-				return [undefined, undefined];
-			}
-			for (const declaration of declarations) {
-				if (ts.isClassDeclaration(declaration)) {
-					const heritageClauses = declaration.heritageClauses;
-					if (heritageClauses !== undefined) {
-						for (const heritageClause of heritageClauses) {
-							if (heritageClause.token === ts.SyntaxKind.ExtendsKeyword) {
-								const extendsNode = heritageClause.types[0]?.expression;
-								let candidate = this.typeChecker.getSymbolAtLocation(extendsNode);
-								if (Symbols.isAlias(candidate)) {
-									candidate = this.typeChecker.getAliasedSymbol(candidate!);
-								}
-								if (Symbols.isClass(candidate)) {
-									return [candidate, extendsNode.getText()];
-								}
-							}
-						}
-					}
-				}
-			}
-			return [undefined, undefined];
 		}
 
 		public getDirectSuperSymbols(symbol: tt.Symbol): DirectSuperSymbolInfo | undefined {
@@ -895,10 +734,6 @@ namespace tss {
 			}
 		}
 
-		public getAliasedSymbol(symbol: tt.Symbol): tt.Symbol | undefined {
-			return Symbols.isAlias(symbol) ? this.typeChecker.getAliasedSymbol(symbol) : symbol;
-		}
-
 		public getLeafSymbol(symbol: tt.Symbol): tt.Symbol {
 			let count = 0;
 			while (Symbols.isAlias(symbol) && count++ < 10) {
@@ -928,10 +763,6 @@ namespace tss {
 
 		public getAllSuperTypesWithPath(symbol: tt.Symbol, traversal: Traversal = Traversal.depthFirst): IterableIterator<[tt.Symbol, tt.Symbol]> {
 			return this._getAllSuperTypes(symbol, traversal, new Set(), true);
-		}
-
-		public getDirectSuperTypes(symbol: tt.Symbol): IterableIterator<tt.Symbol> {
-			return this._getAllSuperTypes(symbol, InternalTraversal.breadthFirstOnly, new Set(), false);
 		}
 
 		private _getAllSuperTypes(start: tt.Symbol, traversal: Traversal | InternalTraversal, seen: Set<tt.Symbol>, includePath: false): IterableIterator<tt.Symbol>;
@@ -1276,21 +1107,14 @@ namespace tss {
 	}
 
 	export class ImportedByState {
-		public readonly key: string;
-
 		private readonly traversed: Set<string>;
 		private complete: boolean;
-		private outdated: boolean;
 		private importedBy: Map<string, Set<string>>;
-		private outdatedImportedBy: Map<string, Set<string>> | undefined;
 
-		constructor(key: string) {
-			this.key = key;
+		constructor() {
 			this.complete = false;
-			this.outdated = false;
 			this.traversed = new Set();
 			this.importedBy = new Map();
-			this.outdatedImportedBy = undefined;
 		}
 
 		public isComplete(): boolean {
@@ -1299,8 +1123,6 @@ namespace tss {
 
 		public markComplete(): void {
 			this.complete = true;
-			this.outdated = false;
-			this.outdatedImportedBy = undefined;
 		}
 
 		public addTraversed(sourceFile: tt.SourceFile): void {
@@ -1309,10 +1131,6 @@ namespace tss {
 
 		public isTraversed(sourceFile: tt.SourceFile): boolean {
 			return this.traversed.has(sourceFile.fileName);
-		}
-
-		public hasTraversed(): boolean {
-			return this.traversed.size > 0;
 		}
 
 		public imports(source: tt.SourceFile, imports: tt.SourceFile): void {
@@ -1324,22 +1142,9 @@ namespace tss {
 			values.add(source.fileName);
 		}
 
-		public getImportedBy(source: tt.SourceFile, considerOutdated: boolean): IterableIterator<string> {
-			let importedBy = this.importedBy.get(source.fileName);
-			if (importedBy === undefined && considerOutdated) {
-				importedBy = this.outdatedImportedBy?.get(source.fileName);
-			}
+		public getImportedBy(source: tt.SourceFile): IterableIterator<string> {
+			const importedBy = this.importedBy.get(source.fileName);
 			return importedBy === undefined ? EmptyIterator : importedBy.values();
-		}
-
-		public markAsOutdated(): void {
-			this.outdated = true;
-			this.outdatedImportedBy = this.importedBy;
-			this.importedBy = new Map();
-		}
-
-		public isOutdated(): boolean {
-			return this.outdated;
 		}
 	}
 
@@ -1377,7 +1182,7 @@ namespace tss {
 			// We have some imported by state. We first use it to see if we can find something in
 			// the cache.
 			if (this.importedByState !== undefined) {
-				for (const fileName of this.importedByState.getImportedBy(this.sourceFile, true)) {
+				for (const fileName of this.importedByState.getImportedBy(this.sourceFile)) {
 					this.token.throwIfCancellationRequested();
 					const sourceFile = this.getSourceFile(fileName);
 					if (sourceFile !== undefined && !this.skipSourceFile(program, sourceFile)) {
@@ -1385,7 +1190,7 @@ namespace tss {
 					}
 				}
 				// If the imported by state was complete we are done.
-				if (this.importedByState.isComplete() && !this.importedByState.isOutdated()) {
+				if (this.importedByState.isComplete()) {
 					return;
 				}
 			}

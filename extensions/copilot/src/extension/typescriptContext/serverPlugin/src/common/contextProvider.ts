@@ -104,10 +104,6 @@ export abstract class Search<R> extends ProgramContext {
 		this.symbols = symbols;
 	}
 
-	public getSymbols(): Symbols {
-		return this.symbols;
-	}
-
 	protected override getProgram(): tt.Program {
 		return this.program;
 	}
@@ -221,7 +217,7 @@ export abstract class ComputeContextSession implements tss.StateProvider, Emitte
 	public getImportedByState(key: string): ImportedByState {
 		let state = this.importedByState.get(key);
 		if (state === undefined) {
-			state = new ImportedByState(key);
+			state = new ImportedByState();
 			this.importedByState.set(key, state);
 		}
 		return state;
@@ -414,14 +410,6 @@ class RunnableResultReference {
 		this.cached = cached;
 	}
 
-	public get items(): ContextItem[] {
-		const result: ContextItem[] = [];
-		for (const item of this.cached.items) {
-			result.push(ContextItemReference.create(item.key));
-		}
-		return result;
-	}
-
 	public toJson(): ContextRunnableResultReference {
 		return {
 			kind: ContextRunnableResultKind.Reference,
@@ -455,10 +443,6 @@ export class ContextResult {
 		this.errors = [];
 		this.runnableResults = [];
 		this.contextItems = new Map<ContextItemKey, FullContextItem>();
-	}
-
-	public getSession(): ComputeContextSession {
-		return this.context.session;
 	}
 
 	public addPath(path: number[]): void {
@@ -820,10 +804,6 @@ export abstract class AbstractContextRunnable implements ContextRunnable {
 		return scopeNodes;
 	}
 
-	protected createCacheInfo(emitMode: EmitMode, cacheScope?: CacheScope | undefined): CacheInfo | undefined {
-		return cacheScope !== undefined ? { emitMode, scope: cacheScope } : undefined;
-	}
-
 	protected handleSymbol(symbol: tt.Symbol, name?: string, ifRoom?: boolean): boolean {
 		if (this.result === undefined) {
 			return true;
@@ -867,10 +847,6 @@ export abstract class AbstractContextRunnable implements ContextRunnable {
 			}
 		}
 		return true;
-	}
-
-	protected isNodeArray(node: tt.Node | tt.NodeArray<tt.Node>): node is tt.NodeArray<tt.Node> {
-		return Array.isArray(node);
 	}
 
 	protected skipNode(node: tt.Node): boolean {
@@ -1110,22 +1086,14 @@ export interface ProviderComputeContext {
 }
 export type ContextProviderFactory = (node: tt.Node, tokenInfo: tss.TokenInfo, context: ProviderComputeContext) => ContextProvider | undefined;
 
-export class TokenBudgetExhaustedError extends Error {
-	constructor() {
-		super('Budget exhausted');
-	}
-}
-
 export class CharacterBudget {
 
 	private charBudget: number;
 	private lowWaterMark: number;
-	private itemRejected: boolean;
 
 	constructor(budget: number, lowWaterMark: number = 256) {
 		this.charBudget = budget;
 		this.lowWaterMark = lowWaterMark;
-		this.itemRejected = false;
 	}
 
 	public spent(chars: number): void {
@@ -1133,29 +1101,10 @@ export class CharacterBudget {
 	}
 
 	public hasRoom(chars: number): boolean {
-		const result = this.charBudget - this.lowWaterMark >= chars;
-		if (!result) {
-			this.itemRejected = true;
-		}
-		return result;
+		return this.charBudget - this.lowWaterMark >= chars;
 	}
 
 	public isExhausted(): boolean {
 		return this.charBudget <= 0;
-	}
-
-	public wasItemRejected(): boolean {
-		return this.itemRejected;
-	}
-
-	public throwIfExhausted(): void {
-		if (this.charBudget <= 0) {
-			throw new TokenBudgetExhaustedError();
-		}
-	}
-
-	public spentAndThrowIfExhausted(chars: number): void {
-		this.spent(chars);
-		this.throwIfExhausted();
 	}
 }
