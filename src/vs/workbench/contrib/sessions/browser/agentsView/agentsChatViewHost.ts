@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceTimeout } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { derived, IObservable } from '../../../../../base/common/observable.js';
@@ -27,7 +27,8 @@ import { IAgentsChatPartService } from './agentsChatPart.js';
 import { getEditorWindowComposerTarget } from '../editorWindow/editorWindowSessionsPresenter.js';
 import { AgentsViewAvailable } from './agentsChatPartContext.js';
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
-import { IAgentsViewProvidersService, waitForAgentsViewSession } from './agentsViewProviders.js';
+import { IAgentsViewProvidersService } from './agentsViewProviders.js';
+import { SESSION_OPEN_WAIT_TIMEOUT, waitForSessionChat } from '../sessionOpen.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
 /** How long it waits for the widget of a chat it shows to be created. */
@@ -83,6 +84,8 @@ export class AgentsChatViewHost implements IChatViewHost {
 
 	/** Increases as the host is deactivated: what started before then does not open the chat part once it continues. */
 	private _generation = 0;
+	/** Cancelled as the host is deactivated, which ends a wait for a session's chat at once. */
+	private _activation = new CancellationTokenSource();
 
 	/**
 	 * It no longer replaces the Chat view, such as once chat needs setting up: what it is still doing, such as looking up a
@@ -90,6 +93,8 @@ export class AgentsChatViewHost implements IChatViewHost {
 	 */
 	deactivate(): void {
 		this._generation++;
+		this._activation.dispose(true);
+		this._activation = new CancellationTokenSource();
 	}
 
 	/**
@@ -149,7 +154,7 @@ export class AgentsChatViewHost implements IChatViewHost {
 		const generation = this._generation;
 		const hold = this._providers.acquire();
 		try {
-			const owner = await waitForAgentsViewSession(this._sessionsManagementService, () => this._sessionsManagementService.getSessionForChatResource(sessionResource));
+			const owner = await waitForSessionChat(this._sessionsManagementService, sessionResource, this._activation.token, SESSION_OPEN_WAIT_TIMEOUT);
 			if (!owner || generation !== this._generation) {
 				return undefined;
 			}
