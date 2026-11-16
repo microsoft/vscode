@@ -7,12 +7,15 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { localize } from '../../../../../nls.js';
-import { registerAction2, Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { registerAction2, Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { getSessionWorktreeFolder, getWorktreeFilterKey, getWorktreeFilterOptions, ISessionWorktreeFolder, IWorktreeFilterOption } from '../../../../../platform/agentHost/common/sessionWorktreeFolders.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from './agentSessions.js';
 import { AgentSessionStatus, IAgentSession } from './agentSessionsModel.js';
+import { IAgentSessionsService } from './agentSessionsService.js';
 import { IAgentSessionsFilter, IAgentSessionsFilterExcludes } from './agentSessionsViewer.js';
 
 export enum AgentSessionsGrouping {
@@ -55,7 +58,18 @@ const DEFAULT_EXCLUDES: IAgentSessionsFilterExcludes = Object.freeze({
 	read: false as const,
 	automation: true as const,
 	repositoryGroupCapped: true as const /* when true, repo groups are capped at a limit with a "show more" item */,
+	worktrees: [] as const,
 });
+
+/**
+ * Where `session` works, for the Worktrees filter: its worktree, else its working directory, of the repository it knows,
+ * else of the repository that folder is a worktree of. Sessions without a folder, such as local chats, have none.
+ */
+export function getAgentSessionWorktreeFolder(session: IAgentSession): ISessionWorktreeFolder | undefined {
+	const path = (value: unknown) => typeof value === 'string' && value ? URI.file(value) : undefined;
+	const metadata = session.metadata;
+	return getSessionWorktreeFolder(path(metadata?.worktreePath) ?? path(metadata?.workingDirectoryPath), path(metadata?.repositoryPath));
+}
 
 export class AgentSessionsFilter extends Disposable implements Required<IAgentSessionsFilter> {
 
@@ -73,11 +87,13 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	private currentSorting: AgentSessionsSorting = AgentSessionsSorting.Created;
 
 	private readonly actionDisposables = this._register(new DisposableStore());
+	private worktreeOptions: readonly IWorktreeFilterOption[] = [];
 
 	constructor(
 		private readonly options: IAgentSessionsFilterOptions,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 	) {
 		super();
 
@@ -92,6 +108,19 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.updateFilterActions()));
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.STORAGE_KEY, this._store)(() => this.updateExcludes(true)));
+
+		// The Worktrees submenu follows the worktrees that sessions work in
+		if (this.options.filterMenuId) {
+			this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
+				if (!equals(this.getWorktreeOptions(), this.worktreeOptions)) {
+					this.updateFilterActions();
+				}
+			}));
+		}
+	}
+
+	private getWorktreeOptions(): IWorktreeFilterOption[] {
+		return getWorktreeFilterOptions(this.agentSessionsService.model.sessions.filter(session => !session.isArchived()).map(getAgentSessionWorktreeFolder));
 	}
 
 	private updateExcludes(fromEvent: boolean): void {
@@ -160,6 +189,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 		this.registerSortActions(this.actionDisposables, menuId);
 		this.registerProviderActions(this.actionDisposables, menuId);
+		this.registerWorktreeActions(this.actionDisposables, menuId);
 		this.registerStateActions(this.actionDisposables, menuId);
 		this.registerArchivedActions(this.actionDisposables, menuId);
 		this.registerReadActions(this.actionDisposables, menuId);
@@ -258,6 +288,48 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 					}
 
 					that.storeExcludes({ ...that.excludes, providers: Array.from(providerExcludes) });
+				}
+			}));
+		}
+	}
+
+	/**
+	 * A Worktrees submenu with the worktrees that sessions work in and their repository's own folder, all checked by
+	 * default: the filter keeps the folders unchecked, so a worktree seen later starts checked.
+	 */
+	private registerWorktreeActions(disposables: DisposableStore, menuId: MenuId): void {
+		this.worktreeOptions = this.getWorktreeOptions();
+		if (this.worktreeOptions.length === 0) {
+			return;
+		}
+		const worktreesMenuId = MenuId.for(`${menuId.id}.worktrees`);
+		disposables.add(MenuRegistry.appendMenuItem(menuId, {
+			submenu: worktreesMenuId,
+			title: localize('agentSessions.filter.worktrees', "Worktrees"),
+			group: '1_providers',
+			order: 1000,
+		}));
+		const that = this;
+		for (const [index, option] of this.worktreeOptions.entries()) {
+			disposables.add(registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: `agentSessions.filter.toggleExcludeWorktree:${encodeURIComponent(option.key)}.${menuId.id.toLowerCase()}`,
+						title: option.label,
+						menu: {
+							id: worktreesMenuId,
+							group: option.isRepository ? '1_repository' : '2_worktrees',
+							order: index,
+						},
+						toggled: that.excludes.worktrees?.includes(option.key) ? ContextKeyExpr.false() : ContextKeyExpr.true(),
+					});
+				}
+				run(): void {
+					const worktreeExcludes = new Set(that.excludes.worktrees);
+					if (!worktreeExcludes.delete(option.key)) {
+						worktreeExcludes.add(option.key);
+					}
+					that.storeExcludes({ ...that.excludes, worktrees: Array.from(worktreeExcludes) });
 				}
 			}));
 		}
@@ -419,6 +491,13 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 		if (this.excludes.states.includes(session.status)) {
 			return true;
+		}
+
+		if (this.excludes.worktrees?.length) {
+			const worktree = getAgentSessionWorktreeFolder(session);
+			if (worktree && this.excludes.worktrees.includes(getWorktreeFilterKey(worktree.folder))) {
+				return true;
+			}
 		}
 
 		if (this.excludes.archived && this.groupResults?.() === AgentSessionsGrouping.Capped && session.isArchived()) {

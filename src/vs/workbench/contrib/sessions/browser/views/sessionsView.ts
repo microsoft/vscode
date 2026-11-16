@@ -832,6 +832,15 @@ export class SessionsView extends ViewPane {
 				group: '2_filters',
 				order: 0,
 			}));
+			// Only while sessions work in worktrees
+			if (options.some(option => option.filter.kind === 'worktree')) {
+				reader.store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
+					submenu: Menus.SessionsViewWorktree,
+					title: localize('worktrees', "Worktrees"),
+					group: '2_filters',
+					order: 3,
+				}));
+			}
 			if (emptySourcesTitle) {
 				reader.store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewSource, {
 					command: {
@@ -845,7 +854,8 @@ export class SessionsView extends ViewPane {
 			for (const [index, option] of options.entries()) {
 				const menuId = option.filter.kind === 'environment' ? Menus.SessionsViewEnvironment
 					: option.filter.kind === 'application' ? Menus.SessionsViewSource
-						: Menus.SessionsViewHarness;
+						: option.filter.kind === 'worktree' ? Menus.SessionsViewWorktree
+							: Menus.SessionsViewHarness;
 				const id = `sessionsViewPane.filter.${encodeURIComponent(sessionFilterKey(option.filter))}`;
 				const contextKey = new RawContextKey(id, option.checked).bindTo(this.scopedContextKeyService);
 				contextKey.set(option.checked);

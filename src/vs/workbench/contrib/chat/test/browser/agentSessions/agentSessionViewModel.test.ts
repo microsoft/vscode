@@ -28,7 +28,9 @@ import { MockChatSessionsService } from '../../common/mockChatSessionsService.js
 import { TestChatWidgetService, TestLifecycleService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { ContextKeyExpression } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
@@ -1176,6 +1178,8 @@ suite('AgentSessions', () => {
 		const storageKey = 'agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu';
 		let mockChatSessionsService: MockChatSessionsService;
 		let instantiationService: TestInstantiationService;
+		let modelSessions: IAgentSession[];
+		let onDidChangeModelSessions: Emitter<void>;
 
 		function createSession(overrides: Partial<IAgentSession> = {}): IAgentSession {
 			return {
@@ -1201,10 +1205,52 @@ suite('AgentSessions', () => {
 			mockChatSessionsService = new MockChatSessionsService();
 			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
+			modelSessions = [];
+			onDidChangeModelSessions = disposables.add(new Emitter<void>());
+			instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+				override readonly model = new class extends mock<IAgentSessionsService['model']>() {
+					override get sessions() { return modelSessions; }
+					override readonly onDidChangeSessions = onDidChangeModelSessions.event;
+				}();
+			}());
 		});
 
 		teardown(() => {
 			disposables.clear();
+		});
+
+		test('offers the worktrees that sessions work in with their repository, all shown, and hides the sessions of an unchecked one until reset', () => {
+			const filterMenuId = new MenuId('agentSessionsWorktreeFilterTest');
+			const inFolder = (name: string, metadata: { [key: string]: unknown }) => createSession({ resource: URI.parse(`test://${name}`), metadata });
+			const main = inFolder('main', { workingDirectoryPath: '/work/vscode' });
+			const first = inFolder('first', { workingDirectoryPath: '/work/vscode.worktrees/first' });
+			const second = inFolder('second', { worktreePath: '/elsewhere/second', repositoryPath: '/work/vscode' });
+			const chat = createSession({ resource: URI.parse('test://chat') });
+			modelSessions = [main, chat];
+			const filter = disposables.add(instantiationService.createInstance(AgentSessionsFilter, { filterMenuId }));
+			const worktreesMenuId = MenuId.for(`${filterMenuId.id}.worktrees`);
+			const submenu = () => MenuRegistry.getMenuItems(filterMenuId).some(item => !isIMenuItem(item) && item.submenu === worktreesMenuId);
+			const options = () => MenuRegistry.getMenuItems(worktreesMenuId).filter(isIMenuItem).map(item => `${item.command.title}${(item.command.toggled as ContextKeyExpression).serialize() === 'true' ? '' : ' (unchecked)'}`);
+			const toggle = (title: string) => {
+				const item = MenuRegistry.getMenuItems(worktreesMenuId).filter(isIMenuItem).find(candidate => candidate.command.title === title)!;
+				instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(item.command.id)!.handler(accessor));
+			};
+			const excluded = () => [main, first, second, chat].filter(session => filter.exclude(session)).map(session => session.resource.authority);
+
+			const withoutWorktrees = { submenu: submenu() };
+			modelSessions = [main, first, second, chat];
+			onDidChangeModelSessions.fire();
+			const offered = { submenu: submenu(), options: options() };
+			toggle('first');
+			const unchecked = { options: options(), excluded: excluded() };
+			filter.reset();
+
+			assert.deepStrictEqual({ withoutWorktrees, offered, unchecked, reset: { options: options(), excluded: excluded() } }, {
+				withoutWorktrees: { submenu: false },
+				offered: { submenu: true, options: ['vscode', 'first', 'second'] },
+				unchecked: { options: ['vscode', 'first (unchecked)', 'second'], excluded: ['first'] },
+				reset: { options: ['vscode', 'first', 'second'], excluded: [] },
+			});
 		});
 
 		ensureNoDisposablesAreLeakedInTestSuite();
@@ -3522,6 +3568,12 @@ suite('AgentSessions', () => {
 			mockChatSessionsService = new MockChatSessionsService();
 			instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 			instantiationService.stub(IChatSessionsService, mockChatSessionsService);
+			instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+				override readonly model = new class extends mock<IAgentSessionsService['model']>() {
+					override readonly sessions = [];
+					override readonly onDidChangeSessions = Event.None;
+				}();
+			}());
 		});
 
 		teardown(() => {
