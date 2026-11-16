@@ -1288,7 +1288,7 @@ export function registerSessionsListActions(): IDisposable {
 					id,
 					group: id === Menus.SessionItemToolbar ? 'navigation' : '1_state',
 					order: 1,
-					when: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionIsArchivedContext.negate(), SessionItemInboxStateContext.notEqualsTo('')),
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionIsArchivedContext.negate(), IsSessionPinnedContext.negate(), SessionItemInboxStateContext.notEqualsTo('')),
 				})),
 			});
 		}
