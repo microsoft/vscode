@@ -26,7 +26,10 @@ suite('NewWorktreeCheckbox', () => {
 		const changed = observableSignal('changed');
 		const checkbox = disposables.add(new NewWorktreeCheckbox(row, {
 			isSelected: () => choice.selected,
-			setSelected: value => choice.choices.push(value),
+			setSelected: value => {
+				choice.choices.push(value);
+				return Promise.resolve(true);
+			},
 		}, visible, reader => changed.read(reader), NullHoverService));
 		return { checkbox, sibling, visible, changed };
 	}

@@ -92,17 +92,18 @@ export class NewWorktreeChoice implements IWorkspacePickerNewWorktreeOption {
 		return !!draft && this._isolationOf(draft) === 'worktree';
 	}
 
-	setSelected(selected: boolean): void {
+	/** Resolves to whether the draft's agent took the choice, such as `false` where it rejects it, which undoes it. */
+	setSelected(selected: boolean): Promise<boolean> {
 		const draft = this._draftIsolation();
 		if (!draft) {
-			return;
+			return Promise.resolve(false);
 		}
 		// The choice is known before the agent takes it: its configuration can change, and apply the default, meanwhile
 		const state = this._stateOf(draft.session);
 		const wasChosen = state.chosen;
 		state.chosen = selected;
 		const choice = ++state.latestChoice;
-		this._write(draft, state, selected, () => {
+		return this._write(draft, state, selected, () => {
 			// The agent did not take it: unless the user chose again since, the draft is as before
 			if (state.latestChoice === choice) {
 				state.chosen = wasChosen;
@@ -137,11 +138,15 @@ export class NewWorktreeChoice implements IWorkspacePickerNewWorktreeOption {
 		return draftChoices.get(draft.session)?.pending?.target ?? draft.isolation;
 	}
 
-	private _write(draft: IDraftIsolation, state: IDraftChoice, worktree: boolean, onDidReject?: () => void): void {
+	/** Resolves to whether the draft has the isolation written, once its agent took or rejected it. */
+	private _write(draft: IDraftIsolation, state: IDraftChoice, worktree: boolean, onDidReject?: () => void): Promise<boolean> {
 		const target = worktree ? 'worktree' : 'folder';
 		const value = writeSessionIsolation(draft.property, target);
-		if (value === undefined || this._isolationOf(draft) === target) {
-			return;
+		if (value === undefined) {
+			return Promise.resolve(false);
+		}
+		if (this._isolationOf(draft) === target) {
+			return Promise.resolve(true);
 		}
 		const operation = draft.provider.setSessionConfigValue(draft.session.sessionId, draft.chat, draft.property.key, value);
 		draft.provider.trackSessionConfigOperation(draft.session.sessionId, operation);
@@ -151,14 +156,16 @@ export class NewWorktreeChoice implements IWorkspacePickerNewWorktreeOption {
 				state.pending = undefined;
 			}
 		};
-		operation.then(() => {
+		return operation.then(() => {
 			settle();
 			onDidSettleDraft.fire(draft.session);
+			return true;
 		}, error => {
 			settle();
 			onDidReject?.();
 			onDidSettleDraft.fire(draft.session);
 			onUnexpectedError(error);
+			return false;
 		});
 	}
 

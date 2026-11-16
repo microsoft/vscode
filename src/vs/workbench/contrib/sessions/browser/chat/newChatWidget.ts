@@ -46,7 +46,7 @@ import { IAquariumService, IMountedToggleHandle } from '../aquarium.js';
 import { IWorkspacePickerNewWorktreeOption, IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { NewWorktreeChoice } from './newWorktreeChoice.js';
 import { NewWorktreeCheckbox } from './newWorktreeCheckbox.js';
-import { getNewSessionWorktreeSendChoice } from './newSessionWorktreeSendChoice.js';
+import { getNewSessionWorktreeSendChoice, INewSessionWorktreeSendChoiceProvider } from './newSessionWorktreeSendChoice.js';
 import { IChatSubmitRequest, IChatSubmitRequestHandlerService } from '../../../chat/browser/chatSubmitRequestHandlerService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
@@ -1555,19 +1555,23 @@ export class NewChatWidget extends Disposable {
 		const newWorktree = this._newWorktree;
 		const folder = session.workspace.get()?.folders[0]?.root;
 		const control = this._getWorktreeSendChoiceControl();
-		if (!provider || !newWorktree || !folder || !control || isSessionCreated(session) || session.isQuickChat?.get()
+		if (!provider || !newWorktree || !folder || isSessionCreated(session) || session.isQuickChat?.get()
 			|| !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled)
 			|| this._pendingWorktreePlacement.get()
-			|| !newWorktree.isAvailable() || newWorktree.isSelected() || newWorktree.isUserChosen()) {
+			|| !newWorktree.isAvailable() || newWorktree.isSelected() || newWorktree.isUserChosen()
+			|| !this._isRecentChatInFolder(provider, folder, session.resource)) {
 			return false;
 		}
+		// Held from the question to the answer applied: the send then goes out once, from the composer.
 		this._askingWorktreeOnSend.add(session.sessionId);
 		try {
-			const choice = await provider.ask(session.resource, folder, control);
-			if (choice === 'worktree' && this._session.get()?.sessionId === session.sessionId) {
-				if (newWorktree.isAvailable()) {
-					newWorktree.setSelected(true);
-				} else {
+			// `undefined` is no answer, such as where the question could not be shown: the request is sent in the folder.
+			// Without a control, only a remembered answer applies.
+			const choice = await provider.askWorktreeOnSend(control);
+			// Only to the draft it asked for: one the user switched from or closed meanwhile is not sent by the composer.
+			if (choice === 'worktree' && !this._store.isDisposed && this._session.get()?.sessionId === session.sessionId) {
+				// Where its agent does not take it, the draft stays in its folder, where the request is sent.
+				if (!newWorktree.isAvailable() || !await newWorktree.setSelected(true)) {
 					this._warnNewWorktreeUnavailable();
 				}
 			}
@@ -1578,6 +1582,16 @@ export class NewChatWidget extends Disposable {
 			this._askingWorktreeOnSend.delete(session.sessionId);
 		}
 		return false;
+	}
+
+	/** Never at the cost of the request: where the provider fails to tell, there is no choice. */
+	private _isRecentChatInFolder(provider: INewSessionWorktreeSendChoiceProvider, folder: URI, draft: URI): boolean {
+		try {
+			return provider.isRecentChatInFolder(folder, draft);
+		} catch (error) {
+			onUnexpectedError(error);
+			return false;
+		}
 	}
 
 	/** Where the composer offers New Worktree: its checkbox while shown, else its workspace picker. */

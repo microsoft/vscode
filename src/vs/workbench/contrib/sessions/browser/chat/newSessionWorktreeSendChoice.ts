@@ -15,11 +15,13 @@ export type NewSessionWorktreeSendChoice = 'worktree' | 'folder';
  * in a callout on the composer's New Worktree control.
  */
 export interface INewSessionWorktreeSendChoiceProvider {
+	/** Whether another chat recently worked in `folder` itself, other than the session of `draft`: only then is there a choice. */
+	isRecentChatInFolder(folder: URI, draft: URI): boolean;
 	/**
-	 * Where the session of `draft`, working in `folder`, works; `undefined` when there is nothing to choose, such as with no
-	 * recent chat in the folder. It can ask the user on `control`, while the send waits.
+	 * Where the session works: as the user chose once, else as the user chooses now in a callout on `control`, while the send
+	 * waits. `undefined` is no answer, such as where it could not ask: the session then works in its folder.
 	 */
-	ask(draft: URI, folder: URI, control: HTMLElement): Promise<NewSessionWorktreeSendChoice | undefined>;
+	askWorktreeOnSend(control: HTMLElement | undefined): Promise<NewSessionWorktreeSendChoice | undefined>;
 }
 
 let provider: INewSessionWorktreeSendChoiceProvider | undefined;
