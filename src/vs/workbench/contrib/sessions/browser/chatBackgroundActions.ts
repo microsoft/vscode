@@ -12,7 +12,6 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
@@ -349,20 +348,6 @@ const chatBackgroundConfiguration: IConfigurationNode = {
 	},
 };
 
-let chatBackgroundConfigurationHolds = 0;
-
-/**
- * Registers the settings of the chat background, and of its tint, for as long as anything shows chats over it: the Agents
- * window, and an editor window while its chat area is enabled. They register once, however many hold them.
- */
-export function registerChatBackgroundConfiguration(): IDisposable {
-	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-	if (chatBackgroundConfigurationHolds++ === 0) {
-		configurationRegistry.registerConfiguration(chatBackgroundConfiguration);
-	}
-	return toDisposable(() => {
-		if (--chatBackgroundConfigurationHolds === 0) {
-			configurationRegistry.deregisterConfigurations([chatBackgroundConfiguration]);
-		}
-	});
-}
+// The Agents window and the chat area of editor windows show chats over the chat background: its settings are always there,
+// while its actions are gated on the chat contexts
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(chatBackgroundConfiguration);

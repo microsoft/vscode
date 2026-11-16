@@ -27,7 +27,6 @@ import { ColorScheme, isHighContrast } from '../../../../platform/theme/common/t
 import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
-import { AgentsChatPartVisibleContext } from './agentsView/agentsChatPartActions.js';
 import { InAgentsChatPartContext } from './agentsView/agentsChatPartContext.js';
 import { EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_EDITOR_TAB_ACTIVE_FOREGROUND, MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_FOREGROUND, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_FOREGROUND, MODERN_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_FOREGROUND, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_FOREGROUND, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_BACKGROUND, TAB_INACTIVE_FOREGROUND, TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_INACTIVE_FOREGROUND } from '../../../common/theme.js';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR } from '../../terminal/common/terminalColorRegistry.js';
@@ -51,8 +50,8 @@ export class ToggleChatBackgroundTintAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.toggleAgentSessionsBackgroundTint';
 
 	constructor() {
-		// Where chats show over the chat background: the Agents window, or an editor window while its chat part shows
-		const when = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(IsSessionsWindowContext, AgentsChatPartVisibleContext), SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext);
+		// Only the Agents window tints its theme to the background: an editor window shows the image without a tint
+		const when = ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext, SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext);
 		super({
 			id: ToggleChatBackgroundTintAction.ID,
 			title: localize2('chat.agentSessions.toggleBackgroundTint', "Tint Window to Match Background"),

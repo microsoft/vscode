@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../services/sessions/browser/chatHostOpener.js';
 import { ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
@@ -56,7 +55,6 @@ import { IChatViewFactory } from '../chatViewFactory.js';
 import { DefaultChatViewFactory } from '../chat/defaultChatViewFactory.js';
 // The chat background's commands, for the chat part's chats, which show over it
 import '../chatBackgroundActions.js';
-import { EditorWindowChatBackgroundConfiguration } from './editorWindowChatBackground.js';
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../chat/newChatVoice.js';
 import { ISessionChatPillsDebugService, SessionChatPillsDebugService } from '../chat/sessionChatInputToolbarDebug.js';
 import { ISessionArchiveNudgeService, SessionArchiveNudgeService } from '../chat/sessionArchiveNudge.js';
@@ -139,5 +137,3 @@ registerSingleton(IAgentsChatPartFrame, AgentsChatPartFrame, InstantiationType.D
 registerSingleton(IAgentsChatPartService, AgentsChatPartService, InstantiationType.Delayed);
 // The folders that the window's new-session composers offer, which reading does not create the chat part for
 registerSingleton(IEditorWindowComposerFoldersService, EditorWindowComposerFoldersService, InstantiationType.Delayed);
-// The chat background's settings, while the chat area is enabled
-registerWorkbenchContribution2(EditorWindowChatBackgroundConfiguration.ID, EditorWindowChatBackgroundConfiguration, WorkbenchPhase.BlockStartup);
