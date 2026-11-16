@@ -9,6 +9,14 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import type { ChatAttachmentModel } from './chatAttachmentModel.js';
+import type { IImageCarouselMarkUp } from '../../../imageCarousel/browser/imageCarouselTypes.js';
+
+/** Entry-owned editing of an image still attached to its input, including its carousel preview. */
+export interface IChatImageAttachmentEditor {
+	edit(attachmentModel: ChatAttachmentModel, attachment: IChatRequestVariableEntry): Promise<void>;
+	createMarkUp(container: HTMLElement, attachmentModel: ChatAttachmentModel, attachmentId: string): IImageCarouselMarkUp;
+}
 
 /**
  * Interface for a contributed attachment widget instance.
@@ -50,6 +58,7 @@ export const IChatAttachmentWidgetRegistry = createDecorator<IChatAttachmentWidg
 
 export interface IChatAttachmentWidgetRegistry {
 	readonly _serviceBrand: undefined;
+	readonly imageEditor?: IChatImageAttachmentEditor;
 
 	/**
 	 * Register a widget factory for a specific attachment kind.

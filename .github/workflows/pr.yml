@@ -444,7 +444,7 @@ jobs:
       # core-ci-pr skips the minified bundles that only the product build uses.
       - name: Compile
         id: compile
-        run: pnpm exec npm-run-all2 -lp core-ci-pr valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+        run: pnpm exec npm-run-all2 -lp core-ci-pr valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts check-mobile-boundary
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
