@@ -28,7 +28,7 @@ import { ChatEditorView } from '../../../../browser/chatEditor/chatEditor.js';
 import { ChatEditorContent } from '../../../../browser/chatEditor/chatEditorContent.js';
 import { ChatGroupView } from '../../../../browser/parts/chatGroupView.js';
 import { SessionsList } from '../../../../browser/views/sessionsList.js';
-import { SessionsView } from '../../../../browser/views/sessionsView.js';
+import { ISessionsViewLocator, SessionsView } from '../../../../browser/views/sessionsView.js';
 import { SessionArchiveNudge } from '../../../../browser/chat/sessionArchiveNudge.js';
 import { SessionChatInputToolbar } from '../../../../browser/chat/sessionChatInputToolbar.js';
 import { SessionInputBanners } from '../../../../browser/sessionInputBanners/sessionInputBanners.js';
@@ -90,6 +90,7 @@ function editorWindowSessionsSingletons(): readonly IEditorWindowSessionsSinglet
 		// Registered by their modules, which the Agents window loads too
 		{ id: ISessionAttentionService, ctor: descriptorOf(ISessionAttentionService)!.ctor },
 		{ id: IDevContainerAgentHostService, ctor: descriptorOf(IDevContainerAgentHostService)!.ctor },
+		{ id: ISessionsViewLocator, ctor: descriptorOf(ISessionsViewLocator)!.ctor },
 	];
 }
 
