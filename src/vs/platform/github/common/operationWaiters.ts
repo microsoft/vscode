@@ -7,6 +7,7 @@ import { IRequestScheduler } from './scheduler.js';
 
 /** One caller waiting for an operation, with its own cancellation and deadline. */
 interface IOperationWaiter<T> {
+	readonly signal: AbortSignal;
 	resolve(value: T): void;
 	reject(error: unknown): void;
 	blockedUntil(time: number): void;
@@ -31,6 +32,15 @@ export class OperationWaiters<T> {
 	private _blockedUntil: number | undefined;
 
 	get size(): number { return this._waiters.size; }
+
+	hasSignal(signal: AbortSignal): boolean {
+		for (const waiter of this._waiters) {
+			if (waiter.signal === signal) {
+				return true;
+			}
+		}
+		return false;
+	}
 
 	resolve(value: T): void {
 		for (const waiter of this._waiters) {
@@ -76,6 +86,7 @@ export class OperationWaiters<T> {
 				this._waiters.delete(waiter);
 			};
 			const waiter: IOperationWaiter<T> = {
+				signal,
 				resolve: response => {
 					cleanup();
 					if (deadline <= scheduler.now()) {

@@ -62,4 +62,17 @@ suite('Automation catalogue presentation', () => {
 			{ id: 'host2', label: 'Host 2', unavailableReasonCode: 'disconnected' },
 		]), 'The agent host is disconnected on Host 1, Host 2.');
 	});
+
+	test('uses a provider-supplied message instead of naming the provider', () => {
+		assert.deepStrictEqual([
+			formatUnavailableAutomationsMessage([{ id: 'cloud', label: 'Copilot Chat', unavailableMessage: 'GitHub Cloud automations are unavailable.' }]),
+			formatUnavailableAutomationsMessage([
+				{ id: 'cloud', label: 'Copilot Chat', unavailableReasonCode: 'disabled', unavailableMessage: 'GitHub Cloud automations are unavailable.' },
+				{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disabled' },
+			]),
+		], [
+			'GitHub Cloud automations are unavailable.',
+			'- GitHub Cloud automations are unavailable.\n- Automations are disabled on Host 1.',
+		]);
+	});
 });

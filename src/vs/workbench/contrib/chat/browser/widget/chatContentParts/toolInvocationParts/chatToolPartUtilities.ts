@@ -9,13 +9,41 @@ import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { IReader } from '../../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../../nls.js';
 import { ConfirmedReason, IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
+import { IChatProgressResponseContent } from '../../../../common/model/chatModel.js';
+import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
 import { isToolResultInputOutputDetails, ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
 
 export function isImageGenerationToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
-	return toolInvocation.toolSpecificData?.kind === 'generatedImage'
-		|| (toolInvocation.toolSpecificData?.kind === 'input' && !!toolInvocation.toolSpecificData.imageGeneration)
-		|| toolInvocation.toolId === 'image_gen.imagegen'
-		|| toolInvocation.toolId === 'image_generation';
+	return IChatToolInvocation.isImageGeneration(toolInvocation);
+}
+
+/** Returns the owner's consecutive image calls without crossing other transcript content. */
+export function getImageGenerationBatch(content: readonly (IChatRendererContent | IChatProgressResponseContent)[], toolCallId: string): (IChatToolInvocation | IChatToolInvocationSerialized)[] {
+	const tools: (IChatToolInvocation | IChatToolInvocationSerialized)[] = [];
+	let containsOwner = false;
+	for (const part of content) {
+		if (part.kind === 'undoStop'
+			|| ((part.kind === 'codeblockUri' || part.kind === 'hook' || part.kind === 'externalEdit') && part.subAgentInvocationId)) {
+			continue;
+		}
+		if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
+			if (part.subAgentInvocationId || (part.kind === 'toolInvocation' && part.otherClientToolCall) || IChatToolInvocation.isEffectivelyHidden(part)) {
+				continue;
+			}
+			if (isImageGenerationToolInvocation(part)) {
+				if (!IChatToolInvocation.isStreaming(part)) {
+					tools.push(part);
+					containsOwner ||= part.toolCallId === toolCallId;
+				}
+				continue;
+			}
+		}
+		if (containsOwner) {
+			return tools;
+		}
+		tools.length = 0;
+	}
+	return containsOwner ? tools : [];
 }
 
 export function isImageGenerationToolInProgress(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, state?: IChatToolInvocation.State): boolean {
@@ -23,7 +51,7 @@ export function isImageGenerationToolInProgress(toolInvocation: IChatToolInvocat
 		return false;
 	}
 	const current = state ?? toolInvocation.state.get();
-	return current.type === IChatToolInvocation.StateKind.Streaming || current.type === IChatToolInvocation.StateKind.Executing;
+	return current.type === IChatToolInvocation.StateKind.Executing;
 }
 
 export function getImageGenerationInvocationMessage(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): string {
@@ -34,7 +62,7 @@ export function getImageGenerationInvocationMessage(toolInvocation: IChatToolInv
 		? toolInvocation.toolSpecificData.imageGeneration?.requestedModel
 		: undefined;
 	return model
-		? localize('imageGeneration.usingModel', "Using {0} to generate an image", model.name ?? model.id)
+		? localize('imageGeneration.generatingWithModel', "Generating image with {0}", model.name ?? model.id)
 		: localize('imageGeneration.progress', "Generating image");
 }
 

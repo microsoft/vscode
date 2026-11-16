@@ -12,7 +12,7 @@ import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { INativeManagedSettingsService, IFileManagedSettingsService, IManagedSettingsPick, IManagedSettingsService, MANAGED_SETTINGS_CHANNELS, ManagedSettingsChannel, collectManagedSettingsDefinitions, hasManagedSettingsDefinitions, hasRawManagedSettings, projectManagedSettings, pickManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_ALLOWED_HARNESSES_KEY, INativeManagedSettingsService, IFileManagedSettingsService, IManagedSettingsPick, IManagedSettingsService, MANAGED_SETTINGS_CHANNELS, ManagedSettingsChannel, collectManagedSettingsDefinitions, hasManagedSettingsDefinitions, hasRawManagedSettings, isManagedSettingGovernanceActive, parseAllowedHarnesses, projectManagedSettings, pickManagedSettings } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { IManagedSettingsFreshness, isManagedSettingsFreshnessBlocking, ManagedSettingsFreshnessState } from '../../../../platform/policy/common/managedSettingsFreshness.js';
 import { AbstractPolicyService, getRestrictedPolicyValue, IPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from '../../../../platform/policy/common/policy.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -92,11 +92,16 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 	readonly onDidChangeGateInfo = this._onDidChangeGateInfo.event;
 
 	private _managedSettings: ManagedSettingsData = {};
+	private allowedHarnessesWarning: string | undefined;
 	private readonly _onDidChangeManagedSettings = this._register(new Emitter<void>());
 	readonly onDidChangeManagedSettings = this._onDidChangeManagedSettings.event;
 
 	getManagedSettingValue(key: string): ManagedSettingValue | undefined {
 		return this._managedSettings[key];
+	}
+
+	getManagedSettings(): ManagedSettingsData {
+		return this._managedSettings;
 	}
 
 	// Read-only — the MultiplexPolicyService owns calling updatePolicyDefinitions.
@@ -251,7 +256,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		// A policy can also react to the mere *presence* of managed settings rather than to a
 		// declared key, so probe for that too and attribute it to the governing channels.
 		if (source === PolicyValueSource.Account && policyData.managedSettingsActive === true
-			&& valueProvider({ ...policyData, managedSettingsActive: false }) !== value) {
+			&& valueProvider({ ...policyData, managedSettings: undefined, managedSettingsActive: false }) !== value) {
 			if (activeManagedSettingsSources.length > 0) {
 				source = activeManagedSettingsSources.length === 1
 					? policyValueSourceForManagedSettingsChannel(activeManagedSettingsSources[0])
@@ -277,7 +282,9 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 
 		// Share channel resolution, including the force-on sandbox floor, with Policy Diagnostics.
 		const pick = pickManagedSettings(nativeManagedSettings, accountPolicyData?.managedSettings, fileManagedSettings);
-		const activeSources = new Set(pick.activeSources);
+		const activeSources = new Set(Array.from(pick.resolutions)
+			.filter(([key]) => isManagedSettingGovernanceActive(key))
+			.map(([, resolution]) => resolution.source));
 		if (accountPolicyData?.managedSettingsActive === true) {
 			activeSources.add('server');
 		}
@@ -289,16 +296,16 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			this._managedSettings = pick.values;
 			this._onDidChangeManagedSettings.fire();
 		}
-		if (!accountPolicyData && activeManagedSettingsSources.length === 0) {
-			return undefined;
-		}
-
+		this.reportAllowedHarnessesProblem(pick.values[COPILOT_ALLOWED_HARNESSES_KEY]);
 		const declaredManagedSettings = collectManagedSettingsDefinitions(this.policyDefinitions);
 		const managedSettingsData = projectManagedSettings(
 			pick.values,
 			declaredManagedSettings,
 			msg => this.logService.warn(`[AccountPolicy] ${msg}`)
 		);
+		if (!accountPolicyData && activeManagedSettingsSources.length === 0 && Object.keys(managedSettingsData).length === 0) {
+			return undefined;
+		}
 
 		return {
 			policyData: {
@@ -309,6 +316,26 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			managedSettingResolutions: pick.resolutions,
 			activeManagedSettingsSources,
 		};
+	}
+
+	/**
+	 * Warn once each time the effective harness permission list starts to have a problem. The
+	 * messages name the key but never its value, which is enterprise configuration.
+	 */
+	private reportAllowedHarnessesProblem(value: ManagedSettingValue | undefined): void {
+		let warning: string | undefined;
+		if (value !== undefined) {
+			const allowedHarnesses = parseAllowedHarnesses(value);
+			if (!allowedHarnesses) {
+				warning = `[AccountPolicy] Invalid managed setting "${COPILOT_ALLOWED_HARNESSES_KEY}": expected an array of "claude" or "codex". It permits no third-party harness.`;
+			} else if (allowedHarnesses.hasUnrecognizedEntries) {
+				warning = `[AccountPolicy] Ignoring entries of managed setting "${COPILOT_ALLOWED_HARNESSES_KEY}" other than "claude" or "codex".`;
+			}
+		}
+		if (warning && warning !== this.allowedHarnessesWarning) {
+			this.logService.warn(warning);
+		}
+		this.allowedHarnessesWarning = warning;
 	}
 
 	private computeGateInfo(): IAccountPolicyGateInfo {

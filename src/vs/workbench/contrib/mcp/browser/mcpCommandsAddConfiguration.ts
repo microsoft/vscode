@@ -37,6 +37,7 @@ import { IUserDataProfileService } from '../../../services/userDataProfile/commo
 import { IMcpWorkspaceInstallTargetService } from '../../../services/mcp/common/mcpWorkspaceInstallTargetService.js';
 import { IAgentHostCustomizationService } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { ICustomizationHarnessService } from '../../chat/common/customizationHarnessService.js';
 import { isAgentHostTarget } from '../../chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../chat/common/model/chatUri.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
@@ -158,6 +159,7 @@ export class McpAddConfigurationCommand {
 		@IAllowedMcpServersService private readonly _allowedMcpServersService: IAllowedMcpServersService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAgentHostCustomizationService private readonly _agentHostCustomizations: IAgentHostCustomizationService,
+		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMcpWorkspaceInstallTargetService private readonly _workspaceInstallTargetService: IMcpWorkspaceInstallTargetService,
@@ -623,7 +625,12 @@ export class McpAddConfigurationCommand {
 				if (allowed !== true) {
 					throw new Error(allowed.value);
 				}
-				await this._mcpResourceScannerService.addMcpServers([installable], resource, undefined, McpResourceFormat.CopilotGlobal);
+				const configurationProvider = this._customizationHarnessService.getActiveDescriptor().mcpConfigurationProvider;
+				if (configurationProvider) {
+					await configurationProvider.addGlobal(name, config);
+				} else {
+					await this._mcpResourceScannerService.addMcpServers([installable], resource, undefined, McpResourceFormat.CopilotGlobal);
+				}
 				await this._editorService.openEditor({ resource });
 				this._notificationService.info(localize('mcp.copilotGlobal.added', "Added MCP server '{0}' to {1}. Set any referenced environment variables on the agent-host machine before starting a new Copilot session. VS Code input variables are not supported in this file.", name, this._label.getUriLabel(resource)));
 				return;

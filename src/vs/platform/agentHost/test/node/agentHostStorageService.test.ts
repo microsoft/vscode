@@ -7,7 +7,6 @@ import assert from 'assert';
 import { mkdir, readFile, readdir, rename, rm, unlink, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -17,10 +16,8 @@ import { AgentHostStorageService, type IAgentHostStorageWriter } from '../../nod
 
 suite('AgentHostStorageService', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('stores synchronously, notifies changes, and coalesces asynchronous writes', async () => {
 		const writes: string[] = [];

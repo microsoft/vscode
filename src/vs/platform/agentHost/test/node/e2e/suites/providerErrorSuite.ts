@@ -8,9 +8,9 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, TurnState } from '../../../../common/state/sessionState.js';
+import { TurnState } from '../../../../common/state/sessionState.js';
 import { createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText } from '../harness/agentHostE2ETestHarness.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
 
@@ -45,7 +45,7 @@ export function defineProviderErrorTests(context: IAgentHostE2ETestContext): voi
 					body: JSON.stringify({ type: 'error', error: { type: code, code, message }, request_id: 'e2e-classified-error' }),
 				}, context.config.provider === 'codex' ? '/responses' : '/v1/messages');
 			}
-			const chat = buildDefaultChatUri(session);
+			const chat = defaultChatChannel(session);
 			context.client.clearReceived();
 			const requestsBeforeError = context.observedModelRequestBodies.length;
 			dispatchTurn(context.client, session, 'failed-turn', 'Reply exactly "UNEXPECTED_SUCCESS".', 100);

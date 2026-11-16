@@ -44,6 +44,7 @@ function createAgent(disposables: Pick<DisposableStore, 'add'>): CodexAgent {
 	instantiationService.stub(IAgentConfigurationService, {
 		_serviceBrand: undefined,
 		onDidRootConfigChange: Event.None,
+		onDidChatConfigChange: Event.None,
 		getRootValue: () => undefined,
 	});
 	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
@@ -135,7 +136,8 @@ suite('codexSessionConfigKeys', () => {
 		const fullAccess = await agent.resolveChatConfig({ config: { [CodexSessionConfigKey.PermissionsPreset]: 'full-access' } });
 
 		assert.deepStrictEqual({
-			// The visible schema is reduced to Mode + one permissions preset + Permissions.
+			// The visible schema is reduced to Mode + one permissions preset + Permissions,
+			// plus platform-owned transient config hidden from the picker.
 			schemaProperties: Object.keys(defaulted.schema.properties).sort(),
 			// Codex drops "Autopilot" (no native equivalent — it would duplicate
 			// "Interactive"), so the Mode picker offers only interactive + plan.
@@ -147,11 +149,17 @@ suite('codexSessionConfigKeys', () => {
 			// The preset is session-mutable and echoed back unchanged.
 			fullAccessPreset: fullAccess.values[CodexSessionConfigKey.PermissionsPreset],
 		}, {
-			schemaProperties: [SessionConfigKey.Mode, CodexSessionConfigKey.PermissionsPreset, SessionConfigKey.Permissions].sort(),
+			schemaProperties: [SessionConfigKey.Mode, CodexSessionConfigKey.PermissionsPreset, SessionConfigKey.Permissions, SessionConfigKey.SensitiveEditLocations].sort(),
 			modeEnum: ['interactive', 'plan'],
 			defaultedValues: { mode: 'interactive', preset: 'default' },
 			fullAccessPreset: 'full-access',
 		});
+	});
+
+	test('a chat may set its own mode, permissions preset and tool permissions', async () => {
+		const agent = createAgent(disposables);
+		const { schema } = await agent.resolveChatConfig({ config: {} });
+		assert.deepStrictEqual(Object.keys(schema.properties).filter(key => schema.properties[key].chatMutable).sort(), [SessionConfigKey.Mode, CodexSessionConfigKey.PermissionsPreset, SessionConfigKey.Permissions].sort());
 	});
 
 	test('resolveChatConfig describes workspace-scoped default permissions', async () => {

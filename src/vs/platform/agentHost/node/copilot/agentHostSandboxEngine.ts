@@ -12,15 +12,16 @@ import { createHash } from 'crypto';
 import { IEnvironmentService, INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { ISandboxHelperService, type ISandboxDependencyStatus, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from '../../../sandbox/common/sandboxHelperService.js';
+import { ISandboxHelperService, type ISandboxDependencyStatus } from '../../../sandbox/common/sandboxHelperService.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
-import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { IAgentConfigurationService, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
 import { getAppNodeModulesUri } from '../appNodeModules.js';
 import { sandboxSettingIdToAgentHostKey } from '../../common/sandboxConfigSchema.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
-import { resolveAgentHostSession } from '../../common/agentHostSubscriptionService.js';
+import { resolveAgentHostRootSession } from '../../common/agentHostSubscriptionService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
+import { getApplicationSandboxReadRoots } from '../applicationSandboxPaths.js';
 
 /** Subdirectory under the user home + product data folder where the engine creates its temp dir. */
 const SANDBOX_TEMP_DIR_NAME = 'tmp';
@@ -35,9 +36,12 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 	readonly onDidChangeRoots = this._onDidChangeRoots.event;
 	readonly onDidChangeSandboxSettings: Event<void>;
 	private readonly _sandboxHelper: ISandboxHelperService;
+	private _applicationReadRoots: readonly URI[] = [];
 
 	constructor(
-		private readonly _sessionId: string,
+		private readonly _target: IAgentChatConfigurationTarget,
+		/** The chat's recorded storage resource; keys the temp dir so each chat gets its own. */
+		private readonly _tempDirScope: string,
 		private _workingDirectory: URI | undefined,
 		private readonly _environmentService: INativeEnvironmentService,
 		private readonly _productService: IProductService,
@@ -49,7 +53,7 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 		this._sandboxHelper = sandboxHelper;
 		this.onDidChangeSandboxSettings = Event.any(
 			this._agentConfigurationService.onDidRootConfigChange,
-			Event.map(Event.filter(this._agentConfigurationService.onDidSessionConfigChange, event => event.session === resolveAgentHostSession(URI.parse(this._sessionId)).toString()), () => undefined),
+			Event.map(Event.filter(this._agentConfigurationService.onDidChatConfigChange, event => event.chat === this._target.chat), () => undefined),
 		);
 	}
 
@@ -63,11 +67,13 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 	}
 
 	async getRuntimeInfo(): Promise<ITerminalSandboxRuntimeInfo> {
+		this._applicationReadRoots = await getApplicationSandboxReadRoots(this._environmentService.appRoot, this._environmentService.appBundleRoot);
 		const nodeModulesUri = getAppNodeModulesUri();
 		const appRoot = dirname(nodeModulesUri.fsPath);
 		const runAsNode = !!process.versions['electron'];
 		const nativeModulesDir = basename(nodeModulesUri.fsPath);
-		return { appRoot, execPath: process.execPath, runAsNode, nativeModulesDir };
+		const readPaths = this._environmentService.appRoot !== this._environmentService.appBundleRoot ? this._applicationReadRoots.map(root => root.fsPath) : undefined;
+		return { appRoot, execPath: process.execPath, runAsNode, nativeModulesDir, readPaths };
 	}
 
 	async getUserHome(): Promise<URI | undefined> {
@@ -87,7 +93,7 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 		// segment (often a UUID), so hash it to a short hex string instead. A
 		// 64-bit SHA-256 prefix (16 hex chars) keeps the leaf short and
 		// collisions infeasible.
-		const digest = createHash('sha256').update(this._sessionId).digest('hex');
+		const digest = createHash('sha256').update(this._tempDirScope).digest('hex');
 		const sessionLeaf = `agenthost_${digest.substring(0, 16)}`;
 		return URI.joinPath(sandboxRoot, sessionLeaf);
 	}
@@ -99,7 +105,10 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 
 	getReadRoots(): readonly URI[] {
 		return getVSCodeSandboxReadRoots({
-			sessionDataDirectory: this._sessionDataService.getSessionDataDir(resolveAgentHostSession(URI.parse(this._sessionId))),
+			applicationReadRoots: this._applicationReadRoots,
+			sessionDataDirectories: [resolveAgentHostRootSession(URI.parse(this._target.session)).toString(), ...this._agentConfigurationService.getChatAttachmentScopes(this._target)]
+				.filter((scope, index, scopes) => scopes.indexOf(scope) === index)
+				.map(scope => this._sessionDataService.getSessionDataDir(URI.parse(scope))),
 		});
 	}
 
@@ -111,18 +120,6 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 		return this._sandboxHelper.checkSandboxDependencies();
 	}
 
-	async getWindowsMxcFilesystemPolicy() {
-		return this._sandboxHelper.getWindowsMxcFilesystemPolicy();
-	}
-
-	async getWindowsMxcEnvironment() {
-		return this._sandboxHelper.getWindowsMxcEnvironment();
-	}
-
-	async buildWindowsMxcSandboxPayload(commandLine: string, policy: IWindowsMxcSandboxPolicy, workingDirectory?: string, containerName?: string, containment?: IWindowsMxcPolicyContainment) {
-		return this._sandboxHelper.buildWindowsMxcSandboxPayload(commandLine, policy, workingDirectory, containerName, containment);
-	}
-
 	getSandboxSetting<T>(settingId: string): T | undefined {
 		// The agent host stores sandbox settings nested under a single
 		// top-level `sandbox` object with prefix-free sub-keys (e.g.
@@ -132,7 +129,7 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 		if (innerKey === undefined) {
 			return undefined;
 		}
-		const sandbox = getSessionSandboxConfig(this._agentConfigurationService, this._sessionId);
+		const sandbox = getSessionSandboxConfig(this._agentConfigurationService, this._target);
 		return sandbox?.[innerKey] as T | undefined;
 	}
 }
@@ -143,7 +140,8 @@ export class AgentHostSandboxEngine extends Disposable {
 	private readonly _host: AgentHostTerminalSandboxHost;
 
 	constructor(
-		sessionId: string,
+		target: IAgentChatConfigurationTarget,
+		tempDirScope: string,
 		workingDirectory: URI | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
@@ -153,7 +151,7 @@ export class AgentHostSandboxEngine extends Disposable {
 		@ISandboxHelperService sandboxHelper: ISandboxHelperService,
 	) {
 		super();
-		this._host = new AgentHostTerminalSandboxHost(sessionId, workingDirectory, environmentService as INativeEnvironmentService, productService, agentConfigurationService, sessionDataService, sandboxHelper);
+		this._host = new AgentHostTerminalSandboxHost(target, tempDirScope, workingDirectory, environmentService as INativeEnvironmentService, productService, agentConfigurationService, sessionDataService, sandboxHelper);
 		this.engine = instantiationService.createInstance(TerminalSandboxEngine, this._host);
 		this._register(this.engine);
 		this._register(this._host);

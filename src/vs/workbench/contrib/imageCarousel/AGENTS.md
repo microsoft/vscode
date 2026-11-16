@@ -47,9 +47,9 @@ Clicking an image attachment pill in chat (when `chat.imageCarousel.enabled` is 
 - **Keyboard parity**: Uses `registerOpenEditorListeners` (click, double-click, Enter, Space) matching other attachment widgets.
 - **Arrow key navigation**: Handled via DOM `keydown` listener with `stopPropagation()` — not Action2 keybindings, because the modal editor's `KEY_DOWN` handler blocks `workbench.*` commands not in its allowlist. The editor overrides `focus()` to forward focus to the slideshow container so arrow keys work immediately without clicking.
 
-### Zoom
+### Zoom and context menu
 
-Zoom state is `ZoomScale = number | 'fit'` held in `_zoomScale`.
+Zooming and the image context menu come from the shared `ImageViewer` widget in `src/vs/workbench/contrib/mediaPreview/browser/imageViewer.ts`, which is also used by the built-in image preview editor. The carousel creates one viewer per `setInput()`, passes its slideshow container as the viewer's `focusTarget` (so arrow key navigation keeps working and modifier keys update the zoom cursor), and hides the viewer while a video is shown.
 
 | Gesture | Effect |
 |---------|--------|
@@ -57,13 +57,7 @@ Zoom state is `ZoomScale = number | 'fit'` held in `_zoomScale`.
 | Alt+click (Mac) / Ctrl+click (Win/Linux) | Zoom out one level |
 | Ctrl+scroll (Win/Linux) or Alt+scroll (Mac) | Continuous zoom (~7.5% per tick) |
 | Trackpad pinch | Zoom (reported as `wheel` + `e.ctrlKey`) |
+| Right-click | Context menu (`ImageViewerContextMenuId`) with **Copy** |
+| Copy (Cmd/Ctrl+C) | Copies the current image as PNG |
 
-Predefined zoom levels: 10%, 20%, 30%, …, 100%, 150%, 200%, 300%, 500%, 700%, 1000%, 1500%, 2000%. Click cycles through these levels.
-
-`_applyZoom(scale)` is the central method:
-- `'fit'` → adds `scale-to-fit` class, clears `img.style.zoom`, removes `.zoomed` from container
-- numeric → sets `img.style.zoom`, adds `.zoomed` on the container (enabling `overflow: auto` for panning with themed scrollbars), preserves scroll center using `dx/dy` ratio math, adds `pixelated` class at ≥ 3× zoom
-
-Zoom always resets to `'fit'` when navigating to a different image.
-
-Cursor changes to `zoom-out` when the zoom-out modifier key is held (via `.zoom-out` class on the container).
+`ImageViewer.setSource()` decodes the image before swapping it in and resets the zoom to `'fit'`, so zoom always resets when navigating to a different image.

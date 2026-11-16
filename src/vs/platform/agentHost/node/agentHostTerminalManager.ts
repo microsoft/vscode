@@ -23,7 +23,7 @@ import type { CreateTerminalParams } from '../common/state/protocol/commands.js'
 import { TerminalClaim, TerminalContentPart, TerminalInfo, TerminalState, TerminalClaimKind, TerminalLifecycleStatus } from '../common/state/protocol/state.js';
 import { isTerminalAction } from '../common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../common/state/sessionState.js';
-import { AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH } from '../common/terminalConstants.js';
+import { AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH, AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH } from '../common/terminalConstants.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostHeadlessTerminal } from './agentHostHeadlessTerminal.js';
 import { isZsh } from './agentHostShellUtils.js';
@@ -243,6 +243,19 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 				case ActionType.TerminalCleared:
 					this._clearContent(channel);
 					break;
+			}
+		}));
+
+		// A chat that moves to another session (Block 4) takes its terminals along: they belong to the chat's runtime,
+		// so their session claims name the new owner, and deleting the previous owner leaves them running.
+		this._register(this._stateManager.onDidChangeChatOwner(({ chat, previous, current }) => {
+			for (const [uri, claim] of [
+				...[...this._terminals.values()].map(terminal => [terminal.uri, terminal.claim] as const),
+				...[...this._outputTerminals].map(([uri, terminal]) => [uri, terminal.claim] as const),
+			]) {
+				if (claim.kind === TerminalClaimKind.Session && claim.chat === chat && claim.session === previous) {
+					this._stateManager.dispatchServerAction(uri, { type: ActionType.TerminalClaimed, claim: { ...claim, session: current } });
+				}
 			}
 		}));
 	}
@@ -606,6 +619,11 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 
 	/** Update a terminal's claim. */
 	private _setClaim(uri: string, claim: TerminalClaim): void {
+		const outputTerminal = this._outputTerminals.get(uri);
+		if (outputTerminal) {
+			outputTerminal.claim = claim;
+			return;
+		}
 		const terminal = this._terminals.get(uri);
 		if (terminal) {
 			terminal.claim = claim;
@@ -813,7 +831,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	/** Trim content parts to stay within the rolling buffer limit. */
 	private _trimContent(managed: { content: TerminalContentPart[]; contentSize: number }): void {
 		const maxSize = AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH;
-		const targetSize = 80_000;
+		const targetSize = AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH;
 		if (managed.contentSize <= maxSize) {
 			return;
 		}

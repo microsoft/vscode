@@ -8,12 +8,12 @@ import { AHPFileSystemProvider } from './agentHostFileSystemProvider.js';
 import { fromAgentClientUri, toAgentClientUri } from './agentClientUri.js';
 
 /**
- * Read-only filesystem provider for accessing client-side files from the
+ * Read-write filesystem provider for accessing client-side files from the
  * agent host. Registered under the `vscode-agent-client` scheme.
  *
  * This is the inverse of {@link AgentHostFileSystemProvider}: where that
- * provider lets a client read agent host files, this one lets the agent
- * host read files from a connected client.
+ * provider lets a client access agent host files, this one lets the agent
+ * host access files from a connected client.
  *
  * ```
  * vscode-agent-client://[clientId]/[originalScheme]/[originalAuthority]/[originalPath]

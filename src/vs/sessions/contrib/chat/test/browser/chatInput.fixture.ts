@@ -24,26 +24,30 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbenc
 // Loaded here (rather than in the workbench-layer fixture) so the
 // `.interactive-input-part` padding (32px each side) that the `isSessionsWindow`
 // layout path accounts for is available without a layering violation.
-import '../../browser/media/chatView.css';
-import '../../browser/media/chatInput.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatView.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatInput.css';
 
 /**
- * Wraps the fixture context in `.agent-sessions-workbench > .part.sessionspart`, returning the sessions part as the input container by default.
- * With a background, adds `.has-chat-background` and returns a nested `.chat-view` as the input container.
+ * Wraps the fixture context in `.agent-sessions-workbench > .part.sessionspart > .sessions-chat`, the root a session chat styles
+ * itself from, returning that root as the input container by default.
+ * With a background, adds `.has-chat-background` and returns a nested `.chat-view.sessions-chat` as the input container.
  */
 function sessionsWindowContext(context: ComponentFixtureContext, withBackground = false): ComponentFixtureContext {
 	context.container.classList.add('agent-sessions-workbench');
 	const sessionsPart = document.createElement('div');
-	sessionsPart.classList.add('part', 'sessionspart');
+	sessionsPart.classList.add('part', 'sessionspart', 'sessions-chat-surface');
 	context.container.appendChild(sessionsPart);
 	if (!withBackground) {
-		return { ...context, container: sessionsPart };
+		const chat = document.createElement('div');
+		chat.classList.add('sessions-chat');
+		sessionsPart.appendChild(chat);
+		return { ...context, container: chat };
 	}
 
 	sessionsPart.classList.add('has-chat-background');
 	sessionsPart.style.backgroundImage = 'linear-gradient(135deg, var(--vscode-editor-background), var(--vscode-textLink-foreground))';
 	const chatView = document.createElement('div');
-	chatView.classList.add('chat-view');
+	chatView.classList.add('chat-view', 'sessions-chat');
 	sessionsPart.appendChild(chatView);
 	return { ...context, container: chatView };
 }
@@ -118,14 +122,25 @@ const responsiveModel: ILanguageModelChatMetadataAndIdentifier = {
 		maxInputTokens: 128000,
 		maxOutputTokens: 4096,
 		isDefaultForLocation: { [ChatAgentLocation.Chat]: true },
+		// The widest readout a model can show, a thinking effort and a context size, so
+		// the resize cycles squeeze both halves of the picker.
 		configurationSchema: {
 			properties: {
-				effort: {
+				reasoningEffort: {
 					type: 'string',
+					title: 'Effort Level',
 					group: 'navigation',
-					enum: ['low', 'medium', 'high'],
-					enumItemLabels: ['Low', 'Medium', 'Max 1M'],
-					default: 'high',
+					enum: ['low', 'medium', 'high', 'max'],
+					enumItemLabels: ['Low', 'Medium', 'High', 'Max'],
+					default: 'max',
+				},
+				contextSize: {
+					type: 'number',
+					title: 'Context Size',
+					group: 'tokens',
+					enum: [128000, 1000000],
+					enumItemLabels: ['128K', '1M'],
+					default: 1000000,
 				},
 			},
 		},
@@ -148,7 +163,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/input/' }, {
 		render: async context => {
 			const sessionsContext = sessionsWindowContext(context);
 			const chatView = document.createElement('div');
-			chatView.classList.add('chat-view-chat', 'experimental-session-composer');
+			chatView.classList.add('chat-view', 'sessions-chat', 'chat-view-chat', 'experimental-session-composer');
 			sessionsContext.container.appendChild(chatView);
 			await renderChatInput({ ...sessionsContext, container: chatView }, {
 				models: shortNameModels,
@@ -240,7 +255,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/input/' }, {
 	}),
 	ResponsiveModelResizeCycleCompact: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Agents active-session chat input shows its compact model codicon centered with equal padding inside a 22-pixel square control while the model configuration remains visible.'],
+		expectedVisualDescriptions: ['The Agents active-session chat input shows its compact model codicon centered with equal padding inside a 22-pixel square control, with the model configuration readout hidden.'],
 		virtualTime: { enabled: false },
 		render: context => renderChatInput(sessionsWindowContext(context), {
 			isSessionsWindow: true,

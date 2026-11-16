@@ -30,9 +30,10 @@ import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { ThinkingDataInMessage } from '../../thinking/common/thinking';
 import { ITokenizerProvider } from '../../tokenizer/node/tokenizer';
 import { ICAPIClientService } from '../common/capiClient';
-import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, isKimiFamily, modelSupportsContextEditing, modelSupportsThinkingContentInHistory, modelSupportsToolSearch } from '../common/chatModelCapabilities';
+import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, isKimiFamily, isKimiK3PlusFamily, modelSupportsContextEditing, modelSupportsThinkingContentInHistory, modelSupportsToolSearch } from '../common/chatModelCapabilities';
 import { IDomainService } from '../common/domainService';
 import { CustomModel, IChatModelInformation, ModelSupportedEndpoint } from '../common/endpointProvider';
+// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { normalizeTokenPrices } from '../../../extension/conversation/common/languageModelAccess';
 import { createMessagesRequestBody, processResponseFromMessagesEndpoint } from './messagesApi';
 import { createResponsesRequestBody, getResponsesApiCompactionThreshold, processResponseFromChatEndpoint } from './responsesApi';
@@ -210,7 +211,10 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly minThinkingBudget?: number;
 	public readonly maxThinkingBudget?: number;
 	public readonly supportsReasoningEffort?: string[];
-	public readonly supportsToolSearch?: boolean;
+	private readonly _supportsToolSearch: boolean | undefined;
+	public get supportsToolSearch(): boolean | undefined {
+		return this._supportsToolSearch;
+	}
 	public readonly supportsContextEditing?: boolean;
 	public readonly isPremium?: boolean | undefined;
 	public readonly multiplier?: number | undefined;
@@ -271,7 +275,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.minThinkingBudget = modelMetadata.capabilities.supports.min_thinking_budget;
 		this.maxThinkingBudget = modelMetadata.capabilities.supports.max_thinking_budget;
 		this.supportsReasoningEffort = modelMetadata.capabilities.supports.reasoning_effort;
-		this.supportsToolSearch = modelMetadata.capabilities.supports.tool_search ?? modelSupportsToolSearch(this);
+		this._supportsToolSearch = modelMetadata.capabilities.supports.tool_search ?? modelSupportsToolSearch(this);
 		this.supportsContextEditing = modelMetadata.capabilities.supports.context_editing ?? modelSupportsContextEditing(this);
 		this._supportsStreaming = !!modelMetadata.capabilities.supports.streaming;
 		this.customModel = modelMetadata.custom_model;
@@ -511,16 +515,20 @@ export class ChatEndpoint implements IChatEndpoint {
 		// Force temperature and top_p for Kimi models regardless of what the client would otherwise send (per Moonshot recommendations). Temperature 0 strongly increases chances of looping.
 		if (isKimiFamily(this)) {
 			if (body.messages) {
-				const toolCallIdStyle = this.family.toLowerCase().includes('kimi-k3') || this.model.toLowerCase().includes('kimi-k3')
-					? 'name-indexed'
-					: 'function-indexed';
-				body.messages = normalizeKimiToolCallIds(body.messages, toolCallIdStyle);
+				body.messages = normalizeKimiToolCallIds(body.messages, isKimiK3PlusFamily(this) ? 'name-indexed' : 'function-indexed');
 			}
 			body.temperature = 1;
 			body.top_p = 0.95;
 		}
 
 		return body;
+	}
+
+	/**
+	 * Whether the Responses API can resume this response on the next request.
+	 */
+	protected canResumeResponses(_responseId: string): boolean {
+		return this.modelMetadata.zeroDataRetentionEnabled !== true;
 	}
 
 	public async processResponseFromChatEndpoint(
@@ -534,7 +542,7 @@ export class ChatEndpoint implements IChatEndpoint {
 	): Promise<AsyncIterableObject<ChatCompletion>> {
 		if (this.useResponsesApi) {
 			const compactionThreshold = getResponsesApiCompactionThreshold(this._configurationService, this._expService, this);
-			return processResponseFromChatEndpoint(this._instantiationService, telemetryService, logService, response, expectedNumChoices, finishCallback, telemetryData, compactionThreshold);
+			return processResponseFromChatEndpoint(this._instantiationService, telemetryService, logService, response, expectedNumChoices, finishCallback, telemetryData, compactionThreshold, responseId => this.canResumeResponses(responseId));
 		} else if (this.useMessagesApi) {
 			return processResponseFromMessagesEndpoint(this._instantiationService, telemetryService, logService, response, finishCallback, telemetryData);
 		} else if (!this._supportsStreaming) {

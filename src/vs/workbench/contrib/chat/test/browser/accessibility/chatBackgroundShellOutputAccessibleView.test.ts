@@ -23,7 +23,7 @@ import { ChatBackgroundShellOutputAccessibleView } from '../../../browser/access
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { BackgroundShellOutputView } from '../../../browser/sessionBackgroundShellOutputView.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import type { ChatBackgroundShellOutput } from '../../../common/sessionChatPills.js';
+import type { ChatBackgroundShellOutput } from '../../../../../common/chatBackgroundShell.js';
 
 suite('ChatBackgroundShellOutputAccessibleView', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -59,7 +59,7 @@ suite('ChatBackgroundShellOutputAccessibleView', () => {
 			}();
 		}());
 		const output = observableValue<ChatBackgroundShellOutput>('output', { status: 'running', text: '\x1b[32mstep 1\x1b[0m\nstep 2\n' });
-		const view = instantiationService.createInstance(BackgroundShellOutputView, 'build.sh', output);
+		const view = instantiationService.createInstance(BackgroundShellOutputView, 'build.sh', output, []);
 		mainWindow.document.body.appendChild(view.element);
 		const region = view.element.querySelector<HTMLElement>('.chat-terminal-output-container');
 		assert.ok(region);

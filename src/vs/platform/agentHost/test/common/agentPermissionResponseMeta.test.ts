@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentPermissionDecisionSource, readAgentPermissionResponseMeta, toAgentPermissionResponseMeta } from '../../common/meta/agentPermissionResponseMeta.js';
+import { AgentPermissionDecisionSource, readAgentPermissionResponseMeta, redactAgentPermissionFeedback, toAgentPermissionResponseMeta, withoutAgentPermissionFeedback } from '../../common/meta/agentPermissionResponseMeta.js';
 
 suite('Agent permission response metadata', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -19,6 +19,19 @@ suite('Agent permission response metadata', () => {
 			_meta: { 'agentHost.permissionDecisionSource': decisionSource },
 			read: { decisionSource },
 		})));
+	});
+
+	test('sandbox path persistence acknowledgement is explicit and never inherited', () => {
+		const _meta = toAgentPermissionResponseMeta({ decisionSource: 'human_response', sandboxPathGrantSaved: true });
+		assert.deepStrictEqual({
+			read: readAgentPermissionResponseMeta({ _meta }),
+			cleared: toAgentPermissionResponseMeta({ decisionSource: 'human_response' }, { _meta }),
+			invalid: [undefined, false, 'true', 1].map(value => readAgentPermissionResponseMeta({ _meta: { 'vscode.sandboxPathGrantSaved': value } })),
+		}, {
+			read: { decisionSource: 'human_response', sandboxPathGrantSaved: true },
+			cleared: { 'agentHost.permissionDecisionSource': 'human_response' },
+			invalid: [{}, {}, {}, {}],
+		});
 	});
 
 	test('missing, legacy, malformed and future metadata remain unattributed', () => {
@@ -41,6 +54,30 @@ suite('Agent permission response metadata', () => {
 			automatic: { toolKind: 'terminal', language: 'bash', 'agentHost.permissionDecisionSource': 'host_policy' },
 			unattributed: { toolKind: 'terminal', language: 'bash' },
 			original: { toolKind: 'terminal', language: 'bash', 'agentHost.permissionDecisionSource': 'human_response' },
+		});
+	});
+
+	test('permission feedback is validated, never inherited, and can be removed or redacted', () => {
+		const _meta = toAgentPermissionResponseMeta({ decisionSource: 'human_response', userFeedback: 'Reading the lockfile is fine.' }, { _meta: { toolKind: 'terminal' } });
+		const action = { type: 'chat/toolCallConfirmed', _meta };
+		assert.deepStrictEqual({
+			_meta,
+			read: readAgentPermissionResponseMeta({ _meta }),
+			replaced: toAgentPermissionResponseMeta({ decisionSource: 'human_response' }, { _meta }),
+			invalid: ['', '   ', 1, true, 'x'.repeat(10_001)].map(value => readAgentPermissionResponseMeta({ _meta: { 'vscode.assistedApprovalFeedback': value } })),
+			removed: withoutAgentPermissionFeedback(action),
+			unchanged: withoutAgentPermissionFeedback({ _meta: { toolKind: 'terminal' } }),
+			redacted: redactAgentPermissionFeedback(_meta, '<redacted>'),
+			alreadyRedacted: redactAgentPermissionFeedback({ 'vscode.assistedApprovalFeedback': '<redacted>' }, '<redacted>'),
+		}, {
+			_meta: { toolKind: 'terminal', 'agentHost.permissionDecisionSource': 'human_response', 'vscode.assistedApprovalFeedback': 'Reading the lockfile is fine.' },
+			read: { decisionSource: 'human_response', userFeedback: 'Reading the lockfile is fine.' },
+			replaced: { toolKind: 'terminal', 'agentHost.permissionDecisionSource': 'human_response' },
+			invalid: [{}, {}, {}, {}, {}],
+			removed: { type: 'chat/toolCallConfirmed', _meta: { toolKind: 'terminal', 'agentHost.permissionDecisionSource': 'human_response' } },
+			unchanged: { _meta: { toolKind: 'terminal' } },
+			redacted: { toolKind: 'terminal', 'agentHost.permissionDecisionSource': 'human_response', 'vscode.assistedApprovalFeedback': '<redacted>' },
+			alreadyRedacted: undefined,
 		});
 	});
 });

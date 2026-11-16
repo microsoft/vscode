@@ -52,6 +52,7 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { SerializableObjectWithBuffers } from '../../../services/extensions/common/proxyIdentifier.js';
 import { LabelService } from '../../../services/label/common/labelService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { IUnattendedRestartService, UnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ICopyOperation, ICreateFileOperation, ICreateOperation, IDeleteOperation, IMoveOperation, IWorkingCopyFileService } from '../../../services/workingCopy/common/workingCopyFileService.js';
@@ -122,6 +123,7 @@ suite('MainThreadEditors', () => {
 		services.set(ITreeSitterLibraryService, new TestTreeSitterLibraryService());
 		services.set(IEditorService, disposables.add(new TestEditorService()));
 		services.set(ILifecycleService, new TestLifecycleService());
+		services.set(IUnattendedRestartService, new UnattendedRestartService(new NullLogService()));
 		services.set(IWorkingCopyService, new TestWorkingCopyService());
 		services.set(IEditorGroupsService, new TestEditorGroupsService());
 		services.set(IClipboardService, new TestClipboardService());

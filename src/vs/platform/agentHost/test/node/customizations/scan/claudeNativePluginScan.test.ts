@@ -8,8 +8,9 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../log/common/log.js';
 import { IFileService } from '../../../../../files/common/files.js';
+import { createInMemoryFileService } from '../../../../../files/test/common/inMemoryFileService.js';
 import { scanClaudeNativePlugins, scanClaudeNativePluginsForRoots } from '../../../../node/claude/customizations/scan/claudeNativePluginScan.js';
-import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, createInMemoryFileService, seedFile } from '../claudeCustomizationTestUtils.js';
+import { claudeTestUserHome as userHome, claudeTestWorkspace as workspace, seedFile } from '../claudeCustomizationTestUtils.js';
 
 suite('claudeNativePluginScan', () => {
 

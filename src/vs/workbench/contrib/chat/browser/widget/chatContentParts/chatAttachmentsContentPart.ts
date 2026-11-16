@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { IHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
@@ -21,6 +22,8 @@ import { IChatImageRevealOrigin } from '../../attachments/chatImageReveal.js';
 
 export interface IChatAttachmentsContentPartOptions {
 	readonly variables: readonly IChatRequestVariableEntry[];
+	/** The session of the chat that shows the attachments, `undefined` outside a chat session. */
+	readonly sessionResource: URI | undefined;
 	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
 	readonly modelId?: string;
 	readonly resolvedModelId?: string;
@@ -32,6 +35,8 @@ export interface IChatAttachmentsContentPartOptions {
 	readonly imageReveal?: IChatImageRevealOrigin;
 	readonly imageDimensions?: ResourceMap<dom.IDimension>;
 	readonly imageBase64Data?: ReadonlyMap<string, IChatImageBase64Data>;
+	/** Shared by related pills that preview a GitHub issue or pull request, so that moving between them shows the next preview right away. */
+	readonly hoverDelegate?: IHoverDelegate;
 }
 
 export class ChatAttachmentsContentPart extends Disposable {
@@ -42,6 +47,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 	private _showingAll = false;
 
 	private _variables: readonly IChatRequestVariableEntry[];
+	private readonly sessionResource: URI | undefined;
 	private readonly contentReferences: ReadonlyArray<IChatContentReference>;
 	private readonly modelId?: string;
 	private readonly resolvedModelId?: string;
@@ -51,6 +57,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 	private readonly imageReveal: IChatImageRevealOrigin | undefined;
 	private readonly imageDimensions: ResourceMap<dom.IDimension> | undefined;
 	private readonly imageBase64Data: ReadonlyMap<string, IChatImageBase64Data> | undefined;
+	private readonly hoverDelegate: IHoverDelegate | undefined;
 	public readonly domNode: HTMLElement | undefined;
 
 	public contextMenuHandler?: (attachment: IChatRequestVariableEntry, event: MouseEvent) => void;
@@ -63,6 +70,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 	) {
 		super();
 		this._variables = options.variables;
+		this.sessionResource = options.sessionResource;
 		this.contentReferences = options.contentReferences ?? [];
 		this.modelId = options.modelId;
 		this.resolvedModelId = options.resolvedModelId;
@@ -72,6 +80,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		this.imageReveal = options.imageReveal;
 		this.imageDimensions = options.imageDimensions;
 		this.imageBase64Data = options.imageBase64Data;
+		this.hoverDelegate = options.hoverDelegate;
 		this.domNode = options.domNode ?? dom.$('.chat-attached-context');
 
 		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
@@ -276,8 +285,9 @@ export class ChatAttachmentsContentPart extends Disposable {
 			// skip workspace attachments
 			return;
 		} else {
-			widget = this.chatAttachmentWidgetRegistry.createWidget(attachment, { shouldFocusClearButton: false, supportsDeletion: false }, container)
-				?? this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, correspondingContentReference, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
+			// These attachments are shown rather than edited, so a GitHub issue or pull request previews its details and opens when activated.
+			widget = this.chatAttachmentWidgetRegistry.createWidget(attachment, { shouldFocusClearButton: false, supportsDeletion: false }, container, this.sessionResource)
+				?? this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, correspondingContentReference, undefined, { shouldFocusClearButton: false, supportsDeletion: false, supportsReferencePreview: true, hoverDelegate: this.hoverDelegate }, container, this._contextResourceLabels);
 		}
 
 		let ariaLabel: string | null = null;
@@ -289,7 +299,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		if (isAttachmentPartialOrOmitted) {
 			ariaLabel = `${ariaLabel}${description ? ` ${description}` : ''}`;
 			for (const selector of ['.monaco-icon-suffix-container', '.monaco-icon-name-container']) {
-				// eslint-disable-next-line no-restricted-syntax
+				// eslint-disable-next-line eslint-js/no-restricted-syntax
 				const element = widget.label?.element.querySelector(selector);
 				if (element) {
 					element.classList.add('warning');

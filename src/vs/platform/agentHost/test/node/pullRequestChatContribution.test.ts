@@ -19,9 +19,11 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { PullRequestChatContribution } from '../../node/chatContributions/pullRequest/pullRequestChatContribution.js';
 import { TurnAdmissionContribution } from '../../node/chatContributions/turnAdmission/turnAdmissionContribution.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 suite('PullRequestChatContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -41,14 +43,15 @@ suite('PullRequestChatContribution', () => {
 			status: archived ? SessionStatus.IsArchived : SessionStatus.IsRead,
 			createdAt: '2026-09-10T00:00:00.000Z', modifiedAt: '2026-09-10T00:00:00.000Z',
 			workingDirectories: ['file:///repo'],
+			defaultChat: buildDefaultChatUri(session),
 		});
 		if (otherFolder) {
-			state.addChat(session, chat, { workingDirectories: [otherFolder] });
+			state.addChat(session, chat, creationTimeChatStorageResource(session, chat, buildDefaultChatUri(session)), { workingDirectories: [otherFolder] });
 		}
 		state.setSessionConfig(session, { schema: platformSessionSchema.toProtocol(), values: {} });
 		config.updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });
 		const instantiation = store.add(new InstantiationService(new ServiceCollection(
-			[ILogService, log], [IAgentConfigurationService, config], [IAgentHostStateManager, state],
+			[ILogService, log], [IAgentConfigurationService, config], [IAgentHostStateManager, state], [IAgentHostChatOwnershipService, createTestChatOwnershipService(state)],
 		), true));
 		const contributions: IAgentHostChatContributions = store.add(new AgentHostChatContributions(log, instantiation));
 		store.add(contributions.registerContribution(TurnAdmissionContribution));

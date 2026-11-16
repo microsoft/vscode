@@ -10,7 +10,12 @@ import { ConfigKey, IConfigurationService } from '../../../../platform/configura
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
 import { CacheType, CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { ChatEndpoint } from '../../../../platform/endpoint/node/chatEndpoint';
+import { ILogService } from '../../../../platform/log/common/logService';
+import { IResponseDelta } from '../../../../platform/networking/common/fetch';
 import { ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../../../platform/networking/common/networking';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { TelemetryData } from '../../../../platform/telemetry/common/telemetryData';
+import { createFakeStreamResponse } from '../../../../platform/test/node/fetcher';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { ThinkingDataInMessage } from '../../../../platform/thinking/common/thinking';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
@@ -89,6 +94,12 @@ const createStatefulMarkerMessage = (modelId: string, marker: string): Raw.ChatM
 		}
 	}]
 });
+
+class StatelessOpenAIEndpoint extends OpenAIEndpoint {
+	protected override get supportsStatefulResponses(): boolean {
+		return false;
+	}
+}
 
 describe('OpenAIEndpoint - Reasoning Properties', () => {
 	let modelMetadata: IChatModelInformation;
@@ -345,6 +356,26 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 				{ options: { mode: 'implicit' }, input: [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hello' }] }] },
 				{ options: { mode: 'explicit' }, input: [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hello', prompt_cache_breakpoint: { mode: 'explicit' } }] }] },
 			]);
+		});
+
+		it('issue #348418: omits truncation unless the truncation setting is enabled', async () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				modelMetadata,
+				'test-api-key',
+				'https://api.example.com/v1/responses');
+			const resolveTruncation = () => {
+				const body = endpoint.createRequestBody(createTestOptions([{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' }],
+				}]));
+				return 'truncation' in body ? body.truncation : 'omitted';
+			};
+
+			const settingOff = resolveTruncation();
+			await accessor.get(IConfigurationService).setConfig(ConfigKey.Advanced.UseResponsesApiTruncation, true);
+			const settingOn = resolveTruncation();
+
+			expect({ settingOff, settingOn }).toEqual({ settingOff: 'omitted', settingOn: 'auto' });
 		});
 
 		it('adds an empty object schema to a parameterless tool', () => {
@@ -657,6 +688,49 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 
 			expect(body.previous_response_id).toBeUndefined();
 			expect(body.store).toBe(false);
+		});
+
+		it.each([
+			{ zeroDataRetentionEnabled: true, supportsStatefulResponses: true, responseId: 'resp_123', expectedMarker: undefined },
+			{ zeroDataRetentionEnabled: false, supportsStatefulResponses: false, responseId: 'resp_123', expectedMarker: undefined },
+			{ zeroDataRetentionEnabled: false, supportsStatefulResponses: true, responseId: 'response_123', expectedMarker: undefined },
+			{ zeroDataRetentionEnabled: false, supportsStatefulResponses: true, responseId: 'resp_123', expectedMarker: 'resp_123' },
+		])('publishes a stateful marker only when the endpoint can resume the response', async ({ zeroDataRetentionEnabled, supportsStatefulResponses, responseId, expectedMarker }) => {
+			const Endpoint = supportsStatefulResponses ? OpenAIEndpoint : StatelessOpenAIEndpoint;
+			const endpoint = instaService.createInstance(Endpoint,
+				{
+					...modelMetadata,
+					vendor: 'OpenAI',
+					zeroDataRetentionEnabled,
+				},
+				'test-api-key',
+				'https://api.openai.com/v1/responses');
+			const response = createFakeStreamResponse(`data: ${JSON.stringify({
+				type: 'response.completed',
+				response: {
+					id: responseId,
+					model: modelMetadata.id,
+					created_at: 123,
+					usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
+					output: [],
+				},
+			})}\n\n`);
+			const deltas: IResponseDelta[] = [];
+			const stream = await endpoint.processResponseFromChatEndpoint(
+				accessor.get(ITelemetryService),
+				accessor.get(ILogService),
+				response,
+				1,
+				async (_text, _index, delta) => {
+					deltas.push(delta);
+					return undefined;
+				},
+				TelemetryData.createAndMarkAsIssued(),
+			);
+
+			for await (const _ of stream) { }
+
+			expect(deltas.at(-1)?.statefulMarker).toBe(expectedMarker);
 		});
 	});
 

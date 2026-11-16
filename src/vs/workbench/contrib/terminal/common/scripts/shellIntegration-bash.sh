@@ -265,6 +265,7 @@ __updateEnvCacheAA() {
 __updateEnvCache() {
 	local key="$1"
 	local value="$2"
+	local i
 
 	for i in "${!vsc_env_keys[@]}"; do
 		if [[ "${vsc_env_keys[$i]}" == "$key" ]]; then
@@ -282,6 +283,8 @@ __updateEnvCache() {
 }
 
 __vsc_update_env() {
+	local key
+
 	if [[ ${#envVarsToReport[@]} -gt 0 ]]; then
 		builtin printf '\e]633;EnvSingleStart;%s;%s\a' 0 $__vsc_nonce
 

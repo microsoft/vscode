@@ -14,8 +14,128 @@ import { PromptFileLangageId, PromptHeaderAttributes } from '../../../platform/p
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { Disposable, DisposableStore, IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { autorun, IObservable } from '../../../util/vs/base/common/observableInternal';
+import { parseFrontMatter } from '../../../util/vs/base/common/yaml';
 
 export const promptFileSelector = [PromptFileLangageId.prompt, PromptFileLangageId.instructions, PromptFileLangageId.agent];
+
+type AgentFileTarget = 'vscode' | 'github-copilot' | undefined;
+
+const sharedAgentAttributes = [
+	PromptHeaderAttributes.name,
+	PromptHeaderAttributes.description,
+	PromptHeaderAttributes.target,
+	PromptHeaderAttributes.model,
+	PromptHeaderAttributes.tools,
+	PromptHeaderAttributes.infer,
+	PromptHeaderAttributes.userInvocable,
+	PromptHeaderAttributes.disableModelInvocation,
+	PromptHeaderAttributes.hooks,
+	PromptHeaderAttributes.reasoningEffort,
+];
+
+const vscodeAgentAttributes = [
+	...sharedAgentAttributes,
+	PromptHeaderAttributes.argumentHint,
+	PromptHeaderAttributes.handOffs,
+	PromptHeaderAttributes.agents,
+	PromptHeaderAttributes.advancedOptions,
+];
+
+const githubCopilotAgentAttributes = [
+	...sharedAgentAttributes,
+	PromptHeaderAttributes.mcpServers,
+	PromptHeaderAttributes.modelPolicy,
+	PromptHeaderAttributes.skills,
+	PromptHeaderAttributes.deferredToolLoading,
+	PromptHeaderAttributes.strictToolsList,
+	PromptHeaderAttributes.includeCustomInstructions,
+	PromptHeaderAttributes.github,
+];
+
+const agentToolAliases = ['execute', 'read', 'edit', 'search', 'web', 'agent', 'todo'];
+const githubCopilotToolNamespaces = ['github/*', 'playwright/*'];
+
+export function getAgentFileContext(target: AgentFileTarget, modelNames: readonly string[], modelIds: readonly string[]): Copilot.SupportedContextItem[] {
+	const attributes = target === 'vscode'
+		? vscodeAgentAttributes
+		: target === 'github-copilot'
+			? githubCopilotAgentAttributes
+			: sharedAgentAttributes;
+	const context: Copilot.SupportedContextItem[] = [{
+		name: target
+			? `This is a custom agent file for the ${target} target. Its YAML front matter only supports the following attributes. Do not suggest any other attributes.`
+			: 'This is a custom agent file without an explicit target. Its YAML front matter only supports attributes shared by the VS Code and GitHub Copilot targets. Do not assume a target or suggest target-specific attributes.',
+		value: attributes.join(', '),
+	}, {
+		name: '`target` is optional and must be one of the following values',
+		value: 'vscode, github-copilot',
+	}];
+
+	if (target === 'vscode') {
+		const qualifiedModels = modelNames.map(name => `${name} (copilot)`);
+		context.push({
+			name: '`model` is optional and must use a qualified model name',
+			value: qualifiedModels.join(', '),
+		}, {
+			name: '`tools` is optional and must be an array of Local tool or tool-set references',
+			value: `[${agentToolAliases.join(', ')}]`,
+		}, {
+			name: '`handoffs` is optional and is a sequence of mappings with `label`, `agent`, `prompt`, `send`, and `model` properties. The `model` property uses the format `Model Name (vendor)`.',
+			value: [
+				'handoffs:',
+				'  - label: Start Implementation',
+				'    agent: agent',
+				'    prompt: Implement the plan',
+				'    send: true',
+				`    model: ${qualifiedModels[0] || 'GPT-4.1 (copilot)'}`,
+			].join('\n'),
+		});
+	} else if (target === 'github-copilot') {
+		context.push({
+			name: '`model` is optional and accepts a raw Copilot model ID or an ordered array of model IDs',
+			value: modelIds.join(', '),
+		}, {
+			name: '`tools` is optional and accepts Copilot aliases, `*`, VS Code client-tool references, and MCP namespaces',
+			value: `[${[...agentToolAliases, '*', ...githubCopilotToolNamespaces].join(', ')}]`,
+		});
+	} else {
+		context.push({
+			name: '`model` and `tools` are target-specific. Preserve their authored values, but do not suggest model IDs or tool names until `target` is explicitly set.',
+			value: 'Set `target: vscode` or `target: github-copilot` before choosing target-specific values.',
+		});
+	}
+
+	const exampleLines = [
+		'',
+		'```md',
+		'---',
+		'name: planner',
+		'description: Research and plan new features.',
+		...(target ? [`target: ${target}`] : []),
+		...(target === 'vscode' ? [
+			`model: ${modelNames[0] ? `${modelNames[0]} (copilot)` : 'GPT-4.1 (copilot)'}`,
+			`tools: [${agentToolAliases.join(', ')}]`,
+		] : []),
+		...(target === 'github-copilot' ? [
+			`model: ${modelIds[0] || 'gpt-4.1'}`,
+			`tools: [${[...agentToolAliases, ...githubCopilotToolNamespaces].join(', ')}]`,
+		] : []),
+		'---',
+		'First come up with a plan for the new feature.',
+		'```',
+	];
+	context.push({
+		name: 'Here is an example of a custom agent file',
+		value: exampleLines.join('\n'),
+	});
+
+	return context;
+}
+
+export function getAgentFileTarget(content: string): AgentFileTarget {
+	const authoredTarget = parseFrontMatter(content)?.getStringValue(PromptHeaderAttributes.target);
+	return authoredTarget === 'vscode' || authoredTarget === 'github-copilot' ? authoredTarget : undefined;
+}
 
 export class PromptFileContextContribution extends Disposable {
 
@@ -23,6 +143,8 @@ export class PromptFileContextContribution extends Disposable {
 	private registration: Promise<IDisposable> | undefined;
 
 	private models: string[] = ['GPT-4.1', 'GPT-4o'];
+	private modelIds: string[] = [];
+	private readonly agentFileTargets = new Map<string, { readonly version: number; readonly target: AgentFileTarget }>();
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
@@ -41,6 +163,7 @@ export class PromptFileContextContribution extends Disposable {
 				this.registration = undefined;
 			}
 		}));
+		this._register(vscode.workspace.onDidCloseTextDocument(document => this.agentFileTargets.delete(document.uri.toString())));
 
 	}
 
@@ -66,7 +189,7 @@ export class PromptFileContextContribution extends Disposable {
 					if (tokenBudget <= 0) {
 						return [];
 					}
-					return self.getContext(document.languageId);
+					return self.getContext(document);
 				}
 			};
 
@@ -78,6 +201,7 @@ export class PromptFileContextContribution extends Disposable {
 					}
 				}
 				this.models = [...modelNames.keys()];
+				this.modelIds = [...new Set(endpoints.filter(endpoint => endpoint.showInModelPicker).map(endpoint => endpoint.model))];
 			});
 
 			const provider: Copilot.ContextProvider<Copilot.SupportedContextItem> = {
@@ -96,10 +220,10 @@ export class PromptFileContextContribution extends Disposable {
 		return disposables;
 	}
 
-	private getContext(languageId: string): Copilot.SupportedContextItem[] {
+	private getContext(document: vscode.TextDocument): Copilot.SupportedContextItem[] {
 
 
-		switch (languageId) {
+		switch (document.languageId) {
 			case PromptFileLangageId.prompt: {
 				const toolNamesList = this.getToolNames().join(', ');
 				return [
@@ -162,56 +286,7 @@ export class PromptFileContextContribution extends Disposable {
 				];
 			}
 			case PromptFileLangageId.agent: {
-				const toolNamesList = this.getToolNames().join(', ');
-				return [
-					{
-						name: 'This is a custom agent file. It uses markdown with a YAML front matter header that only supports a limited set of attributes and values. Do not suggest any other attributes',
-						value: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.handOffs].join(', '),
-					},
-					{
-						name: '`model` is optional and must be one of the following values',
-						value: this.models.join(', '),
-					},
-					{
-						name: '`tools` is optional and must be an array of one or more of the following values. Do not make up any other tool names.',
-						value: `[${toolNamesList}]`,
-					},
-					{
-						name: '`target` is optional and must be one of the following values',
-						value: `vscode, github-copilot`,
-					},
-					{
-						name: '`handoffs` is optional and is a sequence of mappings with `label`, `agent`, `prompt`, `send`, and `model` properties. The `model` property uses the format `Model Name (vendor)` (e.g., `GPT-4.1 (copilot)`)',
-						value: [
-							`handoffs:`,
-							`  - label: Start Implementation`,
-							`    agent: agent`,
-							`    prompt: Implement the plan`,
-							`    send: true`,
-							`    model: GPT-4.1 (copilot)`,
-						].join('\n'),
-					},
-					{
-						name: 'Here is an example of a custom agent file',
-						value: [
-							``,
-							'```md',
-							`---`,
-							`description: This custom agent researches and plans new features for VS Code extensions.`,
-							`model: GPT-4.1`,
-							`tools: [${toolNamesList}]`,
-							`handoffs:`,
-							`  - label: Start Implementation`,
-							`    agent: agent`,
-							`    prompt: Implement the plan`,
-							`    send: true`,
-							`    model: GPT-4.1 (copilot)`,
-							`---`,
-							`First come up with a plan for the new feature. Write a todo list of tasks to complete the feature.`,
-							'```',
-						].join('\n'),
-					},
-				];
+				return getAgentFileContext(this.getAgentFileTarget(document), this.models, this.modelIds);
 			}
 			default:
 				return [];
@@ -219,9 +294,19 @@ export class PromptFileContextContribution extends Disposable {
 	}
 
 	private getToolNames(): string[] {
-		return ['execute', 'read', 'edit', 'search', 'web', 'agent', 'todo'];
+		return agentToolAliases;
 	}
 
+	private getAgentFileTarget(document: vscode.TextDocument): AgentFileTarget {
+		const key = document.uri.toString();
+		const cached = this.agentFileTargets.get(key);
+		if (cached?.version === document.version) {
+			return cached.target;
+		}
+		const target = getAgentFileTarget(document.getText());
+		this.agentFileTargets.set(key, { version: document.version, target });
+		return target;
+	}
 
 	private async getCopilotApi(): Promise<Copilot.ContextProviderApiV1 | undefined> {
 		const copilotExtension = vscode.extensions.getExtension('GitHub.copilot');

@@ -24,6 +24,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { defaultMenuStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariableName } from '../../../../../platform/theme/common/colorUtils.js';
 import { descriptionForeground, errorForeground, focusBorder, foreground, textLinkForeground } from '../../../../../platform/theme/common/colors/baseColors.js';
@@ -41,12 +42,12 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ColorThemeData } from '../../../../../workbench/services/themes/common/colorThemeData.js';
 import { IColorMap, IWorkbenchColorTheme, IWorkbenchThemeService } from '../../../../../workbench/services/themes/common/workbenchThemeService.js';
 import '../../../../browser/media/workbench.css';
-import { Menus } from '../../../../browser/menus.js';
-import { applyAgentsPartCardStyles } from '../../../../browser/parts/agentsPartCard.js';
-import { applySessionViewThemeColors } from '../../../../browser/parts/sessionBarStyles.js';
-import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../../common/contextkeys.js';
-import { activeSessionViewBackground, activeSessionViewForeground, agentsBackground, agentsChatInputBackground, agentsChatInputForeground, agentsChatInputPlaceholderForeground, agentsDetailBackground, agentsPanelBackground, agentsPanelForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../../common/theme.js';
-import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, SessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { applyAgentsPartCardStyles } from '../../../../../workbench/browser/parts/sessions/agentsPartCard.js';
+import { applySessionViewThemeColors } from '../../../../../workbench/contrib/sessions/browser/parts/sessionBarStyles.js';
+import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { activeSessionViewBackground, activeSessionViewForeground, agentsBackground, agentsChatInputBackground, agentsChatInputForeground, agentsChatInputPlaceholderForeground, agentsDetailBackground, agentsPanelBackground, agentsPanelForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../../../workbench/contrib/sessions/common/theme.js';
+import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, SessionsChatBackgroundService } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
 import { AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING, generateChatBackgroundTheme, getChatBackgroundImageColor, getChatBackgroundTintedColor, SessionsChatBackgroundTint, ToggleChatBackgroundTintAction } from '../../browser/chatBackgroundTint.js';
 
 const backgroundColors = [agentsBackground, agentsPanelBackground, activeSessionViewBackground, inactiveSessionViewBackground, agentsChatInputBackground, editorBackground, inputBackground, menuBackground, quickInputBackground];
@@ -191,6 +192,7 @@ suite('Sessions Chat Background Tint', () => {
 			themeService,
 			disposables.add(new MockContextKeyService()),
 			disposables.add(new InMemoryStorageService()),
+			NullTelemetryService,
 		));
 		const requests: { uri: URI; store: DisposableStore; result: DeferredPromise<Color | undefined> }[] = [];
 		const warnings: string[] = [];
@@ -611,7 +613,7 @@ suite('Sessions Chat Background Tint', () => {
 
 	test('updates mounted card and session surfaces without changing foreground tokens', async () => {
 		const { root, requests, themeService } = createFixture();
-		const card = append(root, $('.agents-part-card'));
+		const card = append(root, $('.agents-part-card.agents-card-surface'));
 		const session = append(card, $('.session-view'));
 		const updateStyles = () => {
 			applyAgentsPartCardStyles(card, themeService.getColorTheme());

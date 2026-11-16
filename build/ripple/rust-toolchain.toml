@@ -1,0 +1,4 @@
+[toolchain]
+# oxc requires Rust 1.97 or newer. CI installs this toolchain (see the Detect Changes job in .github/workflows/pr.yml).
+channel = "1.99"
+profile = "minimal"

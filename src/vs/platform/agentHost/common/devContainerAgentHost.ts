@@ -19,6 +19,10 @@ export interface IDevContainerAgentHostWorkspaceConfig {
 	readonly name: string;
 	/** Whether this explicit connection may restart a container stopped after its sessions became idle. */
 	readonly resume?: boolean;
+	/** Configure the container to permit nested terminal sandboxing. */
+	readonly sandboxEnabled?: boolean;
+	/** Mount a per-container volume that keeps user and agent state across rebuilds. */
+	readonly persistUserState?: boolean;
 }
 
 export type IDevContainerAgentHostConfig = IDevContainerAgentHostWorkspaceConfig | (Omit<IDevContainerAgentHostWorkspaceConfig, 'workspaceFolder'> & IDevContainerSampleSource);
@@ -32,12 +36,45 @@ export interface IDevContainerAgentHostConnectResult {
 	/** Native source workspace path on the parent host, when reported by the launcher. */
 	readonly hostWorkspaceFolder?: string;
 	readonly repository?: IDevContainerRepository;
+	/** Whether the actual container has the Docker options needed for nested sandboxing. */
+	readonly sandboxSupported?: boolean;
+	/** Only desktop-local containers share the connecting client's network and may use its trust roots, proxy configuration, and Kerberos tickets. */
+	readonly sharesClientNetwork?: boolean;
 }
 
 /** One chunk of output from a Dev Container CLI process. */
 export interface IDevContainerAgentHostOutput {
 	readonly connectionId: string;
 	readonly data: string;
+}
+
+/** Docker sandbox prerequisites observed during an attempted connection, including failed startup. */
+export interface IDevContainerAgentHostSandboxSupport {
+	readonly connectionId: string;
+	readonly supported: boolean;
+}
+
+/** Outcome of one stage of keeping user state on a volume, reported for telemetry. */
+export interface IDevContainerAgentHostUserStateReport {
+	readonly connectionId: string;
+	readonly stage: 'mount' | 'up' | 'link' | 'userCommands';
+	/** `mount`: added, existingContainer, failed. `link`: linked, noMount, homeNotFound, failed. `up`, `userCommands`: succeeded, failed. */
+	readonly outcome: string;
+	/** Fixed identifier of what failed. */
+	readonly reason?: string;
+	/** The link command's failed step. */
+	readonly step?: string;
+	readonly exitCode?: number;
+	/** Where the state volume is mounted: `workspaces` or `volume`. */
+	readonly target?: string;
+	readonly restoredFolders?: number;
+	readonly movedFolders?: number;
+	readonly createdFolders?: number;
+	readonly existingFolders?: number;
+	readonly skippedFolders?: number;
+	readonly skipReasons?: string;
+	/** Sanitized error message of a failed stage, see `sanitizeDevContainerStateErrorMessage`. */
+	readonly errorMessage?: string;
 }
 
 export const IDevContainerAgentHostMainService = createDecorator<IDevContainerAgentHostMainService>('devContainerAgentHostMainService');
@@ -49,6 +86,9 @@ export interface IDevContainerAgentHostMainService extends IRelayChannel {
 	readonly onDidCloseConnection: Event<string>;
 	/** Streaming stdout and stderr from Dev Container CLI processes. */
 	readonly onDidOutput: Event<IDevContainerAgentHostOutput>;
+	readonly onDidChangeSandboxSupport?: Event<IDevContainerAgentHostSandboxSupport>;
+	/** Reports how keeping user state on a volume went, including for failed startup. */
+	readonly onDidReportUserState?: Event<IDevContainerAgentHostUserStateReport>;
 
 	/** Whether Docker can be resolved from the user's shell environment. */
 	isDockerAvailable(): Promise<boolean>;

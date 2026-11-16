@@ -1,0 +1,20 @@
+{
+	"name": "vscode-unit-test-runner",
+	"private": true,
+	"type": "commonjs",
+	"devDependencies": {
+		"@playwright/test": "^1.61.1",
+		"@vscode/v8-heap-parser": "^0.1.0",
+		"glob": "^5.0.13",
+		"istanbul-lib-coverage": "^3.2.0",
+		"istanbul-lib-instrument": "^6.0.1",
+		"istanbul-lib-report": "^3.0.0",
+		"istanbul-lib-source-maps": "^4.0.1",
+		"istanbul-reports": "^3.1.5",
+		"minimatch": "^3.1.5",
+		"minimist": "^1.2.8",
+		"mocha": "^10.8.2",
+		"mocha-junit-reporter": "^2.2.1",
+		"yaserver": "^0.4.0"
+	}
+}

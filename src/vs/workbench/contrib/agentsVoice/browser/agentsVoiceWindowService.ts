@@ -207,13 +207,11 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 					this.commandService.executeCommand('_chat.voice.switchToSession', resource.toString()).catch(() => { /* ignore */ });
 				}
 			},
-			newSessionAsTarget: () => {
-				this.voiceSessionController.newSessionAsTarget();
-			},
+			newSessionAsTarget: () => this.voiceSessionController.newSessionAsTarget(),
 			getAnalyserNode: () => {
 				const state = this.voiceSessionController.voiceState.get();
 				return this.ttsPlaybackService.analyserNode
-					?? (state === 'listening' ? this.micCaptureService.analyserNode : null)
+					?? (state === 'listening' && !this.voiceSessionController.isMuted.get() ? this.micCaptureService.analyserNode : null)
 					?? null;
 			},
 			onResize: () => this._resizeWindow(auxiliaryWindow),
@@ -267,9 +265,9 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 		}));
 
 		// Poll for session updates
-		this.agentSessionsService.model.resolve(undefined);
+		this.agentSessionsService.model.resolve(undefined, undefined, 'automatic');
 		this._windowDisposables.add(disposableWindowInterval(auxiliaryWindow.window, () => {
-			this.agentSessionsService.model.resolve(undefined);
+			this.agentSessionsService.model.resolve(undefined, undefined, 'automatic');
 		}, 3000));
 
 
@@ -328,7 +326,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 	}
 
 	private _doResizeWindow(auxiliaryWindow: IAuxiliaryWindow): void {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const pill = auxiliaryWindow.container.querySelector('div') as HTMLElement | null;
 		if (!pill) { return; }
 		void pill.offsetWidth;

@@ -4,23 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
-import { OperatingSystem } from '../../../base/common/platform.js';
+import { IPath, posix, win32 } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
-import { ILogService } from '../../log/common/log.js';
+import { ILabelService } from '../../label/common/label.js';
 import { IPathService } from '../../path/common/pathService.js';
 import { AgentSession } from '../common/agent.js';
 import { IAgentConnection, IAgentHostService } from '../common/agentService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionInfo, IAgentHostConnectionsService, IAgentHostSessionIdentity, IAgentHostSessionResolution, IAgentHostSessionResolutionPolicy, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../common/agentHostConnectionsService.js';
 import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType, remoteAgentHostSessionTypeAuthorityPrefix } from '../common/agentHostSessionType.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority } from '../common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, agentHostLabelFormatter } from '../common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../common/remoteAgentHostService.js';
-import { getAgentHostOperatingSystem } from '../common/agentHostOperatingSystem.js';
+import { getAgentHostPathStyle } from '../common/agentHostPathStyle.js';
 import { ResourceMap } from '../../../base/common/map.js';
-import { isEqual } from '../../../base/common/resources.js';
+import { extUri, isEqual } from '../../../base/common/resources.js';
+import { getAgentHostSessionResource } from '../common/agentHostSessionIdentity.js';
+import { PathStyle } from '../common/state/protocol/common/commands.js';
 
 /**
  * Default {@link IAgentHostConnectionsService} that composes the ambient
@@ -37,30 +39,65 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 	readonly onDidChangeSessionResolution: Event<void> = this._onDidChangeSessionResolution.event;
 	private readonly _sessionResolutionPolicies = new Map<string, IAgentHostSessionResolutionPolicy>();
 	private readonly _backendSessions = new ResourceMap<{ readonly backend: URI; readonly authority: string; readonly provider: string }>();
+	private readonly _frontendByBackend = new Map<string, URI>();
+	private _resolutionBatchDepth = 0;
+	private _resolutionBatchDirty = false;
 	private readonly _connectionListeners = this._register(new DisposableMap<IAgentConnection, DisposableStore>());
+	private readonly _ambientLabelFormatter = this._register(new MutableDisposable());
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IPathService pathService: IPathService,
-		@ILogService private readonly _logService: ILogService,
+		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		super();
 
 		this._register(pathService.registerPathProvider(AGENT_HOST_SCHEME, {
-			getOperatingSystem: resource => this._getOperatingSystem(resource),
+			getPath: resource => this._getPath(resource),
 		}));
 		this._register(this._remoteAgentHostService.onDidChangeConnections(() => this._fireConnectionsChanged()));
 		// Ambient (re)start/exit changes whether the ambient connection is ready.
-		this._register(this._agentHostService.onAgentHostStart(() => this._fireConnectionsChanged()));
+		this._register(this._agentHostService.onAgentHostStart(() => {
+			this._updateAmbientLabelFormatter();
+			this._fireConnectionsChanged();
+		}));
 		this._register(this._agentHostService.onAgentHostExit(() => this._fireConnectionsChanged()));
+		this._updateAmbientLabelFormatter();
 		this._watchConnections();
+	}
+
+	private _updateAmbientLabelFormatter(): void {
+		const pathStyle = getAgentHostPathStyle(this._agentHostService);
+		this._ambientLabelFormatter.value = pathStyle === undefined
+			? undefined
+			: this._labelService.registerFormatter(agentHostLabelFormatter(AMBIENT_AGENT_HOST_AUTHORITY, pathStyle));
 	}
 
 	private _fireConnectionsChanged(): void {
 		this._watchConnections();
 		this._onDidChangeConnections.fire();
-		this._onDidChangeSessionResolution.fire();
+		this._fireSessionResolutionChanged();
+	}
+
+	private _fireSessionResolutionChanged(): void {
+		if (this._resolutionBatchDepth > 0) {
+			this._resolutionBatchDirty = true;
+		} else {
+			this._onDidChangeSessionResolution.fire();
+		}
+	}
+
+	batchSessionResolutionChanges<T>(fn: () => T): T {
+		this._resolutionBatchDepth++;
+		try {
+			return fn();
+		} finally {
+			if (--this._resolutionBatchDepth === 0 && this._resolutionBatchDirty) {
+				this._resolutionBatchDirty = false;
+				this._onDidChangeSessionResolution.fire();
+			}
+		}
 	}
 
 	private _watchConnections(): void {
@@ -128,23 +165,11 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 		return resource.scheme === AGENT_HOST_SCHEME ? resource.authority : undefined;
 	}
 
-	private async _getOperatingSystem(resource: URI): Promise<OperatingSystem | undefined> {
+	private async _getPath(resource: URI): Promise<IPath | undefined> {
 		const remote = this._remoteAgentHostService.connections.find(info => agentHostAuthority(info.address) === resource.authority);
-		if (remote?.operatingSystem !== undefined) {
-			return remote.operatingSystem;
-		}
-
 		const connection = this.getConnectionByAuthority(resource.authority);
-		if (!connection) {
-			return undefined;
-		}
-
-		try {
-			return await getAgentHostOperatingSystem(connection);
-		} catch (error) {
-			this._logService.error(`[AgentHostConnections] Failed to resolve the operating system for authority ${resource.authority}`, error);
-			return undefined;
-		}
+		const pathStyle = remote?.pathStyle ?? (connection ? getAgentHostPathStyle(connection) : undefined);
+		return pathStyle === PathStyle.Windows ? win32 : pathStyle === PathStyle.Posix ? posix : undefined;
 	}
 
 	getConnectionByAddress(address: string): IAgentConnection | undefined {
@@ -156,11 +181,11 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 			throw new Error(`Agent Host session resolution policy already registered for '${authority}'`);
 		}
 		this._sessionResolutionPolicies.set(authority, policy);
-		this._onDidChangeSessionResolution.fire();
+		this._fireSessionResolutionChanged();
 		return toDisposable(() => {
 			if (this._sessionResolutionPolicies.get(authority) === policy) {
 				this._sessionResolutionPolicies.delete(authority);
-				this._onDidChangeSessionResolution.fire();
+				this._fireSessionResolutionChanged();
 			}
 		});
 	}
@@ -195,13 +220,50 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 		}
 		this._backendSessions.set(resource.with({ fragment: '' }), { backend: backendSession, authority, provider });
 		if (!previous) {
-			this._onDidChangeSessionResolution.fire();
+			// The first frontend resource registered for an identity wins, as with an insertion-ordered scan.
+			const identityKey = this._backendIdentityKey(backendSession, authority);
+			if (!this._frontendByBackend.has(identityKey)) {
+				this._frontendByBackend.set(identityKey, resource.with({ fragment: '' }));
+			}
+			this._fireSessionResolutionChanged();
 		}
 		return resource;
 	}
 
+	registerSessionResourceAlias(resource: URI, backendSession: URI, authority: string, provider: string): IDisposable {
+		const alias = resource.with({ fragment: '' });
+		const entry = { backend: backendSession, authority, provider };
+		const previous = this._backendSessions.get(alias);
+		if (previous) {
+			throw new Error(`Catalog resource already has an execution: ${alias.toString()}`);
+		}
+		const canonical = this.registerSessionResource(backendSession, authority, provider);
+		this._backendSessions.set(alias, entry);
+		const key = this._backendIdentityKey(backendSession, authority);
+		const original = this._frontendByBackend.get(key);
+		this._frontendByBackend.set(key, alias);
+		this._fireSessionResolutionChanged();
+		return toDisposable(() => {
+			if (this._backendSessions.get(alias) === entry) {
+				this._backendSessions.delete(alias);
+				if (this._frontendByBackend.get(key) === alias) {
+					if (original && this._backendSessions.has(original)) {
+						this._frontendByBackend.set(key, original);
+					} else {
+						this._frontendByBackend.set(key, canonical);
+					}
+				}
+				this._fireSessionResolutionChanged();
+			}
+		});
+	}
+
 	findSessionResource(backendSession: URI, authority = AMBIENT_AGENT_HOST_AUTHORITY): URI | undefined {
-		return [...this._backendSessions].find(([, identity]) => identity.authority === authority && isEqual(identity.backend, backendSession))?.[0];
+		return this._frontendByBackend.get(this._backendIdentityKey(backendSession, authority));
+	}
+
+	private _backendIdentityKey(backendSession: URI, authority: string): string {
+		return `${authority}\n${extUri.getComparisonKey(backendSession)}`;
 	}
 
 	getSessionResource(backendSession: URI, authority = AMBIENT_AGENT_HOST_AUTHORITY): URI | undefined {
@@ -225,17 +287,23 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 		return isEqual(this.resolveSessionResourceIdentity(resource)?.backendSession, backendSession) ? resource : undefined;
 	}
 
+	private _normalizeSessionResource(sessionResource: URI): URI {
+		const withoutFragment = sessionResource.with({ fragment: '' });
+		return this._backendSessions.has(withoutFragment) ? withoutFragment : getAgentHostSessionResource(sessionResource);
+	}
+
 	resolveSessionResourceIdentity(sessionResource: URI): IAgentHostSessionIdentity | undefined {
-		const known = this._backendSessions.get(sessionResource.with({ fragment: '' }));
+		const normalized = this._normalizeSessionResource(sessionResource);
+		const known = this._backendSessions.get(normalized);
 		if (known) {
-			return this._createSessionIdentity(known.authority, known.provider, sessionResource);
+			return this._createSessionIdentity(known.authority, known.provider, normalized);
 		}
-		const scheme = sessionResource.scheme;
+		const scheme = normalized.scheme;
 
 		if (scheme.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX)) {
 			const provider = scheme.substring(LOCAL_AGENT_HOST_SCHEME_PREFIX.length);
 			return provider
-				? this._createSessionIdentity(AMBIENT_AGENT_HOST_AUTHORITY, provider, sessionResource)
+				? this._createSessionIdentity(AMBIENT_AGENT_HOST_AUTHORITY, provider, normalized)
 				: undefined;
 		}
 
@@ -251,7 +319,7 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 			if (authority) {
 				const provider = scheme.substring(remoteAgentHostSessionTypeAuthorityPrefix(authority).length);
 				if (provider) {
-					return this._createSessionIdentity(authority, provider, sessionResource);
+					return this._createSessionIdentity(authority, provider, normalized);
 				}
 			}
 		}
@@ -266,9 +334,9 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 		return {
 			connectionAuthority: authority,
 			...(policy?.connectionAddress !== undefined ? { connectionAddress: policy.connectionAddress } : {}),
-			backendSession: this._backendSessions.get(sessionResource.with({ fragment: '' }))?.backend
+			backendSession: this._backendSessions.get(sessionResource)?.backend
 				?? sessionResource.with({ scheme: backendProvider, fragment: '' }),
-			...(this._backendSessions.has(sessionResource.with({ fragment: '' })) ? { backendSessionIsAdvertised: true as const } : {}),
+			...(this._backendSessions.has(sessionResource) ? { backendSessionIsAdvertised: true as const } : {}),
 			defaultChangesetKind: policy?.defaultChangesetKind,
 		};
 	}

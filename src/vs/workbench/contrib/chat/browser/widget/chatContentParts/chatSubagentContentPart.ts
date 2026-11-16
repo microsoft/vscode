@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { $, AnimationFrameScheduler, DisposableResizeObserver } from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -293,7 +294,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			actionViewItemProvider: (action, options) => isPhase
 				? this.instantiationService.createInstance(FusionPhasePillActionViewItem, undefined, action, { ...options, showElapsedOnly: true }, false)
 				: this.actionViewItemService.lookUp(MenuId.ChatSubagentContent, CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID)?.(action, options, this.instantiationService, dom.getWindow(container).vscodeWindowId)
-				?? this.instantiationService.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, !this.environmentService.isSessionsWindow),
+				?? this.instantiationService.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, !this.environmentService.isSessionsWindow && !ChatContextKeys.inSessionsChat.getValue(this.contextKeyService)),
 		}));
 		this._openChatToolbar.setActions([menuAction]);
 		this._updateOpenChatOnlyMode();
@@ -345,6 +346,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 				startedAt: data?.kind === 'subagent' ? data.startedAt : undefined,
 				duration: data?.kind === 'subagent' ? data.duration : undefined,
 				isActive: this.isActive,
+				isError: (data?.kind === 'subagent' ? data.isError : undefined) ?? !!IChatToolInvocation.resultError(this._subagentToolInvocation),
 				...(this.credits ? { credits: this.credits } : {}),
 				...(data?.kind === 'subagent' && data.modelId ? { modelId: data.modelId } : {}),
 				...(this.modelName ? { modelName: this.modelName } : {}),
@@ -522,7 +524,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 
 	private removeWorkingSpinner(): void {
 		if (this.workingSpinnerElement) {
-			this.workingSpinnerElement.remove();
+			this.removeThinkingSpinnerRow(this.workingSpinnerElement);
 			this.workingSpinnerElement = undefined;
 		}
 	}

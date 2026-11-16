@@ -279,6 +279,15 @@ export class OpenAIEndpoint extends ChatEndpoint {
 		return true;
 	}
 
+	/**
+	 * Whether this endpoint can resume a Responses API response ID.
+	 */
+	protected override canResumeResponses(responseId: string): boolean {
+		return !this.modelMetadata.zeroDataRetentionEnabled
+			&& this.supportsStatefulResponses
+			&& responseId.startsWith('resp_');
+	}
+
 	override createRequestBody(options: ICreateEndpointBodyOptions): IEndpointBody {
 		if (this.useResponsesApi) {
 			// Handle Responses API: customize the body directly
@@ -295,6 +304,11 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			body.store = !zdr;
 			body.n = undefined;
 			body.stream_options = undefined;
+			if (body.truncation === 'disabled') {
+				// `disabled` is the Responses API default. Omit it so OpenAI-compatible servers
+				// that do not implement `truncation` (e.g. Kimi Code) accept the request.
+				delete body.truncation;
+			}
 			if (!this.modelMetadata.capabilities.supports.thinking) {
 				body.reasoning = undefined;
 				body.include = undefined;

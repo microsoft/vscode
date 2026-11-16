@@ -150,6 +150,7 @@ export function parseCreateRemoteSessionOptions(value: unknown): ICreateRemoteSe
 	if (input.workspace !== undefined) {
 		const raw = readObject(input.workspace, ['uri', 'isolation', 'branch'], 'workspace');
 		const uri = URI.parse(readText(raw.uri, 'workspace.uri'), true);
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- validates the host filesystem URI inside a remote-workspace tool argument before resolving a connection
 		const directory = fromAgentHostUri(uri);
 		if ((uri.scheme !== Schemas.file && uri.scheme !== AGENT_HOST_SCHEME)
 			|| directory.scheme !== Schemas.file || !directory.path.startsWith('/') || directory.path === '/'

@@ -10,9 +10,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ButtonBar, IButtonOptions } from '../../../../base/browser/ui/button/button.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { ActionRunner, IAction, IActionRunner, Separator, toAction } from '../../../../base/common/actions.js';
+import { Action, ActionRunner, IAction, IActionRunner, Separator, toAction } from '../../../../base/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { dispose, DisposableStore, Disposable } from '../../../../base/common/lifecycle.js';
+import { dispose, DisposableStore, Disposable, markAsSingleton } from '../../../../base/common/lifecycle.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { INotificationViewItem, NotificationViewItem, NotificationViewItemContentChangeKind, INotificationMessage, ChoiceAction, NotificationsSettings, getNotificationsPosition } from '../../../common/notifications.js';
 import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction, getNotificationExpandIcon, getNotificationCollapseIcon } from './notificationsActions.js';
@@ -371,9 +371,9 @@ export class NotificationTemplateRenderer extends Disposable {
 		super();
 
 		if (!NotificationTemplateRenderer.closeNotificationAction) {
-			NotificationTemplateRenderer.closeNotificationAction = instantiationService.createInstance(ClearNotificationAction, ClearNotificationAction.ID, ClearNotificationAction.LABEL);
-			NotificationTemplateRenderer.expandNotificationAction = instantiationService.createInstance(ExpandNotificationAction, ExpandNotificationAction.ID, ExpandNotificationAction.LABEL);
-			NotificationTemplateRenderer.collapseNotificationAction = instantiationService.createInstance(CollapseNotificationAction, CollapseNotificationAction.ID, CollapseNotificationAction.LABEL);
+			NotificationTemplateRenderer.closeNotificationAction = markAsSingleton(instantiationService.createInstance(ClearNotificationAction, ClearNotificationAction.ID, ClearNotificationAction.LABEL));
+			NotificationTemplateRenderer.expandNotificationAction = markAsSingleton(instantiationService.createInstance(ExpandNotificationAction, ExpandNotificationAction.ID, ExpandNotificationAction.LABEL));
+			NotificationTemplateRenderer.collapseNotificationAction = markAsSingleton(instantiationService.createInstance(CollapseNotificationAction, CollapseNotificationAction.ID, CollapseNotificationAction.LABEL));
 			NotificationTemplateRenderer.updateExpandCollapseIcons(configurationService);
 		}
 
@@ -563,6 +563,14 @@ export class NotificationTemplateRenderer extends Disposable {
 				);
 
 				button.label = action.label;
+				button.enabled = action.enabled;
+				if (action instanceof Action) {
+					this.inputDisposables.add(action.onDidChange(change => {
+						if (typeof change.enabled === 'boolean') {
+							button.enabled = change.enabled;
+						}
+					}));
+				}
 
 				this.inputDisposables.add(button.onDidClick(e => {
 					if (e) {

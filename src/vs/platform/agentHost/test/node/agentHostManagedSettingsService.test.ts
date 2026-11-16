@@ -52,4 +52,25 @@ suite('AgentHostManagedSettingsService', () => {
 		assert.strictEqual(changes, 2);
 	});
 
+	test('intersects domain boundaries without enabling sandboxing and removes each owner independently', () => {
+		const service = store.add(new AgentHostManagedSettingsService());
+		service.setClientPermissions('a', { limitTo: ['Domain(*.example.com)'] });
+		service.setClientPermissions('b', { limitTo: ['Domain(api.example.com)', 'Domain(other.example)'] });
+		const overlapping = service.permissions;
+		service.setClientPermissions('b', { limitTo: ['Domain(other.example)'] });
+		const disjoint = service.permissions;
+		service.removeClient('b');
+		const remaining = service.permissions;
+		service.setClientPermissions('a', { limitTo: [] });
+		const empty = service.permissions;
+		service.removeClient('a');
+		assert.deepStrictEqual({ overlapping, disjoint, remaining, empty, removed: service.permissions }, {
+			overlapping: { limitTo: ['Domain(api.example.com)'] },
+			disjoint: { limitTo: [] },
+			remaining: { limitTo: ['Domain(*.example.com)'] },
+			empty: { limitTo: [] },
+			removed: {},
+		});
+	});
+
 });

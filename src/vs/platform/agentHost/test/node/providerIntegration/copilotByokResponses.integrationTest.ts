@@ -6,11 +6,11 @@
 import assert from 'assert';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
-import { CopilotClient } from '@github/copilot-sdk';
+import { CopilotClient, defineTool } from '@github/copilot-sdk';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmModelInfo } from '../../../common/agentHostByokLm.js';
+import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmModelInfo, IByokLmStreamDelta, IByokLmStreamDeltaBody } from '../../../common/agentHostByokLm.js';
 import { ByokLmBridgeRegistry } from '../../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService } from '../../../node/copilot/byokLmProxyService.js';
 import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
@@ -21,16 +21,38 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	type SdkSession = Awaited<ReturnType<CopilotClient['createSession']>>;
+	type SdkSessionOptions = Parameters<CopilotClient['createSession']>[0];
 
 	/**
 	 * Runs the bundled SDK against the BYOK proxy, with {@link chat} playing the
-	 * renderer bridge for model `acme/test-model`.
+	 * renderer bridge for model `acme/test-model`. `streamDeltas` plays the
+	 * renderer's incremental half: when it returns deltas, the proxy sees them
+	 * before `chat` resolves and relays them as the response is produced.
 	 */
-	async function withSdkSession(sessionId: string, chat: IByokLmBridgeConnection['chat'], run: (session: SdkSession) => Promise<void>): Promise<void> {
+	async function withSdkSession(
+		sessionId: string,
+		chat: IByokLmBridgeConnection['chat'],
+		run: (session: SdkSession) => Promise<void>,
+		sessionOptions: Pick<SdkSessionOptions, 'tools' | 'availableTools'> = {},
+		streamDeltas?: () => readonly IByokLmStreamDeltaBody[],
+	): Promise<void> {
 		const baseDirectory = await mkdtemp(`${tmpdir()}/byok-responses-sdk-`);
 		const models = store.add(new Emitter<IByokLmModelInfo[]>());
+		const deltas = store.add(new Emitter<IByokLmStreamDelta>());
 		const registry = new ByokLmBridgeRegistry();
-		const registration = registry.register('client', { chat, onDidChangeModels: models.event });
+		const registration = registry.register('client', {
+			chat: async request => {
+				if (request.requestId !== undefined) {
+					for (const delta of streamDeltas?.() ?? []) {
+						deltas.fire({ ...delta, requestId: request.requestId });
+						await new Promise(resolve => setTimeout(resolve, 1));
+					}
+				}
+				return chat(request);
+			},
+			onDidChangeModels: models.event,
+			onDidDelta: deltas.event,
+		});
 		models.fire([{ vendor: 'acme', id: 'test-model' }]);
 
 		const proxy = new ByokLmProxyService(new NullLogService(), registry);
@@ -52,7 +74,14 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 				sessionId,
 				model: 'test-model',
 				reasoningEffort: 'medium',
-				availableTools: [],
+				// Without this, the SDK never requests a streamed response (`stream:
+				// true` never reaches the proxy, so `streamDeltas` above never fires);
+				// the final `assistant.message`/`assistant.reasoning` events still
+				// arrive from the non-streaming JSON fallback, so tests can pass
+				// without ever exercising the SSE path they intend to cover.
+				streaming: true,
+				tools: sessionOptions.tools,
+				availableTools: sessionOptions.availableTools ?? [],
 				provider: {
 					type: 'openai',
 					wireApi: 'responses',
@@ -101,7 +130,13 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 			};
 		}, async session => {
 			const reasoning: string[] = [];
+			const usage: Array<{ inputTokens?: number; outputTokens?: number; reasoningTokens?: number }> = [];
 			session.on('assistant.reasoning', event => reasoning.push(event.data.content));
+			session.on('assistant.usage', event => usage.push({
+				inputTokens: event.data.inputTokens,
+				outputTokens: event.data.outputTokens,
+				reasoningTokens: event.data.reasoningTokens,
+			}));
 
 			const result = await session.sendAndWait({ prompt: 'Reply exactly hello.' }, 30_000);
 			const secondResult = await session.sendAndWait({ prompt: 'Reply exactly second.' }, 30_000);
@@ -111,6 +146,7 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 				result: result?.type === 'assistant.message' ? result.data.content : undefined,
 				secondResult: secondResult?.type === 'assistant.message' ? secondResult.data.content : undefined,
 				reasoning,
+				usage,
 				firstRequest: {
 					vendor: captured[0]?.vendor,
 					modelId: captured[0]?.modelId,
@@ -122,10 +158,14 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 				result: 'hello',
 				secondResult: 'second',
 				reasoning: ['considered options'],
+				usage: [
+					{ inputTokens: 1, outputTokens: 2, reasoningTokens: 1 },
+					{ inputTokens: 0, outputTokens: 0, reasoningTokens: 0 },
+				],
 				firstRequest: {
 					vendor: 'acme',
 					modelId: 'test-model',
-					inputTypes: ['message'],
+					inputTypes: ['message', 'message'],
 					reasoningEffort: 'medium',
 				},
 				replayedReasoning: {
@@ -135,7 +175,82 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 					encryptedContent: 'opaque',
 				},
 			});
-		});
+		}, {}, () => captured.length === 0
+			? [
+				{ kind: 'reasoning', id: 'rs_provider', delta: 'considered options', newSummaryPart: true, encryptedContent: 'opaque' },
+				{ kind: 'text', delta: 'hello' },
+			]
+			: [{ kind: 'text', delta: 'second' }]);
+	});
+
+	test('bundled SDK preserves provider state through a tool continuation', async function () {
+		this.timeout(120_000);
+
+		const captured: IByokLmChatRequest[] = [];
+		await withSdkSession('byok-responses-tool-continuation', async request => {
+			captured.push(request);
+			if (captured.length === 1) {
+				return {
+					responseId: 'resp_provider_1',
+					output: [
+						{ type: 'reasoning', id: 'rs_provider', summary: ['Calling echo'], encryptedContent: 'opaque' },
+						{ type: 'function_call', callId: 'call_1', name: 'echo', argumentsJson: '{}' },
+					],
+				};
+			}
+			return {
+				responseId: 'resp_provider_2',
+				output: [{ type: 'message', content: [{ type: 'text', text: 'final response' }] }],
+			};
+		}, async session => {
+			const result = await session.sendAndWait({ prompt: 'Call echo once, then reply exactly final response.' }, 30_000);
+
+			assert.deepStrictEqual({
+				result: result?.type === 'assistant.message' ? result.data.content : undefined,
+				requestCount: captured.length,
+				firstRequest: {
+					vendor: captured[0]?.vendor,
+					modelId: captured[0]?.modelId,
+					inputTypes: captured[0]?.input.map(item => item.type),
+					reasoningEffort: captured[0]?.reasoningEffort,
+				},
+				secondRequest: {
+					previousResponseId: captured[1]?.previousResponseId,
+					input: captured[1]?.input.map(item => item.type === 'function_call_output'
+						? { type: item.type, callId: item.callId, output: item.output }
+						: { type: item.type }),
+				},
+			}, {
+				result: 'final response',
+				requestCount: 2,
+				firstRequest: {
+					vendor: 'acme',
+					modelId: 'test-model',
+					inputTypes: ['message', 'message'],
+					reasoningEffort: 'medium',
+				},
+				secondRequest: {
+					previousResponseId: 'resp_provider_1',
+					input: [{ type: 'function_call_output', callId: 'call_1', output: 'echo result' }],
+				},
+			});
+		}, {
+			tools: [
+				defineTool('echo', {
+					description: 'Returns a fixed echo result.',
+					parameters: { type: 'object', properties: {}, additionalProperties: false },
+					handler: async () => 'echo result',
+					skipPermission: true,
+					defer: 'never',
+				}),
+			],
+			availableTools: ['custom:echo'],
+		}, () => captured.length === 0
+			? [
+				{ kind: 'reasoning', id: 'rs_provider', delta: 'Calling echo', newSummaryPart: true, encryptedContent: 'opaque' },
+				{ kind: 'toolCall', callId: 'call_1', name: 'echo', isCustom: false, value: '{}' },
+			]
+			: [{ kind: 'text', delta: 'final response' }]);
 	});
 
 	test('bundled SDK surfaces an empty BYOK response as a descriptive error without retrying', async function () {
@@ -154,5 +269,41 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 				errors: ['422 The model \'test-model\' returned an empty response with no text or tool calls. This can happen when the conversation exceeds the model\'s context window or output token limit. Try again, start a new session, or choose a different model.'],
 			});
 		});
+	});
+
+	test('bundled SDK does not duplicate partial output when the provider fails after streaming', async function () {
+		this.timeout(120_000);
+
+		// A provider failure discovered once visible output already reached the
+		// client closes the stream as a completion of that partial output instead
+		// of an in-stream failure (see byokResponsesTranslation.ts's `fail()`): a
+		// runtime that retried an in-stream failure would resend the already-shown
+		// text alongside the retry's own output, duplicating it. The message ends
+		// with a fixed note so the user can tell the answer was cut short.
+		const interruptionNote = '\n\n_Response interrupted: the model stopped before finishing. Try again._';
+		let calls = 0;
+		await withSdkSession('byok-responses-partial-failure', async () => {
+			calls++;
+			return { output: [], error: 'upstream exploded' };
+		}, async session => {
+			const deltas: string[] = [];
+			const errors: string[] = [];
+			session.on('assistant.message_delta', event => deltas.push(event.data.deltaContent));
+			session.on('session.error', event => errors.push(event.data.message));
+			const result = await session.sendAndWait({ prompt: 'Reply with a long answer.' }, 30_000);
+			assert.deepStrictEqual({
+				calls,
+				joined: deltas.join(''),
+				errors,
+				resultType: result?.type,
+				resultContent: result?.type === 'assistant.message' ? result.data.content : undefined,
+			}, {
+				calls: 1,
+				joined: `Partial answer${interruptionNote}`,
+				errors: [],
+				resultType: 'assistant.message',
+				resultContent: `Partial answer${interruptionNote}`,
+			});
+		}, {}, () => [{ kind: 'text', delta: 'Partial answer' }]);
 	});
 });

@@ -27,6 +27,13 @@ suite('ChatInputPickerResponsiveLayout', () => {
 		host.remove();
 	});
 
+	async function waitForAnimationFrames(element: HTMLElement, count: number): Promise<void> {
+		const targetWindow = dom.getWindow(element);
+		for (let i = 0; i < count; i++) {
+			await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+		}
+	}
+
 	function createPickerLane(width: number, expandedWidths: number[], usePreferredWidth = false) {
 		const lane = dom.append(host, dom.$('.picker-lane'));
 		lane.style.display = 'flex';
@@ -292,38 +299,90 @@ suite('ChatInputPickerResponsiveLayout', () => {
 		lane.style.width = '100px';
 		lane.style.height = '20px';
 		let compact = false;
-		const layout = store.add(new ChatInputPickerResponsiveLayout('test.isolatedPickerLane', lane, {
+		let passes = 0;
+		store.add(new ChatInputPickerResponsiveLayout('test.isolatedPickerLane', lane, {
 			getItems: () => [{
 				element: picker,
 				isCompact: () => compact,
 				setCompact: value => compact = value,
 			}],
+			relayout: () => passes++,
 		}));
 
-		let layoutCalls = 0;
-		layout.layout = () => layoutCalls++;
-		const targetWindow = dom.getWindow(lane);
-		await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => targetWindow.requestAnimationFrame(() => resolve())));
-		layoutCalls = 0;
+		await waitForAnimationFrames(lane, 3);
+		passes = 0;
 		unrelated.textContent = 'streamed cost update';
-		await new Promise(resolve => setTimeout(resolve, 0));
-		const afterUnrelatedMutation = layoutCalls;
+		await waitForAnimationFrames(lane, 2);
+		const afterUnrelatedMutation = passes;
 
 		picker.setAttribute('data-picker-open', 'true');
-		await new Promise(resolve => setTimeout(resolve, 0));
-		const afterVisualStateMutation = layoutCalls;
+		await waitForAnimationFrames(lane, 2);
+		const afterVisualStateMutation = passes;
 
 		picker.textContent = 'picker changed';
-		await new Promise(resolve => setTimeout(resolve, 0));
+		await waitForAnimationFrames(lane, 2);
 
 		assert.deepStrictEqual({
 			afterUnrelatedMutation,
 			afterVisualStateMutation,
-			afterContentMutation: layoutCalls > 0,
+			afterContentMutation: passes > 0,
 		}, {
 			afterUnrelatedMutation: 0,
 			afterVisualStateMutation: 0,
 			afterContentMutation: true,
+		});
+	});
+
+	test('lays out once per frame for picker mutations and skips passes with nothing to change', async () => {
+		const lane = dom.append(host, dom.$('.picker-lane'));
+		lane.style.display = 'flex';
+		lane.style.width = '300px';
+		const pickers = [0, 1, 2].map(() => {
+			const picker = dom.append(lane, dom.$('.picker'));
+			picker.style.flex = '0 0 auto';
+			return picker;
+		});
+		let passes = 0;
+		const layout = store.add(new ChatInputPickerResponsiveLayout('test.coalescedPickerLane', lane, {
+			getItems: () => pickers.map(picker => ({ element: picker, isCompact: () => false, setCompact: () => { } })),
+			relayout: () => passes++,
+		}));
+
+		await waitForAnimationFrames(lane, 3);
+		passes = 0;
+		for (const picker of pickers) {
+			picker.textContent = 'label';
+			// Deliver each mutation to the observer separately, as separate tasks would.
+			await Promise.resolve();
+		}
+		await waitForAnimationFrames(lane, 2);
+		const afterMutationBurst = passes;
+
+		pickers[0].classList.add('hovered');
+		pickers[0].classList.remove('hovered');
+		await waitForAnimationFrames(lane, 2);
+		const afterRevertedMutation = passes;
+
+		layout.layout();
+
+		assert.deepStrictEqual({ afterMutationBurst, afterRevertedMutation, afterExplicitLayout: passes }, {
+			afterMutationBurst: 1,
+			afterRevertedMutation: 1,
+			afterExplicitLayout: 2,
+		});
+	});
+
+	test('lays out again when the lane itself changes without changing its width', async () => {
+		const { lane, items } = createPickerLane(180, [80, 80]);
+		await waitForAnimationFrames(lane, 3);
+		const beforeGap = items.map(item => item.isCompact());
+
+		lane.style.gap = '30px';
+		await waitForAnimationFrames(lane, 2);
+
+		assert.deepStrictEqual({ beforeGap, afterGap: items.map(item => item.isCompact()) }, {
+			beforeGap: [false, false],
+			afterGap: [false, true],
 		});
 	});
 

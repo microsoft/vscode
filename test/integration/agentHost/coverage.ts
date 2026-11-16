@@ -59,6 +59,8 @@ function main(): void {
 
 	const testEnvironment = {
 		...environment,
+		AGENT_HOST_TEST_PROFILE: 'full',
+		AGENT_HOST_TEST_PROFILE_REASON: 'Coverage requires the full profile',
 		AGENT_HOST_E2E_COVERAGE: '1',
 		AGENT_HOST_RECORD_PROTOCOL_SURFACE: '1',
 		AGENT_HOST_PROTOCOL_SURFACE_OUT: observedSurfacePath,
@@ -103,7 +105,7 @@ function validateEnvironment(): void {
 
 	const missingPackages = providerPackages.filter(packageName => !existsSync(join(repoRoot, 'node_modules', ...packageName.split('/'))));
 	if (missingPackages.length > 0) {
-		throw new Error(`Agent host E2E coverage requires all provider dependencies; run npm install to add ${missingPackages.join(', ')}`);
+		throw new Error(`Agent host E2E coverage requires all provider dependencies; run pnpm install to add ${missingPackages.join(', ')}`);
 	}
 }
 

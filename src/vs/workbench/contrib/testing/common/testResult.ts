@@ -15,7 +15,7 @@ import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 import { localize } from '../../../../nls.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IComputedStateAccessor, refreshComputedState } from './getComputedState.js';
+import { ComputedStateCache, IComputedStateAccessor, refreshComputedState } from './getComputedState.js';
 import { TestCoverage } from './testCoverage.js';
 import { TestId } from './testId.js';
 import { makeEmptyCounts, maxPriority, statesInOrder, terminalStatePriorities, TestStateCount } from './testingStates.js';
@@ -247,6 +247,7 @@ export const maxCountPriority = (counts: Readonly<TestStateCount>) => {
 const getMarkCode = (marker: number, start: boolean) => `\x1b]633;SetMark;Id=${getMarkId(marker, start)};Hidden\x07`;
 
 interface TestResultItemWithChildren extends TestResultItem {
+	computedStateCache?: ComputedStateCache;
 	/** Children in the run */
 	children: TestResultItemWithChildren[];
 }
@@ -320,6 +321,7 @@ export class LiveTestResult extends Disposable implements ITestResult {
 	}
 
 	private readonly computedStateAccessor: IComputedStateAccessor<TestResultItemWithChildren> = {
+		getCache: i => i.computedStateCache ??= new ComputedStateCache(),
 		getOwnState: i => i.ownComputedState,
 		getCurrentComputedState: i => i.computedState,
 		setComputedState: (i, s) => i.computedState = s,
@@ -414,7 +416,8 @@ export class LiveTestResult extends Disposable implements ITestResult {
 		}
 
 		for (let i = 1; i < chain.length; i++) {
-			parent = this.addTestToRun(controllerId, chain[i], parent.item.extId);
+			// Another profile's batch may register the same node after it has reported results.
+			parent = this.testById.get(chain[i].extId) ?? this.addTestToRun(controllerId, chain[i], parent.item.extId);
 		}
 
 		return undefined;

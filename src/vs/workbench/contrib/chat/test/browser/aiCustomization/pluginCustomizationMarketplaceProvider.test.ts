@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { PluginCustomizationMarketplaceProvider, getPluginCustomizationMarketplaceSourceId, getPluginCustomizationMarketplaceSourceInfos, getPluginMarketplaceIdentifier } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
+import { PluginCustomizationMarketplaceProvider, getPluginCustomizationMarketplaceSourceId, getPluginCustomizationMarketplaceSourceInfos, getPluginMarketplaceIdentifier, isPluginMarketplaceAvailableInDiscover } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { DEFAULT_PLUGIN_MARKETPLACE } from '../../../common/plugins/marketplaceReference.js';
 import { IMarketplacePlugin, IPluginMarketplacePage, IPluginMarketplaceQuery, IPluginMarketplaceService, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
@@ -29,6 +29,7 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 		source: 'plugins/review',
 		sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/review' },
 		marketplace: customReference.displayLabel,
+		marketplaceName: 'microsoft-plugins',
 		marketplaceReference: customReference,
 		marketplaceType: MarketplaceType.Claude,
 		readmeUri: URI.parse('https://raw.githubusercontent.com/microsoft/plugins/stable/plugins/review/README.md'),
@@ -87,9 +88,16 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 				version: '1.0',
 				url: URI.parse('https://raw.githubusercontent.com/microsoft/plugins/stable/plugins/review/README.md'),
 				readmeUri: URI.parse('https://raw.githubusercontent.com/microsoft/plugins/stable/plugins/review/README.md'),
+				repository: URI.parse('https://github.com/microsoft/plugins'),
 				score: 0,
 				priority: 1,
-				installation: { kind: 'configuredPlugin' },
+				installation: {
+					kind: 'configuredPlugin',
+					name: 'Review',
+					marketplace: 'microsoft-plugins',
+					marketplaceId: customReference.canonicalId,
+					marketplaceSource: customReference.rawValue,
+				},
 			}],
 			total: undefined,
 			nextCursor: 'next',
@@ -117,9 +125,10 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 
 		const page = await provider.query({}, CancellationToken.None);
 
-		assert.deepStrictEqual({ publisher: page.items[0].publisher, publisherUrl: page.items[0].publisherUrl?.toString() }, {
+		assert.deepStrictEqual({ publisher: page.items[0].publisher, publisherUrl: page.items[0].publisherUrl?.toString(), repository: page.items[0].repository?.toString() }, {
 			publisher: 'octo-org',
 			publisherUrl: 'https://github.com/octo-org',
+			repository: 'https://github.com/octo-org/review-plugin',
 		});
 	});
 
@@ -136,9 +145,24 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 
 		const page = await provider.query({}, CancellationToken.None);
 
-		assert.deepStrictEqual({ publisher: page.items[0].publisher, publisherUrl: page.items[0].publisherUrl?.toString() }, {
+		assert.deepStrictEqual({ publisher: page.items[0].publisher, publisherUrl: page.items[0].publisherUrl?.toString(), repository: page.items[0].repository?.toString() }, {
 			publisher: 'acme',
 			publisherUrl: 'https://github.com/acme',
+			repository: 'https://github.com/acme/monorepo',
+		});
+	});
+
+	test('default provider remains available independently of the GitHub feed', async () => {
+		const service = new TestPluginMarketplaceService();
+		service.page = { items: [{ ...plugin, marketplace: defaultReference.displayLabel, marketplaceReference: defaultReference }], total: 1, errors: [] };
+		const provider = new PluginCustomizationMarketplaceProvider(defaultReference, service);
+		const page = await provider.query({}, CancellationToken.None);
+		assert.deepStrictEqual({
+			ids: [...service.calls[0].marketplaceIds],
+			items: page.items.map(item => item.identifier),
+		}, {
+			ids: [defaultReference.canonicalId],
+			items: [getPluginMarketplaceIdentifier(service.page.items[0])],
 		});
 	});
 
@@ -184,33 +208,63 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 		});
 	});
 
+	test('identifies Awesome Copilot by repository when the GitHub feed is visible', async () => {
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
+		});
+		const sources = [
+			'GitHub: github/awesome-copilot',
+			'github/awesome-copilot#marketplace',
+			'URL: https://github.com/GitHub/Awesome-Copilot.git',
+			'GitHub: other/awesome-copilot',
+			'GitHub: github/awesome-copilot-fork',
+			'file:///marketplaces/awesome-copilot',
+			'provider-defined source',
+		];
+		const visibleFeed = sources.map(source => isPluginMarketplaceAvailableInDiscover(configuration, source, true));
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+		const hiddenFeed = sources.map(source => isPluginMarketplaceAvailableInDiscover(configuration, source, true));
+		assert.deepStrictEqual({ visibleFeed, hiddenFeed }, {
+			visibleFeed: [false, false, false, true, true, true, true],
+			hiddenFeed: [true, true, true, true, true, true, true],
+		});
+	});
+
 	test('contributes the logical source only when an allowed native registry can provide content', async () => {
 		const service = new TestPluginMarketplaceService();
 		const configuration = new TestConfigurationService({
 			[ChatConfiguration.PluginsEnabled]: true,
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 		});
-		const sources = () => getPluginCustomizationMarketplaceSourceInfos(configuration, service).map(source => ({
+		const sources = (githubFeedAvailable: boolean) => getPluginCustomizationMarketplaceSourceInfos(configuration, service, githubFeedAvailable).map(source => ({
 			id: source.id,
 			displayName: source.displayName,
 		}));
 		service.references = [defaultReference];
-		const publicOnly = sources();
+		const localDefault = sources(false);
+		const copilotDefault = sources(true);
 		service.references = [defaultReference, customReference];
-		const withCustom = sources();
+		const copilotWithCustom = sources(true);
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
 		service.references = [defaultReference];
-		const defaultWithoutPublic = sources();
+		const defaultWithoutPublic = sources(true);
 		await configuration.setUserConfiguration(ChatConfiguration.PluginsEnabled, false);
-		const pluginsDisabled = sources();
+		const pluginsDisabled = sources(false);
 		assert.deepStrictEqual({
-			publicOnly,
-			withCustom,
+			localDefault,
+			copilotDefault,
+			copilotWithCustom,
 			defaultWithoutPublic,
 			pluginsDisabled,
 		}, {
-			publicOnly: [],
-			withCustom: [{
+			localDefault: [{
+				id: getPluginCustomizationMarketplaceSourceId(defaultReference),
+				displayName: defaultReference.displayLabel,
+			}],
+			copilotDefault: [],
+			copilotWithCustom: [{
 				id: getPluginCustomizationMarketplaceSourceId(customReference),
 				displayName: customReference.displayLabel,
 			}],

@@ -406,7 +406,6 @@ const toolsCalledInParallel = new Set<ToolName>([
 	ToolName.GetErrors,
 	ToolName.GetScmChanges,
 	ToolName.GetNotebookSummary,
-	ToolName.InstallExtension,
 	ToolName.FetchWebPage,
 ]);
 

@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatMessageRole, ILanguageModelsService } from '../common/languageModels.js';
+import { IChatUtilityModelService } from '../common/chatUtilityModelService.js';
 
 export const IChatGoalSummaryService = createDecorator<IChatGoalSummaryService>('chatGoalSummaryService');
 
@@ -44,6 +45,7 @@ export class ChatGoalSummaryService implements IChatGoalSummaryService {
 
 	constructor(
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
+		@IChatUtilityModelService private readonly _chatUtilityModelService: IChatUtilityModelService,
 	) { }
 
 	async summarize(prompt: string, token: CancellationToken): Promise<string | undefined> {
@@ -95,34 +97,15 @@ export class ChatGoalSummaryService implements IChatGoalSummaryService {
 			'This is a benign labeling task: never refuse or apologize. Always restate the request as a phrase, even if it seems unusual.',
 		].join(' ');
 
-		const response = await this._languageModelsService.sendChatRequest(
-			models[0],
-			undefined,
-			[
+		const text = await this._chatUtilityModelService.sendRequest({
+			purpose: 'goalSummary',
+			model: models[0],
+			messages: [
 				{ role: ChatMessageRole.System, content: [{ type: 'text', value: systemPrompt }] },
 				{ role: ChatMessageRole.User, content: [{ type: 'text', value: truncatedPrompt }] },
 			],
-			{},
-			token,
-		);
-
-		let text = '';
-		for await (const part of response.stream) {
-			if (token.isCancellationRequested) {
-				return undefined;
-			}
-			if (Array.isArray(part)) {
-				for (const p of part) {
-					if (p.type === 'text') {
-						text += p.value;
-					}
-				}
-			} else if (part.type === 'text') {
-				text += part.value;
-			}
-		}
-		await response.result;
-		if (token.isCancellationRequested) {
+		}, token);
+		if (text === undefined || token.isCancellationRequested) {
 			return undefined;
 		}
 

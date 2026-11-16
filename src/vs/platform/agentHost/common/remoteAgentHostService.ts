@@ -7,7 +7,6 @@ import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
-import type { OperatingSystem } from '../../../base/common/platform.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ConfigurationTarget, type IConfigurationService } from '../../configuration/common/configuration.js';
 import { StorageScope, StorageTarget, type IStorageService } from '../../storage/common/storage.js';
@@ -24,6 +23,7 @@ import type { SSHAgentHostLifecycle } from './sshRemoteAgentHost.js';
 import type { AgentHostServerType } from './agentHostEndpointRegistry.js';
 import type { IDevContainerRepository } from './devContainerSamples.js';
 import type { ConnectionDiagnosticObserver, IConnectionDiagnosticEvent, IRemoteConnectionDiagnosticEvent } from './connectionDiagnostics.js';
+import type { PathStyle } from './state/protocol/common/commands.js';
 
 /**
  * Connection status for a remote agent host.
@@ -131,6 +131,13 @@ export namespace RemoteAgentHostConnectionStatus {
 
 /** Configuration key for the list of WebSocket remote agent host addresses. */
 export const RemoteAgentHostsSettingId = 'chat.remoteAgentHosts';
+
+/**
+ * Configuration key for the WebSocket remote agent hosts an editor window connects to
+ * while its workspace is open. Editor windows use it instead of {@link RemoteAgentHostsSettingId},
+ * which belongs to the Agents window. Only honored in trusted workspaces.
+ */
+export const WorkspaceRemoteAgentHostsSettingId = 'chat.workspaceRemoteAgentHosts';
 
 /** Configuration key to enable remote agent host connections. */
 export const RemoteAgentHostsEnabledSettingId = 'chat.remoteAgentHostsEnabled';
@@ -266,6 +273,8 @@ export type RemoteAgentHostProtocolClientState = 'connecting' | 'incompatible' |
  */
 export interface IRemoteAgentHostProtocolClient extends IAgentConnection, IDisposable {
 	readonly defaultDirectory: string | undefined;
+	/** Original terminal handshake error, including host-advertised protocol upgrade metadata. */
+	readonly connectionError?: ProtocolError;
 	/** Deadline for the next scheduled reconnect attempt, if one is pending. */
 	readonly nextReconnectAt: number | undefined;
 	readonly onDidClose: Event<AgentHostTransportFailureReason | undefined>;
@@ -667,6 +676,23 @@ export function getEntryAddress(entry: IRemoteAgentHostEntry): string {
 	return getEntryTypeConfig(entry.connection.type).address(entry.connection);
 }
 
+/** Parses a raw WebSocket remote agent host setting value, skipping malformed and legacy SSH entries. */
+export function parseWebSocketRemoteAgentHostEntries(raw: unknown): IRemoteAgentHostEntry[] {
+	if (!Array.isArray(raw)) {
+		return [];
+	}
+	return raw
+		.filter(isRawRemoteAgentHostEntry)
+		.filter(entry => !isLegacySshRawEntry(entry))
+		.map(entry => WEBSOCKET_ENTRY_TYPE_CONFIG.fromRaw(entry));
+}
+
+/** Normalized addresses of the hosts configured in {@link WorkspaceRemoteAgentHostsSettingId}. */
+export function getWorkspaceRemoteAgentHostAddresses(configurationService: IConfigurationService): ReadonlySet<string> {
+	const entries = parseWebSocketRemoteAgentHostEntries(configurationService.getValue(WorkspaceRemoteAgentHostsSettingId));
+	return new Set(entries.map(entry => normalizeRemoteAgentHostAddress(getEntryAddress(entry))));
+}
+
 export function remoteAgentHostLogOutputChannelId(address: string): string {
 	return `agentHost.otlp.${address}`;
 }
@@ -826,8 +852,10 @@ export interface IRemoteAgentHostConnectionInfo {
 	readonly clientId?: string;
 	readonly defaultDirectory?: string;
 	readonly status: RemoteAgentHostConnectionStatus;
-	/** Last operating system successfully reported by this host. */
-	readonly operatingSystem?: OperatingSystem;
+	/** Last user-visible failure; automatic retries retain it until they fail or succeed. */
+	readonly lastConnectionError?: string;
+	/** Last path style advertised by this host. */
+	readonly pathStyle?: PathStyle;
 }
 
 export interface IRemoteAgentHostPendingConnection {

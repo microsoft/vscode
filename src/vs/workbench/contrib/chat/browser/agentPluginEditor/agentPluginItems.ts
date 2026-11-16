@@ -17,6 +17,8 @@ export interface IInstalledPluginItem {
 	readonly kind: AgentPluginItemKind.Installed;
 	readonly name: string;
 	readonly description: string;
+	/** Display label for the folder containing the plugin, shown in list rows instead of its description. */
+	readonly location?: string;
 	readonly marketplace?: string;
 	readonly plugin: IAgentPlugin;
 	/** When set, indicates the plugin has a newer version in the marketplace. */

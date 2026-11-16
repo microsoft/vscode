@@ -14,7 +14,7 @@ import { CompletionItemKind, type CompletionsResult, type ResolveSessionConfigRe
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import type { RootState } from '../../../../common/state/protocol/state.js';
 import { ActionType, type ChatInputRequestedAction, type ChatToolCallReadyAction, type RootAgentsChangedAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageAttachmentKind, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReason, TurnState, type ChatInputAnswer, type ChatState, type MessageAttachment, type SessionState } from '../../../../common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageAttachmentKind, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReason, TurnState, type ChatInputAnswer, type ChatState, type MessageAttachment, type SessionState } from '../../../../common/state/sessionState.js';
 import {
 	createRealSession,
 	dispatchTurn,
@@ -26,7 +26,7 @@ import {
 } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { summarizeAnthropicRequest, summarizeResponsesRequest, type IReadableAnthropicRequest } from '../harness/capiWireCodec.js';
-import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
 
@@ -109,7 +109,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		}, 30_000);
 		createdSessions.push(sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		await context.client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
 		context.client.clearReceived();
 		return sessionUri;
 	}
@@ -124,7 +124,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		}, 30_000);
 		createdSessions.push(sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		await context.client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
 		context.client.clearReceived();
 		return sessionUri;
 	}
@@ -332,7 +332,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			const workspace = createTestDirectory(join(tmpdir(), 'ahp-input-drafts-'));
 			tempDirs.push(workspace);
 			const session = await createRealSession(context.client, config, `input-drafts-${response}-${synchronizedOnly}-${config.provider}`, createdSessions, URI.file(workspace));
-			const chat = buildDefaultChatUri(session);
+			const chat = defaultChatChannel(session);
 			let clientSeq = await prepareInputSession(session);
 			const turnId = 'input-draft-turn';
 			dispatchTurn(context.client, session, turnId, `${interactiveInputPrompt} If the question is cancelled, reply exactly "cancelled" and do not ask again.`, clientSeq++);
@@ -496,14 +496,20 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `cancel-input-turn-${config.provider}`, createdSessions, URI.file(workspace));
 		const clientSeq = await prepareInputSession(sessionUri);
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const turnId = 'turn-cancel-input';
 		dispatchTurn(context.client, sessionUri, turnId, interactiveInputPrompt, clientSeq);
-		await context.client.waitForNotification(n =>
+		const inputRequested = await context.client.waitForNotification(n =>
 			isActionNotification(n, 'chat/inputRequested')
 			&& getActionEnvelope(n).channel === chatUri,
 			90_000,
 		);
+		const input = getActionEnvelope(inputRequested).action as ChatInputRequestedAction;
+		const paused = await fetchSessionWithChat(context.client, sessionUri);
+		assert.deepStrictEqual({
+			activeTurn: paused.activeTurn?.id,
+			requests: paused.activeTurn?.responseParts.flatMap(part => part.kind === ResponsePartKind.InputRequest ? [part.request.id] : []),
+		}, { activeTurn: turnId, requests: [input.request.id] });
 		context.client.dispatch({
 			channel: chatUri,
 			clientSeq: clientSeq + 1,
@@ -529,15 +535,24 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		const state = await fetchSessionWithChat(context.client, sessionUri);
 		assert.deepStrictEqual({
 			response: replacement.responseText.trim(),
+			cancelledTurn: state.turns.find(turn => turn.id === turnId)?.state,
+			sawInputRequest: replacement.sawInputRequest,
+			sawPendingConfirmation: replacement.sawPendingConfirmation,
 			replacementTurns: state.turns.filter(turn => turn.id === 'turn-after-input-cancel').map(turn => ({
 				message: turn.message.text,
 				state: turn.state,
+				response: turn.responseParts.flatMap(part => part.kind === ResponsePartKind.Markdown ? [part.content] : []).join('').trim(),
 			})),
+			errors: context.client.receivedNotifications(n => isActionNotification(n, 'chat/error') && getActionEnvelope(n).channel === chatUri),
 			activeTurn: state.activeTurn,
 			inputNeeded: state.inputNeeded,
 		}, {
 			response: 'replacement',
-			replacementTurns: [{ message: 'Reply exactly "replacement".', state: TurnState.Complete }],
+			cancelledTurn: TurnState.Cancelled,
+			sawInputRequest: false,
+			sawPendingConfirmation: false,
+			replacementTurns: [{ message: 'Reply exactly "replacement".', state: TurnState.Complete, response: 'replacement' }],
+			errors: [],
 			activeTurn: undefined,
 			inputNeeded: undefined,
 		});
@@ -605,7 +620,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-runtime-slash', 'Reply exactly "ready".', 1);
 
 		const completions = await context.client.call<CompletionsResult>('completions', {
-			channel: buildDefaultChatUri(sessionUri),
+			channel: defaultChatChannel(sessionUri),
 			kind: CompletionItemKind.UserMessage,
 			text: '/',
 			offset: 1,
@@ -703,7 +718,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			const attachments: MessageAttachment[] = [{
 				type: MessageAttachmentKind.Chat,
 				label: 'Source conversation',
-				resource: buildDefaultChatUri(source),
+				resource: defaultChatChannel(source),
 			}];
 
 			const result = await driveTurnWithAttachmentsToCompletion(
@@ -741,7 +756,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			const attachments: MessageAttachment[] = [{
 				type: MessageAttachmentKind.Chat,
 				label: 'Bounded source conversation',
-				resource: buildDefaultChatUri(source),
+				resource: defaultChatChannel(source),
 				endTurn: 'turn-chat-attachment-alpha',
 			}];
 
@@ -766,7 +781,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			const sessionUri = await createRealSession(context.client, config, `truncate-${config.provider}`, createdSessions, URI.file(workspace));
 			await driveTurnToCompletion(context.client, sessionUri, 'turn-truncate-first', 'Remember ALPHA. Reply exactly "ready".', 1);
 			await driveTurnToCompletion(context.client, sessionUri, 'turn-truncate-second', 'Now remember BETA too. Reply exactly "ready".', 10);
-			const chatUri = buildDefaultChatUri(sessionUri);
+			const chatUri = defaultChatChannel(sessionUri);
 			context.client.dispatch({
 				channel: chatUri,
 				clientSeq: 20,
@@ -786,12 +801,21 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 				30,
 			);
 			const state = await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
+			const modelHistory = observedModelRequest(context.observedModelRequestBodies.at(-1)).messages
+				.filter(message => message.role === 'user')
+				.map(message => modelContentText(message.content));
 
 			assert.deepStrictEqual({
 				response: result.responseText.trim(),
+				retainsFirst: modelHistory.some(message => message.includes('Remember ALPHA. Reply exactly "ready".')),
+				retainsRemoved: modelHistory.some(message => message.includes('Now remember BETA too. Reply exactly "ready".')),
+				includesContinuation: modelHistory.some(message => message.includes('Reply with exactly "ALPHA only".')),
 				messages: (state.snapshot!.state as { readonly turns: readonly { readonly message: { readonly text: string } }[] }).turns.map(turn => turn.message.text),
 			}, {
 				response: 'ALPHA only',
+				retainsFirst: true,
+				retainsRemoved: false,
+				includesContinuation: true,
 				messages: [
 					'Remember ALPHA. Reply exactly "ready".',
 					'Reply with exactly "ALPHA only".',
@@ -844,7 +868,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		const workspace = createTestDirectory(join(tmpdir(), 'ahp-stale-model-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `stale-model-${config.provider}`, createdSessions, URI.file(workspace));
-		const chatUri = buildDefaultChatUri(sessionUri);
+		const chatUri = defaultChatChannel(sessionUri);
 		const turnId = 'turn-stale-model';
 		context.client.dispatch({
 			channel: chatUri,

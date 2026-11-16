@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isWindows } from '../../../../base/common/platform.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
 import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
@@ -62,6 +64,11 @@ import {
 	isBrowserViewStorageScopeShareableWithAgent,
 	IBrowserViewHost,
 	IBrowserViewAccessibilitySnapshot,
+	IBrowserViewNetwork,
+	IBrowserViewNetworkFileSystem,
+	IBrowserViewSessionOptions,
+	getBrowserViewSessionNetwork,
+	BROWSER_REMOTE_FILE_SCHEMES,
 } from '../../../../platform/browserView/common/browserView.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
@@ -79,6 +86,28 @@ export const enum BrowserViewSharingState {
 	BlockedByNetworkPolicy = 'blockedByNetworkPolicy',
 	/** Browser tools are disabled — sharing is not possible. */
 	Unavailable = 'unavailable',
+}
+
+/**
+ * Normalizes a URL for browser navigation: adds the default scheme when missing, and for `file:` URLs
+ * decodes a percent-encoded Windows drive-letter colon (`file:///c%3A/x.html` becomes `file:///c:/x.html`)
+ * because external shells cannot resolve the encoded form. All other escapes are preserved. The drive-letter
+ * rewrite only applies on Windows, where `/c:/` is a drive; elsewhere it is an ordinary directory name.
+ */
+export function normalizeBrowserViewUrl(url: string, windows = isWindows): string {
+	// Prepend http:// for bare localhost authorities (e.g. "localhost:3000").
+	if (/^localhost(:|\/|$)/i.test(url)) {
+		url = 'http://' + url;
+	} else if (!URL.parse(url)?.protocol) {
+		// No scheme — default to http://; sites typically upgrade to https://.
+		url = 'http://' + url;
+	}
+
+	if (windows && /^file:/i.test(url)) {
+		url = url.replace(/^(file:\/\/[^/]*\/[a-zA-Z])%3A/i, '$1:');
+	}
+
+	return url;
 }
 
 /** Whether a browser URL belongs to the same destination host as the target URL. */
@@ -192,12 +221,24 @@ type IntegratedBrowserAddElementToChatStartClassification = {
 };
 
 /**
- * View state stored in editor options when opening a browser view.
+ * The requested session; an omitted scope uses configured storage, and an omitted network means local.
+ * Saved tabs retain this request even when current restrictions require a different session.
  */
+export type IBrowserViewSessionRequest = IBrowserViewSessionOptions | {
+	readonly scope?: undefined;
+	readonly affinity?: string;
+	readonly network?: IBrowserViewNetwork;
+};
+
+/** View state carried in editor options and saved with browser tabs. */
 export interface IBrowserEditorViewState {
 	readonly url?: string;
 	readonly title?: string;
 	readonly favicon?: string;
+	/** The session the view was opened for. When absent, it is resolved when the view is created. */
+	readonly session?: IBrowserViewSessionRequest;
+	/** Set when the default localhost link opener opens a tab. Never saved. */
+	readonly isDefaultLinkOpen?: boolean;
 }
 
 export const IBrowserViewWorkbenchService = createDecorator<IBrowserViewWorkbenchService>('browserViewWorkbenchService');
@@ -249,6 +290,74 @@ export interface IBrowserViewOpenHandler {
 	shouldOpenEditor(input: BrowserEditorInput, owner: IBrowserViewOwner, editorOptions: IBrowserViewEditorOpenOptions): boolean;
 }
 
+/** Resource schemes of HTML files that can be opened in the integrated browser. */
+export const BROWSER_FILE_SCHEMES: readonly string[] = [Schemas.file, ...BROWSER_REMOTE_FILE_SCHEMES];
+
+/** Whether browser views may use remote networks (see {@link IBrowserViewNetworkResolver}). */
+export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemoteProxy';
+
+/** Whether the page is dimmed while something overlaps it (the screenshot swap happens regardless). */
+export const BrowserDimOverlaySettingId = 'workbench.browser.dimOnOverlay';
+
+/**
+ * Resolves the opening network and optional workspace storage partition,
+ * for windows whose views can belong to different networks (the Agents
+ * window, whose sessions can run on remote agent hosts).
+ * Without a resolver, views use the window's network and storage.
+ */
+export interface IBrowserViewNetworkResolver {
+	/**
+	 * Called synchronously when a browser view is created, before any
+	 * asynchronous work, so the network reflects the context the view was
+	 * opened from. Returns `undefined` for the local network, or `null` when
+	 * the owner is unknown (e.g. its session is gone): tabs then use the local
+	 * network, while embedded views, which require their owner's network, fail.
+	 */
+	resolveNetwork(owner: IBrowserViewOwner): IBrowserViewNetwork | null | undefined;
+	/**
+	 * Selects shared workspace storage on another network (e.g. by agent host
+	 * and folder roots), or in-memory storage when absent.
+	 * Called synchronously alongside {@link resolveNetwork}.
+	 */
+	resolveStorageAffinity?(owner: IBrowserViewOwner): string | undefined;
+	/** Trusted folders on the file systems of the networks this resolver resolves views to, which tabs of any session may load files from. */
+	getTrustedFileRoots?(): readonly URI[];
+	/**
+	 * Whether the file system of a network distinguishes paths by case, or `undefined` if unknown.
+	 * Only asked for networks that are not the window's own remote.
+	 */
+	isPathCaseSensitive?(network: IBrowserViewNetwork): boolean | undefined;
+	/** Fires when what tabs may read from the networks' file systems may have changed: {@link getTrustedFileRoots} or {@link isPathCaseSensitive}. */
+	readonly onDidChangeFileAccess?: Event<void>;
+	/** The status of a network this resolver resolves views to. */
+	getNetworkStatus(network: IBrowserViewNetwork): IBrowserViewNetworkStatus;
+	/** Fires when the status of any network may have changed. */
+	readonly onDidChangeNetworkStatus: Event<void>;
+}
+
+/** The status of a remote network, as reported by its {@link IBrowserViewNetworkResolver}. */
+export interface IBrowserViewNetworkStatus {
+	/** The display name of the network's host. */
+	readonly label: string;
+	/** Whether the network's host is connected. Pages on it wait for it to reconnect. */
+	readonly connected: boolean;
+	/**
+	 * Whether the network's host can proxy browsers, or `undefined` while
+	 * unknown (e.g. still connecting). Views opened for a network whose host
+	 * cannot proxy browsers use the local network instead.
+	 */
+	readonly proxySupported: boolean | undefined;
+}
+
+/**
+ * Starts the proxies browser views use for their remote networks. Provided by
+ * the window's local extension host, which runs the proxy servers.
+ */
+export interface IBrowserViewNetworkProxyProvider {
+	acquire(authority: string): Promise<ITunnelProxyInfo>;
+	release(authority: string): void;
+}
+
 export interface IBrowserViewWorkbenchCreateOptions {
 	readonly sandboxNetworkRestrictions?: ISandboxNetworkRestrictions;
 	readonly owner: IBrowserViewOwner;
@@ -266,16 +375,48 @@ export interface IBrowserViewWorkbenchCreateOptions {
 export interface IBrowserViewWorkbenchService {
 	readonly _serviceBrand: undefined;
 
-	/** Returns true if the remote proxy is enabled; i.e. we are in a remote workspace and the setting is enabled. */
-	willUseRemoteProxy(): boolean;
+	/**
+	 * The remote network a new view opened by `owner` would load pages
+	 * through, assuming default storage, or `undefined` for the local network.
+	 * An existing view's network is its model's {@link IBrowserViewModel.network}.
+	 */
+	resolveNetwork(owner: IBrowserViewOwner): IBrowserViewNetwork | undefined;
 
 	/**
-	 * Set the tunnel-proxy credentials resolved by the window's local node
-	 * extension host (which hosts the HTTPS tunnel proxy), or `undefined` to
-	 * clear them. Folded into the window configuration sent to the main
-	 * process so this window's remote browser views (re)apply the proxy.
+	 * The file system behind a remote network: the scheme of the URIs that read it (`vscode-remote` for the window's own remote,
+	 * otherwise the agent host scheme), and whether it distinguishes paths by case (strict if unknown).
 	 */
-	setRemoteProxyInfo(info: ITunnelProxyInfo | undefined): void;
+	getNetworkFileSystem(network: IBrowserViewNetwork): IBrowserViewNetworkFileSystem;
+
+	/**
+	 * Hold a network's proxy until the returned reference is disposed, so
+	 * pages created on that network outside the workbench (e.g. by automation)
+	 * always have one. The reference's object is the network those pages
+	 * should use: `undefined` when the network's host cannot proxy browsers,
+	 * so they use the local network. Throws for a network the window cannot
+	 * reach at all. A proxy that fails to start is logged, not thrown: those
+	 * pages then fail to load rather than use the local network, and the hold
+	 * still restarts it when a new proxy provider is registered.
+	 */
+	acquireNetwork(network: IBrowserViewNetwork): Promise<IReference<IBrowserViewNetwork | undefined>>;
+
+	/** The status of a remote network: the window's own remote, or one reported by the network resolver. */
+	getNetworkStatus(network: IBrowserViewNetwork): IBrowserViewNetworkStatus;
+
+	/** Fires when the status of any network may have changed. */
+	readonly onDidChangeNetworkStatus: Event<void>;
+
+	/**
+	 * Register the resolver that picks the network of new browser views.
+	 * At most one resolver can be registered.
+	 */
+	registerNetworkResolver(resolver: IBrowserViewNetworkResolver): IDisposable;
+
+	/**
+	 * Register the provider of network proxies. The latest registration wins;
+	 * proxies in use are re-acquired from a newly registered provider.
+	 */
+	registerNetworkProxyProvider(provider: IBrowserViewNetworkProxyProvider): IDisposable;
 
 	/**
 	 * Fires when the set of known browser views changes, or a model is created for an existing input.
@@ -325,8 +466,13 @@ export interface IBrowserViewWorkbenchService {
 	 * redirected to the main editor area so the browser docks instead of opening
 	 * as a modal overlay. Explicit placements (side group, auxiliary window, a
 	 * specific group) are left untouched.
+	 *
+	 * @param sourceWindowId The window the open was requested from, such as a link
+	 * in a page of that window: without an explicit or configured placement, the
+	 * browser opens in that window's active group rather than in the one of the
+	 * window that appears to have focus.
 	 */
-	getPreferredGroup(preferredGroup?: PreferredGroup): Promise<PreferredGroup | undefined>;
+	getPreferredGroup(preferredGroup?: PreferredGroup, sourceWindowId?: number): Promise<PreferredGroup | undefined>;
 
 	/**
 	 * Register a handler that decides whether an editor should be opened for a
@@ -338,8 +484,12 @@ export interface IBrowserViewWorkbenchService {
 	/** Creates and resolves a browser view, optionally requesting editor presentation. */
 	createBrowserView(options: IBrowserViewWorkbenchCreateOptions, editorOpenOptions?: IBrowserViewEditorOpenOptions): Promise<BrowserEditorInput>;
 
-	/** Creates an unlisted user-owned ephemeral view for embedding outside the browser editor. */
-	createExternalBrowserView(initialUrl: string, openSource?: IntegratedBrowserOpenSource): Promise<IBrowserViewModel>;
+	/**
+	 * Creates an unlisted user-owned ephemeral view for embedding outside the browser editor.
+	 * When `networkOwner` is given, the view uses the network resolved for that owner, and
+	 * fails rather than load from the local network when it cannot use that network.
+	 */
+	createExternalBrowserView(initialUrl: string, openSource?: IntegratedBrowserOpenSource, networkOwner?: IBrowserViewOwner): Promise<IBrowserViewModel>;
 
 	/**
 	 * Get an existing browser view for the given ID, or create a new one if it doesn't exist.
@@ -371,9 +521,10 @@ export interface IBrowserViewCDPService {
 	 * Create a new CDP group for a browser view.
 	 * The window ID is resolved from the editor group containing the browser.
 	 * @param browserId The browser view identifier.
+	 * @param network The browser's remote network; targets created through the group use it.
 	 * @returns The ID of the newly created group.
 	 */
-	createSessionGroup(browserId: string): Promise<string>;
+	createSessionGroup(browserId: string, network: IBrowserViewNetwork | undefined): Promise<string>;
 
 	/** Destroy a CDP group. */
 	destroySessionGroup(groupId: string): Promise<void>;
@@ -416,7 +567,8 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly permissions: BrowserPermissionStore;
 	readonly sharingState: BrowserViewSharingState;
 	readonly isDirectlyShareable: boolean;
-	readonly isRemoteSession: boolean;
+	/** The remote network the view's storage is bound to, or `undefined` for the local network. */
+	readonly network: IBrowserViewNetwork | undefined;
 	readonly zoomFactor: number;
 	readonly canZoomIn: boolean;
 	readonly canZoomOut: boolean;
@@ -445,8 +597,8 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onDidPickArea: Event<IBrowserViewRect | undefined>;
 	readonly onDidChangeAreaSelectionActive: Event<boolean>;
 	readonly onDidChangeDevice: Event<IBrowserDeviceProfile | undefined>;
-	readonly onDidChangeRemoteStatus: Event<boolean>;
 	readonly onDidRequestPermission: Event<IBrowserViewPermissionRequestEvent>;
+	readonly onDidRequestOpenExternal: Event<string>;
 
 	layout(bounds: IBrowserViewBounds): Promise<void>;
 	setVisible(visible: boolean): Promise<void>;
@@ -493,7 +645,6 @@ export function createBrowserViewEventEmitters(store: DisposableStore): BrowserV
 		onDidChangeLoadingState: store.add(new Emitter<BrowserViewEventData['onDidChangeLoadingState']>()),
 		onDidChangeOwner: store.add(new Emitter<BrowserViewEventData['onDidChangeOwner']>()),
 		onDidChangePermissions: store.add(new Emitter<BrowserViewEventData['onDidChangePermissions']>()),
-		onDidChangeRemoteStatus: store.add(new Emitter<BrowserViewEventData['onDidChangeRemoteStatus']>()),
 		onDidChangeTitle: store.add(new Emitter<BrowserViewEventData['onDidChangeTitle']>()),
 		onDidChangeVisibility: store.add(new Emitter<BrowserViewEventData['onDidChangeVisibility']>()),
 		onDidClose: store.add(new Emitter<BrowserViewEventData['onDidClose']>()),
@@ -503,6 +654,7 @@ export function createBrowserViewEventEmitters(store: DisposableStore): BrowserV
 		onDidPickArea: store.add(new Emitter<BrowserViewEventData['onDidPickArea']>()),
 		onDidRemoveElementComment: store.add(new Emitter<BrowserViewEventData['onDidRemoveElementComment']>()),
 		onDidRequestPermission: store.add(new Emitter<BrowserViewEventData['onDidRequestPermission']>()),
+		onDidRequestOpenExternal: store.add(new Emitter<BrowserViewEventData['onDidRequestOpenExternal']>()),
 		onDidSelectElement: store.add(new Emitter<BrowserViewEventData['onDidSelectElement']>()),
 	};
 }
@@ -522,8 +674,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _canGoForward: boolean = false;
 	private _error: IBrowserViewLoadError | undefined = undefined;
 	private _certificateError: IBrowserViewCertificateError | undefined = undefined;
-	private _storageScope: BrowserViewStorageScope = BrowserViewStorageScope.Ephemeral;
-	private _isRemoteSession: boolean = false;
+	private readonly _session: IBrowserViewSessionOptions;
 	private _isInMemory: boolean = false;
 	private _zoomHost: string | undefined = undefined;
 	private _audiences: readonly IBrowserViewAudience[] = [];
@@ -552,8 +703,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get onDidChangeElementSelectionState() { return this._remoteEvents.onDidChangeElementSelectionState.event; }
 	get onDidPickArea() { return this._remoteEvents.onDidPickArea.event; }
 	get onDidChangeAreaSelectionActive() { return this._remoteEvents.onDidChangeAreaSelectionActive.event; }
-	get onDidChangeRemoteStatus() { return this._remoteEvents.onDidChangeRemoteStatus.event; }
 	get onDidRequestPermission() { return this._remoteEvents.onDidRequestPermission.event; }
+	get onDidRequestOpenExternal() { return this._remoteEvents.onDidRequestOpenExternal.event; }
 
 	private readonly _onDidChangeDevice = this._register(new Emitter<IBrowserDeviceProfile | undefined>());
 	readonly onDidChangeDevice: Event<IBrowserDeviceProfile | undefined> = this._onDidChangeDevice.event;
@@ -603,14 +754,13 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._favicon = initialState.lastFavicon;
 		this._error = initialState.lastError;
 		this._certificateError = initialState.certificateError;
-		this._storageScope = initialState.storageScope;
-		this._isRemoteSession = initialState.isRemoteSession;
+		this._session = initialState.session;
 		this._browserZoomIndex = initialState.browserZoomIndex;
 		this._elementSelectionState = initialState.elementSelectionState;
 		this._isAreaSelectionActive = initialState.isAreaSelectionActive;
 		this._device = initialState.device;
 		this._audiences = initialState.audiences;
-		this._isInMemory = isInMemoryStorageScope(this._storageScope);
+		this._isInMemory = isInMemoryStorageScope(this._session.scope);
 		this._zoomHost = parseZoomHost(this._url);
 		this._lastSharingState = this.sharingState;
 
@@ -733,10 +883,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		}));
 
 		this._register(this.agentNetworkFilterService.onDidChange(() => this._updateSharingState()));
-
-		this._register(this.onDidChangeRemoteStatus(isRemoteSession => {
-			this._isRemoteSession = isRemoteSession;
-		}));
 	}
 
 	get url(): string { return this._url; }
@@ -752,8 +898,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get screenshot(): VSBuffer | undefined { return this._screenshot; }
 	get error(): IBrowserViewLoadError | undefined { return this._error; }
 	get certificateError(): IBrowserViewCertificateError | undefined { return this._certificateError; }
-	get storageScope(): BrowserViewStorageScope { return this._storageScope; }
-	get isRemoteSession(): boolean { return this._isRemoteSession; }
+	get storageScope(): BrowserViewStorageScope { return this._session.scope; }
+	get network(): IBrowserViewNetwork | undefined { return getBrowserViewSessionNetwork(this._session); }
 	get sharingState(): BrowserViewSharingState {
 		if (!this.browserViewWorkbenchService.isSharingAvailable) {
 			return BrowserViewSharingState.Unavailable;
@@ -789,15 +935,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this.logNavigationTelemetry(options?.source ?? 'urlInput', url);
 		this._onWillNavigate.fire(url);
 
-		// Prepend http:// for bare localhost authorities (e.g. "localhost:3000").
-		if (/^localhost(:|\/|$)/i.test(url)) {
-			url = 'http://' + url;
-		} else if (!URL.parse(url)?.protocol) {
-			// No scheme — default to http://; sites typically upgrade to https://.
-			url = 'http://' + url;
-		}
-
-		return this.browserViewService.loadURL(this.id, url);
+		return this.browserViewService.loadURL(this.id, normalizeBrowserViewUrl(url));
 	}
 
 	async goBack(): Promise<void> {
@@ -993,8 +1131,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 			const input = await this.browserViewWorkbenchService.createBrowserView({
 				owner: { type: 'user' },
+				// The isolated copy keeps the page's network.
 				session: {
 					scope: BrowserViewStorageScope.Agent,
+					network: this.network,
 				},
 				initialAudiences: [{ type: 'agent' }],
 				initialUrl: this.url,

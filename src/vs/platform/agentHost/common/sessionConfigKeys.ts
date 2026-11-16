@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isObject } from '../../../base/common/types.js';
+
 /**
  * Well-known keys used in the agent-host configuration value bag.
  *
@@ -45,10 +47,14 @@ export const enum SessionConfigKey {
 	AgentMergeFolders = 'agentMerge.folders',
 	/** `'agentMerge.controller.folders'` — host-owned Agent Merge lifecycle state per working-directory key. */
 	AgentMergeControllerFolders = 'agentMerge.controller.folders',
-	/** `'agentMerge.injectedConfiguration'` — host-owned session-wide elevated configuration applied while any Agent Merge folder runs. */
+	/** `'agentMerge.injectedConfiguration'` — host-owned session-wide elevated configuration of older builds, restored on upgrade. */
 	AgentMergeInjectedConfiguration = 'agentMerge.injectedConfiguration',
+	/** `'agentMerge.chatInjectedConfiguration'` — host-owned elevation Agent Merge applied to each owning chat's own config, keyed by chat. */
+	AgentMergeChatInjectedConfiguration = 'agentMerge.chatInjectedConfiguration',
 	/** `'shellInitScripts'` — scripts a client generated for the session, sourced before built-in shell tool commands. */
 	ShellInitScripts = 'shellInitScripts',
+	/** `'sensitiveEditLocations'` — workspace-relative client customization locations that must always require edit confirmation. */
+	SensitiveEditLocations = 'sensitiveEditLocations',
 }
 
 export type SessionSandboxEnabled = 'default' | 'on' | 'off';
@@ -84,12 +90,25 @@ export const KNOWN_MODE_VALUES: ReadonlySet<string> = new Set(['interactive', 'p
 export function omitTransientSessionConfigValues<T>(values: Record<string, T>): Record<string, T> {
 	const result = { ...values };
 	delete result[SessionConfigKey.ShellInitScripts];
+	delete result[SessionConfigKey.SensitiveEditLocations];
 	return result;
 }
 
-/** Persists confirmed sandbox enablement rather than a pending or rejected selection. */
-export function getPersistedSessionConfigValues(values: Record<string, unknown>, appliedSandboxEnabled: boolean | undefined): Record<string, unknown> {
+/** Persists confirmed sandbox enablement, retaining the stored selection until runtime confirmation is available. */
+export function getPersistedSessionConfigValues(values: Record<string, unknown>, appliedSandboxEnabled: boolean | undefined, persistedValues?: string): Record<string, unknown> {
 	const result = omitTransientSessionConfigValues(values);
+	if (appliedSandboxEnabled === undefined && persistedValues !== undefined) {
+		const persisted: unknown = JSON.parse(persistedValues);
+		if (!isObject(persisted)) {
+			throw new Error('Invalid persisted session config values');
+		}
+		const selection = (persisted as Record<string, unknown>)[SessionConfigKey.SandboxEnabled];
+		if (selection === 'on' || selection === 'off') {
+			appliedSandboxEnabled = selection === 'on';
+		} else if (selection !== undefined && selection !== 'default') {
+			throw new Error('Invalid persisted sandbox selection');
+		}
+	}
 	if (appliedSandboxEnabled === undefined) {
 		delete result[SessionConfigKey.SandboxEnabled];
 	} else {
@@ -111,6 +130,7 @@ const automationDefinitionOwnedConfigKeys = [
 	SessionConfigKey.AgentMergeFolders,
 	SessionConfigKey.AgentMergeControllerFolders,
 	SessionConfigKey.AgentMergeInjectedConfiguration,
+	SessionConfigKey.AgentMergeChatInjectedConfiguration,
 ] as const;
 
 /**

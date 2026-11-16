@@ -21,7 +21,7 @@ import './colors.js';
 import { DiffEditorItemTemplate } from './diffEditorItemTemplate.js';
 import { IDocumentDiffItem, IMultiDiffEditorModel } from './model.js';
 import { getMultiDiffEditorVariantConfiguration, IMultiDiffEditorWidgetOptions, MultiDiffEditorVariant } from './multiDiffEditorOptions.js';
-import { MultiDiffEditorViewModel } from './multiDiffEditorViewModel.js';
+import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from './multiDiffEditorViewModel.js';
 import { IMultiDiffEditorLayoutDebugState, IMultiDiffEditorViewState, MultiDiffEditorWidgetImpl } from './multiDiffEditorWidgetImpl.js';
 import { IWorkbenchUIElementFactory } from './workbenchUIElementFactory.js';
 
@@ -214,6 +214,15 @@ export class MultiDiffEditorWidget extends Disposable {
 	}
 
 	private readonly _activeControl = derived(this, (reader) => this._widgetImpl.read(reader).activeControl.read(reader));
+
+	/** The view model currently displayed by the widget. */
+	public readonly viewModel: IObservable<MultiDiffEditorViewModel | undefined> = this._viewModel;
+
+	/**
+	 * Diff items whose content intersects the viewport, in document order. The
+	 * first item is the one at the top of the viewport.
+	 */
+	public readonly visibleDiffItems: IObservable<readonly DocumentDiffItemViewModel[]> = derived(this, reader => this._widgetImpl.read(reader).visibleDiffItems.read(reader));
 
 	public getActiveControl(): DiffEditorWidget | undefined {
 		return this._activeControl.get();

@@ -12,7 +12,7 @@ import { ITerminalLogService } from '../../../../../../platform/terminal/common/
 import { waitForIdle, waitForIdleWithPromptHeuristics, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
+import { canClearPromptInputWithCtrlU, createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { isMultilineCommand } from '../runInTerminalHelpers.js';
@@ -72,7 +72,7 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 				this._log.bind(this)
 			);
 
-			if (this._hasReceivedUserInput()) {
+			if (this._hasReceivedUserInput() && canClearPromptInputWithCtrlU(this._instance)) {
 				// Use Ctrl+U (kill line) to clear any pending input on the prompt
 				// rather than Ctrl+C, which would kill any command currently running.
 				// Without shell integration we cannot reliably detect whether a

@@ -5,22 +5,31 @@
 
 import '../../browser/media/workbench.css';
 import '../../browser/parts/media/editorPart.css';
-import '../../browser/parts/media/chatCompositeBar.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import '../../browser/parts/mobile/mobileChatShell.css';
 import assert from 'assert';
 import sinon from 'sinon';
 import { $, append } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
-import { toDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { createStyleSheet } from '../../../base/browser/domStylesheets.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { NullLogService } from '../../../platform/log/common/log.js';
+import { SIZE_CUSTOMIZATIONS_SETTING } from '../../../platform/theme/common/sizeService.js';
+import { TestColorTheme } from '../../../platform/theme/test/common/testThemeService.js';
+import { WorkbenchSizeService } from '../../../workbench/services/themes/browser/workbenchSizeService.js';
+import { generateColorThemeCSS } from '../../../workbench/services/themes/browser/colorThemeCss.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { MainEditorPart as MainEditorPartBase } from '../../../workbench/browser/parts/editor/editorPart.js';
 import { AbstractPaneCompositePart } from '../../../workbench/browser/parts/paneCompositePart.js';
+import { MODERN_SASH_GRIP_FOREGROUND } from '../../../workbench/common/theme.js';
+import { ColorThemeData } from '../../../workbench/services/themes/common/colorThemeData.js';
+import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, getAgentsPartCardContentSize, getSessionsPartCardMarginRight, getSessionsPartFrameInset, getSidePaneBottomFrameInset, getSidePaneFrameInset } from '../../../workbench/browser/parts/sessions/agentsPartCard.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
-import { getAgentsPartCardContentSize } from '../../browser/parts/agentsPartCard.js';
 import { CustomViewGridPart } from '../../browser/parts/customViewGridPart.js';
-import { AgentWorkbenchLayout } from '../../browser/workbench.js';
+import { AgentWorkbenchLayout } from '../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { MainEditorPart } from '../../browser/parts/editorPart.js';
-import { SessionsPart } from '../../browser/parts/sessionsPart.js';
+import { SessionsPart } from '../../../workbench/browser/parts/sessions/sessionsPart.js';
 import { PanelPart } from '../../browser/parts/panelPart.js';
 import { AuxiliaryBarPart } from '../../browser/parts/auxiliaryBarPart.js';
 
@@ -35,6 +44,7 @@ suite('Sessions - Agents Part Card', () => {
 		container.style.width = '800px';
 		container.style.setProperty('--vscode-agents-layout-floatingPanelGap', '4px');
 		container.style.setProperty('--vscode-cornerRadius-large', '8px');
+		container.style.setProperty('--vscode-sash-size', '4px');
 		container.style.setProperty('--vscode-strokeThickness', '1px');
 		container.style.setProperty('--vscode-spacing-size20', '2px');
 		container.style.setProperty('--vscode-spacing-size40', '4px');
@@ -44,10 +54,151 @@ suite('Sessions - Agents Part Card', () => {
 		container.classList.toggle('phone-layout', phone);
 		container.classList.toggle('modern-ui-compact', compact && !phone);
 
-		const card = append(container, $('.agents-part-card'));
+		const card = append(container, $('.agents-part-card.agents-card-surface'));
 		card.style.transition = 'none';
 
 		return { container, card };
+	}
+
+	test('keeps full-surface cards motionless while surrounding parts retain transitions', () => {
+		const container = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
+		store.add(toDisposable(() => container.remove()));
+		const sessionsCard = append(container, $('.part.sessionspart.agents-part-card'));
+		const customViewCard = append(container, $('.part.customviewgridpart.agents-part-card'));
+		const auxiliaryBar = append(container, $('.part.auxiliarybar'));
+		const panel = append(container, $('.part.panel'));
+		const sideBarContent = append(append(container, $('.part.sidebar')), $('.content'));
+		const transition = (element: HTMLElement) => {
+			const style = mainWindow.getComputedStyle(element);
+			return { property: style.transitionProperty, duration: style.transitionDuration };
+		};
+		const motionEnabled = !mainWindow.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+		assert.deepStrictEqual({
+			sessions: transition(sessionsCard),
+			customView: transition(customViewCard),
+			...(motionEnabled ? {
+				auxiliaryBar: transition(auxiliaryBar),
+				panel: transition(panel),
+				sideBarContent: transition(sideBarContent),
+			} : {}),
+		}, {
+			sessions: { property: 'all', duration: '0s' },
+			customView: { property: 'all', duration: '0s' },
+			...(motionEnabled ? {
+				auxiliaryBar: { property: 'opacity, margin-top, margin-right, margin-bottom', duration: '0.25s, 0.25s, 0.25s, 0.25s' },
+				panel: { property: 'opacity, margin-top, margin-right, margin-bottom', duration: '0.25s, 0.25s, 0.25s, 0.25s' },
+				sideBarContent: { property: 'opacity, transform', duration: '0.25s, 0.25s' },
+			} : {}),
+		});
+	});
+
+	for (const compact of [false, true]) {
+		test(`resolves component-specific semantic corners in Agents with compact layout ${compact}`, () => {
+			const configuration = new TestConfigurationService({
+				[SIZE_CUSTOMIZATIONS_SETTING]: {
+					'panels.cornerRadius': 3,
+					'agentsWindow.panels.cornerRadius': 7,
+					'agentsWindow.toolsPanel.cornerRadius': 1,
+					'agentsWindow.chatPanels.cornerRadius': 2,
+					'agentsWindow.editorArea.cornerRadius': 4,
+					'agentsWindow.secondarySideBar.cornerRadius': 6,
+				},
+			});
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			const sizes = store.add(new WorkbenchSizeService(configuration, store.add(new NullLogService())));
+			const sheet = createStyleSheet(undefined, undefined, store.add(new DisposableStore()));
+			sheet.textContent = generateColorThemeCSS(new TestColorTheme(), '.semantic-agents-sizes', undefined, undefined, sizes).code;
+			const { container, card } = createCard(true, true, false, compact);
+			container.classList.add('semantic-agents-sizes', 'modern-ui-tabs', 'modern-ui-connected-editor-tabs');
+			card.classList.add('part', 'sessionspart');
+			const session = append(card, $('.session-view'));
+			const customView = append(container, $('.agents-part-card.agents-card-surface'));
+			const grid = append(container, $('.monaco-grid-view'));
+			const editor = append(grid, $('.part.editor'));
+			const auxiliary = append(grid, $('.part.auxiliarybar'));
+			const panel = append(grid, $('.part.panel'));
+			const read = (element: HTMLElement) => {
+				const css = mainWindow.getComputedStyle(element);
+				return [css.borderTopLeftRadius, css.borderTopRightRadius, css.borderBottomRightRadius, css.borderBottomLeftRadius];
+			};
+			assert.deepStrictEqual([card, session, customView, editor, auxiliary, panel].map(read), compact
+				? Array.from({ length: 6 }, () => ['0px', '0px', '0px', '0px'])
+				: [
+					['2px', '2px', '2px', '2px'],
+					['1px', '1px', '1px', '1px'],
+					['7px', '7px', '7px', '7px'],
+					['4px', '0px', '0px', '4px'],
+					['0px', '6px', '6px', '0px'],
+					['1px', '1px', '1px', '1px'],
+				]);
+		});
+	}
+
+	for (const spacing of [0, 1, 4, 8, 16]) {
+		for (const connected of [false, true]) {
+			test(`matches ${spacing}px Agents gaps and content sizes with ${connected ? 'connected' : 'pill'} tabs`, () => {
+				const { container, card } = createCard(true, true);
+				container.classList.add('modern-ui-tabs', 'dock-detail-panel', AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS);
+				container.classList.toggle('modern-ui-connected-editor-tabs', connected);
+				container.style.setProperty('--vscode-agentsWindow-panels-spacing', `${spacing}px`);
+				container.style.setProperty('--vscode-sash-size', '4px');
+				card.classList.add('part', 'sessionspart');
+				const row = append(container, $('.monaco-grid-view'));
+				row.style.display = 'flex';
+				row.style.position = 'relative';
+				const allocation = append(row, $('.session-allocation'));
+				allocation.style.cssText = 'width: 500px; height: 300px; flex-shrink: 0;';
+				append(allocation, card);
+				card.style.height = '100%';
+				const sessionInset = getSessionsPartFrameInset(container, spacing);
+				const sideInset = getSidePaneFrameInset(container, spacing);
+				const margin = getSessionsPartCardMarginRight(container, spacing);
+				const cardSize = getAgentsPartCardContentSize(500, 300, true, true, false, false, margin, sessionInset);
+				const content = append(card, $('.content'));
+				content.style.width = `${cardSize.width}px`;
+				content.style.height = `${cardSize.height}px`;
+				const session = append(content, $('.session-view'));
+				session.style.cssText = 'width: 100%; height: 100%;';
+				const editor = append(row, $('.part.editor.editor-tabs-multiple'));
+				editor.style.cssText = 'width: 300px; height: 300px; flex-shrink: 0;';
+				const divider = append(row, $('.monaco-sash.vertical.sessions-side-pane-divider'));
+				divider.style.left = '498px';
+				const targetWindow = mainWindow;
+				const actualGap = editor.getBoundingClientRect().left + sideInset - session.getBoundingClientRect().right;
+				const cssSessionInset = targetWindow.getComputedStyle(container).getPropertyValue('--agents-session-frame-inset');
+				const cssSideInset = targetWindow.getComputedStyle(container).getPropertyValue('--agents-side-pane-frame-inset');
+				const sashBounds = divider.getBoundingClientRect();
+				const sessionBounds = session.getBoundingClientRect();
+				assert.deepStrictEqual({
+					actualGap,
+					contentWidth: content.clientWidth,
+					availableWidth: card.clientWidth,
+					contentHeight: content.clientHeight,
+					availableHeight: card.clientHeight,
+					insets: [sessionInset, sideInset],
+					borderWidths: [targetWindow.getComputedStyle(card).borderLeftWidth, targetWindow.getComputedStyle(editor).borderLeftWidth],
+					nonnegativeMargins: Number.parseFloat(targetWindow.getComputedStyle(card).marginRight) >= 0,
+					sashSize: sashBounds.width,
+					sashCenter: sashBounds.left + sashBounds.width / 2 - sessionBounds.right,
+					outerGutter: targetWindow.getComputedStyle(row).marginRight,
+					insetVariablesPresent: cssSessionInset.length > 0 && cssSideInset.length > 0,
+				}, {
+					actualGap: spacing,
+					contentWidth: cardSize.width,
+					availableWidth: cardSize.width,
+					contentHeight: cardSize.height,
+					availableHeight: cardSize.height,
+					insets: [Math.min(1, spacing), connected ? Math.min(1, Math.max(0, spacing - 1)) : 0],
+					borderWidths: [`${sessionInset}px`, connected ? `${sideInset}px` : '1px'],
+					nonnegativeMargins: true,
+					sashSize: 4,
+					sashCenter: spacing / 2,
+					outerGutter: '4px',
+					insetVariablesPresent: true,
+				});
+			});
+		}
 	}
 
 	for (const compact of [false, true]) {
@@ -97,6 +248,313 @@ suite('Sessions - Agents Part Card', () => {
 		});
 	});
 
+	for (const themeId of ['vs-dark', 'vs', 'hc-black', 'hc-light']) {
+		test(`sash grips use the shared modern sash color without dimming in ${themeId}`, () => {
+			const { container, card } = createCard(true, true);
+			container.classList.add('sash-grip-test-theme');
+			container.style.color = 'var(--vscode-modernSash-gripForeground)';
+			card.classList.add('part', 'sessionspart', 'sessions-chat-surface');
+			const themeStyle = append(mainWindow.document.head, $('style'));
+			store.add(toDisposable(() => themeStyle.remove()));
+
+			const splitView = append(container, $('.monaco-split-view2.vertical'));
+			const sashContainer = append(splitView, $('.sash-container'));
+			const scrollable = append(splitView, $('.monaco-scrollable-element'));
+			const viewContainer = append(scrollable, $('.split-view-container'));
+			const view = append(viewContainer, $('.split-view-view'));
+			append(view, $('.part.panel'));
+
+			const sashes = [
+				append(card, $('.monaco-sash.vertical.part-grid-gap-sash')),
+				append(card, $('.monaco-sash.horizontal.part-grid-gap-sash')),
+				append(container, $('.monaco-sash.vertical.sessions-side-pane-divider')),
+				append(sashContainer, $('.monaco-sash.horizontal')),
+			];
+			const readGrip = (sash: HTMLElement) => {
+				const style = mainWindow.getComputedStyle(sash, '::after');
+				return {
+					content: style.content, background: style.backgroundColor, color: style.color, opacity: style.opacity,
+					size: [style.width, style.height], shadow: style.boxShadow.replace(/rgba?\([^)]*\)\s*/g, '').trim(),
+				};
+			};
+
+			for (const colors of [{}, { [MODERN_SASH_GRIP_FOREGROUND]: '#12345680' }]) {
+				const theme = ColorThemeData.createUnloadedTheme(themeId, colors);
+				themeStyle.textContent = generateColorThemeCSS(theme, '.sash-grip-test-theme').code;
+				const color = mainWindow.getComputedStyle(container).color;
+
+				for (const gap of [0, 1, 4, 8, 16]) {
+					container.style.setProperty('--vscode-agentsWindow-panels-spacing', `${gap}px`);
+					assert.deepStrictEqual(sashes.map(readGrip), sashes.map(sash => ({
+						content: '""', background: color, color, opacity: '1', size: ['2px', '2px'],
+						shadow: sash.classList.contains('vertical') ? '0px -4px 0px 0px, 0px 4px 0px 0px' : '-4px 0px 0px 0px, 4px 0px 0px 0px',
+					})));
+				}
+
+				for (const state of ['hover', 'active']) {
+					sashes.forEach(sash => sash.classList.add(state));
+					assert.deepStrictEqual(sashes.map(sash => readGrip(sash).opacity), sashes.map(() => '0'));
+					sashes.forEach(sash => sash.classList.remove(state));
+				}
+			}
+		});
+	}
+
+	for (const { connectedEditorTabs, showTabs } of [
+		{ connectedEditorTabs: false, showTabs: 'multiple' as const },
+		{ connectedEditorTabs: true, showTabs: 'multiple' as const },
+		{ connectedEditorTabs: true, showTabs: 'single' as const },
+	]) {
+		test(`matches the ${connectedEditorTabs ? `connected ${showTabs}-tab` : 'pill'} side-pane gap to the floating-panel gap`, () => {
+			const { container, card } = createCard(true, true);
+			container.classList.add('modern-ui-tabs', 'dock-detail-panel');
+			container.classList.toggle('modern-ui-connected-editor-tabs', connectedEditorTabs);
+			container.classList.toggle(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, showTabs === 'multiple');
+			card.classList.add('part', 'sessionspart', 'sessions-chat-surface');
+			const row = append(container, $('.monaco-grid-view'));
+			row.style.display = 'flex';
+			const sessionAllocation = append(row, $('.session-allocation'));
+			sessionAllocation.style.width = '500px';
+			sessionAllocation.style.height = '400px';
+			sessionAllocation.style.flex = '0 0 auto';
+			append(sessionAllocation, card);
+			card.style.height = '100%';
+			const sidePaneMarginRight = getSessionsPartCardMarginRight(container);
+			const contentSize = getAgentsPartCardContentSize(500, 400, true, true, false, false, sidePaneMarginRight);
+			const content = append(card, $('.content'));
+			content.style.width = `${contentSize.width}px`;
+			content.style.height = `${contentSize.height}px`;
+			const session = append(content, $('.session-view'));
+			session.style.width = '100%';
+			session.style.height = '100%';
+			const editor = append(row, $('.part.editor'));
+			editor.classList.toggle('editor-tabs-multiple', showTabs === 'multiple');
+			editor.style.width = '300px';
+			editor.style.height = '400px';
+			editor.style.flex = '0 0 auto';
+			const divider = append(row, $('.monaco-sash.vertical.sessions-side-pane-divider'));
+			const dividerStyle = mainWindow.getComputedStyle(divider);
+			const gripStyle = mainWindow.getComputedStyle(divider, '::after');
+			const editorBounds = editor.getBoundingClientRect();
+			const sidePaneFrameInset = getSidePaneFrameInset(container);
+			const sidePaneFrameLeft = editorBounds.left + sidePaneFrameInset;
+			const insetFrame = connectedEditorTabs && showTabs === 'multiple';
+
+			assert.deepStrictEqual({
+				sessionFrameInset: getSessionsPartFrameInset(container),
+				sidePaneFrameInset,
+				sidePaneMarginRight,
+				marginRight: mainWindow.getComputedStyle(card).marginRight,
+				backgroundClip: mainWindow.getComputedStyle(card).backgroundClip,
+				renderedContentWidth: card.clientWidth,
+				contentSize,
+				frameGap: sidePaneFrameLeft - session.getBoundingClientRect().right,
+				divider: {
+					transform: dividerStyle.transform,
+					width: dividerStyle.width,
+					gripContent: gripStyle.content,
+					gripWidth: gripStyle.width,
+					gripHeight: gripStyle.height,
+				},
+			}, {
+				sessionFrameInset: 1,
+				sidePaneFrameInset: insetFrame ? 1 : 0,
+				sidePaneMarginRight: insetFrame ? 2 : 3,
+				marginRight: insetFrame ? '2px' : '3px',
+				backgroundClip: 'padding-box',
+				renderedContentWidth: insetFrame ? 496 : 495,
+				contentSize: { width: insetFrame ? 496 : 495, height: 398 },
+				frameGap: 4,
+				divider: {
+					transform: insetFrame ? 'matrix(1, 0, 0, 1, -1, 0)' : 'matrix(1, 0, 0, 1, -2, 0)',
+					width: '4px',
+					gripContent: '""',
+					gripWidth: '2px',
+					gripHeight: '2px',
+				},
+			});
+		});
+	}
+
+	test('aligns pill and connected side-pane frames above a justified bottom panel', () => {
+		const { container } = createCard(true, true);
+		container.classList.add('modern-ui-tabs', 'dock-detail-panel', 'panel-alignment-justify');
+		const grid = append(container, $('.monaco-grid-view'));
+		grid.style.height = '400px';
+		const editor = append(grid, $('.part.editor'));
+		editor.style.width = '300px';
+		editor.style.height = '100%';
+		const content = append(editor, $('.content'));
+		const baseLayout = sinon.stub(MainEditorPartBase.prototype, 'layout').callsFake((width, height) => {
+			content.style.width = `${width}px`;
+			content.style.height = `${height}px`;
+		});
+		const part = {
+			layoutService: {
+				mainContainer: container,
+				agentWorkbenchLayout: AgentWorkbenchLayout.Desktop,
+				isModernUICompact: () => false,
+				getPanelSpacing() { return this.isModernUICompact() ? 0 : 4; },
+				isVisible: (partId: Parts) => partId === Parts.EDITOR_PART
+					|| partId === Parts.SESSIONS_PART
+					|| partId === Parts.PANEL_PART,
+			},
+		};
+		const layout = MainEditorPart.prototype.layout as (this: typeof part, width: number, height: number, top: number, left: number) => void;
+		const states = [
+			{ name: 'pill multiple', connected: false, multiple: true },
+			{ name: 'connected single', connected: true, multiple: false },
+			{ name: 'connected multiple', connected: true, multiple: true },
+		];
+
+		const actual = states.map(state => {
+			container.classList.toggle('modern-ui-connected-editor-tabs', state.connected);
+			container.classList.toggle(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, state.multiple);
+			editor.classList.toggle('editor-tabs-multiple', state.multiple);
+			layout.call(part, 300, 400, 0, 0);
+			const sidePaneFrameInset = getSidePaneFrameInset(container);
+
+			return {
+				name: state.name,
+				sidePaneFrameInset,
+				bottomFrameInset: getSidePaneBottomFrameInset(container),
+				visibleFrameHeight: editor.getBoundingClientRect().height - sidePaneFrameInset,
+				layout: baseLayout.lastCall.args,
+			};
+		});
+
+		assert.deepStrictEqual(actual, [
+			{ name: 'pill multiple', sidePaneFrameInset: 0, bottomFrameInset: 1, visibleFrameHeight: 399, layout: [298, 397, 0, 0] },
+			{ name: 'connected single', sidePaneFrameInset: 0, bottomFrameInset: 1, visibleFrameHeight: 399, layout: [298, 397, 0, 0] },
+			{ name: 'connected multiple', sidePaneFrameInset: 1, bottomFrameInset: 0, visibleFrameHeight: 399, layout: [298, 398, 0, 0] },
+		]);
+	});
+
+	test('aligns non-docked side-pane frames after leaving phone layout', () => {
+		const { container, card } = createCard(true, true, true);
+		container.classList.add('modern-ui-tabs', 'modern-ui-connected-editor-tabs', AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, 'panel-alignment-justify');
+		container.classList.remove('phone-layout');
+		card.classList.add('part', 'sessionspart', 'sessions-chat-surface');
+		const row = append(container, $('.monaco-grid-view'));
+		row.style.display = 'flex';
+		row.style.width = '800px';
+		row.style.height = '400px';
+		const sessionAllocation = append(row, $('.session-allocation'));
+		sessionAllocation.style.width = '500px';
+		sessionAllocation.style.height = '400px';
+		sessionAllocation.style.flex = '0 0 auto';
+		sessionAllocation.appendChild(card);
+		card.style.height = '100%';
+		const sidePaneMarginRight = getSessionsPartCardMarginRight(container);
+		const sessionContentSize = getAgentsPartCardContentSize(500, 400, true, true, false, false, sidePaneMarginRight);
+		const sessionContent = append(card, $('.content'));
+		sessionContent.style.width = `${sessionContentSize.width}px`;
+		sessionContent.style.height = `${sessionContentSize.height}px`;
+		const session = append(sessionContent, $('.session-view'));
+		session.style.width = '100%';
+		session.style.height = '100%';
+		const editor = append(row, $('.part.editor'));
+		editor.style.width = '200px';
+		editor.style.height = '100%';
+		editor.style.flex = '0 0 auto';
+		const editorContent = append(editor, $('.content'));
+		const auxiliaryBar = append(row, $('.part.auxiliarybar'));
+		auxiliaryBar.style.width = '100px';
+		auxiliaryBar.style.height = '100%';
+		auxiliaryBar.style.flex = '0 0 auto';
+		auxiliaryBar.style.transition = 'none';
+		const auxiliaryContent = append(auxiliaryBar, $('.content'));
+		const layoutService = {
+			mainContainer: container,
+			agentWorkbenchLayout: AgentWorkbenchLayout.Mobile,
+			isModernUICompact: () => false,
+			getPanelSpacing() { return this.isModernUICompact() ? 0 : 4; },
+			isVisible: (partId: Parts) => partId === Parts.EDITOR_PART
+				|| partId === Parts.AUXILIARYBAR_PART
+				|| partId === Parts.SESSIONS_PART
+				|| partId === Parts.SIDEBAR_PART
+				|| partId === Parts.PANEL_PART,
+			getPanelAlignment: () => 'justify' as const,
+		};
+		const editorLayout = sinon.stub(MainEditorPartBase.prototype, 'layout').callsFake((width, height) => {
+			editorContent.style.width = `${width}px`;
+			editorContent.style.height = `${height}px`;
+		});
+		const auxiliaryLayout = sinon.stub(AbstractPaneCompositePart.prototype, 'layout').callsFake((width, height) => {
+			auxiliaryContent.style.width = `${width}px`;
+			auxiliaryContent.style.height = `${height}px`;
+		});
+		const layoutEditor = MainEditorPart.prototype.layout as (this: { layoutService: typeof layoutService }, width: number, height: number, top: number, left: number) => void;
+		const layoutAuxiliaryBar = AuxiliaryBarPart.prototype.layout as typeof layoutEditor;
+		layoutEditor.call({ layoutService }, 200, 400, 0, 500);
+		layoutAuxiliaryBar.call({ layoutService }, 100, 400, 0, 700);
+
+		assert.deepStrictEqual({
+			docked: container.classList.contains('dock-detail-panel'),
+			sessionFrameInset: getSessionsPartFrameInset(container),
+			sidePaneFrameInset: getSidePaneFrameInset(container),
+			bottomFrameInset: getSidePaneBottomFrameInset(container),
+			sidePaneMarginRight,
+			renderedMarginRight: mainWindow.getComputedStyle(card).marginRight,
+			horizontalGap: editor.getBoundingClientRect().left - session.getBoundingClientRect().right,
+			editorFrameHeight: editor.getBoundingClientRect().height,
+			auxiliaryFrameHeight: auxiliaryBar.getBoundingClientRect().height,
+			editorLayout: editorLayout.lastCall.args,
+			auxiliaryLayout: auxiliaryLayout.lastCall.args,
+		}, {
+			docked: false,
+			sessionFrameInset: 1,
+			sidePaneFrameInset: 0,
+			bottomFrameInset: 1,
+			sidePaneMarginRight: 3,
+			renderedMarginRight: '3px',
+			horizontalGap: 4,
+			editorFrameHeight: 399,
+			auxiliaryFrameHeight: 399,
+			editorLayout: [198, 397, 0, 500],
+			auxiliaryLayout: [93, 397, 0, 700],
+		});
+	});
+
+	test('compensates the bottom-panel margin for the inset session frame', () => {
+		const { container } = createCard(true, false);
+		container.classList.add('modern-ui-tabs');
+		const panel = append(container, $('.part.panel'));
+		panel.style.transition = 'none';
+		const baseLayout = sinon.stub(AbstractPaneCompositePart.prototype, 'layout');
+		let sessionsVisible = true;
+		const part = {
+			layoutService: {
+				mainContainer: container,
+				isModernUICompact: () => false,
+				getPanelSpacing() { return this.isModernUICompact() ? 0 : 4; },
+				isVisible: (partId: Parts) => partId === Parts.PANEL_PART
+					|| partId === Parts.SIDEBAR_PART
+					|| (partId === Parts.SESSIONS_PART && sessionsVisible),
+				getPanelAlignment: () => 'justify' as const,
+			},
+		};
+		const layoutPanel = PanelPart.prototype.layout as (this: typeof part, width: number, height: number, top: number, left: number) => void;
+
+		const actual = [true, false, true].map(visible => {
+			sessionsVisible = visible;
+			container.classList.toggle('nosessionspart', !visible);
+			layoutPanel.call(part, 800, 200, 400, 0);
+			return {
+				sessionsVisible: visible,
+				sessionFrameInset: getSessionsPartFrameInset(container),
+				marginTop: mainWindow.getComputedStyle(panel).marginTop,
+				layout: baseLayout.lastCall.args,
+			};
+		});
+
+		assert.deepStrictEqual(actual, [
+			{ sessionsVisible: true, sessionFrameInset: 1, marginTop: '3px', layout: [798, 195, 400, 0] },
+			{ sessionsVisible: false, sessionFrameInset: 0, marginTop: '4px', layout: [798, 194, 400, 0] },
+			{ sessionsVisible: true, sessionFrameInset: 1, marginTop: '3px', layout: [798, 195, 400, 0] },
+		]);
+	});
+
 	for (const desktop of [false, true]) {
 		test(`keeps the expanded ${desktop ? 'desktop' : 'mobile'} editor gutter and content size in sync`, () => {
 			const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.noauxiliarybar'));
@@ -131,6 +589,7 @@ suite('Sessions - Agents Part Card', () => {
 						mainContainer: workbench,
 						agentWorkbenchLayout: desktop ? AgentWorkbenchLayout.Desktop : AgentWorkbenchLayout.Mobile,
 						isModernUICompact: () => false,
+						getPanelSpacing() { return this.isModernUICompact() ? 0 : 4; },
 						isVisible: (partId: Parts) => partId === Parts.EDITOR_PART
 							|| (partId === Parts.SIDEBAR_PART && state.sidebar)
 							|| (partId === Parts.SESSIONS_PART && state.sessions),
@@ -179,6 +638,7 @@ suite('Sessions - Agents Part Card', () => {
 						mainContainer: workbench,
 						agentWorkbenchLayout: desktop ? AgentWorkbenchLayout.Desktop : AgentWorkbenchLayout.Mobile,
 						isModernUICompact: () => compact,
+						getPanelSpacing() { return this.isModernUICompact() ? 0 : 4; },
 						isVisible: (partId: Parts) => partId === Parts.EDITOR_PART,
 					},
 				};
@@ -252,6 +712,7 @@ suite('Sessions - Agents Part Card', () => {
 				layoutService: {
 					mainContainer: container,
 					isModernUICompact: () => compact,
+					getPanelSpacing() { return this.isModernUICompact() ? 0 : 4; },
 					isVisible: () => true,
 					getPanelAlignment: () => 'justify' as const,
 				},
@@ -294,6 +755,7 @@ suite('Sessions - Agents Part Card', () => {
 			layoutService: {
 				mainContainer: container,
 				isModernUICompact: () => false,
+				getPanelSpacing() { return this.isModernUICompact() ? 0 : 4; },
 				isVisible: (partId: Parts) => partId === Parts.PANEL_PART
 					|| (partId === Parts.SIDEBAR_PART && sidebarVisible)
 					|| ((partId === Parts.EDITOR_PART || partId === Parts.AUXILIARYBAR_PART) && editorPaneVisible),
@@ -337,10 +799,10 @@ suite('Sessions - Agents Part Card', () => {
 
 	test('keeps connected chat and editor frames flush in compact density', () => {
 		const { container, card } = createCard(true, true);
-		container.classList.add('modern-ui-tabs', 'modern-ui-connected-editor-tabs', 'dock-detail-panel');
+		container.classList.add('modern-ui-tabs', 'modern-ui-connected-editor-tabs', 'dock-detail-panel', AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS);
 		container.style.setProperty('--modern-ui-connected-tab-border', '#808080');
 		container.style.setProperty('--vscode-editorGroupHeader-tabsBorder', '#808080');
-		card.classList.add('part', 'sessionspart');
+		card.classList.add('part', 'sessionspart', 'sessions-chat-surface');
 		const session = append(card, $('.session-view'));
 		const grid = append(container, $('.monaco-grid-view'));
 		const editor = append(grid, $('.part.editor.editor-tabs-multiple'));
@@ -364,6 +826,42 @@ suite('Sessions - Agents Part Card', () => {
 			defaultState,
 			{ sessionCorner: '0px', editorCorner: '0px', sessionInset: '0px', editorInset: '0px', sessionFrame: '1px 0px 0px 1px', editorFrame: '1px 0px 0px 1px' },
 			defaultState,
+		]);
+	});
+
+	test('keeps native canvas views inside the connected side-pane frame', () => {
+		const { container } = createCard(true, true);
+		container.classList.add('modern-ui-tabs', 'modern-ui-connected-editor-tabs', 'dock-detail-panel');
+		container.style.setProperty('--modern-ui-connected-tab-border', '#808080');
+		// When connectedEditorTabs.css is loaded (by other suites in a full run, as in the workbench), the group
+		// derives its frame color from the theme's tab border instead, so define that too.
+		container.style.setProperty('--vscode-tab-border', '#808080');
+		const grid = append(container, $('.monaco-grid-view'));
+		const editor = append(grid, $('.part.editor.editor-tabs-multiple'));
+		const group = append(append(editor, $('.content')), $('.editor-group-container'));
+		group.style.width = '300px';
+		group.style.height = '200px';
+		// Mirrors the column layout the integrated browser styles give canvas panes.
+		const canvas = append(group, $('.browser-root.session-canvas-editor'));
+		canvas.style.cssText = 'display: flex; flex-direction: column; height: 100%;';
+		const wrapper = append(canvas, $('.browser-container-wrapper'));
+		wrapper.style.flex = '1';
+		const nativeView = append(wrapper, $('.browser-container'));
+
+		const actual = [false, true].map(compact => {
+			container.classList.toggle('modern-ui-compact', compact);
+			const frame = group.getBoundingClientRect();
+			const view = wrapper.getBoundingClientRect();
+			return {
+				frameWidth: mainWindow.getComputedStyle(group, '::after').borderWidth,
+				viewInset: [view.top - frame.top, frame.right - view.right, frame.bottom - view.bottom, view.left - frame.left].join(' '),
+				cornerRadius: mainWindow.getComputedStyle(nativeView).borderTopLeftRadius,
+			};
+		});
+
+		assert.deepStrictEqual(actual, [
+			{ frameWidth: '1px', viewInset: '0 1 1 1', cornerRadius: '7px' },
+			{ frameWidth: '1px 0px 0px 1px', viewInset: '0 0 0 1', cornerRadius: '0px' },
 		]);
 	});
 
@@ -394,7 +892,7 @@ suite('Sessions - Agents Part Card', () => {
 			container.classList.add('modern-ui-tabs');
 			container.classList.toggle('modern-ui-connected-editor-tabs', connected);
 			container.style.setProperty('--modern-ui-connected-tab-border', '#808080');
-			card.classList.add('part', 'sessionspart');
+			card.classList.add('part', 'sessionspart', 'sessions-chat-surface');
 			card.style.width = '500px';
 			card.style.height = '400px';
 			const grid = append(container, $('.monaco-grid-view'));
@@ -420,6 +918,7 @@ suite('Sessions - Agents Part Card', () => {
 			const layoutService = {
 				mainContainer: container,
 				isModernUICompact: () => true,
+				getPanelSpacing() { return this.isModernUICompact() ? 0 : 4; },
 				isVisible: () => true,
 				getPanelAlignment: () => 'justify' as const,
 			};
@@ -504,16 +1003,20 @@ suite('Sessions - Agents Part Card', () => {
 				layoutService: {
 					mainContainer: container,
 					isModernUICompact: () => compact && !container.classList.contains('phone-layout'),
+					getPanelSpacing() { return this.isModernUICompact() ? 0 : 4; },
 					isVisible: (partId: Parts) => partId !== Parts.SIDEBAR_PART,
 				},
 				agentWorkbenchLayoutService: {
 					isEditorPaneVisible: () => false,
 				},
+				hostLayoutService: {
+					sidePane: { isEditorPaneVisible: () => false },
+				},
 				layoutContents: (width: number, height: number) => {
 					contentLayouts.push({ width, height });
 					return { contentSize: { width, height } };
 				},
-				_gridWidget: { layout: layoutGrid },
+				layoutContent: (width: number, height: number) => layoutGrid(width, height),
 				_layoutNode: layoutGrid,
 			};
 			const layout = Reflect.get(partConstructor.prototype, 'layout') as (this: typeof part, width: number, height: number, top: number, left: number) => void;

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { StandardTokenType } from '../../../../common/encodedTokenAttributes.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
@@ -20,11 +19,10 @@ import { ILanguageService } from '../../../../common/languages/language.js';
 suite('Indentation Context Processor - TypeScript/JavaScript', () => {
 
 	const languageId = Language.TypeScript;
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		const languageService = new LanguageService();
 		const languageConfigurationService = new TestLanguageConfigurationService();
 		disposables.add(languageService);
@@ -36,12 +34,6 @@ suite('Indentation Context Processor - TypeScript/JavaScript', () => {
 			[ILanguageConfigurationService, languageConfigurationService]
 		);
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('brackets inside of string', () => {
 
@@ -131,11 +123,10 @@ suite('Indentation Context Processor - TypeScript/JavaScript', () => {
 suite('Processed Indent Rules Support - TypeScript/JavaScript', () => {
 
 	const languageId = Language.TypeScript;
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let serviceCollection: ServiceCollection;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		const languageService = new LanguageService();
 		const languageConfigurationService = new TestLanguageConfigurationService();
 		disposables.add(languageService);
@@ -147,12 +138,6 @@ suite('Processed Indent Rules Support - TypeScript/JavaScript', () => {
 			[ILanguageConfigurationService, languageConfigurationService]
 		);
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('should increase', () => {
 

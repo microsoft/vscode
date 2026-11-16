@@ -8,7 +8,7 @@ import { CopilotClient, approveAll } from '@github/copilot-sdk';
 import { mkdtemp, readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../../base/common/async.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
@@ -19,6 +19,7 @@ import { ByokLmBridgeRegistry } from '../../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService } from '../../../node/copilot/byokLmProxyService.js';
 import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
 import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js';
+import { fullOnlyTest } from '../agentHostTestProfile.js';
 
 suite('Agent Host Provider Integration - Copilot OTel concurrency', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -28,7 +29,7 @@ suite('Agent Host Provider Integration - Copilot OTel concurrency', function () 
 	const progressTimeoutMs = 15_000;
 
 	for (const otelEnabled of [false, true]) {
-		test(`shell tools and concurrent session events complete with OTel ${otelEnabled ? 'enabled' : 'disabled'}`, async function () {
+		fullOnlyTest(`shell tools and concurrent session events complete with OTel ${otelEnabled ? 'enabled' : 'disabled'}`, async function () {
 			this.timeout(180_000);
 			const directory = await mkdtemp(join(tmpdir(), 'copilot-otel-concurrency-'));
 			const disposables = store.add(new DisposableStore());
@@ -38,6 +39,7 @@ suite('Agent Host Provider Integration - Copilot OTel concurrency', function () 
 			let modelCalls = 0;
 			disposables.add(registry.register('client', {
 				onDidChangeModels: models.event,
+				onDidDelta: Event.None,
 				chat: async () => {
 					const batch = modelCalls++;
 					return {

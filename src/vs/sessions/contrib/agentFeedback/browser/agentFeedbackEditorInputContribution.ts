@@ -24,7 +24,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { isIOS } from '../../../../base/common/platform.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Keybinding, KeyCodeChord, ResolvedKeybinding } from '../../../../base/common/keybindings.js';
-import { IAgentFeedbackService } from './agentFeedbackService.js';
+import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { createAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -38,13 +38,16 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { FeedbackInputWidget, IFeedbackInputWidgetAdditionalAction } from './feedbackInputWidget.js';
-import { ICodeReviewService, IPRReviewCommentTarget } from '../../codeReview/browser/codeReviewService.js';
-import { IGitHubPullRequestRef } from '../../../services/sessions/common/session.js';
+import { CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { FeedbackInputWidget, IFeedbackInputWidgetAdditionalAction } from '../../../../workbench/browser/feedbackInputWidget.js';
+import { ICodeReviewService, IPRReviewCommentTarget } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
+import { IGitHubPullRequestRef } from '../../../../workbench/services/sessions/common/session.js';
 
 const addFeedbackAtCurrentLineActionId = 'agentFeedbackEditor.action.addAtCurrentLine';
 const agentFeedbackHoverGlyphClassName = 'agent-feedback-glyph';
 const hasAgentFeedbackSessionForEditor = new RawContextKey<boolean>('agentFeedbackEditor.hasSession', false);
+// Editors embedded in the Customizations editor inherit its context key; feedback is not offered there.
+const agentFeedbackEnabledForEditor = ContextKeyExpr.and(ChatContextKeys.enabled, CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR.negate());
 export const AGENTS_WINDOW_PR_COMMENTS_SETTING = 'chat.experimental.agentsWindowPRComments';
 
 /**
@@ -611,7 +614,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 				getAnchor: () => anchor,
 				getActions: () => actions,
 				getMenuClassName: () => 'agent-feedback-comment-target-menu',
-				autoSelectFirstItem: true,
+				autoSelectItem: true,
 				onHide: didCancel => {
 					if (didCancel) {
 						resolve(undefined);
@@ -642,7 +645,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 	private _getSessionForModel(): URI | undefined {
 		const model = this._editor.getModel();
-		if (!model || !this._contextKeyService.contextMatchesRules(ChatContextKeys.enabled)) {
+		if (!model || !this._contextKeyService.contextMatchesRules(agentFeedbackEnabledForEditor)) {
 			this._hasAgentFeedbackSessionContext.set(false);
 			this._sessionResource = undefined;
 			return undefined;

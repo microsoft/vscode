@@ -36,7 +36,9 @@ export interface IWebviewManagerService {
 
 	setIgnoreMenuShortcuts(id: WebviewWebContentsId | WebviewWindowId, enabled: boolean): Promise<void>;
 
+	/** Requests for unavailable hosts or frames are ignored. */
 	findInFrame(id: WebviewWebContentsId | WebviewWindowId, frameName: string, text: string, options: FindInFrameOptions): Promise<void>;
 
+	/** Requests for unavailable hosts or frames are ignored. */
 	stopFindInFrame(id: WebviewWebContentsId | WebviewWindowId, frameName: string, options: { keepSelection?: boolean }): Promise<void>;
 }

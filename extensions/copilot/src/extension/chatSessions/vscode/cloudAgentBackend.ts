@@ -40,6 +40,9 @@ export interface CreateCloudSessionParams {
 export interface CloudSessionData {
 	readonly taskId: string;
 	readonly eventType?: string;
+	/** The creating client's slug from task attribution, independent of the triggering event. */
+	readonly application?: string;
+	readonly automationId?: string;
 	readonly title: string;
 	readonly state: AgentTaskState;
 	readonly createdAt: string;
@@ -57,6 +60,8 @@ export interface TaskContent {
 }
 
 export interface CloudAgentBackend {
+	fetchSession(taskId: string): Promise<CloudSessionData>;
+
 	fetchSessionList(
 		repoIds: GithubRepoId[] | undefined,
 		isAgentWorkspace: boolean,

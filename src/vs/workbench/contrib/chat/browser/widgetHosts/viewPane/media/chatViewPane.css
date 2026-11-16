@@ -69,22 +69,6 @@
 		overflow: hidden;
 	}
 
-	.chat-viewpane-container .chat-customizations-action-item {
-		position: relative;
-	}
-
-	.chat-viewpane-container .chat-customizations-action-item.migration-available::after {
-		content: '';
-		position: absolute;
-		top: var(--vscode-spacing-size20);
-		right: var(--vscode-spacing-size20);
-		width: var(--vscode-spacing-size60);
-		height: var(--vscode-spacing-size60);
-		border-radius: var(--vscode-cornerRadius-circle);
-		background-color: var(--vscode-activityWarningBadge-background, var(--vscode-editorWarning-foreground));
-		pointer-events: none;
-	}
-
 	.chat-controls-container {
 		display: flex;
 		flex-direction: column;
@@ -154,6 +138,14 @@
 		/* hide new session button when stacked */
 		display: none;
 	}
+
+	.agent-sessions-viewer.can-scroll-down > .monaco-list > .monaco-scrollable-element {
+		mask-image: linear-gradient(to bottom, black calc(100% - var(--vscode-spacing-size160)), transparent);
+	}
+}
+
+.monaco-workbench:is(.hc-black, .hc-light) .chat-viewpane.has-sessions-control.sessions-control-orientation-stacked .agent-sessions-viewer.can-scroll-down > .monaco-list > .monaco-scrollable-element {
+	mask-image: none;
 }
 
 /* Sessions control: side by side */

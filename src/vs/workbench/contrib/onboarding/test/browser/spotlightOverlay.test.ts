@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { $, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -403,6 +403,28 @@ suite('SpotlightOverlay', () => {
 		});
 	});
 
+	for (const half of ['primary', 'dropdown'] as const) {
+		test(`Escape from a split button's ${half} half dismisses its wrapper spotlight`, () => {
+			const container = createContainer();
+			const target = disposables.add(new ButtonWithDropdown(container, {
+				...defaultButtonStyles,
+				contextMenuProvider: { showContextMenu: () => { } },
+				actions: [],
+			}));
+			target.label = 'Create with Agent';
+			const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+			const reasons: OnboardingDismissReason[] = [];
+			disposables.add(overlay.onDidSkip(reason => reasons.push(reason)));
+			overlay.show(target.element, content(), { allowTargetInteraction: true });
+
+			const button = half === 'primary' ? target.primaryButton : target.dropdownButton;
+			button.focus();
+			button.element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual(reasons, [OnboardingDismissReason.EscapeKey]);
+		});
+	}
+
 	test('Escape in external target UI skips without consuming the native dismissal', () => {
 		const container = createContainer();
 		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
@@ -499,6 +521,56 @@ suite('SpotlightOverlay', () => {
 		});
 	});
 
+	test('highlights additional elements together with the target and keeps focus in them when the callout is clicked', async () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));
+		const target = createTarget(container, 300, 300, 20, 20);
+		target.tabIndex = 0;
+		let additionalElements: HTMLElement[] = [];
+		overlay.show(target, content(), { placement: 'left', targetOverlayVisible: true, allowTargetInteraction: true, additionalElements: () => additionalElements });
+		const hole = container.querySelector<HTMLElement>('.spotlight-hole')!;
+		const holeRect = () => [hole.style.left, hole.style.top, hole.style.width, hole.style.height];
+		const nextFrame = () => new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, resolve)));
+		const keepsFocus = (focused: HTMLElement) => {
+			focused.focus();
+			const event = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+			getButtons(container)[2].dispatchEvent(event);
+			return event.defaultPrevented;
+		};
+		const holes = [holeRect()];
+		const keptFocus = [keepsFocus(target)];
+		const menu = createTarget(container, 150, 150, 170, 140);
+		menu.tabIndex = 0;
+		additionalElements = [menu, createTarget(container, 400, 200, 50, 50)];
+		await nextFrame();
+		holes.push(holeRect());
+		keptFocus.push(keepsFocus(target), keepsFocus(menu));
+		additionalElements.forEach(element => element.remove());
+		await nextFrame();
+		holes.push(holeRect());
+
+		assert.deepStrictEqual({ holes, keptFocus }, {
+			holes: [['294px', '294px', '32px', '32px'], ['144px', '144px', '312px', '182px'], ['294px', '294px', '32px', '32px']],
+			keptFocus: [false, false, true],
+		});
+	});
+	test('leaves Escape and Tab inside additional elements to them', () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));
+		const menu = createTarget(container, 150, 150, 170, 140);
+		const skips: string[] = [];
+		disposables.add(overlay.onDidSkip(reason => skips.push(reason)));
+		overlay.show(createTarget(container, 300, 300, 20, 20), content(), { targetOverlayVisible: true, allowTargetInteraction: true, additionalElements: () => [menu] });
+		const press = (element: HTMLElement, key: string, keyCode: number) => {
+			const event = new KeyboardEvent('keydown', { key, keyCode, bubbles: true, cancelable: true });
+			element.dispatchEvent(event);
+			return event.defaultPrevented;
+		};
+		const prevented = [press(menu, 'Escape', 27), press(menu, 'Tab', 9)];
+		press(createTarget(container, 0, 0, 10, 10), 'Escape', 27);
+
+		assert.deepStrictEqual({ prevented, skips }, { prevented: [false, false], skips: [OnboardingDismissReason.EscapeKey] });
+	});
 	test('hideNext routes target keyboard events through the focus trap', () => {
 		const container = createContainer();
 		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));

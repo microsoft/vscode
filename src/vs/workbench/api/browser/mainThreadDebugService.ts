@@ -376,7 +376,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	}
 
 	public $acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage) {
-		this.getDebugAdapter(handle).acceptMessage(convertToVSCPaths(message, false));
+		// don't use getDebugAdapter since a message can still be in-flight after the adapter was removed on session end
+		this._debugAdapters.get(handle)?.acceptMessage(convertToVSCPaths(message, false));
 	}
 
 	public $acceptDAError(handle: number, name: string, message: string, stack: string) {
@@ -387,14 +388,6 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	public $acceptDAExit(handle: number, code: number, signal: string) {
 		// don't use getDebugAdapter since an error can be expected on a post-close
 		this._debugAdapters.get(handle)?.fireExit(handle, code, signal);
-	}
-
-	private getDebugAdapter(handle: number): ExtensionHostDebugAdapter {
-		const adapter = this._debugAdapters.get(handle);
-		if (!adapter) {
-			throw new Error('Invalid debug adapter');
-		}
-		return adapter;
 	}
 
 	// dto helpers

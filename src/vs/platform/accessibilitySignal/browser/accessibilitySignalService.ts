@@ -294,9 +294,12 @@ function doPlayAudio(url: string, volume: number, disposables: DisposableStore):
 		disposables.add(addDisposableListener(audio, 'ended', () => {
 			resolve(audio);
 		}));
-		disposables.add(addDisposableListener(audio, 'error', (e) => {
-			// When the error event fires, ended might not be called
-			reject(e.error);
+		disposables.add(addDisposableListener(audio, 'error', () => {
+			// When the error event fires, ended might not be called.
+			// The media `error` event is a plain Event without an `error`
+			// property; the actual failure is described by `audio.error`.
+			const mediaError = audio.error;
+			reject(new Error(mediaError ? `Failed to play audio (code ${mediaError.code}): ${mediaError.message}` : 'Failed to play audio'));
 		}));
 		audio.play().catch(e => {
 			// When play fails, the error event is not fired.

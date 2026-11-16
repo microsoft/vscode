@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from '../../../../base/common/uri.js';
+import { URI, type UriComponents } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IGitService } from '../../../contrib/git/common/gitService.js';
 import { MainThreadGitExtensionService } from '../../browser/mainThreadGitExtensionService.js';
-import { GitRefTypeDto, type ExtHostGitExtensionShape, type GitRepositoryStateDto } from '../../common/extHost.protocol.js';
+import { GitRefTypeDto, type ExtHostGitExtensionShape, type GitCommitOptionsDto, type GitRepositoryStateDto } from '../../common/extHost.protocol.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 
 suite('MainThreadGitExtensionService', () => {
@@ -51,5 +51,36 @@ suite('MainThreadGitExtensionService', () => {
 		});
 
 		service.dispose();
+	});
+
+	test('forwards commitFiles to the extension host for the repository handle', async () => {
+		const rootUri = URI.file('/workspace');
+		const commits: { handle: number; files: string[]; message: string; options: GitCommitOptionsDto | undefined }[] = [];
+		const proxy = new class extends mock<ExtHostGitExtensionShape>() {
+			override async $isGitExtensionAvailable(): Promise<boolean> {
+				return false;
+			}
+
+			override async $openRepository() {
+				return {
+					handle: 7,
+					rootUri,
+					state: { HEAD: { type: GitRefTypeDto.Head, name: 'main', commit: 'abc123' }, remotes: [], mergeChanges: [], indexChanges: [], workingTreeChanges: [], untrackedChanges: [] },
+				};
+			}
+
+			override async $commitFiles(handle: number, files: UriComponents[], message: string, options?: GitCommitOptionsDto): Promise<void> {
+				commits.push({ handle, files: files.map(file => URI.revive(file).path), message, options });
+			}
+		};
+		const service = disposables.add(new MainThreadGitExtensionService(
+			SingleProxyRPCProtocol(proxy),
+			new class extends mock<IGitService>() { },
+		));
+
+		const repository = await service.openRepository(rootUri);
+		await repository!.commitFiles([URI.file('/workspace/a.md')], 'message', { noVerify: true, signCommit: false });
+
+		assert.deepStrictEqual(commits, [{ handle: 7, files: ['/workspace/a.md'], message: 'message', options: { noVerify: true, signCommit: false } }]);
 	});
 });

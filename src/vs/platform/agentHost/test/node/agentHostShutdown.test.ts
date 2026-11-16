@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, MAX_TIMEOUT_DELAY, timeout } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { flushAgentHostPersistenceBeforeShutdown, shutdownAgentHostBeforeDispose } from '../../node/agentHostShutdown.js';
+import { DEFAULT_SHUTDOWN_TIMEOUT_MS, flushAgentHostPersistenceBeforeShutdown, parseShutdownTimeoutArg, shutdownAgentHostBeforeDispose } from '../../node/agentHostShutdown.js';
 
 suite('AgentHostShutdown', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -86,5 +86,24 @@ suite('AgentHostShutdown', () => {
 		);
 
 		assert.strictEqual(persistenceFlushed, true);
+	});
+
+	test('--shutdown-timeout accepts whole milliseconds up to the timer limit', () => {
+		assert.deepStrictEqual([
+			parseShutdownTimeoutArg(['--port', '0']),
+			parseShutdownTimeoutArg(['--shutdown-timeout', '30000']),
+			parseShutdownTimeoutArg(['--shutdown-timeout', String(MAX_TIMEOUT_DELAY)]),
+		], [
+			{ timeoutMs: DEFAULT_SHUTDOWN_TIMEOUT_MS },
+			{ timeoutMs: 30000 },
+			{ timeoutMs: MAX_TIMEOUT_DELAY },
+		]);
+	});
+
+	test('--shutdown-timeout rejects values a timer cannot wait for', () => {
+		const rejected = ['0', '-1', '1.5', 'abc', String(MAX_TIMEOUT_DELAY + 1)].map(value => parseShutdownTimeoutArg(['--shutdown-timeout', value]));
+		assert.deepStrictEqual(rejected.map(result => !!result.error?.includes(`from 1 to ${MAX_TIMEOUT_DELAY}`)), [true, true, true, true, true]);
+		assert.ok(parseShutdownTimeoutArg(['--shutdown-timeout']).error);
+		assert.ok(parseShutdownTimeoutArg(['--shutdown-timeout', '--quiet']).error);
 	});
 });

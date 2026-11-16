@@ -9,7 +9,8 @@ import { ILogService } from '../../../../log/common/log.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IHydrationContext, IDispatchedAction } from '../../../common/agentHostChatContributionsService.js';
 import { ISessionDatabase, ISessionDataService } from '../../../common/sessionDataService.js';
 import { ActionType, isChatAction, type ChatAction } from '../../../common/state/sessionActions.js';
-import { chatStorageUri, hasReportedUsage, isAhpChatChannel, isSubagentChatUri, type Turn, type URI as ProtocolURI, type UsageInfo } from '../../../common/state/sessionState.js';
+import { hasReportedUsage, isAhpChatChannel, type Turn, type URI as ProtocolURI, type UsageInfo } from '../../../common/state/sessionState.js';
+import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 
 /** Owns persisted per-turn usage in both directions, recording it live and re-attaching it to restored turns. */
 export class PersistedTurnUsageContribution extends Disposable implements IAgentHostChatContribution {
@@ -21,6 +22,7 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 		protected readonly _context: IAgentHostChatContributionContext,
 		@ILogService private readonly _logService: ILogService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 	}
@@ -34,7 +36,7 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 			return;
 		}
 		if (isAhpChatChannel(dispatched.channel) && isChatAction(dispatched.action)) {
-			this._trackTurnUsage(dispatched.channel, dispatched.action);
+			this._trackTurnUsage(dispatched.session, dispatched.channel, dispatched.action);
 		}
 	}
 
@@ -57,15 +59,11 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 	 * gauge after reload needs that bridge recorded first.
 	 */
 	async onHydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]> {
-		const chat = URI.parse(context.chat);
-		if (turns.length === 0 || turns.every(turn => hasReportedUsage(turn.usage)) || isSubagentChatUri(chat.toString())) {
+		if (turns.length === 0 || turns.every(turn => hasReportedUsage(turn.usage)) || this._chatOwnership.getChatParent(context.chat) !== undefined) {
 			return turns;
 		}
-		// Same storage the writer used; see `chatStorageUri`.
-		const storage = chatStorageUri(chat);
-		if (!storage) {
-			return turns;
-		}
+		// Same storage the writer used.
+		const storage = URI.parse(context.storageResource);
 		let usages: Map<string, string>;
 		const ref = await this._sessionDataService.tryOpenDatabase(storage);
 		if (!ref) {
@@ -80,40 +78,7 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 		} finally {
 			ref.dispose();
 		}
-		if (usages.size === 0) {
-			return turns;
-		}
-		return turns.map(turn => {
-			const raw = hasReportedUsage(turn.usage) ? undefined : usages.get(turn.id);
-			if (!raw) {
-				return turn;
-			}
-			try {
-				const parsed: unknown = JSON.parse(raw);
-				// Never spread an untyped payload blind: a corrupted column
-				// holding a string or array would splat index keys onto the
-				// turn's usage and flow that malformed shape to the renderer.
-				if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-					return turn;
-				}
-				const persisted = parsed as UsageInfo;
-				// Merge rather than replace: a turn that ran on Auto already
-				// carries a token-less stub holding `_meta.autoModeResolved`
-				// (see `mapSessionEvents`), which drives the "Auto (model)"
-				// label. Persisted values win; the stub fills what they lack.
-				const meta = { ...turn.usage?._meta, ...persisted._meta };
-				return {
-					...turn,
-					usage: {
-						...turn.usage,
-						...persisted,
-						...(Object.keys(meta).length > 0 ? { _meta: meta } : {}),
-					},
-				};
-			} catch {
-				return turn;
-			}
-		});
+		return applyPersistedTurnUsage(turns, usages);
 	}
 
 	/**
@@ -135,8 +100,8 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 	 * Subagent chats are skipped: their cost is already folded into the parent
 	 * turn's aggregate, so recording it again would double-count.
 	 */
-	private _trackTurnUsage(channel: ProtocolURI, action: ChatAction): void {
-		if (action.type !== ActionType.ChatUsage || isSubagentChatUri(channel)) {
+	private _trackTurnUsage(session: ProtocolURI, channel: ProtocolURI, action: ChatAction): void {
+		if (action.type !== ActionType.ChatUsage || this._chatOwnership.getChatParent(channel) !== undefined) {
 			return;
 		}
 		// Usage reported with no active turn carries an empty turn id (see
@@ -147,10 +112,7 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 		}
 		// Agents key their storage by the chat's own URI, which is where the
 		// `turns` rows that `getTurnUsages` joins against live.
-		const storage = chatStorageUri(channel);
-		if (!storage) {
-			return;
-		}
+		const storage = URI.parse(this._chatOwnership.resolveChatStorageResource(session, channel));
 		let ref: IReference<ISessionDatabase>;
 		try {
 			ref = this._sessionDataService.openDatabase(storage);
@@ -162,4 +124,42 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 			this._logService.warn(`[AgentSideEffects] Failed to persist turn usage for ${channel}/${action.turnId}`, err);
 		}).finally(() => ref.dispose());
 	}
+}
+
+/** Projects saved usage onto provider turns without installing contribution state. */
+export function applyPersistedTurnUsage(turns: readonly Turn[], usages: ReadonlyMap<string, string>): readonly Turn[] {
+	if (usages.size === 0) {
+		return turns;
+	}
+	return turns.map(turn => {
+		const raw = hasReportedUsage(turn.usage) ? undefined : usages.get(turn.id);
+		if (!raw) {
+			return turn;
+		}
+		try {
+			const parsed: unknown = JSON.parse(raw);
+			// Never spread an untyped payload blind: a corrupted column
+			// holding a string or array would splat index keys onto the
+			// turn's usage and flow that malformed shape to the renderer.
+			if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+				return turn;
+			}
+			const persisted = parsed as UsageInfo;
+			// Merge rather than replace: a turn that ran on Auto already
+			// carries a token-less stub holding `_meta.autoModeResolved`
+			// (see `mapSessionEvents`), which drives the "Auto (model)"
+			// label. Persisted values win; the stub fills what they lack.
+			const meta = { ...turn.usage?._meta, ...persisted._meta };
+			return {
+				...turn,
+				usage: {
+					...turn.usage,
+					...persisted,
+					...(Object.keys(meta).length > 0 ? { _meta: meta } : {}),
+				},
+			};
+		} catch {
+			return turn;
+		}
+	});
 }

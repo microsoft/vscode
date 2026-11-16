@@ -10,6 +10,7 @@ import type { SchemaValues } from '../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../common/state/protocol/state.js';
 import { AgentHostPromptRegistry, agentHostPromptRegistry, type IAgentHostPromptContext } from '../../node/copilot/prompts/promptRegistry.js';
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from '../../node/copilot/prompts/systemMessage.js';
+import { AGENT_HOST_PROGRESS_UPDATES_INSTRUCTIONS } from '../../node/copilot/prompts/progressUpdatesInstructions.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkInstructions.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../node/shared/workspacelessInstructions.js';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../node/copilot/prompts/toolInstructions.js';
@@ -261,6 +262,37 @@ suite('AgentHostPromptRegistry', () => {
 			const { code_change_rules, ...sections } = enabled.sections ?? {};
 			assert.deepStrictEqual(code_change_rules, { action: 'append', content: guidance });
 			assert.deepStrictEqual({ ...enabled, sections }, baseline);
+		});
+	});
+
+	suite('progress updates (experiment-gated)', () => {
+		const enabled = { [CopilotCliConfigKey.ProgressUpdatesPrompt]: true };
+		const hasProgressUpdates = (config: SystemMessageConfig) => config.content?.includes(AGENT_HOST_PROGRESS_UPDATES_INSTRUCTIONS) === true;
+
+		test('appends the guidance before the file-link contract for GPT and Auto launches only when enabled', () => {
+			const models: (ModelSelection | undefined)[] = [{ id: 'gpt-6-luna' }, { id: 'o3' }, { id: 'auto' }, undefined, { id: 'claude-sonnet-5' }, { id: 'gemini-3-pro' }];
+			assert.deepStrictEqual(models.map(model => ({
+				model: model?.id ?? 'none',
+				enabled: hasProgressUpdates(agentHostPromptRegistry.resolveSystemMessageConfig(model, context(enabled))),
+				disabled: hasProgressUpdates(agentHostPromptRegistry.resolveSystemMessageConfig(model, context())),
+			})), [
+				{ model: 'gpt-6-luna', enabled: true, disabled: false },
+				{ model: 'o3', enabled: true, disabled: false },
+				{ model: 'auto', enabled: true, disabled: false },
+				{ model: 'none', enabled: true, disabled: false },
+				{ model: 'claude-sonnet-5', enabled: false, disabled: false },
+				{ model: 'gemini-3-pro', enabled: false, disabled: false },
+			]);
+		});
+
+		test('only appends to the trailing content, after the workspaceless guidance and before the file-link contract', () => {
+			const model = { id: 'gpt-6-luna' };
+			const baseline = agentHostPromptRegistry.resolveSystemMessageConfig(model, context({}, [], true));
+			const withUpdates = agentHostPromptRegistry.resolveSystemMessageConfig(model, context(enabled, [], true));
+			assert.deepStrictEqual(withUpdates, {
+				...baseline,
+				content: `${AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}\n\n${AGENT_HOST_PROGRESS_UPDATES_INSTRUCTIONS}\n\n${AGENT_HOST_FILE_LINK_INSTRUCTIONS}`,
+			});
 		});
 	});
 

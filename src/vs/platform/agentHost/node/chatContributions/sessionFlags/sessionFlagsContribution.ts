@@ -4,15 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../log/common/log.js';
 import { createSessionMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IDispatchedAction } from '../../../common/agentHostChatContributionsService.js';
-import { ISessionDataService } from '../../../common/sessionDataService.js';
+import { IAgentHostSessionStateStore } from '../../../common/agentHostSessionStateStore.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY } from '../../../common/state/sessionState.js';
 import { getPersistedSessionConfigValues } from '../../../common/sessionConfigKeys.js';
 import { readSessionSandboxState } from '../../../common/meta/agentSandboxStateMeta.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
-import { persistSessionMetadata } from '../../shared/persistSessionMetadata.js';
+import { IAgentHostProviderService } from '../../agentHostProviderService.js';
+import { IAgentConfigurationService } from '../../agentConfigurationService.js';
+import { persistSessionMetadata, persistSessionMetadataValuesInBackground } from '../../shared/persistSessionMetadata.js';
 
 const sandboxEnabledKey = createSessionMementoKey<boolean | undefined>('sandboxEnabled', () => undefined);
 
@@ -29,8 +32,10 @@ export class SessionFlagsContribution extends Disposable implements IAgentHostCh
 	constructor(
 		protected readonly _context: IAgentHostChatContributionContext,
 		@ILogService private readonly _logService: ILogService,
-		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 	) {
 		super();
 	}
@@ -47,7 +52,8 @@ export class SessionFlagsContribution extends Disposable implements IAgentHostCh
 			const state = this._stateManager.getSessionState(dispatched.channel);
 			const values = state?.config?.values;
 			if (values) {
-				persistSessionMetadata(this._sessionDataService, this._logService, dispatched.channel, 'configValues', JSON.stringify(getPersistedSessionConfigValues(values, readSessionSandboxState(state)?.enabled)));
+				const appliedSandboxEnabled = this._configurationService.getSessionSandboxEnabled(dispatched.channel);
+				persistSessionMetadata(this._sessionStateStore, this._logService, dispatched.channel, 'configValues', previous => JSON.stringify(getPersistedSessionConfigValues(values, appliedSandboxEnabled, previous)));
 			}
 		}
 		// Persisting here rather than in `handleAction` covers client- and
@@ -55,12 +61,29 @@ export class SessionFlagsContribution extends Disposable implements IAgentHostCh
 		// Rejected actions never reached state and must not be written.
 		if (!dispatched.rejectionReason) {
 			if (dispatched.action.type === ActionType.SessionIsReadChanged) {
-				persistSessionMetadata(this._sessionDataService, this._logService, dispatched.channel, AH_META_IS_READ_DB_KEY, dispatched.action.isRead ? 'true' : '');
+				persistSessionMetadata(this._sessionStateStore, this._logService, dispatched.channel, AH_META_IS_READ_DB_KEY, dispatched.action.isRead ? 'true' : '');
 			} else if (dispatched.action.type === ActionType.SessionIsArchivedChanged) {
-				persistSessionMetadata(this._sessionDataService, this._logService, dispatched.channel, AH_META_IS_ARCHIVED_DB_KEY, dispatched.action.isArchived ? 'true' : '');
-				if (!dispatched.action.isArchived) {
-					persistSessionMetadata(this._sessionDataService, this._logService, dispatched.channel, AH_META_AUTO_ARCHIVED_AT_DB_KEY, '');
+				if (dispatched.action.isArchived) {
+					const session = URI.parse(dispatched.session);
+					const sessionProvider = this._providerService.getProviderForSession(session);
+					sessionProvider?.clearCanvasContinuity?.(session);
+					const chats = this._stateManager.getSessionState(dispatched.session)?.chats
+						?? this._stateManager.getSurfacedSessionSummary(dispatched.session)?.chats
+						?? [];
+					for (const chat of chats) {
+						const chatResource = URI.parse(chat.resource);
+						const chatProvider = chat.provider
+							? this._providerService.getProvider(chat.provider)
+							: this._providerService.getProviderForChat(session, chatResource);
+						if (chatProvider !== sessionProvider) {
+							chatProvider?.clearCanvasContinuity?.(session, chatResource);
+						}
+					}
 				}
+				// One write: an unarchive clears the automatic archive time together with the flag.
+				persistSessionMetadataValuesInBackground(this._sessionStateStore, this._logService, dispatched.channel, dispatched.action.isArchived
+					? { [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }
+					: { [AH_META_IS_ARCHIVED_DB_KEY]: '', [AH_META_AUTO_ARCHIVED_AT_DB_KEY]: '' });
 			}
 		}
 	}

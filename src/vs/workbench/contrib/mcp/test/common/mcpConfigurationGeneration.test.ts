@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { toCopilotMcpServerConfiguration } from '../../../../../platform/mcp/common/mcpCopilotConfiguration.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { McpResourceFormat } from '../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
-import { mcpRemoteServerSchema, mcpStdioServerSchema } from '../../common/mcpConfiguration.js';
+import { mcpRemoteServerSchema, mcpServerSchema, mcpStdioServerSchema } from '../../common/mcpConfiguration.js';
 import { getMcpGenerationSchema, normalizeMcpGeneratedConfiguration } from '../../common/mcpConfigurationGeneration.js';
 
 suite('MCP configuration generation', () => {
@@ -65,7 +65,7 @@ suite('MCP configuration generation', () => {
 
 	test('VS Code output keeps development, sandbox and enterprise OAuth fields', () => {
 		const servers = [
-			{ type: 'stdio', command: 'node', sandboxEnabled: true, dev: { watch: '*.js' }, envFile: '.env' },
+			{ type: 'stdio', command: 'node', sandboxEnabled: true, sandbox: { network: { allowedDomains: ['google.com'] } }, dev: { watch: '*.js' }, envFile: '.env' },
 			{ type: 'sse', url: 'https://example.com', oauth: { clientId: 'client', enterpriseManaged: true } },
 		];
 		const configs = servers.map(server => normalizeMcpGeneratedConfiguration({ type: 'assisted', format: McpResourceFormat.Vscode, name: 'test', server }, McpResourceFormat.Vscode));
@@ -73,6 +73,36 @@ suite('MCP configuration generation', () => {
 			{ ...servers[0], args: undefined, env: undefined, cwd: undefined },
 			{ ...servers[1], type: 'http', transport: 'sse', headers: undefined, dev: undefined },
 		]);
+	});
+
+	test('root sandbox schema permits only deny rules while server sandbox schema permits grants', () => {
+		const root = mcpServerSchema.properties!.sandbox;
+		const server = mcpStdioServerSchema.properties!.sandbox;
+		assert.deepStrictEqual({
+			root: {
+				properties: Object.keys(root.properties!),
+				network: Object.keys(root.properties!.network.properties!),
+				filesystem: Object.keys(root.properties!.filesystem.properties!),
+				additionalProperties: [root.additionalProperties, root.properties!.network.additionalProperties, root.properties!.filesystem.additionalProperties],
+			},
+			server: {
+				network: Object.keys(server.properties!.network.properties!),
+				filesystem: Object.keys(server.properties!.filesystem.properties!),
+			},
+			http: mcpRemoteServerSchema.properties!.sandbox,
+		}, {
+			root: {
+				properties: ['network', 'filesystem'],
+				network: ['deniedDomains'],
+				filesystem: ['denyRead', 'denyWrite'],
+				additionalProperties: [false, false, false],
+			},
+			server: {
+				network: ['allowedDomains', 'deniedDomains'],
+				filesystem: ['denyRead', 'allowWrite', 'denyWrite'],
+			},
+			http: undefined,
+		});
 	});
 
 	test('mapped HTTP manifests stay HTTP and retain their input metadata outside normalization', () => {
