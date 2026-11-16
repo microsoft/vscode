@@ -73,6 +73,9 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 			this._updateFolderLocations();
 		} else {
 			this._contextService.getCompleteWorkspace().then(workspace => {
+				if (this._store.isDisposed) {
+					return;
+				}
 				this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this.isWorkspaceTrusted());
 				this._updateFolderLocations();
 			});
@@ -153,7 +156,7 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 	 * A newer resolve of a folder cancels the one in flight, and results of cancelled resolves are dropped.
 	 */
 	private _updateFolderLocations(): void {
-		if (!this._contextService.hasWorkspaceData()) {
+		if (this._store.isDisposed || !this._contextService.hasWorkspaceData()) {
 			return;
 		}
 		const workspace = this._contextService.getWorkspace();

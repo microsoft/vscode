@@ -237,6 +237,23 @@ suite('MainThreadWorkspace', () => {
 			assert.deepStrictEqual(pushed, []);
 		});
 
+		test('a workspace completing after dispose starts no resolve', async () => {
+			const complete = new DeferredPromise<ReturnType<typeof testWorkspace>>();
+			const { requests, pushed, mtw } = setup2({
+				getWorkspace: () => testWorkspace(folder),
+				hasWorkspaceData: () => true,
+				getCompleteWorkspace: () => complete.p,
+				getWorkbenchState: () => WorkbenchState.FOLDER,
+				onDidChangeWorkspaceFolders: Event.None,
+				onDidChangeWorkbenchState: Event.None
+			});
+			mtw.dispose();
+			complete.complete(testWorkspace(folder));
+			await tick();
+
+			assert.deepStrictEqual({ requests: requests.length, pushed }, { requests: 0, pushed: [] });
+		});
+
 		test('a removed and re-added folder does not accept old data', async () => {
 			const removed = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
 			let current = testWorkspace(folder);
