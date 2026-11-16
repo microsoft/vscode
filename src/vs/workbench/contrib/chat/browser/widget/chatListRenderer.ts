@@ -18,7 +18,7 @@ import { ActionRunner, IAction, toAction } from '../../../../../base/common/acti
 import { coalesce, distinct } from '../../../../../base/common/arrays.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { renderScheduledRequestTime } from './chatScheduledRequestTime.js';
+import { renderScheduledRequestAbsoluteTime, renderScheduledRequestTime } from './chatScheduledRequestTime.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { canceledName } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -2397,7 +2397,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		dom.append(header, dom.$('span.codicon.codicon-clock', { 'aria-hidden': 'true' }));
 		const description = dom.append(header, dom.$('span.scheduled-request-description', undefined, element.description));
 		if (element.runAt) {
-			store.add(renderScheduledRequestTime(element.runAt, description, label => description.textContent = label));
+			description.classList.add('scheduled-request-time');
+			dom.clearNode(description);
+			const relative = dom.append(description, dom.$('time.scheduled-request-from-now', { datetime: element.runAt }));
+			const exact = dom.append(description, dom.$('time.scheduled-request-exact', { datetime: element.runAt, 'aria-hidden': 'true' }));
+			store.add(renderScheduledRequestTime(element.runAt, relative, label => relative.textContent = label));
+			store.add(renderScheduledRequestAbsoluteTime(element.runAt, exact, label => exact.textContent = label));
 		}
 		const toolbarContainer = dom.append(templateData.rowContainer, dom.$('.request-hover.scheduled-request-actions'));
 		store.add(toDisposable(() => toolbarContainer.remove()));
@@ -2458,20 +2463,28 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			dom.append(container, dom.$('.scheduled-request-attachments', undefined,
 				localize('scheduledRequestAttachments', "Attachments: {0}", retainedAttachments.join(', '))));
 		}
-		const buttons = store.add(new ButtonBar(dom.append(container, dom.$('.scheduled-request-editor-actions'))));
-		const time = buttons.addButton({ ...defaultButtonStyles, secondary: true, supportIcons: true, title: editing.description });
-		time.element.classList.add('scheduled-request-edit-time');
-		store.add(renderScheduledRequestTime(editing.runAt, time.element, label => {
-			time.label = `$(clock) ${label}`;
-			time.element.setAttribute('aria-label', localize('scheduledRequestEditTime', "Change send time, {0}", label));
-		}));
-		const save = buttons.addButton({ ...defaultButtonStyles });
-		save.label = localize('scheduledRequestSave', "Save");
-		const cancel = buttons.addButton({ ...defaultButtonStyles, secondary: true });
+		const actions = dom.append(container, dom.$('.scheduled-request-editor-actions'));
+		const buttons = store.add(new ButtonBar(actions));
+		const cancel = buttons.addButton({ secondary: true });
 		cancel.label = localize('scheduledRequestCancelEdit', "Cancel");
+		cancel.element.classList.add('scheduled-request-cancel');
+		const save = buttons.addButton({ ...defaultButtonStyles, supportIcons: true, title: true });
+		save.element.classList.add('scheduled-request-save-label');
+		const time = buttons.addButton({ ...defaultButtonStyles, supportIcons: true, title: localize('scheduledRequestChangeTime', "Change Send Time") });
+		time.label = '$(chevron-down)';
+		time.element.classList.add('scheduled-request-edit-time');
+		time.element.setAttribute('aria-haspopup', 'dialog');
+		const split = dom.append(actions, dom.$('.scheduled-request-save'));
+		split.append(save.element, dom.$('span.scheduled-request-save-separator', { 'aria-hidden': 'true' }), time.element);
+		store.add(renderScheduledRequestAbsoluteTime(editing.runAt, save.element, label => {
+			const sendLabel = localize('scheduledRequestSendAt', "Send {0}", label);
+			save.label = sendLabel;
+			save.setAriaLabel(sendLabel);
+			time.setAriaLabel(localize('scheduledRequestEditTime', "Change send time, {0}", label));
+		}));
 		let busy = false;
 		const saveAction = toAction({
-			id: 'scheduledRequest.save', label: save.label,
+			id: 'scheduledRequest.save', label: localize('scheduledRequestSave', "Save"),
 			run: async () => {
 				if (busy) {
 					return;
