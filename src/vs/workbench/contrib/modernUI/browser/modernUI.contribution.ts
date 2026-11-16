@@ -17,6 +17,7 @@ import { COMPACT_NOTIFICATION_ROW_HEIGHT, DEFAULT_NOTIFICATION_ROW_HEIGHT, setNo
 import { DEFAULT_PANE_HEADER_SIZE, setGlobalPaneHeaderSize } from '../../../../base/browser/ui/splitview/paneview.js';
 import { CONNECTED_EDITOR_TABS_CLASS } from '../../../browser/parts/editor/editor.js';
 import { LayoutDensityMenu } from '../../../browser/actions/layoutDensityActions.js';
+import { NamedLayoutsEnabledContext } from '../../../services/namedLayouts/common/namedLayouts.js';
 
 /** Reduced scrollbar size (px) applied when Modern UI is on. */
 const MODERN_UI_SCROLLBAR_SIZE = 8;
@@ -69,7 +70,8 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	submenu: LayoutDensityMenu,
 	group: '2_configuration',
 	order: 8,
-	when: ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI}`, true),
+	// While named layouts are enabled, the layouts menu in the title bar has the layout density
+	when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI}`, true), NamedLayoutsEnabledContext.negate()),
 });
 
 /**

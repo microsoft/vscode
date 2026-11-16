@@ -25,6 +25,8 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { DEFAULT_NAMED_LAYOUT_ID, INamedLayout, INamedLayoutsService, NAMED_LAYOUTS_ENABLED_SETTING, NamedLayoutsEnabledContext } from '../../../services/namedLayouts/common/namedLayouts.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ToggleSidebarVisibilityAction } from '../../../browser/actions/layoutActions.js';
+import { LayoutDensityMenu } from '../../../browser/actions/layoutDensityActions.js';
+import { LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { ToggleAuxiliaryBarAction } from '../../../browser/parts/auxiliarybar/auxiliaryBarActions.js';
 import { TogglePanelAction } from '../../../browser/parts/panel/panelActions.js';
 import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, LayoutModeContext, PanelVisibleContext, SideBarVisibleContext } from '../../../common/contextkeys.js';
@@ -139,6 +141,16 @@ MenuRegistry.appendMenuItems([
 			group: NamedLayoutsMenuGroup.Manage,
 			order: 2,
 			when: NamedLayoutsEnabledContext
+		}
+	}, {
+		// Moved here from the Manage menu while named layouts are enabled
+		id: MenuId.NamedLayoutsSubmenu,
+		item: {
+			title: localize('layoutDensity', "Layout Density"),
+			submenu: LayoutDensityMenu,
+			group: NamedLayoutsMenuGroup.Manage,
+			order: 3,
+			when: ContextKeyExpr.and(NamedLayoutsEnabledContext, ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI}`, true))
 		}
 	}
 ]);
@@ -609,7 +621,7 @@ registerAction2(class ResetActiveLayoutAction extends Action2 {
 			menu: {
 				id: MenuId.NamedLayoutsSubmenu,
 				group: NamedLayoutsMenuGroup.Manage,
-				order: 3,
+				order: 4,
 				when: ContextKeyExpr.and(NamedLayoutsEnabledContext, ActiveNamedLayoutResettableContext)
 			}
 		});
@@ -636,7 +648,7 @@ registerAction2(class DeleteActiveLayoutAction extends Action2 {
 			menu: {
 				id: MenuId.NamedLayoutsSubmenu,
 				group: NamedLayoutsMenuGroup.Manage,
-				order: 4,
+				order: 5,
 				when: ContextKeyExpr.and(NamedLayoutsEnabledContext, ActiveNamedLayoutDeletableContext)
 			}
 		});
