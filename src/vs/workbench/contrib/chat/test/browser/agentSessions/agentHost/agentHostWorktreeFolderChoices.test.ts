@@ -9,7 +9,10 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { MenuItemAction } from '../../../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuId, MenuItemAction, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
+import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { ContextKeyExpression } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -18,6 +21,10 @@ import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState 
 import { IAgentHostNewSessionFolderService } from '../../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostWorktreeFolderChoices } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeFolderChoices.js';
+import { OpenAgentHostFolderPickerAction } from '../../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
+import { AgentHostNewWorktreeToggle } from '../../../../browser/agentSessions/agentHost/agentHostNewWorktreeToggle.js';
+import { IChatWidget } from '../../../../browser/chat.js';
+import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { IAgentSessionsService } from '../../../../browser/agentSessions/agentSessionsService.js';
 import { AgentHostWorktreeSessionSources, IAgentHostWorktreeSessionSources } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSessionSources.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
@@ -37,6 +44,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		const changes: string[] = [];
 		const listed = { locations: options.listed ?? [feature, other] };
 		const onDidChangeSessions = store.add(new Emitter<void>());
+		const onDidChangeProvisional = store.add(new Emitter<URI>());
 		/** Changing the session's folder resets its configuration until it applies a change, as the provisional service does. */
 		let configReset = false;
 		let noWorkspace = false;
@@ -64,7 +72,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 			setNoWorkspace: () => { changes.push('no workspace'); configReset = true; noWorkspace = true; },
 		}));
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({
-			onDidChange: Event.None,
+			onDidChange: onDidChangeProvisional.event,
 			getResolvedConfig: () => configReset ? undefined : ({ schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } }, values: config.values }),
 			getPreparedSessionConfig: () => undefined,
 			applyConfigChange: async (_resource: URI, _provider: string, workingDirectory: URI | undefined, partial: Record<string, unknown>) => {
@@ -72,6 +80,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 				configDirectories.push(workingDirectory?.path ?? 'none');
 				config.values = { ...config.values, ...partial };
 				configReset = false;
+				onDidChangeProvisional.fire(session);
 				return session;
 			},
 		}));
@@ -81,7 +90,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		await new Promise<void>(resolve => setTimeout(resolve, 0));
 		const actions = (selected: URI) => choices.getActions(upcastPartial<MenuItemAction>({}), selected, () => { });
 		const items = (selected: URI) => actions(selected).map(action => `${action.category?.label ? `[${action.category.label}] ` : ''}${action.label}${action.description ? ` (${action.description})` : ''}${action.checked ? ' *' : ''}`);
-		return { choices, actions, items, changes, configDirectories, listed, onDidChangeSessions };
+		return { choices, actions, items, changes, configDirectories, listed, onDidChangeSessions, instantiationService };
 	}
 
 	test('offers the folder and New Worktree, each with what it does, then under Worktrees the worktrees, with where the folder is now first', async () => {
@@ -252,6 +261,48 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		assert.deepStrictEqual({ before, after: items(primary) }, {
 			before: ['vscode (Current) *', 'New Worktree', '[Worktrees] feature'],
 			after: ['vscode (Current) *', 'New Worktree', '[Worktrees] feature', '[Worktrees] other'],
+		});
+	}));
+
+	test('offers New Worktree as a checkbox instead of the folder chip while the folder has no worktrees, and the chip once it has one', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const shownIn = async (options: { readonly sessionsList?: boolean }) => {
+			const { listed, onDidChangeSessions, instantiationService, changes } = await createChoices({ enabled: true, at: primary, listed: [], sessionsList: options.sessionsList });
+			// The chat input's context, where a local agent host's new chat in a window with a single local folder is
+			const contextKeyService = store.add(new ContextKeyService(instantiationService.get(IConfigurationService)));
+			contextKeyService.createKey(ChatContextKeys.enabled.key, true);
+			contextKeyService.createKey(ChatContextKeys.chatIsAgentHostSession.key, true);
+			contextKeyService.createKey(ChatContextKeys.chatSessionType.key, SessionType.AgentHostCopilot);
+			contextKeyService.createKey('workbenchState', 'folder');
+			contextKeyService.createKey('remoteName', '');
+			const widget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<IChatWidget['viewModel']>({ sessionResource: session }), onDidChangeViewModel: Event.None, scopedContextKeyService: contextKeyService });
+			store.add(instantiationService.createInstance(AgentHostNewWorktreeToggle, widget));
+			await new Promise<void>(resolve => setTimeout(resolve, 0));
+			const shown = () => MenuRegistry.getMenuItems(MenuId.ChatInputSecondary).filter(isIMenuItem)
+				.filter(item => (item.command.id === OpenAgentHostFolderPickerAction.ID || item.command.id === 'workbench.action.chat.toggleAgentHostNewWorktree') && contextKeyService.contextMatchesRules(item.when))
+				.map(item => `${typeof item.command.title === 'string' ? item.command.title : item.command.title.value}${item.command.id === OpenAgentHostFolderPickerAction.ID ? '' : contextKeyService.contextMatchesRules(item.command.toggled as ContextKeyExpression) ? ' [x]' : ' [ ]'}`);
+			const toggle = () => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.action.chat.toggleAgentHostNewWorktree')!.handler(accessor, { widget }));
+			return { shown, toggle, changes, listed, onDidChangeSessions };
+		};
+
+		const list = await shownIn({});
+		const withoutWorktrees = list.shown();
+		await list.toggle();
+		const checked = list.shown();
+		await list.toggle();
+		const unchecked = { shown: list.shown(), changes: [...list.changes] };
+		list.listed.locations = [feature];
+		list.onDidChangeSessions.fire();
+		await new Promise<void>(resolve => setTimeout(resolve, 1000));
+		const withWorktree = list.shown();
+		// No Workspace, which only the chip offers, keeps the chip while the Chat view lists sessions
+		const withNoWorkspace = (await shownIn({ sessionsList: true })).shown();
+
+		assert.deepStrictEqual({ withoutWorktrees, checked, unchecked, withWorktree, withNoWorkspace }, {
+			withoutWorktrees: ['New Worktree [ ]'],
+			checked: ['New Worktree [x]'],
+			unchecked: { shown: ['New Worktree [ ]'], changes: ['isolation worktree', 'isolation folder'] },
+			withWorktree: ['Folder'],
+			withNoWorkspace: ['Folder'],
 		});
 	}));
 });

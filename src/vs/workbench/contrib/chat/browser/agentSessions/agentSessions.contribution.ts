@@ -20,6 +20,7 @@ import { OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAc
 import { AgentHostPermissionUiContribution } from './agentHost/agentHostPermissionUiContribution.js';
 import { registerExternalSessionsFilterMenu } from './externalSessionsFilterMenu.js';
 import './agentHost/agentHostChatInputPicker.contribution.js';
+import './agentHost/agentHostNewWorktreeToggle.js';
 import './agentHost/agentHostModeSynchronizer.js';
 import { ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';

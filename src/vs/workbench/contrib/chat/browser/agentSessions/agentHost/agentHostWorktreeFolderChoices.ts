@@ -146,6 +146,23 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 	}
 
 	/**
+	 * Whether the chip would offer only the folder and New Worktree: the folder has no worktrees, and No Workspace is neither
+	 * offered nor chosen. A New Worktree checkbox then stands in for the chip.
+	 */
+	offersOnlyNewWorktree(): boolean {
+		return this.isActive()
+			&& !!this._isolation()?.worktree
+			&& !this._choices().some(choice => choice.kind === 'worktree')
+			&& !this.isNoWorkspaceAvailable()
+			&& !this.isNoWorkspaceSelected();
+	}
+
+	/** Has the session work in a new worktree of its folder, or in the folder itself, as New Worktree and the folder do. */
+	setNewWorktree(worktree: boolean): Promise<void> {
+		return this._setIsolation(worktree);
+	}
+
+	/**
 	 * The chip for the selected `folder`: by its icon, a folder or a worktree, and its name, or New Worktree by that name, with
 	 * what it is for screen readers and on hover. The name shows at once; only the icon settles once git proves a worktree.
 	 */

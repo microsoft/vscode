@@ -9,9 +9,9 @@ import { ClaudeSessionConfigKey } from '../../../../../../platform/agentHost/com
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { IsSessionsWindowContext, RemoteNameContext, WorkbenchStateContext, WorkspaceFolderCountContext } from '../../../../../common/contextkeys.js';
+import { IsSessionsWindowContext, WorkspaceFolderCountContext } from '../../../../../common/contextkeys.js';
 import { ChatContextKeys, ChatContextKeyExprs } from '../../../common/actions/chatContextKeys.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { agentHostWorktreeChoicesWhen, ChatAgentHostNewWorktreeToggleVisible } from './agentHostNewWorktreeToggle.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 
 const modeAndPermissionsWhen = ContextKeyExpr.and(
@@ -73,17 +73,9 @@ export class OpenAgentHostFolderPickerAction extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 1.1,
-				// With worktree support, a window with a single local folder offers New Worktree, the folder and its worktrees
-				when: ContextKeyExpr.and(
-					ChatContextKeys.enabled,
-					ChatContextKeyExprs.isAgentHostSession,
-					// Of the local agent host only: a remote agent host's session works where its own host says
-					ContextKeyExpr.regex(ChatContextKeys.chatSessionType.key, /^agent-host-/),
-					ContextKeyExpr.equals(`config.${ChatConfiguration.EditorWindowEnableWorktree}`, true),
-					WorkbenchStateContext.isEqualTo('folder'),
-					RemoteNameContext.isEqualTo(''),
-					IsSessionsWindowContext.negate(),
-				),
+				// With worktree support, a window with a single local folder offers New Worktree, the folder and its worktrees;
+				// while the folder has no worktrees, a New Worktree checkbox stands in for it
+				when: ContextKeyExpr.and(agentHostWorktreeChoicesWhen, ChatAgentHostNewWorktreeToggleVisible.negate()),
 			}],
 		});
 	}
