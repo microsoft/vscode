@@ -703,12 +703,10 @@ export class ChatView extends AbstractChatView {
 		}));
 
 		// Floating status pills above the input.
-		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar, false, () => this._widget.focusInput(), options.session));
-		if (options.input?.workingSet) {
-			const workingSet = this._register(scopedInstantiationService.createInstance(AgentHostSessionWorkingSet, this._widget, { workingSetOnly: true }));
-			this._chatPills.setChangesHidden(workingSet.changesPillHidden);
-			this._chatPills.setChangesContextMenuActions(workingSet.getChangesPillContextMenuActions);
-		}
+		// Beside an input that shows the session's changes as its working set, the Changes pill hides while it shows them
+		const workingSet = options.input?.workingSet ? this._register(scopedInstantiationService.createInstance(AgentHostSessionWorkingSet, this._widget, { workingSetOnly: true })) : undefined;
+		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar, false, () => this._widget.focusInput(), options.session,
+			workingSet && { hidden: workingSet.changesPillHidden, contextMenuActions: workingSet.getChangesPillContextMenuActions }));
 		this._register(this._widget.registerBackgroundActivityPillSections(this._chatPills.backgroundActivityPillSections));
 		this._register(this._widget.inputEditor.onKeyDown(event => {
 			if (isFocusChatPillsKeyDown(event) && this._chatPills.focusFirst()) {

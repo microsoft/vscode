@@ -411,6 +411,14 @@ class CopyFeedbackActionCache extends Disposable {
 }
 
 /** A toolbar for session metadata, active-turn status, and background activity. */
+/** How a {@link SessionChatInputToolbar} shows its Changes pill, such as beside an input that shows the session's changes as its working set. */
+export interface ISessionChatInputToolbarChangesOptions {
+	/** Hides the Changes pill while it is `true`, such as while the input shows the session's changes as its working set. */
+	readonly hidden?: IObservable<boolean>;
+	/** Actions the context menu of the Changes pill adds, such as to show the session's changes as the working set again. */
+	readonly contextMenuActions?: () => IAction[];
+}
+
 export class SessionChatInputToolbar extends Disposable {
 
 	readonly element: HTMLElement;
@@ -419,9 +427,6 @@ export class SessionChatInputToolbar extends Disposable {
 	readonly onDidChangeVisibility: Event<boolean>;
 	readonly activityBarActions: IObservable<readonly IAction[]>;
 	private readonly _inputPills: ChatInputPills;
-	/** Whether the Changes pill hides, such as while the input shows the session's changes as its working set. */
-	private readonly _changesHidden = observableValue<IObservable<boolean>>(this, constObservable(false));
-	private _changesContextMenuActions: () => IAction[] = () => [];
 	private _inputElement: HTMLElement | undefined;
 
 	/** Sentinel distinguishing "no override" from an explicit `undefined` session. */
@@ -477,6 +482,7 @@ export class SessionChatInputToolbar extends Disposable {
 		focusFallback: (() => void) | undefined,
 		/** The session of the pane that hosts the chat, such as a chat editor's session scoped to its chat. */
 		private readonly _paneSession: IObservable<ISession | undefined> | undefined,
+		changesOptions: ISessionChatInputToolbarChangesOptions | undefined,
 		@IClipboardService clipboardService: IClipboardService,
 		@ICommandService commandService: ICommandService,
 		@IGitHubService gitHubService: IGitHubService,
@@ -796,7 +802,7 @@ export class SessionChatInputToolbar extends Disposable {
 						chatResource: target !== 'main' ? chat?.resource : undefined,
 					}, target !== 'main' ? target.mainPart.activeGroup : undefined);
 				},
-				getContextMenuPrimaryActions: () => this._changesContextMenuActions(),
+				getContextMenuPrimaryActions: () => changesOptions?.contextMenuActions?.() ?? [],
 			},
 			pullRequests: pullRequestData,
 			issues: {
@@ -818,7 +824,7 @@ export class SessionChatInputToolbar extends Disposable {
 			compact,
 			enabled: pillsVisible,
 			sources: derived(reader => {
-				const changesHidden = this._changesHidden.read(reader).read(reader);
+				const changesHidden = changesOptions?.hidden?.read(reader) ?? false;
 				return sources.sources
 					.filter(source => !changesHidden || source.kind !== SessionChatPillKind.Changes)
 					.flatMap(source => source.kind === SessionChatPillKind.Artifacts ? [...integratedSources.read(reader), source] : [source]);
@@ -855,16 +861,6 @@ export class SessionChatInputToolbar extends Disposable {
 	 * changes and status, resolving the owning session for provider gating and the
 	 * open-changes action. Clears any explicit {@link setSession} override.
 	 */
-	/** Hides the Changes pill while `hidden`, such as while the input shows the session's changes as its working set. */
-	setChangesHidden(hidden: IObservable<boolean>): void {
-		this._changesHidden.set(hidden, undefined);
-	}
-
-	/** Adds `actions` to the context menu of the Changes pill, such as to show the session's changes as the working set again. */
-	setChangesContextMenuActions(actions: () => IAction[]): void {
-		this._changesContextMenuActions = actions;
-	}
-
 	setChat(chat: IChat | undefined): void {
 		this.setDebugData(undefined);
 		this._sessionOverride.set('unset', undefined);
