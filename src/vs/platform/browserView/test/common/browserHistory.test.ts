@@ -393,4 +393,28 @@ suite('BrowserHistoryStore', () => {
 		sub.dispose();
 		store.dispose();
 	});
+
+	test('getFavicon returns matching favicon by exact URL or origin and returns undefined when unknown', () => {
+		const store = new BrowserHistoryStore();
+		assert.strictEqual(store.getFavicon('http://127.0.0.1:8123/'), undefined);
+
+		store.add('http://127.0.0.1:8123/', 'Local Page', 'data:image/svg+xml;base64,RED_SQUARE');
+		store.add('http://other.example.com/', 'Other Page', 'data:image/png;base64,OTHER_ICON');
+
+		// Exact match
+		assert.strictEqual(store.getFavicon('http://127.0.0.1:8123/'), 'data:image/svg+xml;base64,RED_SQUARE');
+		assert.strictEqual(store.getFavicon('http://other.example.com/'), 'data:image/png;base64,OTHER_ICON');
+
+		// Unknown host
+		assert.strictEqual(store.getFavicon('http://favicon-recovery-test.invalid/'), undefined);
+
+		// Same origin fallback
+		assert.strictEqual(store.getFavicon('http://127.0.0.1:8123/subpage'), 'data:image/svg+xml;base64,RED_SQUARE');
+
+		// Newer entry updates favicon
+		store.add('http://127.0.0.1:8123/', 'Local Page Updated', 'data:image/svg+xml;base64,BLUE_SQUARE');
+		assert.strictEqual(store.getFavicon('http://127.0.0.1:8123/'), 'data:image/svg+xml;base64,BLUE_SQUARE');
+
+		store.dispose();
+	});
 });

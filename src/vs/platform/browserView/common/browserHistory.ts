@@ -316,6 +316,35 @@ export class BrowserHistoryStore extends Disposable {
 		this.favicons.clear();
 	}
 
+	getFavicon(url: string): string | undefined {
+		// 1. Try exact URL match first (newest entry first)
+		for (let i = this.entries.items.length - 1; i >= 0; i--) {
+			const entry = this.entries.items[i];
+			if (entry.url === url && entry.icon) {
+				const favicon = this.favicons.get(entry.icon);
+				if (favicon) {
+					return favicon;
+				}
+			}
+		}
+
+		// 2. Fall back to matching origin (newest entry first)
+		const targetOrigin = URL.parse(url)?.origin;
+		if (targetOrigin) {
+			for (let i = this.entries.items.length - 1; i >= 0; i--) {
+				const entry = this.entries.items[i];
+				if (entry.icon && URL.parse(entry.url)?.origin === targetOrigin) {
+					const favicon = this.favicons.get(entry.icon);
+					if (favicon) {
+						return favicon;
+					}
+				}
+			}
+		}
+
+		return undefined;
+	}
+
 	private _handleFor(id: number): IBrowserHistoryItemHandle {
 		return {
 			id,

@@ -109,6 +109,50 @@ suite('BrowserViewModel', () => {
 			titleAfterDisposal: 'Example'
 		});
 	});
+
+	test('restores favicon from history on navigating back to a known origin and clears when navigating to an unknown host', () => {
+		const eventStore = store.add(new DisposableStore());
+		const emitters = createBrowserViewEventEmitters(eventStore);
+		const model = store.add(new BrowserViewModel(
+			'page', { windowId: 1 }, { type: 'user' }, undefined,
+			createInitialState(BrowserViewStorageScope.Global, []),
+			upcastPartial<IBrowserViewService>({
+				destroyBrowserView: async () => { },
+				setBrowserZoomIndex: async () => { },
+			}),
+			emitters,
+			upcastPartial<IBrowserViewWorkbenchService>({ isSharingAvailable: true, onDidChangeSharingAvailable: Event.None }),
+			upcastPartial<ITelemetryService>({}),
+			upcastPartial<IDialogService>({}),
+			upcastPartial<IStorageService>({}),
+			upcastPartial<IBrowserZoomService>({ getEffectiveZoomIndex: () => browserZoomDefaultIndex, onDidChangeZoom: Event.None }),
+			upcastPartial<IAgentNetworkFilterService>({ isEnabled: () => false, onDidChange: Event.None }),
+			upcastPartial<ILogService>({}),
+		));
+		eventStore.add(Event.once(model.onWillDispose)(() => eventStore.dispose()));
+
+		// 1. Initial navigation to local page and receive favicon
+		emitters.onDidNavigate.fire({
+			url: 'http://127.0.0.1:8123/', title: 'Local', canGoBack: false, canGoForward: false, certificateError: undefined
+		});
+		emitters.onDidChangeFavicon.fire({ favicon: 'data:image/svg+xml;base64,RED_SQUARE' });
+		assert.strictEqual(model.favicon, 'data:image/svg+xml;base64,RED_SQUARE');
+
+		// Seed history so it mimics committed navigation with favicon
+		model.history.add('http://127.0.0.1:8123/', 'Local', 'data:image/svg+xml;base64,RED_SQUARE');
+
+		// 2. Navigate to unknown/failed host -> favicon clears
+		emitters.onDidNavigate.fire({
+			url: 'http://favicon-recovery-test.invalid/', title: '', canGoBack: true, canGoForward: false, certificateError: undefined
+		});
+		assert.strictEqual(model.favicon, undefined);
+
+		// 3. Navigate back to local page -> favicon restored from history
+		emitters.onDidNavigate.fire({
+			url: 'http://127.0.0.1:8123/', title: 'Local', canGoBack: false, canGoForward: true, certificateError: undefined
+		});
+		assert.strictEqual(model.favicon, 'data:image/svg+xml;base64,RED_SQUARE');
+	});
 });
 
 function createInitialState(storageScope: BrowserViewStorageScope, audiences: IBrowserViewAudience[]): IBrowserViewState {

@@ -21,6 +21,7 @@ const FLUSH_INTERVAL_MS = 2000;
 export interface IBrowserSessionHistory {
 	readonly storageKeys: IBrowserViewStorageKeys;
 	add(url: string, title: string, favicon?: string, userInitiated?: boolean): IBrowserHistoryItemHandle;
+	getFavicon(url: string): string | undefined;
 	/**
 	 * Delete history entries. Pass `undefined` to wipe everything (entries
 	 * and favicons); otherwise only the listed entry ids are removed.
@@ -84,6 +85,10 @@ export class BrowserSessionHistory extends Disposable implements IBrowserSession
 
 	add(url: string, title: string, favicon?: string, userInitiated?: boolean): IBrowserHistoryItemHandle {
 		return this._historyStore.add(url, title, favicon, userInitiated);
+	}
+
+	getFavicon(url: string): string | undefined {
+		return this._historyStore.getFavicon(url);
 	}
 
 	delete(entryIds?: readonly number[]): void {

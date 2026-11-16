@@ -379,7 +379,7 @@ export class BrowserView extends Disposable {
 			const host = URL.parse(event.url)?.host;
 			const currHost = URL.parse(this.webContents.getURL())?.host;
 			if (host !== currHost) {
-				this._lastFavicon = undefined;
+				this._lastFavicon = this.session.history.getFavicon(event.url);
 			}
 		});
 		webContents.on('will-redirect', event => {
@@ -395,6 +395,14 @@ export class BrowserView extends Disposable {
 		});
 
 		const fireNavigationEvent = (url: string) => {
+			if (!this._lastFavicon) {
+				const knownFavicon = this.session.history.getFavicon(url);
+				if (knownFavicon) {
+					this._lastFavicon = knownFavicon;
+					this._onDidChangeFavicon.fire({ favicon: this._lastFavicon });
+				}
+			}
+
 			this._onDidNavigate.fire({
 				url,
 				title: webContents.getTitle(),
@@ -434,6 +442,7 @@ export class BrowserView extends Disposable {
 					// -200 - -220 are the range of certificate errors in Chromium.
 					certificateError: errorCode <= -200 && errorCode >= -220 ? this.session.trust.getCertificateError(validatedURL) : undefined
 				};
+				this._lastFavicon = undefined;
 
 				fireLoadingEvent(false);
 				this._onDidNavigate.fire({

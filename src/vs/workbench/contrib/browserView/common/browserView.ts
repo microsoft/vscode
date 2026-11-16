@@ -805,9 +805,9 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		}));
 
 		this._register(this.onDidNavigate(e => {
-			// Clear favicon on navigation to a different host
+			// Clear favicon on navigation to a different host, or restore from known history
 			if (URL.parse(e.url)?.host !== URL.parse(this._url)?.host) {
-				this._favicon = undefined;
+				this._favicon = this.history.getFavicon(e.url);
 			}
 
 			this._zoomHost = parseZoomHost(e.url);
