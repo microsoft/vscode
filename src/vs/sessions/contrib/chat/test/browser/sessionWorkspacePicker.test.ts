@@ -8879,31 +8879,6 @@ suite('WorkspacePicker - Allowed folders', () => {
 		});
 	});
 
-	test('offers No Workspace by that name before the window\'s folders, also beside its one folder, and names the current choice by what it is', () => {
-		const noWorkspace = { selected: false };
-		const { picker, allowedFolders, snapshot } = createPicker(['/local/vscode'], noWorkspace);
-		picker.setSelectedWorkspace(URI.file('/local/vscode'), { fireEvent: false });
-		const container = document.createElement('div');
-		picker.renderCategoryTriggers(container, [{ label: 'Workspace', ariaLabel: 'Choose a workspace', icon: Codicon.project, reflectsWorkspace: true, attachesContext: false }]);
-		const slot = container.querySelector<HTMLElement>('.sessions-workspace-picker-trigger')!;
-		const trigger = slot.querySelector<HTMLElement>('[role="button"]')!;
-		const triggerState = () => ({ hidden: slot.hidden, readOnly: trigger.getAttribute('aria-disabled'), popup: trigger.getAttribute('aria-haspopup'), ariaLabel: trigger.getAttribute('aria-label') });
-		const oneFolder = { items: snapshot().items, trigger: triggerState() };
-		picker.getItems().find(item => item.label === 'No Workspace')!.item!.run!();
-		const oneFolderNoWorkspace = { trigger: triggerState(), label: trigger.querySelector('.sessions-chat-dropdown-label')?.textContent, hover: picker.getSelectedLocationDescription() };
-		allowedFolders.set([URI.file('/local/vscode'), URI.file('/local/tools')], undefined);
-
-		assert.deepStrictEqual({ oneFolder, oneFolderNoWorkspace, multiRoot: snapshot().items }, {
-			oneFolder: { items: ['No Workspace', '', '/local/vscode'], trigger: { hidden: false, readOnly: null, popup: 'listbox', ariaLabel: 'Workspace: local/vscode' } },
-			oneFolderNoWorkspace: {
-				trigger: { hidden: false, readOnly: null, popup: 'listbox', ariaLabel: 'No workspace: start the session in a temporary directory' },
-				label: 'No Workspace',
-				hover: 'No workspace: start the session in a temporary directory',
-			},
-			multiRoot: ['No Workspace', '', '/local/vscode', '/local/tools'],
-		});
-	});
-
 	test('offers the linked checkouts of the window\'s folder by their branch, and New Worktree, which the trigger shows until a folder is picked again', async () => {
 		const newWorktree = { selected: false };
 		const { picker } = createPicker(['/local/vscode', '/local/vscode.worktrees/a'], undefined, {
@@ -8933,7 +8908,7 @@ suite('WorkspacePicker - Allowed folders', () => {
 	});
 
 	test('lays out its choices with details as the Agents window\'s isolation picker does, and its worktrees aligned with them', async () => {
-		const { picker, shown } = createPicker(['/local/vscode.worktrees/b', '/local/vscode'], { selected: false }, {
+		const { picker, shown } = createPicker(['/local/vscode.worktrees/b', '/local/vscode'], undefined, {
 			getAllowedFolderPresentation: folderUri => folderUri.path === '/local/vscode'
 				? { kind: 'folder', current: true }
 				: { label: 'b', description: 'feature-b', icon: Codicon.gitBranchCheckout, kind: 'worktree', current: false },
@@ -8973,15 +8948,16 @@ suite('WorkspacePicker - Allowed folders', () => {
 			twoLine: twoLine.map(row => ({ ...row, title: { left: row.title?.left, top: row.title?.top } })),
 			worktree: { iconSize: worktree.iconSize, titleLeft: worktree.title?.left },
 		}, {
-			twoLine: [isolation, isolation, isolation].map(row => ({ ...row, title: { left: row.title?.left, top: row.title?.top } })),
+			// The folder and New Worktree
+			twoLine: [isolation, isolation].map(row => ({ ...row, title: { left: row.title?.left, top: row.title?.top } })),
 			worktree: { iconSize: isolation.iconSize, titleLeft: isolation.title?.left },
 		});
 	});
 
-	test('offers No Workspace, the window\'s folder and New Worktree first, each with what it does below its name and without a check mark, then under Worktrees the worktrees, with the current one first, described as current', async () => {
-		const noWorkspace = { selected: false };
+	test('offers the window\'s folder and New Worktree first, each with what it does below its name and without a check mark, never No Workspace, then under Worktrees the worktrees, with the current one first, described as current', async () => {
 		let current = '/local/vscode.worktrees/b';
-		const { picker } = createPicker(['/local/vscode.worktrees/b', '/local/vscode', '/local/vscode.worktrees/a'], noWorkspace, {
+		// Also where the composer offers No Workspace, which an editor window's composer does not show beside its folders
+		const { picker } = createPicker(['/local/vscode.worktrees/b', '/local/vscode', '/local/vscode.worktrees/a'], { selected: false }, {
 			getAllowedFolderPresentation: folderUri => folderUri.path === '/local/vscode'
 				? { kind: 'folder', current: current === folderUri.path }
 				: { label: folderUri.path.split('/').pop(), description: `feature-${folderUri.path.split('/').pop()}`, icon: Codicon.gitBranchCheckout, kind: 'worktree', current: current === folderUri.path },
@@ -9002,11 +8978,11 @@ suite('WorkspacePicker - Allowed folders', () => {
 		const checkMarks = actions.filter(item => item.group?.icon?.id === Codicon.check.id).length;
 
 		assert.deepStrictEqual({ atWorktree, ariaLabels, atFolder, details, checkMarks }, {
-			atWorktree: ['No Workspace', 'local/vscode', 'New Worktree', '--- Worktrees', 'b (Current) *', 'a (feature-a)'],
+			atWorktree: ['local/vscode', 'New Worktree', '--- Worktrees', 'b (Current) *', 'a (feature-a)'],
 			// Screen readers hear where the window's folder is now, apart from the checked choice
 			ariaLabels: [null, 'b, Current', null],
-			atFolder: ['No Workspace', 'local/vscode (Current) *', 'New Worktree', '--- Worktrees', 'b (feature-b)', 'a (feature-a)'],
-			details: ['Start without a backing workspace', 'Works in the folder already on this computer', 'Creates a separate copy for this session', null, null],
+			atFolder: ['local/vscode (Current) *', 'New Worktree', '--- Worktrees', 'b (feature-b)', 'a (feature-a)'],
+			details: ['Works in the folder already on this computer', 'Creates a separate copy for this session', null, null],
 			checkMarks: 0,
 		});
 	});
