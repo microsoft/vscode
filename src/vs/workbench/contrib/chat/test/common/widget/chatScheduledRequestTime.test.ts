@@ -16,7 +16,10 @@ suite('Chat scheduled request time', () => {
 
 	test('names the day first, without seconds or a time zone', () => {
 		// Some ICU versions put a narrow no-break space before AM and PM.
-		const format = (value: Date | string) => formatScheduledRequestTime(value, now).replace(/\s/g, ' ');
+		const format = (value: Date | string) => [
+			formatScheduledRequestTime(value, now),
+			formatScheduledRequestTime(value, now, true),
+		].map(text => text.replace(/\s/g, ' '));
 		assert.deepStrictEqual([
 			format(new Date(2026, 10, 15, 21, 0, 45)),
 			format(new Date(2026, 10, 16, 9, 0)),
@@ -25,12 +28,12 @@ suite('Chat scheduled request time', () => {
 			format(new Date(2027, 0, 4, 9, 0)),
 			format('not a date'),
 		], [
-			'Today 9:00 PM',
-			'Tomorrow 9:00 AM',
-			'Fri 9:00 AM',
-			'Nov 24, 9:00 AM',
-			'Jan 4, 2027, 9:00 AM',
-			'Time unavailable',
+			['Today 9:00 PM', 'Today at 9:00 PM'],
+			['Tomorrow 9:00 AM', 'Tomorrow at 9:00 AM'],
+			['Fri 9:00 AM', 'Fri at 9:00 AM'],
+			['Nov 24, 9:00 AM', 'Nov 24 at 9:00 AM'],
+			['Jan 4, 2027, 9:00 AM', 'Jan 4, 2027 at 9:00 AM'],
+			['Time unavailable', 'Time unavailable'],
 		]);
 	});
 

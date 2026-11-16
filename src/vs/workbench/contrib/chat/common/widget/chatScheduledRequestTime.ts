@@ -20,7 +20,7 @@ function toTime(value: string | number | Date | undefined): number {
  * A scheduled send time, day first and without seconds: "Today 3:00 PM", "Tomorrow 9:00 AM",
  * "Mon 9:00 AM" within the week, then "Nov 24, 9:00 AM", with the year when it is not this year's.
  */
-export function formatScheduledRequestTime(value: string | number | Date | undefined, now: number = Date.now()): string {
+export function formatScheduledRequestTime(value: string | number | Date | undefined, now: number = Date.now(), includeAt = false): string {
 	const time = toTime(value);
 	if (!Number.isFinite(time)) {
 		return localize('scheduledRequestTime.unavailable', "Time unavailable");
@@ -28,16 +28,25 @@ export function formatScheduledRequestTime(value: string | number | Date | undef
 	const clock = clockFormat.value.format(time);
 	const days = localDay(time) - localDay(now);
 	if (days === 0) {
-		return localize('scheduledRequestTime.today', "Today {0}", clock);
+		return includeAt
+			? localize('scheduledRequestTime.todayAt', "Today at {0}", clock)
+			: localize('scheduledRequestTime.today', "Today {0}", clock);
 	}
 	if (days === 1) {
-		return localize('scheduledRequestTime.tomorrow', "Tomorrow {0}", clock);
+		return includeAt
+			? localize('scheduledRequestTime.tomorrowAt', "Tomorrow at {0}", clock)
+			: localize('scheduledRequestTime.tomorrow', "Tomorrow {0}", clock);
 	}
 	if (days > 1 && days < 7) {
-		return localize('scheduledRequestTime.weekday', "{0} {1}", weekdayFormat.value.format(time), clock);
+		return includeAt
+			? localize('scheduledRequestTime.weekdayAt', "{0} at {1}", weekdayFormat.value.format(time), clock)
+			: localize('scheduledRequestTime.weekday', "{0} {1}", weekdayFormat.value.format(time), clock);
 	}
 	const sameYear = new Date(time).getFullYear() === new Date(now).getFullYear();
-	return localize('scheduledRequestTime.date', "{0}, {1}", (sameYear ? dateFormat : dateWithYearFormat).value.format(time), clock);
+	const date = (sameYear ? dateFormat : dateWithYearFormat).value.format(time);
+	return includeAt
+		? localize('scheduledRequestTime.dateAt', "{0} at {1}", date, clock)
+		: localize('scheduledRequestTime.date', "{0}, {1}", date, clock);
 }
 
 /**

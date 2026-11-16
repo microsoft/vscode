@@ -2461,9 +2461,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const cancel = buttons.addButton({ secondary: true });
 		cancel.label = localize('scheduledRequestCancelEdit', "Cancel");
 		cancel.element.classList.add('scheduled-request-cancel');
-		const saveFor = localize('scheduledRequestSaveFor', "Save for {0}", editing.description);
-		const save = buttons.addButton({ ...defaultButtonStyles, supportIcons: true, title: saveFor, ariaLabel: saveFor });
-		save.label = saveFor;
+		const sendLabel = localize('scheduledRequestSendAt', "Send {0}", editing.description);
+		const save = buttons.addButton({ ...defaultButtonStyles, supportIcons: true, title: sendLabel, ariaLabel: sendLabel });
+		save.label = sendLabel;
 		save.element.classList.add('scheduled-request-save-label');
 		const time = buttons.addButton({
 			...defaultButtonStyles, supportIcons: true,
@@ -2476,7 +2476,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		split.append(save.element, dom.$('span.scheduled-request-save-separator', { 'aria-hidden': 'true' }), time.element);
 		let busy = false;
 		const saveAction = toAction({
-			id: 'scheduledRequest.save', label: saveFor,
+			id: 'scheduledRequest.save', label: sendLabel,
 			run: async () => {
 				if (busy) {
 					return;

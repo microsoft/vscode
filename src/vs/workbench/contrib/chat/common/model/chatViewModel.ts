@@ -273,7 +273,7 @@ export interface IChatScheduledRequestEditing {
 	readonly retainedAttachments?: readonly string[];
 	readonly isSaving?: IObservable<boolean>;
 	runAt: string;
-	/** When the edited request will send ("Tomorrow 9:00 AM"), following {@link runAt}. */
+	/** When the edited request will send ("Tomorrow at 9:00 AM"), following {@link runAt}. */
 	readonly description: string;
 	readonly selectTime: IAction;
 	save(): Promise<void>;

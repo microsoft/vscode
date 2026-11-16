@@ -1206,7 +1206,7 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
-	test('scheduled inline editing retains attachments and offers Cancel and Save for with a time dropdown', async () => {
+	test('scheduled inline editing retains attachments and offers Cancel and a timed Send button', async () => {
 		const { disposables, viewModel, renderer, template, node } = createPersistentProgressRenderer();
 		const saved: string[] = [];
 		let cancelled = 0;
@@ -1214,7 +1214,7 @@ suite('ChatListRenderer', () => {
 		let inlineInputRequested = false;
 		disposables.add(renderer.onDidRerender(item => { inlineInputRequested = item === template; }));
 		const editing = {
-			text: 'Original', runAt: '2099-01-15T10:00:00Z', description: 'Tomorrow 10:00 AM',
+			text: 'Original', runAt: '2099-01-15T10:00:00Z', description: 'Tomorrow at 10:00 AM',
 			selectTime: toAction({ id: 'time', label: 'Time', run: async (anchor?: HTMLElement) => { timeAnchor = anchor; editing.runAt = '2099-01-16T10:00:00Z'; } }),
 			save: async () => { saved.push(editing.text, editing.runAt); },
 			cancel: () => { cancelled++; },
@@ -1243,7 +1243,7 @@ suite('ChatListRenderer', () => {
 		}, {
 			text: 'Edited\nmessage', timeAnchored: true, inlineInputRequested: true,
 			saved: ['Edited\nmessage', '2099-01-16T10:00:00Z'], cancelled: 1,
-			saveReachedByKeyboard: true, timeReachedByKeyboard: true, saveLabel: 'Save for Tomorrow 10:00 AM',
+			saveReachedByKeyboard: true, timeReachedByKeyboard: true, saveLabel: 'Send Tomorrow at 10:00 AM',
 			attachments: 'Attachments: notes.txt', hoverToolbar: false,
 		});
 		disposables.dispose();

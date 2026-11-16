@@ -747,7 +747,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			retainedAttachments: handoff ? [] : automation.request?.attachments?.map(attachment => attachment.label),
 			runAt: automation.schedule.runAt ?? '',
 			get description() {
-				return formatScheduledRequestTime(this.runAt);
+				return formatScheduledRequestTime(this.runAt, Date.now(), true);
 			},
 			selectTime: toAction({
 				id: 'sessions.scheduled.editTime', label: localize('scheduledChat.editTime', "Change Send Time..."), class: ThemeIcon.asClassName(Codicon.clock), run: async (anchor?: HTMLElement) => {
