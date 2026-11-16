@@ -23,7 +23,7 @@ import { getSessionPresentationWorkspace, IChat, ISession } from '../../../../se
 import { INewSessionTarget } from '../parts/chatView.js';
 import { SessionIsArchivedContext, SessionIsCreatedContext, SessionItemIsMultiSelectionContext, SessionSupportsRenameContext } from '../../common/contextkeys.js';
 import { ISessionSection, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../views/sessionsList.js';
-import { registerSessionsListReadStateCommands } from '../views/sessionsListActions.js';
+import { registerSessionsListActions } from '../views/sessionsListActions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -192,8 +192,8 @@ export function registerAgentsChatPartActions(): IDisposable {
 		}
 	}));
 
-	// What Mark as Read and Mark as Unread of a chat tab run in an editor window, whose agent sessions own their command ids
-	store.add(registerSessionsListReadStateCommands());
+	// The sessions list's commands, such as Mark as Read and Mark as Unread of a chat tab, also while no sessions list shows
+	store.add(registerSessionsListActions());
 
 	return store;
 }
