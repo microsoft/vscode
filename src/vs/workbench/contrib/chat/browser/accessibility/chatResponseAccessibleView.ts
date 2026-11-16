@@ -24,9 +24,9 @@ import { formatChatToolError } from '../../common/chatProgressFormatting.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatAgentFeedbackReviewConfirmationData, IChatAutomationConfigurationData, IChatAutomationConfiguredData, IChatExtensionsContent, IChatGeneratedImageData, IChatModifiedFilesConfirmationData, IChatPullRequestContent, IChatSearchToolInvocationData, IChatSessionTargetData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
 import { IChatProgressResponseContent } from '../../common/model/chatModel.js';
-import { IChatResponseViewModel, isResponseVM, isRequestVM } from '../../common/model/chatViewModel.js';
+import { IChatResponseViewModel, isResponseVM, isRequestVM, isScheduledRequestVM } from '../../common/model/chatViewModel.js';
 import { annotateSpecialMarkdownContentWithSource } from '../../common/widget/annotations.js';
-import { getChatRequestAccessibleText } from '../chatRequestText.js';
+import { getChatRequestAccessibleText, getChatScheduledRequestAccessibleText } from '../chatRequestText.js';
 import { IToolResultInputOutputDetails, IToolResultOutputDetails, isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
 import { getChatNativeComponentsRenderer, getNativeComponentsFenceInfo } from '../widget/chatContentParts/chatNativeComponents.js';
@@ -53,6 +53,18 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 
 		const verifiedWidget: IChatWidget = widget;
 		let focusedItem = verifiedWidget.getFocus();
+		if (isScheduledRequestVM(focusedItem)) {
+			const request = focusedItem;
+			return new AccessibleContentProvider(
+				AccessibleViewProviderId.PanelChat,
+				{ type: AccessibleViewType.View },
+				() => getChatScheduledRequestAccessibleText(request),
+				() => verifiedWidget.focus(request),
+				AccessibilityVerbositySettingId.Chat,
+				undefined,
+				[...request.actions],
+			);
+		}
 		if (focusedItem && isRequestVM(focusedItem) && focusedItem.artifactRequest) {
 			const request = focusedItem;
 			return new AccessibleContentProvider(

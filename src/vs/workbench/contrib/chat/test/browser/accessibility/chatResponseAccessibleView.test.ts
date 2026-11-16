@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { toAction } from '../../../../../../base/common/actions.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
@@ -12,6 +13,7 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { Location } from '../../../../../../editor/common/languages.js';
+import { AccessibleContentProvider } from '../../../../../../platform/accessibility/browser/accessibleView.js';
 import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -26,7 +28,7 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatAutoModeResolutionPart, IChatExtensionsContent, IChatMcpAuthenticationRequired, IChatPullRequestContent, IChatSessionTargetData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { Response, type IChatResponseModel, type IResponse } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import type { IChatRequestViewModel, IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
+import type { IChatRequestViewModel, IChatResponseViewModel, IChatScheduledRequestViewModel } from '../../../common/model/chatViewModel.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 
@@ -723,6 +725,30 @@ suite('ChatResponseAccessibleView', () => {
 	});
 
 	suite('getProvider', () => {
+		test('scheduled messages expose full content and actions and restore their focused row', async () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			let invoked = false;
+			const request: IChatScheduledRequestViewModel = {
+				kind: 'scheduledRequest', id: 'later', dataId: 'later:1', sessionResource: URI.parse('chat:/session'),
+				isComplete: true, currentRenderedHeight: undefined, text: 'Follow up', description: 'Tomorrow at 10:00 AM',
+				attachments: ['notes.txt'], actions: [toAction({ id: 'sendNow', label: 'Send Now', run: () => { invoked = true; } })],
+			};
+			let restored = false;
+			const widget = upcastPartial<IChatWidget>({
+				hasInputFocus: () => false, getFocus: () => request,
+				focus: item => { restored = item === request; },
+			});
+			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: widget }));
+			instantiationService.stub(IStorageService, store.add(new TestStorageService()));
+			const provider = store.add(instantiationService.invokeFunction(accessor => new ChatResponseAccessibleView().getProvider(accessor))!);
+			assert.ok(provider instanceof AccessibleContentProvider && provider.actions);
+			await provider.actions[0].run();
+			provider.onClose();
+			assert.deepStrictEqual({ content: provider.provideContent(), invoked, restored }, {
+				content: 'Tomorrow at 10:00 AM\nFollow up\nAttachments: notes.txt', invoked: true, restored: true,
+			});
+		});
+
 		test('reads the focused artifact action snapshot and restores focus to its request', () => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const presentation = createTestArtifactRequestPresentation();

@@ -128,7 +128,7 @@ import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { createSessionSummaryHover, getChatSummaryHoverData, getDistinctChatHarnessLabel, getSessionDiffStats, getSessionSummaryHoverData } from '../sessionHoverContent.js';
-import { renderScheduledRequestsCard } from './sessionScheduledRequestsCard.js';
+import { getScheduledRequestsCardKey, renderScheduledRequestsCard } from './sessionScheduledRequestsCard.js';
 import { IChatScheduledRequest } from '../../../chat/common/model/chatViewModel.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { ChatAutomationsEnabledContext } from '../../../chat/common/automations/automationsEnabled.js';
@@ -1954,7 +1954,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}
 			// The card belongs to the row's template rather than to one render, so an open card keeps its actions while the
 			// list re-renders its rows. It is rebuilt only when what it shows changed.
-			const key = requests.map(request => `${request.id}|${request.description}|${request.text}|${request.actions.map(action => `${action.id}:${action.enabled}`).join()}`).join('\n');
+			const now = Date.now();
+			const key = getScheduledRequestsCardKey(requests, now);
 			let card = this.scheduledCards.get(template);
 			if (card?.key !== key) {
 				if (!card) {
@@ -1962,7 +1963,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				}
 				card?.store.dispose();
 				const cardStore = new DisposableStore();
-				card = { key, store: cardStore, element: renderScheduledRequestsCard(requests, cardStore, run) };
+				card = { key, store: cardStore, element: renderScheduledRequestsCard(requests, cardStore, run, now) };
 				this.scheduledCards.set(template, card);
 			}
 			return {
@@ -9438,7 +9439,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private acknowledgeInboxSessions(sessions: readonly ISession[], actionId?: string): void {
-		if (this._store.isDisposed || !this.visible || !this.isInboxLayout() || actionId === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID || actionId === 'sessionsViewPane.inboxResume' || actionId === 'sessionsViewPane.inboxHold' || actionId === 'sessionsViewPane.inboxSnooze') {
+		if (this._store.isDisposed || !this.visible || !this.isInboxLayout() || actionId === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID || actionId === 'sessionsViewPane.inboxResume' || actionId === 'sessionsViewPane.inboxHold' || actionId === 'sessionsViewPane.inboxSnooze' || actionId === 'sessionsViewPane.pinSession' || actionId === 'sessionsViewPane.unpinSession') {
 			return;
 		}
 		const targets = sessions.filter(session => !session.isArchived.get() && this.getInboxSection(session) === SessionInboxSection.ReadyForYou);

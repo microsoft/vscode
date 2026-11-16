@@ -15,7 +15,6 @@ import { localize } from '../../../../nls.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { defaultButtonStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { parseScheduledChatTime } from '../common/scheduledChatRequest.js';
-import { formatScheduledChatTime } from '../common/scheduledChatTime.js';
 
 function startOfDay(date: Date): Date {
 	return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -191,7 +190,7 @@ class ScheduledChatCalendar extends Disposable {
 
 export async function pickScheduledChatTime(quickInputService: IQuickInputService, anchor?: HTMLElement): Promise<Date | undefined> {
 	const now = new Date();
-	const formatTime = (date: Date) => formatScheduledChatTime(date, now.getTime());
+	const formatTime = (date: Date) => date.toLocaleString(undefined, { timeZoneName: 'short' });
 	const choices = [
 		{ minutes: 5, label: localize('sendLater.fiveMinutes', "In 5 Minutes") },
 		{ minutes: 10, label: localize('sendLater.tenMinutes', "In 10 Minutes") },
@@ -201,18 +200,18 @@ export async function pickScheduledChatTime(quickInputService: IQuickInputServic
 		{ minutes: 24 * 60, label: localize('sendLater.oneDay', "In 24 Hours") },
 	].map(({ minutes, label }) => {
 		const date = new Date(now.getTime() + minutes * 60_000);
-		return { label, description: formatTime(date), date };
+		return { label, date };
 	});
 	const tomorrow = new Date(now);
 	tomorrow.setDate(tomorrow.getDate() + 1);
 	tomorrow.setHours(9, 0, 0, 0);
-	choices.push({ label: localize('sendLater.tomorrowMorning', "Tomorrow Morning"), description: formatTime(tomorrow), date: tomorrow });
+	choices.push({ label: localize('sendLater.tomorrowMorning', "Tomorrow Morning"), date: tomorrow });
 	const picked = await quickInputService.pick([
 		...choices,
-		{ label: localize('sendLater.customTime', "Choose Date and Time..."), description: '', date: undefined },
+		{ label: localize('sendLater.customTime', "Choose Date and Time..."), date: undefined },
 	], {
 		title: localize('sendLater.title', "Send Later"),
-		placeHolder: localize('sendLater.pickTime', "Choose when to send. Times use this device's time zone."),
+		placeHolder: localize('sendLater.pickTime', "Choose when to send."),
 		anchor, anchorPosition: anchor ? 'above' : undefined,
 	});
 	if (!picked || picked.date) {

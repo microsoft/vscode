@@ -44,7 +44,6 @@ import { ChatInputCanScheduleContext } from '../common/contextkeys.js';
 import { fromStoredChatDraft, toStoredChatDraft } from '../common/newChatDraftState.js';
 import { hasSessionDraftContent, ISavedSessionDraftTarget } from '../common/savedSessionDrafts.js';
 import { captureScheduledChatRequest } from '../common/scheduledChatRequest.js';
-import { formatScheduledChatTime } from '../common/scheduledChatTime.js';
 import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../common/sessionConfig.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionDraftsService } from './sessionDraftsService.js';
@@ -52,6 +51,7 @@ import { ISessionGroupsService } from './sessionGroupsService.js';
 import { ISessionsService } from './sessionsService.js';
 import { IPendingSessionItem } from './views/pendingSessions.js';
 import { IChatScheduledRequest, IChatScheduledRequestEditing } from '../../chat/common/model/chatViewModel.js';
+import { formatScheduledRequestTime } from '../../chat/common/widget/chatScheduledRequestTime.js';
 import { pickScheduledChatTime } from './scheduledChatTimePicker.js';
 
 const handoffStorageKey = 'sessions.scheduledChatHandoffs';
@@ -227,8 +227,9 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 						get description() {
 							return automation.readOnlyReason ?? (automation.oneTimeRunId
 								? runs.find(run => run.id === automation.oneTimeRunId)?.errorMessage ?? localize('scheduledChat.startedOrFailed', "Starting or needs attention")
-								: automation.enabled ? formatScheduledChatTime(automation.schedule.runAt) : localize('scheduledChat.cancelled', "Not scheduled"));
+								: automation.enabled ? formatScheduledRequestTime(automation.schedule.runAt) : localize('scheduledChat.cancelled', "Not scheduled"));
 						},
+						runAt: !automation.readOnlyReason && !automation.oneTimeRunId && automation.enabled ? automation.schedule.runAt : undefined,
 						folderUri: automation.target.kind === 'workspace' ? automation.target.folderUri : undefined,
 						providerId: automation.target.providerId,
 						sessionType: automation.target.sessionTypeId,
@@ -290,10 +291,9 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			const requests = this.items.read(reader).filter(item => item.conversation
 				&& isEqual(item.conversation.sessionResource, currentSession?.resource)
 				&& isEqual(item.conversation.chatResource, resource));
-			// Only for the chat the input is showing, so an edit never opens in an input that is moving between chats.
-			widget.setScheduledRequests(isEqual(widget.viewModel?.sessionResource, resource) ? requests : []);
+			widget.viewModel?.setScheduledRequests(isEqual(widget.viewModel.sessionResource, resource) ? requests : []);
 		}));
-		store.add(toDisposable(() => widget.setScheduledRequests([])));
+		store.add(toDisposable(() => widget.viewModel?.setScheduledRequests([])));
 		const busy = observableValue(this, false);
 		let compositionId = generateUuid();
 		const available = derived(this, reader => {
@@ -678,7 +678,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			enabled: true,
 		}, guard);
 		this.writeHandoff({ ...handoff, automationId: automation.id });
-		status(localize('sendLater.saved', "Request scheduled for {0}", formatScheduledChatTime(handoff.schedule.runAt)));
+		status(localize('sendLater.saved', "Request scheduled for {0}", formatScheduledRequestTime(handoff.schedule.runAt)));
 		return automation;
 	}
 
@@ -691,7 +691,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		await this.dialogService.prompt({
 			message: automation.name,
 			detail: [
-				localize('scheduledChat.previewTime', "Scheduled: {0}", formatScheduledChatTime(automation.schedule.runAt)),
+				localize('scheduledChat.previewTime', "Scheduled: {0}", formatScheduledRequestTime(automation.schedule.runAt)),
 				localize('scheduledChat.previewTarget', "Target: {0}", automation.target.kind === 'workspace' ? basename(automation.target.folderUri) : localize('scheduledChat.noWorkspace', "No Workspace")),
 				localize('scheduledChat.previewModel', "Model: {0}", automation.sessionTemplate?.modelId ?? localize('scheduledChat.defaultModel', "Provider Default")),
 				localize('scheduledChat.previewAttachments', "Attachments: {0}", automation.request?.attachments?.map(attachment => attachment.label).join(', ') || localize('scheduledChat.noAttachments', "None")),
@@ -719,7 +719,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		if (result.kind !== 'updated') {
 			throw new Error(localize('scheduledChat.changed', "The scheduled request changed or has started. Refresh the scheduled messages before trying again."));
 		}
-		status(localize('scheduledChat.rescheduled', "Request rescheduled for {0}", formatScheduledChatTime(date.toISOString())));
+		status(localize('scheduledChat.rescheduled', "Request rescheduled for {0}", formatScheduledRequestTime(date.toISOString())));
 	}
 
 	private startEditing(automation: IAutomationDescriptor): void {
@@ -747,7 +747,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			retainedAttachments: handoff ? [] : automation.request?.attachments?.map(attachment => attachment.label),
 			runAt: automation.schedule.runAt ?? '',
 			get description() {
-				return formatScheduledChatTime(this.runAt);
+				return formatScheduledRequestTime(this.runAt, Date.now(), true);
 			},
 			selectTime: toAction({
 				id: 'sessions.scheduled.editTime', label: localize('scheduledChat.editTime', "Change Send Time..."), class: ThemeIcon.asClassName(Codicon.clock), run: async (anchor?: HTMLElement) => {
@@ -776,7 +776,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			},
 		};
 		this.editingRequest.set({ id: automation.id, state }, undefined);
-		// Editing happens in the chat's own input, so an edit started elsewhere (the sessions list) opens the chat.
+		// Editing from the sessions-list card opens the prompt in its original chat.
 		const conversation = automation.conversation ?? handoff?.conversation;
 		const session = conversation && this.sessionsManagementService.getSession(conversation.sessionResource);
 		if (conversation && session && ![...this.chatInputs.keys()].some(widget => widget.visible && isEqual(widget.viewModel?.sessionResource, conversation.chatResource))) {
@@ -844,7 +844,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		if (this.editingRequest.get()?.state === state) {
 			this.editingRequest.set(undefined, undefined);
 		}
-		status(localize('scheduledChat.edited', "Scheduled message saved for {0}", formatScheduledChatTime(schedule.runAt)));
+		status(localize('scheduledChat.edited', "Scheduled message saved for {0}", formatScheduledRequestTime(schedule.runAt)));
 	}
 
 	private async cancel(automation: IAutomationDescriptor, edit: boolean): Promise<void> {

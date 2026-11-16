@@ -259,8 +259,7 @@ suite('Scheduled chat handoffs', () => {
 		const widget = upcastPartial<IChatWidget>({
 			scopedContextKeyService: context,
 			onDidChangeViewModel: Event.None,
-			viewModel: upcastPartial<IChatViewModel>({ model, sessionResource: resource }),
-			setScheduledRequests: requests => { scheduled = requests; },
+			viewModel: upcastPartial<IChatViewModel>({ model, sessionResource: resource, setScheduledRequests: requests => { scheduled = requests; } }),
 			getInput: () => text,
 			setInput: value => { text = value ?? ''; },
 			getContrib: () => undefined,
@@ -358,7 +357,7 @@ suite('Scheduled chat handoffs', () => {
 			enabled: fixture.automations.get()[0].enabled,
 		}, {
 			actions: ['Edit', 'Send Now', 'Reschedule...', 'Cancel Schedule'].map(label => ({ label, hasIcon: true })),
-			// The message opens in its chat's input, so editing from elsewhere opens the chat.
+			// Editing from the sessions-list card opens the prompt in its original chat.
 			editIsShared: true, calls: ['openChat'], loadedChats: [], openedChats: [conversation.chatResource.toString()],
 			input: [], editingText: input.inputText, enabled: true,
 		});

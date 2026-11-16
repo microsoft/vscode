@@ -6,6 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import * as dom from '../../../../../../../base/browser/dom.js';
+import '../../../../../../../base/browser/ui/codicons/codiconStyles.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../../base/common/async.js';
 import { Action } from '../../../../../../../base/common/actions.js';
@@ -66,10 +67,9 @@ import { IChatToolInvocation } from '../../../../common/chatService/chatService.
 import { ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { Target } from '../../../../common/promptSyntax/promptTypes.js';
+import '../../../../../../browser/media/style.css';
 import '../../../../browser/widget/media/chat.css';
 import { IChatSessionFileChange2 } from '../../../../../../common/chatSessionFileChange.js';
-import type { IChatScheduledRequestEditing } from '../../../../common/model/chatViewModel.js';
-import type { IChatModelInputState } from '../../../../common/model/chatModel.js';
 
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -111,13 +111,14 @@ suite('ChatInputPart', () => {
 				},
 			});
 			store.add(MenuRegistry.appendMenuItem(MenuId.ChatExecuteSecondary, { command: { id: 'test.sendLater', title: 'Send Later...', icon: Codicon.clock } }));
-			const send = instantiationService.createInstance(MenuItemAction, { id: 'test.send', title: 'Send', icon: Codicon.arrowUp }, undefined, { shouldForwardArgs: true }, undefined, undefined);
+			const send = instantiationService.createInstance(MenuItemAction, { id: 'test.send', title: 'Send', icon: Codicon.arrowUpCompact }, undefined, { shouldForwardArgs: true }, undefined, undefined);
 			const queue = store.add(new Action('test.queue', 'Queue'));
 			const item = store.add(instantiationService.createInstance(ChatQueuePickerActionItem, busy ? queue : send, busy ? {} : { primaryAction: instantiationService.createInstance(MenuEntryActionViewItem, send, {}) }));
 			const context = { widget: upcastPartial<IChatWidget>({}) };
 			item.setActionContext(context);
-			const root = dom.append(mainWindow.document.body, dom.$('.interactive-session'));
+			const root = dom.append(mainWindow.document.body, dom.$('.monaco-workbench.interactive-session'));
 			store.add(toDisposable(() => root.remove()));
+			root.style.setProperty('--vscode-codiconFontSize-compact', '12px');
 			const toolbars = dom.append(root, dom.$('.chat-input-toolbars'));
 			const toolbar = dom.append(toolbars, dom.$('.chat-execute-toolbar'));
 			const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
@@ -125,6 +126,8 @@ suite('ChatInputPart', () => {
 			item.render(container);
 			item.focus();
 			const primary = container.querySelector<HTMLElement>('.action-container .action-label')!;
+			const primaryStyle = mainWindow.getComputedStyle(primary);
+			const primaryIcon = { fontSize: primaryStyle.fontSize, fontWeight: primaryStyle.fontWeight };
 			primary.click();
 			primary.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
 			const dropdown = container.querySelector<HTMLElement>('.dropdown-action-container .action-label')!;
@@ -138,12 +141,13 @@ suite('ChatInputPart', () => {
 				sharedControl: container.classList.contains('monaco-dropdown-with-default'),
 				circularSend: !!container.querySelector('.chat-submit-button'),
 				nestedButtons: container.querySelectorAll('[role="button"] [role="button"]').length,
-				dropdownFocused, primaryFocused, labels, calls, sendLaterIcon,
+				dropdownFocused, primaryFocused, labels, calls, sendLaterIcon, primaryIcon,
 			}, {
 				sharedControl: true, circularSend: false, nestedButtons: 0,
 				dropdownFocused: true, primaryFocused: true,
 				labels: busy ? ['Stop and Send', 'Add to Queue', 'Steer with Message', 'Send Later...'] : ['Send Later...'],
 				sendLaterIcon: { id: Codicon.clock.id, hidden: false },
+				primaryIcon: { fontSize: busy ? '16px' : '12px', fontWeight: '400' },
 				calls: [{ id: busy ? ChatQueueMessageAction.ID : 'test.send', args: busy ? [] : [context] }, { id: 'test.sendLater', args: [context] }],
 			});
 			if (busy) {
@@ -303,34 +307,6 @@ suite('ChatInputPart', () => {
 			});
 		});
 	}
-
-	test('an edited scheduled message keeps the input while the chat draft changes, and the latest draft comes back', () => {
-		const writes: string[] = [];
-		const editing = upcastPartial<IChatScheduledRequestEditing>({ text: 'Scheduled message' });
-		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
-			_isSyncingToOrFromInputModel: false,
-			_scheduledRequestEdit: { editing, draft: { inputText: 'Old draft', attachments: [], selections: [], contrib: {} } },
-			_currentModeObservable: { get: () => ({ id: ChatModeKind.Agent }) },
-			_currentLanguageModel: { get: () => undefined },
-			_modelSelectionDiagnostics: { report: () => { } },
-			_attachmentModel: { attachments: [], clear: () => writes.push('attachments'), clearAndSetContext: () => writes.push('attachments') },
-			_inputEditor: { setValue: (value: string) => writes.push(value), setSelections: () => { }, getModel: () => null },
-			_widget: { contribs: [{ setInputState: () => writes.push('references') }] },
-			_syncTextDebounced: { cancel: () => { } },
-			configurationService: { getValue: () => true },
-			container: dom.$('div'),
-			scheduledRequestEditToolbar: { update: () => { } },
-		});
-		// Another message's recovery, or a remote draft sync, writes the chat's draft while the message is open.
-		const sync = Reflect.get(ChatInputPart.prototype, '_syncFromModel') as (this: ChatInputPart, state: IChatModelInputState | undefined, resource: URI) => void;
-		sync.call(input, upcastPartial<IChatModelInputState>({ inputText: 'Recovered request', attachments: [], selections: [], contrib: {}, mode: { id: ChatModeKind.Agent, kind: ChatModeKind.Agent } }), URI.parse('chat:/session'));
-		const whileEditing = writes.splice(0);
-		input.setScheduledRequestEditing(undefined);
-		assert.deepStrictEqual({ whileEditing, afterEditing: writes }, {
-			whileEditing: [],
-			afterEditing: ['attachments', 'Recovered request', 'references'],
-		});
-	});
 
 	test('a suppressed input rejects requests routed by other renderers without resolving them', () => {
 		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), { options: { renderInputRequests: false } });

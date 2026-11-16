@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -740,10 +741,12 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 
 	const inputPart = disposableStore.add(instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, inputOptions, inputStyles, false));
 
+	const listContainer = dom.$('.interactive-list');
 	const fixtureWidget = new class extends mock<IChatWidget>() {
 		override readonly onDidChangeViewModel = disposableStore.add(new Emitter<never>()).event;
 		override readonly viewModel = viewModel;
 		override readonly domNode = session;
+		override readonly transcriptDomNode = listContainer;
 		override readonly contribs = [];
 		override readonly location = ChatAgentLocation.Chat;
 		override readonly viewContext = {};
@@ -761,7 +764,6 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	options.decorateInputPart?.(inputPart, instantiationService);
 	inputPart.element.classList.toggle('chat-input-hidden', options.inputVisible === false);
 
-	const listContainer = dom.$('.interactive-list');
 	listContainer.style.flex = options.hostLayoutMode ? '0 0 auto' : '1 1 auto';
 	listContainer.style.minHeight = '0';
 	listContainer.style.position = 'relative';
@@ -2768,14 +2770,15 @@ async function renderDisabledPetResizeObserverProbe(context: ComponentFixtureCon
 	status.textContent = 'Completed disabled pet observer probe';
 }
 
-async function renderPendingDivider(context: ComponentFixtureContext, kind: ChatRequestQueueKind, isSystemInitiated = false): Promise<void> {
+async function renderPendingDivider(context: ComponentFixtureContext, kind: ChatRequestQueueKind, isSystemInitiated = false, scheduledWidth?: number): Promise<void> {
 	await renderChatWidget(context, {
+		width: scheduledWidth,
 		messages: [{
 			user: 'Review the current changes',
 			assistant: [{ kind: 'thinking', text: 'Reviewing the workspace changes.' }],
 			responseComplete: false,
 		}],
-		onRendered: ({ model, listWidget }) => {
+		onRendered: ({ model, viewModel, listWidget }) => {
 			const pendingRequest = new ChatRequestModel({
 				session: model,
 				message: makeUserMessage(isSystemInitiated ? 'Check for new system notifications' : 'Summarize the findings'),
@@ -2783,6 +2786,17 @@ async function renderPendingDivider(context: ComponentFixtureContext, kind: Chat
 				isSystemInitiated,
 			});
 			model.addPendingRequest(pendingRequest, kind, { isSystemInitiated });
+			if (scheduledWidth !== undefined) {
+				viewModel.setScheduledRequests([{
+					id: 'scheduled-follow-up',
+					text: 'Check the review feedback tomorrow and summarize any remaining changes.',
+					description: 'Today 3:00 PM',
+					// Three hours after the fixtures' fixed clock.
+					runAt: '2026-05-14T15:00:00Z',
+					attachments: ['review-notes.md'],
+					actions: ['Preview', 'Send Now', 'Reschedule...', 'Edit', 'Cancel Schedule'].map(label => toAction({ id: label, label, run: () => { } })),
+				}]);
+			}
 			listWidget.refresh();
 			listWidget.scrollToEnd();
 		},
@@ -2820,6 +2834,13 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	PendingToolApproval: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
 	PendingTerminalApprovalWithIntention: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TERMINAL_APPROVAL_WITH_INTENTION, sideChatSupported: true }) }),
 	PendingMessages: defineThemedFixtureGroup({
+		Scheduled: defineComponentFixture({
+			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+			render: context => renderPendingDivider(context, ChatRequestQueueKind.Steering, false, 600),
+		}),
+		ScheduledNarrow: defineComponentFixture({
+			render: context => renderPendingDivider(context, ChatRequestQueueKind.Steering, false, 320),
+		}),
 		Queued: defineComponentFixture({
 			labels: { kind: 'screenshot', blocksCi: true },
 			expectedVisualDescriptions: ['A pending message appears below a sentence-case "Queued" divider while an earlier response is still running.'],

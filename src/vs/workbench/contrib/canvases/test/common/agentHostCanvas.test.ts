@@ -14,12 +14,14 @@ import { IAgentCanvasCloseRequest, IAgentCanvasInfo, IAgentCanvasOpenRequest, IA
 import type { AgentCanvasOpenResult } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { CanvasReference, CanvasState } from '../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
+import type { CanvasStateWithMeta } from '../../../../../platform/agentHost/common/meta/agentCanvasIconMeta.js';
 import { ActionType, type ActionEnvelope } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ChatState, ComponentToState, ResponsePartKind, StateComponents, ToolCallCompletedState, ToolCallConfirmationReason, ToolCallStatus, Turn, type ActiveTurn, type ResponsePart } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { AgentHostCanvas, AgentHostCanvasCollection, getAgentHostCanvasDefinitionsChangedEvent } from '../../common/agentHostCanvas.js';
 import { ICanvas, ICanvasOwner } from '../../../../common/canvasReference.js';
+import { getCanvasIconUri } from '../../common/canvas.js';
 
 suite('AgentHost canvases', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -87,6 +89,19 @@ suite('AgentHost canvases', () => {
 		assert.deepStrictEqual({ resource: canvas.resource.toString(), instanceId: canvas.instanceId, source: canvas.source }, {
 			resource: resource.toString(), instanceId: undefined, source: undefined,
 		});
+	});
+
+	test('shows the icon a host sends as a PNG data URI, and no icon from a host that sends a path or none', () => {
+		const icon = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+		const withIcon = (src: string): CanvasStateWithMeta => ({ ...state, _meta: { 'vscode.canvasIcons': [{ src, contentType: 'image/png' }] } });
+		const iconOf = (canvasState: CanvasState) => new AgentHostCanvas(resource, canvasState, new NullLogService()).icon?.toString(true);
+		assert.deepStrictEqual({
+			sent: iconOf(withIcon(icon)),
+			path: iconOf(withIcon('/Users/me/.copilot/extensions/board/icon.png')),
+			none: iconOf(state),
+			definition: getCanvasIconUri(icon)?.toString(true),
+			definitionPath: getCanvasIconUri('/Users/me/icon.png'),
+		}, { sent: icon, path: undefined, none: undefined, definition: icon, definitionPath: undefined });
 	});
 
 	test('bridges registered canvas operations through the owning chat context', async () => {
