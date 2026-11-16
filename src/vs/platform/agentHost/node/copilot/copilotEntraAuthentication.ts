@@ -18,6 +18,13 @@ import type { ProtectedResourceMetadata } from '../../common/state/protocol/stat
 import { IAgentHostAuthenticationService, type IAgentHostAuthCredential } from '../agentHostAuthenticationService.js';
 
 interface IEntraAuthority {
+	/**
+	 * The `authenticate.accountId` of the first accepted discovery credential. Unlike the per-client GitHub
+	 * comparison, it is compared as given across clients and Microsoft resources, because one Microsoft account
+	 * serves every unscoped client of the host. That needs each client to send the same value for the same
+	 * account, as VS Code's provider/account/authorization-server tuple does. It keeps the host on one account
+	 * and is not a boundary between clients, which share these credentials and can replace them.
+	 */
 	readonly accountId: string;
 }
 

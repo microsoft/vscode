@@ -104,6 +104,17 @@ suite('Copilot Entra authentication', () => {
 		assert.deepStrictEqual(await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' }), { kind: 'identity', accountId: 'selected' });
 	});
 
+	test('another client supplies a credential for the bound account by sending the same identifier', async () => {
+		const f = fixture();
+		assert.deepStrictEqual(await f.acquire(identity), { kind: 'unavailable' });
+		await f.authentication.authenticate(f.credential(), [f.provider], undefined, 'first-window');
+		const request = tokenRequest();
+		await f.acquire(request);
+		const resource = copilotEntraResources.get(copilotEntraEmuAudience)!;
+		await f.authentication.authenticate({ ...f.credential(resource, request.scopes), token: 'from-second-window' }, [f.provider], undefined, 'second-window');
+		assert.deepStrictEqual(await f.acquire(request), { kind: 'token', accountId: 'selected', accessToken: 'from-second-window' });
+	});
+
 	test('sign-out drops the identity so a replacement account can be established', async () => {
 		const f = fixture();
 		const before = await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' });

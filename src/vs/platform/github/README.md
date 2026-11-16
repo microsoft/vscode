@@ -72,7 +72,7 @@ Hint appearance or disappearance during renewal retains the same comparison cont
 
 VS Code sends its provider/account/authorization-server tuple only in the standard field. Older hosts ignore the standard hint, and GitHub token authentication and renewal still work without it; mixed-version connections may keep the conservative bootstrap cooldown until token validation establishes an account switch. General `_meta` support, including unrelated authentication metadata, is unaffected.
 
-The Microsoft credential bridge requires the standard identifier for its account-bound credential flow and compares it without decoding it. A client that does not send it cannot use that flow. No display label is sent.
+The Microsoft credential bridge is the one place that compares the identifier across clients. One Microsoft account serves every unscoped client of a host, so the bridge binds to the identifier of the first accepted credential and requires the same value, undecoded, on every later Microsoft credential from any client and for any Microsoft resource. A client must therefore send the same identifier for the same account from every connection, as VS Code's tuple does; a client that sends none or a different one is refused. This keeps the host on one account and is not an isolation boundary: unscoped clients already share the host's credentials and can replace them, and credentials from scoped clients stay in their own scope, which the bridge does not read. No display label is sent.
 
 ## Typed domains
 
