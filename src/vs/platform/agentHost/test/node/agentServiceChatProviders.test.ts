@@ -124,6 +124,22 @@ suite('AgentService - chats with their own agent', () => {
 		return { session, chat };
 	}
 
+	/**
+	 * The agent recorded for a spawned chat. The host records it in the background of the spawn event, through an
+	 * asynchronous database write, so this waits for the record rather than for a fixed time.
+	 */
+	async function waitForRecordedAgent(service: AgentService, chat: URI): Promise<string | undefined> {
+		const database = getTestAgentHostDatabase(service);
+		const deadline = Date.now() + 5_000;
+		while (true) {
+			const recorded = (await database.readChatAgentProviders?.())?.get(chat.toString());
+			if (recorded !== undefined || Date.now() > deadline) {
+				return recorded;
+			}
+			await timeout(5);
+		}
+	}
+
 	/** Completes a first turn in `chat`: a chat moves only once its first turn started. */
 	function startTurn(service: AgentService, chat: URI | string): void {
 		const stateManager = getTestAgentStateManager(service);
@@ -580,13 +596,12 @@ suite('AgentService - chats with their own agent', () => {
 		const { session, chat } = await createSessionWithSecondChat(service);
 		const subagent = URI.parse(buildChatUri(session, 'subagent'));
 		second.spawnEmitter.fire({ session, chat: subagent, parent: { chat, toolCallId: 'tool-1' }, title: 'Worker' });
-		await timeout(10);
-		const recorded = await getTestAgentHostDatabase(service).readChatAgentProviders?.();
+		const recorded = await waitForRecordedAgent(service, subagent);
 
 		assert.deepStrictEqual({
 			stateProvider: getTestAgentStateManager(service).getChatProvider(subagent.toString()),
 			agent: getTestAgentHostProviderService(service).getProviderForChat(session, subagent)?.id,
-			recorded: recorded?.get(subagent.toString()),
+			recorded,
 		}, { stateProvider: 'second', agent: 'second', recorded: 'second' });
 	});
 
@@ -645,7 +660,7 @@ suite('AgentService - chats with their own agent', () => {
 		const { session, chat } = await createSessionWithSecondChat(service);
 		const subagent = URI.parse(buildChatUri(session, 'subagent'));
 		second.spawnEmitter.fire({ session, chat: subagent, parent: { chat, toolCallId: 'tool-1' }, title: 'Worker' });
-		await timeout(10);
+		await waitForRecordedAgent(service, subagent);
 		const database = getTestAgentHostDatabase(service);
 		const before = [...(await database.readChatAgentProviders?.())?.keys() ?? []].sort();
 
