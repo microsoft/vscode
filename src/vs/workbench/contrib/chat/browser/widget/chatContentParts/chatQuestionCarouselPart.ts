@@ -85,6 +85,8 @@ export interface IChatQuestionCarouselOptions {
 	editorOverflowWidgetsDomNode?: HTMLElement;
 	/** Session the answers belong to, for hosts whose render context has no response element. */
 	sessionResource?: URI;
+	/** Whether the list should render the carousel again, such as as it is settled elsewhere, or another widget docks it. */
+	isStale?: () => boolean;
 }
 
 class ChatQuestionAnswerCollapsiblePart extends ChatCollapsibleContentPart {
@@ -2266,6 +2268,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
 		// does not have same content when it is not skipped and is active and we stop the response
 		if (!this._isSkipped && !this.carousel.isUsed && isResponseVM(element) && element.isComplete) {
+			return false;
+		}
+		if (this._options.isStale?.()) {
 			return false;
 		}
 		return other.kind === 'questionCarousel' && other === this.carousel;

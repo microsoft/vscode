@@ -20,7 +20,7 @@ import { ILanguageModelToolsService } from '../../../../common/tools/languageMod
 import { IChatWidgetService } from '../../../chat.js';
 import { IChatToolRiskAssessmentService } from '../../../tools/chatToolRiskAssessmentService.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
-import { IChatContentPartRenderContext } from '../chatContentParts.js';
+import { focusChatInput, IChatContentPartRenderContext } from '../chatContentParts.js';
 import { IRenderFileWidgetsOptions } from '../chatInlineAnchorWidget.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { isMcpToolInvocation } from './chatToolPartUtilities.js';
@@ -305,11 +305,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 
 	/** Focuses the input of the widget that shows this chat's input requests, such as the one whose list renders this. */
 	protected focusChatInput(): void {
-		if (this.context.focusInput) {
-			this.context.focusInput();
-		} else {
-			this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
-		}
+		focusChatInput(this.context, this.chatWidgetService);
 	}
 
 	protected abstract createContentElement(): HTMLElement | string;

@@ -43,6 +43,11 @@ function createMockReview(overrides?: Partial<IChatPlanReview>): IChatPlanReview
 	};
 }
 
+/** A plan review as the model has it while it is pending, whose comments every widget that shows it shares. */
+function createReviewDataWithPlan(): ChatPlanReviewData {
+	return new ChatPlanReviewData('Review Plan', '# Plan\n- step 1\n- step 2', [{ label: 'Autopilot', default: true }], true, URI.parse('file:///plan.md').toJSON());
+}
+
 function createMockReviewWithPlan(overrides?: Partial<IChatPlanReview>): IChatPlanReview {
 	return createMockReview({
 		canProvideFeedback: true,
@@ -614,8 +619,8 @@ suite('ChatPlanReviewPart', () => {
 			});
 		});
 
-		test('copies of a review, such as one per widget that shows its chat, share its inline comments', async () => {
-			const review = createMockReviewWithPlan();
+		test('a review rendered by two widgets that show its chat, one docking it, has one set of inline comments, kept as either lets go of it', async () => {
+			const review = createReviewDataWithPlan();
 			createWidget(review);
 			const planUri = URI.revive(review.planUri!);
 			const service = lastFeedbackService!;
@@ -639,8 +644,8 @@ suite('ChatPlanReviewPart', () => {
 			});
 		});
 
-		test('the copy of a review whose overall comment the user wrote submits it, also when another copy registered later', async () => {
-			const review = createMockReviewWithPlan();
+		test('a review\'s overall comment is the same in every widget that shows it: the one registered last submits the comment typed in another', async () => {
+			const review = createReviewDataWithPlan();
 			createWidget(review);
 			const first = widget;
 			const planUri = URI.revive(review.planUri!);
@@ -652,7 +657,7 @@ suite('ChatPlanReviewPart', () => {
 
 			const submitted = await lastFeedbackService!.submitAllFeedback(planUri);
 
-			assert.deepStrictEqual({ submitted, overall: lastSubmitResult?.feedbackOverall, fromLaterCopy: results.length }, { submitted: true, overall: 'Written in the first copy', fromLaterCopy: 0 });
+			assert.deepStrictEqual({ submitted, fromFirst: lastSubmitResult, fromLater: results.map(result => result.feedbackOverall) }, { submitted: true, fromFirst: undefined, fromLater: ['Written in the first copy'] });
 		});
 
 		test('renders comments list and updates Submit Feedback count when service has items', async () => {
