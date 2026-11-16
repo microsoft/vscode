@@ -4991,22 +4991,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._mainWindowShown = derived(this, reader => shownChatOf(mainWindowHost, reader));
 		this.groupAppearancePicker = this._register(instantiationService.createInstance(SessionGroupAppearancePicker));
 		this.filters = this._register(instantiationService.createInstance(SessionsListFilters));
-		const acknowledgeChat = (resource: URI) => {
-			if (!this.visible || !this.isInboxLayout()) {
-				return;
-			}
-			const target = this._sessionsManagementService.getSessionForChatResource(resource);
-			if (target) {
-				this.acknowledgeInboxSessions([target.session]);
-			}
-		};
 		this._register(chatService.onDidAcceptRequest(event => {
 			if (!event.isNewSession && !event.agentHostMessageOrigin) {
 				this.advanceInboxAfterSend(event.chatSessionResource);
 			}
-			acknowledgeChat(event.chatSessionResource);
 		}));
-		this._register(chatService.onDidPerformUserAction(event => acknowledgeChat(event.sessionResource)));
 		for (const key of [SessionsList.EXCLUDED_TYPES_KEY, SessionsList.EXCLUDED_STATUSES_KEY, SessionsList.EXCLUDE_READ_KEY, SessionsList.SHOW_EMPTY_GROUPS_KEY]) {
 			this.storageService.remove(key, StorageScope.PROFILE);
 		}
@@ -5105,7 +5094,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 					}
 					const sessions = this.getMultiSelectedSessions(session);
 					await action.run(sessions);
-					this.acknowledgeInboxSessions(sessions, action.id);
 					if (action.id === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID) {
 						this.getFocusedTree().domFocus();
 					}
@@ -8100,7 +8088,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const trimmed = title.trim();
 			if (trimmed && !this._store.isDisposed) {
 				await this._sessionsManagementService.renameSession(target, trimmed);
-				this.acknowledgeInboxSessions([target]);
 			}
 		});
 	}
@@ -8967,21 +8954,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		};
 
 		const menuGroups = menu.getActions({ arg: selectedSessions, shouldForwardArgs: true }).map(([group, actions]): [string, IAction[]] => [group, actions.map(wrapAction)]);
-		const acknowledgingActions = new Set<string>();
-		const collectAcknowledgingActions = (actions: readonly IAction[]) => {
-			for (const action of actions) {
-				if (action instanceof SubmenuAction) {
-					collectAcknowledgingActions(action.actions);
-				} else if (action.id !== RENAME_SESSION_COMMAND_ID) {
-					acknowledgingActions.add(action.id);
-				}
-			}
-		};
-		for (const [group, actions] of menuGroups) {
-			if (group !== 'navigation') {
-				collectAcknowledgingActions(actions);
-			}
-		}
 		// Group membership actions depend on the list's groups, so they are built here and merged into the contributed Organize group.
 		const actions = joinContextMenuGroups([...menuGroups, [SessionItemOrganizeMenuGroup, this.options.grouping() === SessionsGrouping.Inbox ? [] : this.getGroupSessionActions(selectedSessions)]]);
 		if (actions.length === 0) {
@@ -8995,9 +8967,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			getActionsContext: this.isInboxLayout() ? () => element : undefined,
 			actionRunner: this.isInboxLayout() ? disposables.add(new SessionItemActionRunner(() => selectedSessions, async action => {
 				await action.run();
-				if (acknowledgingActions.has(action.id)) {
-					this.acknowledgeInboxSessions(selectedSessions, action.id);
-				}
 				if (action.id === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID) {
 					this.getFocusedTree().domFocus();
 				}
@@ -9456,16 +9425,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		const state = this._sessionsListModelService.getInboxState(session, reader);
 		return state?.kind === 'done' && state.isHistoricalCompletion ? 'historical' : state?.kind ?? '';
-	}
-
-	private acknowledgeInboxSessions(sessions: readonly ISession[], actionId?: string): void {
-		if (this._store.isDisposed || !this.visible || !this.isInboxLayout() || actionId === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID || actionId === 'sessionsViewPane.inboxResume' || actionId === 'sessionsViewPane.inboxHold' || actionId === 'sessionsViewPane.inboxSnooze' || actionId === 'sessionsViewPane.pinSession' || actionId === 'sessionsViewPane.unpinSession') {
-			return;
-		}
-		const targets = sessions.filter(session => !session.isArchived.get() && this.getInboxSection(session) === SessionInboxSection.ReadyForYou);
-		if (targets.length) {
-			this._sessionsListModelService.setInboxState(targets, 'done');
-		}
 	}
 
 	private canMergeInboxPullRequest(session: ISession, reader?: IReader): boolean {
