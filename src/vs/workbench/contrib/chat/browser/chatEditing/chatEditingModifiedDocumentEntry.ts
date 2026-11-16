@@ -143,14 +143,14 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			this._notifySessionAction(action === ModifiedFileEntryState.Accepted ? 'accepted' : 'rejected');
 		}));
 
-		this._register(this._textModelChangeService.onDidAcceptOrRejectLines(({ isUserInitiated, ...action }) => {
+		this._register(this._textModelChangeService.onDidAcceptOrRejectLines(action => {
 			this._notifyAction({
 				kind: 'chatEditingHunkAction',
 				uri: this.modifiedURI,
 				outcome: action.state,
 				languageId: this.modifiedModel.getLanguageId(),
 				...action
-			}, isUserInitiated);
+			});
 		}));
 
 		// Create a reference to this model to avoid it being disposed from under our nose
@@ -281,8 +281,8 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	}
 
 
-	protected override async _doAccept(isUserInitiated: boolean): Promise<void> {
-		this._textModelChangeService.keep(isUserInitiated);
+	protected override async _doAccept(): Promise<void> {
+		this._textModelChangeService.keep();
 		this._multiDiffEntryDelegate.collapse(undefined);
 
 		const config = this._fileConfigService.getAutoSaveConfiguration(this.modifiedURI);

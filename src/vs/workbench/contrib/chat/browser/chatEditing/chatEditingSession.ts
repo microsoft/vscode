@@ -283,7 +283,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				}
 
 				if (state !== ModifiedFileEntryState.Modified) {
-					await entry.accept(false);
+					await entry.accept();
 				}
 			}
 		};
@@ -843,7 +843,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 				// Accept the changes for background sessions
 				if (getChatSessionType(this.chatSessionResource) === AgentSessionProviders.Background) {
-					await entry.accept(false);
+					await entry.accept();
 				}
 
 				// Clear external edit mode

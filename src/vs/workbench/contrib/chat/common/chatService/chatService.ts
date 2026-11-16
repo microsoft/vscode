@@ -1879,8 +1879,6 @@ export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertActi
 
 export interface IChatUserActionEvent {
 	action: ChatUserAction;
-	/** False for automatic actions such as edit acceptance; omitted for user-initiated actions. */
-	isUserInitiated?: boolean;
 	agentId: string | undefined;
 	command: string | undefined;
 	sessionResource: URI;

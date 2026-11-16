@@ -80,7 +80,7 @@ import { AgentMergeSessionState } from '../../../../../platform/agentHost/common
 import { MessageKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../../workbench/contrib/sessions/browser/dnd.js';
 import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { getSessionApplication } from '../../../../../workbench/services/sessions/common/sessionApplication.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
@@ -5758,7 +5758,6 @@ suite('Sessions - SessionsList', () => {
 				}
 				performed.fire({
 					sessionResource: session.mainChat.get().resource, requestId: 'request', agentId: undefined, command: undefined, result: undefined,
-					isUserInitiated: false,
 					action: { kind: 'chatEditingSessionAction', uri: URI.file('/workspace/file.ts'), outcome: 'accepted', hasRemainingEdits: false },
 				});
 				sections.push(getSessionInboxSection(session, model.getInboxState(session)));
@@ -5766,8 +5765,49 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual(sections, Array(10).fill(SessionInboxSection.ReadyForYou));
 		});
 
-		for (const action of ['request', 'userRequest', 'copy', 'acceptEdits'] as const) {
-			test(`Inbox acknowledges ${action} but not opening, selecting, reading, or actions outside visible Inbox mode`, async () => {
+		test('code block actions leave the session in Inbox, including after Return to Inbox', () => {
+			const { session } = buildTestSession({ id: 'ready', title: 'Ready' });
+			const harness = createListHarness(disposables, [session]);
+			const performed = disposables.add(new Emitter<IChatUserActionEvent>());
+			harness.instantiationService.stub(IChatService, new class extends MockChatService {
+				override readonly onDidPerformUserAction = performed.event;
+			});
+			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+			harness.instantiationService.stub(ISessionsListModelService, model);
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+			}));
+			list.layout(600, 400);
+			const sections: SessionInboxSection[] = [];
+			const actions: IChatUserActionEvent['action'][] = [
+				...[ChatCopyKind.Toolbar, ChatCopyKind.Action].map(copyKind => ({
+					kind: 'copy' as const, copyKind, codeBlockIndex: 0, copiedCharacters: 1, totalCharacters: 1, copiedText: 'x', totalLines: 1, copiedLines: 1, modelId: 'test',
+				})),
+				{ kind: 'insert', codeBlockIndex: 0, totalCharacters: 1, totalLines: 1, modelId: 'test' },
+				{ kind: 'insert', codeBlockIndex: 0, totalCharacters: 1, totalLines: 1, modelId: 'test', newFile: true },
+				{ kind: 'apply', codeBlockIndex: 0, totalCharacters: 1, totalLines: 1, modelId: 'test', editsProposed: true },
+				{ kind: 'runInTerminal', codeBlockIndex: 0 },
+			];
+			for (const resumed of [false, true]) {
+				if (resumed) {
+					model.setInboxState([session], 'done');
+					model.setInboxState([session], undefined);
+				}
+				for (const action of actions) {
+					performed.fire({
+						sessionResource: session.mainChat.get().resource, requestId: 'request', agentId: undefined, command: undefined, result: undefined, action,
+					});
+					sections.push(getSessionInboxSection(session, model.getInboxState(session)));
+				}
+				list.update();
+			}
+			assert.deepStrictEqual({ sections, visible: list.getVisibleSessions().map(session => session.sessionId) }, {
+				sections: Array(12).fill(SessionInboxSection.ReadyForYou), visible: ['ready'],
+			});
+		});
+
+		for (const action of ['request', 'userRequest', 'acceptEdits'] as const) {
+			test(`Inbox requires explicit acknowledgement after ${action} and follows execution state`, async () => {
 				const built = buildTestSession({ id: 'ready', title: 'Ready', isRead: false });
 				const { session } = built;
 				const harness = createListHarness(disposables, [session]);
@@ -5780,6 +5820,7 @@ suite('Sessions - SessionsList', () => {
 				});
 				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
 				harness.instantiationService.stub(ISessionsListModelService, model);
+				harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ getViewWithId: () => null }));
 				let grouping = SessionsGrouping.Inbox;
 				let opened = 0;
 				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
@@ -5795,10 +5836,7 @@ suite('Sessions - SessionsList', () => {
 					} else {
 						performed.fire({
 							sessionResource: session.mainChat.get().resource, requestId: 'request', agentId: undefined, command: undefined, result: undefined,
-							isUserInitiated: action === 'acceptEdits' ? true : undefined,
-							action: action === 'acceptEdits'
-								? { kind: 'chatEditingSessionAction', uri: URI.file('/workspace/file.ts'), outcome: 'accepted', hasRemainingEdits: false }
-								: { kind: 'copy', copyKind: ChatCopyKind.Action, codeBlockIndex: 0, copiedCharacters: 1, totalCharacters: 1, copiedText: 'x', totalLines: 1, copiedLines: 1, modelId: 'test' },
+							action: { kind: 'chatEditingSessionAction', uri: URI.file('/workspace/file.ts'), outcome: 'accepted', hasRemainingEdits: false },
 						});
 					}
 				};
@@ -5819,6 +5857,22 @@ suite('Sessions - SessionsList', () => {
 				grouping = SessionsGrouping.Inbox;
 				list.update();
 				act();
+				list.update();
+				const afterInteraction = { state: model.getInboxState(session)?.kind, visible: visible() };
+				const section = () => getSessionInboxSection(session, model.getInboxState(session));
+				const setStatus = (status: SessionStatus) => transaction(tx => {
+					built.status.set(status, tx);
+					built.mainChat.status.set(status, tx);
+				});
+				setStatus(SessionStatus.InProgress);
+				const working = section();
+				setStatus(SessionStatus.NeedsInput);
+				const needsInput = section();
+				setStatus(SessionStatus.InProgress);
+				const resumed = section();
+				setStatus(SessionStatus.Completed);
+				const completed = section();
+				await CommandsRegistry.getCommand(ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID)!.handler(harness.instantiationService, [session]);
 				await retry(async () => assert.deepStrictEqual(visible(), []), 10, 100);
 				await retry(async () => assert.deepStrictEqual(list.getTreeSnapshot().map(node => node.type === 'section' ? node.id : node.type), [SessionInboxSection.ReadyForYou, SessionInboxSection.Acknowledged]), 10, 100);
 				const acknowledged = { state: model.getInboxState(session)?.kind, label: list.getItemRow({ section: SessionInboxSection.Acknowledged })?.getAttribute('aria-label') };
@@ -5829,8 +5883,11 @@ suite('Sessions - SessionsList', () => {
 				built.status.set(SessionStatus.Completed, undefined);
 				built.mainChat.status.set(SessionStatus.Completed, undefined);
 				await retry(async () => assert.deepStrictEqual(visible(), ['ready']), 10, 100);
-				assert.deepStrictEqual({ afterViewing, opened, hiddenState, ordinaryState, acknowledged, expanded, archived: session.isArchived.get() }, {
+				assert.deepStrictEqual({ afterViewing, opened, hiddenState, ordinaryState, afterInteraction, working, needsInput, resumed, completed, acknowledged, expanded, archived: session.isArchived.get() }, {
 					afterViewing: ['ready'], opened: 1, hiddenState: undefined, ordinaryState: undefined,
+					afterInteraction: { state: undefined, visible: ['ready'] },
+					working: SessionInboxSection.Working, needsInput: SessionInboxSection.ReadyForYou,
+					resumed: SessionInboxSection.Working, completed: SessionInboxSection.ReadyForYou,
 					acknowledged: { state: 'done', label: 'Acknowledged, 1' }, expanded: ['ready'], archived: false,
 				});
 			});

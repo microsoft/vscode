@@ -164,9 +164,9 @@ class AgentHostEditReviewEntry extends ChatEditingModifiedDocumentEntry {
 	}
 
 	/** Changes the agent host didn't keep stay undecided. */
-	override acceptDeferred(isUserInitiated = true) {
+	override acceptDeferred() {
 		const file = this.file;
-		return completeIfCurrent(super.acceptDeferred(isUserInitiated), () => isSameWorkingSetFile(this.file, file));
+		return completeIfCurrent(super.acceptDeferred(), () => isSameWorkingSetFile(this.file, file));
 	}
 
 	/** Changes the agent host didn't undo stay undecided. */
