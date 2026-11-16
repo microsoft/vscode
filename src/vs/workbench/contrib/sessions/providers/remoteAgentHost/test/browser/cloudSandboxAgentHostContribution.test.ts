@@ -3101,8 +3101,8 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 					const [providerId, session] = args;
 					const authorization = toGitHubAuthorizationContext(providerId, session);
 					const lifetime = new DisposableStore();
-					const controller = lifetime.add(new CancellationTokenSource());
-					lifetime.add(toDisposable(() => controller.cancel()));
+					const controller = new CancellationTokenSource();
+					lifetime.add(toDisposable(() => controller.dispose(true)));
 					const credentials: IGitHubCredentials = {
 						onDidInvalidate: Event.None,
 						getCredential: async () => ({ account: { host: 'api.github.com', accountId: 'account-1' }, token: 'token', generation: 0, cancellationToken: controller.token }),

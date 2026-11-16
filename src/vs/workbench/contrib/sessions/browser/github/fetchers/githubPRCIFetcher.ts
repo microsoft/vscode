@@ -18,6 +18,7 @@ export class GitHubPRCIFetcher {
 		return this.client.withClient(async (client, cancellationToken) => {
 			const checks = await client.checks.listRuns({ owner, repo }, ref, cancellationToken, {
 				...options,
+				caller: options?.caller ?? 'githubPRCIFetcher',
 				query: { page: 1, per_page: 100 },
 				maxPages: 100,
 			});
@@ -27,7 +28,7 @@ export class GitHubPRCIFetcher {
 
 	rerunFailedJobs(owner: string, repo: string, runId: number, token?: CancellationToken): Promise<void> {
 		return this.client.withClient((client, cancellationToken) =>
-			client.actions.rerunFailedJobs({ owner, repo }, runId, cancellationToken), token);
+			client.actions.rerunFailedJobs({ owner, repo }, runId, cancellationToken, { caller: 'githubPRCIFetcher' }), token);
 	}
 
 	getCheckRunAnnotations(owner: string, repo: string, checkRunId: number, token?: CancellationToken): Promise<string> {
@@ -35,7 +36,7 @@ export class GitHubPRCIFetcher {
 			const repository = { owner, repo };
 			const sections: string[] = [];
 			try {
-				const { output } = await client.checks.getRun(repository, checkRunId, cancellationToken);
+				const { output } = await client.checks.getRun(repository, checkRunId, cancellationToken, { caller: 'githubPRCIFetcher' });
 				if (output.title) {
 					sections.push(`# ${output.title}`);
 				}
@@ -53,6 +54,7 @@ export class GitHubPRCIFetcher {
 			}
 			try {
 				const annotations = await client.checks.listAnnotations(repository, checkRunId, cancellationToken, {
+					caller: 'githubPRCIFetcher',
 					query: { page: 1, per_page: 100 },
 					maxPages: 100,
 				});

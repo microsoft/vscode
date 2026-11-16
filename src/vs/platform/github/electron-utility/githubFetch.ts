@@ -20,13 +20,13 @@ export function createFetch(
 	environmentService: INativeEnvironmentService,
 	logService: ILogService,
 ): CancellableFetch {
-	let fetchPromise: Promise<CancellableFetch> | undefined;
-	return async (input, init, token, lifetime) => {
+	let fetchPromise: Promise<typeof globalThis.fetch> | undefined;
+	return createCancellableFetch(async (input, init) => {
 		const fetch = await (fetchPromise ??= createProxyFetch());
-		return fetch(input, init, token, lifetime);
-	};
+		return fetch(input, init);
+	});
 
-	async function createProxyFetch(): Promise<CancellableFetch> {
+	async function createProxyFetch(): Promise<typeof globalThis.fetch> {
 		const [{ createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, LogLevel }, { getCACertificates }] = await Promise.all([
 			import('@vscode/proxy-agent'),
 			import('tls'),
@@ -89,6 +89,6 @@ export function createFetch(
 			env: { ...process.env, ...shellEnv },
 		};
 
-		return createCancellableFetch(createFetchPatch(params, globalThis.fetch, createProxyResolver(params).resolveProxyURL));
+		return createFetchPatch(params, globalThis.fetch, createProxyResolver(params).resolveProxyURL);
 	}
 }

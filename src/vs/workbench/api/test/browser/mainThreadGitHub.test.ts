@@ -14,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { AccountClient } from '../../../../platform/github/common/account/accountClient.js';
 import { AnonymousClient } from '../../../../platform/github/common/anonymous/anonymousClient.js';
-import { ApiRequest, ApiResponse, IApiRequestProvider } from '../../../../platform/github/common/client/request.js';
+import { ApiRequest, ApiRequestOptions, ApiResponse, IApiRequestProvider } from '../../../../platform/github/common/client/request.js';
 import { parse } from '../../../../platform/github/common/client/schema.js';
 import { GitHubAuthorizationContext, GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
@@ -129,7 +129,7 @@ suite('MainThreadGitHub', () => {
 	}
 
 	test('routes the GitHub extension operations through typed clients with its bound account and caller', async () => {
-		const graphql: { operation: string; variables: object }[] = [];
+		const graphql: { operation: string; variables: object; priority: ApiRequestOptions['priority'] }[] = [];
 		const user = { id: 'U_1', login: 'o', name: null, email: '', avatarUrl: 'https://avatars.githubusercontent.com/u/1' };
 		const ruleset = { name: 'Protected', target: 'BRANCH', enforcement: 'ACTIVE', rules: { totalCount: 1 }, conditions: { refName: { include: ['~DEFAULT_BRANCH'], exclude: [] } } };
 		const { mainThread, requests, acquisitions, allow } = setup({
@@ -142,7 +142,7 @@ suite('MainThreadGitHub', () => {
 					if (!operation) {
 						return assert.fail('Expected a named GraphQL query');
 					}
-					graphql.push({ operation, variables: body.variables });
+					graphql.push({ operation, variables: body.variables, priority: request.options?.priority });
 					switch (operation) {
 						case 'RepositoryViewerInfo':
 							return { data: { repository: { viewerPermission: 'WRITE', defaultBranchRef: { name: 'main' } } } };
@@ -207,6 +207,7 @@ suite('MainThreadGitHub', () => {
 			caller: [...new Set(requests.map(request => request.options?.caller))],
 			identity: acquisitions.map(authorization => [authorization.sessionId, authorization.accountId]),
 			rest: requests.filter(request => request.path !== '/').map(request => [request.method, request.path, request.expectedStatus]),
+			restPriorities: [...new Set(requests.filter(request => request.path !== '/').map(request => request.options?.priority))],
 			createdBody: requests.find(request => request.method === 'POST' && request.path === '/user/repos')?.body,
 			graphql,
 		}, {
@@ -220,12 +221,13 @@ suite('MainThreadGitHub', () => {
 				['GET', '/repos/o/r/pulls?head=o%3Afeature&state=all', 200], ['POST', '/repos/o/r/pulls', 201],
 			],
 			createdBody: { name: 'r', private: true },
+			restPriorities: [undefined],
 			graphql: [
-				{ operation: 'RepositoryViewerInfo', variables: { owner: 'o', name: 'r' } },
-				{ operation: 'RepositoryRulesets', variables: { owner: 'o', name: 'r', first: 100 } },
-				{ operation: 'RepositoryRulesets', variables: { owner: 'o', name: 'r', first: 100, after: 'next' } },
-				{ operation: 'RepositoryAssignableUsers', variables: { owner: 'o', name: 'r', first: 100 } },
-				{ operation: 'RepositoryCommitAuthor', variables: { owner: 'o', name: 'r', expression: 'HEAD' } },
+				{ operation: 'RepositoryViewerInfo', variables: { owner: 'o', name: 'r' }, priority: undefined },
+				{ operation: 'RepositoryRulesets', variables: { owner: 'o', name: 'r', first: 100 }, priority: undefined },
+				{ operation: 'RepositoryRulesets', variables: { owner: 'o', name: 'r', first: 100, after: 'next' }, priority: undefined },
+				{ operation: 'RepositoryAssignableUsers', variables: { owner: 'o', name: 'r', first: 100 }, priority: undefined },
+				{ operation: 'RepositoryCommitAuthor', variables: { owner: 'o', name: 'r', expression: 'HEAD' }, priority: undefined },
 			],
 		});
 	});

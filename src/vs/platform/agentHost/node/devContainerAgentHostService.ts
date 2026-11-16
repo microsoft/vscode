@@ -548,8 +548,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 					CancellationToken.throwIfCanceled(cancellationToken);
 					const client = lifetime.add(this._gitHubService.acquireAnonymousClient());
 					const repository = { owner: 'microsoft', repo: getDevContainerSampleFolder(sample) };
-					const commitSha = await client.content.resolveRef(repository, 'HEAD', cancellationToken);
-					const content = await client.content.getRawFile(repository, commitSha, '.devcontainer/devcontainer.json', cancellationToken);
+					const commitSha = await client.content.resolveRef(repository, 'HEAD', cancellationToken, { caller: 'agentHost.devContainerSample' });
+					const content = await client.content.getRawFile(repository, commitSha, '.devcontainer/devcontainer.json', cancellationToken, { caller: 'agentHost.devContainerSample' });
 					return { commitSha, content };
 				} finally {
 					lifetime.dispose();

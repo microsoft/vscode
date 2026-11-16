@@ -332,7 +332,6 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 				url: `${apiBaseUri}/user`,
 				etag: false,
 				unconditional: true,
-				priority: 'interactive',
 			}, cancellationToken);
 		} catch (error) {
 			if (error instanceof GitHubRequestError && error.kind === 'authentication') {

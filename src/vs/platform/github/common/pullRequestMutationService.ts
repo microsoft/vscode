@@ -128,7 +128,6 @@ export class PullRequestMutationService extends Disposable implements PullReques
 				url: this._restUrl(ref, `actions/jobs/${encodeURIComponent(jobId)}/logs`),
 				maximumBytes: maximumWorkflowLogBytes,
 				timeout: workflowLogTimeout,
-				priority: 'interactive',
 			}, combinedToken);
 			// Drop partial secrets before applying redaction to the entire captured log.
 			const text = response.truncated ? response.text.slice(0, response.text.lastIndexOf('\n') + 1) : response.text;

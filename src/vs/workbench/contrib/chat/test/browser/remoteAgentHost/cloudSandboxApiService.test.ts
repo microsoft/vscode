@@ -1594,7 +1594,7 @@ suite('CloudSandboxApiService session feed', () => {
 	test('negotiates on the GitHub gateway with the task account and strips unused credentials', async () => {
 		const requests: { url: string; headers: IHeaders | undefined }[] = [];
 		const connection = feedConnection();
-		const { service } = createService(store, {
+		const { service, typedRequests } = createService(store, {
 			tasks: [], repositories: new Map(),
 			onRequest: (url, _token, options) => {
 				requests.push({ url: url.toString(), headers: options.headers });
@@ -1606,10 +1606,12 @@ suite('CloudSandboxApiService session feed', () => {
 			url: requests[0].url,
 			integration: requests[0].headers?.['Copilot-Integration-Id'],
 			authenticated: !!requests[0].headers?.Authorization,
+			metadata: typedRequests.map(request => ({ caller: request.caller, priority: request.priority })),
 			result,
 		}, {
 			url: 'https://api.github.com/cmc_internal/api/agents/feed/connect',
 			integration: COPILOT_INTEGRATION_ID, authenticated: true, result: connection,
+			metadata: [{ caller: 'mc.sessionFeed.connect', priority: 'mutation' }],
 		});
 	});
 
