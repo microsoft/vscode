@@ -6,6 +6,7 @@
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ISession } from '../../../services/sessions/common/session.js';
@@ -50,14 +51,23 @@ export function waitForSession(sessionsManagementService: ISessionsManagementSer
 		disposables.add(token.onCancellationRequested(() => finish(undefined)));
 		disposables.add(sessionsProvidersService.onDidChangeProviders(() => tryFind()));
 		disposables.add(sessionsManagementService.onDidChangeSessions(() => tryFind()));
-		// Also a change of a session outside a provider's listing scope, which `onDidChangeSessions` does not report
-		disposables.add(sessionsManagementService.onDidChangeSession(() => tryFind()));
+		// Also a change of a session outside a provider's listing scope, which `onDidChangeSessions` does not report; only
+		// a change of the session waited for is looked up
+		disposables.add(sessionsManagementService.onDidChangeSession(changes => {
+			if (changes.some(change => change.kind !== 'removed' && isSessionResource(change.session, sessionResource))) {
+				tryFind();
+			}
+		}));
 		if (timeout !== undefined) {
 			disposables.add(disposableTimeout(() => finish(undefined), timeout));
 		}
 		// The session can be known between the first check and the listeners above
 		tryFind();
 	});
+}
+
+function isSessionResource(session: ISession, resource: URI): boolean {
+	return isEqual(session.resource, resource) || !!session.previousIdentities?.some(previous => isEqual(previous.resource, resource));
 }
 
 /** Waits until `session` is loaded; `false` when `token` is cancelled first. */

@@ -23,14 +23,15 @@ suite('waitForSession', () => {
 
 	function create() {
 		const known: ISession[] = [];
+		let lookups = 0;
 		const sessionChanged = disposables.add(new Emitter<readonly ISessionChange[]>());
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({
 			onDidChangeSessions: Event.None,
 			onDidChangeSession: sessionChanged.event,
-			getSession: resource => known.find(session => isEqual(session.resource, resource)),
+			getSession: resource => { lookups++; return known.find(session => isEqual(session.resource, resource)); },
 		});
 		const sessionsProvidersService = upcastPartial<ISessionsProvidersService>({ onDidChangeProviders: Event.None });
-		return { known, sessionChanged, sessionsManagementService, sessionsProvidersService };
+		return { known, sessionChanged, sessionsManagementService, sessionsProvidersService, lookups: () => lookups };
 	}
 
 	test('finds a session that its provider does not list, such as of another folder, as soon as the provider knows it', () => runWithFakedTimers({}, async () => {
@@ -46,6 +47,22 @@ suite('waitForSession', () => {
 		sessionChanged.fire([{ session: elsewhere, kind: 'added' }]);
 
 		assert.deepStrictEqual({ found: await found, beforeTimeout: Date.now() - start < SESSION_OPEN_WAIT_TIMEOUT, listening: sessionChanged.hasListeners() }, { found: elsewhere, beforeTimeout: true, listening: false });
+	}));
+
+	test('looks the session up only as it changes itself, not as another session changes', () => runWithFakedTimers({}, async () => {
+		const { known, sessionChanged, sessionsManagementService, sessionsProvidersService, lookups } = create();
+		const waited = buildTestSession({ id: 'waited', title: 'Waited' }).session;
+		const other = buildTestSession({ id: 'other', title: 'Other' }).session;
+		const cts = disposables.add(new CancellationTokenSource());
+
+		const found = waitForSession(sessionsManagementService, sessionsProvidersService, waited.resource, cts.token, SESSION_OPEN_WAIT_TIMEOUT);
+		const beforeChanges = lookups();
+		sessionChanged.fire([{ session: other, kind: 'changed' }]);
+		const afterOtherChanged = lookups() - beforeChanges;
+		known.push(waited);
+		sessionChanged.fire([{ session: other, kind: 'changed' }, { session: waited, kind: 'added' }]);
+
+		assert.deepStrictEqual({ afterOtherChanged, found: await found }, { afterOtherChanged: 0, found: waited });
 	}));
 
 	test('ends at once, with no session, as it is cancelled, such as by a later open, and once the timeout passes', () => runWithFakedTimers({}, async () => {
