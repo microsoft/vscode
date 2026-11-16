@@ -618,8 +618,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			// Find suitable window or folder path to open files in
 			const fileToCheck: IPath<IEditorOptions> | undefined = filesToOpen.filesToOpenOrCreate[0] || filesToOpen.filesToDiff[0] || filesToOpen.filesToMerge[3] /* [3] is the resulting merge file */;
 
-			// only look at the windows with correct authority
-			const windows = this.getWindows().filter(window => filesToOpen && isEqualAuthority(window.remoteAuthority, filesToOpen.remoteAuthority));
+			// only look at the windows with correct authority (excluding agents windows)
+			const windows = this.getWindows().filter(window => !window.config?.isSessionsWindow && filesToOpen && isEqualAuthority(window.remoteAuthority, filesToOpen.remoteAuthority));
 
 			// figure out a good window to open the files in if any
 			// with a fallback to the last active window.
@@ -1863,7 +1863,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	private getLastActiveWindowForAuthority(remoteAuthority: string | undefined): ICodeWindow | undefined {
-		return this.doGetLastActiveWindow(this.getWindows().filter(window => isEqualAuthority(window.remoteAuthority, remoteAuthority)));
+		return this.doGetLastActiveWindow(this.getWindows().filter(window => !window.config?.isSessionsWindow && isEqualAuthority(window.remoteAuthority, remoteAuthority)));
 	}
 
 	private doGetLastActiveWindow(windows: ICodeWindow[]): ICodeWindow | undefined {
