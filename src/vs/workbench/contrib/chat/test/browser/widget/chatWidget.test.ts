@@ -49,7 +49,7 @@ import { IEditorService, ISaveAllEditorsOptions, ISaveEditorsResult } from '../.
 import { TestEditorService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IChatAttachmentResolveService } from '../../../browser/attachments/chatAttachmentResolveService.js';
 import { IChatAttachmentChangeEvent } from '../../../browser/attachments/chatAttachmentModel.js';
-import { IChatSubmitRequestHandlerService } from '../../../browser/chatSubmitRequestHandlerService.js';
+import { ChatSubmitRequestCancelled, IChatSubmitRequestHandlerService } from '../../../browser/chatSubmitRequestHandlerService.js';
 import { IChatTipService } from '../../../browser/chatTipService.js';
 import { ChatUserInteraction, ChatUserInteractionTimingResult, IChatUserInteractionOptions } from '../../../browser/chatUserInteractionTelemetry.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
@@ -2697,7 +2697,7 @@ suite('ChatWidget - acceptInput submission', () => {
 			_onDidSubmitAgent: { value: store.add(new Emitter<void>()) },
 			onDidChangeViewModel: { value: onDidChangeViewModel.event },
 			onDidHide: { value: Event.None },
-			visible: { value: true },
+			visible: { value: true, configurable: true },
 			input: { value: input, configurable: true },
 			inputPartDisposable: { value: inputPartDisposable },
 			contribs: { value: contribs },
@@ -2727,7 +2727,7 @@ suite('ChatWidget - acceptInput submission', () => {
 			_maybeStartGoalSummary: { value: () => { } },
 		});
 		const options: IChatAcceptInputOptions = { preserveInput: true };
-		return { widget, widgetStore, viewOptions, options, original, input, inputPartDisposable, configurationService, editorService, chatService, chatWidgetService, chatSessionsService, customizationHarnessService, parser, parts, parsedInput, pasteController, policyRequiresAgentHost, contextKeyService, attachments, contribs, response, sent, acceptedRequests };
+		return { widget, widgetStore, viewOptions, options, original, input, inputPartDisposable, configurationService, editorService, chatService, chatWidgetService, chatSessionsService, chatSubmitRequestHandlerService, customizationHarnessService, parser, parts, parsedInput, pasteController, policyRequiresAgentHost, contextKeyService, attachments, contribs, response, sent, acceptedRequests };
 	}
 
 	for (const customHandler of [false, true]) {
@@ -2920,6 +2920,87 @@ suite('ChatWidget - acceptInput submission', () => {
 			}, { requests: 0, accepted: 0 });
 		});
 	}
+
+	for (const change of ['session', 'dispose', 'hide', 'input', 'text', 'attachments'] as const) {
+		for (const handled of [false, true]) {
+			test(`a submission a submit handler holds is neither sent nor cleared after its ${change} changes (${handled ? 'handled' : 'not handled'})`, async () => {
+				const fixture = createSubmissionWidget();
+				const held = new DeferredPromise<boolean>();
+				fixture.chatSubmitRequestHandlerService.tryHandle.returns(held.p);
+				const sending = fixture.widget.acceptInput();
+				await timeout(0);
+				const asked = fixture.chatSubmitRequestHandlerService.tryHandle.callCount;
+				switch (change) {
+					case 'session':
+						Object.defineProperty(fixture.widget, '_viewModel', { value: createSession(URI.parse('agent-host-copilot:/other-session')).viewModel });
+						break;
+					case 'dispose':
+						fixture.widgetStore.dispose();
+						break;
+					case 'hide':
+						Object.defineProperty(fixture.widget, 'visible', { value: false });
+						break;
+					case 'input':
+						Object.defineProperty(fixture.widget, 'input', { value: upcastPartial<ChatInputPart>({}) });
+						break;
+					case 'text':
+						fixture.parsedInput.text = 'Edited while held';
+						break;
+					case 'attachments':
+						fixture.attachments.add({ kind: 'file', id: 'added-while-held', name: 'file.ts', value: URI.file('/workspace/file.ts') });
+						break;
+				}
+				await held.complete(handled);
+				await sending;
+
+				assert.deepStrictEqual({
+					asked,
+					requests: fixture.chatService.sendRequest.callCount,
+					accepted: fixture.input.acceptInput.callCount,
+					inputCleared: fixture.input.setValue.callCount,
+				}, { asked: 1, requests: 0, accepted: 0, inputCleared: 0 });
+			});
+		}
+	}
+
+	test('a submission while a submit handler holds another is not sent, and the held one is sent once', async () => {
+		const fixture = createSubmissionWidget();
+		const held = new DeferredPromise<boolean>();
+		fixture.chatSubmitRequestHandlerService.tryHandle.returns(held.p);
+		const first = fixture.widget.acceptInput();
+		await timeout(0);
+		await fixture.widget.acceptInput();
+		const whileHeld = { asked: fixture.chatSubmitRequestHandlerService.tryHandle.callCount, requests: fixture.chatService.sendRequest.callCount, inputCleared: fixture.input.setValue.callCount };
+		await held.complete(false);
+		await first;
+
+		assert.deepStrictEqual({ whileHeld, requests: fixture.chatService.sendRequest.callCount }, { whileHeld: { asked: 1, requests: 0, inputCleared: 0 }, requests: 1 });
+	});
+
+	test('text edited and submitted again while a submit handler holds the draft is kept, and sent once when submitted after', async () => {
+		const fixture = createSubmissionWidget();
+		const held = new DeferredPromise<boolean>();
+		fixture.chatSubmitRequestHandlerService.tryHandle.returns(held.p);
+		const first = fixture.widget.acceptInput();
+		await timeout(0);
+		fixture.parsedInput.text = 'Edited while held';
+		await fixture.widget.acceptInput();
+		await held.complete(false);
+		await first;
+		const afterHold = { requests: fixture.chatService.sendRequest.callCount, inputCleared: fixture.input.setValue.callCount };
+		fixture.chatSubmitRequestHandlerService.tryHandle.resolves(false);
+		await fixture.widget.acceptInput();
+
+		assert.deepStrictEqual({ afterHold, sent: fixture.chatService.sendRequest.getCalls().map(call => call.args[1]) }, { afterHold: { requests: 0, inputCleared: 0 }, sent: ['Edited while held'] });
+	});
+
+	test('a submission a submit handler cancels is neither sent nor cleared', async () => {
+		const fixture = createSubmissionWidget();
+		fixture.chatSubmitRequestHandlerService.tryHandle.resolves(ChatSubmitRequestCancelled);
+		await fixture.widget.acceptInput();
+
+		assert.deepStrictEqual({ requests: fixture.chatService.sendRequest.callCount, inputCleared: fixture.input.setValue.callCount }, { requests: 0, inputCleared: 0 });
+	});
 
 	for (const changeModel of [true, false]) {
 		test(`inline edits submit their own picker settings without changing the main composer (${changeModel ? 'different model' : 'same model'})`, async () => {
