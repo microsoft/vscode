@@ -411,6 +411,30 @@ suite('Agent host Work in Parallel choice on send', () => {
 		}
 	});
 
+	test('another chat surface\'s ask remembers only an answer the user gave, and waits for a callout shown before, with its own control and answer', async () => {
+		const window = createWindow({ firstChatIn: primary });
+		window.setAnswer('abort');
+		const aborted = await window.service.askWorktreeOnSend(window.control);
+		const held = new DeferredPromise<void>();
+		window.setAnswer('continue', held);
+		window.setAnswer('useWorktree');
+		const draft = window.newDraft();
+		const sending = window.send(draft);
+		await timeout(0);
+		const other = window.controlOf(URI.from({ scheme: SessionType.AgentHostCopilot, path: '/chat-area' }));
+		const asking = window.service.askWorktreeOnSend(other);
+		await timeout(0);
+		const askedWhileHeld = window.asked.length;
+		held.complete();
+		await sending;
+		const answered = await asking;
+		const askedOn = window.askedOn.map(element => element === window.controlOf(draft) ? 'draft' : element === other ? 'other' : element === window.control ? 'control' : 'unknown');
+		window.dispose();
+
+		// The Chat view's Continue in Folder is remembered first, so the later ask applies it without a callout
+		assert.deepStrictEqual({ aborted, askedWhileHeld, askedOn, sent: window.sent, answered }, { aborted: 'folder', askedWhileHeld: 2, askedOn: ['control', 'draft'], sent: ['folder'], answered: 'folder' });
+	});
+
 	test('its callout offers Use New Worktree and Continue in Folder', () => {
 		createWindow({});
 		const step = (onboardingScenarioRegistry.getScenario(AGENT_HOST_WORKTREE_SEND_CHOICE_ID)!.presentation.payload as ISpotlightPayload).steps[0];
