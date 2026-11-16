@@ -14,7 +14,8 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../../../co
 import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { ChatViewId, IChatWidget } from '../../chat.js';
-import { getChatViewHostOpenReason, IChatViewHost, IChatViewHostOpenOptions, IChatViewHostRevealOptions, IChatViewHostService, IChatViewHostSessionStart, IChatViewHostSessionStartOptions, IChatViewHostNewChatOptions, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../chatViewHost.js';
+import { getChatViewHostOpenReason, IChatViewHost, IChatViewHostOpenOptions, IChatViewHostRevealOptions, IChatViewHostService, IChatViewHostSessionStart, IChatViewHostSessionStartOptions, IChatViewHostNewChatOptions, IChatViewHostShownSession, IChatViewNewChatTarget, IChatViewContribution } from '../../chatViewHost.js';
+import { IChatViewSessionsListProvider } from './chatViewSessionsList.js';
 import { ChatViewPane } from './chatViewPane.js';
 
 /** The Chat view, as the host of its chats. */
@@ -160,6 +161,11 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 	readonly chatViewHosts: IObservable<boolean>;
 
+	/** The registered contributions, the one registered last at the end: one each, also of the same contribution. */
+	private readonly contributions = observableValue<readonly IChatViewContribution[]>(this, []);
+	readonly sessionsList: IObservable<IChatViewSessionsListProvider | undefined>;
+	readonly sessionsOnly: IObservable<boolean>;
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
@@ -172,6 +178,19 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 			const latest = this.latest.read(reader);
 			return latest.newChat ? undefined : latest.host.shownSession?.read(reader);
 		});
+		this.sessionsList = derived(this, reader => this.contributions.read(reader).findLast(contribution => contribution.sessionsList)?.sessionsList);
+		this.sessionsOnly = derived(this, reader => this.contributions.read(reader).some(contribution => contribution.sessionsOnly) && this._replaced.read(reader) && !this.chatViewHosts.read(reader));
+	}
+
+	register(contribution: IChatViewContribution): IDisposable {
+		const store = new DisposableStore();
+		const entry = { ...contribution };
+		this.contributions.set([...this.contributions.get(), entry], undefined);
+		store.add(toDisposable(() => this.contributions.set(this.contributions.get().filter(other => other !== entry), undefined)));
+		if (contribution.host) {
+			store.add(this.registerHost(contribution.host));
+		}
+		return store;
 	}
 
 	/** Tracks the chats that the Chat view shows (see {@link updateChatViewTracking}); otherwise it is the latest host, as it shows them. */
@@ -233,7 +252,7 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 		return host.canShow?.(sessionResource) === false ? this.chatViewHost : host;
 	}
 
-	registerHost(host: IChatViewHost): IDisposable {
+	private registerHost(host: IChatViewHost): IDisposable {
 		const registration = { host };
 		this.registrations.push(registration);
 		this.updateHostInUse();

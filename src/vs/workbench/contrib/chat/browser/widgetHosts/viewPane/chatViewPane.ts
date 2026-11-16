@@ -18,7 +18,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { MutableDisposable, toDisposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
-import { autorun, IObservable, IReader, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableFromEvent, observableValue, runOnChange } from '../../../../../../base/common/observable.js';
 import { getComparisonKey, isEqual } from '../../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -69,10 +69,10 @@ import { ChatViewWelcomeController, IViewWelcomeDelegate } from '../../viewsWelc
 import { IChatViewsWelcomeDescriptor } from '../../viewsWelcome/chatViewsWelcome.js';
 import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../../../services/layout/browser/layoutService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../agentSessions/agentSessions.js';
-import { IChatViewSessionsListControl, IChatViewSessionsListService } from './chatViewSessionsList.js';
+import { IChatViewSessionsListControl } from './chatViewSessionsList.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT, ChatViewId, IChatWidgetService, IChatWidgetViewModelChangeEvent, IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
-import { IChatViewHostNewChatOptions, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../chatViewHost.js';
+import { IChatViewHostNewChatOptions, IChatViewHostService, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../chatViewHost.js';
 import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
 import { DeferredPromise, disposableTimeout, raceCancellation, RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
@@ -213,7 +213,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@ICommandService private readonly commandService: ICommandService,
 		@IActivityService private readonly activityService: IActivityService,
 		@IHostService private readonly hostService: IHostService,
-		@IChatViewSessionsListService private readonly sessionsListService: IChatViewSessionsListService,
+		@IChatViewHostService private readonly chatViewHostService: IChatViewHostService,
 		@IMicCaptureService private readonly micCaptureService: IMicCaptureService,
 		@ITtsPlaybackService private readonly ttsPlaybackService: ITtsPlaybackService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
@@ -974,13 +974,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const createSessionsList = () => {
 			const store = new DisposableStore();
 			clearNode(sessionsControlContainer);
-			const provided = this.sessionsListService.provider?.create(sessionsControlContainer, this.instantiationService, { overrideStyles: this.getLocationBasedColors().listOverrideStyles });
+			const provided = this.chatViewHostService.sessionsList.get()?.create(sessionsControlContainer, this.instantiationService, { overrideStyles: this.getLocationBasedColors().listOverrideStyles });
 			// A list of its own header and actions, in place of those of the Chat view's list
 			setVisibility(!provided || !provided.hasHeader, sessionsTitleContainer);
 			setVisibility(!provided, newSessionButtonContainer);
-			if (provided) {
-				store.add(this.sessionsListService.setActiveList(provided));
-			}
 			const sessionsControl = this.sessionsControl = store.add(provided?.control ?? this.instantiationService.createInstance(AgentSessionsControl, sessionsControlContainer, {
 				initiallyVisible: false,
 				source: 'chatViewPane',
@@ -1002,10 +999,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			sessionsToolbar.context = sessionsControl;
 			return { sessionsControl, store };
 		};
-		// Of the provided list, or of a claim, such as of a chat part that shows every chat. The active list follows the provider.
-		// The chat widget's visibility follows first, for the layout to lay out what shows
+		// Whether it shows only its sessions, such as while a chat part shows its chats. The chat widget's visibility follows
+		// first, for the layout to lay out what shows
 		this._register(autorun(reader => {
-			const sessionsOnly = this.sessionsListService.sessionsOnly.read(reader);
+			const sessionsOnly = this.chatViewHostService.sessionsOnly.read(reader);
 			this.viewPaneContainer?.classList.toggle('sessions-only', sessionsOnly);
 			if (this._widget) {
 				this.updateWidgetVisibility();
@@ -1014,7 +1011,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 		const sessionsList = this._register(new MutableDisposable<DisposableStore>());
 		sessionsList.value = createSessionsList().store;
-		this._register(this.sessionsListService.onDidChangeProvider(() => {
+		this._register(runOnChange(this.chatViewHostService.sessionsList, () => {
 			// Focus moves to the list that replaces the one that had it, or to the chat while that list does not show; focus
 			// elsewhere, such as in the chat or an editor, stays
 			const hadFocus = isAncestorOfActiveElement(sessionsControlContainer);
@@ -1091,7 +1088,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		let newSessionsContainerVisible: boolean;
-		if (this.sessionsListService.sessionsOnly.get()) {
+		if (this.chatViewHostService.sessionsOnly.get()) {
 			newSessionsContainerVisible = !this.welcomeController?.isShowingWelcome.get(); // only the sessions show
 		} else if (this.sessionsListRevealCount > 0) {
 			newSessionsContainerVisible = true;
@@ -1288,7 +1285,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 * followed where the sessions show, which lays out the view once the widget's visibility follows.
 	 */
 	private updateWidgetVisibility(reader?: IReader): void {
-		this._widget.setVisible(this.isBodyVisible() && !this.welcomeController?.isShowingWelcome.read(reader) && !this.sessionsListService.sessionsOnly.get());
+		this._widget.setVisible(this.isBodyVisible() && !this.welcomeController?.isShowingWelcome.read(reader) && !this.chatViewHostService.sessionsOnly.get());
 	}
 
 	override createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
@@ -1922,7 +1919,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	focusInput(): void {
 		// Showing only the sessions, the Chat view has no input of its own: its sessions take focus
-		if (this.sessionsListService.sessionsOnly.get()) {
+		if (this.chatViewHostService.sessionsOnly.get()) {
 			this.sessionsControl?.focus();
 			return;
 		}
@@ -1945,7 +1942,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private relayout(): void {
 		// Showing only its sessions, the view lays them out though its chat widget is hidden
-		if (!this._widget || !(this.sessionsListService.sessionsOnly.get() ? this.isBodyVisible() : this._widget.visible)) {
+		if (!this._widget || !(this.chatViewHostService.sessionsOnly.get() ? this.isBodyVisible() : this._widget.visible)) {
 			return;
 		}
 
@@ -2025,7 +2022,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		const oldSessionsViewerOrientation = this.sessionsViewerOrientation;
 		let newSessionsViewerOrientation: AgentSessionsViewerOrientation;
-		const sessionsOnly = !!this.sessionsListService.sessionsOnly.get();
+		const sessionsOnly = !!this.chatViewHostService.sessionsOnly.get();
 		switch (sessionsOnly ? 'stacked' : this.sessionsViewerOrientationConfiguration) {
 			// Stacked
 			case 'stacked':
