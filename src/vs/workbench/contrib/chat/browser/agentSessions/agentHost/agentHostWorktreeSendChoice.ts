@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Sequencer } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -22,7 +23,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { registerOnboardingTargetProvider } from '../../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../../../onboarding/common/onboardingRegistry.js';
-import { IOnboardingScenario } from '../../../../onboarding/common/onboardingScenario.js';
+import { IOnboardingScenario, OnboardingOutcome } from '../../../../onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService } from '../../../../onboarding/common/onboardingScenarioService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
@@ -114,10 +115,12 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 
 	declare readonly _serviceBrand: undefined;
 
-	/** New chats whose send is held while the user is asked. */
-	private readonly _asking = new ResourceSet();
-	private _target: HTMLElement | undefined;
-	private _useWorktree = false;
+	/** New chats whose send is held, from deciding until it goes on: a request sent again meanwhile is not sent twice. */
+	private readonly _holding = new ResourceSet();
+	/** The callout shown now: one at a time, as the onboarding engine joins runs of the same scenario. */
+	private _asking: { readonly control: HTMLElement; useWorktree: boolean } | undefined;
+	/** Asks one after another, so that each has its own control and answer. */
+	private readonly _asks = new Sequencer();
 
 	constructor(
 		private readonly _now: () => number,
@@ -135,7 +138,7 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-		this._register(registerOnboardingTargetProvider(AGENT_HOST_WORKTREE_SEND_CHOICE_TARGET_ID, scope => scope === undefined && this._target ? { element: this._target } : undefined));
+		this._register(registerOnboardingTargetProvider(AGENT_HOST_WORKTREE_SEND_CHOICE_TARGET_ID, scope => scope === undefined && this._asking ? { element: this._asking.control } : undefined));
 		this._register(onboardingScenarioRegistry.register(this._createScenario()));
 		this._register(submitRequestHandlerService.register({
 			id: AGENT_HOST_WORKTREE_SEND_CHOICE_ID,
@@ -151,16 +154,17 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 		}));
 	}
 
-	/** Returns whether it handled the request in place of the send, which it does only for one sent again while it asks. */
+	/** Returns whether it handled the request in place of the send, which it does only for one sent again while it holds it. */
 	private async _tryHandle(request: IChatSubmitRequest): Promise<boolean> {
 		const resource = request.sessionResource;
-		if (this._asking.has(resource)) {
-			// Sent again while asked: the held request is sent once answered
+		if (this._holding.has(resource)) {
+			// Sent again while held: the held request goes on once decided, so this one is not sent as well
 			return true;
 		}
 		if (!this._isNewChatInFolder(resource) || !this._hasRecentChatInFolder(resource)) {
 			return false;
 		}
+		this._holding.add(resource);
 		const choices = this._instantiationService.createInstance(AgentHostWorktreeFolderChoices, () => resource);
 		try {
 			if (!choices.canWorkInNewWorktree()) {
@@ -168,45 +172,56 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 			}
 			const target = this._chatWidgetService.getWidgetBySessionResource(resource)?.domNode;
 			const control = target && getWorktreeControl(target);
-			// Asked only where the user sees what it points at; the choice remembered applies also without
-			if (!control && !this._rememberedChoice()) {
-				return false;
-			}
-			const choice = await this._choose(resource, control);
+			const choice = this._rememberedChoice() ?? (control ? await this._askAndRemember(control) : 'folder');
 			if (choice === 'worktree') {
-				await choices.setNewWorktree(true);
-				if (!choices.isNewWorktreeSelected()) {
-					this._notificationService.warn(localize('agentHost.worktreeSendChoice.notApplied', "This chat could not start in a new worktree, so it works in the folder."));
-				}
+				await this._applyNewWorktree(choices);
 			}
 			return false;
 		} finally {
 			choices.dispose();
+			this._holding.delete(resource);
 		}
+	}
+
+	/** Has the chat work in a new worktree; where that fails, it works in the folder, which a warning tells. */
+	private async _applyNewWorktree(choices: AgentHostWorktreeFolderChoices): Promise<void> {
+		let applied = false;
+		try {
+			await choices.setNewWorktree(true);
+			applied = choices.isNewWorktreeSelected();
+		} catch (error) {
+			onUnexpectedError(error);
+		}
+		if (applied) {
+			return;
+		}
+		if (choices.isNewWorktreeSelected()) {
+			// Set before the change failed: back to the folder, where it is then sent
+			await choices.setNewWorktree(false).catch(onUnexpectedError);
+		}
+		this._notificationService.warn(localize('agentHost.worktreeSendChoice.notApplied', "This chat could not start in a new worktree, so it works in the folder."));
 	}
 
 	async askWorktreeOnSend(control: HTMLElement): Promise<WorktreeSendChoice> {
 		return this._rememberedChoice() ?? this._askAndRemember(control);
 	}
 
-	/** Where the Chat view's new chat of `resource` works; a request sent again meanwhile is held, not sent twice. */
-	private async _choose(resource: URI, control: HTMLElement | undefined): Promise<WorktreeSendChoice> {
-		const remembered = this._rememberedChoice();
-		if (remembered || !control) {
-			return remembered ?? 'folder';
-		}
-		this._asking.add(resource);
-		try {
-			return await this._askAndRemember(control);
-		} finally {
-			this._asking.delete(resource);
-		}
-	}
-
-	private async _askAndRemember(control: HTMLElement): Promise<WorktreeSendChoice> {
-		const choice = await this._ask(control);
-		this._storageService.store(AGENT_HOST_WORKTREE_SEND_CHOICE_STORAGE_KEY, choice, StorageScope.PROFILE, StorageTarget.USER);
-		return choice;
+	/**
+	 * Asks on `control`, after any callout shown before, unless that answer is remembered by then; and remembers the answer
+	 * only where the user gave one: not where the callout did not show or ended on its own, which then works in the folder.
+	 */
+	private _askAndRemember(control: HTMLElement): Promise<WorktreeSendChoice> {
+		return this._asks.queue(async () => {
+			const remembered = this._rememberedChoice();
+			if (remembered) {
+				return remembered;
+			}
+			const answer = await this._ask(control);
+			if (answer) {
+				this._storageService.store(AGENT_HOST_WORKTREE_SEND_CHOICE_STORAGE_KEY, answer, StorageScope.PROFILE, StorageTarget.USER);
+			}
+			return answer ?? 'folder';
+		});
 	}
 
 	private _rememberedChoice(): WorktreeSendChoice | undefined {
@@ -214,14 +229,17 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 		return stored === 'worktree' || stored === 'folder' ? stored : undefined;
 	}
 
-	private async _ask(control: HTMLElement): Promise<WorktreeSendChoice> {
-		this._target = control;
-		this._useWorktree = false;
+	/** The user's answer in the callout on `control`; `undefined` where they gave none, such as where it could not show. */
+	private async _ask(control: HTMLElement): Promise<WorktreeSendChoice | undefined> {
+		const asking = this._asking = { control, useWorktree: false };
 		try {
-			await this._onboardingService.runScenario(AGENT_HOST_WORKTREE_SEND_CHOICE_ID, CancellationToken.None);
-			return this._useWorktree ? 'worktree' : 'folder';
+			const outcome = await this._onboardingService.runScenario(AGENT_HOST_WORKTREE_SEND_CHOICE_ID, CancellationToken.None);
+			// Use New Worktree completes it; Continue in Folder and Escape skip it
+			return outcome === OnboardingOutcome.Completed && asking.useWorktree ? 'worktree'
+				: outcome === OnboardingOutcome.Skipped ? 'folder'
+					: undefined;
 		} finally {
-			this._target = undefined;
+			this._asking = undefined;
 		}
 	}
 
@@ -279,7 +297,11 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 						description: localize('agentHost.worktreeSendChoice.description', "Start this chat in a new worktree so it works separately from your other chats, on its own branch."),
 						primaryAction: {
 							label: localize('agentHost.worktreeSendChoice.useWorktree', "Use New Worktree"),
-							run: () => { this._useWorktree = true; },
+							run: () => {
+								if (this._asking) {
+									this._asking.useWorktree = true;
+								}
+							},
 							advance: true,
 						},
 						endTourLabel: localize('agentHost.worktreeSendChoice.continueInFolder', "Continue in Folder"),
