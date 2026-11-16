@@ -157,6 +157,28 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 			&& !this.isNoWorkspaceSelected();
 	}
 
+	/** Has the session start without a working directory, as No Workspace does. */
+	setNoWorkspace(): void {
+		const sessionResource = this._sessionResource();
+		const provider = sessionResource && getLocalAgentHostSessionProvider(sessionResource);
+		if (!sessionResource) {
+			return;
+		}
+		// Read before the folder changes, which resets the session's configuration
+		const isolation = this._isolation();
+		// All at once, as a send right after it graduates the session with what it then has: without a folder, and not in a
+		// new worktree of a folder it no longer has
+		this._newSessionFolderService.setNoWorkspace(sessionResource);
+		if (provider && isolation?.inPlace && isolation.values[isolation.key] !== isolation.inPlace) {
+			this._provisional.applyConfigChange(sessionResource, provider, undefined, { [isolation.key]: isolation.inPlace }).catch(onUnexpectedError);
+		}
+	}
+
+	/** Whether the session can work in a new worktree of its folder: once its configuration, which says so, is known. */
+	canWorkInNewWorktree(): boolean {
+		return !!this._isolation()?.worktree;
+	}
+
 	/** Has the session work in a new worktree of its folder, or in the folder itself, as New Worktree and the folder do. */
 	setNewWorktree(worktree: boolean): Promise<void> {
 		return this._setIsolation(worktree);
@@ -251,19 +273,7 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 				enabled: true,
 				category: workspaceGroup,
 				run: () => {
-					const sessionResource = this._sessionResource();
-					const provider = sessionResource && getLocalAgentHostSessionProvider(sessionResource);
-					if (!sessionResource) {
-						return;
-					}
-					// Read before the folder changes, which resets the session's configuration
-					const isolation = this._isolation();
-					// All at once, as a send right after it graduates the session with what it then has: without a folder,
-					// and not in a new worktree of a folder it no longer has
-					this._newSessionFolderService.setNoWorkspace(sessionResource);
-					if (provider && isolation?.inPlace && isolation.values[isolation.key] !== isolation.inPlace) {
-						this._provisional.applyConfigChange(sessionResource, provider, undefined, { [isolation.key]: isolation.inPlace }).catch(onUnexpectedError);
-					}
+					this.setNoWorkspace();
 					onDidPick();
 				},
 			};
