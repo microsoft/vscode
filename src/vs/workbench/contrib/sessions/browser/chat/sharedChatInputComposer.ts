@@ -1209,27 +1209,29 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		};
 		try {
 			const session = this.options.session.get();
-			if (!hasAdditionalSendContent && session && await this.chatSubmitRequestHandlerService.tryHandle({
+			const handled = !hasAdditionalSendContent && !!session && await this.chatSubmitRequestHandlerService.tryHandle({
 				sessionResource: session.resource,
 				providerId: session.providerId,
 				sessionId: session.sessionId,
 				input: query,
-			})) {
+			});
+			// The handler can wait, during which the composer can be closed or move to another draft, also with the same input:
+			// the request is for the draft it was written for, so it is never sent to another, nor once that is closed, and the
+			// input, now another draft's, stays as it is, also where the handler acted on the request, which then dropped nothing.
+			if (this._store.isDisposed || (session && this.options.session.get()?.sessionId !== session.sessionId)) {
+				userInteraction?.cancel('notDispatched');
+				if (!handled && !this._store.isDisposed && isInputAlive()) {
+					this.notificationService.warn(localize('sharedChatInputComposer.draftChanged', "The request was not sent because its chat changed while it waited. Its input was kept."));
+				}
+				return false;
+			}
+			if (handled) {
 				userInteraction?.cancel('notDispatched');
 				// The handler has acted on the request; an input replaced while it ran is newer, so it is kept.
 				if (!isInputAlive() || !isDraftReplaced()) {
 					this.setInputValue('');
 				}
 				return true;
-			}
-			// The handler can wait, during which the composer can be closed or move to another draft: the request is for the
-			// draft it was written for, so it is never sent to another, nor once that is closed. Its input stays as it is.
-			if (this._store.isDisposed || (session && this.options.session.get()?.sessionId !== session.sessionId)) {
-				userInteraction?.cancel('notDispatched');
-				if (!this._store.isDisposed && isInputAlive()) {
-					this.notificationService.warn(localize('sharedChatInputComposer.draftChanged', "The request was not sent because its chat changed while it waited. Its input was kept."));
-				}
-				return false;
 			}
 			// The handler can wait, during which the input can be replaced as before.
 			if (isInputAlive() && isDraftReplaced()) {

@@ -739,9 +739,9 @@ suite('SharedChatInputComposer', () => {
 		});
 	}
 
-	test('a request waiting on a submit handler is sent for its own draft only: not once the composer moved to another with the same input, which keeps it and says so, nor once it was closed', async () => {
+	test('a request waiting on a submit handler is sent for its own draft only: not once the composer moved to another with the same input, which keeps it and says so, nor once it was closed; also where the handler acted on it, which clears neither and says nothing, while one it acted on for its own draft clears the input as before', async () => {
 		const results = [];
-		for (const change of ['switched', 'closed'] as const) {
+		for (const [change, handled] of [['switched', false], ['closed', false], ['switched', true], ['closed', true], ['unchanged', true]] as const) {
 			const handling = new DeferredPromise<boolean>();
 			const session = observableValue<{ resource: URI; providerId: string; sessionId: string } | undefined>('session', { resource: URI.parse('session:/1'), providerId: 'provider', sessionId: '1' });
 			const { composer, widget, state } = createComposer({ tryHandle: () => handling.p, session });
@@ -749,18 +749,21 @@ suite('SharedChatInputComposer', () => {
 			await timeout(0);
 			if (change === 'switched') {
 				session.set({ resource: URI.parse('session:/2'), providerId: 'provider', sessionId: '2' }, undefined);
-			} else {
+			} else if (change === 'closed') {
 				composer.dispose();
 				widget.input = undefined;
 			}
-			handling.complete(false);
+			handling.complete(handled);
 			const sent = await sending;
-			results.push({ change, sent, requests: state().requests.length, warnings: state().warnings.length, input: state().input.text });
+			results.push({ change, handled, sent, requests: state().requests.length, warnings: state().warnings.length, input: state().input.text });
 		}
 
 		assert.deepStrictEqual(results, [
-			{ change: 'switched', sent: false, requests: 0, warnings: 1, input: 'Build it' },
-			{ change: 'closed', sent: false, requests: 0, warnings: 0, input: 'Build it' },
+			{ change: 'switched', handled: false, sent: false, requests: 0, warnings: 1, input: 'Build it' },
+			{ change: 'closed', handled: false, sent: false, requests: 0, warnings: 0, input: 'Build it' },
+			{ change: 'switched', handled: true, sent: false, requests: 0, warnings: 0, input: 'Build it' },
+			{ change: 'closed', handled: true, sent: false, requests: 0, warnings: 0, input: 'Build it' },
+			{ change: 'unchanged', handled: true, sent: true, requests: 0, warnings: 0, input: '' },
 		]);
 	});
 
