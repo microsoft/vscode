@@ -698,6 +698,7 @@ async function createSessionsListFixtureServices(context: ComponentFixtureContex
 			reg.define(ISessionsListModelService, SessionsListModelService);
 			reg.define(ISessionGroupsService, SessionGroupsService);
 			reg.define(ISessionSectionOrderService, SessionSectionOrderService);
+			reg.define(ISessionsViewLocator, SessionsViewLocator);
 			const reducedMotion = view.reducedMotion;
 			if (reducedMotion !== undefined) {
 				reg.defineInstance(IAccessibilityService, new class extends TestAccessibilityService {

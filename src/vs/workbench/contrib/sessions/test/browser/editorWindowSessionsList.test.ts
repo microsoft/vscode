@@ -52,6 +52,14 @@ suite('EditorWindowSessionsList', () => {
 		});
 	});
 
+	test('every editor window view offers Date, Environment and Worktree, defaulting to Date', () => {
+		const options = createEditorWindowSessionsViewOptions({ id: SessionsViewId } as IViewletViewOptions, observableValue('scoped', true));
+		assert.deepStrictEqual(options.groupings, {
+			offered: [SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Worktree],
+			default: SessionsGrouping.Date,
+		});
+	});
+
 	test('only the header presentation differs between title and section', () => {
 		const scoped = observableValue('scoped', true);
 		const title = createEditorWindowSessionsViewOptions({ id: SessionsViewId } as IViewletViewOptions, scoped, 'title');
