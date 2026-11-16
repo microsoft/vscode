@@ -232,7 +232,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 						harness: handoff?.target.harness,
 						applicationId: handoff?.target.applicationId,
 						isQuickChat: automation.target.kind === 'quickChat',
-						open: async () => { if (conversation) { this.startEditing(automation); } else { await this.preview(automation); } },
+						open: async () => { if (conversation) { await this.startEditing(automation); } else { await this.preview(automation); } },
 						editAction: conversation ? editAction : undefined,
 						editing: requestEditing,
 						actions: requestEditing ? [
@@ -706,7 +706,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		return result.automation;
 	}
 
-	private startEditing(automation: IAutomationDescriptor): void {
+	private async startEditing(automation: IAutomationDescriptor): Promise<void> {
 		this.assertEnabled();
 		this.assertWritable(automation);
 		const current = this.editingRequest.get();
@@ -759,6 +759,18 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			},
 		};
 		this.editingRequest.set({ id: automation.id, state }, undefined);
+		const conversation = automation.conversation ?? handoff?.conversation;
+		const session = conversation && this.sessionsManagementService.getSession(conversation.sessionResource);
+		if (conversation && session && ![...this.chatInputs.keys()].some(widget => widget.visible && isEqual(widget.viewModel?.sessionResource, conversation.chatResource))) {
+			try {
+				await this.sessionsService.openChat(session, conversation.chatResource);
+			} catch (error) {
+				if (this.editingRequest.get()?.state === state) {
+					this.editingRequest.set(undefined, undefined);
+				}
+				throw error;
+			}
+		}
 	}
 
 	private async saveEditedRequest(automation: IAutomationDescriptor, state: Pick<IChatScheduledRequestEditing, 'text' | 'input' | 'runAt'>, newSession?: { target: ISavedSessionDraftTarget; session: ISession }): Promise<IAutomationDescriptor> {

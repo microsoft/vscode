@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, append } from '../../../../../base/browser/dom.js';
+import sinon from 'sinon';
+import { $, append, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { getComparisonKey } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -20,8 +22,11 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import '../../../../../workbench/browser/actions/listCommands.js';
+import { IChatScheduledRequest } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { IPendingSessionItem, IPendingSessionSection } from '../../../../../workbench/contrib/sessions/browser/views/pendingSessions.js';
 import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
@@ -341,10 +346,79 @@ suite('Sessions - pending list items', () => {
 			disabled: list.getVisibleSessions().map(session => session.sessionId).sort(),
 			indicatorHidden: mainWindow.getComputedStyle(list.getItemRow({ session: scheduled.resource })!.querySelector('.session-scheduled-indicator')!).display,
 		}, {
-			before: { indicator: 'flex', aria: true }, hovered: 'none', filtered: ['scheduled'], draftHidden: true, afterDispatch: [],
+			before: { indicator: 'flex', aria: true }, hovered: 'flex', filtered: ['scheduled'], draftHidden: true, afterDispatch: [],
 			disabled: ['normal', 'scheduled'], indicatorHidden: 'none',
 		});
 	});
+
+	for (const keyboard of [false, true]) {
+		test(`scheduled-message preview keeps actions across row refreshes and resolves the latest request (keyboard: ${keyboard})`, async () => {
+			const session = createTestSession('scheduled').session;
+			const harness = createListHarness(disposables, [session]);
+			const invoked: string[] = [];
+			const notifications: string[] = [];
+			const error = sinon.stub(harness.instantiationService.get(INotificationService), 'error').callsFake(error => { notifications.push(String(error)); });
+			disposables.add(toDisposable(() => error.restore()));
+			const request: IChatScheduledRequest = {
+				id: 'message', text: 'Check the build\nInclude the test results', description: 'Scheduled',
+				runAt: new Date(Date.now() + 3 * 60 * 60_000).toISOString(), attachments: [],
+				actions: ([
+					['edit', 'Edit', Codicon.edit],
+					['sendNow', 'Send Now', Codicon.newLine],
+					['reschedule', 'Reschedule...', Codicon.clock],
+					['cancel', 'Cancel Schedule', Codicon.closeSmall],
+				] as const).map(([id, label, icon]) => toAction({
+					id: `sessions.scheduled.${id}`, label, class: ThemeIcon.asClassName(icon),
+					run: () => { invoked.push('stale'); },
+				})),
+			};
+			const key = getComparisonKey(session.resource);
+			const requests = observableValue<ReadonlyMap<string, readonly IChatScheduledRequest[]>>('requests', new Map([[key, [request]]]));
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(400, 800), {
+				grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
+				scheduledSessionResources: constObservable(new Set([session.resource.toString()])), scheduledRequests: requests,
+				onSessionOpen: () => { invoked.push('opened session'); },
+			}));
+			list.layout(800, 400);
+			let card: HTMLElement | undefined;
+			let focused: boolean | undefined;
+			const hover = sinon.stub(harness.instantiationService.get(IHoverService), 'showInstantHover').callsFake((options, focus) => {
+				assert.ok(isHTMLElement(options.content));
+				card = options.content;
+				focused = focus;
+				return undefined;
+			});
+			disposables.add(toDisposable(() => hover.restore()));
+			const indicator = list.getItemRow({ session: session.resource })!.querySelector<HTMLElement>('.session-scheduled-indicator')!;
+			if (keyboard) {
+				indicator.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+			} else {
+				indicator.click();
+			}
+			assert.ok(card);
+			const action = card.querySelector<HTMLElement>('.codicon-edit')!;
+			requests.set(new Map([[key, [{
+				...request,
+				actions: request.actions.map(action => toAction({ ...action, run: () => { invoked.push('latest'); } })),
+			}]]]), undefined);
+			list.update();
+			action.click();
+			await timeout(0);
+			requests.set(new Map(), undefined);
+			action.click();
+			await timeout(0);
+			assert.deepStrictEqual({
+				text: card.querySelector('.session-scheduled-card-text')?.textContent,
+				time: card.querySelector('.session-scheduled-card-time')?.textContent,
+				actions: [...card.querySelectorAll('.action-label')].map(action => action.getAttribute('aria-label')),
+				focused, invoked, role: indicator.getAttribute('role'),
+				staleActionReported: notifications.length === 1 && notifications[0].includes('scheduled message has changed'),
+			}, {
+				text: 'Check the build', time: 'Sends in 3 hours', actions: ['Edit', 'Send Now', 'Cancel Schedule'],
+				focused: keyboard, invoked: ['latest'], role: 'button', staleActionReported: true,
+			});
+		});
+	}
 
 	test('pending filtering composes harness, environment and application with strict Inbox workspace scope', () => {
 		const harness = createListHarness(disposables, []);

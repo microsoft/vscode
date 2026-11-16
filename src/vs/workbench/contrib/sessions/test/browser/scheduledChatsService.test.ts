@@ -75,6 +75,7 @@ suite('Scheduled chat handoffs', () => {
 		const requests: ICreateAutomationOptions[] = [];
 		let failCreate = false;
 		let failDelete = false;
+		let openChatError: Error | undefined;
 		let publishBeforeFailure = false;
 		let conflict = false;
 		let occupied = false;
@@ -235,6 +236,9 @@ suite('Scheduled chat handoffs', () => {
 			}, new class extends mock<ISessionsService>() {
 				override async openChat(_session: ISession, resource: URI) {
 					calls.push('openChat');
+					if (openChatError) {
+						throw openChatError;
+					}
 					openedChats.push(resource);
 				}
 			},
@@ -265,6 +269,7 @@ suite('Scheduled chat handoffs', () => {
 			get picks() { return picks; },
 			set failCreate(value: boolean) { failCreate = value; },
 			set failDelete(value: boolean) { failDelete = value; },
+			set openChatError(value: Error | undefined) { openChatError = value; },
 			set publishBeforeFailure(value: boolean) { publishBeforeFailure = value; },
 			set conflict(value: boolean) { conflict = value; },
 			set occupied(value: boolean) { occupied = value; },
@@ -287,6 +292,7 @@ suite('Scheduled chat handoffs', () => {
 		const context = disposables.add(new MockContextKeyService());
 		const anchor = $('div');
 		const widget = upcastPartial<IChatWidget>({
+			visible: true,
 			scopedContextKeyService: context,
 			onDidChangeViewModel: Event.None,
 			viewModel: upcastPartial<IChatViewModel>({ model, sessionResource: resource, setScheduledRequests: requests => { scheduled = requests; } }),
@@ -387,7 +393,7 @@ suite('Scheduled chat handoffs', () => {
 			enabled: fixture.automations.get()[0].enabled,
 		}, {
 			actions: ['Edit', 'Send Now', 'Reschedule...', 'Cancel Schedule'].map(label => ({ label, hasIcon: true })),
-			editIsShared: true, calls: [], loadedChats: [], openedChats: [],
+			editIsShared: true, calls: ['openChat'], loadedChats: [], openedChats: [conversation.chatResource],
 			input: [], editingText: input.inputText, enabled: true,
 		});
 	});
@@ -414,10 +420,35 @@ suite('Scheduled chat handoffs', () => {
 			recoveryText: parse(fixture.storage.get('sessions.scheduledChatHandoffs', StorageScope.PROFILE)!).handoffs[0].input.inputText,
 		}, {
 			text: 'Changed scheduled message', prompt: 'Changed scheduled message', enabled: true,
-			runAt: customTime.toISOString(), calls: ['update'], recoveredInputs: [],
+			runAt: customTime.toISOString(), calls: ['openChat', 'update'], recoveredInputs: [],
 			editing: undefined, anchors: [true, true], recoveryText: 'Changed scheduled message',
 		});
 	}));
+
+	test('editing a visible scheduled message keeps the current composer draft without reopening the chat', async () => {
+		const fixture = create();
+		const source = registerInput(fixture.service);
+		fixture.sessions.set('agent-host-copilot:/session', session);
+		await fixture.service.scheduleChatInput(source.widget);
+		source.widget.setInput('Unsent composer draft');
+		await source.scheduled[0].editAction!.run();
+		assert.deepStrictEqual({
+			opened: fixture.openedChats, composer: source.text, editing: source.scheduled[0].editing?.text,
+		}, { opened: [], composer: 'Unsent composer draft', editing: input.inputText });
+	});
+
+	test('a failed navigation from scheduled-message Edit leaves the schedule available to retry', async () => {
+		const fixture = create();
+		const conversation = { sessionResource: URI.parse('agent-host-copilot:/session'), chatResource: URI.parse('agent-host-copilot:/session/secondary') };
+		fixture.sessions.set(conversation.sessionResource.toString(), session);
+		await fixture.service.schedule(input, target, session, 'composition', conversation);
+		fixture.openChatError = new Error('Could not open the conversation');
+		await assert.rejects(async () => fixture.service.items.get()[0].editAction!.run(), /Could not open the conversation/);
+		assert.deepStrictEqual({
+			editing: fixture.service.items.get()[0].editing, enabled: fixture.automations.get()[0].enabled,
+			text: fixture.automations.get()[0].request?.text,
+		}, { editing: undefined, enabled: true, text: input.inputText });
+	});
 
 	test('scheduled conversation edit conflicts preserve edits and cancellation keeps the original schedule', async () => {
 		const fixture = create();
