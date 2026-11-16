@@ -14,6 +14,7 @@ import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js
 import { DropdownMenuActionViewItem } from '../../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { ITableRenderer } from '../../../../../../base/browser/ui/table/table.js';
 import { Action, Separator, SubmenuAction } from '../../../../../../base/common/actions.js';
+import { equals } from '../../../../../../base/common/arrays.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
@@ -116,13 +117,13 @@ export class RemotesWidget extends Disposable {
 	private sortBy: 'availability' | 'name' | 'activity' = 'availability';
 	private readonly refreshRequest = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly refreshingKinds = new Set<RemoteKind>();
-	private readonly refreshedKinds = new Set<RemoteKind>();
 	private readonly pendingActions = new Set<string>();
 	private readonly pendingConnections = new Map<string, boolean>();
 	private readonly collapsedGroups = new Set<string>();
 	private readonly expandedGroups = new Set<string>();
 	private groupBy: 'none' | 'status' | 'type' = 'none';
 	private kinds: readonly RemoteKind[];
+	private displayedRemotes: readonly ICustomizationRemote[] = [];
 	private rows: IRemoteTableRow[] = [];
 	private visible = false;
 	private query = '';
@@ -388,11 +389,27 @@ export class RemotesWidget extends Disposable {
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('RemotesWidget', () => this.layout(), dom.getWindow(this.domNode)));
 		this._register(resizeObserver.observe(this.domNode));
 		this._register(autorun(reader => {
-			this.model.remotes.read(reader);
+			const remotes = this.model.remotes.read(reader);
 			this.model.tunnelAuthenticationRequired.read(reader);
 			const kinds = getVisibleRemoteKinds(operatingSystem, this.model.environmentsEnabled.read(reader));
+			const kindsChanged = !equals(this.kinds, kinds);
 			this.kinds = kinds;
-			this.render();
+			const remotesById = new Map(remotes.map(remote => [remote.id, remote]));
+			// Freeze discovery details, not connection changes or inventory withdrawals.
+			const displayedRemotes = this.refreshRequest.value ? this.displayedRemotes.flatMap(remote => {
+				const current = remotesById.get(remote.id);
+				if (!current) {
+					return [];
+				}
+				return [remote.connectionStatus === current.connectionStatus && remote.lastConnectionError === current.lastConnectionError
+					? remote
+					: { ...remote, connectionStatus: current.connectionStatus, lastConnectionError: current.lastConnectionError, metadataIsStale: current.metadataIsStale }];
+			}) : remotes;
+			const remotesChanged = !equals(this.displayedRemotes, displayedRemotes);
+			this.displayedRemotes = displayedRemotes;
+			if (!this.refreshRequest.value || remotesChanged || kindsChanged) {
+				this.render();
+			}
 		}));
 	}
 
@@ -613,6 +630,10 @@ export class RemotesWidget extends Disposable {
 		this.refreshAction.enabled = false;
 		this.refreshAction.class = ThemeIcon.asClassName(ThemeIcon.modify(Codicon.loading, 'spin'));
 		this.tableContainer.setAttribute('aria-busy', 'true');
+		for (const kind of this.kinds) {
+			this.refreshingKinds.add(kind);
+		}
+		this.render();
 		try {
 			const failedKinds = await this.model.refresh(request.token, {
 				report: progress => {
@@ -621,12 +642,7 @@ export class RemotesWidget extends Disposable {
 					}
 					if (progress.refreshing) {
 						this.refreshingKinds.add(progress.kind);
-					} else {
-						this.refreshingKinds.delete(progress.kind);
-						this.refreshedKinds.add(progress.kind);
-						this.failedKinds = [...this.failedKinds.filter(kind => kind !== progress.kind), ...(progress.failed ? [progress.kind] : [])];
 					}
-					this.render();
 				},
 			});
 			if (!request.token.isCancellationRequested && !this._store.isDisposed) {
@@ -649,13 +665,14 @@ export class RemotesWidget extends Disposable {
 				this.refreshRequest.clear();
 				this.tableContainer.setAttribute('aria-busy', 'false');
 				this.refreshingKinds.clear();
+				this.displayedRemotes = this.model.remotes.get();
 				this.render();
 			}
 		}
 	}
 
 	private getFilteredRemotes(): readonly ICustomizationRemote[] {
-		return this.model.remotes.get().filter(remote => this.kinds.includes(remote.kind)
+		return this.displayedRemotes.filter(remote => this.kinds.includes(remote.kind)
 			&& `${remote.name} ${getRemoteAddressLabel(remote)} ${remoteKindLabels[remote.kind]} ${getRemoteTypeLabel(remote.kind)} ${getRemoteAvailabilityLabel(remote)} ${getRemoteMetadataLabel(remote, 'system')} ${getRemoteMetadataLabel(remote, 'activity')}`.toLowerCase().includes(this.query))
 			.sort((a, b) => {
 				if (this.sortBy === 'availability') {
@@ -712,7 +729,7 @@ export class RemotesWidget extends Disposable {
 				documentation: remoteSetup[kind].documentation,
 			};
 		}
-		if (!hasRemotes && !this.hasRefreshed && !this.refreshedKinds.has(kind)) {
+		if (!hasRemotes && !this.hasRefreshed) {
 			return { type: 'empty', id, label: localize('remotes.empty.findKind', "Refresh to look for {0}.", remoteKindLabels[kind]), documentation: remoteSetup[kind].documentation };
 		}
 		return { type: 'empty', id, ...remoteSetup[kind] };
@@ -772,7 +789,7 @@ export class RemotesWidget extends Disposable {
 				type: 'group', id, kind, label: remoteKindLabels[kind],
 				count: groupRemotes.length, collapsed, refreshing: this.refreshingKinds.has(kind), warning: this.getRefreshWarning(kind),
 				description: !groupRemotes.length && collapsed && !this.refreshingKinds.has(kind) && !this.getRefreshWarning(kind)
-					&& (this.hasRefreshed || this.refreshedKinds.has(kind)) && !(kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get())
+					&& this.hasRefreshed && !(kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get())
 					? localize('remotes.setupHint', "Expand to get started") : undefined,
 				documentation: remoteSetup[kind].documentation,
 			});
@@ -785,7 +802,7 @@ export class RemotesWidget extends Disposable {
 			}
 		}
 		if (this.details.value) {
-			const remote = this.model.remotes.get().find(remote => remote.id === this.detailsRemoteId && this.kinds.includes(remote.kind));
+			const remote = this.displayedRemotes.find(remote => remote.id === this.detailsRemoteId && this.kinds.includes(remote.kind));
 			if (remote) {
 				this.details.value.update(remote);
 			} else {

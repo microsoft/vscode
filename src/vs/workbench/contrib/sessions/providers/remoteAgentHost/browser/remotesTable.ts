@@ -75,7 +75,7 @@ type RemoteCellTemplate = {
 	readonly elementDisposables: DisposableStore;
 	row?: IRemoteTableRow;
 } & (
-		| { readonly column: 'name'; readonly content: HTMLElement; readonly chevron: HTMLElement; readonly nameRow: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement; readonly gitHubEnvironment: HTMLElement; readonly count: HTMLElement; readonly countBadge: CountBadge; readonly progress: HTMLElement; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
+		| { readonly column: 'name'; readonly content: HTMLElement; readonly chevron: HTMLElement; readonly nameRow: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement; readonly gitHubEnvironment: HTMLElement; readonly count: HTMLElement; readonly countBadge: CountBadge; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
 		| { readonly column: 'type' | 'identity' | 'system' | 'status' | 'sessions' | 'activity'; readonly label: HTMLElement }
 		| { readonly column: 'actions'; readonly action: Action; readonly connect: ButtonWithIcon; readonly newSession: ButtonWithIcon; readonly newSessionAction: Action; readonly visibility: Action; readonly rename: Action; readonly copyAddress: Action; readonly locationPreference: Action; readonly gitHubEnvironment: Action; readonly troubleshoot: Action; readonly updateServer: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
 	);
@@ -160,7 +160,7 @@ export function getRemoteMetadataLabel(remote: ICustomizationRemote, column: 'sy
 				if (count !== undefined) {
 					parts.push(count === 1 ? localize('remotes.oneSession', "1 session") : localize('remotes.sessionCount', "{0} sessions", count));
 				}
-				if (metadata.lastActivityAt !== undefined) {
+				if (!remote.metadataIsStale && metadata.lastActivityAt !== undefined) {
 					parts.push(localize('remotes.activityTime', "Last activity {0}", fromNow(metadata.lastActivityAt, true)));
 				}
 			} else if (metadata.lastConnectedAt !== undefined) {
@@ -176,7 +176,7 @@ export function getRemoteMetadataLabel(remote: ICustomizationRemote, column: 'sy
 export function getRemoteActivityTime(remote: ICustomizationRemote): number | undefined {
 	const { lastActivityAt, lastConnectedAt, lastOnlineAt } = remote.metadata ?? {};
 	return RemoteAgentHostConnectionStatus.isConnected(remote.connectionStatus)
-		? lastActivityAt ?? lastConnectedAt : remote.lastHeartbeatAt ?? lastConnectedAt ?? lastOnlineAt;
+		? (remote.metadataIsStale ? undefined : lastActivityAt) ?? lastConnectedAt : remote.lastHeartbeatAt ?? lastConnectedAt ?? lastOnlineAt;
 }
 
 /**
@@ -197,8 +197,7 @@ export function getRemoteStatusGroup(remote: ICustomizationRemote): 'ready' | 'a
 
 export function getRemoteAvailabilityLabel(remote: ICustomizationRemote): string {
 	return remoteStatusGroups.find(group => group.key === getRemoteStatusGroup(remote))?.label
-		?? (remote.availability === 'pending' ? localize('remotes.checkingAvailability', "Checking...")
-			: localize('remotes.statusUnverified', "Not verified"));
+		?? localize('remotes.statusUnverified', "Not verified");
 }
 
 function isRemoteOffline(remote: ICustomizationRemote): boolean {
@@ -317,12 +316,10 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					countBadge: disposables.add(new CountBadge(count, {}, {
 						...defaultCountBadgeStyles, badgeBackground: undefined, badgeForeground: undefined,
 					})),
-					progress: dom.append(nameRow, dom.$('.remotes-group-progress', { 'aria-hidden': 'true' })),
 					warning: dom.append(nameRow, dom.$('.remotes-refresh-warning')),
 					description, actionContainer,
 					links: dom.append(content, dom.$('.remotes-empty-actions')),
 				};
-				dom.append(template.progress, renderIcon(ThemeIcon.modify(Codicon.loading, 'spin')));
 				break;
 			}
 			default: {
@@ -441,7 +438,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				if (remote) {
 					const label = getRemoteAvailabilityLabel(remote);
 					const indicator = dom.append(template.label, dom.$('span'));
-					renderStatusIndicator(indicator, group?.icon ?? (remote.availability === 'pending' ? ThemeIcon.modify(Codicon.loadingCompact, 'spin') : Codicon.question),
+					renderStatusIndicator(indicator, group?.icon ?? Codicon.question,
 						group?.key === 'ready' ? 'connected' : group?.key ?? 'unverified');
 					dom.append(template.label, dom.$('span', undefined, label));
 					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.label, {
@@ -549,7 +546,6 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					}, { groupId: this.hoverGroupId }));
 				}
 				template.count.hidden = entry.type !== 'group';
-				template.progress.hidden = entry.type !== 'group' || !entry.refreshing;
 				dom.clearNode(template.warning);
 				if (entry.type === 'group' && entry.warning) {
 					const icon = dom.append(template.warning, renderIcon(Codicon.warning));

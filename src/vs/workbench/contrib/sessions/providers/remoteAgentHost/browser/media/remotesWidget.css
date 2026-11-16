@@ -730,12 +730,6 @@
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-panel-border));
 }
 
-.remotes-widget .remotes-group-progress {
-	display: flex;
-	flex-shrink: 0;
-	color: var(--vscode-descriptionForeground);
-}
-
 .remotes-widget .remotes-github-environment {
 	display: flex;
 	flex-shrink: 0;
@@ -793,7 +787,6 @@
 
 .remotes-widget .remotes-group-count[hidden],
 .remotes-widget .remotes-github-environment[hidden],
-.remotes-widget .remotes-group-progress[hidden],
 .remotes-widget .remotes-empty-signin[hidden],
 .remotes-widget .remotes-signin-progress[hidden],
 .remotes-widget .remotes-refresh-warning[hidden],

@@ -392,7 +392,7 @@ suite('RemotesWidget', () => {
 			connections: model.connectionChanges,
 		}, {
 			live: ['Connected', 'SSH', 'build.example.com', '2 sessions \u00b7 Last activity now', 'Linux'],
-			stale: ['Connected', 'SSH', 'build.example.com', 'Last activity now', 'Linux'], unknown: ['Offline', 'SSH', 'build.example.com', '', ''],
+			stale: ['Connected', 'SSH', 'build.example.com', '', 'Linux'], unknown: ['Offline', 'SSH', 'build.example.com', '', ''],
 			sessionActions: ['open', 'agenthost-remote-build'], recoveryHidden: true,
 			task: undefined, connections: [],
 		});
@@ -906,6 +906,92 @@ suite('RemotesWidget', () => {
 		});
 	});
 
+	for (const grouping of ['default', 'type', 'status'] as const) {
+		test(`refresh keeps rows and metadata stable with only one spinner (${grouping})`, async () => {
+			const { parent, model, widget } = createWidget(OperatingSystem.Windows, grouping, 1400);
+			const remotes = model.remotes.get().map(remote => ({
+				...remote, availability: 'pending' as const, connectionStatus: RemoteAgentHostConnectionStatus.disconnected,
+				metadata: { operatingSystem: OperatingSystem.Linux, observedAt: 1 },
+			}));
+			model.remotes.set(remotes, undefined);
+			const pending = model.pendingRefresh = new DeferredPromise<readonly RemoteKind[]>();
+			widget.setVisible(true);
+			const rows = () => [...parent.querySelectorAll<HTMLElement>('[data-remote-id]')];
+			const content = () => rows().map(row => row.textContent);
+			const spinners = () => [...parent.querySelectorAll<HTMLElement>('.codicon-modifier-spin')].filter(icon => icon.getClientRects().length).length;
+			const initialRows = rows();
+			const initial = content();
+			const refreshing = spinners();
+			model.remotes.set(remotes.map(remote => ({
+				...remote, name: `Updated ${remote.name}`, availability: 'online',
+				metadata: { operatingSystem: OperatingSystem.Windows, observedAt: 2 },
+			})), undefined);
+			model.refreshProgress[0].report({ kind: 'ssh', refreshing: false, failed: false });
+			model.refreshProgress[0].report({ kind: 'wsl', refreshing: false, failed: false });
+			const partial = {
+				content: content(), sameRows: rows().every((row, index) => row === initialRows[index]),
+				spinners: spinners(), accessible: widget.getAccessibilityContent().includes('Updated'),
+			};
+			widget.setSearchQuery('Build');
+			const filtered = parent.querySelector('[data-remote-id="ssh:build"] .remotes-name')?.textContent;
+			widget.setSearchQuery('');
+			await pending.complete([]);
+			await timeout(0);
+			assert.deepStrictEqual({
+				refreshing, partial, filtered,
+				settled: { names: rows().map(row => row.querySelector('.remotes-name')?.textContent).sort(), spinners: spinners(), accessible: widget.getAccessibilityContent().includes('Updated') },
+			}, {
+				refreshing: 1, partial: { content: initial, sameRows: true, spinners: 1, accessible: false }, filtered: 'Build server',
+				settled: { names: ['Updated Build server', 'Updated Laptop', 'Updated Ubuntu'], spinners: 0, accessible: true },
+			});
+		});
+	}
+
+	test('connection actions stay current while discovery metadata waits for the full result', async () => {
+		const { parent, model, widget } = createWidget(OperatingSystem.Windows);
+		const remote = { ...model.remotes.get()[0], connectionStatus: RemoteAgentHostConnectionStatus.disconnected };
+		model.remotes.set([remote], undefined);
+		const pending = model.pendingRefresh = new DeferredPromise<readonly RemoteKind[]>();
+		widget.setVisible(true);
+		const read = () => ({
+			name: parent.querySelector('[data-remote-id="ssh:build"] .remotes-name')?.textContent,
+			action: getConnectionAction(parent, remote.id).textContent?.trim(),
+		});
+		model.remotes.set([{ ...remote, name: 'Updated name', connectionStatus: RemoteAgentHostConnectionStatus.connected }], undefined);
+		const connected = read();
+		model.remotes.set([{ ...remote, name: 'Updated name' }], undefined);
+		const disconnected = read();
+		await pending.complete([]);
+		await timeout(0);
+		assert.deepStrictEqual({ connected, disconnected, settled: read() }, {
+			connected: { name: 'Build server', action: 'Disconnect' },
+			disconnected: { name: 'Build server', action: 'Connect' },
+			settled: { name: 'Updated name', action: 'Connect' },
+		});
+	});
+
+	test('initially empty discovery waits for the full result and still honors inventory withdrawals', async () => {
+		const { parent, model, widget } = createWidget(OperatingSystem.Windows, 'default');
+		const remotes = model.remotes.get();
+		model.remotes.set([], undefined);
+		let pending = model.pendingRefresh = new DeferredPromise<readonly RemoteKind[]>();
+		widget.setVisible(true);
+		model.remotes.set(remotes, undefined);
+		const initial = parent.querySelectorAll('[data-remote-id]').length;
+		await pending.complete([]);
+		await timeout(0);
+		const settled = parent.querySelectorAll('[data-remote-id]').length;
+		pending = model.pendingRefresh = new DeferredPromise<readonly RemoteKind[]>();
+		parent.querySelector<HTMLElement>('.remotes-header-actions .codicon-refresh')!.click();
+		model.remotes.set([], undefined);
+		const withdrawn = parent.querySelectorAll('[data-remote-id]').length;
+		await pending.complete(['ssh']);
+		await timeout(0);
+		assert.deepStrictEqual({ initial, settled, withdrawn, afterFailure: parent.querySelectorAll('[data-remote-id]').length }, {
+			initial: 0, settled: 3, withdrawn: 0, afterFailure: 0,
+		});
+	});
+
 	function searchForText(parent: HTMLElement, label: string): void {
 		const input = parent.querySelector<HTMLInputElement>('.remotes-search-row input')!;
 		input.value = label === 'All' ? '' : label;
@@ -1312,7 +1398,7 @@ suite('RemotesWidget', () => {
 			{ label: 'Offline', icon: 'codicon codicon-circle-slash-compact', color: 'rgb(136, 136, 136)' },
 			{ label: 'Connected', icon: 'codicon codicon-circle-filled', color: 'rgb(34, 136, 34)' },
 			{ label: 'Not verified', icon: 'codicon codicon-question', color: 'rgb(0, 0, 0)' },
-			{ label: 'Checking...', icon: 'codicon codicon-loading-compact codicon-modifier-spin', color: 'rgb(0, 0, 0)' },
+			{ label: 'Not verified', icon: 'codicon codicon-question', color: 'rgb(0, 0, 0)' },
 			{ label: 'Available', icon: 'codicon codicon-circle', color: 'rgb(34, 102, 204)' },
 			{ label: 'Available', icon: 'codicon codicon-circle', color: 'rgb(34, 102, 204)' },
 		];
@@ -1388,6 +1474,51 @@ suite('RemotesWidget', () => {
 			{ ...remote, id: 'ssh:none', name: 'D', metadata: undefined },
 		], undefined);
 		assert.deepStrictEqual([...parent.querySelectorAll<HTMLElement>('.remotes-table-container [data-remote-id]')].map(row => row.dataset.remoteId), ['ssh:connection', 'ssh:activity', 'ssh:old', 'ssh:none']);
+	});
+
+	test('cached session activity is not presented or sorted as current before reconciliation', async () => {
+		const { parent, model, widget } = createWidget(OperatingSystem.Windows);
+		const now = Date.now();
+		const base = model.remotes.get()[0];
+		const cached = {
+			...base, id: 'ssh:cached', name: 'A cached', metadataIsStale: true,
+			metadata: { observedAt: now, observedSessionCount: 20, lastActivityAt: now, lastConnectedAt: now - 120_000 },
+		};
+		const current = {
+			...base, id: 'ssh:current', name: 'B current',
+			metadata: { observedAt: now, observedSessionCount: 1, lastActivityAt: now - 60_000 },
+		};
+		model.remotes.set([cached, current], undefined);
+		await organize(parent, 'remotes.sort.activity');
+		const read = () => ({
+			rows: [...parent.querySelectorAll<HTMLElement>('.remotes-table-container [data-remote-id]')].map(row => ({
+				id: row.dataset.remoteId,
+				activity: row.querySelector('.remotes-activity-column')?.textContent,
+			})),
+			accessibleCachedCount: widget.getAccessibilityContent().includes('20 sessions'),
+		});
+		const beforeReconciliation = read();
+		widget.setSearchQuery('Last activity now');
+		const cachedActivitySearchMatches = parent.querySelectorAll('[data-remote-id]').length;
+		widget.setSearchQuery('');
+		model.remotes.set([{ ...cached, metadataIsStale: false }, current], undefined);
+		assert.deepStrictEqual({ beforeReconciliation, cachedActivitySearchMatches, afterReconciliation: read() }, {
+			beforeReconciliation: {
+				rows: [
+					{ id: 'ssh:current', activity: '1 session \u00b7 Last activity 1 min ago' },
+					{ id: 'ssh:cached', activity: '' },
+				],
+				accessibleCachedCount: false,
+			},
+			cachedActivitySearchMatches: 0,
+			afterReconciliation: {
+				rows: [
+					{ id: 'ssh:cached', activity: '20 sessions \u00b7 Last activity now' },
+					{ id: 'ssh:current', activity: '1 session \u00b7 Last activity 1 min ago' },
+				],
+				accessibleCachedCount: true,
+			},
+		});
 	});
 
 	test('status groups use consistent icons and compact chevron spacing without dimming offline names', () => {
@@ -3727,7 +3858,7 @@ suite('RemotesWidget', () => {
 		});
 	});
 
-	test('each section spins after its count only until that section finishes, including collapsed and empty sections', async () => {
+	test('sections never spin during discovery, including collapsed and empty sections', async () => {
 		const { parent, model, widget } = createWidget(OperatingSystem.Windows);
 		model.pendingRefresh = new DeferredPromise<readonly RemoteKind[]>();
 		widget.setVisible(true);
@@ -3747,18 +3878,14 @@ suite('RemotesWidget', () => {
 		await model.pendingRefresh.complete(['tunnel']);
 		await timeout(0);
 		assert.deepStrictEqual({ started, partial, collapsedSpinner, accessible, finished: snapshot() }, {
-			started: ['Dev Tunnels', 'WSL', 'SSH'].map(name => ({ name, busy: 'true', spinning: true })),
-			partial: [
-				{ name: 'Dev Tunnels', busy: 'true', spinning: true },
-				{ name: 'WSL', busy: 'true', spinning: true },
-				{ name: 'SSH', busy: 'false', spinning: false },
-			],
-			collapsedSpinner: true, accessible: true,
+			started: ['Dev Tunnels', 'WSL', 'SSH'].map(name => ({ name, busy: 'true', spinning: false })),
+			partial: ['Dev Tunnels', 'WSL', 'SSH'].map(name => ({ name, busy: 'true', spinning: false })),
+			collapsedSpinner: false, accessible: true,
 			finished: ['Dev Tunnels', 'WSL', 'SSH'].map(name => ({ name, busy: 'false', spinning: false })),
 		});
 	});
 
-	test('selected method shows its refresh failure while another method is loading', async () => {
+	test('selected method defers its refresh failure until all discovery finishes', async () => {
 		const { parent, model, widget } = createWidget();
 		model.remotes.set([], undefined);
 		model.pendingRefresh = new DeferredPromise<readonly RemoteKind[]>();
@@ -3774,11 +3901,12 @@ suite('RemotesWidget', () => {
 		};
 		await model.pendingRefresh.complete(['tunnel']);
 		await timeout(0);
-		assert.deepStrictEqual({ waiting, partial }, {
+		assert.deepStrictEqual({ waiting, partial, finished: message() }, {
 			waiting: 'Looking for Dev Tunnels...',
 			partial: {
-				failedMessage: 'Couldn\'t refresh Dev Tunnels.', accessible: true, globalBusy: 'true',
+				failedMessage: 'Looking for Dev Tunnels...', accessible: false, globalBusy: 'true',
 			},
+			finished: 'Couldn\'t refresh Dev Tunnels.',
 		});
 	});
 
@@ -3788,7 +3916,7 @@ suite('RemotesWidget', () => {
 		widget.setVisible(true);
 		const oldProgress = model.refreshProgress[0];
 		widget.setVisible(false);
-		const spinners = () => parent.querySelectorAll('.remotes-group-progress:not([hidden])').length;
+		const spinners = () => parent.querySelectorAll('.remotes-header-actions .codicon-modifier-spin').length;
 		const canceled = spinners();
 		const second = model.pendingRefresh = new DeferredPromise<readonly RemoteKind[]>();
 		widget.setVisible(true);
@@ -3799,7 +3927,7 @@ suite('RemotesWidget', () => {
 		const error = new Error('Refresh failed');
 		await second.error(error);
 		await timeout(0);
-		assert.deepStrictEqual({ canceled, restarted, failed: spinners(), errors }, { canceled: 0, restarted: 2, failed: 0, errors: [error] });
+		assert.deepStrictEqual({ canceled, restarted, failed: spinners(), errors }, { canceled: 0, restarted: 1, failed: 0, errors: [error] });
 	});
 
 	test('does not publish warnings from a canceled refresh or for platform-hidden groups', async () => {
