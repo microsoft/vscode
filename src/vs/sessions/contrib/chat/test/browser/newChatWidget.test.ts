@@ -23,7 +23,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
-import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionAgentRef, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
+import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionAgentRef, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionOptions, INewSessionDraftSlot, INewSessionRequestEndedEvent, ISendRequestOptions, ISendRequestSentEvent, ISessionsManagementService, trackNewSessionRequestEnd, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { INewSessionBackgroundSend, INewSessionDraftHost, INewSessionTarget } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -4981,6 +4981,13 @@ suite('NewChatWidget', () => {
 
 				const applyRequestedWorktreePlacement = Reflect.get(NewChatWidget.prototype, '_applyRequestedWorktreePlacement') as (this: object) => void;
 				const bindWorktreePlacement = Reflect.get(NewChatWidget.prototype, '_bindWorktreePlacement') as (this: object, placement: object, result: IOpenNewSessionResult | undefined) => void;
+				const isDraftOfFolder = Reflect.get(NewChatWidget.prototype, '_isDraftOfFolder') as (this: object, session: ISession, folderUri: URI) => boolean;
+
+				/** An untitled draft `id` of folder `path`. */
+				function draftOf(id: string, path: string) {
+					const folder = URI.file(path);
+					return upcastPartial<ISession>({ sessionId: id, status: constObservable(SessionStatus.Untitled), workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [upcastPartial<ISessionFolder>({ root: folder, workingDirectory: folder })] })) });
+				}
 
 				/**
 				 * A composer that shows draft `a` and is asked for a new worktree of folder `/b`, whose draft `b` its creation
@@ -4989,11 +4996,12 @@ suite('NewChatWidget', () => {
 				 */
 				function placementHarness(agent: { resolved: boolean; available: boolean } | 'noNewWorktree' = { resolved: true, available: true }) {
 					const calls: string[] = [];
-					const a = upcastPartial<ISession>({ sessionId: 'a', status: constObservable(SessionStatus.Untitled) });
-					const b = upcastPartial<ISession>({ sessionId: 'b', status: constObservable(SessionStatus.Untitled) });
+					const a = draftOf('a', '/a');
+					const b = draftOf('b', '/b');
 					const create = new DeferredPromise<IOpenNewSessionResult>();
 					const harness = {
 						_store: { isDisposed: false },
+						uriIdentityService: { extUri },
 						_workspacePicker: { setSelectedWorkspace: () => { } },
 						_session: observableValue<ISession | undefined>('session', a),
 						_pendingWorktreePlacement: observableValue<object | undefined>('pendingWorktreePlacement', undefined),
@@ -5007,6 +5015,7 @@ suite('NewChatWidget', () => {
 						_selectRequestedNoWorkspace: () => { calls.push('no workspace'); },
 						_applyRequestedWorktreePlacement: () => applyRequestedWorktreePlacement.call(harness),
 						_bindWorktreePlacement: (placement: object, result: IOpenNewSessionResult | undefined) => bindWorktreePlacement.call(harness, placement, result),
+						_isDraftOfFolder: (session: ISession, folderUri: URI) => isDraftOfFolder.call(harness, session, folderUri),
 					};
 					seedRequestedTarget.call(harness, { folderUri: URI.file('/b'), placement: 'worktree' });
 					return {
@@ -5046,6 +5055,39 @@ suite('NewChatWidget', () => {
 						whileUnknown: { pending: true, calls: [] },
 						pending: false,
 						calls: ['New Worktree true for b'],
+					});
+				});
+
+				test('a new draft of the requested folder that replaces the installed one before its configuration is known, such as of an agent that connected since, takes it once; any other draft shown instead cancels it, and Send is never kept waiting', async () => {
+					const agent = { resolved: false, available: false };
+					const upgraded = placementHarness(agent);
+					await upgraded.install();
+					// The installed draft `b` is replaced by a draft of the same folder, `c`, whose configuration then resolves
+					upgraded.harness._session.set(draftOf('c', '/b'), undefined);
+					upgraded.configChanged();
+					const whileUnknown = !!upgraded.harness._pendingWorktreePlacement.get();
+					agent.resolved = agent.available = true;
+					upgraded.configChanged();
+					upgraded.configChanged();
+
+					const elsewhere = placementHarness({ resolved: false, available: false });
+					await elsewhere.install();
+					elsewhere.harness._session.set(draftOf('d', '/other'), undefined);
+					elsewhere.configChanged();
+					const previous = placementHarness({ resolved: false, available: false });
+					await previous.install();
+					// The draft shown as it was requested comes back
+					previous.harness._session.set(draftOf('a', '/b'), undefined);
+					previous.configChanged();
+
+					assert.deepStrictEqual({
+						upgraded: { whileUnknown, pending: !!upgraded.harness._pendingWorktreePlacement.get(), calls: upgraded.calls },
+						elsewhere: { pending: !!elsewhere.harness._pendingWorktreePlacement.get(), calls: elsewhere.calls },
+						previous: { pending: !!previous.harness._pendingWorktreePlacement.get(), calls: previous.calls },
+					}, {
+						upgraded: { whileUnknown: true, pending: false, calls: ['New Worktree true for c'] },
+						elsewhere: { pending: false, calls: [] },
+						previous: { pending: false, calls: [] },
 					});
 				});
 
