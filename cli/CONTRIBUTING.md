@@ -6,7 +6,7 @@
 
 ## Rust toolchain
 
-Production CLI builds and Linux CLI checks use Rust 1.100.0. To use the same toolchain locally without changing your default, install it and select it explicitly when running Cargo from this directory:
+Production CLI builds use the MSFT Rust toolchain `ms-1.100.0`. Linux CLI checks and local OSS builds use upstream Rust `1.100.0`. To install the corresponding upstream toolchain locally without changing your default, select it explicitly when running Cargo from this directory:
 
 ```shell
 rustup toolchain install 1.100.0 --profile minimal
