@@ -12,7 +12,11 @@ import { createTestAuxiliaryBarPart, testAuxiliaryBarGlobalActionsMenu } from '.
 import { timeout } from '../../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyService } from '../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
+import { AuxiliaryBarMaximizedContext, AuxiliaryBarMaximizeHiddenContext } from '../../../common/contextkeys.js';
+import '../../../browser/parts/auxiliarybar/auxiliaryBarActions.js';
 
 import '../../../browser/media/part.css';
 import '../../../contrib/modernUI/browser/media/padding.css';
@@ -104,4 +108,25 @@ suite('Auxiliary Bar - Responsive title actions', () => {
 			afterTheyGo: { separatorShown: false, actions: ['submenuitem.test.auxiliaryBar.newChat', 'settings', ToggleMenuAction.ID, Separator.ID], minWidth: '24px' },
 		});
 	}));
+});
+
+suite('Auxiliary Bar - Maximize action', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** Whether the secondary side bar's title offers the action that maximizes it, or restores it while it is maximized. */
+	function offered(state: { maximizeHidden: boolean; maximized: boolean }): boolean {
+		const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
+		AuxiliaryBarMaximizeHiddenContext.bindTo(contextKeyService).set(state.maximizeHidden);
+		AuxiliaryBarMaximizedContext.bindTo(contextKeyService).set(state.maximized);
+		const item = MenuRegistry.getMenuItems(MenuId.AuxiliaryBarTitle).filter(isIMenuItem).find(i => i.command.id === 'workbench.action.toggleMaximizedAuxiliaryBar');
+		return !!item && contextKeyService.contextMatchesRules(item.when);
+	}
+
+	test('is not offered while the view container does not offer to maximize, except to restore while maximized', () => {
+		assert.deepStrictEqual({
+			offeredNormally: offered({ maximizeHidden: false, maximized: false }),
+			hidden: offered({ maximizeHidden: true, maximized: false }),
+			restoreWhileMaximized: offered({ maximizeHidden: true, maximized: true }),
+		}, { offeredNormally: true, hidden: false, restoreWhileMaximized: true });
+	});
 });
