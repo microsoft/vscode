@@ -23,14 +23,27 @@ import { IChatModelReference, IChatService } from '../../../../chat/common/chatS
 import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
 import { AgentsChatViewHost } from '../../../browser/agentsView/agentsChatViewHost.js';
 import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
-import { IChatViewHostShownSession } from '../../../../chat/browser/chatViewHost.js';
+import { IChatViewHostService, IChatViewHostShownSession } from '../../../../chat/browser/chatViewHost.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { SessionConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
+import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
+import { NewChatInWorktreeAction, NewChatWithoutWorkspaceAction } from '../../../../chat/browser/agentSessions/agentHost/agentHostNewChatActions.js';
+import { IAgentHostNewSessionFolderService } from '../../../../chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../../../chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { IAgentHostImportConversationStore } from '../../../../chat/browser/agentSessions/agentHost/agentHostImportConversationStore.js';
+import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../../chat/common/chatSessionsService.js';
+import { ICustomizationHarnessService } from '../../../../chat/common/customizationHarnessService.js';
+import { ILanguageModelToolsService } from '../../../../chat/common/tools/languageModelToolsService.js';
 
 suite('AgentsChatViewHost', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	interface IHostOptions {
 		readonly chatAvailable?: boolean;
@@ -360,6 +373,56 @@ suite('AgentsChatViewHost', () => {
 			refused: true,
 			targets: [{ folder: '/repo', placement: 'worktree' }],
 			errors: 1,
+		});
+	});
+
+	test('New Chat in Worktree and New Chat (No Workspace) of the Chat view start a composer here aimed at their placement: a new worktree of the prepared folder, or no workspace', async () => {
+		const folder = URI.file('/repo');
+		const run = async (id: string, preparedFolder: URI | undefined) => {
+			const targets: (INewSessionTarget | undefined)[] = [];
+			const { host, calls } = createHost({ chatPart: { openComposer: async target => { targets.push(target); } } });
+			const steps: string[] = [];
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ warn: () => { steps.push('warn'); return undefined!; } }));
+			instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ getChatSessionContribution: () => upcastPartial<ResolvedChatSessionsExtensionPoint>({ type: SessionType.AgentHostCopilot, displayName: 'Copilot' }) }));
+			instantiationService.stub(IAgentHostEnablementService, upcastPartial<IAgentHostEnablementService>({ enabled: constObservable(true) }));
+			instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({
+				setNewWorktree: () => { },
+				setNoWorkspace: () => { },
+				resolveNewSessionPrimary: () => preparedFolder,
+				clear: () => { steps.push('clear'); },
+			}));
+			// A configuration, prepared in the folder, that offers the new worktree the entry seeds
+			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({
+				getPreparedSessionConfig: () => ({ schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } } as SessionConfigSchema, values: { isolation: 'worktree' } }),
+				releaseSession: () => { steps.push('release'); },
+			}));
+			instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ startSession: (resource, options) => host.startSession(resource, options) }));
+			instantiationService.stub(ILogService, upcastPartial<ILogService>({ error: () => { } }));
+			instantiationService.stub(IChatService, {});
+			instantiationService.stub(IEditorGroupsService, {});
+			instantiationService.stub(IEditorService, {});
+			instantiationService.stub(ICustomizationHarnessService, {});
+			instantiationService.stub(ILanguageModelToolsService, {});
+			instantiationService.stub(IAgentHostImportConversationStore, {});
+			const opened = await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
+			return {
+				opened: !!opened,
+				targets: targets.map(target => ({ folder: target?.folderUri?.path, placement: target?.placement })),
+				errors: calls.filter(call => call.startsWith('error')).length,
+				cleanup: steps,
+			};
+		};
+
+		assert.deepStrictEqual({
+			worktree: await run(NewChatInWorktreeAction.ID, folder),
+			noWorkspace: await run(NewChatWithoutWorkspaceAction.ID, undefined),
+			worktreeWithoutFolder: await run(NewChatInWorktreeAction.ID, undefined),
+		}, {
+			worktree: { opened: true, targets: [{ folder: '/repo', placement: 'worktree' }], errors: 0, cleanup: [] },
+			noWorkspace: { opened: true, targets: [{ folder: undefined, placement: undefined }], errors: 0, cleanup: [] },
+			// No folder to make a worktree of: it starts nothing, and forgets the new chat
+			worktreeWithoutFolder: { opened: false, targets: [], errors: 1, cleanup: ['clear', 'release'] },
 		});
 	});
 

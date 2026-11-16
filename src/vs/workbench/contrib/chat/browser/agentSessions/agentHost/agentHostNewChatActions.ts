@@ -121,7 +121,12 @@ async function openLocalAgentHostChat(accessor: ServicesAccessor, placement: New
 	const folderService = accessor.get(IAgentHostNewSessionFolderService);
 	const provisional = accessor.get(IAgentHostUntitledProvisionalSessionService);
 	const resource = await prepareNewAgentHostChat(getResourceForNewChatSession(openOptions), placement, folderService, provisional, notificationService);
-	return resource && openPreparedAgentHostChat(resource, () => instantiationService.invokeFunction(accessor => openChatSession(accessor, { ...openOptions, sessionResource: resource, target: { placement } })), folderService, provisional);
+	if (!resource) {
+		return undefined;
+	}
+	// A new worktree of the folder its configuration was prepared in, which the host's composer needs
+	const target = placement === 'worktree' ? { placement, folder: folderService.resolveNewSessionPrimary(resource) } : { placement };
+	return openPreparedAgentHostChat(resource, () => instantiationService.invokeFunction(accessor => openChatSession(accessor, { ...openOptions, sessionResource: resource, target })), folderService, provisional);
 }
 
 export class NewChatInWorktreeAction extends Action2 {
