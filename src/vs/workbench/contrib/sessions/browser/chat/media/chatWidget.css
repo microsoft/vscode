@@ -1121,21 +1121,7 @@
 	visibility: visible;
 }
 
-/* New Worktree as a checkbox beside the workspace picker of a composer whose folder has no worktrees */
-.new-session-new-worktree.checkbox-action-item {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size40);
-	margin-left: var(--vscode-spacing-size80);
-	border-radius: var(--vscode-cornerRadius-small);
-}
-
-.new-session-new-worktree.checkbox-action-item > .checkbox-label {
-	font-size: var(--vscode-fontSize-label1);
-	cursor: pointer;
-}
-
-.new-session-new-worktree.checkbox-action-item.disabled > .checkbox-label {
-	cursor: default;
-	opacity: 0.6;
+/* New Worktree as a checkbox chip beside the workspace picker of a composer whose folder has no worktrees */
+.sessions-chat-picker-slot.sessions-chat-checkbox-chip.new-session-new-worktree .sessions-chat-dropdown-label {
+	font-size: var(--vscode-fontSize-body2);
 }

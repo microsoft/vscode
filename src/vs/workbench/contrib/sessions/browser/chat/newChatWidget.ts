@@ -46,6 +46,7 @@ import { IAquariumService, IMountedToggleHandle } from '../aquarium.js';
 import { IWorkspacePickerNewWorktreeOption, IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { NewWorktreeChoice } from './newWorktreeChoice.js';
 import { NewWorktreeCheckbox } from './newWorktreeCheckbox.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { getStoredSessionOptionsExpanded, SessionOptionsRow, storeSessionOptionsExpanded } from './sessionOptionsRow.js';
 import { IconOnlySessionPickers } from './iconOnlySessionPickers.js';
@@ -303,6 +304,7 @@ export class NewChatWidget extends Disposable {
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IStorageService private readonly storageService: IStorageService,
 		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -2335,11 +2337,10 @@ export class NewChatWidget extends Disposable {
 			workspaceTrigger,
 		], undefined, this._newChatInput.pickerHoverDelegate);
 		if (this._newWorktree) {
-			const checkbox = store.add(new NewWorktreeCheckbox(this._newWorktree, this._newWorktreeCheckboxVisible, reader => {
+			store.add(new NewWorktreeCheckbox(row, this._newWorktree, this._newWorktreeCheckboxVisible, reader => {
 				this._environmentWorkspaceChanged.read(reader);
 				this._session.read(reader);
-			}));
-			row.appendChild(checkbox.element);
+			}, this.hoverService, this._newChatInput.pickerHoverDelegate));
 		}
 		store.add(this._renderPlaceRow(container, row));
 		store.add(autorun(reader => {
