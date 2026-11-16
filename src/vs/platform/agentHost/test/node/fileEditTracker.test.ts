@@ -650,8 +650,8 @@ suite('FileEditTracker', () => {
 
 	test('Write to non-existent file records kind=create with removed=0', async () => {
 		// When a file did not exist before the edit, the tracker clamps
-		// `removed` to 0 (the differ otherwise reports 1 for an empty
-		// before-content vs. a one-line after-content) and records
+		// `removed` to 0, whatever the diff service reports (here 1, as a
+		// line diff counts for an empty before-content), and records
 		// `kind=create` instead of `edit`. `added` is passed through
 		// from the diff service unchanged.
 		const services = new ServiceCollection();
