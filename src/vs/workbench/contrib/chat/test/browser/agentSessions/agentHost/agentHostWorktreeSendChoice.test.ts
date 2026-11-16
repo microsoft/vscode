@@ -23,6 +23,7 @@ import { TestNotificationService } from '../../../../../../../platform/notificat
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolderLocationService } from '../../../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../../../../platform/workspace/common/workspace.js';
+import { ResolveSessionConfigResult } from '../../../../../../../platform/agentHost/common/state/protocol/channels-root/commands.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
 import { resolveOnboardingTarget } from '../../../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload } from '../../../../../onboarding/browser/spotlight/spotlightTypes.js';
@@ -78,20 +79,28 @@ suite('Agent host Work in Parallel choice on send', () => {
 		const chosen = new Set<string>();
 		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({ getFolder: () => undefined, isNoWorkspace: () => false, isNewWorktree: () => false, isIsolationChosen: (resource: URI) => chosen.has(resource.toString()), setIsolationChosen: (resource: URI) => { chosen.add(resource.toString()); } }));
 		// The isolation of each new chat, as its configuration has it; a change to it can be held until `applied` completes, or
-		// fail: a new worktree before or after it changes the configuration, and where `rollbackFails`, going back to the folder too
+		// fail: a new worktree before or after it changes the configuration; after which going back to the folder fails too, does
+		// nothing, or the configuration or its isolation is gone
 		const isolations = new Map<string, string>();
 		let applied: DeferredPromise<void> | undefined;
-		let applyFails: 'beforeChange' | 'afterChange' | 'rollbackToo' | undefined;
+		let applyFails: 'beforeChange' | 'afterChange' | 'rollbackToo' | 'rollbackNoop' | 'configGone' | 'isolationGone' | undefined;
+		let config: 'known' | 'gone' | 'noIsolation' = 'known';
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({
 			onDidChange: Event.None,
-			getResolvedConfig: (resource: URI) => ({ schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: [...options.isolations ?? ['folder', 'worktree']] } } }, values: { isolation: isolations.get(resource.toString()) ?? 'folder' } }),
+			getResolvedConfig: (resource: URI): ResolveSessionConfigResult | undefined => config === 'gone' ? undefined : ({ schema: { type: 'object', properties: config === 'noIsolation' ? {} : { isolation: { type: 'string', title: 'Isolation', enum: [...options.isolations ?? ['folder', 'worktree']] } } }, values: { isolation: isolations.get(resource.toString()) ?? 'folder' } }),
 			getPreparedSessionConfig: () => undefined,
 			applyConfigChange: async (resource: URI, _provider: string, _folder: URI | undefined, partial: Record<string, unknown>) => {
 				if (applyFails === 'beforeChange' && partial.isolation === 'worktree') {
 					throw new Error('cannot create the worktree');
 				}
+				if (applyFails === 'rollbackNoop' && partial.isolation !== 'worktree') {
+					return resource;
+				}
 				// The configuration changes at once, and the host is told after
 				isolations.set(resource.toString(), String(partial.isolation));
+				if (partial.isolation === 'worktree' && (applyFails === 'configGone' || applyFails === 'isolationGone')) {
+					config = applyFails === 'configGone' ? 'gone' : 'noIsolation';
+				}
 				await applied?.p;
 				if (applyFails && (partial.isolation === 'worktree' || applyFails === 'rollbackToo')) {
 					throw new Error(`cannot change to ${partial.isolation}`);
@@ -425,7 +434,7 @@ suite('Agent host Work in Parallel choice on send', () => {
 		const results: Record<string, unknown> = {};
 		const handler = errorHandler.getUnexpectedErrorHandler();
 		try {
-			for (const when of ['beforeChange', 'afterChange', 'rollbackToo'] as const) {
+			for (const when of ['beforeChange', 'afterChange', 'rollbackToo', 'rollbackNoop', 'configGone', 'isolationGone'] as const) {
 				const errors: unknown[] = [];
 				errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
 				const window = createWindow({ firstChatIn: primary });
@@ -445,6 +454,10 @@ suite('Agent host Work in Parallel choice on send', () => {
 			afterChange: { sent: ['folder'], kept: 0, warnings: 1, errorMessages: 0, errors: 1 },
 			// Not undone: where it works is not known, so it is not sent
 			rollbackToo: { sent: [], kept: 1, warnings: 0, errorMessages: 1, errors: 2 },
+			// Back to the folder did nothing, or where it works can no longer be read
+			rollbackNoop: { sent: [], kept: 1, warnings: 0, errorMessages: 1, errors: 1 },
+			configGone: { sent: [], kept: 1, warnings: 0, errorMessages: 1, errors: 1 },
+			isolationGone: { sent: [], kept: 1, warnings: 0, errorMessages: 1, errors: 1 },
 		});
 	});
 

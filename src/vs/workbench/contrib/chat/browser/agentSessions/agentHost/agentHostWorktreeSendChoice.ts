@@ -189,7 +189,8 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 
 	/**
 	 * Has the chat work in a new worktree. Where that fails, it goes back to the folder, which a warning tells. Returns whether
-	 * the chat can be sent: not where it could not be brought back to the folder, so that its configuration is not known.
+	 * the chat can be sent: only in a new worktree or where its configuration is read to be in the folder, not where it is
+	 * unknown, such as a configuration or isolation gone, or a change back to the folder that did nothing.
 	 */
 	private async _applyNewWorktree(choices: AgentHostWorktreeFolderChoices): Promise<boolean> {
 		try {
@@ -200,15 +201,15 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 		} catch (error) {
 			onUnexpectedError(error);
 		}
-		if (choices.isNewWorktreeSelected()) {
-			// Changed before the change failed: back to the folder, which must take as well
+		if (!choices.isFolderSelected()) {
+			// Changed before the change failed, or not known: back to the folder, which must be read so then
 			try {
 				await choices.setNewWorktree(false);
 			} catch (error) {
 				onUnexpectedError(error);
 				return false;
 			}
-			if (choices.isNewWorktreeSelected()) {
+			if (!choices.isFolderSelected()) {
 				return false;
 			}
 		}
@@ -219,7 +220,7 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 	private _worksInFolder(resource: URI): boolean {
 		const choices = this._instantiationService.createInstance(AgentHostWorktreeFolderChoices, () => resource);
 		try {
-			return !choices.isNewWorktreeSelected();
+			return choices.isFolderSelected();
 		} finally {
 			choices.dispose();
 		}

@@ -210,6 +210,15 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 	}
 
 	/**
+	 * Whether the session is known to work in its folder itself: its configuration has an isolation, and it is the in-place
+	 * one. Not while its configuration or isolation is unknown, which {@link isNewWorktreeSelected} does not tell apart.
+	 */
+	isFolderSelected(): boolean {
+		const isolation = this._isolation();
+		return !!isolation?.inPlace && isolation.values[isolation.key] === isolation.inPlace;
+	}
+
+	/**
 	 * Whether the chip would offer only the folder and New Worktree: the folder has no worktrees. A New Worktree checkbox then
 	 * stands in for the chip.
 	 */
