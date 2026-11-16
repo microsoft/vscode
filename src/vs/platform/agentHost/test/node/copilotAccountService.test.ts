@@ -17,7 +17,6 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { AuthenticateParams, IAgent } from '../../common/agent.js';
 import { copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraEmuAudience, copilotEntraM365Audience, copilotEntraResources } from '../../common/copilotEntraAuthentication.js';
-import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { CopilotAccountService } from '../../node/copilot/copilotAccountService.js';
@@ -108,7 +107,7 @@ suite('Copilot account resource authentication', () => {
 			return {
 				resource: service ? copilotEntraResources.get(audience)! : copilotEntraDiscoveryResource,
 				scopes: service ? [`${audience}/${service === 'github' ? 'user_impersonation' : '.default'}`] : ['User.Read'],
-				token: 'synthetic-only', _meta: authenticationAccountMeta({ providerId: 'microsoft', accountId }),
+				token: 'synthetic-only', accountId,
 			};
 		};
 		const authenticate = (params = credential()) => authentication.authenticate(params, [provider]);

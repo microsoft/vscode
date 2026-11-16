@@ -9,7 +9,8 @@ import { tmpdir } from 'os';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { join } from '../../../base/common/path.js';
+import { join, parse, win32 } from '../../../base/common/path.js';
+import { isWindows } from '../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IChannel, IChannelClient } from '../../../base/parts/ipc/common/ipc.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../../../platform/agentHost/common/agent.js';
@@ -249,6 +250,24 @@ suite('ServerAgentHostManager', () => {
 		assert.deepStrictEqual({ options: readGithubEnvironmentOptions(env), env }, { options, env: {} });
 	});
 
+	(isWindows ? test : test.skip)('normalizes only extended Windows drive roots in GitHub environment bootstrap', () => {
+		const directory = `\\\\?\\Q:\\${'directory\\'.repeat(30)}`;
+		const options = {
+			...githubEnvironment,
+			roots: ['\\\\?\\C:\\', '\\\\?\\Q:\\', directory],
+			optionalRoots: ['\\\\?\\Q:\\'],
+			projects: ['\\\\?\\C:\\', directory],
+			defaultDirectory: '\\\\?\\C:\\',
+		};
+		assert.deepStrictEqual(readGithubEnvironmentOptions({ VSCODE_CLI_GITHUB_ENVIRONMENT_OPTIONS: JSON.stringify(options) }), {
+			...options,
+			roots: ['C:\\', 'Q:\\', directory],
+			optionalRoots: ['Q:\\'],
+			projects: ['C:\\', directory],
+			defaultDirectory: 'C:\\',
+		});
+	});
+
 	test('rejects malformed GitHub environment bootstrap and still removes the credential', () => {
 		for (const value of [
 			'', 'null', '{}', JSON.stringify({ ...githubEnvironment, baseUrl: 'https://untrusted.example' }),
@@ -334,6 +353,29 @@ suite('ServerAgentHostManager', () => {
 		} finally {
 			await rm(directory, { recursive: true, force: true });
 		}
+	});
+
+	(isWindows ? test : test.skip)('keeps canonical Windows drive roots through GitHub environment registration', async () => {
+		const directory = await realpath(tmpdir());
+		const drive = parse(directory).root;
+		const project = win32.toNamespacedPath(directory);
+		const root = win32.toNamespacedPath(drive);
+		starter.managementChannel.setCallResult('getMissionControlEnvironmentId', 'environment-123');
+		for (const scope of [
+			{ roots: [project, root], optionalRoots: [root], projects: [project], defaultDirectory: project },
+			{ roots: [root], projects: [root], defaultDirectory: root },
+		]) {
+			const manager = createManager({
+				githubEnvironment: readGithubEnvironmentOptions({
+					VSCODE_CLI_GITHUB_ENVIRONMENT_OPTIONS: JSON.stringify({ ...githubEnvironment, ...scope }),
+				}),
+			});
+			await manager.ensureStarted();
+		}
+		assert.deepStrictEqual(starter.managementChannel.calls.filter(call => call.command === 'configureMissionControl').map(call => call.arg), [
+			[{ ...githubEnvironment, roots: [project, drive], projects: [project], defaultDirectory: project }],
+			[{ ...githubEnvironment, roots: [drive], projects: [drive], defaultDirectory: drive }],
+		]);
 	});
 
 	test('preserves a structured GitHub environment configuration failure instead of reporting a missing ID', async () => {

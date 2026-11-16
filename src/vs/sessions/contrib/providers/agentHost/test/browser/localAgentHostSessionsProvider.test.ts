@@ -2264,17 +2264,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- Session listing via notifications -------
 
-	test('lists only the sessions of its listing scope, hides one that leaves it without removing it, and still finds every session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('lists only the sessions of its listing scope, by their folder or project, hides one that leaves it without removing it, and still finds every session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, agentHost);
 		const folders = observableValue<readonly URI[]>('folders', [URI.parse('file:///work/repo')]);
-		provider.setListingScope({ folders, repositories: constObservable([]) });
+		provider.setListingScope({ folders });
 		await timeout(0);
 		const ids = (sessions: readonly ISession[]) => sessions.map(session => AgentSession.id(session.resource)).sort().join(',');
 		const changes: string[] = [];
 		disposables.add(provider.onDidChangeSessions(e => changes.push(`added=${ids(e.added)} removed=${ids(e.removed)} changed=${ids(e.changed)}`)));
 
 		fireSessionAdded(agentHost, 'here', { workingDirectory: 'file:///work/repo' });
-		fireSessionAdded(agentHost, 'worktree', { workingDirectory: 'file:///work/repo.worktrees/x' });
+		fireSessionAdded(agentHost, 'worktree', { workingDirectory: 'file:///work/repo.worktrees/x', project: { uri: 'file:///work/repo', displayName: 'repo' } });
+		// Not by the path of a worktree alone: without its project, it is a folder of its own
+		fireSessionAdded(agentHost, 'unknownProject', { workingDirectory: 'file:///work/repo.worktrees/y' });
 		fireSessionAdded(agentHost, 'elsewhere', { workingDirectory: 'file:///other' });
 		await timeout(100);
 		const elsewhere = provider.getAllSessions().find(session => AgentSession.id(session.resource) === 'elsewhere');
@@ -2283,7 +2285,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const otherFolder = ids(provider.getSessions());
 
 		assert.deepStrictEqual({ scoped, otherFolder, changes }, {
-			scoped: { listed: 'here,worktree', all: 'elsewhere,here,worktree', found: true },
+			scoped: { listed: 'here,worktree', all: 'elsewhere,here,unknownProject,worktree', found: true },
 			otherFolder: 'elsewhere',
 			changes: [
 				'added=here,worktree removed= changed=',
@@ -16664,7 +16666,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const atReplacement: string[][] = [];
 		disposables.add(provider.onDidReplaceSession(({ from, to }) => atReplacement.push(provider.getSessions().map(listed => listed === to ? 'committed' : listed === from ? 'draft' : listed.sessionId))));
 		// Every folder: the scope lists every session, through its own listing
-		provider.setListingScope({ folders: constObservable([]), repositories: constObservable([]) });
+		provider.setListingScope({ folders: constObservable([]) });
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		const chat = await provider.createNewChat(session.sessionId);
 		const ownRawId = AgentSession.id(chat.resource);

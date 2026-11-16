@@ -93,15 +93,17 @@ suite('AgentHost canvases', () => {
 
 	test('shows the icon a host sends as a PNG data URI, and no icon from a host that sends a path or none', () => {
 		const icon = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
-		const withIcon = (src: string): CanvasStateWithMeta => ({ ...state, _meta: { 'vscode.canvasIcons': [{ src, contentType: 'image/png' }] } });
+		const withIcon = (...srcs: string[]): CanvasStateWithMeta => ({ ...state, _meta: { 'vscode.canvasIcons': srcs.map(src => ({ src, contentType: 'image/png' })) } });
 		const iconOf = (canvasState: CanvasState) => new AgentHostCanvas(resource, canvasState, new NullLogService()).icon?.toString(true);
 		assert.deepStrictEqual({
 			sent: iconOf(withIcon(icon)),
 			path: iconOf(withIcon('/Users/me/.copilot/extensions/board/icon.png')),
 			none: iconOf(state),
+			// A malformed icon is skipped without failing the canvas.
+			afterMalformed: iconOf(withIcon('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA', icon)),
 			definition: getCanvasIconUri(icon)?.toString(true),
 			definitionPath: getCanvasIconUri('/Users/me/icon.png'),
-		}, { sent: icon, path: undefined, none: undefined, definition: icon, definitionPath: undefined });
+		}, { sent: icon, path: undefined, none: undefined, afterMalformed: icon, definition: icon, definitionPath: undefined });
 	});
 
 	test('bridges registered canvas operations through the owning chat context', async () => {
