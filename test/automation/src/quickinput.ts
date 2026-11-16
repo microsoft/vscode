@@ -22,6 +22,7 @@ export class QuickInput {
 	private static QUICK_INPUT_FOCUSED_LABEL = `${QuickInput.QUICK_INPUT_ROW}.focused .quick-input-list-row > .monaco-icon-label .label-name`;
 	private static QUICK_INPUT_FOCUSED_ELEMENTS = `${QuickInput.QUICK_INPUT_FOCUSED_ENTRY}, ${QuickInput.QUICK_INPUT_FOCUSED_LABEL}`;
 	private static MODAL_DIALOG = '.monaco-dialog-box';
+	private static PROXY_LOGIN_DIALOG_TEXT = 'Proxy Authentication Required';
 
 	constructor(private code: Code) { }
 
@@ -46,20 +47,20 @@ export class QuickInput {
 	}
 
 	async closeQuickInput(): Promise<void> {
-		await this.waitForNoModalDialog();
+		await this.waitForNoProxyLoginDialog();
 		await this.code.dispatchKeybinding('escape', () => this.waitForQuickInputClosed());
 	}
 
 	/**
-	 * Escape cancels a modal dialog instead of reaching the quick input, and a dialog can open at any time, like the
-	 * proxy login dialog of a network request, which is not shown again once cancelled. Before pressing Escape for the
-	 * quick input, gives an open dialog time to be answered by what handles it.
+	 * Escape cancels a modal dialog instead of reaching the quick input. A proxy login dialog can open at any time for a
+	 * network request, and once cancelled it isn't shown again, so before pressing Escape for the quick input, gives
+	 * the proxy login filler of the smoke tests time to answer it. Other dialogs keep the immediate Escape.
 	 */
-	async waitForNoModalDialog(): Promise<void> {
+	async waitForNoProxyLoginDialog(): Promise<void> {
 		try {
-			await this.code.waitForElement(QuickInput.MODAL_DIALOG, element => !element, 300);
+			await this.code.waitForElements(QuickInput.MODAL_DIALOG, false, dialogs => !dialogs.some(dialog => dialog.textContent.includes(QuickInput.PROXY_LOGIN_DIALOG_TEXT)), 100);
 		} catch {
-			this.code.logger.log('QuickInput: a modal dialog is still open after 30 seconds, pressing Escape anyway');
+			throw new Error(`A '${QuickInput.PROXY_LOGIN_DIALOG_TEXT}' dialog is still open after 10 seconds, so Escape would cancel it instead of closing the quick input`);
 		}
 	}
 
