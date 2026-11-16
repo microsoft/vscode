@@ -925,9 +925,12 @@ suite('CloudSandboxApiService discovery telemetry', () => {
 
 	test('detail endpoint failures do not block summary discovery or its checkpoint', async () => {
 		let fail = true;
+		// A fixed server date keeps the checkpoint from moving when the two scans straddle a second boundary.
+		const date = 'Tue, 22 Sep 2026 10:00:00 GMT';
 		const h = createService(store, {
 			tasks: [task('one', 'One', undefined, 's1', 'e1'), task('two', 'Two', undefined, 's2', 'e2')],
 			repositories: new Map(),
+			discoveryDate: () => date,
 			onRequest: url => fail && url.pathname === '/agents/tasks/two' ? jsonResponse({}, 503) : undefined,
 		});
 		await h.service.listSessions(CancellationToken.None);
