@@ -129,6 +129,26 @@ describe('updatePackageJson', () => {
 		}]);
 		assert.deepEqual(result.value.contributes?.keybindings, []);
 	});
+
+	it('shows non-local commands without keybindings in the Command Palette when the Markdown editor is active', () => {
+		const paletteCommand: EditorCommandDefinition = {
+			id: 'markdown.editor.insertTable',
+			title: 'Insert Table',
+			action: { kind: 'editor', command: 'insertTable' } as EditorCommandDefinition['action'],
+			keybindings: [],
+		};
+		const result = updatePackageJson({ contributes: {} }, [paletteCommand]);
+		assert.equal(result.kind, 'updated');
+		if (result.kind !== 'updated') {
+			return;
+		}
+		assert.deepEqual(result.value.contributes?.menus?.commandPalette, [{
+			command: paletteCommand.id,
+			when: `activeCustomEditorId == 'vscode.markdown.editor'`,
+			$generated: true,
+		}]);
+		assert.deepEqual(result.value.contributes?.keybindings, []);
+	});
 });
 
 describe('updatePackageNlsJson', () => {
