@@ -40,6 +40,15 @@ function mapSessionStatus(status: SessionStatus | undefined): ChatSessionStatus 
 }
 
 /**
+ * The branch `summary` reports: of its working directory's own git state, where it has one, even without a branch (a
+ * detached head); else of the session's.
+ */
+export function readSessionSummaryBranchName(summary: SessionSummary): string | undefined {
+	const folderGitState = summary.workingDirectories?.length ? readFolderScopeGitState(summary._meta, readWorkingDirectoryScopeId(summary._meta, summary.workingDirectories)) : undefined;
+	return (folderGitState ?? readSessionGitState(summary._meta))?.branchName;
+}
+
+/**
  * Provides provider-specific session list items for the chat sessions sidebar
  * by projecting the shared {@link AgentHostSessionListStore} state. The
  * controller derives items from the store on demand.
@@ -273,7 +282,6 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	private _makeItemFromSummary(summary: SessionSummary, statusKnown: boolean): IChatSessionItem {
 		const resource = this._sessionListStore.getSessionResource(URI.parse(summary.resource));
 		const workingDir = typeof summary.workingDirectories?.[0] === 'string' ? URI.parse(summary.workingDirectories?.[0]) : summary.workingDirectories?.[0];
-		const folderGitState = summary.workingDirectories?.length ? readFolderScopeGitState(summary._meta, readWorkingDirectoryScopeId(summary._meta, summary.workingDirectories)) : undefined;
 		const base = {
 			title: summary.title,
 			status: summary.status,
@@ -286,9 +294,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			adoptable: readSessionEhcliAdoptable(summary._meta),
 			isAutomation: summary.origin?.kind === SessionOriginKind.Automation,
 			project: summary.project && URI.parse(summary.project.uri),
-			// The working directory's own git state, where the summary has one, even without a branch (a detached head);
-			// else the session's
-			branchName: (folderGitState ?? readSessionGitState(summary._meta))?.branchName,
+			branchName: readSessionSummaryBranchName(summary),
 		};
 		if (!summary.chats?.length) {
 			return this._makeItem(resource, base);
