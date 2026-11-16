@@ -124,6 +124,9 @@ suite('Agent host New Worktree checkbox', () => {
 			const { top, height } = element.getBoundingClientRect();
 			return top + height / 2;
 		};
+		// Centered on the same device pixel: layout snaps to fractions of a pixel, which at a device pixel ratio of 1 leave
+		// a line box of 18.2px a fraction of a pixel off the row's middle, which no screen can show
+		const centeredIn = (element: Element, container: Element) => Math.abs(middle(element) - middle(container)) < 0.5 / mainWindow.devicePixelRatio;
 		const box = item.querySelector('.monaco-custom-toggle')!;
 		const name = item.querySelector('.checkbox-label')!;
 		const font = (element: Element) => mainWindow.getComputedStyle(element).fontSize;
@@ -133,7 +136,7 @@ suite('Agent host New Worktree checkbox', () => {
 			glyph: font(box),
 			name: font(name),
 			rowHeight: item.getBoundingClientRect().height,
-			centered: middle(box) === middle(item) && middle(name) === middle(item),
+			centered: centeredIn(box, item) && centeredIn(name, item),
 		}, {
 			// The workbench's compact checkbox, as in other toolbars and chip rows
 			box: '14x14',
