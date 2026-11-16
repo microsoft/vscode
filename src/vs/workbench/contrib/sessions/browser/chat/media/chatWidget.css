@@ -1120,3 +1120,8 @@
 .action-widget .monaco-list-row.action.sessions-browse-inline-item.focused:not(.option-disabled) .description {
 	visibility: visible;
 }
+
+/* New Worktree as a checkbox chip beside the workspace picker of a composer whose folder has no worktrees */
+.sessions-chat-picker-slot.sessions-chat-checkbox-chip.new-session-new-worktree .sessions-chat-dropdown-label {
+	font-size: var(--vscode-fontSize-body2);
+}

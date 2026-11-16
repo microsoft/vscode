@@ -22,10 +22,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { getSessionPresentationWorkspace, IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { INewSessionTarget } from '../parts/chatView.js';
 import { SessionIsArchivedContext, SessionIsCreatedContext, SessionItemIsMultiSelectionContext, SessionSupportsRenameContext } from '../../common/contextkeys.js';
-import { ISessionSection, QUICK_CHATS_SECTION_ID, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../views/sessionsList.js';
+import { ISessionSection, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../views/sessionsList.js';
 import { registerSessionsListReadStateCommands } from '../views/sessionsListActions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { RENAME_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
@@ -64,32 +63,6 @@ export function registerAgentsChatPartActions(): IDisposable {
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const chatPart = accessor.get(IAgentsChatPartService);
 			await chatPart.openComposer(getEditorWindowComposerTarget(accessor.get(IWorkspaceContextService), accessor.get(IEditorService)));
-		}
-	}));
-
-	// A chat without a workspace, as the Agents window has it: from the Chats section of the Sessions list and the Command
-	// Palette, without the Agents window's keybinding, which an editor window has for its editors
-	const quickChatEnabled = ContextKeyExpr.and(ChatContextKeys.enabled, AGENT_HOST_ENABLED_CONTEXT_KEY);
-	store.add(registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.agentsView.newQuickChat',
-				title: localize2('agentsView.newQuickChat', "New Quick Chat"),
-				icon: Codicon.add,
-				category: CHAT_CATEGORY,
-				f1: true,
-				precondition: quickChatEnabled,
-				menu: [SessionSectionToolbarMenuId, Menus.SessionSectionContext].map(id => ({
-					id,
-					group: 'navigation',
-					order: 0,
-					when: ContextKeyExpr.and(quickChatEnabled, ContextKeyExpr.equals(SessionSectionTypeContext.key, QUICK_CHATS_SECTION_ID)),
-				})),
-			});
-		}
-		async run(accessor: ServicesAccessor): Promise<void> {
-			// A target without a folder is a chat without a workspace
-			await accessor.get(IAgentsChatPartService).openComposer({}, { newComposer: true });
 		}
 	}));
 
