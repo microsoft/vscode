@@ -602,6 +602,7 @@ interface IScopedCopilotModelCatalog {
 
 interface ICopilotClientProxyState {
 	readonly kerberosSpn: string | undefined;
+	/** The client roots the runtime trusts, none when `http.systemCertificates` is off. */
 	readonly certificates: readonly string[];
 }
 
@@ -10705,9 +10706,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _readCopilotProxyState(): ICopilotClientProxyState {
+		// As in the extension host, `http.systemCertificates` decides whether the roots VS Code adds are trusted. When it is
+		// off the runtime receives no bundle: it inherits this process's `NODE_EXTRA_CA_CERTS` and, as it loads them
+		// itself, still trusts the OS roots.
+		const systemCertificates = this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.SystemCertificates) !== false;
 		return {
 			kerberosSpn: this._readKerberosSpn(process.env),
-			certificates: this._proxyResolver.clientCertificates,
+			certificates: systemCertificates ? this._proxyResolver.clientCertificates : [],
 		};
 	}
 

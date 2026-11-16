@@ -14895,6 +14895,39 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('restarts the Copilot runtime without client certificates when http.systemCertificates is turned off', async () => {
+			const directory = await fs.mkdtemp(join(os.tmpdir(), 'copilot-system-certificates-'));
+			const client = new TestCopilotClient([]);
+			const proxyResolver = new TestProxyResolver();
+			proxyResolver.clientCertificates = [rootCertificates[0]];
+			const { agent, configurationService, instantiationService } = createTestAgentContext(disposables, { copilotClient: client, proxyResolver });
+			const environment = instantiationService.invokeFunction(accessor => accessor.get(INativeEnvironmentService));
+			const environmentStub = stub(environment, 'userDataPath').value(directory);
+			try {
+				await agent.listChatsToMigrate();
+				const enabledBundle = getCreatedClientOptions(agent).at(-1)?.env?.NODE_EXTRA_CA_CERTS;
+				configurationService.updateRootConfig({ [AgentHostProxyConfigKey.SystemCertificates]: false });
+				proxyResolver.fireConfigurationChange();
+				await proxyRefresh(agent);
+				await agent.listChatsToMigrate();
+				assert.deepStrictEqual({
+					enabledBundleInUserData: enabledBundle?.startsWith(join(directory, 'certificates')),
+					startCallCount: client.startCallCount,
+					stopCallCount: client.stopCallCount,
+					disabledBundle: getCreatedClientOptions(agent).at(-1)?.env?.NODE_EXTRA_CA_CERTS,
+				}, {
+					enabledBundleInUserData: true,
+					startCallCount: 2,
+					stopCallCount: 1,
+					disabledBundle: process.env.NODE_EXTRA_CA_CERTS,
+				});
+			} finally {
+				await disposeAgent(agent);
+				environmentStub.restore();
+				await fs.rm(directory, { recursive: true, force: true });
+			}
+		});
+
 		test('registers runtime-scoped network callbacks and sets no proxy environment variables', async () => {
 			process.env['HTTPS_PROXY'] = 'http://ambient-proxy.example:8080';
 			process.env['NO_PROXY'] = 'intranet.example';
