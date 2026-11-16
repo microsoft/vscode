@@ -12,6 +12,8 @@ import { extUri } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { IAgentHostService } from '../../../../../../../platform/agentHost/common/agentService.js';
+import type { RootState } from '../../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
@@ -70,6 +72,10 @@ suite('AgentHostWorktreeLocations', () => {
 		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({
 			getRegisteredChatSessionItemProviders: () => registered ? ['remote', SessionType.AgentHostCopilot] : ['remote'],
 			onDidChangeItemsProviders: onDidChangeItemsProviders.event,
+		}));
+		// The window's local agent host, whose one agent's sessions are `agent-host-copilotcli`
+		instantiationService.stub(IAgentHostService, upcastPartial<IAgentHostService>({
+			rootState: upcastPartial<IAgentHostService['rootState']>({ value: upcastPartial<RootState>({ agents: [upcastPartial<RootState['agents'][number]>({ provider: 'copilotcli' })] }), onDidChange: Event.None }),
 		}));
 		// The window's workspace: its folders, which can change
 		let workspaceFolders = [...options.folders ?? [primary]];
@@ -184,6 +190,21 @@ suite('AgentHostWorktreeLocations', () => {
 			offered: ['/private/tmp/vscode.worktrees/feature'],
 			resolved: '/private/tmp/vscode.worktrees/feature',
 			realpathsRead: ['/tmp/vscode'],
+		});
+	});
+
+	test('offers only the worktrees of the local agent host\'s sessions, not of a session type of the same form an extension registers', async () => {
+		const provider = createProvider([
+			session('/work/vscode.worktrees/feature', '/work/vscode'),
+			session('/work/vscode.worktrees/impostor', '/work/vscode', { providerType: 'agent-host-x' }),
+		]);
+
+		assert.deepStrictEqual({
+			offered: paths(await provider.provideLocations(primary, CancellationToken.None)),
+			impostor: await provider.resolveLocation(primary, URI.file('/work/vscode.worktrees/impostor'), CancellationToken.None),
+		}, {
+			offered: ['/work/vscode.worktrees/feature'],
+			impostor: undefined,
 		});
 	});
 

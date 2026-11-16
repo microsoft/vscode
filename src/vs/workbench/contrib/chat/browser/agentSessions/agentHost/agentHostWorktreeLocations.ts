@@ -12,6 +12,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { basename, extUriBiasedIgnorePathCase, normalizePath, removeTrailingPathSeparator } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IFolderLocation, IWorkspaceFolderLocationProvider } from '../../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -30,8 +31,11 @@ export const AGENT_HOST_WORKTREE_LOCATIONS_PROVIDER_ID = 'agentHost.sessionWorkt
  *
  * `folder` is any of the forms of the one folder, such as the path the window opened and its real path: git, and so the
  * project, names a folder by its real path, such as `/private/tmp/x` of `/tmp/x` on macOS.
+ *
+ * `localSessionTypes`, where given, are the session types of the window's local agent host, which alone count: an
+ * extension can register a session type of the same form (`agent-host-…`) with sessions of its own.
  */
-export function getAgentHostSessionWorktrees(sessions: readonly IAgentSession[], folder: URI | readonly URI[]): IFolderLocation[] {
+export function getAgentHostSessionWorktrees(sessions: readonly IAgentSession[], folder: URI | readonly URI[], localSessionTypes?: ReadonlySet<string>): IFolderLocation[] {
 	const forms = (URI.isUri(folder) ? [folder] : folder).filter(form => form.scheme === Schemas.file).map(form => removeTrailingPathSeparator(normalizePath(form)));
 	if (!forms.length) {
 		return [];
@@ -40,7 +44,7 @@ export function getAgentHostSessionWorktrees(sessions: readonly IAgentSession[],
 	for (const session of sessions) {
 		const workingDirectory = toFolder(session.metadata?.workingDirectoryPath);
 		const project = toFolder(session.metadata?.projectPath);
-		if (!isLocalAgentHostTarget(session.providerType) || session.isArchived() || !workingDirectory || !project
+		if (!(localSessionTypes ? localSessionTypes.has(session.providerType) : isLocalAgentHostTarget(session.providerType)) || session.isArchived() || !workingDirectory || !project
 			|| !forms.some(form => extUriBiasedIgnorePathCase.isEqual(project, form))
 			// The folder itself, or a folder inside it, is no location of it
 			|| forms.some(form => extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectory, form))
@@ -97,20 +101,26 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@IFileService private readonly _fileService: IFileService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 	) {
 		super();
 		this._register(toDisposable(() => this._lifetime.dispose(true)));
 		this._register(_agentSessionsService.model.onDidResolve(provider => {
-			if (isLocalAgentHostTarget(provider)) {
+			if (this._localSessionTypes().has(provider)) {
 				this._resolvedProviders.add(provider);
 				// Its sessions are known: a location unknown before them can be resolved now
 				this._onDidChangeLocations.fire();
 			}
 		}));
 		this._register(_chatSessionsService.onDidChangeItemsProviders(({ chatSessionType }) => {
-			if (isLocalAgentHostTarget(chatSessionType)) {
+			if (this._localSessionTypes().has(chatSessionType)) {
 				this._onDidChangeLocations.fire();
 			}
+		}));
+		// The local agent host's agents, whose sessions alone count, as it lists them
+		this._register(_agentHostService.rootState.onDidChange(() => {
+			this._checkOffered();
+			this._onDidChangeLocations.fire();
 		}));
 		this._register(_agentSessionsService.model.onDidChangeSessions(() => this._checkOffered()));
 		this._register(_workspaceContextService.onDidChangeWorkspaceFolders(() => this._retireFolders()));
@@ -122,7 +132,7 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 	 * not wait for the sessions or the folder's real path: what they make known follows with {@link onDidChangeLocations}.
 	 */
 	async provideLocations(primary: URI, _token: CancellationToken): Promise<IFolderLocation[]> {
-		const locations = getAgentHostSessionWorktrees(this._agentSessionsService.model.sessions, this.getFolderForms(primary));
+		const locations = getAgentHostSessionWorktrees(this._agentSessionsService.model.sessions, this.getFolderForms(primary), this._localSessionTypes());
 		if (this._isWorkspaceFolder(primary)) {
 			this._offered.set(primary, offeredKey(locations));
 		}
@@ -156,13 +166,14 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 				return undefined;
 			}
 			const target = removeTrailingPathSeparator(normalizePath(location));
-			const find = () => getAgentHostSessionWorktrees(this._agentSessionsService.model.sessions, forms).find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate.uri, target));
+			const find = () => getAgentHostSessionWorktrees(this._agentSessionsService.model.sessions, forms, this._localSessionTypes()).find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate.uri, target));
 			const found = find();
 			if (found) {
 				return found;
 			}
 			// Only the local agent host providers the window has, which list their sessions as they resolve
-			const unresolved = this._chatSessionsService.getRegisteredChatSessionItemProviders().filter(provider => isLocalAgentHostTarget(provider) && !this._resolvedProviders.has(provider));
+			const localSessionTypes = this._localSessionTypes();
+			const unresolved = this._chatSessionsService.getRegisteredChatSessionItemProviders().filter(provider => localSessionTypes.has(provider) && !this._resolvedProviders.has(provider));
 			if (!unresolved.length) {
 				return undefined;
 			}
@@ -184,7 +195,7 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 		}
 		let changed = false;
 		for (const [folder, offered] of this._offered) {
-			const now = offeredKey(getAgentHostSessionWorktrees(this._agentSessionsService.model.sessions, this._knownForms.get(folder) ?? [folder]));
+			const now = offeredKey(getAgentHostSessionWorktrees(this._agentSessionsService.model.sessions, this._knownForms.get(folder) ?? [folder], this._localSessionTypes()));
 			if (now !== offered) {
 				this._offered.set(folder, now);
 				changed = true;
@@ -227,6 +238,15 @@ export class AgentHostWorktreeLocationProvider extends Disposable implements IWo
 			}
 		}
 		return forms;
+	}
+
+	/**
+	 * The session types of the window's local agent host: one for each of its agents (`agent-host-<provider>`, as its session
+	 * list registers them), none until it reports them. Not a session type of the same form that an extension registers.
+	 */
+	private _localSessionTypes(): ReadonlySet<string> {
+		const rootState = this._agentHostService.rootState.value;
+		return new Set(rootState && !(rootState instanceof Error) ? rootState.agents.map(agent => `agent-host-${agent.provider}`) : []);
 	}
 
 	/** Whether `folder` is of the current workspace: its own location, or one of its folders. */
