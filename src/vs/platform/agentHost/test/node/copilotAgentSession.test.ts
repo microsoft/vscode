@@ -6204,6 +6204,86 @@ suite('CopilotAgentSession', () => {
 			]);
 		});
 
+		test('restores a handed-over canvas whose icon is shown again at any step of its restoration, unless it is closed', async () => {
+			const icon = toCanvasIconDataUri(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64'));
+			const results = [];
+			for (const step of ['declarations', 'status', 'open'] as const) {
+				for (const closed of [false, true]) {
+					const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, icon: '/extensions/preview/icon.png', url: 'https://example.test/previous' });
+					const held = new DeferredPromise<void>();
+					const gate = new DeferredPromise<void>();
+					const reopens: string[] = [];
+					let mock: MockCopilotSession | undefined;
+					// Initialization lists the declared canvases, so holding that step holds the session's creation.
+					const creating = createAgentSession(disposables, {
+						resume: true,
+						canvasHandoff: handoff,
+						readCanvasIcon: async () => icon,
+						configureMockSession: configured => {
+							mock = configured;
+							// Holds the restoration at one step: listing the declared canvases after the open ones, reading the extension status, or reopening.
+							if (step === 'declarations') {
+								configured.onCanvasListOpen = () => {
+									configured.canvasListGate = gate.p;
+									void held.complete();
+								};
+								configured.onCanvasList = () => { configured.canvasListGate = undefined; };
+							} else if (step === 'status') {
+								configured.onCanvasList = () => { configured.extensionListGate = gate.p; };
+								configured.onExtensionList = () => {
+									if (configured.extensionListGate) {
+										void held.complete();
+									}
+									configured.extensionListGate = undefined;
+								};
+							}
+							configured.onCanvasOpen = async params => {
+								reopens.push(params.instanceId);
+								if (step === 'open') {
+									void held.complete();
+									await gate.p;
+								}
+								return { ...preview, icon: '/extensions/preview/icon.png', url: 'https://example.test/restored' };
+							};
+						},
+					});
+					await held.p;
+					await timeout(0);
+					// An extension reload shows the canvas's icon again, which changes nothing else about it; the runtime may then close the canvas.
+					mock!.fire('session.canvas.registry_changed', { canvases: [] });
+					await timeout(0);
+					if (closed) {
+						mock!.fire('session.canvas.closed', { instanceId: preview.instanceId, extensionId: preview.extensionId, canvasId: preview.canvasId });
+					}
+					gate.complete();
+					const replacement = await creating;
+					assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+					await timeout(0);
+					await timeout(0);
+					const states = replacement.signals.filter(signal => signal.kind === 'canvas').map(signal => signal.state);
+					const restoredAt = states.findIndex(state => state.uri === 'https://example.test/restored');
+					const iconAt = states.findIndex(state => readCanvasIcon(state) === icon);
+					results.push({
+						step,
+						closed,
+						iconShownBeforeRestore: iconAt !== -1 && (restoredAt === -1 || iconAt < restoredAt),
+						reopens: reopens.length,
+						listed: summarizeCanvasSignals(replacement.signals).membership.at(-1)?.length,
+						restored: states.at(-1)?.uri === 'https://example.test/restored' && readCanvasIcon(states.at(-1)) === icon,
+					});
+					replacement.session.dispose();
+				}
+			}
+			assert.deepStrictEqual(results, [
+				{ step: 'declarations', closed: false, iconShownBeforeRestore: true, reopens: 1, listed: 1, restored: true },
+				{ step: 'declarations', closed: true, iconShownBeforeRestore: true, reopens: 0, listed: 0, restored: false },
+				{ step: 'status', closed: false, iconShownBeforeRestore: true, reopens: 1, listed: 1, restored: true },
+				{ step: 'status', closed: true, iconShownBeforeRestore: true, reopens: 0, listed: 0, restored: false },
+				{ step: 'open', closed: false, iconShownBeforeRestore: true, reopens: 1, listed: 1, restored: true },
+				{ step: 'open', closed: true, iconShownBeforeRestore: true, reopens: 1, listed: 0, restored: false },
+			]);
+		});
+
 		test('closes a handed-over canvas through the replacement runtime and publishes the removal on adoption', async () => {
 			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
 			const replacement = await createAgentSession(disposables, {
