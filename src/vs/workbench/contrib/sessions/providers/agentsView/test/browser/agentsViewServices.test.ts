@@ -48,6 +48,7 @@ import { SessionsListNotification } from '../../../../browser/views/sessionsList
 import { SessionStorageCleanupNotice } from '../../../../browser/views/sessionStorageCleanupNotice.js';
 import { ResponseSelectionSideChatController } from '../../../../../chat/browser/responseSelectionSideChatController.js';
 import { ISessionChatPillsDebugService } from '../../../../browser/chat/sessionChatInputToolbarDebug.js';
+import { INewSessionWorktreeSendChoiceService } from '../../../../browser/chat/newSessionWorktreeSendChoice.js';
 // What an editor window registers for its sessions: the shared editor-window services and the Agents view's
 import '../../../../browser/editorWindow/editorWindowSessions.contribution.js';
 import '../../browser/agentsViewProviders.contribution.js';
@@ -92,6 +93,7 @@ function editorWindowSessionsSingletons(): readonly IEditorWindowSessionsSinglet
 		// Registered by their modules, which the Agents window loads too
 		{ id: ISessionAttentionService, ctor: descriptorOf(ISessionAttentionService)!.ctor },
 		{ id: IDevContainerAgentHostService, ctor: descriptorOf(IDevContainerAgentHostService)!.ctor },
+		{ id: INewSessionWorktreeSendChoiceService, ctor: descriptorOf(INewSessionWorktreeSendChoiceService)!.ctor },
 	];
 }
 

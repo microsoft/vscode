@@ -92,7 +92,7 @@ import { ISessionsProvidersService } from '../../../../../../workbench/contrib/s
 import { NewWorktreeChoice } from '../../../../../../workbench/contrib/sessions/browser/chat/newWorktreeChoice.js';
 import { NewChatWidget } from '../../../../../../workbench/contrib/sessions/browser/chat/newChatWidget.js';
 import { SharedChatInputComposer } from '../../../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
-import { registerNewSessionWorktreeSendChoice } from '../../../../../../workbench/contrib/sessions/browser/chat/newSessionWorktreeSendChoice.js';
+import { NewSessionWorktreeSendChoiceService } from '../../../../../../workbench/contrib/sessions/browser/chat/newSessionWorktreeSendChoice.js';
 import { ChatSubmitRequestHandlerService, IChatSubmitRequest } from '../../../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
@@ -8555,9 +8555,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const notifications: string[] = [];
 			const notificationService = { warn: (message: string) => notifications.push(`warning: ${message}`), error: (message: string) => notifications.push(`error: ${message}`) };
 			const answer = new DeferredPromise<'worktree' | 'folder' | undefined>();
-			store.add(registerNewSessionWorktreeSendChoice({ isRecentChatInFolder: () => true, askWorktreeOnSend: () => answer.p }));
+			const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
+			store.add(worktreeSendChoiceService.registerProvider({ isRecentChatInFolder: () => true, askWorktreeOnSend: () => answer.p }));
 			const widgetStore = { isDisposed: false };
 			const widget = {
+				worktreeSendChoiceService,
 				_session: current,
 				_store: widgetStore,
 				_askingWorktreeOnSend: new Set<string>(),

@@ -32,7 +32,7 @@ import { SessionsManagementService } from '../../../../../workbench/contrib/sess
 import { ISessionsProvidersService, SessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../../../../workbench/contrib/sessions/browser/chat/sessionTypePicker.js';
 import { NewChatWidget, shouldShowNewSessionChatTip } from '../../../../../workbench/contrib/sessions/browser/chat/newChatWidget.js';
-import { registerNewSessionWorktreeSendChoice } from '../../../../../workbench/contrib/sessions/browser/chat/newSessionWorktreeSendChoice.js';
+import { NewSessionWorktreeSendChoiceService } from '../../../../../workbench/contrib/sessions/browser/chat/newSessionWorktreeSendChoice.js';
 import { NewWorktreeChoice } from '../../../../../workbench/contrib/sessions/browser/chat/newWorktreeChoice.js';
 import { IChatSubmitRequest } from '../../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { WelcomeName } from '../../../../../workbench/contrib/sessions/browser/chat/welcomeName.js';
@@ -4998,9 +4998,10 @@ suite('NewChatWidget', () => {
 						workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [upcastPartial<ISessionFolder>({ root: folder, workingDirectory: folder })] })),
 					});
 					const registration = disposables.add(new DisposableStore());
+					const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
 					if (options.provider !== false) {
 						let recentIn = '';
-						registration.add(registerNewSessionWorktreeSendChoice({
+						registration.add(worktreeSendChoiceService.registerProvider({
 							isRecentChatInFolder: (askedFolder, askedDraft) => {
 								if (options.recent instanceof Error) {
 									throw options.recent;
@@ -5021,6 +5022,7 @@ suite('NewChatWidget', () => {
 					const store = { isDisposed: false };
 					let selected = !!options.selected;
 					const harness = {
+						worktreeSendChoiceService,
 						_session: current,
 						_store: store,
 						_askingWorktreeOnSend: new Set<string>(),
@@ -5222,8 +5224,10 @@ suite('NewChatWidget', () => {
 							const current = observableValue<ISession | undefined>('session', session);
 							const newWorktree = instantiationService.createInstance(NewWorktreeChoice, current, constObservable(true));
 							const warnings: string[] = [];
-							store.add(registerNewSessionWorktreeSendChoice({ isRecentChatInFolder: () => true, askWorktreeOnSend: async () => 'worktree' }));
+							const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
+							store.add(worktreeSendChoiceService.registerProvider({ isRecentChatInFolder: () => true, askWorktreeOnSend: async () => 'worktree' }));
 							const handling = handle.call({
+								worktreeSendChoiceService,
 								_session: current,
 								_store: { isDisposed: false },
 								_askingWorktreeOnSend: new Set<string>(),

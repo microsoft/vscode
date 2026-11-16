@@ -47,7 +47,7 @@ import { IAquariumService, IMountedToggleHandle } from '../aquarium.js';
 import { IWorkspacePickerNewWorktreeOption, IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { NewWorktreeChoice } from './newWorktreeChoice.js';
 import { NewWorktreeCheckbox } from './newWorktreeCheckbox.js';
-import { getNewSessionWorktreeSendChoice, INewSessionWorktreeSendChoiceProvider, NewSessionWorktreeSendChoice } from './newSessionWorktreeSendChoice.js';
+import { INewSessionWorktreeSendChoiceProvider, INewSessionWorktreeSendChoiceService, NewSessionWorktreeSendChoice } from './newSessionWorktreeSendChoice.js';
 import { IChatSubmitRequest, IChatSubmitRequestHandlerService } from '../../../chat/browser/chatSubmitRequestHandlerService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
@@ -322,6 +322,7 @@ export class NewChatWidget extends Disposable {
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ISessionDraftsService private readonly sessionDraftsService: ISessionDraftsService,
 		@IScheduledChatsService private readonly scheduledChatsService: IScheduledChatsService,
+		@INewSessionWorktreeSendChoiceService private readonly worktreeSendChoiceService: INewSessionWorktreeSendChoiceService,
 	) {
 		super();
 		this._preserveCustomView = options.preserveCustomView === true;
@@ -1567,7 +1568,7 @@ export class NewChatWidget extends Disposable {
 
 	/**
 	 * As the first request of the draft is sent and it would work in its folder, asks the registered provider whether it
-	 * works in a new worktree instead ({@link getNewSessionWorktreeSendChoice}), while the send waits, and applies the
+	 * works in a new worktree instead ({@link INewSessionWorktreeSendChoiceService}), while the send waits, and applies the
 	 * answer; the send then goes out once, where chosen. Never where the user chose for the draft, nor with AI features off.
 	 * Returns whether it took the request in place of the send: only one sent again while it asks, as the first is sent.
 	 */
@@ -1579,7 +1580,7 @@ export class NewChatWidget extends Disposable {
 		if (this._askingWorktreeOnSend.has(session.sessionId)) {
 			return true;
 		}
-		const provider = getNewSessionWorktreeSendChoice();
+		const provider = this.worktreeSendChoiceService.provider.get();
 		const newWorktree = this._newWorktree;
 		const folder = session.workspace.get()?.folders[0]?.root;
 		const control = this._getWorktreeSendChoiceControl();

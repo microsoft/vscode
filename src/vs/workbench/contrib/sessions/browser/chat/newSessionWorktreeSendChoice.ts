@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 
 /** Where the first request of a new session sent in its folder works ({@link INewSessionWorktreeSendChoiceProvider}). */
 export type NewSessionWorktreeSendChoice = 'worktree' | 'folder';
@@ -24,18 +27,33 @@ export interface INewSessionWorktreeSendChoiceProvider {
 	askWorktreeOnSend(control: HTMLElement): Promise<NewSessionWorktreeSendChoice | undefined>;
 }
 
-let provider: INewSessionWorktreeSendChoiceProvider | undefined;
+export const INewSessionWorktreeSendChoiceService = createDecorator<INewSessionWorktreeSendChoiceService>('newSessionWorktreeSendChoiceService');
 
-/** Registers the provider that a composer asks as it sends a new session in its folder; with none, it never asks. */
-export function registerNewSessionWorktreeSendChoice(newProvider: INewSessionWorktreeSendChoiceProvider): IDisposable {
-	provider = newProvider;
-	return toDisposable(() => {
-		if (provider === newProvider) {
-			provider = undefined;
-		}
-	});
+/** Holds the provider that a composer asks as it sends a new session in its folder; with none, it never asks. */
+export interface INewSessionWorktreeSendChoiceService {
+	readonly _serviceBrand: undefined;
+	/** The provider registered last, until its registration is disposed. */
+	readonly provider: IObservable<INewSessionWorktreeSendChoiceProvider | undefined>;
+	/** Registers `provider`, such as a feature of the window does, until the returned disposable is disposed. */
+	registerProvider(provider: INewSessionWorktreeSendChoiceProvider): IDisposable;
 }
 
-export function getNewSessionWorktreeSendChoice(): INewSessionWorktreeSendChoiceProvider | undefined {
-	return provider;
+export class NewSessionWorktreeSendChoiceService implements INewSessionWorktreeSendChoiceService {
+
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _provider = observableValue<INewSessionWorktreeSendChoiceProvider | undefined>(this, undefined);
+	readonly provider: IObservable<INewSessionWorktreeSendChoiceProvider | undefined> = this._provider;
+
+	registerProvider(provider: INewSessionWorktreeSendChoiceProvider): IDisposable {
+		this._provider.set(provider, undefined);
+		return toDisposable(() => {
+			if (this._provider.get() === provider) {
+				this._provider.set(undefined, undefined);
+			}
+		});
+	}
 }
+
+// Wherever a new-session composer shows, in an editor window or the Agents window, which registers no provider
+registerSingleton(INewSessionWorktreeSendChoiceService, NewSessionWorktreeSendChoiceService, InstantiationType.Delayed);
