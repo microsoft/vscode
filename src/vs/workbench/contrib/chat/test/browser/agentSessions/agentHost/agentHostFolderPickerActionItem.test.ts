@@ -18,7 +18,7 @@ import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ToolBar } from '../../../../../../../base/browser/ui/toolbar/toolbar.js';
 import { Action } from '../../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
-import { observableValue } from '../../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -28,7 +28,8 @@ import { TestConfigurationService } from '../../../../../../../platform/configur
 import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../../../../platform/workspace/common/workspace.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
-import { ISCMService } from '../../../../../scm/common/scm.js';
+import { ISCMRepository, ISCMService } from '../../../../../scm/common/scm.js';
+import { ISCMHistoryItemRef, ISCMHistoryProvider } from '../../../../../scm/common/history.js';
 import type { IChatWidget } from '../../../../browser/chat.js';
 import { IAgentHostCustomizationService } from '../../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentHostFolderPickerActionItem, FOLDER_PICKER_LIST_CLASS } from '../../../../browser/agentSessions/agentHost/agentHostFolderPickerActionItem.js';
@@ -381,7 +382,7 @@ suite('AgentHostFolderPickerActionItem', () => {
 			inFolder: { label: 'fix', ariaLabel: 'Folder: fix', noWorkspaceIcon: false },
 		});
 	});
-	test('a session started in a new worktree shows that worktree, also once the host reports it late, and New Worktree until then', () => {
+	test('a session started in a new worktree shows that worktree by name, path and branch, also once the host reports it late, and New Worktree until then', () => {
 		const primary = URI.file('/work/vscode');
 		const worktree = URI.file('/work/vscode.worktrees/copilot-hello');
 		const session = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-1' });
@@ -403,7 +404,8 @@ suite('AgentHostFolderPickerActionItem', () => {
 			getLocation: () => undefined,
 			resolveLocation: async () => undefined,
 		}));
-		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({ onDidChangeFolder: Event.None, getFolder: () => undefined, isNoWorkspace: () => false, getDefaultFolder: () => undefined }));
+		// The folder chosen for the session stays its folder, the one the new worktree is made of, also after it started
+		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({ onDidChangeFolder: Event.None, getFolder: () => primary, isNoWorkspace: () => false, getDefaultFolder: () => undefined }));
 		// The session's configuration keeps its isolation in a new worktree after it started
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({
 			onDidChange: Event.None,
@@ -418,11 +420,21 @@ suite('AgentHostFolderPickerActionItem', () => {
 			getClientWorkingDirectoryUris: () => workingDirectories,
 			isWorkspaceless: () => false,
 		}));
-		instantiationService.stub(ISCMService, upcastPartial<ISCMService>({ getRepository: () => undefined }));
+		// Each checkout on its own branch
+		const branches = new Map([[primary.path, 'main'], [worktree.path, 'copilot/hello']]);
+		instantiationService.stub(ISCMService, upcastPartial<ISCMService>({
+			getRepository: ((uri: URI | string) => typeof uri !== 'string' && branches.has(uri.path) ? upcastPartial<ISCMRepository>({ provider: upcastPartial<ISCMRepository['provider']>({ historyProvider: constObservable(upcastPartial<ISCMHistoryProvider>({ historyItemRef: constObservable(upcastPartial<ISCMHistoryItemRef>({ name: branches.get(uri.path)! })) })) }) }) : undefined) as ISCMService['getRepository'],
+		}));
 		const widget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: session }), onDidChangeViewModel: Event.None });
-		const chip = store.add(instantiationService.createInstance(AgentHostFolderPickerActionItem, upcastPartial<MenuItemAction>(store.add(new Action('workbench.action.chat.openAgentHostFolderPicker', 'Folder'))), widget, { compact: observableValue('compact', false) }));
+		// The hover it shows, as the hover service would ask it
+		class ChipWithHover extends AgentHostFolderPickerActionItem {
+			hoverLines(): string[] | undefined {
+				return this._buildHoverContent()?.markdownNotSupportedFallback?.split('\n');
+			}
+		}
+		const chip = store.add(instantiationService.createInstance(ChipWithHover, upcastPartial<MenuItemAction>(store.add(new Action('workbench.action.chat.openAgentHostFolderPicker', 'Folder'))), widget, { compact: observableValue('compact', false) }));
 		chip.render(root);
-		const shown = () => ({ label: chip.element?.textContent, worktreeIcon: !!chip.element?.querySelector('.codicon-worktree') });
+		const shown = () => ({ label: chip.element?.textContent, ariaLabel: chip.element?.ariaLabel, worktreeIcon: !!chip.element?.querySelector('.codicon-worktree'), hover: chip.hoverLines() });
 
 		const unknown = shown();
 		workingDirectories = [primary];
@@ -432,10 +444,11 @@ suite('AgentHostFolderPickerActionItem', () => {
 		workingDirectories = [worktree];
 		onDidChangeCustomizations.fire();
 
+		const newWorktree = { label: 'New Worktree', ariaLabel: 'New worktree of vscode', worktreeIcon: true, hover: ['New worktree of vscode', primary.fsPath, 'main'] };
 		assert.deepStrictEqual({ unknown, inFolder, started: shown() }, {
-			unknown: { label: 'New Worktree', worktreeIcon: true },
-			inFolder: { label: 'New Worktree', worktreeIcon: true },
-			started: { label: 'copilot-hello', worktreeIcon: true },
+			unknown: newWorktree,
+			inFolder: newWorktree,
+			started: { label: 'copilot-hello', ariaLabel: 'Worktree: copilot-hello', worktreeIcon: true, hover: ['Worktree: copilot-hello', worktree.fsPath, 'copilot/hello'] },
 		});
 	});
 

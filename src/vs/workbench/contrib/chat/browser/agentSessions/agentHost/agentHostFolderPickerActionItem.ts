@@ -210,7 +210,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		const selected = this._selectedFolder();
+		const selected = this._displayedFolder();
 		const folder = selected && this._workspaceContextService.getWorkspace().folders.find(f => f.uri.toString() === selected.toString());
 		const chip = this._chip(selected);
 		const label = chip ? chip.description : folder ? folder.name : (selected ? basename(selected) : localize('agentHost.selectFolder', "Folder"));
@@ -265,7 +265,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	 * compact.
 	 */
 	getMinimumWidth(): number | undefined {
-		const chip = this._chip(this._selectedFolder());
+		const chip = this._chip(this._displayedFolder());
 		if (!chip) {
 			return undefined;
 		}
@@ -290,6 +290,15 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 			return this._worktree.getNoWorkspaceChip();
 		}
 		return selected && this._worktree.getChip(selected, this._startedWorktree());
+	}
+
+	/**
+	 * The folder the chip stands for, by its name, hover path and branch: the worktree made for a session that started in a
+	 * new worktree, else the selected folder, which stays the one the new worktree was made of.
+	 */
+	private _displayedFolder(): URI | undefined {
+		const started = this._worktree.isActive() && !this._isNoWorkspace() && this._worktree.isNewWorktreeSelected() ? this._startedWorktree() : undefined;
+		return started ?? this._selectedFolder();
 	}
 
 	/**
@@ -353,12 +362,12 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	 * when the folder maps to a git repository, the current branch name.
 	 * Returns `undefined` when no folder is selected so no hover is shown.
 	 */
-	private _buildHoverContent(): IManagedHoverTooltipMarkdownString | undefined {
+	protected _buildHoverContent(): IManagedHoverTooltipMarkdownString | undefined {
 		if (this._worktree.isActive() && this._isNoWorkspace()) {
 			const { description } = this._worktree.getNoWorkspaceChip();
 			return { markdown: new MarkdownString().appendText(description), markdownNotSupportedFallback: description };
 		}
-		const selected = this._selectedFolder();
+		const selected = this._displayedFolder();
 		if (!selected) {
 			return undefined;
 		}
