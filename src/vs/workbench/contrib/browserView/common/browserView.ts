@@ -662,6 +662,8 @@ export function createBrowserViewEventEmitters(store: DisposableStore): BrowserV
 export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	readonly sandboxSessionId: string | undefined;
 	private _url: string = '';
+	/** The failed navigation URL can differ from the document whose favicon is retained. */
+	private _lastSuccessfulUrl: string = '';
 	private _owner: IBrowserViewOwner;
 	private _title: string = '';
 	private _favicon: string | undefined = undefined;
@@ -743,6 +745,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 		// Initialize state
 		this._url = initialState.url;
+		this._lastSuccessfulUrl = initialState.url;
 		this._title = initialState.title;
 		this._loading = initialState.loading;
 		this._focused = initialState.focused;
@@ -805,9 +808,12 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		}));
 
 		this._register(this.onDidNavigate(e => {
-			// Clear favicon on navigation to a different host
-			if (URL.parse(e.url)?.host !== URL.parse(this._url)?.host) {
-				this._favicon = undefined;
+			// Failed loads do not replace the document or its favicon.
+			if (!this._error) {
+				if (URL.parse(e.url)?.host !== URL.parse(this._lastSuccessfulUrl)?.host) {
+					this._favicon = undefined;
+				}
+				this._lastSuccessfulUrl = e.url;
 			}
 
 			this._zoomHost = parseZoomHost(e.url);
@@ -888,7 +894,12 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get url(): string { return this._url; }
 	get owner(): IBrowserViewOwner { return this._owner; }
 	get title(): string { return this._title; }
-	get favicon(): string | undefined { return this._favicon; }
+	get favicon(): string | undefined {
+		if (URL.parse(this._url)?.host !== URL.parse(this._lastSuccessfulUrl)?.host) {
+			return undefined;
+		}
+		return this._favicon;
+	}
 	get loading(): boolean { return this._loading; }
 	get focused(): boolean { return this._focused; }
 	get visible(): boolean { return this._visible; }

@@ -22,6 +22,29 @@ import { IBrowserZoomService } from '../../common/browserZoomService.js';
 suite('BrowserViewModel', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	const initialState: IBrowserViewState = {
+		url: '',
+		title: '',
+		canGoBack: false,
+		canGoForward: false,
+		loading: false,
+		focused: false,
+		visible: false,
+		isDevToolsOpen: false,
+		lastScreenshot: undefined,
+		lastFavicon: undefined,
+		lastError: undefined,
+		certificateError: undefined,
+		session: { scope: BrowserViewStorageScope.Global },
+		storageKeys: {},
+		permissions: { origins: {} },
+		browserZoomIndex: browserZoomDefaultIndex,
+		elementSelectionState: { active: false, options: {} },
+		isAreaSelectionActive: false,
+		device: undefined,
+		audiences: [],
+	};
+
 	test('blocks sharing reported parser-differential authorities with the agent', async () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
@@ -45,28 +68,6 @@ suite('BrowserViewModel', () => {
 			onDidChangeZoom: Event.None,
 			getEffectiveZoomIndex: () => browserZoomDefaultIndex,
 		});
-		const initialState: IBrowserViewState = {
-			url: '',
-			title: '',
-			canGoBack: false,
-			canGoForward: false,
-			loading: false,
-			focused: false,
-			visible: false,
-			isDevToolsOpen: false,
-			lastScreenshot: undefined,
-			lastFavicon: undefined,
-			lastError: undefined,
-			certificateError: undefined,
-			session: { scope: BrowserViewStorageScope.Global },
-			storageKeys: {},
-			permissions: { origins: {} },
-			browserZoomIndex: browserZoomDefaultIndex,
-			elementSelectionState: { active: false, options: {} },
-			isAreaSelectionActive: false,
-			device: undefined,
-			audiences: [],
-		};
 		const urls = [
 			'http://a@b@127.0.0.1:3000/private',
 			'http://a%40b@127.0.0.1:3000/private',
@@ -101,6 +102,63 @@ suite('BrowserViewModel', () => {
 		}, {
 			results: urls.map(() => undefined),
 			infoCalls: urls.length,
+		});
+	});
+
+	test('restores the document favicon after a failed cross-host navigation', () => {
+		const url = 'http://127.0.0.1:8123/';
+		const favicon = 'data:image/svg+xml;base64,original';
+		const events = createBrowserViewEventEmitters(disposables.add(new DisposableStore()));
+		const model = disposables.add(new BrowserViewModel(
+			'favicon-recovery',
+			{ windowId: 1 },
+			{ type: 'user' },
+			undefined,
+			{ ...initialState, url, lastFavicon: favicon },
+			upcastPartial<IBrowserViewService>({ destroyBrowserView: async () => { } }),
+			events,
+			upcastPartial<IBrowserViewWorkbenchService>({ isSharingAvailable: true, onDidChangeSharingAvailable: Event.None }),
+			NullTelemetryService,
+			upcastPartial<IDialogService>({}),
+			upcastPartial<IStorageService>({}),
+			upcastPartial<IBrowserZoomService>({ onDidChangeZoom: Event.None, getEffectiveZoomIndex: () => browserZoomDefaultIndex }),
+			disposables.add(new AgentNetworkFilterService(new TestConfigurationService())),
+			new NullLogService(),
+		));
+		const navigation = (target: string) => events.onDidNavigate.fire({
+			url: target, title: 'Favicon Recovery Test', canGoBack: true, canGoForward: false, certificateError: undefined,
+		});
+		const originalIcon = model.favicon;
+		const failedUrl = 'http://favicon-recovery-test.invalid/';
+		events.onDidChangeLoadingState.fire({ loading: false, error: { url: failedUrl, errorCode: -105, errorDescription: 'ERR_NAME_NOT_RESOLVED' } });
+		navigation(failedUrl);
+		const failedIcon = model.favicon;
+		const displayedFailedUrl = model.url;
+
+		// Return and reload without receiving another favicon event for the original document.
+		events.onDidChangeLoadingState.fire({ loading: true });
+		navigation(url);
+		events.onDidChangeLoadingState.fire({ loading: false });
+		const recoveredIcon = model.favicon;
+		events.onDidChangeLoadingState.fire({ loading: true });
+		navigation(url);
+		events.onDidChangeLoadingState.fire({ loading: false });
+		const reloadedIcon = model.favicon;
+
+		// A successful navigation to another host must still discard the original icon.
+		navigation('https://example.com/');
+		const otherHostIcon = model.favicon;
+		events.onDidChangeFavicon.fire({ favicon: 'data:image/svg+xml;base64,other' });
+		const newHostIcon = model.favicon;
+
+		assert.deepStrictEqual({ originalIcon, failedIcon, displayedFailedUrl, recoveredIcon, reloadedIcon, otherHostIcon, newHostIcon }, {
+			originalIcon: favicon,
+			failedIcon: undefined,
+			displayedFailedUrl: failedUrl,
+			recoveredIcon: favicon,
+			reloadedIcon: favicon,
+			otherHostIcon: undefined,
+			newHostIcon: 'data:image/svg+xml;base64,other',
 		});
 	});
 });
