@@ -436,6 +436,10 @@ suite('Sessions - pending list items', () => {
 		harness.instantiationService.stub(IHoverService, hoverService);
 		const opened: string[] = [];
 		const container = harness.createContainer(400, 800);
+		// Native hover visibility must not depend on scrolling left by another test.
+		container.style.position = 'fixed';
+		container.style.top = '0';
+		container.style.left = '0';
 		const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, container, {
 			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
 			scheduledSessionResources: constObservable(new Set([session.resource.toString()])),
@@ -483,6 +487,7 @@ suite('Sessions - pending list items', () => {
 		const preview = mainWindow.document.querySelector('.monaco-hover.session-scheduled-card-hover');
 		assert.ok(preview);
 		await settleIntersections(container);
+		assert.ok(preview.isConnected, 'The preview must be visible before refreshing the row');
 		list.update();
 		await settleIntersections(container);
 		assert.deepStrictEqual({
