@@ -12,6 +12,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { isCanvasIconDataUri } from '../../../../platform/agentHost/common/meta/agentCanvasIconMeta.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { EditorInputCapabilities, GroupIdentifier, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -34,7 +35,14 @@ export interface ICanvasDefinition {
 	readonly extensionName?: string;
 	readonly displayName: string;
 	readonly description: string;
+	/** The canvas's icon as its host sends it, a PNG data URI; read it with {@link getCanvasIconUri}. */
+	readonly icon?: string;
 	readonly requiresInput: boolean;
+}
+
+/** The icon of a canvas as a URI, when `icon` is one a client can show: a bounded PNG data URI, never a host path. */
+export function getCanvasIconUri(icon: string | undefined): URI | undefined {
+	return isCanvasIconDataUri(icon) ? URI.parse(icon) : undefined;
 }
 
 /** `undefined` is unsettled; an array, including an empty one, is authoritative. */
@@ -436,7 +444,7 @@ export class CanvasInput extends EditorInput {
 	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.ForceReveal; }
 	override getName(): string { return this.canvas.get()?.title ?? localize('canvas.editorName', "Canvas"); }
 	override getDescription(): undefined { return undefined; }
-	override getIcon(): ThemeIcon { return Codicon.preview; }
+	override getIcon(): ThemeIcon | URI { return this.canvas.get()?.icon ?? Codicon.preview; }
 	override getTitle(verbosity?: Verbosity): string {
 		const name = this.getName();
 		return verbosity === Verbosity.LONG ? `${name} - ${this.getReopenInstructions()}` : name;
@@ -480,7 +488,8 @@ export class CanvasInput extends EditorInput {
 			this.canvas.set(canvas, tx);
 			this.membershipPending.set(membershipPending, tx);
 		});
-		if (previous?.title !== canvas?.title) {
+		// Icons are data URIs, whose path holds the whole image.
+		if (previous?.title !== canvas?.title || previous?.icon?.path !== canvas?.icon?.path) {
 			this._onDidChangeLabel.fire();
 		}
 	}
