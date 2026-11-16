@@ -422,7 +422,7 @@
 
 .monaco-editor .suggest-details > .monaco-scrollable-element > .body > .header > .type.auto-wrap {
 	white-space: normal;
-	word-break: break-all;
+	overflow-wrap: break-word;
 }
 
 .monaco-editor .suggest-details > .monaco-scrollable-element > .body > .docs {
