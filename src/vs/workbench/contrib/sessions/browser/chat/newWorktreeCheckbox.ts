@@ -3,42 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../../base/browser/dom.js';
-import { CheckboxActionViewItem } from '../../../../../base/browser/ui/toggle/toggle.js';
-import { Action } from '../../../../../base/common/actions.js';
+import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
-import { defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { CheckboxChip } from './checkboxChip.js';
 import { NewWorktreeChoice } from './newWorktreeChoice.js';
 
 /**
- * New Worktree as a labelled checkbox beside a composer's workspace picker, which a composer shows instead of the picker's
- * New Worktree item where its folder has no worktrees to pick from.
+ * New Worktree as a checkbox chip beside a composer's workspace picker, sized as the picker's other chips, which a
+ * composer shows instead of the picker's New Worktree item where its folder has no worktrees to pick from.
  */
 export class NewWorktreeCheckbox extends Disposable {
 
 	readonly element: HTMLElement;
-	private readonly _action: Action;
 
 	/**
 	 * @param visible Whether the composer shows it.
 	 * @param track Reads what changes whether the draft works in a new worktree, such as its configuration.
 	 */
 	constructor(
-		private readonly _choice: Pick<NewWorktreeChoice, 'isSelected' | 'setSelected'>,
+		container: HTMLElement,
+		choice: Pick<NewWorktreeChoice, 'isSelected' | 'setSelected'>,
 		visible: IObservable<boolean>,
 		track: (reader: IReader) => void,
+		hoverService: IHoverService,
+		hoverDelegate?: IHoverDelegate,
 	) {
 		super();
-		this.element = $('.new-session-new-worktree');
-		this._action = this._register(new Action('newSession.newWorktree', localize('newSession.newWorktree', "New Worktree"), undefined, true, async () => this._choice.setSelected(!!this._action.checked)));
-		const item = this._register(new CheckboxActionViewItem(undefined, this._action, { label: true, checkboxStyles: defaultCheckboxStyles }));
-		item.render(this.element);
+		const label = localize('newSession.newWorktree', "New Worktree");
+		const chip = this._register(new CheckboxChip({
+			label,
+			ariaLabel: label,
+			hoverDelegate,
+			slotClassName: 'new-session-new-worktree',
+			onToggle: checked => choice.setSelected(checked),
+		}, hoverService));
+		this.element = chip.render(container);
 		this._register(autorun(reader => {
-			this.element.style.display = visible.read(reader) ? '' : 'none';
+			const shown = visible.read(reader);
 			track(reader);
-			this._action.checked = this._choice.isSelected();
+			chip.update({ checked: choice.isSelected(), state: shown ? 'enabled' : 'hidden' });
 		}));
 	}
 }
