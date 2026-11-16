@@ -5,6 +5,8 @@
 
 import * as assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
@@ -12,27 +14,27 @@ import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IGitHubAccountClient } from '../../../github/common/account/account.js';
+import { PaginationLimitError } from '../../../github/common/client/pagination.js';
 import { IActionsClient, WorkflowJob } from '../../../github/common/core/actions.js';
 import { IChecksClient } from '../../../github/common/core/checks.js';
 import { GitHubWorkflowLog, PullRequestMutationApi } from '../../../github/common/githubPullRequestMutationService.js';
 import { PullRequestCheck, PullRequestRef, PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
-import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { GitHubRequestError } from '../../../github/common/githubTransport.js';
-import { PaginationLimitError } from '../../../github/common/client/pagination.js';
+import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { RequestFetch } from '../../../github/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { defaultAgentMergeConfiguration } from '../../common/agentMerge.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentMergeCIEvidenceStore, agentMergeCIResponseBytes, ciJsonBytes, readCIRange, readCITail, searchCIEvidence } from '../../node/agentMergeCIEvidence.js';
-import { AgentMergeTools, getWorkflowRuns, IAgentMergeTurnContext } from '../../node/agentMergeTools.js';
-import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
-import { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
-import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { AgentMergeTools, IAgentMergeTurnContext, getWorkflowRuns } from '../../node/agentMergeTools.js';
 import { AgentMergeCIRequest } from '../../node/shared/agentMergeServerTools.js';
-import { createTestWorkflowJob, createTestWorkflowRun } from './testGitHubService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
+import { createTestWorkflowJob, createTestWorkflowRun } from './testGitHubService.js';
 
 interface CIResult {
 	readonly items: readonly { kind: string; jobId?: string; evidenceId?: string; complete?: boolean; totalLines?: number | null; jobRunAttempt?: number | null; message?: string }[];
@@ -52,13 +54,13 @@ suite('Agent Merge CI diagnostics', () => {
 
 	function createApiClient(fetch: RequestFetch): IGitHubAccountClient {
 		const service = store.add(new AgentHostGitHubService({
-			fetch: (input, init) => new URL(String(input)).pathname === '/user' ? Promise.resolve(Response.json({ id: 1 })) : fetch(input, init),
+			fetch: (input, init, fetchToken, fetchLifetime) => new URL(String(input)).pathname === '/user' ? Promise.resolve(Response.json({ id: 1 })) : fetch(input, init, fetchToken, fetchLifetime),
 		}, new class extends mock<IAgentHostAuthenticationService>() {
 			override readonly onDidChangeAuthToken = Event.None;
 			override getAuthAccount() { return undefined; }
 			override getAuthToken() { return 'repository-token'; }
 		}(), createTestGitHubEndpointService(), new NullLogService(), NullTelemetryService));
-		return store.add(service.acquireRepositoryApiClient(new AbortController().signal));
+		return store.add(service.acquireRepositoryApiClient(CancellationToken.None));
 	}
 
 	for (const name of [undefined, null, '']) {
@@ -66,7 +68,7 @@ suite('Agent Merge CI diagnostics', () => {
 			const client = createApiClient(async () => Response.json({
 				total_count: 1, workflow_runs: [createTestWorkflowRun(1, { name })],
 			}));
-			const runs = await getWorkflowRuns(client, ref, 'head', new AbortController().signal);
+			const runs = await getWorkflowRuns(client, ref, 'head', CancellationToken.None);
 			assert.deepStrictEqual(runs.map(run => ({ id: run.id, name: run.name, headSha: run.head_sha })), [
 				{ id: 1, name, headSha: 'head' },
 			]);
@@ -162,7 +164,7 @@ suite('Agent Merge CI diagnostics', () => {
 					headers: requests < pages ? { Link: `<${next.href}>; rel="next"` } : undefined,
 				});
 			});
-			const pending = getWorkflowRuns(client, ref, 'head', new AbortController().signal);
+			const pending = getWorkflowRuns(client, ref, 'head', CancellationToken.None);
 			if (pages === 100) {
 				assert.strictEqual((await pending).length, 100);
 			} else {
@@ -406,9 +408,9 @@ suite('Agent Merge CI diagnostics', () => {
 
 	test('cancels a queued read promptly without blocking the next session or making requests', async () => {
 		const h = store.add(new CIHarness());
-		const abort = new AbortController();
-		store.add(toDisposable(() => abort.abort()));
-		h.peerContexts.set('cancelled', { ...h.context, session: 'cancelled', chat: 'cancelled', signal: abort.signal });
+		const abort = store.add(new CancellationTokenSource());
+		store.add(toDisposable(() => abort.cancel()));
+		h.peerContexts.set('cancelled', { ...h.context, session: 'cancelled', chat: 'cancelled', cancellationToken: abort.token });
 		h.peerContexts.set('next', { ...h.context, session: 'next', chat: 'next' });
 		const started = new DeferredPromise<void>();
 		const release = new DeferredPromise<void>();
@@ -422,9 +424,9 @@ suite('Agent Merge CI diagnostics', () => {
 		await started.p;
 		const queued = h.read({}, 'cancelled');
 		const next = h.read({}, 'next');
-		abort.abort(new Error('Queued read cancelled.'));
+		abort.cancel();
 		try {
-			await assert.rejects(queued, /Queued read cancelled/);
+			await assert.rejects(queued, isCancellationError);
 			assert.deepStrictEqual({ downloads: h.mutations.downloads, refreshes: h.refreshes }, { downloads: 1, refreshes: 1 });
 		} finally {
 			await release.complete();
@@ -480,8 +482,8 @@ suite('Agent Merge CI diagnostics', () => {
 		const h = store.add(new CIHarness());
 		let started!: () => void;
 		const downloading = new Promise<void>(resolve => { started = resolve; });
-		h.mutations.beforeDownload = signal => new Promise<void>((_resolve, reject) => {
-			store.add(Event.once(Event.fromDOMEventEmitter(signal, 'abort'))(() => reject(signal.reason)));
+		h.mutations.beforeDownload = cancellationToken => new Promise<void>((_resolve, reject) => {
+			store.add(cancellationToken.onCancellationRequested(() => reject(new CancellationError())));
 			started();
 		});
 		const read = h.read();
@@ -543,7 +545,7 @@ suite('Agent Merge CI diagnostics', () => {
 	test('seeks search pages in a newline-dense 16 MiB log using bounded cached checkpoints', () => {
 		const evidence = store.add(new AgentMergeCIEvidenceStore());
 		const text = `${'\n'.repeat(16 * 1024 * 1024 - 5)}FAIL\n`;
-		const entry = evidence.tryAdd('scope', 1, createTestWorkflowJob(), { text, truncated: false }, new AbortController().signal)!;
+		const entry = evidence.tryAdd('scope', 1, createTestWorkflowJob(), { text, truncated: false }, CancellationToken.None)!;
 		const checkpointReads: number[] = [];
 		const indexedEntry = {
 			...entry,
@@ -589,7 +591,7 @@ suite('Agent Merge CI diagnostics', () => {
 		const evidence = store.add(new AgentMergeCIEvidenceStore());
 		const prefix = `${'setup\r\n'.repeat(1_023)}\r\n`;
 		const text = `${prefix}FAIL: first\r\n\r\nFAIL: last`;
-		const entry = evidence.tryAdd('scope', 1, createTestWorkflowJob(), { text, truncated: false }, new AbortController().signal)!;
+		const entry = evidence.tryAdd('scope', 1, createTestWorkflowJob(), { text, truncated: false }, CancellationToken.None)!;
 		const expected = [
 			{ line: 1_024, column: 1, text: '' },
 			{ line: 1_025, column: 1, text: 'FAIL: first' },
@@ -612,7 +614,7 @@ suite('Agent Merge CI diagnostics', () => {
 
 	test('empty evidence has no line-index entries or phantom lines', () => {
 		const evidence = store.add(new AgentMergeCIEvidenceStore());
-		const entry = evidence.tryAdd('scope', 1, createTestWorkflowJob(), { text: '', truncated: false }, new AbortController().signal)!;
+		const entry = evidence.tryAdd('scope', 1, createTestWorkflowJob(), { text: '', truncated: false }, CancellationToken.None)!;
 		assert.deepStrictEqual({
 			lineCount: entry.lineCount, indexBytes: entry.lineStartOffsets.byteLength,
 			range: readCIRange(entry, {}).lines, tail: readCITail(entry).lines,
@@ -631,17 +633,17 @@ suite('Agent Merge CI diagnostics', () => {
 
 	test('cache eviction, cancellation, cursor isolation and disposal have explicit outcomes', () => {
 		const evidence = store.add(new AgentMergeCIEvidenceStore());
-		const abort = new AbortController();
+		const abort = store.add(new CancellationTokenSource());
 		const job = createTestWorkflowJob();
-		const first = evidence.tryAdd('scope', 1, job, { text: 'redacted', truncated: false }, abort.signal)!;
+		const first = evidence.tryAdd('scope', 1, job, { text: 'redacted', truncated: false }, abort.token)!;
 		const cursor = evidence.continue('scope', { request: { mode: 'tail', evidenceId: first.id } });
 		assert.throws(() => evidence.resolve(cursor.cursor, 'other-scope'), /unauthorized/);
 		for (let i = 0; i < 8; i++) {
-			evidence.tryAdd('scope', 1, { ...job, id: 200 + i }, { text: '', truncated: false }, abort.signal);
+			evidence.tryAdd('scope', 1, { ...job, id: 200 + i }, { text: '', truncated: false }, abort.token);
 		}
 		assert.throws(() => evidence.get(first.id, 'scope'), /expired/);
 		const last = evidence.find('scope', 207, 1, 1)!;
-		abort.abort();
+		abort.cancel();
 		assert.throws(() => evidence.get(last.id, 'scope'), /expired/);
 		evidence.dispose();
 		assert.throws(() => evidence.resolve(cursor.cursor, 'scope'), /expired/);
@@ -649,7 +651,7 @@ suite('Agent Merge CI diagnostics', () => {
 
 	test('tail, range and search preserve line numbers for CRLF, empty and very long lines', () => {
 		const evidence = store.add(new AgentMergeCIEvidenceStore());
-		const entry = evidence.tryAdd('scope', 1, createTestWorkflowJob(), { text: `one\r\n\r\n${'x'.repeat(10_000)}FAIL`, truncated: false }, new AbortController().signal)!;
+		const entry = evidence.tryAdd('scope', 1, createTestWorkflowJob(), { text: `one\r\n\r\n${'x'.repeat(10_000)}FAIL`, truncated: false }, CancellationToken.None)!;
 		const tail = readCITail(entry, 1);
 		assert.deepStrictEqual({
 			range: readCIRange(entry, { startLine: 1, endLine: 2 }).lines,
@@ -666,7 +668,7 @@ class CIMutations extends mock<PullRequestMutationApi>() {
 	jobs: WorkflowJob[] = [];
 	log: GitHubWorkflowLog = { text: '1 failing\nAssertionError: failure', truncated: false };
 	downloads = 0;
-	beforeDownload?: (signal: AbortSignal) => void | Promise<void>;
+	beforeDownload?: (cancellationToken: CancellationToken) => void | Promise<void>;
 	beforeJobs?: () => void;
 	readonly actions = upcastPartial<IActionsClient>({
 		listRuns: async () => ({ total_count: 1, workflow_runs: [this.run] }),
@@ -682,9 +684,9 @@ class CIMutations extends mock<PullRequestMutationApi>() {
 			annotation_level: 'failure', message: 'Process completed with exit code 1', title: null, raw_details: null,
 		}],
 	});
-	override async downloadWorkflowJobLog(_ref: PullRequestRef, _id: string, signal: AbortSignal) {
+	override async downloadWorkflowJobLog(_ref: PullRequestRef, _id: string, cancellationToken: CancellationToken) {
 		this.downloads++;
-		await this.beforeDownload?.(signal);
+		await this.beforeDownload?.(cancellationToken);
 		return this.log;
 	}
 }
@@ -703,8 +705,8 @@ class CIHarness extends Disposable {
 	constructor(count = 1) {
 		super();
 		this.snapshot = observableValue(this, makeSnapshot(count));
-		const abort = new AbortController();
-		this._register(toDisposable(() => abort.abort()));
+		const abort = new CancellationTokenSource();
+		this._register(toDisposable(() => abort.cancel()));
 		this.mutations.jobs = Array.from({ length: count }, (_, index) => createTestWorkflowJob(100 + index, {
 			check_run_url: `https://api.github.com/repos/owner/repo/check-runs/${1000 + index}`, name: `CI ${index}`,
 			steps: [{ number: 1, name: 'Run tests', status: 'completed', conclusion: 'failure' }],
@@ -726,7 +728,7 @@ class CIHarness extends Disposable {
 		this.context = {
 			client, apiClient: upcastPartial<IGitHubAccountClient>({ actions: this.mutations.actions, checks: this.mutations.checks }),
 			session: 'session', chat: 'session', folderKey: 'folder', turnId: 'turn', ref, headSha: 'head', actions: ['fixCI'],
-			configuration: { ...defaultAgentMergeConfiguration, fixCI: true }, snapshot: this.snapshot.get(), signal: abort.signal,
+			configuration: { ...defaultAgentMergeConfiguration, fixCI: true }, snapshot: this.snapshot.get(), cancellationToken: abort.token,
 			commentWatermark: '', deferredCheckIds: this.deferred, initialDeferredCheckIds: new Set(), deferWorkflowRerun: () => false,
 			trackReviewReply: () => { assert.fail('Unexpected review reply in a CI turn'); },
 		};

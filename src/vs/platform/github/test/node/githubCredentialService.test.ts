@@ -3,18 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isCancellationError } from '../../../../base/common/errors.js';
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { GitHubCredentialService } from '../../common/githubCredentialService.js';
 import { BackoffPolicy } from '../../common/backoff.js';
+import { GitHubCredentialService } from '../../common/githubCredentialService.js';
 import { GitHubRequestError, GitHubTransport } from '../../common/githubTransport.js';
 import { IGitHubTokenProvider } from '../../common/githubTypes.js';
 import { FakeScheduler } from './fakeScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
-import { gitHubDisconnectResponse, gitHubJsonResponse, gitHubRateLimitResponse, gitHubRestStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
+import { ProgrammableGitHubServer, gitHubDisconnectResponse, gitHubJsonResponse, gitHubRateLimitResponse, gitHubRestStep } from './programmableGitHubServer.js';
+
 
 /** Jitter-free so every asserted delay is exact. */
 const testBackoffPolicy: BackoffPolicy = {
@@ -25,8 +28,8 @@ const testBackoffPolicy: BackoffPolicy = {
 	jitter: 0,
 };
 
-function signal(): AbortSignal {
-	return new AbortController().signal;
+function cancellationToken(): CancellationToken {
+	return CancellationToken.None;
 }
 
 /** Lets every pending continuation reach the scheduler before time is advanced. */
@@ -94,12 +97,12 @@ suite('GitHubCredentialService', () => {
 			const tokenProvider = disposables.add(new TestTokenProvider());
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const credentials = disposables.add(new GitHubCredentialService(undefined, undefined, transport, tokenProvider, server.createEndpointService()));
-			await assert.rejects(credentials.getCredential(signal()), error => error instanceof GitHubRequestError && error.kind === 'authentication');
+			await assert.rejects(credentials.getCredential(cancellationToken()), error => error instanceof GitHubRequestError && error.kind === 'authentication');
 			const invalidations: string[] = [];
 			disposables.add(credentials.onDidInvalidate(event => invalidations.push(event.reason)));
 
 			tokenProvider.setToken('signed-in');
-			const resolved = await credentials.getCredential(signal());
+			const resolved = await credentials.getCredential(cancellationToken());
 
 			assert.deepStrictEqual({ invalidations, accountId: resolved.account.accountId, requestCount: server.requests.length },
 				{ invalidations: ['replacement'], accountId: '101', requestCount: 1 });
@@ -114,15 +117,15 @@ suite('GitHubCredentialService', () => {
 			tokenProvider.setToken('same-token');
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const credentials = disposables.add(new GitHubCredentialService(undefined, undefined, transport, tokenProvider, server.createEndpointService()));
-			const first = await credentials.getCredential(signal());
+			const first = await credentials.getCredential(cancellationToken());
 			const invalidations: { reason: string; generation: number | undefined }[] = [];
 			disposables.add(credentials.onDidInvalidate(event => invalidations.push({ reason: event.reason, generation: event.credential?.generation })));
 			tokenProvider.setToken('same-token');
 			tokenProvider.setToken('same-token');
-			const second = await credentials.getCredential(signal());
+			const second = await credentials.getCredential(cancellationToken());
 
 			assert.deepStrictEqual({
-				aborted: first.signal.aborted, same: first === second, invalidations, requestCount: server.requests.length,
+				aborted: first.cancellationToken.isCancellationRequested, same: first === second, invalidations, requestCount: server.requests.length,
 			}, {
 				aborted: false, same: true,
 				invalidations: [{ reason: 'reauthorization', generation: 1 }, { reason: 'reauthorization', generation: 1 }],
@@ -144,7 +147,7 @@ suite('GitHubCredentialService', () => {
 			tokenProvider.setToken('one');
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const credentials = disposables.add(new GitHubCredentialService(undefined, undefined, transport, tokenProvider, server.createEndpointService()));
-			const pending = credentials.getCredential(signal());
+			const pending = credentials.getCredential(cancellationToken());
 			await firstArrived.p;
 			tokenProvider.setToken('two');
 			const credential = await pending;
@@ -168,15 +171,15 @@ suite('GitHubCredentialService', () => {
 			const credentials = disposables.add(new GitHubCredentialService(undefined, undefined, transport, tokenProvider, endpoint));
 
 			tokenProvider.setToken('one');
-			const first = await credentials.getCredential(signal());
-			const shared = await credentials.getCredential(signal());
+			const first = await credentials.getCredential(cancellationToken());
+			const shared = await credentials.getCredential(cancellationToken());
 			tokenProvider.setToken('two');
-			const replacement = await credentials.getCredential(signal());
+			const replacement = await credentials.getCredential(cancellationToken());
 
 			assert.deepStrictEqual({
 				first: { account: first.account, generation: first.generation },
 				sharedObject: first === shared,
-				firstAborted: first.signal.aborted,
+				firstAborted: first.cancellationToken.isCancellationRequested,
 				replacement: { account: replacement.account, generation: replacement.generation },
 				requestCount: server.requests.length,
 			}, {
@@ -199,7 +202,7 @@ suite('GitHubCredentialService', () => {
 			getApiBaseUri: () => 'https://api.example.test',
 			getGraphQlUri: () => 'https://api.example.test/graphql',
 		}));
-		await assert.rejects(credentials.getCredential(signal()), { kind: 'authentication', statusCode: 401 });
+		await assert.rejects(credentials.getCredential(cancellationToken()), { kind: 'authentication', statusCode: 401 });
 		assert.deepStrictEqual(tokenProvider.invalidatedTokens, ['rejected-token']);
 	});
 
@@ -215,9 +218,9 @@ suite('GitHubCredentialService', () => {
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const credentials = disposables.add(new GitHubCredentialService(undefined, undefined, transport, tokenProvider, endpoint));
 			tokenProvider.setToken('one');
-			const credential = await credentials.getCredential(signal());
-			await transport.rest(credential.account, credential.token, { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/one` }, signal());
-			await transport.rest(credential.account, credential.token, { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/two` }, signal());
+			const credential = await credentials.getCredential(cancellationToken());
+			await transport.rest(credential.account, credential.token, { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/one` }, cancellationToken());
+			await transport.rest(credential.account, credential.token, { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/two` }, cancellationToken());
 			const invalidations: string[] = [];
 			disposables.add(credentials.onDidInvalidate(event => invalidations.push(event.reason)));
 
@@ -226,7 +229,7 @@ suite('GitHubCredentialService', () => {
 			assert.deepStrictEqual({
 				token: tokenProvider.getToken(),
 				invalidatedTokens: tokenProvider.invalidatedTokens,
-				aborted: credential.signal.aborted,
+				aborted: credential.cancellationToken.isCancellationRequested,
 				invalidations,
 			}, {
 				token: undefined,
@@ -251,13 +254,13 @@ suite('GitHubCredentialService', () => {
 			const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler));
 			const credentials = disposables.add(new GitHubCredentialService(scheduler, testBackoffPolicy, transport, tokenProvider, server.createEndpointService()));
 			tokenProvider.setToken('one');
-			const first = await credentials.getCredential(signal());
+			const first = await credentials.getCredential(cancellationToken());
 			const request = { method: 'GET' as const, url: `${server.apiBaseUrl}/repos/o/r` };
-			await assert.rejects(transport.rest(first.account, first.token, request, signal()), { kind: 'rateLimit' });
+			await assert.rejects(transport.rest(first.account, first.token, request, cancellationToken()), { kind: 'rateLimit' });
 			tokenProvider.setToken('two');
-			const second = await credentials.getCredential(signal());
+			const second = await credentials.getCredential(cancellationToken());
 			const cooldown = transport.rateLimits.getDelay(second.account, 'core');
-			const pending = transport.rest(second.account, second.token, request, signal());
+			const pending = transport.rest(second.account, second.token, request, cancellationToken());
 			scheduler.advanceBy(4_999);
 			const beforeReset = server.requests.length;
 			scheduler.advanceBy(1);
@@ -289,8 +292,8 @@ suite('GitHubCredentialService', () => {
 				getApiBaseUri: () => 'https://api.example.test',
 				getGraphQlUri: () => 'https://api.example.test/graphql',
 			}));
-			await assert.rejects(credentials.getCredential(signal()), { kind: status === 429 ? 'rateLimit' : 'server' });
-			const pending = credentials.getCredential(signal());
+			await assert.rejects(credentials.getCredential(cancellationToken()), { kind: status === 429 ? 'rateLimit' : 'server' });
+			const pending = credentials.getCredential(cancellationToken());
 			await flush();
 			scheduler.advanceBy(119_999);
 			await flush();
@@ -317,15 +320,14 @@ suite('GitHubCredentialService', () => {
 			getApiBaseUri: () => 'https://api.example.test',
 			getGraphQlUri: () => 'https://api.example.test/graphql',
 		}));
-		await assert.rejects(credentials.getCredential(signal()), { kind: 'rateLimit' });
-		const controller = new AbortController();
-		const reason = new Error('cancelled');
-		const rejected = assert.rejects(credentials.getCredential(controller.signal), error => error === reason);
+		await assert.rejects(credentials.getCredential(cancellationToken()), { kind: 'rateLimit' });
+		const controller = disposables.add(new CancellationTokenSource());
+		const rejected = assert.rejects(credentials.getCredential(controller.token), isCancellationError);
 		await flush();
-		controller.abort(reason);
+		controller.cancel();
 		await rejected;
 		const cancelledTimers = scheduler.pendingCount;
-		const pending = credentials.getCredential(signal());
+		const pending = credentials.getCredential(cancellationToken());
 		await flush();
 		scheduler.advanceBy(119_999);
 		const requestsBeforeReset = requests;
@@ -353,15 +355,15 @@ suite('GitHubCredentialService', () => {
 				getApiBaseUri: () => 'https://api.example.test',
 				getGraphQlUri: () => 'https://api.example.test/graphql',
 			}));
-			await assert.rejects(credentials.getCredential(signal()), { kind: status === 429 ? 'rateLimit' : 'server' });
+			await assert.rejects(credentials.getCredential(cancellationToken()), { kind: status === 429 ? 'rateLimit' : 'server' });
 			let outcome: string | undefined;
-			const first = credentials.getCredential(signal()).then(
+			const first = credentials.getCredential(cancellationToken()).then(
 				() => { outcome = 'success'; },
 				error => { outcome = error instanceof GitHubRequestError ? error.kind : 'unexpected'; },
 			);
 			await flush();
 			scheduler.advanceBy(100_000);
-			const peer = credentials.getCredential(signal());
+			const peer = credentials.getCredential(cancellationToken());
 			await flush();
 			scheduler.advanceBy(200_000);
 			await flush();
@@ -393,7 +395,7 @@ suite('GitHubCredentialService', () => {
 			getGraphQlUri: () => 'https://api.example.test/graphql',
 		}));
 		let outcome: string | undefined;
-		const pending = credentials.getCredential(signal()).then(
+		const pending = credentials.getCredential(cancellationToken()).then(
 			() => { outcome = 'success'; },
 			error => { outcome = error instanceof GitHubRequestError ? error.kind : 'unexpected'; },
 		);
@@ -409,17 +411,16 @@ suite('GitHubCredentialService', () => {
 
 	test('preserves cancellation when token acquisition aborts synchronously', async () => {
 		const scheduler = disposables.add(new FakeScheduler());
-		const controller = new AbortController();
-		const reason = new Error('cancelled');
+		const controller = disposables.add(new CancellationTokenSource());
 		const transport = disposables.add(new GitHubTransport(undefined, scheduler));
 		const credentials = disposables.add(new GitHubCredentialService(scheduler, testBackoffPolicy, transport, {
-			getToken: () => { controller.abort(reason); return undefined; },
+			getToken: () => { controller.cancel(); return undefined; },
 		}, {
 			onDidChange: Event.None,
 			getApiBaseUri: () => 'https://api.example.test',
 			getGraphQlUri: () => 'https://api.example.test/graphql',
 		}));
-		await assert.rejects(credentials.getCredential(controller.signal), error => error === reason);
+		await assert.rejects(credentials.getCredential(controller.token), isCancellationError);
 		await flush();
 		assert.strictEqual(scheduler.pendingCount, 0);
 	});
@@ -436,9 +437,9 @@ suite('GitHubCredentialService', () => {
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const credentials = disposables.add(new GitHubCredentialService(undefined, undefined, transport, tokenProvider, server.createEndpointService()));
 
-			await assert.rejects(() => credentials.getCredential(signal()), error =>
+			await assert.rejects(() => credentials.getCredential(cancellationToken()), error =>
 				error instanceof GitHubRequestError && error.kind === 'network');
-			const recovered = await credentials.getCredential(signal());
+			const recovered = await credentials.getCredential(cancellationToken());
 
 			assert.deepStrictEqual({
 				account: recovered.account,
@@ -464,16 +465,16 @@ suite('GitHubCredentialService', () => {
 			const credentials = disposables.add(new GitHubCredentialService(undefined, undefined, transport, tokenProvider, server.createEndpointService()));
 
 			tokenProvider.setToken('one');
-			const previous = await credentials.getCredential(signal());
+			const previous = await credentials.getCredential(cancellationToken());
 			tokenProvider.setToken('two');
-			const current = await credentials.getCredential(signal());
+			const current = await credentials.getCredential(cancellationToken());
 			credentials.handleRequestError(previous, new GitHubRequestError('Old request failed', 'authentication', 401));
 
 			assert.deepStrictEqual({
 				token: tokenProvider.getToken(),
 				invalidatedTokens: tokenProvider.invalidatedTokens,
-				previousAborted: previous.signal.aborted,
-				currentAborted: current.signal.aborted,
+				previousAborted: previous.cancellationToken.isCancellationRequested,
+				currentAborted: current.cancellationToken.isCancellationRequested,
 			}, {
 				token: 'two',
 				invalidatedTokens: [],
@@ -496,9 +497,9 @@ suite('GitHubCredentialService', () => {
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const credentials = disposables.add(new GitHubCredentialService(scheduler, testBackoffPolicy, transport, tokenProvider, server.createEndpointService()));
 
-			await assert.rejects(() => credentials.getCredential(signal()));
-			await assert.rejects(() => credentials.getCredential(signal()));
-			const delayed = credentials.getCredential(signal());
+			await assert.rejects(() => credentials.getCredential(cancellationToken()));
+			await assert.rejects(() => credentials.getCredential(cancellationToken()));
+			const delayed = credentials.getCredential(cancellationToken());
 			await flush();
 			const requestsWhileDelayed = server.requests.length;
 			const armedDelay = scheduler.nextDueTime;
@@ -537,7 +538,7 @@ suite('GitHubCredentialService', () => {
 			const expectedDelays = [0, 0, 1_000, 2_000];
 			for (let round = 0; round < 4; round++) {
 				const startedAt = scheduler.now();
-				const pending = credentials.getCredential(signal());
+				const pending = credentials.getCredential(cancellationToken());
 				await flush();
 				scheduler.advanceBy(expectedDelays[round]);
 				const credential = await pending;
@@ -565,14 +566,14 @@ suite('GitHubCredentialService', () => {
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const credentials = disposables.add(new GitHubCredentialService(scheduler, testBackoffPolicy, transport, tokenProvider, server.createEndpointService()));
 
-			await assert.rejects(() => credentials.getCredential(signal()));
-			await assert.rejects(() => credentials.getCredential(signal()));
+			await assert.rejects(() => credentials.getCredential(cancellationToken()));
+			await assert.rejects(() => credentials.getCredential(cancellationToken()));
 			// Parks on the delay the two failures established, and must abandon
 			// it for the replacement rather than resolve the superseded credential.
-			const abandoned = credentials.getCredential(signal());
+			const abandoned = credentials.getCredential(cancellationToken());
 			await flush();
 			tokenProvider.setToken('two');
-			const recovered = await credentials.getCredential(signal());
+			const recovered = await credentials.getCredential(cancellationToken());
 			const parked = await abandoned;
 
 			assert.deepStrictEqual({

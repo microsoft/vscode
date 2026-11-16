@@ -30,13 +30,13 @@ export class GitHubPRFetcher {
 	constructor(readonly client: GitHubApiClient) { }
 
 	getPullRequest(owner: string, repo: string, prNumber: number, token?: CancellationToken, options?: ApiRequestOptions): Promise<IGitHubPullRequest> {
-		return this.client.withClient(async (client, signal) =>
-			mapPullRequest(await client.pullRequests.get({ owner, repo }, prNumber, signal, options)), token);
+		return this.client.withClient(async (client, cancellationToken) =>
+			mapPullRequest(await client.pullRequests.get({ owner, repo }, prNumber, cancellationToken, options)), token);
 	}
 
 	getReviews(owner: string, repo: string, prNumber: number, token?: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubPullRequestReview[]> {
-		return this.client.withClient(async (client, signal) => {
-			const reviews = await client.reviews.list({ owner, repo }, prNumber, signal, {
+		return this.client.withClient(async (client, cancellationToken) => {
+			const reviews = await client.reviews.list({ owner, repo }, prNumber, cancellationToken, {
 				...options,
 				query: { page: 1, per_page: 100 },
 				maxPages: 100,
@@ -46,20 +46,20 @@ export class GitHubPRFetcher {
 	}
 
 	getChangedFiles(owner: string, repo: string, prNumber: number): Promise<readonly IGitHubChangedFile[]> {
-		return this.client.withClient((client, signal) => listChangedFiles(client, { owner, repo }, prNumber, signal));
+		return this.client.withClient((client, cancellationToken) => listChangedFiles(client, { owner, repo }, prNumber, cancellationToken));
 	}
 
 	getChanges(owner: string, repo: string, prNumber: number): Promise<IGitHubPullRequestChanges> {
-		return this.client.withClient(async (client, signal) => {
+		return this.client.withClient(async (client, cancellationToken) => {
 			const repository = { owner, repo };
-			const pullRequest = await client.pullRequests.get(repository, prNumber, signal, { noCache: true });
+			const pullRequest = await client.pullRequests.get(repository, prNumber, cancellationToken, { noCache: true });
 			// Pull request files are diffed against the merge base, not the base branch tip.
 			const [comparison, files] = await Promise.all([
-				client.repositories.compare(repository, pullRequest.base.sha, pullRequest.head.sha, signal, { query: { per_page: 1 } }),
-				listChangedFiles(client, repository, prNumber, signal, { noCache: true }),
+				client.repositories.compare(repository, pullRequest.base.sha, pullRequest.head.sha, cancellationToken, { query: { per_page: 1 } }),
+				listChangedFiles(client, repository, prNumber, cancellationToken, { noCache: true }),
 			]);
 			// The file list is mutable, even though the comparison uses immutable SHAs.
-			const current = await client.pullRequests.get(repository, prNumber, signal, { noCache: true });
+			const current = await client.pullRequests.get(repository, prNumber, cancellationToken, { noCache: true });
 			if (current.head.sha !== pullRequest.head.sha || current.base.sha !== pullRequest.base.sha || current.base.ref !== pullRequest.base.ref) {
 				throw new Error(localize('pullRequestChanges.changedDuringLoad', "Pull request #{0} changed while loading its files. Please try again.", prNumber));
 			}
@@ -68,9 +68,9 @@ export class GitHubPRFetcher {
 	}
 
 	getReviewThreads(owner: string, repo: string, prNumber: number, token?: CancellationToken, options?: ApiRequestOptions): Promise<IGitHubPullRequestReviewThread[]> {
-		return this.client.withClient(async (client, signal) => {
-			const pullRequest = await client.pullRequests.get({ owner, repo }, prNumber, signal, options);
-			const threads = await client.reviews.listThreads(pullRequest.node_id, signal, {
+		return this.client.withClient(async (client, cancellationToken) => {
+			const pullRequest = await client.pullRequests.get({ owner, repo }, prNumber, cancellationToken, options);
+			const threads = await client.reviews.listThreads(pullRequest.node_id, cancellationToken, {
 				...options,
 				query: { first: 100, commentsFirst: 100 },
 				maxPages: 100,
@@ -86,7 +86,7 @@ export class GitHubPRFetcher {
 					if (!after) {
 						throw new GitHubRequestError('Invalid GitHub pagination cursor', 'malformedResponse');
 					}
-					const remaining = await client.reviews.listThreadComments(thread.id, signal, {
+					const remaining = await client.reviews.listThreadComments(thread.id, cancellationToken, {
 						...options,
 						query: { first: 100, after },
 						maxPages: 99, // The thread already includes the first page.
@@ -110,8 +110,8 @@ export class GitHubPRFetcher {
 	}
 
 	postReviewComment(owner: string, repo: string, prNumber: number, body: string, inReplyTo: number, token?: CancellationToken): Promise<IGitHubPRComment> {
-		return this.client.withClient(async (client, signal) =>
-			mapReviewComment(await client.reviews.replyToComment({ owner, repo }, prNumber, inReplyTo, body, signal)), token);
+		return this.client.withClient(async (client, cancellationToken) =>
+			mapReviewComment(await client.reviews.replyToComment({ owner, repo }, prNumber, inReplyTo, body, cancellationToken)), token);
 	}
 
 	postPullRequestReviewComment(
@@ -119,12 +119,12 @@ export class GitHubPRFetcher {
 		line: number, startLine: number | undefined, pendingReview?: Pick<IGitHubPullRequestReview, 'id' | 'nodeId'>,
 		token?: CancellationToken,
 	): Promise<void> {
-		return this.client.withClient(async (client, signal) => {
+		return this.client.withClient(async (client, cancellationToken) => {
 			if (pendingReview) {
 				await client.reviews.createThread({
 					pullRequestReviewId: pendingReview.nodeId, body, path, line, side: 'RIGHT',
 					...(startLine !== undefined ? { startLine, startSide: 'RIGHT' } : {}),
-				}, signal);
+				}, cancellationToken);
 			} else {
 				await client.reviews.create({ owner, repo }, prNumber, {
 					commit_id: commitId,
@@ -132,14 +132,14 @@ export class GitHubPRFetcher {
 						body, path, line, side: 'RIGHT',
 						...(startLine !== undefined ? { start_line: startLine, start_side: 'RIGHT' } : {}),
 					}],
-				}, signal);
+				}, cancellationToken);
 			}
 		}, token);
 	}
 
 	postIssueComment(owner: string, repo: string, prNumber: number, body: string, token?: CancellationToken): Promise<IGitHubPRComment> {
-		return this.client.withClient(async (client, signal) => {
-			const data = await client.issues.createComment({ owner, repo }, prNumber, body, signal);
+		return this.client.withClient(async (client, cancellationToken) => {
+			const data = await client.issues.createComment({ owner, repo }, prNumber, body, cancellationToken);
 			return {
 				id: data.id,
 				body: data.body ?? '',
@@ -155,8 +155,8 @@ export class GitHubPRFetcher {
 	}
 
 	resolveThread(_owner: string, _repo: string, threadId: string, token?: CancellationToken): Promise<void> {
-		return this.client.withClient(async (client, signal) => {
-			const thread = await client.reviews.resolveThread(threadId, signal);
+		return this.client.withClient(async (client, cancellationToken) => {
+			const thread = await client.reviews.resolveThread(threadId, cancellationToken);
 			if (!thread.isResolved) {
 				throw new GitHubRequestError(`Failed to resolve review thread ${threadId}`, 'malformedResponse');
 			}
@@ -205,8 +205,8 @@ function mapUser(user: Account | null): IGitHubUser {
 	};
 }
 
-async function listChangedFiles(client: IGitHubAccountClient, repository: RepositoryRef, prNumber: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly IGitHubChangedFile[]> {
-	const files = await client.pullRequests.listFiles(repository, prNumber, signal, {
+async function listChangedFiles(client: IGitHubAccountClient, repository: RepositoryRef, prNumber: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<readonly IGitHubChangedFile[]> {
+	const files = await client.pullRequests.listFiles(repository, prNumber, cancellationToken, {
 		...options,
 		query: { page: 1, per_page: 100 },
 		maxPages: 100,

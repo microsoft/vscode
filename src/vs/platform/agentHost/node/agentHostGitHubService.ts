@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { IGitHubAccountClient } from '../../github/common/account/account.js';
 import { AccountClient } from '../../github/common/account/accountClient.js';
 import { GitHubService, IGitHubClient, IGitHubRequestProviderScope, IGitHubService } from '../../github/common/githubService.js';
 import { GitHubClientOptions, GitHubRequestError, GitHubServiceOptions, IGitHubCredentialProvider } from '../../github/common/githubTypes.js';
-import { authenticationAccountId } from '../common/meta/agentAuthenticationAccount.js';
 import { refineServiceDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IAgentHostAuthTokenRequest } from '../common/agent.js';
+import { captureCredentialSource, isScopedCredentialUsable, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
+import { authenticationAccountId } from '../common/meta/agentAuthenticationAccount.js';
+import { AhpErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
-import { captureCredentialSource, isScopedCredentialUsable, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
-import { AhpErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 
 export const IAgentHostGitHubService = refineServiceDecorator<IGitHubService, IAgentHostGitHubService>(IGitHubService);
 
@@ -27,8 +28,8 @@ export interface IAgentHostGitHubService extends IGitHubService {
 	bindAgentMergeCredentialSource(session: string, chat: string, source: IAgentHostCredentialSource | undefined): void;
 	readonly onDidChangeRepositoryClient: Event<void>;
 	captureSessionCredentialSource(session: string, source?: IAgentHostCredentialSource, owningSession?: string, includeCopilot?: boolean, usage?: 'execution' | 'agentMerge'): IAgentHostCredentialSource | undefined;
-	acquireRepositoryClient(signal: AbortSignal, source?: IAgentHostCredentialSource, session?: string): IReference<IGitHubClient>;
-	acquireRepositoryApiClient(signal: AbortSignal, source?: IAgentHostCredentialSource, session?: string): IGitHubAccountClient;
+	acquireRepositoryClient(cancellationToken: CancellationToken, source?: IAgentHostCredentialSource, session?: string): IReference<IGitHubClient>;
+	acquireRepositoryApiClient(cancellationToken: CancellationToken, source?: IAgentHostCredentialSource, session?: string): IGitHubAccountClient;
 }
 
 interface IsolatedRepositoryService extends IDisposable {
@@ -80,8 +81,8 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 				Event.map(_endpointService.onDidChange, () => ({ providerId: 'agent-host' })),
 				Event.map(onDidChangeRepositoryAccount.event, () => ({ providerId: 'agent-host', sessionIds: [_endpointService.getRepoResource().resource] })),
 			),
-			getToken: (context, signal) => {
-				signal.throwIfAborted();
+			getToken: (context, cancellationToken) => {
+				CancellationToken.throwIfCancellationRequested(cancellationToken);
 				const request = { resource: context.sessionId, scopes: context.scopes };
 				const accountId = context.sessionId === _endpointService.getRepoResource().resource
 					? synchronizeRepositoryAccount()
@@ -151,13 +152,13 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 		this._authenticationService.bindSessionCredentials(session, source, chat, 'agentMerge');
 	}
 
-	acquireRepositoryClient(signal: AbortSignal, source?: IAgentHostCredentialSource, session?: string): IReference<IGitHubClient> {
-		signal.throwIfAborted();
+	acquireRepositoryClient(cancellationToken: CancellationToken, source?: IAgentHostCredentialSource, session?: string): IReference<IGitHubClient> {
+		CancellationToken.throwIfCancellationRequested(cancellationToken);
 		source ??= session ? this._authenticationService.getSessionCredentialSource(session) ?? this.captureSessionCredentialSource(session) : undefined;
 		if (source) {
 			return this._acquireIsolatedRepositoryClient(source, session, (entry, options) => entry.service.acquireClient(options));
 		}
-		const options = this._repositoryClientOptions(signal);
+		const options = this._repositoryClientOptions(cancellationToken);
 		if (!this._repositoryClient.value) {
 			const store = new DisposableStore();
 			this._repositoryClient.value = store;
@@ -176,14 +177,14 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 		return this.acquireClient(options);
 	}
 
-	acquireRepositoryApiClient(signal: AbortSignal, source?: IAgentHostCredentialSource, session?: string): IGitHubAccountClient {
-		signal.throwIfAborted();
+	acquireRepositoryApiClient(cancellationToken: CancellationToken, source?: IAgentHostCredentialSource, session?: string): IGitHubAccountClient {
+		CancellationToken.throwIfCancellationRequested(cancellationToken);
 		source ??= session ? this._authenticationService.getSessionCredentialSource(session) ?? this.captureSessionCredentialSource(session) : undefined;
 		if (source) {
 			const reference = this._acquireIsolatedRepositoryClient(source, session, (entry, options) => entry.apiScope.acquireClient(options));
 			return new AccountClient(reference.object.authorization, reference.object, reference);
 		}
-		const options = this._repositoryClientOptions(signal);
+		const options = this._repositoryClientOptions(cancellationToken);
 		if (!this._repositoryApiClient.value) {
 			const store = new DisposableStore();
 			this._repositoryApiClient.value = store;
@@ -213,14 +214,14 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 		return new AccountClient(reference.object.authorization, reference.object, reference);
 	}
 
-	private _repositoryClientOptions(signal: AbortSignal): GitHubClientOptions {
-		signal.throwIfAborted();
+	private _repositoryClientOptions(cancellationToken: CancellationToken): GitHubClientOptions {
+		CancellationToken.throwIfCancellationRequested(cancellationToken);
 		if (this._store.isDisposed) {
 			throw new GitHubRequestError('GitHub service was disposed', 'unknown');
 		}
 		const resource = this._endpointService.getRepoResource();
 		const accountId = this._synchronizeRepositoryAccount();
-		signal.throwIfAborted();
+		CancellationToken.throwIfCancellationRequested(cancellationToken);
 		return {
 			authorization: { providerId: 'agent-host', sessionId: resource.resource, scopes: resource.scopes_supported ?? [], ...(accountId !== undefined ? { accountId } : {}) },
 			apiBaseUri: this._endpointService.getApiBaseUri(),
@@ -248,8 +249,8 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 		if (!entry) {
 			const credentialProvider: IGitHubCredentialProvider = {
 				onDidChange: Event.map(this._endpointService.onDidChange, () => ({ providerId: 'agent-host-isolated' })),
-				getToken: (context, signal) => {
-					signal.throwIfAborted();
+				getToken: (context, cancellationToken) => {
+					CancellationToken.throwIfCancellationRequested(cancellationToken);
 					if (!this._authenticationService.useLocalCredentials && source.principal && source.principal.apiOrigin !== new URL(this._endpointService.getApiBaseUri()).origin) {
 						return undefined;
 					}

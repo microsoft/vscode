@@ -5,55 +5,55 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { Event } from '../../../../base/common/event.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IFileService } from '../../../files/common/files.js';
+import { RepositoryRef } from '../../../github/common/client/types.js';
+import { IPullRequestsClient, ListPullRequestsOptions, PullRequestSummary } from '../../../github/common/core/pullRequests.js';
+import { GitHubRequestError } from '../../../github/common/githubTypes.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
-import { AgentHostAutoAttachPullRequestsConfigKey } from '../../common/agentHostSchema.js';
-import { AgentHostAutoAttachPullRequestsSettingId } from '../../common/agentService.js';
-import type { ISessionDataService } from '../../common/sessionDataService.js';
-import { CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
-import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_PENDING_RECORDED_PULL_REQUESTS, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
+import { GITHUB_REPO_PROTECTED_RESOURCE, type IAgent, type IAgentHostAuthTokenRequest } from '../../common/agent.js';
+import { isAuthRequiredError, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
+import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
+import { META_GITHUB_DATA_STATE, META_GIT_DATA_STATE, META_GIT_STATE, META_PENDING_RECORDED_PULL_REQUESTS, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
+import { AgentHostAutoAttachPullRequestsConfigKey } from '../../common/agentHostSchema.js';
+import { SessionStateMirrorFlush, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
+import { AgentHostAutoAttachPullRequestsSettingId } from '../../common/agentService.js';
 import { buildFolderChangesetOwnerUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
-import { readSessionArtifacts, SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
+import { CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { ArtifactServerToolName } from '../../common/serverToolNames.js';
+import { SessionArtifactType, readSessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import type { ISessionDataService } from '../../common/sessionDataService.js';
+import { ChangesetOperationTargetKind } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, getAllSessionRelatedPullRequestUrls, getSessionRelatedPullRequestUrls, readFolderScopeGitState, readSessionGitHubData, readSessionGitHubState, readSessionGitHubStateInput, readSessionGitState, readSessionSourceControlState, SESSION_META_GITHUB_KEY, SessionSourceControlOutcome, withFolderScopeGitState, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMigratedSessionGitHubState, withMostRecentSessionPullRequest, withReplacedFolderGitHubState, withSessionGitHubState, withSessionGitState, SESSION_META_GITHUB_DATA_KEY, SessionStatus, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
-import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { SESSION_META_GITHUB_DATA_KEY, SESSION_META_GITHUB_KEY, SessionSourceControlOutcome, SessionStatus, buildChatUri, buildDefaultChatUri, getAllSessionRelatedPullRequestUrls, getSessionRelatedPullRequestUrls, readFolderScopeGitState, readSessionGitHubData, readSessionGitHubState, readSessionGitHubStateInput, readSessionGitState, readSessionSourceControlState, withFolderScopeGitState, withInitialSessionPullRequest, withMigratedSessionGitHubState, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withReplacedFolderGitHubState, withSessionGitHubState, withSessionGitState, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
-import { AgentHostAuthenticationService, type IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
-import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
+import { AgentHostAuthenticationService, type IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import { resolveAgentMergeOwningChat, resolveGitHubStateFolder } from '../../node/agentHostBranchChangesetScope.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostDiscardChangesOperationHandler } from '../../node/agentHostDiscardChangesOperationHandler.js';
 import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { AgentHostFileEditRevert } from '../../node/agentHostFileEditRevert.js';
-import { InProcessDiffComputeService } from './inProcessDiffComputeService.js';
-import { isAuthRequiredError, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
-import { GITHUB_REPO_PROTECTED_RESOURCE, type IAgent, type IAgentHostAuthTokenRequest } from '../../common/agent.js';
-import { ChangesetOperationTargetKind } from '../../common/state/protocol/channels-changeset/commands.js';
-import { IFileService } from '../../../files/common/files.js';
+import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { AgentHostGitStateService } from '../../node/agentHostGitStateService.js';
-import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
-import { SessionStateMirrorFlush, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
-import { resolveAgentMergeOwningChat, resolveGitHubStateFolder } from '../../node/agentHostBranchChangesetScope.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
-import { RepositoryRef } from '../../../github/common/client/types.js';
-import { GitHubRequestError } from '../../../github/common/githubTypes.js';
-import { IPullRequestsClient, ListPullRequestsOptions, PullRequestSummary } from '../../../github/common/core/pullRequests.js';
 import { TestSessionDatabase, createNoopChangesetService, createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { InProcessDiffComputeService } from './inProcessDiffComputeService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createTestGitHubService, createTestPullRequestSummary } from './testGitHubService.js';
-import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 const SESSION = 'mock:/session-1';
 const WORKING_DIRECTORY = 'file:///wd';
@@ -271,7 +271,7 @@ suite('AgentHostGitStateService', () => {
 		const pullRequestsBySha = new Map<string, PullRequestSummary>();
 		let onPullRequestLookup: ((branch: string) => Promise<void>) | undefined;
 		const query = new class extends mock<IPullRequestsClient>() {
-			override async list(_repository: RepositoryRef, _signal: AbortSignal, options?: ListPullRequestsOptions) {
+			override async list(_repository: RepositoryRef, _signal: CancellationToken, options?: ListPullRequestsOptions) {
 				const head = options?.query?.head;
 				assert.ok(head);
 				const branch = head.slice(head.indexOf(':') + 1);
@@ -299,9 +299,9 @@ suite('AgentHostGitStateService', () => {
 		const endpointService = createTestGitHubEndpointService(options?.enterpriseUri);
 		const gitHubService = options?.realCredentials
 			? disposables.add(new class extends AgentHostGitHubService {
-				override acquireRepositoryApiClient(signal: AbortSignal, _source?: IAgentHostCredentialSource, session?: string) {
+				override acquireRepositoryApiClient(cancellationToken: CancellationToken, _source?: IAgentHostCredentialSource, session?: string) {
 					repositoryCalls.push(session ?? 'legacy');
-					return apiService.acquireRepositoryApiClient(signal);
+					return apiService.acquireRepositoryApiClient(cancellationToken);
 				}
 			}({ fetch: async () => { throw new Error('Unexpected GitHub network request'); } }, authenticationService, endpointService, logService, NullTelemetryService))
 			: apiService;
@@ -1928,7 +1928,7 @@ suite('AgentHostGitStateService', () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const calls: { owner: string; repo: string; branch: string; headOwner: string | undefined }[] = [];
 			const query = new class extends mock<IPullRequestsClient>() {
-				override async list({ owner, repo }: RepositoryRef, _signal: AbortSignal, options?: ListPullRequestsOptions) {
+				override async list({ owner, repo }: RepositoryRef, _signal: CancellationToken, options?: ListPullRequestsOptions) {
 					const head = options?.query?.head;
 					assert.ok(head);
 					const separator = head.indexOf(':');
@@ -2274,7 +2274,7 @@ suite('AgentHostGitStateService', () => {
 			const calls: Array<{ branch: string; headOwner: string | undefined }> = [];
 			const h = createHarness({
 				query: new class extends mock<IPullRequestsClient>() {
-					override async list(_repository: RepositoryRef, _signal: AbortSignal, options?: ListPullRequestsOptions) {
+					override async list(_repository: RepositoryRef, _signal: CancellationToken, options?: ListPullRequestsOptions) {
 						const head = options?.query?.head;
 						assert.ok(head);
 						const separator = head.indexOf(':');

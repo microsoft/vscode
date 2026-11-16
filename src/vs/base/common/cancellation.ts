@@ -57,6 +57,32 @@ export namespace CancellationToken {
 		onCancellationRequested: shortcutEvent
 	});
 
+	export function throwIfCancellationRequested(token: CancellationToken): void {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+	}
+
+	/** Cancels when any input is cancelled; the lifetime owns the forwarding subscriptions. */
+	export function any(tokens: readonly CancellationToken[], lifetime: DisposableStore): CancellationToken {
+		if (tokens.some(token => token.isCancellationRequested)) {
+			return Cancelled;
+		}
+		const active = [...new Set(tokens.filter(token => token !== None))];
+		if (active.length < 2) {
+			return active[0] ?? None;
+		}
+		const source = lifetime.add(new CancellationTokenSource());
+		const listeners = lifetime.add(new DisposableStore());
+		for (const token of active) {
+			listeners.add(token.onCancellationRequested(() => {
+				source.cancel();
+				listeners.dispose();
+			}));
+		}
+		return source.token;
+	}
+
 	/**
 	 * Creates a CancellationToken that is tied to the lifetime of the provided AbortSignal.
 	 */

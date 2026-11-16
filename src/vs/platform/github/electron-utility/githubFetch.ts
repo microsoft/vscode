@@ -5,6 +5,7 @@
 
 import type { ProxyAgentParams } from '@vscode/proxy-agent';
 import { getErrorMessage } from '../../../base/common/errors.js';
+import { CancellableFetch, createCancellableFetch } from '../../../base/parts/request/common/fetch.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { ILogService } from '../../log/common/log.js';
@@ -18,16 +19,14 @@ export function createFetch(
 	configurationService: IConfigurationService,
 	environmentService: INativeEnvironmentService,
 	logService: ILogService,
-): typeof globalThis.fetch {
-	let fetchPromise: Promise<typeof globalThis.fetch> | undefined;
-	return async (input, init) => {
-		const request = input instanceof Request && init === undefined ? input : new Request(input, init);
+): CancellableFetch {
+	let fetchPromise: Promise<CancellableFetch> | undefined;
+	return async (input, init, token, lifetime) => {
 		const fetch = await (fetchPromise ??= createProxyFetch());
-		request.signal.throwIfAborted();
-		return fetch(request);
+		return fetch(input, init, token, lifetime);
 	};
 
-	async function createProxyFetch(): Promise<typeof globalThis.fetch> {
+	async function createProxyFetch(): Promise<CancellableFetch> {
 		const [{ createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, LogLevel }, { getCACertificates }] = await Promise.all([
 			import('@vscode/proxy-agent'),
 			import('tls'),
@@ -90,6 +89,6 @@ export function createFetch(
 			env: { ...process.env, ...shellEnv },
 		};
 
-		return createFetchPatch(params, globalThis.fetch, createProxyResolver(params).resolveProxyURL);
+		return createCancellableFetch(createFetchPatch(params, globalThis.fetch, createProxyResolver(params).resolveProxyURL));
 	}
 }

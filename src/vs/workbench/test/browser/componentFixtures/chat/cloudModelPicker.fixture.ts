@@ -27,7 +27,7 @@ async function renderCloudPicker(context: ComponentFixtureContext, view: 'list' 
 	const details = view !== 'list';
 	const unknownLimits = view === 'unknown';
 	const requestProvider: IApiRequestProvider = {
-		request: async <T>(_request: ApiRequest, _signal: AbortSignal, parser?: parse.Parser<T>): Promise<ApiResponse<T | void>> => ({
+		request: async <T>(_request: ApiRequest, _signal: CancellationToken, parser?: parse.Parser<T>): Promise<ApiResponse<T | void>> => ({
 			status: 200,
 			data: parser?.(JSON.stringify({
 				data: [

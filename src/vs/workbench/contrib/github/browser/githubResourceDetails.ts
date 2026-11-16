@@ -5,25 +5,24 @@
 
 import type { IManagedHoverTooltipHTMLElement } from '../../../../base/browser/ui/hover/hover.js';
 import { DeferredPromise, Limiter, raceCancellationError } from '../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IObservable, derived, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { GitHubIssue, GitHubIssueRef } from '../../../../platform/github/common/githubQueryService.js';
+import type { IActionListItemHover } from '../../../../platform/actionWidget/browser/actionList.js';
 import { PullRequestCore, PullRequestRef, PullRequestSnapshot } from '../../../../platform/github/common/githubPullRequestService.js';
+import { GitHubIssue, GitHubIssueRef } from '../../../../platform/github/common/githubQueryService.js';
 import { getRequiredPullRequestChecksStatus } from '../../../../platform/github/common/pullRequestRequiredChecks.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IWorkbenchGitHubService } from '../../../services/github/common/githubService.js';
-import type { IActionListItemHover } from '../../../../platform/actionWidget/browser/actionList.js';
 import { createChatPillHover } from '../../../browser/chatPillHover.js';
 import { getChatReferencePillPresentation, type ChatReferenceKind } from '../../../browser/chatPills.js';
-import { createIssueResourceHover, createPullRequestResourceHover, getPullRequestResourceStatus, type GitHubChecksStatus, type IGitHubIssueHoverModel, type IGitHubPullRequestHoverModel, type IGitHubResourceHover } from './githubResourceHover.js';
 import { computeIssueIcon } from '../../../common/chatIssue.js';
 import { computePullRequestIcon } from '../../../common/chatPullRequest.js';
+import { IWorkbenchGitHubService } from '../../../services/github/common/githubService.js';
+import { createIssueResourceHover, createPullRequestResourceHover, getPullRequestResourceStatus, type GitHubChecksStatus, type IGitHubIssueHoverModel, type IGitHubPullRequestHoverModel, type IGitHubResourceHover } from './githubResourceHover.js';
 
 type GitHubReferenceKind = ChatReferenceKind;
 
@@ -44,7 +43,7 @@ export type LazyGitHubResourceState<T> =
 	| { readonly status: 'resolved'; readonly value: T; readonly stale?: boolean };
 
 interface IGitHubResourceRequest {
-	readonly signal: AbortSignal;
+	readonly cancellationToken: CancellationToken;
 	interactive: boolean;
 	complete: boolean;
 	promote?: () => void;
@@ -53,7 +52,7 @@ interface IGitHubResourceRequest {
 interface ILazyGitHubResourceEntry<T> {
 	readonly state: ReturnType<typeof observableValue<LazyGitHubResourceState<T>>>;
 	promise: Promise<T | undefined> | undefined;
-	controller: AbortController | undefined;
+	controller: CancellationTokenSource | undefined;
 	promote?: (resolve: (request: IGitHubResourceRequest) => Promise<T | undefined>, requireComplete: boolean) => void;
 	request?: IGitHubResourceRequest;
 	complete: boolean;
@@ -66,7 +65,7 @@ const PULL_REQUEST_MAX_AGE = 30_000;
 
 export class GitHubResourceDetailsResolver extends Disposable {
 
-	private readonly _lifetime = new AbortController();
+	private readonly _lifetime = new CancellationTokenSource();
 	private readonly _prefetchLimiter = this._register(new Limiter<void>(3));
 	private readonly _issues = new Map<string, ILazyGitHubResourceEntry<IGitHubIssueHoverModel>>();
 	private readonly _pullRequests = new Map<string, ILazyGitHubResourceEntry<IPullRequestHoverDetails>>();
@@ -87,7 +86,7 @@ export class GitHubResourceDetailsResolver extends Disposable {
 			this._issues.clear();
 			this._pullRequests.clear();
 			for (const entry of entries) {
-				entry.controller?.abort();
+				entry.controller?.dispose(true);
 				entry.state.set({ status: 'idle' }, undefined);
 			}
 		}));
@@ -179,7 +178,7 @@ export class GitHubResourceDetailsResolver extends Disposable {
 		for (const [cache, keys] of [[this._issues, issues], [this._pullRequests, pullRequests]] as const) {
 			for (const key of cache.keys()) {
 				if (!keys.has(key)) {
-					cache.get(key)?.controller?.abort();
+					cache.get(key)?.controller?.dispose(true);
 					cache.delete(key);
 				}
 			}
@@ -254,10 +253,12 @@ export class GitHubResourceDetailsResolver extends Disposable {
 			if (state.status !== 'resolved') {
 				entry.state.set({ status: 'loading' }, undefined);
 			}
-			const controller = new AbortController();
+			const controller = new CancellationTokenSource();
 			entry.controller = controller;
-			const signal = AbortSignal.any([this._lifetime.signal, controller.signal]);
-			const request: IGitHubResourceRequest = { signal, interactive: !prefetch, complete: requireComplete };
+			const lifetime = new DisposableStore();
+			lifetime.add(controller);
+			const cancellationToken = CancellationToken.any([this._lifetime.token, controller.token], lifetime);
+			const request: IGitHubResourceRequest = { cancellationToken, interactive: !prefetch, complete: requireComplete };
 			entry.request = request;
 			const result = new DeferredPromise<T | undefined>();
 			let started = false;
@@ -269,7 +270,7 @@ export class GitHubResourceDetailsResolver extends Disposable {
 				entry.promote = undefined;
 				request.complete = fullyResolve;
 				const run = async () => {
-					signal.throwIfAborted();
+					CancellationToken.throwIfCancellationRequested(cancellationToken);
 					return resolveTask(request);
 				};
 				return result.settleWith(run());
@@ -280,21 +281,12 @@ export class GitHubResourceDetailsResolver extends Disposable {
 					void execute();
 					return result.p;
 				}
-				const cancellation = new CancellationTokenSource();
-				const abortListener = Event.once(Event.fromDOMEventEmitter(signal, 'abort'))(() => cancellation.cancel());
-				if (signal.aborted) {
-					cancellation.cancel();
-				}
-				try {
-					void this._prefetchLimiter.queue(() => execute()).catch(error => result.error(error));
-					return await raceCancellationError(result.p, cancellation.token);
-				} finally {
-					abortListener.dispose();
-					cancellation.dispose();
-				}
+				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				void this._prefetchLimiter.queue(() => execute()).catch(error => result.error(error));
+				return await raceCancellationError(result.p, cancellationToken);
 			};
 			entry.promise = refresh().then(result => {
-				if (signal.aborted || cache.get(key) !== entry) {
+				if (cancellationToken.isCancellationRequested || cache.get(key) !== entry) {
 					return undefined;
 				}
 				if (cache.get(key) === entry) {
@@ -309,11 +301,12 @@ export class GitHubResourceDetailsResolver extends Disposable {
 				if (cache.get(key) === entry) {
 					entry.state.set(state.status === 'resolved' ? { ...state, stale: true } : { status: 'failed' }, undefined);
 				}
-				if (!signal.aborted) {
+				if (!cancellationToken.isCancellationRequested) {
 					this._logService.warn(`[GitHubResourceDetailsResolver] Failed to resolve GitHub ${kind}`, error);
 				}
 				return undefined;
 			}).finally(() => {
+				lifetime.dispose();
 				if (entry.controller === controller) {
 					entry.controller = undefined;
 					entry.promise = undefined;
@@ -326,17 +319,12 @@ export class GitHubResourceDetailsResolver extends Disposable {
 	}
 
 	private async _resolveIssue(target: IGitHubReferenceTarget, request: IGitHubResourceRequest): Promise<IGitHubIssueHoverModel | undefined> {
-		const { signal } = request;
-		const cancellation = new CancellationTokenSource();
-		const abortListener = Event.once(Event.fromDOMEventEmitter(signal, 'abort'))(() => cancellation.cancel());
-		if (signal.aborted) {
-			cancellation.cancel();
-		}
+		const { cancellationToken } = request;
 		let clientReference: Awaited<ReturnType<IWorkbenchGitHubService['acquireDefaultAccountClient']>> | undefined;
 		try {
-			clientReference = await this._gitHubService.acquireDefaultAccountClient(signal);
+			clientReference = await this._gitHubService.acquireDefaultAccountClient(cancellationToken);
 			const client = clientReference.object;
-			const credential = await client.credentials.getCredential(signal);
+			const credential = await client.credentials.getCredential(cancellationToken);
 			if (credential.account.host.toLowerCase() !== 'api.github.com') {
 				throw new Error('The selected GitHub account does not host github.com references.');
 			}
@@ -344,8 +332,8 @@ export class GitHubResourceDetailsResolver extends Disposable {
 			const subscription = client.query.subscribeIssue(ref, { priority: request.interactive ? 'interactive' : 'background' });
 			try {
 				request.promote = () => subscription.update({ priority: 'interactive' });
-				await subscription.refresh(cancellation.token);
-				signal.throwIfAborted();
+				await subscription.refresh(cancellationToken);
+				CancellationToken.throwIfCancellationRequested(cancellationToken);
 				const state = subscription.resource.state.get();
 				if (state.status !== 'ready') {
 					throw new Error(state.error?.message ?? 'GitHub issue details are unavailable.');
@@ -357,23 +345,16 @@ export class GitHubResourceDetailsResolver extends Disposable {
 			}
 		} finally {
 			clientReference?.dispose();
-			abortListener.dispose();
-			cancellation.dispose();
 		}
 	}
 
 	private async _resolvePullRequest(target: IGitHubReferenceTarget, includeChecks: boolean, request: IGitHubResourceRequest): Promise<IPullRequestHoverDetails | undefined> {
-		const { signal } = request;
-		const cancellation = new CancellationTokenSource();
-		const abortListener = Event.once(Event.fromDOMEventEmitter(signal, 'abort'))(() => cancellation.cancel());
-		if (signal.aborted) {
-			cancellation.cancel();
-		}
+		const { cancellationToken } = request;
 		let clientReference: Awaited<ReturnType<IWorkbenchGitHubService['acquireDefaultAccountClient']>> | undefined;
 		try {
-			clientReference = await this._gitHubService.acquireDefaultAccountClient(signal);
+			clientReference = await this._gitHubService.acquireDefaultAccountClient(cancellationToken);
 			const client = clientReference.object;
-			const credential = await client.credentials.getCredential(signal);
+			const credential = await client.credentials.getCredential(cancellationToken);
 			if (credential.account.host.toLowerCase() !== 'api.github.com') {
 				throw new Error('The selected GitHub account does not host github.com references.');
 			}
@@ -384,20 +365,20 @@ export class GitHubResourceDetailsResolver extends Disposable {
 			});
 			try {
 				request.promote = () => subscription.update({ priority: 'interactive', core: true });
-				await subscription.refresh('core', cancellation.token);
-				signal.throwIfAborted();
+				await subscription.refresh('core', cancellationToken);
+				CancellationToken.throwIfCancellationRequested(cancellationToken);
 				let checksUnavailable = false;
 				includeChecks ||= request.interactive;
 				request.complete = includeChecks;
 				if (includeChecks) {
 					subscription.update({ priority: 'interactive', core: true, checks: { required: true, includeOptional: true } });
-					await subscription.refresh('checks', cancellation.token).catch(error => {
-						signal.throwIfAborted();
+					await subscription.refresh('checks', cancellationToken).catch(error => {
+						CancellationToken.throwIfCancellationRequested(cancellationToken);
 						checksUnavailable = true;
 						this._logService.warn('[GitHubResourceDetailsResolver] Failed to resolve optional pull request checks', error);
 					});
 				}
-				signal.throwIfAborted();
+				CancellationToken.throwIfCancellationRequested(cancellationToken);
 				const snapshot = subscription.resource.snapshot.get();
 				if (snapshot.core.status !== 'ready') {
 					throw new Error(snapshot.core.error?.message ?? 'GitHub pull request details are unavailable.');
@@ -414,13 +395,11 @@ export class GitHubResourceDetailsResolver extends Disposable {
 			}
 		} finally {
 			clientReference?.dispose();
-			abortListener.dispose();
-			cancellation.dispose();
 		}
 	}
 
 	override dispose(): void {
-		this._lifetime.abort();
+		this._lifetime.dispose(true);
 		this.retain([]);
 		super.dispose();
 	}

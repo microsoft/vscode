@@ -5,25 +5,26 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { IAgentHostGitService } from '../../common/agentHostGitService.js';
-import { readSessionArtifacts, SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
-import { buildDefaultChatUri, readSessionGitHubState, readSessionGitState, SessionStatus, withSessionGitHubState, withSessionGitState, type ISessionGitHubState, type ISessionGitState, type ISessionWithDefaultChat } from '../../common/state/sessionState.js';
-import { AgentHostPullRequestAssociationResolver, findPullRequestByHeadBranch } from '../../node/agentHostPullRequestAssociationResolver.js';
-import { AgentHostGitHubService, IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
-import { IAgentHostAuthenticationService, IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
-import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { RepositoryRef } from '../../../github/common/client/types.js';
 import { IPullRequestsClient, ListPullRequestsOptions, PullRequestSummary } from '../../../github/common/core/pullRequests.js';
 import { GitHubRequestError } from '../../../github/common/githubTypes.js';
 import { RequestFetch } from '../../../github/common/types.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { SessionArtifactType, readSessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
+import { SessionStatus, buildDefaultChatUri, readSessionGitHubState, readSessionGitState, withSessionGitHubState, withSessionGitState, type ISessionGitHubState, type ISessionGitState, type ISessionWithDefaultChat } from '../../common/state/sessionState.js';
+import { IAgentHostAuthTokenChangeEvent, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import { AgentHostGitHubService, IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
+import { AgentHostPullRequestAssociationResolver, findPullRequestByHeadBranch } from '../../node/agentHostPullRequestAssociationResolver.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { createNoopGitService } from '../common/sessionTestHelpers.js';
-import { createTestGitHubService, createTestPullRequestSummary } from './testGitHubService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
+import { createTestGitHubService, createTestPullRequestSummary } from './testGitHubService.js';
 
 const SESSION = 'mock:/session-1';
 const WORKING_DIRECTORY = 'file:///wd';
@@ -47,7 +48,7 @@ class TestPullRequestsClient extends mock<IPullRequestsClient>() {
 	branchError: Error | undefined;
 	onFindByBranch: (() => void) | undefined;
 
-	override async list(_repository: RepositoryRef, _signal: AbortSignal, options?: ListPullRequestsOptions): Promise<readonly PullRequestSummary[]> {
+	override async list(_repository: RepositoryRef, _signal: CancellationToken, options?: ListPullRequestsOptions): Promise<readonly PullRequestSummary[]> {
 		this.pageSizes.push(options?.query?.per_page);
 		this.onFindByBranch?.();
 		if (this.branchError) {
@@ -146,7 +147,7 @@ suite('AgentHostPullRequestAssociationResolver', () => {
 			override getAuthToken() { return 'repository-token'; }
 		}();
 		const service = disposables.add(new AgentHostGitHubService({
-			fetch: (input, init) => new URL(String(input)).pathname === '/user' ? Promise.resolve(Response.json({ id: 1 })) : fetch(input, init),
+			fetch: (input, init, fetchToken, fetchLifetime) => new URL(String(input)).pathname === '/user' ? Promise.resolve(Response.json({ id: 1 })) : fetch(input, init, fetchToken, fetchLifetime),
 		}, authentication, createTestGitHubEndpointService(), new NullLogService(), NullTelemetryService));
 		return service;
 	}
@@ -265,33 +266,33 @@ suite('AgentHostPullRequestAssociationResolver', () => {
 	});
 
 	test('approved lookups coalesce across callers, cancel independently and reuse their ETag', async () => {
-		const started = new DeferredPromise<AbortSignal>();
+		const started = new DeferredPromise<CancellationToken>();
 		const release = new DeferredPromise<void>();
 		const etags: (string | null)[] = [];
-		const service = createLookupService(async (_input, init) => {
+		const service = createLookupService(async (_input, init, fetchToken) => {
 			const etag = new Headers(init?.headers).get('If-None-Match');
 			etags.push(etag);
 			if (etag) {
 				return new Response(null, { status: 304 });
 			}
-			assert.ok(init?.signal);
-			await started.complete(init.signal);
+			assert.ok(fetchToken);
+			await started.complete(fetchToken);
 			await release.p;
 			return Response.json([createTestPullRequestSummary(3), createTestPullRequestSummary(4)], { headers: { ETag: '"lookup"' } });
 		});
-		const client = disposables.add(service.acquireRepositoryApiClient(new AbortController().signal));
+		const client = disposables.add(service.acquireRepositoryApiClient(CancellationToken.None));
 		const repository = { owner: 'microsoft', repo: 'vscode' };
-		const controller = new AbortController();
+		const controller = disposables.add(new CancellationTokenSource());
 		const firstOptions = { allowedPullRequestUrls: ['https://github.com/microsoft/vscode/pull/3'] };
-		const rejected = assert.rejects(findPullRequestByHeadBranch(client.pullRequests, repository, 'microsoft:branch', controller.signal, firstOptions));
-		const peer = findPullRequestByHeadBranch(client.pullRequests, repository, 'microsoft:branch', new AbortController().signal, { allowedPullRequestUrls: ['https://github.com/microsoft/vscode/pull/4'] });
+		const rejected = assert.rejects(findPullRequestByHeadBranch(client.pullRequests, repository, 'microsoft:branch', controller.token, firstOptions));
+		const peer = findPullRequestByHeadBranch(client.pullRequests, repository, 'microsoft:branch', CancellationToken.None, { allowedPullRequestUrls: ['https://github.com/microsoft/vscode/pull/4'] });
 		const wireSignal = await started.p;
-		controller.abort();
+		controller.cancel();
 		await rejected;
 		await release.complete();
 		const selected = await peer;
-		const revalidated = await findPullRequestByHeadBranch(client.pullRequests, repository, 'microsoft:branch', new AbortController().signal, firstOptions);
-		assert.deepStrictEqual({ peer: selected?.number, revalidated: revalidated?.number, etags, aborted: wireSignal.aborted }, {
+		const revalidated = await findPullRequestByHeadBranch(client.pullRequests, repository, 'microsoft:branch', CancellationToken.None, firstOptions);
+		assert.deepStrictEqual({ peer: selected?.number, revalidated: revalidated?.number, etags, aborted: wireSignal.isCancellationRequested }, {
 			peer: 4, revalidated: 3, etags: [null, '"lookup"'], aborted: false,
 		});
 	});
