@@ -207,13 +207,17 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		return undefined;
 	}
 
-	/** Returns the editor showing the code editor, which can be visible in another group than the active one. */
+	/**
+	 * Returns the editor showing the code editor, which can be visible in another group than the active one,
+	 * or else the editor of the active pane. While an editor closes, that pane still shows it although the
+	 * next editor is already the active one.
+	 */
 	private findEditorShowing(codeEditor: ICodeEditor | undefined): EditorInput | undefined {
 		const editorPane = codeEditor && this.editorService.visibleEditorPanes.find(pane => {
 			const sides = pane instanceof SideBySideEditorPane ? [pane.getPrimaryEditorPane(), pane.getSecondaryEditorPane()] : [pane];
 			return sides.some(side => getCodeEditor(side?.getControl()) === codeEditor);
 		});
-		return editorPane?.input ?? this.editorService.activeEditor;
+		return (editorPane ?? this.editorService.activeEditorPane)?.input;
 	}
 
 	private findActiveCustomEditor(): CustomEditorInput | undefined {
@@ -288,7 +292,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			// The chat APIs don't work well with Interactive Windows
 			newValue = undefined;
 		} else if (notebookEditor) {
-			contextEditor = this.editorService.activeEditor;
+			contextEditor = this.editorService.activeEditorPane?.input;
 			const activeCell = notebookEditor.getActiveCell();
 			if (activeCell) {
 				const codeEditor = this.codeEditorService.getActiveCodeEditor();
@@ -347,10 +351,17 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 
 		if (newValue !== undefined) {
 			this._contextEditor = contextEditor;
-			this._contextResource = uri && (CellUri.parse(uri)?.notebook ?? uri);
-		} else if (this._contextEditor?.isDisposed()) {
+			const resource = uri ?? contextEditor?.resource;
+			this._contextResource = resource && (CellUri.parse(resource)?.notebook ?? resource);
+		}
+		if (this._contextEditor?.isDisposed()) {
 			// The document can still be open in another editor.
 			this._contextEditor = this._contextResource && this.editorService.findEditors(this._contextResource, { supportSideBySide: SideBySideEditor.ANY }).find(({ editor }) => !editor.isDisposed())?.editor;
+		}
+		if (contextEditor?.isDisposed() && !this._contextEditor) {
+			// The editor was closed while its context was computed.
+			newValue = undefined;
+			providerContext = undefined;
 		}
 
 		const widgets = new Set([
