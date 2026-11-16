@@ -6,7 +6,7 @@
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
@@ -22,7 +22,12 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { DEFAULT_NAMED_LAYOUT_ID, INamedLayout, INamedLayoutsService, NAMED_LAYOUTS_ENABLED_SETTING } from '../../../services/namedLayouts/common/namedLayouts.js';
+import { DEFAULT_NAMED_LAYOUT_ID, INamedLayout, INamedLayoutsService, NAMED_LAYOUTS_ENABLED_SETTING, NamedLayoutsEnabledContext } from '../../../services/namedLayouts/common/namedLayouts.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { ToggleSidebarVisibilityAction } from '../../../browser/actions/layoutActions.js';
+import { ToggleAuxiliaryBarAction } from '../../../browser/parts/auxiliarybar/auxiliaryBarActions.js';
+import { TogglePanelAction } from '../../../browser/parts/panel/panelActions.js';
+import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, LayoutModeContext, PanelVisibleContext, SideBarVisibleContext } from '../../../common/contextkeys.js';
 import { SIDE_BAR_LOCATION_SETTING } from '../common/namedLayoutDefinition.js';
 import { EditorGroupsLayoutParticipant, SharedLayoutStateParticipant, WorkbenchPartsLayoutParticipant } from './namedLayoutParticipants.js';
 import { NamedLayoutsExtensionPointContribution } from './namedLayoutsExtensionPoint.js';
@@ -62,12 +67,81 @@ class NamedLayoutParticipantsContribution extends Disposable implements IWorkben
 registerWorkbenchContribution2(NamedLayoutParticipantsContribution.ID, NamedLayoutParticipantsContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(NamedLayoutsExtensionPointContribution.ID, NamedLayoutsExtensionPointContribution, WorkbenchPhase.BlockRestore);
 
-const NamedLayoutsEnabledContext = ContextKeyExpr.equals(`config.${NAMED_LAYOUTS_ENABLED_SETTING}`, true);
+const ActiveNamedLayoutContext = new RawContextKey<string>('activeNamedLayout', DEFAULT_NAMED_LAYOUT_ID, localize('activeNamedLayout', "The identifier of the active layout."));
 const ActiveNamedLayoutLockedContext = new RawContextKey<boolean>('activeNamedLayoutLocked', false, localize('activeNamedLayoutLocked', "Whether the active layout is locked."));
 const ActiveNamedLayoutLockableContext = new RawContextKey<boolean>('activeNamedLayoutLockable', false, localize('activeNamedLayoutLockable', "Whether the active layout can be locked and unlocked."));
+const ActiveNamedLayoutResettableContext = new RawContextKey<boolean>('activeNamedLayoutResettable', false, localize('activeNamedLayoutResettable', "Whether the active layout is contributed by an extension and has changes that can be reset."));
+const ActiveNamedLayoutDeletableContext = new RawContextKey<boolean>('activeNamedLayoutDeletable', false, localize('activeNamedLayoutDeletable', "Whether the active layout can be deleted."));
 
 const NEW_LAYOUT_COMMAND_ID = 'workbench.action.newLayout';
 const SWITCH_LAYOUT_COMMAND_ID = 'workbench.action.switchLayout';
+
+const namedLayoutsIcon = registerIcon('named-layouts-icon', Codicon.layout, localize('namedLayoutsIcon', "Icon of the layout control in the title bar while named layouts are enabled."));
+
+/**
+ * Groups of the layouts menu. The layouts of each extension follow the other layouts in
+ * a group titled with the name of the extension.
+ */
+const enum NamedLayoutsMenuGroup {
+	Layouts = '0_layouts',
+	ExtensionLayoutsPrefix = '0_layouts_extension_',
+	/** The visibility of the side bars and the panel. */
+	Parts = '1_parts',
+	State = '1_state',
+	Manage = '4_manage'
+}
+
+MenuRegistry.appendMenuItems([
+	{
+		id: MenuId.NamedLayoutsSubmenu,
+		item: {
+			command: {
+				id: ToggleSidebarVisibilityAction.ID,
+				title: localize('primarySideBar', "Primary Side Bar"),
+				toggled: SideBarVisibleContext,
+				precondition: LayoutModeContext.negate()
+			},
+			group: NamedLayoutsMenuGroup.Parts,
+			order: 1,
+			when: NamedLayoutsEnabledContext
+		}
+	}, {
+		id: MenuId.NamedLayoutsSubmenu,
+		item: {
+			command: {
+				id: TogglePanelAction.ID,
+				title: localize('panel', "Panel"),
+				toggled: PanelVisibleContext
+			},
+			group: NamedLayoutsMenuGroup.Parts,
+			order: 2,
+			when: NamedLayoutsEnabledContext
+		}
+	}, {
+		id: MenuId.NamedLayoutsSubmenu,
+		item: {
+			command: {
+				id: ToggleAuxiliaryBarAction.ID,
+				title: localize('secondarySideBar', "Secondary Side Bar"),
+				toggled: AuxiliaryBarVisibleContext
+			},
+			group: NamedLayoutsMenuGroup.Parts,
+			order: 3,
+			when: NamedLayoutsEnabledContext
+		}
+	}, {
+		id: MenuId.NamedLayoutsSubmenu,
+		item: {
+			command: {
+				id: 'workbench.action.customizeLayout',
+				title: localize('customizeLayout', "Customize Layout...")
+			},
+			group: NamedLayoutsMenuGroup.Manage,
+			order: 2,
+			when: NamedLayoutsEnabledContext
+		}
+	}
+]);
 
 /**
  * Whether users can lock and unlock the given layout. The default layout and layouts
@@ -75,6 +149,14 @@ const SWITCH_LAYOUT_COMMAND_ID = 'workbench.action.switchLayout';
  */
 function isLockable(layout: INamedLayout): boolean {
 	return layout.id !== DEFAULT_NAMED_LAYOUT_ID && !layout.contribution?.locked;
+}
+
+/**
+ * Whether users can delete the given layout. The default layout and layouts that
+ * extensions contribute cannot be deleted.
+ */
+function isDeletable(layout: INamedLayout): boolean {
+	return layout.id !== DEFAULT_NAMED_LAYOUT_ID && !layout.contribution;
 }
 
 async function setLayoutLocked(namedLayoutsService: INamedLayoutsService, layout: INamedLayout, locked: boolean): Promise<void> {
@@ -88,20 +170,40 @@ async function revertLayout(namedLayoutsService: INamedLayoutsService): Promise<
 	status(localize('layoutReverted', "Reverted the changes to layout {0}", layout.name));
 }
 
+async function confirmAndDeleteLayout(namedLayoutsService: INamedLayoutsService, dialogService: IDialogService, layout: INamedLayout): Promise<void> {
+	const { confirmed } = await dialogService.confirm({
+		message: localize('deleteLayout.confirm', "Are you sure you want to delete the layout '{0}'?", layout.name),
+		detail: layout.id === namedLayoutsService.activeLayout.id ? localize('deleteLayout.confirmActive', "The layout is active in this window. The default layout will be restored.") : undefined,
+		primaryButton: localize({ key: 'deleteLayout.delete', comment: ['&& denotes a mnemonic'] }, "&&Delete")
+	});
+	if (confirmed) {
+		await namedLayoutsService.deleteLayout(layout);
+	}
+}
+
+function getLayoutMenuLabel(layout: INamedLayout): string {
+	return layout.locked ? localize('lockedLayoutLabel', "{0} (Locked)", layout.name) : layout.name;
+}
+
 /**
- * Contributes the layout switcher of the activity bar. Its title names the active layout,
- * and selecting it opens the picker of {@link SWITCH_LAYOUT_COMMAND_ID}. Also tracks
- * whether the active layout is locked.
+ * Contributes the layouts menu: a button in the layout control of the title bar, whose title
+ * names the active layout, and an entry per layout in its menu. The entry of the active layout
+ * is checked. Also tracks the state of the active layout in context keys, which enable the
+ * actions of the active layout in the menu and the Command Palette.
  */
-class NamedLayoutsSwitcherContribution extends Disposable implements IWorkbenchContribution {
+class NamedLayoutsMenuContribution extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'workbench.contrib.namedLayoutsSwitcher';
+	static readonly ID = 'workbench.contrib.namedLayoutsMenu';
 
-	private readonly switcherEntry = this._register(new MutableDisposable());
-	private switcherTitle: string | undefined;
+	private readonly layoutControlEntry = this._register(new MutableDisposable());
+	private layoutControlTitle: string | undefined;
+	private readonly layoutEntries = this._register(new MutableDisposable<DisposableStore>());
 
+	private readonly activeLayout: IContextKey<string>;
 	private readonly activeLayoutLocked: IContextKey<boolean>;
 	private readonly activeLayoutLockable: IContextKey<boolean>;
+	private readonly activeLayoutResettable: IContextKey<boolean>;
+	private readonly activeLayoutDeletable: IContextKey<boolean>;
 
 	constructor(
 		@INamedLayoutsService private readonly namedLayoutsService: INamedLayoutsService,
@@ -109,38 +211,94 @@ class NamedLayoutsSwitcherContribution extends Disposable implements IWorkbenchC
 	) {
 		super();
 
+		this.activeLayout = ActiveNamedLayoutContext.bindTo(contextKeyService);
 		this.activeLayoutLocked = ActiveNamedLayoutLockedContext.bindTo(contextKeyService);
 		this.activeLayoutLockable = ActiveNamedLayoutLockableContext.bindTo(contextKeyService);
+		this.activeLayoutResettable = ActiveNamedLayoutResettableContext.bindTo(contextKeyService);
+		this.activeLayoutDeletable = ActiveNamedLayoutDeletableContext.bindTo(contextKeyService);
 
-		this.update();
-		this._register(namedLayoutsService.onDidChangeActiveLayout(() => this.update()));
-
-		// The name of the active layout changes when the extension that contributes it is updated
-		this._register(namedLayoutsService.onDidChangeLayouts(() => this.update()));
+		this.updateActiveLayout();
+		this.registerLayoutEntries();
+		this._register(namedLayoutsService.onDidChangeActiveLayout(() => this.updateActiveLayout()));
+		this._register(namedLayoutsService.onDidChangeLayouts(() => {
+			this.updateActiveLayout();
+			this.registerLayoutEntries();
+		}));
 	}
 
-	private update(): void {
+	private updateActiveLayout(): void {
 		const activeLayout = this.namedLayoutsService.activeLayout;
+		this.activeLayout.set(activeLayout.id);
 		this.activeLayoutLocked.set(!!activeLayout.locked);
 		this.activeLayoutLockable.set(isLockable(activeLayout));
+		this.activeLayoutResettable.set(!!activeLayout.contribution?.canReset);
+		this.activeLayoutDeletable.set(isDeletable(activeLayout));
 
+		// The title of the button is its hover and accessible name
 		const title = activeLayout.locked ? localize('activeLockedLayoutTitle', "Layout: {0} (Locked)", activeLayout.name) : localize('activeLayoutTitle', "Layout: {0}", activeLayout.name);
-		if (title === this.switcherTitle) {
-			return;
+		if (title !== this.layoutControlTitle) {
+			this.layoutControlTitle = title;
+			this.layoutControlEntry.value = MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
+				submenu: MenuId.NamedLayoutsSubmenu,
+				title,
+				icon: namedLayoutsIcon,
+				group: 'navigation',
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.negate(), NamedLayoutsEnabledContext)
+			});
 		}
+	}
 
-		this.switcherTitle = title;
-		this.switcherEntry.value = MenuRegistry.appendMenuItem(MenuId.NamedLayoutsActivity, {
-			command: {
-				id: SWITCH_LAYOUT_COMMAND_ID,
-				title
-			},
-			when: NamedLayoutsEnabledContext
+	private registerLayoutEntries(): void {
+		// The commands of the previous entries must be unregistered before they are registered again
+		this.layoutEntries.clear();
+		const store = new DisposableStore();
+		const extensionGroups = new Map<string, string>();
+		this.namedLayoutsService.layouts.forEach((layout, index) => {
+			let group: string = NamedLayoutsMenuGroup.Layouts;
+			const contribution = layout.contribution;
+			if (contribution) {
+				let extensionGroup = extensionGroups.get(contribution.extensionId);
+				if (!extensionGroup) {
+					// Pad the index, groups are sorted by their identifier
+					extensionGroup = `${NamedLayoutsMenuGroup.ExtensionLayoutsPrefix}${String(extensionGroups.size).padStart(4, '0')}`;
+					extensionGroups.set(contribution.extensionId, extensionGroup);
+					store.add(MenuRegistry.appendMenuGroup(MenuId.NamedLayoutsSubmenu, { group: extensionGroup, title: contribution.extensionName }));
+				}
+				group = extensionGroup;
+			}
+			store.add(this.registerLayoutEntry(layout, group, index));
+		});
+		this.layoutEntries.value = store;
+	}
+
+	private registerLayoutEntry(layout: INamedLayout, group: string, order: number): IDisposable {
+		const namedLayoutsService = this.namedLayoutsService;
+		return registerAction2(class SwitchToLayoutAction extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.action.switchToLayout.${layout.id}`,
+					title: getLayoutMenuLabel(layout),
+					metadata: {
+						description: localize2('switchToLayout.description', "Switch to the layout {0}", layout.name),
+					},
+					toggled: ActiveNamedLayoutContext.isEqualTo(layout.id),
+					menu: {
+						id: MenuId.NamedLayoutsSubmenu,
+						group,
+						order,
+						when: NamedLayoutsEnabledContext
+					}
+				});
+			}
+
+			async run(): Promise<void> {
+				await namedLayoutsService.switchLayout(layout);
+			}
 		});
 	}
 }
 
-registerWorkbenchContribution2(NamedLayoutsSwitcherContribution.ID, NamedLayoutsSwitcherContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(NamedLayoutsMenuContribution.ID, NamedLayoutsMenuContribution, WorkbenchPhase.BlockRestore);
 
 interface INamedLayoutQuickPickItem extends IQuickPickItem {
 	readonly layout: INamedLayout;
@@ -181,7 +339,13 @@ registerAction2(class NewLayoutAction extends Action2 {
 			},
 			category: Categories.View,
 			precondition: NamedLayoutsEnabledContext,
-			f1: true
+			f1: true,
+			menu: {
+				id: MenuId.NamedLayoutsSubmenu,
+				group: NamedLayoutsMenuGroup.Manage,
+				order: 1,
+				when: NamedLayoutsEnabledContext
+			}
 		});
 	}
 
@@ -339,20 +503,9 @@ registerAction2(class DeleteLayoutAction extends Action2 {
 		const pick = await quickInputService.pick(toQuickPickItems(namedLayouts, namedLayoutsService.activeLayout), {
 			placeHolder: localize('deleteLayout.placeholder', "Select a layout to delete")
 		});
-		if (!pick) {
-			return;
+		if (pick) {
+			await confirmAndDeleteLayout(namedLayoutsService, dialogService, pick.layout);
 		}
-
-		const { confirmed } = await dialogService.confirm({
-			message: localize('deleteLayout.confirm', "Are you sure you want to delete the layout '{0}'?", pick.layout.name),
-			detail: pick.layout.id === namedLayoutsService.activeLayout.id ? localize('deleteLayout.confirmActive', "The layout is active in this window. The default layout will be restored.") : undefined,
-			primaryButton: localize({ key: 'deleteLayout.delete', comment: ['&& denotes a mnemonic'] }, "&&Delete")
-		});
-		if (!confirmed) {
-			return;
-		}
-
-		await namedLayoutsService.deleteLayout(pick.layout);
 	}
 });
 
@@ -400,7 +553,13 @@ registerAction2(class LockLayoutAction extends Action2 {
 			},
 			category: Categories.View,
 			precondition: ContextKeyExpr.and(NamedLayoutsEnabledContext, ActiveNamedLayoutLockableContext, ActiveNamedLayoutLockedContext.negate()),
-			f1: true
+			f1: true,
+			menu: {
+				id: MenuId.NamedLayoutsSubmenu,
+				group: NamedLayoutsMenuGroup.State,
+				order: 1,
+				when: ContextKeyExpr.and(NamedLayoutsEnabledContext, ActiveNamedLayoutLockableContext, ActiveNamedLayoutLockedContext.negate())
+			}
 		});
 	}
 
@@ -420,13 +579,72 @@ registerAction2(class UnlockLayoutAction extends Action2 {
 			},
 			category: Categories.View,
 			precondition: ContextKeyExpr.and(NamedLayoutsEnabledContext, ActiveNamedLayoutLockableContext, ActiveNamedLayoutLockedContext),
-			f1: true
+			f1: true,
+			// Hidden for a layout that its extension locked, its label already says it is locked
+			menu: {
+				id: MenuId.NamedLayoutsSubmenu,
+				group: NamedLayoutsMenuGroup.State,
+				order: 1,
+				when: ContextKeyExpr.and(NamedLayoutsEnabledContext, ActiveNamedLayoutLockableContext, ActiveNamedLayoutLockedContext)
+			}
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const namedLayoutsService = accessor.get(INamedLayoutsService);
 		await setLayoutLocked(namedLayoutsService, namedLayoutsService.activeLayout, false);
+	}
+});
+
+registerAction2(class ResetActiveLayoutAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.resetActiveLayout',
+			title: localize2('resetActiveLayout', "Reset Layout"),
+			metadata: {
+				description: localize2('resetActiveLayout.description', "Discards the changes made to the active layout contributed by an extension."),
+			},
+			precondition: ActiveNamedLayoutResettableContext,
+			// Discards saved changes, so it comes last
+			menu: {
+				id: MenuId.NamedLayoutsSubmenu,
+				group: NamedLayoutsMenuGroup.Manage,
+				order: 3,
+				when: ContextKeyExpr.and(NamedLayoutsEnabledContext, ActiveNamedLayoutResettableContext)
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const namedLayoutsService = accessor.get(INamedLayoutsService);
+		const activeLayout = namedLayoutsService.activeLayout;
+		await namedLayoutsService.resetLayout(activeLayout);
+		status(localize('layoutReset', "Reset layout {0}", activeLayout.name));
+	}
+});
+
+registerAction2(class DeleteActiveLayoutAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.deleteActiveLayout',
+			title: localize2('deleteActiveLayout', "Delete Layout..."),
+			metadata: {
+				description: localize2('deleteActiveLayout.description', "Deletes the active layout after confirmation and restores the default layout."),
+			},
+			precondition: ActiveNamedLayoutDeletableContext,
+			// Destructive, so it comes last
+			menu: {
+				id: MenuId.NamedLayoutsSubmenu,
+				group: NamedLayoutsMenuGroup.Manage,
+				order: 4,
+				when: ContextKeyExpr.and(NamedLayoutsEnabledContext, ActiveNamedLayoutDeletableContext)
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const namedLayoutsService = accessor.get(INamedLayoutsService);
+		await confirmAndDeleteLayout(namedLayoutsService, accessor.get(IDialogService), namedLayoutsService.activeLayout);
 	}
 });
 
@@ -440,7 +658,13 @@ registerAction2(class RevertLayoutAction extends Action2 {
 			},
 			category: Categories.View,
 			precondition: ContextKeyExpr.and(NamedLayoutsEnabledContext, ActiveNamedLayoutLockedContext),
-			f1: true
+			f1: true,
+			menu: {
+				id: MenuId.NamedLayoutsSubmenu,
+				group: NamedLayoutsMenuGroup.State,
+				order: 2,
+				when: ContextKeyExpr.and(NamedLayoutsEnabledContext, ActiveNamedLayoutLockedContext)
+			}
 		});
 	}
 

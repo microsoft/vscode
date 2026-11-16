@@ -6,6 +6,7 @@
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 export const INamedLayoutsService = createDecorator<INamedLayoutsService>('namedLayoutsService');
@@ -14,6 +15,12 @@ export const INamedLayoutsService = createDecorator<INamedLayoutsService>('named
  * Setting that enables named layouts.
  */
 export const NAMED_LAYOUTS_ENABLED_SETTING = 'workbench.experimental.namedLayouts.enabled';
+
+/**
+ * Whether named layouts are enabled. While they are, the layout control of the title bar
+ * is a single button that opens the menu of the layouts.
+ */
+export const NamedLayoutsEnabledContext = ContextKeyExpr.equals(`config.${NAMED_LAYOUTS_ENABLED_SETTING}`, true);
 
 /**
  * Identifier of the built-in layout that is active when no named layout is active.

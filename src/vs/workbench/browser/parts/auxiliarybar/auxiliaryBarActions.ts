@@ -13,6 +13,7 @@ import { AuxiliaryBarMaximizedContext, AuxiliaryBarVisibleContext, IsAuxiliaryWi
 import { ViewContainerLocation, ViewContainerLocationToString } from '../../../common/views.js';
 import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { NamedLayoutsEnabledContext } from '../../../services/namedLayouts/common/namedLayouts.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
@@ -145,7 +146,8 @@ MenuRegistry.appendMenuItems([
 				ContextKeyExpr.or(
 					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'),
 					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
-				ContextKeyExpr.equals('config.workbench.sideBar.location', 'right')
+				ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'),
+				NamedLayoutsEnabledContext.negate()
 			),
 			order: 0
 		}
@@ -164,7 +166,8 @@ MenuRegistry.appendMenuItems([
 				ContextKeyExpr.or(
 					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'),
 					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
-				ContextKeyExpr.equals('config.workbench.sideBar.location', 'left')
+				ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'),
+				NamedLayoutsEnabledContext.negate()
 			),
 			order: 2
 		}
