@@ -9416,7 +9416,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const next = candidates.find(session => visible.has(session) && this.canAcknowledgeInboxSession(session) && this.getInboxSection(session) === SessionInboxSection.ReadyForYou);
 			if (next) {
 				void this.beginOpenRequest(next, undefined, false, false, () => {
-					if (!this._store.isDisposed && this.visible && this.isInboxLayout()) {
+					if (!this._store.isDisposed && this.visible && this.isInboxLayout() && isEqual(this._mainWindowShown.get()?.session.resource, next.resource)) {
 						this.explainInboxAutoAdvance(inboxSessions[index], true);
 					}
 				}).catch(onUnexpectedError);
@@ -9454,7 +9454,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				if (this._store.isDisposed || this.chatEntitlementService.sentiment.hidden) {
 					return;
 				}
-				const spotlight = this.instantiationService.createInstance(InboxAutoAdvanceSpotlight, () => this.revealSessionForOnboarding(session));
+				const spotlight = this.instantiationService.createInstance(InboxAutoAdvanceSpotlight, () => this.revealSessionForOnboarding(session), () => this.openSession(session));
 				this.inboxAutoAdvanceSpotlight.value = spotlight;
 				try {
 					await spotlight.show();

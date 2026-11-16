@@ -5728,8 +5728,75 @@ suite('Sessions - SessionsList', () => {
 			});
 		}
 
-		for (const hasNext of [true, false]) {
-			test(`Inbox explains the first automatic move with a settings link and an opt-in session spotlight (next: ${hasNext})`, async () => {
+		for (const completesAsync of [false, true]) {
+			test(`Inbox preserves the first-use explanation when opening resolves without navigating (async: ${completesAsync})`, async () => {
+				const source = buildTestSession({ id: 'source', title: 'Source' });
+				const next = buildTestSession({ id: 'next', title: 'Next', minutesAgo: 1 });
+				const harness = createListHarness(disposables, [source.session, next.session]);
+				const shown = observableValue<ITestShownChat | undefined>('shown', { session: source.session, chat: source.session.mainChat.get() });
+				stubSessionHosts(harness.instantiationService, disposables, { session: shown });
+				const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
+				harness.instantiationService.stub(IChatService, new class extends MockChatService {
+					override readonly onDidAcceptRequest = accepted.event;
+				});
+				const notifications: Parameters<INotificationService['prompt']>[] = [];
+				harness.instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+					override prompt(...args: Parameters<INotificationService['prompt']>) {
+						notifications.push(args);
+						return new NoOpNotification();
+					}
+				});
+				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+				harness.instantiationService.stub(ISessionsListModelService, model);
+				let navigate = false;
+				const open = () => {
+					if (navigate) {
+						shown.set({ session: next.session, chat: next.session.mainChat.get() }, undefined);
+					}
+				};
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated,
+					onSessionOpen: () => completesAsync ? Promise.resolve().then(open) : open(),
+				}));
+				list.layout(600, 400);
+				const send = async () => {
+					transaction(tx => {
+						source.status.set(SessionStatus.InProgress, tx);
+						source.mainChat.status.set(SessionStatus.InProgress, tx);
+					});
+					accepted.fire({ chatSessionResource: source.session.mainChat.get().resource, isNewSession: false });
+					await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+					await timeout(0);
+				};
+				await send();
+				const afterNoOp = { notifications: notifications.length, shown: shown.get()?.session.sessionId };
+				transaction(tx => {
+					source.status.set(SessionStatus.Completed, tx);
+					source.mainChat.status.set(SessionStatus.Completed, tx);
+				});
+				list.update();
+				navigate = true;
+				await send();
+
+				assert.deepStrictEqual({
+					afterNoOp,
+					afterNavigation: { notifications: notifications.length, shown: shown.get()?.session.sessionId },
+				}, {
+					afterNoOp: { notifications: 0, shown: 'source' },
+					afterNavigation: { notifications: 1, shown: 'next' },
+				});
+			});
+		}
+
+		for (const { hasNext, action } of [
+			{ hasNext: true, action: 'escape' },
+			{ hasNext: false, action: 'gotIt' },
+			{ hasNext: true, action: 'keyboard' },
+			{ hasNext: false, action: 'keyboard' },
+		] as const) {
+			test(`Inbox explains the first automatic move with a settings link and an opt-in session spotlight (next: ${hasNext}, action: ${action})`, async () => {
+				const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true });
+				disposables.add(toDisposable(() => clock.restore()));
 				const source = buildTestSession({ id: 'source', title: 'Source' });
 				const next = buildTestSession({ id: 'next', title: 'Next', minutesAgo: 1 });
 				const harness = createListHarness(disposables, hasNext ? [source.session, next.session] : [source.session]);
@@ -5755,7 +5822,7 @@ suite('Sessions - SessionsList', () => {
 				const toasts = disposables.add(harness.instantiationService.createInstance(NotificationsToasts, harness.createContainer(), notificationService.model));
 				toasts.layout(new Dimension(1024, 600));
 				const toastVisible = Event.toPromise(toasts.onDidChangeVisibility);
-				const tours: { targetIsSource: boolean; hasDismissButton: boolean; targetInteractive: boolean | undefined; role: string | null; focusRestored: boolean }[] = [];
+				const tours: { targetIsSource: boolean; hasDismissButton: boolean; targetInteractive: boolean | undefined; role: string | null; focusRestored: boolean; keyboardReturnFocused: boolean | undefined }[] = [];
 				const tourFinished = new DeferredPromise<void>();
 				let tourId: string | undefined;
 				let targetId: string | undefined;
@@ -5780,30 +5847,40 @@ suite('Sessions - SessionsList', () => {
 						const targetIsSource = resolveOnboardingTarget(mainWindow, step.targetId)?.element.closest('.monaco-list-row') === list.getItemRow({ session: source.session.resource });
 						const role = callout.getAttribute('role');
 						const dismiss = Array.from(callout.querySelectorAll<HTMLElement>('.monaco-button')).find(button => button.textContent === 'Got It')!;
-						if (hasNext) {
+						let keyboardReturnFocused: boolean | undefined;
+						if (action === 'keyboard') {
+							dismiss.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
+							const returnButton = Array.from(callout.querySelectorAll<HTMLElement>('.monaco-button')).find(button => button.textContent === 'Return to Session')!;
+							keyboardReturnFocused = mainWindow.document.activeElement === returnButton;
+							returnButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+						} else if (action === 'escape') {
 							dismiss.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
 						} else {
 							dismiss.click();
 						}
-						await result;
+						const outcome = (await result).outcome;
 						tours.push({
 							targetIsSource,
-							hasDismissButton: step.nextButtonLabel === 'Got It',
+							hasDismissButton: step.endTourLabel === 'Got It',
 							targetInteractive: step.allowTargetInteraction,
-							role, focusRestored: mainWindow.document.activeElement === focusTarget,
+							role, focusRestored: mainWindow.document.activeElement === focusTarget, keyboardReturnFocused,
 						});
 						void tourFinished.complete();
-						return OnboardingOutcome.Completed;
+						return outcome;
 					},
 				}));
 				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
 				harness.instantiationService.stub(ISessionsListModelService, model);
 				const opening = new DeferredPromise<void>();
+				let sourceOpenRequests = 0;
 				const render = () => disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
 					grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated,
 					onSessionOpen: async resource => {
 						await opening.p;
 						const session = harness.managementService.getSession(resource)!;
+						if (session === source.session) {
+							sourceOpenRequests++;
+						}
 						shown.set({ session, chat: session.mainChat.get() }, undefined);
 					},
 				}));
@@ -5817,8 +5894,6 @@ suite('Sessions - SessionsList', () => {
 					accepted.fire({ chatSessionResource: source.session.mainChat.get().resource, isNewSession: false });
 					await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
 				};
-				const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'], shouldClearNativeTimers: true });
-				disposables.add(toDisposable(() => clock.restore()));
 				await send();
 				const notificationsBeforeOpen = notifications.length;
 				await opening.complete();
@@ -5826,7 +5901,6 @@ suite('Sessions - SessionsList', () => {
 				clock.tick(10_001);
 				const visibleAfterTimeout = toasts.isVisible;
 				toasts.dispose();
-				clock.restore();
 				await timeout(0);
 				const toursBeforeAction = tours.length;
 				const [severity, message, choices] = notifications[0];
@@ -5836,6 +5910,7 @@ suite('Sessions - SessionsList', () => {
 				await tourFinished.p;
 				await timeout(0);
 				const notificationsAfterAction = notificationService.model.notifications.length;
+				const shownAfterAction = shown.get()?.session.sessionId;
 				const targetReleased = resolveOnboardingTarget(mainWindow, targetId!) === undefined;
 				list.dispose();
 				transaction(tx => {
@@ -5853,13 +5928,15 @@ suite('Sessions - SessionsList', () => {
 					linkArguments: links.map(link => JSON.parse(decodeURIComponent(URI.parse(link.href).query))),
 					linkCommands: links.map(link => URI.parse(link.href).path),
 					showSession: choices[0].label,
+					sourceOpenRequests, shownAfterAction,
 					targetReleased, tourReleased: onboardingScenarioRegistry.getScenario(tourId!),
 				}, {
 					notificationsBeforeOpen: hasNext ? 0 : 1, severity: Severity.Info, notifications: 1, visibleAfterTimeout: true, notificationsAfterAction: 0, toursBeforeAction: 0,
-					tours: [{ targetIsSource: true, hasDismissButton: true, targetInteractive: true, role: 'dialog', focusRestored: true }],
+					tours: [{ targetIsSource: true, hasDismissButton: true, targetInteractive: true, role: 'dialog', focusRestored: true, keyboardReturnFocused: action === 'keyboard' ? true : undefined }],
 					linkArguments: [[`@id:${SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING}`]],
 					linkCommands: ['workbench.action.openSettings'],
 					showSession: 'Show Session', targetReleased: true, tourReleased: undefined,
+					sourceOpenRequests: action === 'keyboard' ? 1 : 0, shownAfterAction: action === 'keyboard' || !hasNext ? 'source' : 'next',
 				});
 			});
 		}

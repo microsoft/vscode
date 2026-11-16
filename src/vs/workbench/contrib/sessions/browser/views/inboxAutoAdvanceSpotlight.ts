@@ -10,18 +10,21 @@ import { localize } from '../../../../../nls.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../../onboarding/common/onboardingRegistry.js';
+import { OnboardingOutcome } from '../../../onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService } from '../../../onboarding/common/onboardingScenarioService.js';
 
 /** Reveals the replied-to session only when the user asks where it went. */
 export class InboxAutoAdvanceSpotlight extends Disposable {
 	constructor(
 		private readonly revealSession: () => IDisposable & { readonly targetId: string },
+		private readonly openSession: () => void,
 		@IOnboardingScenarioService private readonly onboardingService: IOnboardingScenarioService,
 	) {
 		super();
 	}
 
 	async show(): Promise<void> {
+		let returnToSession = false;
 		const cancellation = new CancellationTokenSource();
 		this._register(toDisposable(() => cancellation.dispose(true)));
 		const id = 'sessions.inboxAutoAdvance';
@@ -39,8 +42,14 @@ export class InboxAutoAdvanceSpotlight extends Disposable {
 							id: 'repliedSession',
 							targetId: target.targetId,
 							title: localize('inboxAutoAdvanceSpotlight.title', "Your session is here"),
-							description: localize('inboxAutoAdvanceSpotlight.description', "This is the session you replied to. It appears in Working while the agent processes your reply and returns to Inbox when it needs attention. Select it to return to the conversation. You can turn off automatic navigation in the Inbox Auto Advance setting."),
-							nextButtonLabel: localize('inboxAutoAdvanceSpotlight.gotIt', "Got It"),
+							description: localize('inboxAutoAdvanceSpotlight.description', "This is the session you replied to. It appears in Working while the agent processes your reply and returns to Inbox when it needs attention. Choose Return to Session or select the session in the sidebar to return to the conversation. You can turn off automatic navigation in the Inbox Auto Advance setting."),
+							primaryAction: {
+								label: localize('inboxAutoAdvanceSpotlight.return', "Return to Session"),
+								run: () => { returnToSession = true; },
+								advance: true,
+							},
+							endTourLabel: localize('inboxAutoAdvanceSpotlight.gotIt', "Got It"),
+							focusEndTour: true,
 							placement: 'right',
 							allowTargetInteraction: true,
 							advanceOnTargetClick: true,
@@ -52,7 +61,11 @@ export class InboxAutoAdvanceSpotlight extends Disposable {
 			},
 		}));
 		try {
-			await this.onboardingService.runScenario(id, cancellation.token);
+			const outcome = await this.onboardingService.runScenario(id, cancellation.token);
+			if (returnToSession && outcome === OnboardingOutcome.Completed && !cancellation.token.isCancellationRequested) {
+				// Return after the spotlight has restored focus.
+				this.openSession();
+			}
 		} finally {
 			this.dispose();
 		}
