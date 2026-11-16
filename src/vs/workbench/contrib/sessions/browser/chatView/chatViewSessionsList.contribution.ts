@@ -12,7 +12,7 @@ import { localize } from '../../../../../nls.js';
 import { ILocalizedString } from '../../../../../platform/action/common/action.js';
 import { MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { Extensions as ConfigurationExtensions, IConfigurationDefaults, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -25,7 +25,7 @@ import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../
 import { HideAgentSessionsSidebar, ShowAgentSessionsSidebar } from '../../../chat/browser/agentSessions/agentSessionsActions.js';
 import { ChatViewId } from '../../../chat/browser/chat.js';
 import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
-import { IChatViewSessionsListService } from '../../../chat/browser/widgetHosts/viewPane/chatViewSessionsList.js';
+import { ILocalChatAvailabilityService } from '../../../chat/common/localChatAvailability.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatConfiguration, observeChatViewSessionsListEnabled } from '../../../chat/common/constants.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
@@ -58,11 +58,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 /** Whether the Chat view shows only its sessions, whose chats show elsewhere, such as in the chat part. */
 const ChatViewSessionsOnlyContext = new RawContextKey<boolean>('chatViewSessionsOnly', false);
 
-/** The chats of the editor window are those of the sessions of the Agents window: not local chats, which the list does not show. */
-const noLocalChatDefaults: IConfigurationDefaults = {
-	overrides: { [ChatConfiguration.EditorLocalAgentEnabled]: false },
-};
-
 /**
  * Shows the sessions of the Agents window in the Chat view of an editor window while {@link observeChatViewSessionsListEnabled}:
  * its sessions section lists them, and they open where the window presents its sessions: in the Chat view's chat, or in the
@@ -85,9 +80,9 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 			return;
 		}
 
-		// Accessibility help of the list and of its Undo notice, as the window starts, whether the setting is on or turns on
-		// later: help registered after the window's accessibility help installs what is registered would not be installed. They
-		// help only where the list has focus, and create nothing.
+		// Accessibility help of the list and of its Undo notice, whether the setting is on or turns on later: help registered
+		// after the window's accessibility help installs what is registered, eventually, would not be installed. They help only
+		// where the list has focus, and create nothing.
 		this._register(registerSessionsListAccessibilityHelp());
 		this._register(AccessibleViewRegistry.register(new ChatViewSessionsListAccessibilityHelp()));
 
@@ -102,26 +97,24 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 	private enable(accessor: ServicesAccessor, store: DisposableStore): void {
 		const instantiationService = accessor.get(IInstantiationService);
 
-		// No local chats by default, which the list does not show
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-		configurationRegistry.registerDefaultConfigurations([noLocalChatDefaults]);
-		store.add(toDisposable(() => configurationRegistry.deregisterDefaultConfigurations([noLocalChatDefaults])));
+		// No new local chats, which the list does not show
+		store.add(accessor.get(ILocalChatAvailabilityService).hide());
 
 		// The sessions providers, held while the Chat view, which lists their sessions, shows
 		store.add(accessor.get(IEditorWindowSessionsRuntime).enable({ viewIds: [ChatViewId] }));
 		// The settings and the actions of the shared sessions list, once the Chat view first shows it
 		store.add(registerEditorWindowSessionsList(instantiationService, () => registerAgentsViewNewSessionActions(), ChatViewId));
 
-		// While a host replaces the Chat view, such as the chat part, its chats show there: the Chat view shows only the sessions,
-		// unless it hosts the chat opened last, one that the host leaves to it, such as a local chat
+		// The sessions list of the Chat view, whose sessions open where the window presents them. While a host replaces the Chat
+		// view, such as the chat part, its chats show there: the Chat view shows only the sessions, unless it hosts the chat
+		// opened last, one that the host leaves to it, such as a local chat
 		const chatViewHostService = accessor.get(IChatViewHostService);
-		const sessionsOnly = derived(this, reader => chatViewHostService.replaced.read(reader) && !chatViewHostService.chatViewHosts.read(reader));
+		store.add(chatViewHostService.register({ sessionsList: new ChatViewSessionsListProvider(), sessionsOnly: true }));
+		const sessionsOnly = chatViewHostService.sessionsOnly;
 		const sessionsOnlyContext = ChatViewSessionsOnlyContext.bindTo(accessor.get(IContextKeyService));
 		store.add(autorun(reader => sessionsOnlyContext.set(sessionsOnly.read(reader))));
 		store.add(toDisposable(() => sessionsOnlyContext.reset()));
 
-		// The sessions list of the Chat view, whose sessions open where the window presents them
-		store.add(accessor.get(IChatViewSessionsListService).registerProvider(new ChatViewSessionsListProvider(sessionsOnly)));
 		store.add(registerSessionsSidebarToggle());
 		this.showChatViewChat(accessor, sessionsOnly, store);
 	}

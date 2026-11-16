@@ -10,7 +10,6 @@ import { IStyleOverride } from '../../../../../platform/theme/browser/defaultSty
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IAgentSession } from '../../../chat/browser/agentSessions/agentSessionsModel.js';
 import { IChatViewSessionsList, IChatViewSessionsListControl, IChatViewSessionsListProvider } from '../../../chat/browser/widgetHosts/viewPane/chatViewSessionsList.js';
-import { IObservable } from '../../../../../base/common/observable.js';
 import { SessionsView } from '../views/sessionsView.js';
 import { createEditorWindowSessionsScope, createEditorWindowSessionsView } from './editorWindowSessionsList.js';
 import { ChatViewId } from '../../../chat/browser/chat.js';
@@ -60,14 +59,10 @@ class ChatViewSessionsListControl implements IChatViewSessionsListControl {
 
 /**
  * Gives the Chat view the sessions of the Agents window as its sessions list. Its sessions open where the window presents them:
- * in the Chat view, or in the chat part while `sessionsOnly`, when the Chat view shows only the sessions. The Chat view keeps its
- * own chat input, for new chats and the chats it shows.
+ * in the Chat view, or in the chat part while the Chat view shows only the sessions. The Chat view keeps its own chat input, for
+ * new chats and the chats it shows.
  */
 export class ChatViewSessionsListProvider implements IChatViewSessionsListProvider {
-
-	constructor(
-		private readonly _sessionsOnly: IObservable<boolean>,
-	) { }
 
 	create(container: HTMLElement, instantiationService: IInstantiationService, _options: { readonly overrideStyles: IStyleOverride<IListStyles> }): IChatViewSessionsList {
 		const workspaceContextService = instantiationService.invokeFunction(accessor => accessor.get(IWorkspaceContextService));
@@ -88,7 +83,6 @@ export class ChatViewSessionsListProvider implements IChatViewSessionsListProvid
 		return {
 			control: new ChatViewSessionsListControl(view, helpHint, instantiationService.invokeFunction(accessor => accessor.get(ISessionsManagementService))),
 			hasHeader: true,
-			sessionsOnly: this._sessionsOnly,
 		};
 	}
 }
