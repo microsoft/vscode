@@ -1406,7 +1406,58 @@ suite('ModelCard', () => {
 		});
 	}
 
-	test('updating a compared model during selection motion immediately rebinds variant actions', async () => {
+	for (const pending of [false, true]) {
+		test(`comparison add chips use the ${pending ? 'pending' : 'saved'} effort during selection motion`, async function () {
+			if (mainWindow.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+				this.skip();
+			}
+			const save = new DeferredPromise<void>();
+			const values: IStringDictionary<unknown> = { effort: 'low' };
+			const additions: Parameters<IModelCardComparisonVariants['onAdd']>[] = [];
+			const result = await createAnimatedCard({
+				configurationAccess: {
+					getModelConfiguration: () => values,
+					setModelConfiguration: async (_modelId, next) => {
+						if (pending) {
+							await save.p;
+						}
+						Object.assign(values, next);
+					},
+					getModelConfigurationActions: () => [],
+				},
+				comparisonVariants: {
+					list: [],
+					onAdd: (...args) => additions.push(args),
+					onRemove: () => { },
+				},
+				selectModelOnConfigurationChange: false,
+			});
+			const effort = element(result.card.element, '[role="radiogroup"][aria-label="Effort Level"]');
+			element(effort, '[role="radio"]:last-child').click();
+			const animations = element(effort, '.monaco-radio-selection').getAnimations();
+			assert.ok(animations.length > 0, 'Expected a running selection animation');
+			animations.forEach(animation => animation.pause());
+			await timeout(0);
+			result.card.refresh();
+			const during = { connected: effort.isConnected, savedEffort: values.effort };
+			element(result.card.element, '[aria-label="Also compare at High"]').click();
+			element(result.card.element, '[aria-label="Also compare at Medium"]').click();
+			animations.forEach(animation => animation.finish());
+			await save.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual({ during, additions, values }, {
+				during: { connected: true, savedEffort: pending ? 'low' : 'high' },
+				additions: [[{ effort: 'medium' }, 'Medium', { effort: 'high' }]],
+				values: { effort: 'high' },
+			});
+		});
+	}
+
+	test('updating a compared model during selection motion immediately rebinds variant actions', async function () {
+		if (mainWindow.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+			this.skip();
+		}
 		const standard = createModel();
 		const fast = { ...standard, identifier: 'copilot/test-model-fast' };
 		const variants = [{ configuration: { effort: 'low' }, label: 'Low' }];
@@ -1424,6 +1475,7 @@ suite('ModelCard', () => {
 		const context = element(result.card.element, '[role="radiogroup"][aria-label="Context"]');
 		element(context, '[role="radio"]:last-child').click();
 		const animations = element(context, '.monaco-radio-selection').getAnimations();
+		assert.ok(animations.length > 0, 'Expected a running selection animation');
 		animations.forEach(animation => animation.pause());
 		result.card.refresh();
 		result.update({ model: fast, comparisonVariants: comparisonVariants(fast.identifier) });
@@ -1438,7 +1490,10 @@ suite('ModelCard', () => {
 		});
 	});
 
-	test('replacing a model tier during selection motion immediately updates its selection target', async () => {
+	test('replacing a model tier during selection motion immediately updates its selection target', async function () {
+		if (mainWindow.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+			this.skip();
+		}
 		const standard = createModel({
 			configurationSchema: {
 				properties: {
@@ -1456,6 +1511,7 @@ suite('ModelCard', () => {
 		const context = element(result.card.element, '[role="radiogroup"][aria-label="Context"]');
 		element(context, '[role="radio"]:last-child').click();
 		const animations = element(context, '.monaco-radio-selection').getAnimations();
+		assert.ok(animations.length > 0, 'Expected a running selection animation');
 		animations.forEach(animation => animation.pause());
 		result.card.refresh();
 		result.update({
@@ -1473,7 +1529,10 @@ suite('ModelCard', () => {
 		});
 	});
 
-	test('removing a routing alternative during selection motion immediately removes its choice', async () => {
+	test('removing a routing alternative during selection motion immediately removes its choice', async function () {
+		if (mainWindow.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+			this.skip();
+		}
 		const auto = createAutoModel();
 		const alternative = createModel();
 		const result = await createAnimatedCard({
@@ -1485,6 +1544,7 @@ suite('ModelCard', () => {
 		options[2].focus();
 		options[2].click();
 		const animations = element(group, '.monaco-radio-selection').getAnimations();
+		assert.ok(animations.length > 0, 'Expected a running selection animation');
 		animations.forEach(animation => animation.pause());
 		result.card.refresh();
 		result.update({ routingAlternatives: [] });

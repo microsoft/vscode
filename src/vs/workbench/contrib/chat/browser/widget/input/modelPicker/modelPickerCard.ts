@@ -568,7 +568,6 @@ export class ModelCard extends DisposableStore {
 	 */
 	private _renderComparisonVariantsSection(effort: IModelConfigProperty, variants: IModelCardComparisonVariants): void {
 		const choices = getModelConfigChoices(effort);
-		const baseConfiguration = isComparisonConfigurationValue(effort.value) ? { [effort.key]: effort.value } : undefined;
 		const addable = choices.filter(choice => !choice.checked && !variants.list.some(variant => variant.configuration[effort.key] === choice.value));
 		if (!addable.length && !variants.list.length) {
 			return;
@@ -585,7 +584,14 @@ export class ModelCard extends DisposableStore {
 		for (const choice of addable) {
 			const chip = dom.append(chips, dom.$('button.chat-model-card-comparison-variant-chip.addable', { 'aria-label': localize('chat.modelPicker.addVariant', "Also compare at {0}", choice.label) }));
 			dom.reset(chip, ...renderLabelWithIcons(`$(${Codicon.add.id}) ${choice.label}`));
-			this._contentDisposables.add(dom.addDisposableListener(chip, dom.EventType.CLICK, () => variants.onAdd({ [effort.key]: choice.value }, choice.label, baseConfiguration)));
+			this._contentDisposables.add(dom.addDisposableListener(chip, dom.EventType.CLICK, () => {
+				const currentEffort = this._configProperty(MODEL_CONFIG_GROUP_EFFORT);
+				if (!currentEffort || choice.value === currentEffort.value) {
+					return;
+				}
+				const baseConfiguration = isComparisonConfigurationValue(currentEffort.value) ? { [currentEffort.key]: currentEffort.value } : undefined;
+				variants.onAdd({ [currentEffort.key]: choice.value }, choice.label, baseConfiguration);
+			}));
 		}
 	}
 

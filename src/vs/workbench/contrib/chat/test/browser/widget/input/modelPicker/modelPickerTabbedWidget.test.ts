@@ -1340,7 +1340,10 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
-	test('consecutive comparison removals during selection motion use the current variant indices', async () => {
+	test('consecutive comparison removals during selection motion use the current variant indices', async function () {
+		if (dom.getWindow(document.body).matchMedia('(prefers-reduced-motion: reduce)').matches) {
+			this.skip();
+		}
 		const base = model('Compared');
 		const compared: ILanguageModelChatMetadataAndIdentifier = {
 			...base,
@@ -1384,11 +1387,10 @@ suite('TabbedModelPicker', () => {
 		element(context, '[role="radio"]:last-child').click();
 		const animations = element(context, '.monaco-radio-selection').getAnimations();
 		animations.forEach(animation => animation.pause());
-		const reducedMotion = dom.getWindow(context).matchMedia('(prefers-reduced-motion: reduce)').matches;
 		result.picker.refresh();
 		const beforeRemoval = {
-			motionStarted: reducedMotion || animations.length > 0,
-			motionPreserved: reducedMotion || context.isConnected,
+			motionStarted: animations.length > 0,
+			motionPreserved: context.isConnected,
 		};
 		const addedLabels = () => Array.from(result.popup.querySelectorAll('.chat-model-card-comparison-variant-chip.added'), chip => chip.textContent?.trim());
 		element(result.popup, '[aria-label="Remove the Medium attempt"]').click();
@@ -3342,7 +3344,10 @@ suite('TabbedModelPicker', () => {
 	});
 
 	for (const removed of ['standard', 'fast'] as const) {
-		test(`removing the ${removed} speed variant during selection motion immediately removes its choice`, async () => {
+		test(`removing the ${removed} speed variant during selection motion immediately removes its choice`, async function () {
+			if (dom.getWindow(document.body).matchMedia('(prefers-reduced-motion: reduce)').matches) {
+				this.skip();
+			}
 			const standard = model('test-model');
 			const fast = model('test-model-fast');
 			const retained = removed === 'fast' ? standard : fast;
@@ -3356,7 +3361,7 @@ suite('TabbedModelPicker', () => {
 			high.click();
 			const animations = element(effort, '.monaco-radio-selection').getAnimations();
 			animations.forEach(animation => animation.pause());
-			const motionStarted = dom.getWindow(card).matchMedia('(prefers-reduced-motion: reduce)').matches || animations.length > 0;
+			const motionStarted = animations.length > 0;
 
 			result.picker.refresh([retained]);
 			const during = {
