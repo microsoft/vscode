@@ -8,7 +8,7 @@ import { ITelemetryService, normalizeModelRouterTelemetryId } from '../../teleme
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 import { hash } from '../../../base/common/hash.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { AgentSession, type AgentSubagentKind, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type AgentTurnProviderSessionState, type IAgentTurnDiagnosticSnapshot, type IAgentTokenUsageSummary, type IAgentTelemetryContext } from '../common/agent.js';
+import { AgentSession, type AgentCanvasOpenFailure, type AgentSubagentKind, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type AgentTurnProviderSessionState, type IAgentTurnDiagnosticSnapshot, type IAgentTokenUsageSummary, type IAgentTelemetryContext } from '../common/agent.js';
 import { isReasoningEffortLevel } from '../common/reasoningEffort.js';
 import { isAutoModeRoutingTier, normalizeAutoModeTier } from '../common/autoModeTiers.js';
 import { isCopilotHydraFusionModelId } from '../common/copilotCliConfig.js';
@@ -166,6 +166,7 @@ export interface ICanvasExtensionsReadyEvent {
 	durationMs: number;
 	extensionCount?: number;
 	failedExtensionCount?: number;
+	dormantExtensionCount?: number;
 }
 
 type CanvasExtensionsReadyClassification = {
@@ -177,6 +178,32 @@ type CanvasExtensionsReadyClassification = {
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Elapsed milliseconds for the host readiness operation, including extension listing, waiting, and canvas listing.' };
 	extensionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Extensions in the latest observed status snapshot; omitted when no snapshot was obtained.' };
 	failedExtensionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Failed extensions in the latest observed status snapshot; omitted when no snapshot was obtained.' };
+	dormantExtensionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Extensions in the latest observed status snapshot that wait to start until their tools or canvases are first used, so readiness did not include their startup; omitted when no snapshot was obtained.' };
+};
+
+/** The bounded outcome of a canvas open the host asked the runtime for. */
+export type CanvasHostOpenOutcome = 'opened' | 'consentDenied' | AgentCanvasOpenFailure | 'timeout' | 'error' | 'cancelled';
+
+export interface ICanvasHostOpenEvent {
+	schemaVersion: number;
+	trigger: 'user' | 'restore';
+	extensionStatus: 'dormant' | 'running' | 'other' | 'unknown';
+	extensionSource: CanvasExtensionSource;
+	outcome: CanvasHostOpenOutcome;
+	askedForConsent: boolean;
+	durationMs: number;
+}
+
+type CanvasHostOpenClassification = {
+	owner: 'ulugbekna';
+	comment: 'Measures canvas opens the host asks the runtime for, including starting an extension that waits for first use. Excludes opens by the model and repeated reopens by the runtime itself.';
+	schemaVersion: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Host canvas open event schema version.' };
+	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'user when a person opened the canvas from the UI; restore when the host reopened a restored canvas in the background.' };
+	extensionStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The status of the canvas extension just before the open: dormant when the open had to start it, running when it was already started, other when it was starting, failed, or disabled, or unknown when it could not be read in time.' };
+	extensionSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded extension provenance from the runtime extension list, or unknown when unavailable.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'opened; consentDenied when the user did not allow the extension to load; dismissed, reloaded, mismatchedDeclaration, startFailed, or unavailable when the runtime declined the open for that reason; timeout when the open did not finish before its client or the background reopen stopped waiting; error for other failures; cancelled when the session ended first.' };
+	askedForConsent: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the user was shown a request to allow the extension to load during the open, in a turn or by the client, so durationMs includes their response time.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from the open request until it ended as its client saw it, including any permission mode sync, extension status read, extension startup, and consent prompt.' };
 };
 
 export type IAgentHostSubagentKindClassification = {
@@ -1484,6 +1511,10 @@ export class AgentHostTelemetryReporter {
 
 	canvasExtensionsReady(event: ICanvasExtensionsReadyEvent): void {
 		this._telemetryService.publicLog2<ICanvasExtensionsReadyEvent, CanvasExtensionsReadyClassification>('agentHost.canvasExtensionsReady', event);
+	}
+
+	canvasHostOpen(event: ICanvasHostOpenEvent): void {
+		this._telemetryService.publicLog2<ICanvasHostOpenEvent, CanvasHostOpenClassification>('agentHost.canvasHostOpen', event);
 	}
 
 	userMessageSent(provider: string, clientId: string | undefined, clientContext: IAgentHostClientTelemetryContext, session: string, owner: string, turnId: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, message: Message, isEphemeralSession: boolean, isSubagentChat: boolean): void {
