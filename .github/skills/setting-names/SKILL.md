@@ -26,7 +26,7 @@ Don't put `experimental`, `preview`, `beta`, or similar into a setting ID (`foo.
 
 The Settings editor shows an "Experimental" or "Preview" badge for these tags, sorts them after stable settings, and lets users filter them with `@tag:experimental`, `@tag:preview`, and `@tag:stable`. When the feature graduates, remove the tag (and maybe change the default); the ID stays the same and nobody's settings break.
 
-An `experimental` tag doesn't put a setting under A/B experiment control. That needs `experiment: { mode }` (see the [experiments skill](../experiments/SKILL.md)). Renaming an experiment-controlled setting also requires updating its treatment in ExP.
+An `experimental` tag doesn't put a setting under A/B experiment control. That needs `experiment: { mode }` (see the [experiments skill](../experiments/SKILL.md)). The treatment name defaults to `config.<setting ID>`, so when you rename an experiment-controlled setting, keep the old treatment with `experiment: { mode, name: 'config.<old ID>' }`; ExP needs updating only if the resolved treatment name changes.
 
 The only exception is a setting that will be deleted rather than promoted, for example a temporary toggle for an alternative implementation. A name that says so is acceptable there, but the tag is still preferred.
 
