@@ -337,23 +337,30 @@ steps:
         WSL_SMOKE_DISTRO: $(WSL_SMOKE_DISTRO)
       condition: and(succeeded(), or(ne(variables['TEST_CHECKPOINT_SMOKE_WSL_KERBEROS_PROXY_HIT'], 'true'), ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PROXY_HIT'], 'true'), and(${{ containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-pac-proxy') }}, ne(variables['TEST_CHECKPOINT_SMOKE_WSL_BASIC_PAC_PROXY_HIT'], 'true'))))
 
-  # The script configures a test Kerberos realm, CA and PAC on the elevated agent and reverts them.
+  # The script configures a test Kerberos realm, CA and PAC on the elevated agent and reverts them. With the server of
+  # this run, whose Copilot runtime proxies sandboxed commands with the client's Kerberos tickets, the sandbox suite
+  # runs as well.
   - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy')) }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: smoke-wsl-kerberos-proxy
         testStep:
-          pwsh: .\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -Distribution $env:WSL_SMOKE_DISTRO -WslServerPath $env:WSL_KERBEROS_SERVER_PATH -Suites $env:WSL_KERBEROS_SUITES --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)" --skip-stable-build
+          pwsh: |
+            .\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -Distribution $env:WSL_SMOKE_DISTRO -WslServerPath $env:WSL_KERBEROS_SERVER_PATH -Suites $env:WSL_KERBEROS_SUITES --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)" --skip-stable-build
+            if ($env:WSL_KERBEROS_SANDBOX) {
+              .\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -Distribution $env:WSL_SMOKE_DISTRO -WslServerPath $env:WSL_KERBEROS_SERVER_PATH -Suites AgentsWindow -Sandbox --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)" --skip-stable-build
+            }
           env:
             WSL_SMOKE_DISTRO: $(WSL_SMOKE_DISTRO)
             ${{ if eq(parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT, true) }}:
               WSL_KERBEROS_SERVER_PATH: $(WSL_SMOKE_BUILD_SERVER_PATH)
               WSL_KERBEROS_SUITES: All
+              WSL_KERBEROS_SANDBOX: '1'
             ${{ else }}:
               WSL_KERBEROS_SERVER_PATH: $(WSL_SMOKE_SERVER_PATH)
               WSL_KERBEROS_SUITES: AgentsWindow
           displayName: 🧪 Run WSL Kerberos proxy smoke tests (Electron)
-          timeoutInMinutes: 30
+          timeoutInMinutes: 40
 
   # Only the editor window suite runs, with the proxy and its credentials in the http.proxy setting. The script trusts a
   # test CA on the elevated agent and reverts it.
@@ -371,21 +378,27 @@ steps:
 
   # Only the Agents Window suites run, with a local Agent Host and with one in WSL, which use the PAC and type the proxy's
   # credentials into the proxy login dialog. The script trusts a test CA and configures a PAC on the elevated agent and
-  # reverts them.
+  # reverts them. With the server of this run, whose Copilot runtime proxies sandboxed commands with the client's
+  # credentials, the sandbox suites run as well.
   - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-pac-proxy')) }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: smoke-wsl-basic-pac-proxy
         testStep:
-          pwsh: .\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth BasicPac -Distribution $env:WSL_SMOKE_DISTRO -WslServerPath $env:WSL_BASIC_PAC_SERVER_PATH --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)" --skip-stable-build
+          pwsh: |
+            .\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth BasicPac -Distribution $env:WSL_SMOKE_DISTRO -WslServerPath $env:WSL_BASIC_PAC_SERVER_PATH --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)" --skip-stable-build
+            if ($env:WSL_BASIC_PAC_SANDBOX) {
+              .\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth BasicPac -Sandbox -Distribution $env:WSL_SMOKE_DISTRO -WslServerPath $env:WSL_BASIC_PAC_SERVER_PATH --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)" --skip-stable-build
+            }
           env:
             WSL_SMOKE_DISTRO: $(WSL_SMOKE_DISTRO)
             ${{ if eq(parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT, true) }}:
               WSL_BASIC_PAC_SERVER_PATH: $(WSL_SMOKE_BUILD_SERVER_PATH)
+              WSL_BASIC_PAC_SANDBOX: '1'
             ${{ else }}:
               WSL_BASIC_PAC_SERVER_PATH: $(WSL_SMOKE_SERVER_PATH)
           displayName: 🧪 Run WSL Basic PAC proxy smoke tests (Electron)
-          timeoutInMinutes: 30
+          timeoutInMinutes: 40
 
   - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-pac-proxy'))) }}:
     - pwsh: .\test\smoke\wslDevContainer.ps1 -CI AzureDevOps -Operation Cleanup -Distribution $env:WSL_SMOKE_DISTRO -Root $env:WSL_SMOKE_ROOT
