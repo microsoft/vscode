@@ -1555,7 +1555,7 @@ export class NewChatWidget extends Disposable {
 		const newWorktree = this._newWorktree;
 		const folder = session.workspace.get()?.folders[0]?.root;
 		const control = this._getWorktreeSendChoiceControl();
-		if (!provider || !newWorktree || !folder || isSessionCreated(session) || session.isQuickChat?.get()
+		if (!provider || !newWorktree || !folder || !control || isSessionCreated(session) || session.isQuickChat?.get()
 			|| !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled)
 			|| this._pendingWorktreePlacement.get()
 			|| !newWorktree.isAvailable() || newWorktree.isSelected() || newWorktree.isUserChosen()
@@ -1566,7 +1566,6 @@ export class NewChatWidget extends Disposable {
 		this._askingWorktreeOnSend.add(session.sessionId);
 		try {
 			// `undefined` is no answer, such as where the question could not be shown: the request is sent in the folder.
-			// Without a control, only a remembered answer applies.
 			const choice = await provider.askWorktreeOnSend(control);
 			// Only to the draft it asked for: one the user switched from or closed meanwhile is not sent by the composer.
 			if (choice === 'worktree' && !this._store.isDisposed && this._session.get()?.sessionId === session.sessionId) {

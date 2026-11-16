@@ -5065,15 +5065,12 @@ suite('NewChatWidget', () => {
 						userChose: await asked({ userChosen: true }),
 						requestedPlacement: await asked({ placement: true }),
 						noRecentChat: await asked({ recent: false }),
+						noControl: await asked({ control: false }),
 						anotherChat: await asked({}, URI.parse('agent-host-copilotcli:/untitled-other')),
-					}, { noProvider: none, aiOff: none, quickChat: none, noNewWorktree: none, newWorktree: none, userChose: none, requestedPlacement: none, noRecentChat: none, anotherChat: none });
+					}, { noProvider: none, aiOff: none, quickChat: none, noNewWorktree: none, newWorktree: none, userChose: none, requestedPlacement: none, noRecentChat: none, noControl: none, anotherChat: none });
 				});
 
-				test('without a control to ask on, only a remembered answer applies; a provider that fails to tell of recent chats never costs the request', async () => {
-					const remembered = harness({ control: false });
-					remembered.answer.complete('worktree');
-					const rememberedResult = { taken: await remembered.send(), calls: remembered.calls };
-					remembered.unregister();
+				test('a provider that fails to tell of recent chats never costs the request', async () => {
 					const failing = harness({ recent: new Error('recent failed') });
 					const errors: unknown[] = [];
 					const previousHandler = errorHandler.getUnexpectedErrorHandler();
@@ -5086,8 +5083,7 @@ suite('NewChatWidget', () => {
 						failing.unregister();
 					}
 
-					assert.deepStrictEqual({ remembered: rememberedResult, failing: failingResult, reported: errors.map(error => (error as Error).message) }, {
-						remembered: { taken: false, calls: ['ask /untitled-draft in /repo', 'New Worktree true'] },
+					assert.deepStrictEqual({ failing: failingResult, reported: errors.map(error => (error as Error).message) }, {
 						failing: { taken: false, calls: [] },
 						reported: ['recent failed'],
 					});

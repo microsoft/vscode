@@ -21,7 +21,7 @@ export interface INewSessionWorktreeSendChoiceProvider {
 	 * Where the session works: as the user chose once, else as the user chooses now in a callout on `control`, while the send
 	 * waits. `undefined` is no answer, such as where it could not ask: the session then works in its folder.
 	 */
-	askWorktreeOnSend(control: HTMLElement | undefined): Promise<NewSessionWorktreeSendChoice | undefined>;
+	askWorktreeOnSend(control: HTMLElement): Promise<NewSessionWorktreeSendChoice | undefined>;
 }
 
 let provider: INewSessionWorktreeSendChoiceProvider | undefined;
