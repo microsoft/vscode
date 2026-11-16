@@ -739,7 +739,7 @@ suite('SharedChatInputComposer', () => {
 		});
 	}
 
-	test('a request waiting on a submit handler is sent for its own draft only: not once the composer moved to another, which says so, nor once it was closed', async () => {
+	test('a request waiting on a submit handler is sent for its own draft only: not once the composer moved to another with the same input, which keeps it and says so, nor once it was closed', async () => {
 		const results = [];
 		for (const change of ['switched', 'closed'] as const) {
 			const handling = new DeferredPromise<boolean>();

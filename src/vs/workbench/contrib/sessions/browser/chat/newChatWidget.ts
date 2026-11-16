@@ -11,7 +11,7 @@ import { Action, toAction } from '../../../../../base/common/actions.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { isErrorWithActions, toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedObservableWithCache, disposableObservableValue, IObservable, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, waitForState } from '../../../../../base/common/observable.js';
@@ -46,7 +46,7 @@ import { IAquariumService, IMountedToggleHandle } from '../aquarium.js';
 import { IWorkspacePickerNewWorktreeOption, IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { NewWorktreeChoice } from './newWorktreeChoice.js';
 import { NewWorktreeCheckbox } from './newWorktreeCheckbox.js';
-import { getNewSessionWorktreeSendChoice, INewSessionWorktreeSendChoiceProvider } from './newSessionWorktreeSendChoice.js';
+import { getNewSessionWorktreeSendChoice, INewSessionWorktreeSendChoiceProvider, NewSessionWorktreeSendChoice } from './newSessionWorktreeSendChoice.js';
 import { IChatSubmitRequest, IChatSubmitRequestHandlerService } from '../../../chat/browser/chatSubmitRequestHandlerService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
@@ -1565,18 +1565,38 @@ export class NewChatWidget extends Disposable {
 		// Held from the question to the answer applied: the send then goes out once, from the composer.
 		this._askingWorktreeOnSend.add(session.sessionId);
 		try {
-			// `undefined` is no answer, such as where the question could not be shown: the request is sent in the folder.
-			const choice = await provider.askWorktreeOnSend(control);
-			// Only to the draft it asked for: one the user switched from or closed meanwhile is not sent by the composer.
-			if (choice === 'worktree' && !this._store.isDisposed && this._session.get()?.sessionId === session.sessionId) {
-				// Where its agent does not take it, the draft stays in its folder, where the request is sent.
-				if (!newWorktree.isAvailable() || !await newWorktree.setSelected(true)) {
-					this._warnNewWorktreeUnavailable();
-				}
+			let choice: NewSessionWorktreeSendChoice | undefined;
+			try {
+				// `undefined` is no answer, such as where the question could not be shown: the request is sent in the folder.
+				choice = await provider.askWorktreeOnSend(control);
+			} catch (error) {
+				// Nothing changed yet: the request is sent in the folder, as it would have been
+				onUnexpectedError(error);
+				return false;
 			}
-		} catch (error) {
-			// Never at the cost of the request: it is sent as it is
-			onUnexpectedError(error);
+			// Only to the draft it asked for: one the user switched from or closed meanwhile is not sent by the composer.
+			const isSourceDraft = () => !this._store.isDisposed && this._session.get()?.sessionId === session.sessionId;
+			if (choice !== 'worktree' || !isSourceDraft()) {
+				return false;
+			}
+			// As the draft is once its agent settled the write, not as the write tells: an agent can take the write without
+			// New Worktree, or reject it after it showed New Worktree.
+			const applied = newWorktree.isAvailable() && await newWorktree.setSelected(true) && newWorktree.isSelected();
+			if (applied || !isSourceDraft()) {
+				return false;
+			}
+			if (newWorktree.isSelected()) {
+				await newWorktree.setSelected(false);
+			}
+			if (!isSourceDraft()) {
+				return false;
+			}
+			if (newWorktree.isSelected()) {
+				// Neither in a new worktree as chosen, nor in its folder: not sent, and the draft is kept for the user.
+				this.notificationService.error(localize('newChatWidget.worktreeSendChoiceFailed', "The request was not sent because the new chat could not be set up to work in a new worktree or in its folder. Your draft was kept."));
+				throw new CancellationError();
+			}
+			this._warnNewWorktreeUnavailable();
 		} finally {
 			this._askingWorktreeOnSend.delete(session.sessionId);
 		}
