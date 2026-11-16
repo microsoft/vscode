@@ -15,7 +15,7 @@ import { toDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { NullOpenerService } from '../../../../../../../../platform/opener/test/common/nullOpenerService.js';
-import { IModelCardOptions, IPricingDisclosure, ModelCard } from '../../../../../browser/widget/input/modelPicker/modelPickerCard.js';
+import { IModelCardComparisonVariants, IModelCardOptions, IPricingDisclosure, ModelCard } from '../../../../../browser/widget/input/modelPicker/modelPickerCard.js';
 import { getModelHoverContent } from '../../../../../browser/widget/input/modelPicker/modelPickerHover.js';
 import { getModelConfigSummary, IModelConfigPropertySchema, IModelConfigurationAccess, ModelConfigChangeListener, setModelConfigValues } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../common/languageModels.js';
@@ -1405,6 +1405,38 @@ suite('ModelCard', () => {
 			});
 		});
 	}
+
+	test('updating a compared model during selection motion immediately rebinds variant actions', async () => {
+		const standard = createModel();
+		const fast = { ...standard, identifier: 'copilot/test-model-fast' };
+		const variants = [{ configuration: { effort: 'low' }, label: 'Low' }];
+		const removals: { modelId: string; index: number }[] = [];
+		const comparisonVariants = (modelId: string): IModelCardComparisonVariants => ({
+			list: variants,
+			onAdd: () => { },
+			onRemove: index => removals.push({ modelId, index }),
+		});
+		const result = await createAnimatedCard({
+			model: standard,
+			speedVariants: { standard, fast },
+			comparisonVariants: comparisonVariants(standard.identifier),
+		});
+		const context = element(result.card.element, '[role="radiogroup"][aria-label="Context"]');
+		element(context, '[role="radio"]:last-child').click();
+		const animations = element(context, '.monaco-radio-selection').getAnimations();
+		animations.forEach(animation => animation.pause());
+		result.card.refresh();
+		result.update({ model: fast, comparisonVariants: comparisonVariants(fast.identifier) });
+		const rebuilt = !context.isConnected;
+		element(result.card.element, '.chat-model-card-comparison-variant-remove').click();
+		animations.forEach(animation => animation.finish());
+		await timeout(0);
+
+		assert.deepStrictEqual({ rebuilt, removals }, {
+			rebuilt: true,
+			removals: [{ modelId: fast.identifier, index: 0 }],
+		});
+	});
 
 	test('replacing a model tier during selection motion immediately updates its selection target', async () => {
 		const standard = createModel({

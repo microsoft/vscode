@@ -166,11 +166,19 @@ function getControlBindings(options: IModelCardOptions): readonly (readonly unkn
 		const property = getModelConfigProperty(options.model, options.configurationAccess, group, options.useModelConfigurationSchema);
 		return property ? [property.key, ...getModelConfigChoices(property).flatMap(choice => [choice.value, choice.readOnly])] : [];
 	});
+	const comparisonBindings = options.comparisonVariants ? [
+		[options.model.identifier],
+		...options.comparisonVariants.list.map(variant => [
+			variant.label,
+			...Object.keys(variant.configuration).sort().flatMap(key => [key, variant.configuration[key]]),
+		]),
+	] : [];
 	return [
 		...configurationBindings,
 		options.speedVariants ? [options.speedVariants.standard.identifier, options.speedVariants.fast.identifier] : [],
 		options.modelChoices?.choices.map(choice => choice.model.identifier) ?? [],
 		options.routingAlternatives?.flatMap(alternative => [alternative.model.identifier, alternative.replacesTier, alternative.selectsTier]) ?? [],
+		...comparisonBindings,
 	];
 }
 

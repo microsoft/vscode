@@ -48,7 +48,7 @@ import { IModelPickerOrganizationSupport } from '../../../../../browser/widget/i
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelConfigurationAccess, IModelControlEntry, IModelsControlManifest } from '../../../../../common/languageModels.js';
 import { withoutFusionEffortLevel, type IModelConfigPropertySchema } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ChatConfiguration } from '../../../../../common/constants.js';
-import { IModelPickerComparison, IModelPickerComparisonState, ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from '../../../../../browser/widget/input/modelPicker/modelPickerComparison.js';
+import { IModelPickerComparison, IModelPickerComparisonState, IModelPickerComparisonVariant, ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from '../../../../../browser/widget/input/modelPicker/modelPickerComparison.js';
 import { createLocalModelPickerPresentation, IModelPickerLocalModels } from '../../../../../browser/widget/input/modelPicker/modelPickerLocalModelItems.js';
 import { SessionType } from '../../../../../common/chatSessionsService.js';
 import { ILocalModelFamilyV1, ILocalModelStatusV1 } from '../../../../../../../../platform/agentHost/common/localModel.js';
@@ -1339,6 +1339,74 @@ suite('TabbedModelPicker', () => {
 			badgeAfterRemove: 'High · 32K',
 		});
 	});
+
+	test('consecutive comparison removals during selection motion use the current variant indices', async () => {
+		const base = model('Compared');
+		const compared: ILanguageModelChatMetadataAndIdentifier = {
+			...base,
+			metadata: {
+				...base.metadata,
+				configurationSchema: {
+					properties: {
+						...base.metadata.configurationSchema!.properties,
+						effort: { type: 'string', group: 'navigation', enum: ['low', 'medium', 'high', 'max'], enumItemLabels: ['Low', 'Medium', 'High', 'Max'], default: 'low' },
+					},
+				},
+			},
+		};
+		let variants: IModelPickerComparisonVariant[] = [
+			{ configuration: { effort: 'medium' }, label: 'Medium' },
+			{ configuration: { effort: 'high' }, label: 'High' },
+			{ configuration: { effort: 'max' }, label: 'Max' },
+		];
+		const removedIndices: number[] = [];
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+		const comparison: IModelPickerComparison = {
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+			start: () => state.set({
+				title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [compared.identifier],
+				multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: true,
+			}, undefined),
+			cancel: () => state.set(undefined, undefined), reset: () => state.set(undefined, undefined),
+			select: () => { }, setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+			getVariants: modelId => modelId === compared.identifier ? variants.map(variant => ({ ...variant, configuration: { ...variant.configuration } })) : [],
+			addVariant: () => { },
+			removeVariant: (_modelId, index) => {
+				removedIndices.push(index);
+				variants = variants.filter((_, candidate) => candidate !== index);
+			},
+		};
+		const result = createPicker({ models: [compared], comparison });
+		element(result.popup, '[aria-label="Compare Models"]').click();
+		openDetails(result.popup, compared.metadata.name);
+		await enableSelectionMotion(result.popup);
+		const context = element(result.popup, '.chat-model-card [role="radiogroup"][aria-label="Context"]');
+		element(context, '[role="radio"]:last-child').click();
+		const animations = element(context, '.monaco-radio-selection').getAnimations();
+		animations.forEach(animation => animation.pause());
+		const reducedMotion = dom.getWindow(context).matchMedia('(prefers-reduced-motion: reduce)').matches;
+		result.picker.refresh();
+		const beforeRemoval = {
+			motionStarted: reducedMotion || animations.length > 0,
+			motionPreserved: reducedMotion || context.isConnected,
+		};
+		const addedLabels = () => Array.from(result.popup.querySelectorAll('.chat-model-card-comparison-variant-chip.added'), chip => chip.textContent?.trim());
+		element(result.popup, '[aria-label="Remove the Medium attempt"]').click();
+		const afterFirst = addedLabels();
+		element(result.popup, '[aria-label="Remove the High attempt"]').click();
+		const afterSecond = addedLabels();
+		animations.forEach(animation => animation.finish());
+		await timeout(0);
+
+		assert.deepStrictEqual({ beforeRemoval, afterFirst, afterSecond, removedIndices, remaining: variants.map(variant => variant.label) }, {
+			beforeRemoval: { motionStarted: true, motionPreserved: true },
+			afterFirst: ['High', 'Max'],
+			afterSecond: ['Max'],
+			removedIndices: [0, 0],
+			remaining: ['Max'],
+		});
+	});
+
 	for (const committed of [false, true]) {
 		for (const dismissal of ['Escape', 'click-away'] as const) {
 			test(`${dismissal} cancels working selections without changing ${committed ? 'committed comparison' : 'single-model'} state`, () => {
