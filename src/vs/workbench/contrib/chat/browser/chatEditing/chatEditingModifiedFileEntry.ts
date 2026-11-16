@@ -172,7 +172,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 					const remain = Math.round(future - Date.now());
 					if (remain <= 0) {
-						this.accept();
+						this.accept(false);
 					} else {
 						const handle = setTimeout(update, 100);
 						this._autoAcceptCtrl.set(new AutoAcceptControl(acceptTimeout, remain, () => {
@@ -222,30 +222,30 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		this._telemetryInfo = telemetryInfo;
 	}
 
-	async accept(): Promise<void> {
-		const callback = await this.acceptDeferred();
+	async accept(isUserInitiated = true): Promise<void> {
+		const callback = await this.acceptDeferred(isUserInitiated);
 		if (callback) {
 			transaction(callback);
 		}
 	}
 
 	/** Accepts and returns a function used to transition the state. This MUST be called by the consumer. */
-	async acceptDeferred(): Promise<((tx: ITransaction) => void) | undefined> {
+	async acceptDeferred(isUserInitiated = true): Promise<((tx: ITransaction) => void) | undefined> {
 		if (this._stateObs.get() !== ModifiedFileEntryState.Modified) {
 			// already accepted or rejected
 			return;
 		}
 
-		await this._doAccept();
+		await this._doAccept(isUserInitiated);
 
 		return (tx: ITransaction) => {
 			this._stateObs.set(ModifiedFileEntryState.Accepted, tx);
 			this._autoAcceptCtrl.set(undefined, tx);
-			this._notifySessionAction('accepted');
+			this._notifySessionAction('accepted', isUserInitiated);
 		};
 	}
 
-	protected abstract _doAccept(): Promise<void>;
+	protected abstract _doAccept(isUserInitiated: boolean): Promise<void>;
 
 	async reject(): Promise<void> {
 		const callback = await this.rejectDeferred();
@@ -272,11 +272,11 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	protected abstract _doReject(): Promise<void>;
 
-	protected _notifySessionAction(outcome: 'accepted' | 'rejected' | 'userModified') {
-		this._notifyAction({ kind: 'chatEditingSessionAction', uri: this.modifiedURI, hasRemainingEdits: outcome === 'userModified', outcome });
+	protected _notifySessionAction(outcome: 'accepted' | 'rejected' | 'userModified', isUserInitiated = true) {
+		this._notifyAction({ kind: 'chatEditingSessionAction', uri: this.modifiedURI, hasRemainingEdits: outcome === 'userModified', outcome }, isUserInitiated);
 	}
 
-	protected _notifyAction(action: ChatUserAction) {
+	protected _notifyAction(action: ChatUserAction, isUserInitiated = true) {
 		const isAgentHostSession = isAgentHostSessionResource(this._telemetryInfo.sessionResource);
 		if (action.kind === 'chatEditingHunkAction' && action.outcome === 'accepted') {
 			this._aiEditTelemetryService.handleCodeAccepted({
@@ -324,6 +324,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 		this._chatService.notifyUserAction({
 			action,
+			isUserInitiated,
 			agentId: this._telemetryInfo.agentId,
 			modelId: this._telemetryInfo.modelId,
 			modeId: this._telemetryInfo.modeId,
@@ -376,7 +377,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 		if (await this._areOriginalAndModifiedIdentical()) {
 			// ACCEPT if identical
-			await this.accept();
+			await this.accept(false);
 		}
 	}
 

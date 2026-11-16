@@ -77,6 +77,7 @@ import { OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/c
 import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import '../../../../../workbench/browser/actions/listCommands.js';
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
+import { MessageKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../../workbench/contrib/sessions/browser/dnd.js';
 import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
@@ -5730,7 +5731,42 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual(opened, ['later']);
 		});
 
-		for (const action of ['request', 'copy'] as const) {
+		test('Inbox ignores non-user messages and automatic edit acceptance, including after Return to Inbox', () => {
+			const { session } = buildTestSession({ id: 'ready', title: 'Ready' });
+			const harness = createListHarness(disposables, [session]);
+			const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
+			const performed = disposables.add(new Emitter<IChatUserActionEvent>());
+			harness.instantiationService.stub(IChatService, new class extends MockChatService {
+				override readonly onDidAcceptRequest = accepted.event;
+				override readonly onDidPerformUserAction = performed.event;
+			});
+			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+			harness.instantiationService.stub(ISessionsListModelService, model);
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+			}));
+			list.layout(600, 400);
+			const sections: SessionInboxSection[] = [];
+			for (const resumed of [false, true]) {
+				if (resumed) {
+					model.setInboxState([session], 'done');
+					model.setInboxState([session], undefined);
+				}
+				for (const kind of [MessageKind.Agent, MessageKind.Tool, MessageKind.Automation, MessageKind.SystemNotification]) {
+					accepted.fire({ chatSessionResource: session.mainChat.get().resource, isNewSession: false, agentHostMessageOrigin: { kind } });
+					sections.push(getSessionInboxSection(session, model.getInboxState(session)));
+				}
+				performed.fire({
+					sessionResource: session.mainChat.get().resource, requestId: 'request', agentId: undefined, command: undefined, result: undefined,
+					isUserInitiated: false,
+					action: { kind: 'chatEditingSessionAction', uri: URI.file('/workspace/file.ts'), outcome: 'accepted', hasRemainingEdits: false },
+				});
+				sections.push(getSessionInboxSection(session, model.getInboxState(session)));
+			}
+			assert.deepStrictEqual(sections, Array(10).fill(SessionInboxSection.ReadyForYou));
+		});
+
+		for (const action of ['request', 'userRequest', 'copy', 'acceptEdits'] as const) {
 			test(`Inbox acknowledges ${action} but not opening, selecting, reading, or actions outside visible Inbox mode`, async () => {
 				const built = buildTestSession({ id: 'ready', title: 'Ready', isRead: false });
 				const { session } = built;
@@ -5751,12 +5787,18 @@ suite('Sessions - SessionsList', () => {
 				}));
 				list.layout(600, 400);
 				const act = () => {
-					if (action === 'request') {
-						accepted.fire({ chatSessionResource: session.mainChat.get().resource, isNewSession: false });
+					if (action === 'request' || action === 'userRequest') {
+						accepted.fire({
+							chatSessionResource: session.mainChat.get().resource, isNewSession: false,
+							agentHostMessageOrigin: action === 'userRequest' ? { kind: MessageKind.User } : undefined,
+						});
 					} else {
 						performed.fire({
 							sessionResource: session.mainChat.get().resource, requestId: 'request', agentId: undefined, command: undefined, result: undefined,
-							action: { kind: 'copy', copyKind: ChatCopyKind.Action, codeBlockIndex: 0, copiedCharacters: 1, totalCharacters: 1, copiedText: 'x', totalLines: 1, copiedLines: 1, modelId: 'test' },
+							isUserInitiated: action === 'acceptEdits' ? true : undefined,
+							action: action === 'acceptEdits'
+								? { kind: 'chatEditingSessionAction', uri: URI.file('/workspace/file.ts'), outcome: 'accepted', hasRemainingEdits: false }
+								: { kind: 'copy', copyKind: ChatCopyKind.Action, codeBlockIndex: 0, copiedCharacters: 1, totalCharacters: 1, copiedText: 'x', totalLines: 1, copiedLines: 1, modelId: 'test' },
 						});
 					}
 				};

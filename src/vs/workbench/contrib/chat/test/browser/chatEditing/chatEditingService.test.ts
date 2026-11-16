@@ -59,6 +59,8 @@ import { MockPromptsService } from '../../common/promptSyntax/service/mockPrompt
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 
 function getAgentData(id: string): IChatAgentData {
 	return {
@@ -83,9 +85,16 @@ suite('ChatEditingService', function () {
 	let editingService: ChatEditingService;
 	let chatService: IChatService;
 	let textModelService: ITextModelService;
+	let configurationService: TestConfigurationService;
 
 	setup(function () {
 		const collection = new ServiceCollection();
+		configurationService = new TestConfigurationService();
+		collection.set(IConfigurationService, configurationService);
+		collection.set(IAiEditTelemetryService, new class extends mock<IAiEditTelemetryService>() {
+			override handleCodeAccepted(): void { }
+			override handleCodeRejected(): void { }
+		});
 		collection.set(ICommandService, NullCommandService);
 		collection.set(IWorkbenchAssignmentService, new NullWorkbenchAssignmentService());
 		collection.set(IChatAgentService, new SyncDescriptor(ChatAgentService));
@@ -294,9 +303,9 @@ suite('ChatEditingService', function () {
 
 		assert.ok(isEqual(entry.modifiedURI, uri));
 
-		chatRequest.response.complete();
-
 		await isStreaming;
+
+		chatRequest.response.complete();
 
 		const isIdle = waitForState(session.state.map(s => s === ChatEditingSessionState.Idle), Boolean);
 		await isIdle;
@@ -343,6 +352,36 @@ suite('ChatEditingService', function () {
 			})));
 		});
 	});
+
+	for (const acceptance of ['explicit', 'automatic', 'identical'] as const) {
+		test(`edit acceptance identifies ${acceptance} actions`, () => runWithFakedTimers({}, async () => {
+			if (acceptance === 'automatic') {
+				await configurationService.setUserConfiguration('chat.editing.autoAcceptDelay', 1);
+			}
+			const uri = URI.from({ scheme: 'test', path: 'acceptance\n' });
+			const modelRef = store.add(chatService.startNewLocalSession(ChatAgentLocation.Chat));
+			const model = modelRef.object as ChatModel;
+			const session = model.editingSession;
+			assertType(session);
+			const actions: { kind: string; outcome: string; isUserInitiated: boolean | undefined }[] = [];
+			store.add(chatService.onDidPerformUserAction(event => {
+				if (event.action.kind === 'chatEditingSessionAction' || event.action.kind === 'chatEditingHunkAction') {
+					actions.push({ kind: event.action.kind, outcome: event.action.outcome, isUserInitiated: event.isUserInitiated });
+				}
+			}));
+			const entry = await idleAfterEdit(session, model, uri, [{
+				range: new Range(1, 1, 1, 1), text: acceptance === 'identical' ? '' : 'edit\n',
+			}]);
+			if (acceptance === 'explicit') {
+				await waitForState(entry.changesCount, count => count > 0);
+				await session.accept(uri);
+			}
+			await waitForState(entry.state, state => state === ModifiedFileEntryState.Accepted);
+			assert.deepStrictEqual(actions, (acceptance === 'identical' ? ['chatEditingSessionAction'] : ['chatEditingHunkAction', 'chatEditingSessionAction']).map(kind => ({
+				kind, outcome: 'accepted', isUserInitiated: acceptance === 'explicit',
+			})));
+		}));
+	}
 
 	test('mirror typing outside -> accept', async function () {
 		return runWithFakedTimers({}, async () => {

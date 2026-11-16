@@ -38,7 +38,7 @@ import { pendingRewriteMinimap } from './chatEditingModifiedFileEntry.js';
 import { chatSessionResourceToId } from '../../common/model/chatUri.js';
 
 type affectedLines = { linesAdded: number; linesRemoved: number; lineCount: number; hasRemainingEdits: boolean };
-type acceptedOrRejectedLines = affectedLines & { state: 'accepted' | 'rejected' };
+type acceptedOrRejectedLines = affectedLines & { state: 'accepted' | 'rejected'; isUserInitiated: boolean };
 
 export class ChatEditingTextModelChangeService extends Disposable {
 
@@ -107,9 +107,9 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	private readonly _didAcceptOrRejectLines = this._register(new Emitter<acceptedOrRejectedLines>());
 	public readonly onDidAcceptOrRejectLines = this._didAcceptOrRejectLines.event;
 
-	private notifyHunkAction(state: 'accepted' | 'rejected', affectedLines: affectedLines) {
+	private notifyHunkAction(state: 'accepted' | 'rejected', affectedLines: affectedLines, isUserInitiated = true) {
 		if (affectedLines.lineCount > 0) {
-			this._didAcceptOrRejectLines.fire({ state, ...affectedLines });
+			this._didAcceptOrRejectLines.fire({ state, ...affectedLines, isUserInitiated });
 		}
 	}
 
@@ -318,8 +318,8 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	/**
 	 * Keeps the current modified document as the final contents.
 	 */
-	public keep() {
-		this.notifyHunkAction('accepted', { linesAdded: this.linesAdded, linesRemoved: this.linesRemoved, lineCount: this.lineChangeCount, hasRemainingEdits: false });
+	public keep(isUserInitiated = true) {
+		this.notifyHunkAction('accepted', { linesAdded: this.linesAdded, linesRemoved: this.linesRemoved, lineCount: this.lineChangeCount, hasRemainingEdits: false }, isUserInitiated);
 		this.originalModel.setValue(this.modifiedModel.createSnapshot());
 		this._reset();
 	}

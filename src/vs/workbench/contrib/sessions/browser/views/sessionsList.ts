@@ -70,6 +70,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { getRepositoryRootFromWorktree } from '../../../../../platform/agentHost/common/worktreePaths.js';
+import { MessageKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getGitHubRepositoryOfRemoteFile, getGitHubRepositoryOfUrl, getSessionFolderGitHubRepository, getSessionPresentationWorkspace, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind, hasMixedChatHarnesses } from '../../../../services/sessions/common/session.js';
@@ -5001,12 +5002,19 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		};
 		this._register(chatService.onDidAcceptRequest(event => {
+			if (event.agentHostMessageOrigin && event.agentHostMessageOrigin.kind !== MessageKind.User) {
+				return;
+			}
 			if (!event.isNewSession && !event.agentHostMessageOrigin) {
 				this.advanceInboxAfterSend(event.chatSessionResource);
 			}
 			acknowledgeChat(event.chatSessionResource);
 		}));
-		this._register(chatService.onDidPerformUserAction(event => acknowledgeChat(event.sessionResource)));
+		this._register(chatService.onDidPerformUserAction(event => {
+			if (event.isUserInitiated !== false) {
+				acknowledgeChat(event.sessionResource);
+			}
+		}));
 		for (const key of [SessionsList.EXCLUDED_TYPES_KEY, SessionsList.EXCLUDED_STATUSES_KEY, SessionsList.EXCLUDE_READ_KEY, SessionsList.SHOW_EMPTY_GROUPS_KEY]) {
 			this.storageService.remove(key, StorageScope.PROFILE);
 		}
