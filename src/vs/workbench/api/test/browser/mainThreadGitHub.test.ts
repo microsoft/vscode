@@ -224,8 +224,8 @@ suite('MainThreadGitHub', () => {
 				{ operation: 'RepositoryViewerInfo', variables: { owner: 'o', name: 'r' }, priority: undefined },
 				{ operation: 'RepositoryRulesets', variables: { owner: 'o', name: 'r', first: 100 }, priority: undefined },
 				{ operation: 'RepositoryRulesets', variables: { owner: 'o', name: 'r', first: 100, after: 'next' }, priority: undefined },
-				{ operation: 'RepositoryAssignableUsers', variables: { owner: 'o', name: 'r', first: 100 }, priority: 'enrichment' },
-				{ operation: 'RepositoryCommitAuthor', variables: { owner: 'o', name: 'r', expression: 'HEAD' }, priority: 'enrichment' },
+				{ operation: 'RepositoryAssignableUsers', variables: { owner: 'o', name: 'r', first: 100 }, priority: undefined },
+				{ operation: 'RepositoryCommitAuthor', variables: { owner: 'o', name: 'r', expression: 'HEAD' }, priority: undefined },
 			],
 		});
 	});

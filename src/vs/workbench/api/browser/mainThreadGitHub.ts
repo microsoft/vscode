@@ -189,12 +189,12 @@ export class MainThreadGitHub extends Disposable implements MainThreadGitHubShap
 
 	async $listGitHubAssignableUsers(handle: number, repository: RepositoryRef, token: CancellationToken): Promise<GitHubResultDto<Connection<RepositoryAssignableUser> | null>> {
 		return this._runAuthenticated(handle, token, (client, signal, options) => client.repositories.listAssignableUsers(validateRequest(repository, parseRepositoryRef), signal, {
-			...options, priority: 'enrichment', query: { first: 100 },
+			...options, query: { first: 100 },
 		}));
 	}
 
 	async $getGitHubCommitAuthor(handle: number, repository: RepositoryRef, ref: string, token: CancellationToken): Promise<GitHubResultDto<RepositoryCommitAuthor | null>> {
-		return this._runAuthenticated(handle, token, (client, signal, options) => client.repositories.getCommitAuthor(validateRequest(repository, parseRepositoryRef), validateRequest(ref, parse.nonEmptyString), signal, { ...options, priority: 'enrichment' }));
+		return this._runAuthenticated(handle, token, (client, signal, options) => client.repositories.getCommitAuthor(validateRequest(repository, parseRepositoryRef), validateRequest(ref, parse.nonEmptyString), signal, options));
 	}
 
 	private async _acquire(
