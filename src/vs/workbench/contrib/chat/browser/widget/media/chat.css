@@ -1505,8 +1505,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	transition: background-color 250ms ease, color 250ms ease;
 }
 
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item .action-label.codicon-arrow-up-compact {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
 /* Nudge icon position to ensure it looks optically aligned within the button */
-.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label.codicon-arrow-up-compact::before {
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item .action-label.codicon-arrow-up-compact::before {
 	display: inline-block;
 	transform: translateY(0.5px);
 }
