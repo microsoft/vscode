@@ -284,7 +284,11 @@ export async function isExternalSymlinkedFile(uri: URI, getFolder: (uri: URI) =>
 	return (await getWorkspaceFileExternalConfirmation(uri, getFolder)).needsConfirmation;
 }
 
-async function getWorkspaceFileExternalConfirmation(uri: URI, getFolder: (uri: URI) => URI | undefined): Promise<FileExternalConfirmationResult> {
+/**
+ * Checks whether `uri`, lexically inside a folder returned by `getFolder`, resolves through a symlink or junction
+ * to a location outside every such folder. When it does, `realPath` is the resolved location.
+ */
+export async function getWorkspaceFileExternalConfirmation(uri: URI, getFolder: (uri: URI) => URI | undefined): Promise<FileExternalConfirmationResult> {
 	if (uri.scheme !== Schemas.file) {
 		return { needsConfirmation: false, realPath: undefined };
 	}
