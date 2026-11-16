@@ -14,6 +14,7 @@ import { ServiceCollection } from '../../../../../../../platform/instantiation/c
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { getEditorWindowSessionsSingletons } from '../../../../browser/editorWindow/editorWindowSessionsServices.js';
 import { ISessionAttentionService } from '../../../../common/sessionAttentionService.js';
+import { IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { EditorWindowMainSessionHost } from '../../../../browser/agentsView/editorWindowMainSessionHost.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
@@ -105,8 +106,9 @@ suite('Editor window sessions services', () => {
 		const descriptorOf = (id: unknown) => registered.find(([candidate]) => candidate === id)?.[1];
 		const singletons = [
 			...getEditorWindowSessionsSingletons(),
-			// Registered by its module, which the Agents window loads too
+			// Registered by their modules, which the Agents window loads too
 			{ id: ISessionAttentionService, ctor: descriptorOf(ISessionAttentionService)!.ctor },
+			{ id: IDevContainerAgentHostService, ctor: descriptorOf(IDevContainerAgentHostService)!.ctor },
 		];
 		// Created as they are injected, not as they are first used, so that none is created after the test ends
 		const services = new ServiceCollection();

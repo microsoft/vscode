@@ -9,13 +9,12 @@ import { isWeb } from '../../../../../../base/common/platform.js';
 import { InstantiationType } from '../../../../../../platform/instantiation/common/extensions.js';
 import { registerEditorWindowSessionsSingleton } from '../../../browser/editorWindow/editorWindowSessionsServices.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IDevContainerAgentHostService } from '../../../common/devContainerAgentHostService.js';
 import { IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
 import { registerLocalAgentHostSessionsProvider } from '../../agentHost/browser/localAgentHostSessionsProviderRegistration.js';
 import { registerCopilotChatSessionsProviders } from '../../copilotChatSessions/browser/copilotChatSessionsProvidersRegistration.js';
 import { registerAgentsViewComposerControls } from './agentsViewComposerControls.js';
-import { DevContainerAgentHostService } from '../../remoteAgentHost/browser/devContainerAgentHostService.js';
+import '../../remoteAgentHost/browser/devContainerAgentHostService.contribution.js';
 
 /**
  * Registers the sessions providers whose sessions an editor window shows, such as in a sessions list or the chat part: those of the local agent
@@ -100,5 +99,4 @@ export class AgentsViewProvidersService extends Disposable implements IAgentsVie
 	}
 }
 
-registerEditorWindowSessionsSingleton(IDevContainerAgentHostService, DevContainerAgentHostService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(IAgentsViewProvidersService, AgentsViewProvidersService, InstantiationType.Delayed);
