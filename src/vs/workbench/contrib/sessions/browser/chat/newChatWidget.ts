@@ -478,9 +478,9 @@ export class NewChatWidget extends Disposable {
 				}
 				return undefined;
 			},
-			// A composer restricted to its folders, such as an editor window's, also offers No Workspace beside them
-			// An editor window has no chat without a workspace: none is offered, and one chosen elsewhere is not restored
-			getNoWorkspaceOption: this._inEditorWindow ? undefined : () => this._getNoWorkspaceOption(),
+			// An editor window, whose composers are the ones restricted to its folders, has no chat without a workspace: none is
+			// offered, and one chosen elsewhere is not restored. The Agents window's composers offer it.
+			getNoWorkspaceOption: this._inEditorWindow || this._draftHost?.allowedFolders ? undefined : () => this._getNoWorkspaceOption(),
 			ownNoWorkspaceSelection: !!this._draftHost,
 			allowedFolders: this._draftHost?.allowedFolders,
 			getAllowedFolderPresentation: this._draftHost?.getFolderPresentation && (folderUri => this._draftHost?.getFolderPresentation?.(folderUri)),
