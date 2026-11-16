@@ -500,7 +500,7 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('the Grouping menu offers the groupings of its view: Time, Environment and Worktree in the editor window', () => {
+	test('the Grouping menu offers the groupings of its view: every grouping in the editor window', () => {
 		const { snapshot, contextKeyService } = createMenu();
 		const sessionsWindow = IsSessionsWindowContext.bindTo(contextKeyService);
 		const offered = (isSessionsWindow: boolean, groupings: readonly SessionsGrouping[]) => {
@@ -514,8 +514,8 @@ suite('Sessions - View Menu', () => {
 			sessionsWindowOffering: offered(true, EDITOR_WINDOW_SESSIONS_GROUPINGS.offered),
 		}, {
 			agentsWindow: ['Time', 'Workspace', 'Repository', 'Environment', 'Inbox Mode'],
-			editorWindow: ['Time', 'Environment', 'Worktree'],
-			sessionsWindowOffering: ['Time', 'Environment'],
+			editorWindow: ['Time', 'Workspace', 'Repository', 'Environment', 'Worktree', 'Inbox Mode'],
+			sessionsWindowOffering: ['Time', 'Workspace', 'Repository', 'Environment', 'Inbox Mode'],
 		});
 	});
 

@@ -30,8 +30,8 @@ import { EditorWindowSessionsContext, ISessionsViewOptions, SessionsView, Sessio
 import { AGENTS_VIEW_SETUP_VIEW_ID, AgentsViewAvailable, AgentsViewNeedsSetup, AgentsViewWhen } from './agentsView.js';
 import { AgentsViewSetupPane } from './agentsViewSetupPane.js';
 
-/** The editor window's Sessions view groups only by time, environment or worktree, by time until one is chosen. */
-export const EDITOR_WINDOW_SESSIONS_GROUPINGS = { offered: [SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Worktree], default: SessionsGrouping.Date };
+/** The editor window's Sessions view offers every grouping, also Worktree; until one is chosen it shows Inbox or Workspace, as the Inbox setting says. */
+export const EDITOR_WINDOW_SESSIONS_GROUPINGS: { readonly offered: readonly SessionsGrouping[]; readonly default?: SessionsGrouping } = { offered: Object.values(SessionsGrouping) };
 
 const SESSIONS_VIEW_TITLE = localize('editorWindowSessionsList.title', "Sessions");
 
