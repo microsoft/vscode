@@ -278,14 +278,19 @@ async function launchServer(browserType: BrowserType, browserChannel: BrowserCha
 	});
 
 	return new Promise(c => {
-		let serverFamily: string | undefined;
+		// Both lines can be split across stdout chunks, so match them on the output so far.
+		let output: string | undefined = '';
 		serverProcess.stdout!.on('data', data => {
-			const output = data.toString('ascii');
-			// Printed by server-main.ts when it starts listening, before the Web UI line.
-			serverFamily = output.match(/Server bound to .+ \((IPv4|IPv6)\)/)?.[1] ?? serverFamily;
-			const matches = output.match(/Web UI available at (.+)/);
+			if (output === undefined) {
+				return;
+			}
+			output += data.toString('ascii');
+			const matches = output.match(/Web UI available at (.+)\r?\n/);
 			if (matches !== null) {
-				c({ endpoint: new URL(matches[1]), server: serverProcess, serverFamily });
+				// Printed by server-main.ts when it starts listening, before the Web UI line.
+				const serverFamily = output.match(/Server bound to .+ \((IPv4|IPv6)\)/)?.[1];
+				output = undefined;
+				c({ endpoint: new URL(matches[1].trim()), server: serverProcess, serverFamily });
 			}
 		});
 	});
