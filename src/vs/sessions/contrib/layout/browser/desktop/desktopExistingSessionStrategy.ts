@@ -432,11 +432,12 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			if (!revealOnly && !state.auxiliaryBarVisible && this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
 				this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 			}
-			if ((sidePaneVisible || revealSavedComposition) && state.auxiliaryBarVisible && !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
-				this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
-			}
+			// An Editor revealed beside visible Details widens the side pane by the Details width, so reveal the Editor first.
 			if ((sidePaneVisible || revealSavedComposition) && state.editorVisible && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 				this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
+			}
+			if ((sidePaneVisible || revealSavedComposition) && state.auxiliaryBarVisible && !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+				this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 			}
 		} finally {
 			suppression.dispose();
