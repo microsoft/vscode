@@ -81,7 +81,7 @@ Principles are **evaluative**: each one is a question you can ask of any surface
 
 Chrome should recede until you engage it. A surface carrying a permanent fill, border, or focus ring it hasn't earned is competing with the user's content for attention it doesn't need. The modern look is **restrained**: things reveal themselves *on intent* - hover, focus, interaction - and sit quietly otherwise.
 
-Quiet must not mean invisible or difficult to operate. Preserve discoverable resize/scroll targets, readable operable controls, and visible keyboard focus. Judge the resting appearance alongside how a user finds and acquires the control.
+Quiet is not hidden. A control can recede without becoming a guessing game: you should still be able to find it, reach it, and see where keyboard focus has landed. Judge calm by how the surface feels to use, not just how little it draws.
 
 When this is wrong it sounds like *"this is loud at rest / should be quiet until hover"* or *"the focus ring is firing on click"* - a behavioral description, not a color value.
 
@@ -93,7 +93,7 @@ When this is wrong it sounds like *"this is loud at rest / should be quiet until
 
 Calm UI is generous and soft. Space isn't wasted; it's what lets the eye rest and groups things without drawing a single line. Edges are rounded rather than sharp. When a surface feels boxed-in or busy, the fix is usually more breathing room on the spacing ramp, not smaller content.
 
-Balance breathing room against usable content area in narrow and information-dense layouts. Evaluate spacing through the supported density modes rather than treating more padding as an unconditional improvement.
+Breathing room is there to serve the work, not squeeze it out. More padding isn't always more calm - especially in a narrow pane or a dense layout. Give the content room to breathe as well as the chrome.
 
 *Carried out by:* [the spacing ramp](#spacing-ramp), [elevation tiers](#elevation-tiers) (rounded, not sharp).
 
@@ -103,7 +103,9 @@ Balance breathing room against usable content area in narrow and information-den
 
 The UI should read like a person talking. Prefer a word to a mystery glyph; write in sentence case; keep the tone human. A lone unlabeled icon, or a Title-Cased Marketing Headline, makes the user work harder than they should - never cryptic, never shouting.
 
-Visible purpose and accessible naming are separate requirements. Where a persistent label is needed, a disappearing placeholder or hover is not a substitute; check the control before and after typing and at increased zoom. Gestures also need a discoverable affordance and keyboard alternative: documenting an invisible drag region does not make it understandable.
+An explanation should last as long as it's needed. If a field needs a label, its purpose shouldn't disappear when you start typing or wait behind a hover. A clear screen-reader name matters too; neither replaces the other. Gestures need the same kindness: a visible invitation and a keyboard alternative, not a blank patch you have to know to drag.
+
+And an invitation should be honest. A grab hand says *"you can move this"* - does that move make sense in the layout the user can see? Moving a pane beside another, detaching it, and moving the window are different promises. Make the intended one clear, and make sure the gesture delivers it.
 
 *Carried out by:* [words & casing](#words-casing).
 
@@ -139,7 +141,9 @@ Reuse these patterns rather than copying entire implementations:
 
 Every view should have a clear **center of attention** - the one thing the eye should land on first. Keep secondary information *out* of that spot: demote it with a quieter type role, a recessed surface, or a smaller icon, so the thing that matters leads and everything else supports it. A view where everything has equal weight is *flat* - the eye has nowhere to go.
 
-Attention-required states may deliberately interrupt quiet chrome. Verify they remain recognizable while the user works elsewhere, not only in the active view. Preserve selection/focus legibility and a static alternative when reduced motion is enabled.
+Quiet can yield when something genuinely needs you. A blocked task should catch your attention even while you're working elsewhere, without making it harder to see what's selected or where focus is. The message should still come through when motion is turned off.
+
+An explanation shouldn't hide the thing it explains. A review card that covers the code it's discussing has put the supporting detail in the lead. Give it room or let the user reveal it when needed - don't make them scroll around it just to read their work.
 
 *Carried out by:* [type roles](#type-ramp), [elevation tiers](#elevation-tiers), [icon size by context](#icon-sizes).
 
@@ -165,6 +169,8 @@ How rounded - and how raised - a surface is *means something*: it tells you wher
 
 Equivalent elements must look equivalent, because they pull from the same named scale. When two similar things differ, that difference should *mean* something; accidental drift is the enemy. This is why every size, radius, weight, and color is a **named token with a role**, not a literal - the literal is only ever a stand-in for the token it lands on.
 
+Sameness includes how something responds, not just its resting shape. The same icon in two different-sized buttons still feels like two different controls. Compare the whole thing - the space around it, the hover, the focus, the area you can click. A difference in role or density can earn a difference in treatment; an accident can't.
+
 *Carried out by:* every move below - they *are* the shared scales. See especially [design tokens](#design-tokens), [the spacing ramp](#spacing-ramp), [the type ramp](#type-ramp), [icon sizes](#icon-sizes), [one stroke](#one-stroke).
 
 > **Worked example - two mismatched dialogs**
@@ -182,6 +188,8 @@ Equivalent elements must look equivalent, because they pull from the same named 
 Motion, reveals, and finishing touches are welcome - but each must **do a job**: guide the eye, confirm an action, orient the user, or smooth a jump. If there's no answer to the question, it's decoration, and decoration reads as noise (back to **Calm**). Keep it subtle, short, and interruptible; honor `prefers-reduced-motion`; never animate for its own sake.
 
 A delight bug sounds like *"this transition is doing nothing for me"* (cut it) or *"this jump is disorienting - it needs a functional transition"* (add one) - not a duration or easing value to fiddle with.
+
+Watch the journey, not just the landing. Swapping one view for another shouldn't make a stable layout seem to bounce or resize. Ask *"what is this movement helping me understand?"* of each surface, not the window as a whole. Cut the motion that has no job, keep the motion that does, and check the experience with motion both on and off.
 
 *Carried out by:* [reveal-on-intent behaviors](#reveal-on-intent).
 
@@ -251,6 +259,7 @@ Codicons are **16px (base)** or **12px (compact)** - nothing in between; `14px` 
 
 The standard border/separator stroke is **1px** (`--vscode-strokeThickness`).
 - **Decision rule:** whether an ordinary border is present is a **yes/no** decision. Preserve thicker semantic or accessibility strokes, such as focus indicators.
+- **Read it as one edge.** Two thin borders on top of each other can still look like one heavy border; a second curve inside the first reads as a double frame. Judge the outline you see, not the strokes each element claims to draw. The [layout guidance](../ux-css-layout/SKILL.md#rounded-surface-geometry) covers how to keep those edges aligned.
 - **Serves:** *Quiet at rest* (1), *Sameness signals sameness* (6).
 
 <a id="theme-color"></a>
@@ -348,10 +357,17 @@ These aren't wrong, they're just *incomplete* - they fix one spot and drift back
 - **One observation per thread.** Keep each piece of feedback to a single surface + value, so it can be discussed and resolved on its own.
 - **Light vs. dark vs. high-contrast.** If something only breaks in one theme, say so - that usually points at a *theme token* problem, not a color choice.
 - **Reduced motion.** For animation feedback, note whether you have `prefers-reduced-motion` on; a transition should still make sense without it.
-- **Scope shared changes.** Identify the component that owns the behavior and which consumers must remain unchanged, including other window and modal variants. Shared styling should express shared intent, not accidentally impose one surface's policy everywhere.
-- **Reuse interaction paths.** Prefer the shared renderer and hover behavior over patching individual DOM nodes. Preserve content trust boundaries, link activation, keyboard access, and disposal; verify each rendered content field rather than only the first visible example.
-- **Verify behavior, not proxies.** Exercise real [layout paths](../ux-css-layout/SKILL.md#8-responsive-layout), keyboard navigation, and pointer interactions. A helper assertion, DOM attribute, or static screenshot alone cannot establish that the resulting interaction works.
-- **Cover relevant states and transitions.** Choose theme, density, overflow, and interaction combinations based on what changed. Include transitions on existing components, not just fresh renders; follow the [theming guidance](../ux-theming/SKILL.md#3-using-colors-in-css) and render representative states through production components and services.
-- **Treat defaults as behavior changes.** Preserve explicit user choices and rollout controls unless changing them is intentional. Check affected workflows and automation in both old and new modes.
-- **Keep visual evidence current.** Resolve review findings and rendering failures before accepting screenshot baselines. Capture the final visual revision, review unexpected changes outside the intended surface, and revalidate affected states after merges or refinements.
-- **Validate proportionally.** Reuse current diagnostics and batch focused checks. Include production stylesheet interactions, global registration effects, and the failing browser when relevant; do not dismiss failures solely because they appear outside the edited component. Record the tested revision, commands, results, and remaining gaps rather than relying on repeated reruns or blanket baseline acceptance.
+- **Same intent, same treatment.** A shared fix should reach the places that share the problem - not make every window or dialog behave like the one you're looking at.
+- **Reuse the familiar interaction.** A hover or link shouldn't become a special case just because it lives on a new surface. Keep the shared behavior, including keyboard access and safe content handling, rather than recreating only its appearance.
+- **Respect the user's choices.** A new default changes an experience someone already knows. Make that change deliberately, preserve explicit preferences and rollout controls, and check both the old and new experience.
+
+### Does the fix feel right in use?
+
+A fix isn't finished when one screenshot looks right. The principle should hold as the user moves through the experience, not just in the frame we happened to capture.
+
+- **Name what should get better.** Start with the feeling, surface, and principle. Then find what owns the problem before changing it everywhere. Space between panels and space inside a panel do different jobs, even when they happen to measure the same.
+- **Follow the change.** Hover, then use the keyboard. Open, close, pin, unpin, move, and resize the same surface. Check the themes, densities, and window types the change touches - not every possible combination, but the ones that could tell a different story. The [layout](../ux-css-layout/SKILL.md#8-responsive-layout) and [interaction-state](../ux-theming/SKILL.md#high-contrast-interaction-state-contract) guidance cover the mechanics.
+- **Try the thing, not its description.** A declared radius doesn't prove the corner looks right; a focused element doesn't prove you can see focus. Look at the painted result and use the control. Tests should catch the original problem, not merely confirm the new implementation's description of itself.
+- **Make sure you're seeing the state you mean.** A screenshot called "hover" should actually show hover; a keyboard check should follow the keyboard path. Simulating an event isn't always the same as making the interaction happen. Use the [rendered-state guidance](../ux-theming/SKILL.md#testing-rendered-interaction-states) to keep that evidence honest.
+- **Understand feedback before chasing it.** Several comments may describe one problem; a green check may miss it entirely. Find out whether a failure is in the experience, the test's expectations, or the setup before deciding what to change. A passing rerun isn't an explanation, and an unrelated failure isn't a reason to reshape the UI.
+- **Show the fix you actually shipped.** Capture the final version, look beyond the intended surface for surprises, and check again after a refinement changes the result. Exercise the affected interactions before accepting new screenshot baselines. Reuse useful checks rather than repeating everything, and say what was tested and what wasn't - a browser capture can't speak for a native window you haven't tried.

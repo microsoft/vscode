@@ -13,7 +13,7 @@ suite('Session Customizations', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const customization = (id: string, kind: SessionCustomizationKind, name: string): ISessionChatCustomization =>
-		({ id, kind, name, uri: URI.file(`/repo/${id}.md`) });
+	({ id, kind, name, uri: URI.file(`/repo/${id}.md`) });
 	const sessionFolder = (name: string, workingDirectory: URI): ISessionFolder => ({
 		root: workingDirectory,
 		workingDirectory,

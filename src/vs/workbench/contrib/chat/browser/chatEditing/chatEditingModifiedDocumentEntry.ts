@@ -167,7 +167,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		this._register(this._textModelChangeService.onDidUserEditModel(() => {
 			this._userEditScheduler.schedule();
 			const didResetToOriginalContent = this.modifiedModel.getValue() === this.initialContent;
-			if (this._stateObs.get() === ModifiedFileEntryState.Modified && didResetToOriginalContent) {
+			if (this._stateObs.get() === ModifiedFileEntryState.Modified && didResetToOriginalContent && this._rejectsWhenResetToInitialContent()) {
 				this._stateObs.set(ModifiedFileEntryState.Rejected, undefined);
 			}
 		}));
@@ -235,6 +235,11 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	/** Until the next diff is computed, a user edit applies to the original through `edit`, which turns the original into the document. */
 	protected _mapOriginalToModified(edit: StringEdit): void {
 		this._textModelChangeService.setOriginalToModifiedEdit(edit);
+	}
+
+	/** Whether the entry is rejected once the user's edits return the document to its initial content. */
+	protected _rejectsWhenResetToInitialContent(): boolean {
+		return true;
 	}
 
 	protected override async _areOriginalAndModifiedIdentical(): Promise<boolean> {

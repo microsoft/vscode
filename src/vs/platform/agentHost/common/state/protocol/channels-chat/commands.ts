@@ -123,14 +123,16 @@ export interface CreateChatParams extends BaseParams {
 	/** Client-selected initial display title for the new chat. */
 	title?: string;
 	/**
-	 * Agent provider ID for the new chat. Absent means the session's provider.
+	 * Agent provider ID for the new chat. Absent means the session's agent
+	 * provider.
 	 *
 	 * Requires {@link InitializeResult.multipleChatProviders}. Hosts reject with
-	 * `InvalidParams` a provider that is not in the root state's `agents` or
-	 * whose agent does not advertise `multipleChats`. Forks and side chats
+	 * `InvalidParams` an agent provider that is not in the root state's `agents`
+	 * or that does not advertise `multipleChats`. Forks and side chats
 	 * (`source` present) continue the source chat's history, so they always use
-	 * the source chat's agent: absent means that agent, and a different value is
-	 * rejected. Agent capability checks for this request use the chat's agent.
+	 * the source chat's agent provider: absent means that agent provider, and a
+	 * different value is rejected. Agent capability checks for this request use
+	 * the chat's agent provider.
 	 * @stability 1.0
 	 */
 	provider?: string;
@@ -203,12 +205,12 @@ export type ChatMoveDestination =
  * Rejection leaves ownership, catalog order, chat state, and root summaries
  * unchanged.
  *
- * A moved chat keeps its agent. After the move the host reports
+ * A moved chat keeps its agent provider. After the move the host reports
  * {@link ChatState.provider | `provider`} on the chat whenever it differs from
- * the destination session's provider, including when the chat had none
+ * the destination session's agent provider, including when the chat had none
  * because it matched its old session. Hosts MAY refuse, as an unsupported
  * destination, a move they cannot support, such as one that changes whether
- * the chat's agent matches its session's.
+ * the chat's agent provider matches its session's.
  *
  * A moved chat's `config.values` move with it unchanged. If a move changes
  * whether the chat needs its own `config.schema`, the host sets or clears it,

@@ -35,7 +35,7 @@ import { IMainProcessService } from '../../platform/ipc/common/mainProcessServic
 import { ProxyChannel } from '../../base/parts/ipc/common/ipc.js';
 import { IWorkspaceFolderCreationData } from '../../platform/workspaces/common/workspaces.js';
 import { IIntegrityService } from '../services/integrity/common/integrity.js';
-import { isWindows, isMacintosh } from '../../base/common/platform.js';
+import { isWindows, isMacintosh, isLinux } from '../../base/common/platform.js';
 import { IProductService } from '../../platform/product/common/productService.js';
 import { INotificationService, NeverShowAgainScope, NotificationPriority, Severity } from '../../platform/notification/common/notification.js';
 import { IKeybindingService } from '../../platform/keybinding/common/keybinding.js';
@@ -776,11 +776,12 @@ export class NativeWindow extends BaseWindow {
 			}
 		}
 
-		// macOS 11 warning
+		// macOS 13 and 14 warning
 		if (isMacintosh) {
 			const majorVersion = this.nativeEnvironmentService.os.release.split('.')[0];
 			const eolReleases = new Map<string, string>([
-				['20', 'macOS Big Sur'],
+				['22', 'macOS Ventura'],
+				['23', 'macOS Sonoma'],
 			]);
 
 			if (eolReleases.has(majorVersion)) {
@@ -794,12 +795,31 @@ export class NativeWindow extends BaseWindow {
 						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-macOS'))
 					}],
 					{
-						neverShowAgain: { id: 'macoseol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
+						neverShowAgain: { id: `macoseol.${majorVersion}`, isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
 						priority: NotificationPriority.URGENT,
 						sticky: true
 					}
 				);
 			}
+		}
+
+		// Linux arm32 warning
+		if (isLinux && this.nativeEnvironmentService.os.arch === 'arm') {
+			const message = localize('linuxarm32eolmessage', "{0} on 32-bit ARM Linux will soon stop receiving updates. Consider using a 64-bit version of {0} and a 64-bit operating system.", this.productService.nameLong);
+
+			this.notificationService.prompt(
+				Severity.Warning,
+				message,
+				[{
+					label: localize('learnMore', "Learn More"),
+					run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-linux-arm-32-eol'))
+				}],
+				{
+					neverShowAgain: { id: 'linuxarm32eol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
+					priority: NotificationPriority.URGENT,
+					sticky: true
+				}
+			);
 		}
 
 		// Slow shell environment progress indicator

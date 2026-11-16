@@ -157,8 +157,8 @@ suite('WebPubSubRelayTransport', () => {
 		const notice = { kind: 'host_offline', environment_id: 'e1', status: 'offline', timestamp: '2026-10-13T00:00:00Z' };
 		fake.emitGroupMessage(1, { kind: 'message', data: notice }, 'user.u1.env.e1.clients');
 		fake.emitClose();
-		assert.deepStrictEqual({ closes, received, errors, open: transport.isOpen, closed: fake.closed, acknowledged: fake.highestAcknowledgedSequenceId }, {
-			closes: 1, received: [], errors: [], open: false, closed: true, acknowledged: 1,
+		assert.deepStrictEqual({ closes, received, errors, open: transport.isOpen, closed: fake.closed, acknowledged: fake.highestAcknowledgedSequenceId, reason: transport.closeReason }, {
+			closes: 1, received: [], errors: [], open: false, closed: true, acknowledged: 1, reason: 'hostOffline',
 		});
 	});
 
@@ -451,8 +451,9 @@ suite('WebPubSubRelayTransport', () => {
 			}
 			await timeout(30_001);
 			fake.emit({ type: 'ack', ackId: 5, success: false });
-			assert.deepStrictEqual({ open: transport.isOpen, closed: fake.closed, closes, errors }, {
+			assert.deepStrictEqual({ open: transport.isOpen, closed: fake.closed, closes, errors, reason: transport.closeReason }, {
 				open: false, closed: true, closes: 1,
+				reason: failure === 'write' ? 'sendFailure' : failure === 'rejection' ? 'publishRejected' : 'publishAckTimeout',
 				errors: [failure === 'write' ? 'Error: Failed to publish WPS receive capabilities' : failure === 'rejection' ? 'Error: WPS publish failed' : 'Error: WPS publish acknowledgement timed out'],
 			});
 		}));
@@ -475,8 +476,8 @@ suite('WebPubSubRelayTransport', () => {
 			await timeout(9999);
 			const before = transport.isOpen;
 			await timeout(1);
-			assert.deepStrictEqual({ before, open: transport.isOpen, closes, errors, publishes: fake.sentApplicationPublishes().length }, {
-				before: true, open: false, closes: 1, errors: ['Error: WPS host handshake timed out'], publishes: 1,
+			assert.deepStrictEqual({ before, open: transport.isOpen, closes, errors, publishes: fake.sentApplicationPublishes().length, reason: transport.closeReason }, {
+				before: true, open: false, closes: 1, errors: ['Error: WPS host handshake timed out'], publishes: 1, reason: 'hostHandshakeTimeout',
 			});
 		}));
 	}
@@ -556,7 +557,7 @@ suite('WebPubSubRelayTransport', () => {
 		assert.strictEqual(transport.isOpen, true);
 		assert.strictEqual(received.length, 1);
 		fake.emit({ type: 'message', from: 'group', group: TO_CLIENT, dataType: 'json', data: { kind: 'closed', generation: 12 } });
-		assert.strictEqual(fake.closed, true);
+		assert.deepStrictEqual({ closed: fake.closed, reason: transport.closeReason }, { closed: true, reason: 'hostLaneClosed' });
 	});
 
 	test('a later-generation answer to an outstanding request detects a lost closure notice', async () => {
@@ -567,7 +568,7 @@ suite('WebPubSubRelayTransport', () => {
 		fake.emitGroupMessage(1, { kind: 'message', generation: 1, data: { jsonrpc: '2.0', id: 1, result: {} } });
 		transport.send({ jsonrpc: '2.0', id: 2, method: 'ping', params: {} });
 		fake.emitGroupMessage(2, { kind: 'message', generation: 2, data: { jsonrpc: '2.0', id: 2, result: {} } });
-		assert.strictEqual(fake.closed, true);
+		assert.deepStrictEqual({ closed: fake.closed, reason: transport.closeReason }, { closed: true, reason: 'generationMismatch' });
 	});
 
 	test('a previous connection closure cannot end the pending reconnect handshake', async () => {
@@ -921,6 +922,19 @@ suite('WebPubSubRelayTransport', () => {
 		assert.deepStrictEqual(socket.sentApplicationPublishes(), []);
 	});
 
+	test('refuses a shell authentication answer before publishing, but still sends its cancellation', async () => {
+		const socket = new FakeWebSocket();
+		const transport = createTransport(socket);
+		await connectHandshake(transport, socket);
+		const params = { chat: 'copilot:/chat', requestId: 'shell-auth' };
+		assert.throws(() => transport.send({
+			jsonrpc: '2.0', id: 1, method: 'vscode/answerShellAuthentication', params: { ...params, answer: 'relay-test-password' },
+		}), /Refusing to send a shell authentication answer/);
+		const cancellation: JsonRpcRequest = { jsonrpc: '2.0', id: 2, method: 'vscode/answerShellAuthentication', params };
+		transport.send(cancellation);
+		assert.deepStrictEqual(socket.sentApplicationPublishes().map(publish => publish['data']), [{ kind: 'message', data: cancellation }]);
+	});
+
 	test('redacts sealed authentication from the WPS transcript without changing wire messages', async () => {
 		const fileService = createInMemoryFileService(store, Schemas.file);
 		const logger = store.add(new AhpJsonlLogger(
@@ -1168,11 +1182,13 @@ suite('WebPubSubRelayTransport', () => {
 
 		assert.deepStrictEqual({
 			openBeforeDeadline, openAtDeadline, closedAt, errors, received,
+			reason: transport.closeReason,
 			publishes: fake.sentApplicationPublishes().length,
 		}, {
 			openBeforeDeadline: true,
 			openAtDeadline: false,
 			closedAt: [30_000],
+			reason: 'publishAckTimeout',
 			errors: [new Error('WPS publish acknowledgement timed out')],
 			received: [2, 3].map(id => ({ jsonrpc: '2.0', id, result: null })),
 			publishes: 4,
@@ -1309,12 +1325,30 @@ suite('WebPubSubRelayTransport', () => {
 		const transport = createTransport(fake);
 		await connectHandshake(transport, fake);
 
-		let closes = 0;
-		store.add(transport.onClose(() => closes++));
+		const reasons: (typeof transport.closeReason)[] = [];
+		store.add(transport.onClose(() => reasons.push(transport.closeReason)));
 		fake.emitClose();
 		fake.emitError();
 
-		assert.strictEqual(closes, 1);
+		assert.deepStrictEqual(reasons, ['socketClose']);
+	});
+
+	test('distinguishes socket errors from intentional disposal and ignores late socket callbacks', async () => {
+		const reasons = [];
+		for (const disposed of [false, true]) {
+			const fake = new FakeWebSocket();
+			const transport = createTransport(fake);
+			await connectHandshake(transport, fake);
+			let closes = 0;
+			store.add(transport.onClose(() => closes++));
+			if (disposed) {
+				transport.dispose();
+			}
+			fake.emitError();
+			fake.emitClose(1008, 'private remote text');
+			reasons.push({ closes, reason: transport.closeReason });
+		}
+		assert.deepStrictEqual(reasons, [{ closes: 1, reason: 'socketError' }, { closes: 0, reason: undefined }]);
 	});
 
 	test('throws when sending after dispose', () => {

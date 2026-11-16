@@ -10,7 +10,6 @@ import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IRadioOptionItem, Radio } from '../../../../../../base/browser/ui/radio/radio.js';
 import { Action } from '../../../../../../base/common/actions.js';
-import { Sequencer } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -48,12 +47,9 @@ export class ThisComputerSection extends Disposable {
 	private readonly status: HTMLElement;
 	private readonly policy: HTMLElement;
 	private readonly policyText = localize('thisComputer.policyDisabled', "GitHub Environments is disabled by your organization. Contact your administrator.");
-	private readonly descriptionText = localize('thisComputer.description', "Local sessions run directly here. Sharing lets other clients access agents and folders on this computer.");
+	private readonly descriptionText = localize('thisComputer.description', "Local sessions run directly here. Sharing lets other devices use agents and folders on this computer. Files and tools stay here.");
 	private methods: readonly RemoteConnectionsMethod[] = [];
 	private itemsKey: string | undefined;
-	/** The method the user chose while it is being applied, so the control does not snap back meanwhile. */
-	private pendingMethod: RemoteConnectionsMethod | undefined;
-	private readonly selections = new Sequencer();
 
 	constructor(
 		container: HTMLElement,
@@ -85,12 +81,12 @@ export class ThisComputerSection extends Disposable {
 
 		const controls = dom.append(this.domNode, dom.$('.remotes-this-computer-controls'));
 		const methodLabelId = generateUuid();
-		dom.append(controls, dom.$('.remotes-this-computer-method-label', { id: methodLabelId }, localize('thisComputer.remoteConnections', "Remote Connections")));
+		dom.append(controls, dom.$('.remotes-this-computer-method-label', { id: methodLabelId }, localize('thisComputer.allowConnectionsHere', "Allow Connections Here")));
 		// Choosing a method starts or stops sharing, so arrow keys only move focus.
 		this.radio = this._register(new Radio({ items: [], arrowKeyBehavior: 'focus' }));
 		this.radio.domNode.setAttribute('aria-labelledby', methodLabelId);
 		controls.appendChild(this.radio.domNode);
-		this._register(this.radio.onDidSelect(index => this.select(this.methods[index])));
+		this._register(this.radio.onDidSelect(index => { void this.sharing.selectMethod(this.methods[index]); }));
 		this.status = dom.append(controls, dom.$('p.remotes-this-computer-status', { role: 'status' }));
 
 		// A disabled option cannot be focused, so the policy reason and its next step stay outside the options.
@@ -125,26 +121,12 @@ export class ThisComputerSection extends Disposable {
 		].join('\n');
 	}
 
-	private async select(method: RemoteConnectionsMethod): Promise<void> {
-		this.pendingMethod = method;
-		this.update();
-		try {
-			// A choice made while another is being applied must act on the resulting state rather than the transitional one.
-			await this.selections.queue(() => this.sharing.selectMethod(method));
-		} finally {
-			if (this.pendingMethod === method) {
-				this.pendingMethod = undefined;
-			}
-			if (!this._store.isDisposed) {
-				this.update();
-			}
-		}
-	}
-
 	private update(): void {
 		const state = this.sharing.getState();
 		const active = this.sharing.activeMethod;
-		const shown = this.pendingMethod ?? active;
+		// Shows the method chosen last, so the control does not snap back while choices are being applied.
+		const pending = this.sharing.pendingMethod;
+		const shown = pending ?? active;
 		const availability = this.sharing.gitHubEnvironmentsAvailability;
 		const methods: RemoteConnectionsMethod[] = ['off'];
 		if (availability !== 'unavailable' || shown === 'githubEnvironment') {
@@ -172,10 +154,10 @@ export class ThisComputerSection extends Disposable {
 		this.nameHover.update(name ?? '');
 		this.rename.enabled = !!name && !state.isConnecting;
 
-		this.status.textContent = this.pendingMethod && this.pendingMethod !== active
-			? this.pendingMethod === 'off'
+		this.status.textContent = pending && pending !== active
+			? pending === 'off'
 				? localize('thisComputer.stopping', "Turning off remote connections...")
-				: localize('thisComputer.starting', "Remote connections are starting via {0}...", getMethodLabel(this.pendingMethod))
+				: localize('thisComputer.starting', "Remote connections are starting via {0}...", getMethodLabel(pending))
 			: active === 'off'
 				? localize('thisComputer.statusOff', "Remote connections are off.")
 				: state.isConnecting

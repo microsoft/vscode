@@ -68,8 +68,7 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 
 	// #region MCP
 
-	// The workbench filters forwarded collections, but independent runtime discovery does not
-	// consult VS Code MCP access. #328241
+	// Workbench filtering covers MCP collections and MCP-policy-disabled extension tools, not independent runtime discovery. #328241
 	ChatMCP: { status: 'partial' },
 	// Workbench server starts apply these restrictions, but VS Code-only values are not reverse-
 	// forwarded to runtime discovery. Runtime-native managed-setting enforcement, including

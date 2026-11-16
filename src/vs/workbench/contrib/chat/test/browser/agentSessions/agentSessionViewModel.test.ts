@@ -103,7 +103,7 @@ suite('AgentSessions', () => {
 				overrideStyles: {},
 				filter: {
 					onDidChange: Event.None, exclude: () => false,
-					getExcludes: () => ({ providers: [], states: [], archived: false, read: false, repositoryGroupCapped: true }),
+					getExcludes: () => ({ providers: [], states: [], archived: false, read: false, automation: true, repositoryGroupCapped: true }),
 					isDefault: () => true, reset: () => { },
 				},
 				createNewChat: () => { },
@@ -157,7 +157,7 @@ suite('AgentSessions', () => {
 			});
 		});
 
-		test('hides automation sessions from discovery while preserving direct lookup', async () => {
+		test('keeps automation sessions available to the sessions list without exposing them to other consumers', async () => {
 			return runWithFakedTimers({}, async () => {
 				const ordinary = makeSimpleSessionItem('ordinary', { label: 'Ordinary Session' });
 				const automation = makeSimpleSessionItem('automation', {
@@ -172,15 +172,17 @@ suite('AgentSessions', () => {
 
 				assert.deepStrictEqual({
 					visible: viewModel.sessions.map(session => session.label),
+					listCandidates: viewModel.sessionsIncludingAutomationRuns.map(session => session.label),
 					automationLookup: viewModel.getSession(automation.resource)?.label,
 				}, {
 					visible: ['Ordinary Session'],
+					listCandidates: ['Ordinary Session', 'Automation Run'],
 					automationLookup: 'Automation Run',
 				});
 			});
 		});
 
-		test('deduplicates legacy Automation twins before filtering discovery', async () => {
+		test('deduplicates legacy Automation twins before exposing sessions for filtering', async () => {
 			return runWithFakedTimers({}, async () => {
 				const legacy = makeSimpleSessionItem('shared', {
 					resource: URI.parse('copilotcli:/shared'),
@@ -202,10 +204,12 @@ suite('AgentSessions', () => {
 
 				assert.deepStrictEqual({
 					visible: viewModel.sessions.map(session => session.label),
+					listCandidates: viewModel.sessionsIncludingAutomationRuns.map(session => session.label),
 					legacyLookup: viewModel.getSession(legacy.resource)?.label,
 					automationLookup: viewModel.getSession(automation.resource)?.label,
 				}, {
 					visible: ['Ordinary Session'],
+					listCandidates: ['Automation Run', 'Ordinary Session'],
 					legacyLookup: 'Legacy Automation Twin',
 					automationLookup: 'Automation Run',
 				});
@@ -1221,6 +1225,58 @@ suite('AgentSessions', () => {
 
 			assert.strictEqual(filter.exclude(archivedSession), false);
 			assert.strictEqual(filter.exclude(activeSession), false);
+		});
+
+		test('should hide automation sessions by default and persist the filter choice', () => {
+			const storageService = instantiationService.get(IStorageService);
+			const automationSession = createSession({
+				metadata: { isAutomation: true }
+			});
+			const ordinarySession = createSession();
+			const createFilter = () => disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			const initial = createFilter();
+			const defaults = [initial.exclude(automationSession), initial.exclude(ordinarySession)];
+			storageService.store(storageKey, JSON.stringify({
+				providers: [],
+				states: [],
+				archived: true,
+				read: false,
+				repositoryGroupCapped: true,
+				automation: false,
+			}), StorageScope.PROFILE, StorageTarget.USER);
+			const shown = initial.exclude(automationSession);
+			initial.dispose();
+			const restored = createFilter();
+			const reloaded = restored.exclude(automationSession);
+			restored.reset();
+
+			assert.deepStrictEqual({ defaults, shown, reloaded, reset: restored.exclude(automationSession) }, {
+				defaults: [true, false],
+				shown: false,
+				reloaded: false,
+				reset: true,
+			});
+		});
+
+		test('should keep automation sessions hidden when restoring older filter preferences', () => {
+			const storageService = instantiationService.get(IStorageService);
+			storageService.store(storageKey, JSON.stringify({
+				providers: [],
+				states: [],
+				archived: false,
+				read: false,
+				repositoryGroupCapped: true,
+			}), StorageScope.PROFILE, StorageTarget.USER);
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			assert.strictEqual(filter.exclude(createSession({ metadata: { isAutomation: true } })), true);
 		});
 
 		test('should filter out sessions from excluded provider', () => {

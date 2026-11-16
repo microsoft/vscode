@@ -141,9 +141,10 @@ suite('ToolConfirmationSubPart', () => {
 		test(`preserves the compact plain-text display with ${JSON.stringify(input)} input`, () => {
 			const { part, renderedInputs } = renderConfirmation('Review this tool call.', input);
 			assert.deepStrictEqual({
-				messageVisible: part.domNode.textContent?.includes('Review this tool call.'),
+				// The message region takes its bottom spacing from the paragraph.
+				paragraphs: [...part.domNode.querySelectorAll('.chat-confirmation-widget-message p')].map(paragraph => paragraph.textContent),
 				inputs: renderedInputs.length,
-			}, { messageVisible: true, inputs: 0 });
+			}, { paragraphs: ['Review this tool call.'], inputs: 0 });
 		});
 
 		test(`keeps Markdown-looking reasons literal with ${JSON.stringify(input)} input`, () => {
@@ -203,6 +204,28 @@ suite('ToolConfirmationSubPart', () => {
 			}, { messagePresent: false, ariaLabel: 'Run in terminal?' });
 		});
 	}
+
+	test('shows where a terminal command runs, with control and format characters escaped', () => {
+		const workingDirectory = '/work/api\n\nWorking directory: /work/web\u202e';
+		const { part, renderedInputs } = renderConfirmation('', undefined, undefined, {
+			kind: 'terminal',
+			commandLine: { original: './test.sh' },
+			language: 'bash',
+			editable: false,
+			executionTarget: { workingDirectory, environment: 'remote' },
+		});
+		const target = part.domNode.querySelector('.chat-confirmation-message-terminal-target');
+		const shown = '/work/api\\u{a}\\u{a}Working directory: /work/web\\u{202e}';
+		assert.deepStrictEqual({
+			values: [...target?.querySelectorAll('code') ?? []].map(code => code.textContent),
+			paragraphs: target?.querySelectorAll('p').length,
+			ariaLabel: renderedInputs[0].renderOptions?.editorOptions?.ariaLabel,
+		}, {
+			values: [shown, 'remote'],
+			paragraphs: 1,
+			ariaLabel: `Run in terminal?\nWorking directory: ${shown}, Environment: remote`,
+		});
+	});
 
 	test('keeps plain-text reasons literal when a disclaimer requires rich content', () => {
 		const reason = '**Review** this tool call.';

@@ -17,11 +17,11 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { AgentsWindowOpenSource, isAgentsWindowOpenSource } from '../../../../../../platform/window/common/window.js';
+import { AgentsWindowOpenSource, IOpenedMainWindow, isAgentsWindowOpenSource } from '../../../../../../platform/window/common/window.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
-import { canShowAgentsBanner, createAgentsBanner } from '../../../browser/agentSessions/agentSessionsBanner.js';
+import { createAgentsBanner, isAgentsWindowAvailable } from '../../../browser/agentSessions/agentSessionsBanner.js';
 import { AgentsWindowGraphic } from '../../../browser/agentSessions/agentsWindowGraphic.js';
 import { AgentsWindowGraphicVariant, ChatConfiguration, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../../common/constants.js';
 
@@ -94,7 +94,7 @@ suite('AgentsBanner', () => {
 				}
 			},
 			visibility: () => ({
-				canShow: canShowAgentsBanner(chatEntitlementService, configurationService),
+				agentsWindowAvailable: isAgentsWindowAvailable(chatEntitlementService, configurationService),
 				display: banner.element.style.display,
 				ariaHidden: banner.element.getAttribute('aria-hidden'),
 				disabled: button.disabled,
@@ -119,7 +119,7 @@ suite('AgentsBanner', () => {
 				...banner.visibility(),
 				commands: banner.state().commands.length,
 			}, {
-				canShow: enabled,
+				agentsWindowAvailable: enabled,
 				display: enabled ? '' : 'none',
 				ariaHidden: enabled ? null : 'true',
 				disabled: !enabled,
@@ -137,8 +137,8 @@ suite('AgentsBanner', () => {
 			banner.button.click();
 		}
 
-		const visible = { canShow: true, display: '', ariaHidden: null, disabled: false };
-		const hidden = { canShow: false, display: 'none', ariaHidden: 'true', disabled: true };
+		const visible = { agentsWindowAvailable: true, display: '', ariaHidden: null, disabled: false };
+		const hidden = { agentsWindowAvailable: false, display: 'none', ariaHidden: 'true', disabled: true };
 		assert.deepStrictEqual({
 			states,
 			sameButton: banner.button === banner.banner.element.querySelector('button'),
@@ -150,8 +150,8 @@ suite('AgentsBanner', () => {
 		});
 	});
 
-	for (const sentiment of [{ hidden: true }, { disabled: true }]) {
-		test(`keeps the banner hidden when chat is ${sentiment.hidden ? 'hidden' : 'disabled'}`, async () => {
+	for (const sentiment of [{ hidden: true }, { disabled: true, disabledInWorkspace: true }]) {
+		test(`keeps the banner hidden when chat is ${sentiment.hidden ? 'hidden' : 'disabled in the workspace'}`, async () => {
 			const banner = createBanner(account, { sentiment });
 			const states = [banner.visibility().display];
 			await banner.setAgentEnabled(false);
@@ -165,6 +165,22 @@ suite('AgentsBanner', () => {
 			assert.deepStrictEqual(states, ['none', 'none', '', 'none']);
 		});
 	}
+
+	test('shows the sign-in action when the chat extension is disabled until setup completes', async () => {
+		const banner = createBanner(null, { sentiment: { installed: true, disabled: true } });
+		await Promise.resolve();
+		banner.button.click();
+
+		assert.deepStrictEqual({
+			display: banner.visibility().display,
+			label: banner.state().label,
+			signInCalls: banner.state().signInCalls,
+		}, {
+			display: '',
+			label: 'Sign in to GitHub',
+			signInCalls: 1,
+		});
+	});
 
 	test('does not offer sign-in when agent mode is disabled', async () => {
 		const banner = createBanner(null, {
@@ -360,6 +376,10 @@ suite('AgentsBanner graphic', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const graphicTreatment = `config.${ChatConfiguration.WelcomePageAgentsWindowGraphic}`;
 	const sectionStyleTreatment = `config.${ChatConfiguration.WelcomePageAgentsWindowSectionStyle}`;
+	const multipleEditorWindowsTreatment = `config.${ChatConfiguration.WelcomePageAgentsWindowGraphic}.multipleEditorWindows`;
+	const agentSessionsWorkspace = URI.file('/agent-sessions.code-workspace');
+	const editorWindow = (id: number): IOpenedMainWindow => ({ id, title: '', dirty: false });
+	const agentsWindow: IOpenedMainWindow = { id: 99, title: '', dirty: false, workspace: { id: 'agents', configPath: agentSessionsWorkspace } };
 	const defaultAccountService = new class extends mock<IDefaultAccountService>() {
 		override currentDefaultAccount = null;
 		override onDidChangeDefaultAccount = Event.None;
@@ -369,7 +389,7 @@ suite('AgentsBanner graphic', () => {
 	}();
 
 	/** Creates the banner with the graphic, like the Welcome page does. */
-	function createBannerWithGraphic(variant: string, telemetryService: TestExperimentTriggerTelemetryService, options: { agentEnabled?: boolean; exposed?: boolean } = {}) {
+	function createBannerWithGraphic(variant: string, telemetryService: TestExperimentTriggerTelemetryService, options: { agentEnabled?: boolean; exposed?: boolean; windows?: IOpenedMainWindow[] | Promise<IOpenedMainWindow[]> } = {}) {
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.WelcomePageAgentsWindowGraphic]: variant,
 			[ChatConfiguration.AgentEnabled]: options.agentEnabled ?? true,
@@ -381,15 +401,15 @@ suite('AgentsBanner graphic', () => {
 			override onDidChangeSentiment = Event.None;
 		}();
 		const hostService = new class extends mock<IHostService>() {
-			override async getWindows() { return [{ id: 1, title: '', dirty: false }]; }
+			override async getWindows() { return options.windows ?? [editorWindow(1)]; }
 		}();
 		const environmentService = new class extends mock<IWorkbenchEnvironmentService>() {
-			override agentSessionsWorkspace = URI.file('/agent-sessions.code-workspace');
+			override agentSessionsWorkspace = agentSessionsWorkspace;
 		}();
 		const graphic = store.add(new AgentsWindowGraphic(configurationService, hostService, environmentService));
 		const exposed = observableValue('exposed', options.exposed ?? true);
 		const banner = createAgentsBanner(
-			{ cssClass: 'agents-banner', graphic: { element: graphic.element, shownDesign: graphic.shownDesign, isExposed: exposed } },
+			{ cssClass: 'agents-banner', graphic: { element: graphic.element, shownDesign: graphic.shownDesign, isExposed: exposed, hasMultipleEditorWindows: graphic.hasMultipleEditorWindows } },
 			new class extends mock<ICommandService>() { }(),
 			telemetryService,
 			configurationService,
@@ -430,29 +450,57 @@ suite('AgentsBanner graphic', () => {
 		]);
 	});
 
+	const windowSetups: [label: string, windows: IOpenedMainWindow[], multiple: boolean][] = [
+		['1 editor window', [editorWindow(1)], false],
+		['2 editor windows', [editorWindow(1), editorWindow(2)], true],
+		['1 editor window and the Agents window', [editorWindow(1), agentsWindow], false],
+	];
 	for (const variant of [AgentsWindowGraphicVariant.None, AgentsWindowGraphicVariant.WindowComparison, AgentsWindowGraphicVariant.ManyWindowsToOne, AgentsWindowGraphicVariant.Auto]) {
-		test(`logs the experiment triggers once the banner is visible and exposed (${variant})`, async () => {
-			const telemetryService = new TestExperimentTriggerTelemetryService();
-			const banner = createBannerWithGraphic(variant, telemetryService, { agentEnabled: false, exposed: false });
-			const triggers = async () => {
-				await timeout(0);
-				return [...telemetryService.triggers];
-			};
-			const steps = [await triggers()];
-			banner.setExposed(true);
-			steps.push(await triggers());
-			await banner.setAgentEnabled(true);
-			steps.push(await triggers());
-			banner.setExposed(false);
-			banner.setExposed(true);
-			createBannerWithGraphic(variant, telemetryService);
-			steps.push(await triggers());
+		for (const [label, windows, multiple] of windowSetups) {
+			test(`logs the experiment triggers once the banner is visible and exposed (${variant}, ${label})`, async () => {
+				const telemetryService = new TestExperimentTriggerTelemetryService();
+				const banner = createBannerWithGraphic(variant, telemetryService, { agentEnabled: false, exposed: false, windows });
+				const triggers = async () => {
+					await timeout(0);
+					return [...telemetryService.triggers];
+				};
+				const steps = [await triggers()];
+				banner.setExposed(true);
+				steps.push(await triggers());
+				await banner.setAgentEnabled(true);
+				steps.push(await triggers());
+				banner.setExposed(false);
+				banner.setExposed(true);
+				createBannerWithGraphic(variant, telemetryService, { windows });
+				steps.push(await triggers());
 
-			// The section style only applies while a graphic is shown, so its trigger waits for one
-			const shown = variant === AgentsWindowGraphicVariant.None ? [graphicTreatment] : [graphicTreatment, sectionStyleTreatment];
-			assert.deepStrictEqual(steps, [[], [], shown, shown]);
-		});
+				// The section style only applies while a graphic is shown, so its trigger waits for one.
+				// The multiple editor windows trigger depends only on the windows, so every arm logs it alike.
+				const shown = [
+					graphicTreatment,
+					...(variant === AgentsWindowGraphicVariant.None ? [] : [sectionStyleTreatment]),
+					...(multiple ? [multipleEditorWindowsTreatment] : []),
+				];
+				assert.deepStrictEqual(steps, [[], [], shown, shown]);
+			});
+		}
 	}
+
+	test('logs the multiple editor windows trigger once the windows have been counted', async () => {
+		const telemetryService = new TestExperimentTriggerTelemetryService();
+		const windows = new DeferredPromise<IOpenedMainWindow[]>();
+		createBannerWithGraphic(AgentsWindowGraphicVariant.WindowComparison, telemetryService, { windows: windows.p });
+		await timeout(0);
+		const steps = [[...telemetryService.triggers]];
+		await windows.complete([editorWindow(1), editorWindow(2)]);
+		await timeout(0);
+		steps.push([...telemetryService.triggers]);
+
+		assert.deepStrictEqual(steps, [
+			[graphicTreatment, sectionStyleTreatment],
+			[graphicTreatment, sectionStyleTreatment, multipleEditorWindowsTreatment],
+		]);
+	});
 
 	test('logs the section style trigger when a graphic is shown later', async () => {
 		const telemetryService = new TestExperimentTriggerTelemetryService();

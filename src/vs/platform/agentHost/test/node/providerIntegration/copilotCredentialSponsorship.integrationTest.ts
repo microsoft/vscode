@@ -32,11 +32,15 @@ import { preserveAgentHostE2ELogs } from '../e2e/harness/agentHostE2EDiagnostics
 import { getAncillaryStub } from '../e2e/harness/capiStubs.js';
 import { createTestDirectory } from '../e2e/harness/testDirectories.js';
 import { createLocalEndpointCopilotAgent } from './copilotAgentIntegrationTestHarness.js';
-import { credentialEnvironmentSentinels, fakeCapiCredentialForLabel, labelTestCredential, normalizeTestSystemPrompt } from './copilotCredentialTestUtils.js';
+import { credentialEnvironmentSentinels, fakeCapiCredentialForLabel, labelTestCredential, normalizeTestSystemPrompt, replaceCredentialEnvironment } from './copilotCredentialTestUtils.js';
 
 interface ModelRequest {
 	messages: { role: string; content?: string; tool_call_id?: string }[];
 	tools: { type: string; name?: string; function?: { name: string }; custom?: { name: string } }[];
+}
+
+interface ModelCatalog {
+	data: { id: string; supported_endpoints: string[] }[];
 }
 
 interface ModelTraffic {
@@ -55,6 +59,7 @@ suite('Copilot Agent credential sponsorship', function () {
 	this.timeout(120_000);
 
 	const resource = 'https://api.github.com';
+	const modelId = 'gpt-5.3-codex';
 	const metadata = [{ resource }];
 	// Trace runtime logs stay in the isolated home, which only a failed test keeps (see preserveFailureDiagnostics).
 	const rootConfiguration = { [AgentHostMcpConnectorsEnabledConfigKey]: true, [CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace' };
@@ -67,7 +72,7 @@ suite('Copilot Agent credential sponsorship', function () {
 	let modelTraffic: ModelTraffic[];
 	let connectorTokens: string[];
 	let unexpectedRequests: string[];
-	let originalEnvironment: Map<string, string | undefined>;
+	let restoreEnvironment: (() => void) | undefined;
 	const signals: AgentSignal[] = [];
 
 	function onProgress(signal: AgentSignal): void {
@@ -78,18 +83,7 @@ suite('Copilot Agent credential sponsorship', function () {
 	}
 
 	setup(async () => {
-		originalEnvironment = new Map(Object.entries(process.env).filter(([key]) =>
-			/(?:AUTH|TOKEN|_KEY|SECRET|PASSWORD)|^(?:GIT_CONFIG_|COPILOT_|GITHUB_|GH_|ANTHROPIC_|OPENAI_|AZURE_OPENAI_|AWS_|AZURE_|VSCODE_AGENT_HOST_CAPI_)|^(?:HTTPS?_PROXY|ALL_PROXY|NO_PROXY)$/i.test(key)));
-		for (const key of new Set([...originalEnvironment.keys(), ...Object.keys(credentialEnvironmentSentinels)])) {
-			const hasOriginal = isWindows
-				? [...originalEnvironment.keys()].some(original => original.toUpperCase() === key.toUpperCase())
-				: originalEnvironment.has(key);
-			if (!hasOriginal) {
-				originalEnvironment.set(key, undefined);
-			}
-			delete process.env[key];
-		}
-		Object.assign(process.env, credentialEnvironmentSentinels);
+		restoreEnvironment = replaceCredentialEnvironment(credentialEnvironmentSentinels);
 		store = new DisposableStore();
 		githubTokens = [];
 		modelTraffic = [];
@@ -188,7 +182,7 @@ suite('Copilot Agent credential sponsorship', function () {
 				];
 				const calls = modelTraffic.filter(traffic => traffic.probe === probe).length;
 				const operation = probe === 'A-DELEGATED' && calls === 1
-					? { name: 'task', arguments: { name: 'fixture-child', agent_type: 'explore', model: 'gpt-4o', description: 'Read-only fixture child', prompt: 'CREDENTIAL_PROBE:A-CHILD. Reply briefly without using tools.' } }
+					? { name: 'task', arguments: { name: 'fixture-child', agent_type: 'explore', model: modelId, description: 'Read-only fixture child', prompt: 'CREDENTIAL_PROBE:A-CHILD. Reply briefly without using tools.' } }
 					: probe.includes('-') ? undefined : operations[calls - 1];
 				if (operation && !tools.includes(operation.name)) {
 					unexpectedRequests.push(`Unavailable coding tool: ${probe}:${operation.name}`);
@@ -214,7 +208,16 @@ suite('Copilot Agent credential sponsorship', function () {
 						githubTokens.push(authorization);
 					}
 					response.writeHead(stub.status, stub.headers);
-					response.end(stub.body.replaceAll('${capi}', endpoint));
+					let stubBody = stub.body.replaceAll('${capi}', endpoint);
+					if (request.method === 'GET' && (path === '/models' || path === '/meta')) {
+						const catalog: ModelCatalog | { models: ModelCatalog } = JSON.parse(stubBody);
+						const model = (hasKey(catalog, { models: true }) ? catalog.models : catalog).data.find(model => model.id === modelId);
+						assert.ok(model);
+						// Keep the coding model's freeform tools while using this fixture's Chat Completions transport.
+						model.supported_endpoints = ['/chat/completions'];
+						stubBody = JSON.stringify(catalog);
+					}
+					response.end(stubBody);
 				} else {
 					unexpectedRequests.push(`${request.method} ${path}`);
 					response.writeHead(500, { 'x-should-retry': 'false' });
@@ -252,16 +255,8 @@ suite('Copilot Agent credential sponsorship', function () {
 				}
 			}
 		} finally {
-			for (const key of Object.keys(credentialEnvironmentSentinels)) {
-				delete process.env[key];
-			}
-			for (const [key, value] of originalEnvironment ?? []) {
-				if (value === undefined) {
-					delete process.env[key];
-				} else {
-					process.env[key] = value;
-				}
-			}
+			restoreEnvironment?.();
+			restoreEnvironment = undefined;
 		}
 	});
 
@@ -275,7 +270,7 @@ suite('Copilot Agent credential sponsorship', function () {
 		const destination = join(process.cwd(), '.build', 'logs', 'integration-tests', `copilot-sponsorship-${process.pid}`, testDirectory);
 		preserveAgentHostE2ELogs(directory, directory, destination, title);
 		writeFileSync(join(destination, 'prompt-contexts.json'), JSON.stringify(modelTraffic.map(({ probe, instructions, environment, ancestorInstructions, workspaceSkill }) =>
-			({ probe, instructions, environment, ancestorInstructions, workspaceSkill })), undefined, '\t'));
+		({ probe, instructions, environment, ancestorInstructions, workspaceSkill })), undefined, '\t'));
 	}
 
 	async function createScope(token: string): Promise<AgentHostAuthenticationScope> {
@@ -307,7 +302,7 @@ suite('Copilot Agent credential sponsorship', function () {
 		await writeFile(join(skill, 'SKILL.md'), '---\nname: sponsorship-workspace-skill\ndescription: Synthetic workspace discovery proof\n---\nSynthetic skill for credential parity tests.\n');
 		const chatContext = context(name, scope);
 		const created = await agent.chats.createChat(URI.parse(buildDefaultChatUri(chatContext.resource)), chatContext, {
-			deferBacking: true, model: { id: 'gpt-4o' }, workingDirectories: [URI.file(workspace)],
+			deferBacking: true, model: { id: modelId }, workingDirectories: [URI.file(workspace)],
 			config: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
 		});
 		assert.ok(created);

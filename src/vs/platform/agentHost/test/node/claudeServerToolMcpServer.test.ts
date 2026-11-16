@@ -38,7 +38,7 @@ function makeSdk(): { sdk: IClaudeAgentSdkService; recorded: RecordedTool[] } {
 	const recorded: RecordedTool[] = [];
 	const sdk = {
 		createSdkMcpServer: async (options: { name: string }) =>
-			({ name: options.name, instance: { __fake: true } } as unknown as McpSdkServerConfigWithInstance),
+		({ name: options.name, instance: { __fake: true } } as unknown as McpSdkServerConfigWithInstance),
 		tool: async (name: string, _desc: string, _schema: unknown, handler: (args: Record<string, unknown>, extra: unknown) => Promise<CallToolResult>, options?: Parameters<IClaudeAgentSdkService['tool']>[4]) => {
 			const t = { name, handler, options };
 			recorded.push(t);

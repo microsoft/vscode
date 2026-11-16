@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .session-worktree-cleanup-editor {
+	position: relative;
 	height: 100%;
 	overflow: hidden;
 }
@@ -26,55 +27,43 @@
 	display: flow-root;
 }
 
-.session-worktree-cleanup-intro,
 .session-worktree-cleanup-automatic > p {
 	color: var(--vscode-descriptionForeground);
 }
 
-.session-worktree-cleanup-intro h2 {
-	color: var(--vscode-foreground);
-	font-size: var(--vscode-fontSize-heading2);
-	font-weight: var(--vscode-fontWeight-semiBold);
-	margin: 0 0 var(--vscode-spacing-size80);
-}
-
-.session-worktree-cleanup-intro p {
-	margin: 0;
-	line-height: 1.4;
+.session-worktree-cleanup-measurement-progress {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
 }
 
 .session-worktree-cleanup-controls {
 	display: flex;
 	align-items: center;
-	flex-wrap: wrap;
 	gap: var(--vscode-spacing-size80);
-	margin: var(--vscode-spacing-size200) 0 var(--vscode-spacing-size120);
+	margin-left: auto;
 }
 
-.session-worktree-cleanup-controls label,
 .session-worktree-cleanup-setting {
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
 }
 
-.session-worktree-cleanup-controls label {
-	cursor: default;
-}
-
-.session-worktree-cleanup-controls select {
-	cursor: pointer;
-	max-width: 100%;
-	min-width: 0;
-}
-
-.session-worktree-cleanup-controls select,
 .session-worktree-cleanup-setting input[type="number"] {
 	color: var(--vscode-input-foreground);
 	background: var(--vscode-input-background);
 	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, transparent);
 	border-radius: var(--vscode-cornerRadius-small);
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
+}
+
+.session-worktree-cleanup-controls.age-filtered .session-worktree-cleanup-age,
+.session-worktree-cleanup-controls.workspace-filtered .session-worktree-cleanup-workspace {
+	color: var(--vscode-inputOption-activeForeground);
+	background: var(--vscode-inputOption-activeBackground);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-inputOption-activeBorder);
 }
 
 .session-worktree-cleanup-summary-row {
@@ -112,22 +101,6 @@
 	flex-shrink: 0;
 }
 
-.session-worktree-cleanup-info {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	padding: 0;
-	color: var(--vscode-descriptionForeground);
-	background: transparent;
-	border: 0;
-	cursor: pointer;
-}
-
-.session-worktree-cleanup-info:focus-visible {
-	outline: var(--vscode-focusBorder) solid var(--vscode-strokeThickness);
-	outline-offset: var(--vscode-strokeThickness);
-}
-
 .session-worktree-cleanup-list {
 	flex: 1;
 	min-height: 0;
@@ -137,6 +110,8 @@
 }
 
 .session-worktree-cleanup-summary-row.hidden,
+.session-worktree-cleanup-summary.hidden,
+.session-worktree-cleanup-action.hidden,
 .session-worktree-cleanup-progress.hidden,
 .session-worktree-cleanup-available-heading.hidden,
 .session-worktree-cleanup-list.hidden,
@@ -229,6 +204,8 @@
 }
 
 .session-worktree-cleanup-session-link {
+	align-self: flex-start;
+	max-width: 100%;
 	display: -webkit-box;
 	-webkit-box-orient: vertical;
 	-webkit-line-clamp: 2;
@@ -281,14 +258,6 @@
 	flex-shrink: 0;
 	font-size: var(--vscode-codiconFontSize);
 	color: var(--vscode-descriptionForeground);
-}
-
-.session-worktree-cleanup-automatic > summary:hover {
-	background: var(--vscode-toolbar-hoverBackground);
-}
-
-.session-worktree-cleanup-automatic > summary:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 }
 
 .session-worktree-cleanup-setting {

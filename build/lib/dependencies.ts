@@ -7,6 +7,7 @@ import es from 'event-stream';
 import fs from 'fs';
 import path from 'path';
 import VinylFile from 'vinyl';
+import { layoutRoots } from '../npm/dirs.ts';
 import { getHoistedLocations } from './pnpmHoist.ts';
 import { getImporterId, getLockfileFolder, getSnapshotKey, readPnpmLockfile, type PnpmLockfile } from './pnpmLock.ts';
 const root = fs.realpathSync(path.dirname(path.dirname(import.meta.dirname)));
@@ -19,6 +20,34 @@ const root = fs.realpathSync(path.dirname(path.dirname(import.meta.dirname)));
 function getInstallRoot(folder: string): string {
 	const lockfileFolder = getLockfileFolder(path.relative(root, folder));
 	return lockfileFolder !== undefined ? path.join(root, lockfileFolder) : folder;
+}
+
+/**
+ * Returns the folder whose projects the `node_modules` layout of `folder` is computed from: the
+ * deepest of the `layoutRoots` (see `build/npm/dirs.ts`) that contains it, otherwise its install
+ * root.
+ */
+function getLayoutRoot(installRoot: string, folder: string): string {
+	const relative = path.relative(root, folder).split(path.sep).join('/');
+	const layoutRoot = layoutRoots
+		.filter(candidate => relative === candidate || relative.startsWith(`${candidate}/`))
+		.sort((a, b) => b.length - a.length)[0];
+	return layoutRoot !== undefined ? path.join(root, layoutRoot) : installRoot;
+}
+
+/**
+ * Returns the lockfile of a separate install of `layoutRoot`: `lockfile` with only the importers of
+ * `installRoot` whose layout root is `layoutRoot`, relative to it.
+ */
+export function getLayoutLockfile(lockfile: PnpmLockfile, installRoot: string, layoutRoot: string): PnpmLockfile {
+	const importers: PnpmLockfile['importers'] = {};
+	for (const [importerId, importer] of Object.entries(lockfile.importers)) {
+		const folder = path.join(installRoot, importerId);
+		if (getLayoutRoot(installRoot, folder) === layoutRoot) {
+			importers[path.relative(layoutRoot, folder).split(path.sep).join('/') || '.'] = importer;
+		}
+	}
+	return { ...lockfile, importers };
 }
 
 /**
@@ -39,43 +68,49 @@ export interface IProductionDependency {
 	readonly source: string;
 }
 
-interface IInstallRootLayout {
+interface ILayout {
+	/** The lockfile of the install root. */
 	readonly lockfile: PnpmLockfile;
 	/** Whether pnpm installed the root with the hoisted linker, so that each package is in its `folder`. */
 	readonly isHoisted: boolean;
-	/** The folders of each package in the hoisted layout, by snapshot key. */
+	/** The folders of each package in the hoisted layout of the layout root, by snapshot key. */
 	readonly locations: ReadonlyMap<string, ReadonlySet<string>>;
 	/** The folders where pnpm's hoisted linker installed each package, by snapshot key (only when `isHoisted`). */
 	readonly installedLocations: ReadonlyMap<string, ReadonlySet<string>>;
 }
 
-const installRootLayouts = new Map<string, IInstallRootLayout>();
+const layouts = new Map<string, ILayout>();
 
 /**
- * Returns the hoisted layout of the packages of an install root, computed from its lockfile, so that
- * it is the same with either linker (see `build/lib/pnpmHoist.ts`).
+ * Returns the hoisted layout of the packages of the projects of a layout root (see
+ * {@link getLayoutRoot}), computed from the lockfile of their install root, so that it is the same
+ * with either linker (see `build/lib/pnpmHoist.ts`).
  */
-function getInstallRootLayout(installRoot: string): IInstallRootLayout {
-	let layout = installRootLayouts.get(installRoot);
+function getLayout(installRoot: string, layoutRoot: string): ILayout {
+	let layout = layouts.get(layoutRoot);
 	if (!layout) {
 		const modulesFile = path.join(installRoot, 'node_modules', '.modules.yaml');
 		if (!fs.existsSync(modulesFile)) {
 			throw new Error(`${modulesFile} is missing. Run pnpm install in ${installRoot}.`);
 		}
 		const modules = JSON.parse(fs.readFileSync(modulesFile, 'utf8')) as { nodeLinker?: string; hoistedLocations?: Record<string, string[]>; skipped?: string[] };
-		const toFolders = (locations: Iterable<[string, string[]]>) => new Map([...locations].map(([key, folders]) => [key, new Set(folders.map(f => path.join(installRoot, f)))]));
+		const toFolders = (base: string, locations: Iterable<[string, string[]]>) => new Map([...locations].map(([key, folders]) => [key, new Set(folders.map(f => path.join(base, f)))]));
 		const lockfile = readPnpmLockfile(path.join(installRoot, 'pnpm-lock.yaml'));
+		const layoutLockfile = getLayoutLockfile(lockfile, installRoot, layoutRoot);
 		const isHoisted = modules.nodeLinker === 'hoisted';
 		if (isHoisted && !modules.hoistedLocations) {
 			throw new Error(`${modulesFile} has no hoistedLocations. Run pnpm install in ${installRoot}.`);
 		}
+		if (isHoisted && Object.keys(layoutLockfile.importers).length !== Object.keys(lockfile.importers).length) {
+			throw new Error(`pnpm installed ${installRoot} with the hoisted linker, which doesn't lay out the dependencies of ${layoutRoot} the way the product ships them. Install it with the isolated linker.`);
+		}
 		layout = {
 			lockfile,
 			isHoisted,
-			locations: toFolders(getHoistedLocations(lockfile, new Set(modules.skipped ?? []))),
-			installedLocations: toFolders(Object.entries(modules.hoistedLocations ?? {})),
+			locations: toFolders(layoutRoot, getHoistedLocations(layoutLockfile, new Set(modules.skipped ?? []))),
+			installedLocations: toFolders(installRoot, Object.entries(modules.hoistedLocations ?? {})),
 		};
-		installRootLayouts.set(installRoot, layout);
+		layouts.set(layoutRoot, layout);
 	}
 	return layout;
 }
@@ -112,7 +147,8 @@ function getIsolatedSource(dependentSource: string, name: string, isProject: boo
  */
 function getPnpmProductionDependencies(folder: string): IProductionDependency[] {
 	const installRoot = getInstallRoot(folder);
-	const layout = getInstallRootLayout(installRoot);
+	const layoutRoot = getLayoutRoot(installRoot, folder);
+	const layout = getLayout(installRoot, layoutRoot);
 	const importer = layout.lockfile.importers[getImporterId(installRoot, folder)];
 	if (!importer) {
 		throw new Error(`${folder} is not a project of ${path.join(installRoot, 'pnpm-lock.yaml')}.`);
@@ -128,7 +164,7 @@ function getPnpmProductionDependencies(folder: string): IProductionDependency[] 
 			if (candidates.has(candidate)) {
 				return candidate;
 			}
-			if (current === installRoot || path.dirname(current) === current) {
+			if (current === layoutRoot || path.dirname(current) === current) {
 				return undefined;
 			}
 		}

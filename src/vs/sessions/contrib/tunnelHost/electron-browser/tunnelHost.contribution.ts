@@ -17,7 +17,6 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { IRemoteTunnelService } from '../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { RemoteConnectionsActionViewItem } from '../../../../workbench/contrib/chat/electron-browser/toggleRemoteConnectionsActionViewItem.js';
 import { RemoteConnectionsToggleResult } from '../../../../workbench/contrib/chat/electron-browser/remoteConnectionsSharing.js';
 import { executeToggleRemoteConnections, TUNNEL_HOST_SHARING_KEY } from '../../../../workbench/contrib/chat/electron-browser/tunnelHost.contribution.js';
@@ -32,7 +31,6 @@ export class SessionsTunnelHostTitlebarContribution extends Disposable implement
 	static readonly ID = 'workbench.contrib.sessionsTunnelHostTitlebar';
 
 	constructor(
-		@IRemoteTunnelService remoteTunnelService: IRemoteTunnelService,
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ICommandService commandService: ICommandService,
@@ -83,7 +81,7 @@ export class SessionsTunnelHostTitlebarContribution extends Disposable implement
 					: undefined,
 			});
 		};
-		this._register(actionViewItemService.register(AgentsWindowMenus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID, viewItemFactory, remoteTunnelService.onDidChangeTunnelStatus));
+		this._register(actionViewItemService.register(AgentsWindowMenus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID, viewItemFactory));
 	}
 }
 

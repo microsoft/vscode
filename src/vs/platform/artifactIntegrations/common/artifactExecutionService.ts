@@ -137,6 +137,7 @@ export class ArtifactExecutionService extends Disposable {
 			const action = this.requireAction(binding, actionId, true, chat);
 			const run: ArtifactRun = {
 				...this.newRun(binding, action, requestId, 'manual', action.label, chat), requestedBy: actor,
+				...binding.presentation.get().generalActions.some(action => action.id === actionId) ? { generalAction: true } : {},
 				...input === undefined ? {} : { input: deepClone(input) },
 			};
 			state.runs.push(run);
@@ -675,7 +676,11 @@ export class ArtifactExecutionService extends Disposable {
 			version: 1,
 			integrationLabel: binding.integrationLabel,
 			source: run.source,
-			action: item?.action ?? { label: action.label, iconId: action.iconId },
+			action: {
+				...(item?.action ?? { label: action.label, iconId: action.iconId }),
+				// An item action presents its own label but runs the registered action, so it is described like it.
+				...(action.activityLabel ? { activityLabel: action.activityLabel } : {}),
+			},
 			artifact: {
 				resource: binding.artifact.resource,
 				label: view.main?.label ?? binding.artifact.label,

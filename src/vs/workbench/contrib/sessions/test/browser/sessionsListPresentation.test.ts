@@ -5,15 +5,17 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ISessionsListPresentation, SessionNameKind } from '../../browser/sessionsListPresentation.js';
 import { DefaultSessionsListPresentation } from '../../browser/defaultSessionsListPresentation.js';
+import { IPinnedCanvasService } from '../../browser/pinnedCanvases.js';
 
 suite('Sessions list presentation defaults', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('leaves shared list DOM and sizing unchanged', () => {
-		const presentation: ISessionsListPresentation = new DefaultSessionsListPresentation();
+		const presentation: ISessionsListPresentation = new DefaultSessionsListPresentation(upcastPartial<IPinnedCanvasService>({}));
 		const container = dom.$('div');
 		const before = dom.append(container, dom.$('span'));
 		store.add(presentation.renderHeader(container));
@@ -28,7 +30,7 @@ suite('Sessions list presentation defaults', () => {
 
 	for (const kind of ['newGroup', 'group', 'session', 'chat'] satisfies SessionNameKind[]) {
 		test(`${kind} retains synchronous inline editing and its return value`, () => {
-			const presentation: ISessionsListPresentation = new DefaultSessionsListPresentation();
+			const presentation: ISessionsListPresentation = new DefaultSessionsListPresentation(upcastPartial<IPinnedCanvasService>({}));
 			let inlineCalls = 0;
 			const accepted = presentation.editName(kind, 'Original', () => { inlineCalls++; return false; }, () => assert.fail('Must not open a prompt'));
 			assert.deepStrictEqual({ accepted, inlineCalls }, { accepted: false, inlineCalls: 1 });

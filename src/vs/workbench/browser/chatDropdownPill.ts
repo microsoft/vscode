@@ -160,6 +160,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			}
 			this._updatePopupState();
 			this._updatePromotedAction();
+			this.updateEntryChecked(this.isSummarized ? undefined : this.entries.at(0)?.checked);
 			if (this._dropdownVisible) {
 				if (this.opensDropdown) {
 					this._actionWidgetService.updateItems(this._getDropdownItems(), undefined, { preserveHover: true, preserveScrollPosition: true, animateItemMove: true });

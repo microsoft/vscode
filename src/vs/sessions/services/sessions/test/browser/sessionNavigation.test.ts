@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -98,6 +100,12 @@ function stubSession(id: string, status: SessionStatus = SessionStatus.Completed
 }
 
 class MockSessionStore implements ISessionsManagementService {
+	savedDraftOpener: ((draftId: string, token: CancellationToken) => Promise<boolean>) | undefined;
+
+	async openSavedDraft(draftId: string, token: CancellationToken): Promise<boolean> {
+		return this.savedDraftOpener?.(draftId, token) ?? false;
+	}
+
 	readonly archivedSessionItems = constObservable({ available: false, state: 'loaded' as const });
 	acquireArchivedSessionItems() { return toDisposable(() => { }); }
 
@@ -109,6 +117,7 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly visibleSessions = observableValue<readonly TestShown[]>('test.visibleSessions', []);
 	readonly slotPanes = testGridPanes(this.visibleSessions);
 	readonly onDidChangeSessions = Event.None;
+	readonly onDidChangeSession = Event.None;
 	readonly onDidStartSession = Event.None;
 	readonly onDidChangeSessionTypes = Event.None;
 	readonly onWillSendRequest = Event.None;
@@ -243,6 +252,7 @@ class MockSessionStore implements ISessionsManagementService {
 	}
 	restoreVisibleSessions(): Promise<void> { throw new Error('not implemented'); }
 	createNewSession(_folderUri: URI, _options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
+	async configureNewSessionDraft(_session: ISession, _options: ICreateNewSessionOptions, _token?: CancellationToken): Promise<void> { }
 	createAutomationSession(_folderUri: URI, _options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	createAutomationQuickChat(_options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	getAutomationSessionConfiguration(): Promise<undefined> { return Promise.resolve(undefined); }
@@ -273,6 +283,7 @@ class MockSessionStore implements ISessionsManagementService {
 	setActive(_session: ISession): void { throw new Error('not implemented'); }
 	cancelCurrentRequest(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	archiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
+	prepareSessionWorktreeCleanup(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	importSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	unarchiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	archiveChat(_session: ISession, _chat: IChat): Promise<void> { throw new Error('not implemented'); }
@@ -944,6 +955,138 @@ suite('SessionsNavigation', () => {
 		store.setActiveSession(s2);
 
 		assert.deepStrictEqual(recency.entries.map(entry => entry.kind), ['session', 'session', 'newSession']);
+	});
+
+	test('saved drafts retain distinct Back/Forward identities without changing MRU order', async () => {
+		const session = stubSession('session');
+		store.addSession(session);
+		const opened: string[] = [];
+		store.savedDraftOpener = async id => {
+			opened.push(id);
+			nav.setCurrentDraftId(id);
+			await store.openNewSession();
+			return true;
+		};
+		nav.setCurrentDraftId('first');
+		store.setActiveSession(session);
+		nav.setCurrentDraftId('second');
+		await store.openNewSession();
+		const before = recency.entries.map(getRecencyEntryKey);
+
+		await nav.goBack();
+		await nav.goBack();
+		const afterBack = store.activeSession.get()?.sessionId;
+		await nav.goForward();
+		await nav.goForward();
+
+		assert.deepStrictEqual({
+			opened, afterBack, afterForward: store.activeSession.get()?.sessionId,
+			orderPreserved: recency.entries.map(getRecencyEntryKey),
+			canGoForward: canGoForward(),
+		}, { opened: ['first', 'second'], afterBack: undefined, afterForward: undefined, orderPreserved: before, canGoForward: false });
+	});
+
+	test('picker recreation preserves a saved draft entry and clearing restores legacy composer identity', () => {
+		nav.setCurrentDraftId('saved');
+		const before = recency.entries.map(getRecencyEntryKey);
+		store.setActiveSession(stubSession('provider-one', SessionStatus.Untitled));
+		store.setActiveSession(stubSession('provider-two', SessionStatus.Untitled));
+		nav.recordNewSessionOpened();
+		const after = recency.entries.map(getRecencyEntryKey);
+		nav.setCurrentDraftId(undefined);
+		assert.deepStrictEqual({ before, after, cleared: recency.entries }, {
+			before: ['["newSession","saved"]'],
+			after: ['["newSession","saved"]'],
+			cleared: [{ kind: 'newSession' }],
+		});
+	});
+
+	test('unavailable saved drafts are skipped without opening the composer or disturbing the remaining order', async () => {
+		const first = stubSession('first');
+		const last = stubSession('last');
+		store.addSession(first);
+		store.addSession(last);
+		store.setActiveSession(first);
+		nav.setCurrentDraftId('deleted');
+		await store.openNewSession();
+		store.setActiveSession(last);
+
+		await nav.goBack();
+		const afterBack = store.lastOpenedResource?.toString();
+		await nav.goForward();
+		assert.deepStrictEqual({
+			afterBack, afterForward: store.lastOpenedResource?.toString(),
+			composerOpened: store.lastOpenedNewSession,
+			drafts: recency.entries.filter(entry => entry.kind === 'newSession'),
+		}, {
+			afterBack: first.resource.toString(), afterForward: last.resource.toString(),
+			composerOpened: false, drafts: [{ kind: 'newSession' }],
+		});
+	});
+
+	test('a newer explicit navigation cancels pending saved draft restoration', async () => {
+		const first = stubSession('first');
+		const last = stubSession('last');
+		store.addSession(first);
+		store.addSession(last);
+		nav.setCurrentDraftId('saved');
+		store.setActiveSession(first);
+		const restore = new DeferredPromise<void>();
+		let cancelled = false;
+		store.savedDraftOpener = async (id, token) => {
+			await restore.p;
+			cancelled = token.isCancellationRequested;
+			if (cancelled) {
+				return false;
+			}
+			nav.setCurrentDraftId(id);
+			await store.openNewSession();
+			return true;
+		};
+		const back = nav.goBack();
+		const explicit = nav.beginSessionOpen('explicit', CancellationToken.None);
+		store.setActiveSession(last);
+		explicit.complete();
+		await restore.complete();
+		await back;
+		assert.deepStrictEqual({
+			cancelled, active: store.activeSession.get()?.sessionId,
+			drafts: recency.entries.filter(entry => entry.kind === 'newSession'),
+		}, { cancelled: true, active: 'last', drafts: [{ kind: 'newSession', draftId: 'saved' }] });
+	});
+
+	test('typing replaces the composer entry and navigation retains the stowed draft', async () => {
+		const previous = stubSession('previous');
+		store.addSession(previous);
+		store.setActiveSession(previous);
+		await store.openNewSession();
+		nav.setCurrentDraftId('typed');
+		const afterTyping = recency.entries.map(getRecencyEntryKey);
+		nav.setCurrentDraftId(undefined, true);
+		store.setActiveSession(previous);
+		const afterStowing = recency.entries.map(getRecencyEntryKey);
+		await store.openNewSession();
+		nav.setCurrentDraftId('second');
+		assert.deepStrictEqual({ afterTyping, afterStowing, afterSecond: recency.entries.map(getRecencyEntryKey) }, {
+			afterTyping: ['["newSession","typed"]', getRecencyEntryKey({ kind: 'session', sessionResource: previous.resource, chatResource: stubChat.resource })],
+			afterStowing: [getRecencyEntryKey({ kind: 'session', sessionResource: previous.resource, chatResource: stubChat.resource }), '["newSession","typed"]'],
+			afterSecond: ['["newSession","second"]', getRecencyEntryKey({ kind: 'session', sessionResource: previous.resource, chatResource: stubChat.resource }), '["newSession","typed"]'],
+		});
+	});
+
+	test('failed saved draft restoration leaves the current destination and history intact', async () => {
+		const session = stubSession('session');
+		store.addSession(session);
+		nav.setCurrentDraftId('saved');
+		store.setActiveSession(session);
+		const before = recency.entries.map(getRecencyEntryKey);
+		store.savedDraftOpener = async () => { throw new Error('Draft unavailable'); };
+		await nav.goBack();
+		assert.deepStrictEqual({
+			active: store.activeSession.get()?.sessionId,
+			order: recency.entries.map(getRecencyEntryKey),
+			back: canGoBack(), forward: canGoForward(),
+		}, { active: 'session', order: before, back: true, forward: false });
 	});
 
 	test('go to new-session, goBack, go to new-session again still enables back', async () => {

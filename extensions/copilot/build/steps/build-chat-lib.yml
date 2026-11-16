@@ -5,8 +5,9 @@ parameters:
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: 22.x
-    displayName: 🛠 Install Node.js (22.x)
+      versionSpec: 24.x
+      checkLatest: true
+    displayName: 🛠 Install Node.js
 
   - template: setup-npm.yml
     parameters:
@@ -14,9 +15,18 @@ steps:
 
   - template: ../../../../build/azure-pipelines/common/install-pnpm.yml@self
 
-  # chat-lib is a member of the extensions/copilot pnpm workspace. The extraction sets its
-  # dependencies to Copilot's versions, in its package.json and in Copilot's pnpm-lock.yaml.
-  - bash: pnpm install --frozen-lockfile && pnpm run extract-chat-lib
+  # chat-lib and Copilot are members of the root pnpm workspace. pnpm runs the root install scripts,
+  # which install the whole repository, on every install that runs scripts, filtered or not: the
+  # install skips them, then builds Copilot's dependencies and runs its postinstall. The extraction
+  # sets chat-lib's dependencies to Copilot's versions, in its package.json and in the root
+  # pnpm-lock.yaml. The rebuild ignores the root .pnpmfile.mjs, which builds native modules for
+  # Electron: chat-lib runs in Node.js, and network isolation blocks the Electron headers.
+  - bash: |
+      set -e
+      pnpm install --frozen-lockfile --ignore-scripts --filter copilot-chat --filter @vscode/chat-lib
+      pnpm --ignore-pnpmfile --filter copilot-chat --filter @vscode/chat-lib rebuild
+      pnpm run postinstall
+      pnpm run extract-chat-lib
     displayName: 📂 Extract chat-lib
     workingDirectory: extensions/copilot
     env:
@@ -35,9 +45,12 @@ steps:
     displayName: 📋 Sync chat-lib version
     workingDirectory: extensions/copilot/chat-lib
 
-  # pnpm doesn't run chat-lib's postinstall again when the workspace is already up to date; it
-  # copies static files next to the extracted sources.
-  - script: pnpm install --frozen-lockfile && pnpm --dir chat-lib run postinstall
+  # Installs chat-lib's dependencies for the versions that the extraction set, without the root
+  # install scripts, then runs chat-lib's postinstall, which copies static files next to the
+  # extracted sources. Then removes the packages in the node_modules folders above
+  # extensions/copilot (every install adds the root project's), so that chat-lib only resolves
+  # its own dependencies and Copilot's.
+  - script: pnpm install --frozen-lockfile --ignore-scripts --filter @vscode/chat-lib && pnpm --dir chat-lib run postinstall && pnpm exec tsx script/build/isolateChatLib.ts
     displayName: 📦 Install chat-lib dependencies
     workingDirectory: extensions/copilot
     env:

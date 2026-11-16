@@ -1,0 +1,29 @@
+# Compiles the built-in Copilot extension in a platform Compile job, into
+# .build/extensions/copilot, with the files of its VSIX (see
+# packageCopilotExtensionStream in build/lib/extensions.ts). Packaging the client
+# and the server then replaces its native files with those of the target platform.
+# Runs after ../common/mixin-vscode-capi.yml, which checks out and installs
+# microsoft/vscode-capi.
+steps:
+  # microsoft/vscode-capi is a separate repository that installs with npm.
+  - pwsh: |
+      $ErrorActionPreference = 'Stop'
+      Push-Location (Join-Path '$(Build.SourcesDirectory)' '.build/vscode-capi')
+      try {
+        $env:BUILD_SOURCESDIRECTORY = Join-Path '$(Build.SourcesDirectory)' 'extensions/copilot'
+        npm run mixin
+        if ($LASTEXITCODE -ne 0) { throw "npm run mixin failed with exit code $LASTEXITCODE" }
+      } finally {
+        Pop-Location
+      }
+    displayName: Mixin vscode-capi (Copilot)
+
+  - template: l10n-steps.yml@self
+
+  # The extractor's TypeScript program can exceed the default heap limit on CI agents.
+  - script: node --max-old-space-size=4096 ../../node_modules/@vscode/telemetry-extractor/out/extractor.js --eventPrefix GitHub.copilot-chat -s . -o . -f telemetry
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Extract telemetry (Copilot)
+
+  - script: pnpm run gulp compile-copilot-extension-build
+    displayName: Compile Copilot

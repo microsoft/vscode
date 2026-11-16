@@ -58,6 +58,7 @@ import { ChatAIDisabledSettingId } from '../../../../../../../platform/chat/comm
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../../../platform/request/common/request.js';
@@ -71,7 +72,7 @@ import { TestLifecycleService, TestWorkspaceTrustManagementService } from '../..
 import { IHostService } from '../../../../../../services/host/browser/host.js';
 import { IPowerService } from '../../../../../../services/power/common/powerService.js';
 import { IAuthenticationService } from '../../../../../../services/authentication/common/authentication.js';
-import { IWorkbenchGitHubService } from '../../../../../../services/github/common/githubService.js';
+import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../../../../../../services/github/common/githubService.js';
 import { IGitHubAccountClient } from '../../../../../../../platform/github/common/account/account.js';
 import { AccountClient } from '../../../../../../../platform/github/common/account/accountClient.js';
 import { LocalMissionControlRequestProvider } from '../../../../../../../platform/github/common/client/localMissionControlRequestProvider.js';
@@ -627,7 +628,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 		upcastPartial<IAgentHostService>({ onAgentHostStart: Event.None, onAgentHostExit: Event.None }),
 		instantiationService.get(IRemoteAgentHostService),
 		upcastPartial<IPathService>({ registerPathProvider: () => Disposable.None }),
-		new NullLogService(),
+		upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None }),
 	));
 	instantiationService.stub(IAgentHostConnectionsService, resolutionService);
 	instantiationService.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
@@ -3095,7 +3096,10 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 				override reportRequest() { }
 			}(),
 			new class extends mock<IWorkbenchGitHubService>() {
-				override async acquireAccountApiClient(authorization: IGitHubAccountClient['authorization']): Promise<IGitHubAccountClient> {
+				override async acquireAccountApiClient(...args: Parameters<IWorkbenchGitHubService['acquireAccountApiClient']>): Promise<IGitHubAccountClient> {
+					assert.ok(args.length === 3);
+					const [providerId, session] = args;
+					const authorization = toGitHubAuthorizationContext(providerId, session);
 					const lifetime = new DisposableStore();
 					const controller = new AbortController();
 					lifetime.add(toDisposable(() => controller.abort()));
@@ -3126,7 +3130,6 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 				return result;
 			},
 		});
-		h.setFocused(false);
 		let lastCheckpoint = checkpoint();
 		for (const elapsed of [2, 2, 4, 6, 2]) {
 			await timeout(elapsed * 60_000);
@@ -3222,6 +3225,38 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 		]);
 	});
 
+	test('background Agents windows defer automatic monitoring and drain task hints on focus', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];
+		const h = await createContribution(store, [discoveredSession()], {
+			sessionFeed: { connected: true, start: async () => { }, dispose: () => { } },
+			listSessions: async (_token, options) => {
+				requests.push(options);
+				return { kind: 'complete', sessions: [discoveredSession()] };
+			},
+		});
+		h.setFocused(false);
+		await h.contribution.refreshTasks(['changed-task']);
+		await h.contribution.refreshTasks(['changed-task']);
+		await h.contribution.refreshFeed('renewal');
+		await h.runDiscovery('automatic');
+		await timeout(20 * 60_000);
+		const before = requests.length;
+		h.setFocused(true);
+		await h.runDiscovery('automatic');
+		assert.deepStrictEqual({
+			before, requests: requests.map(options => ({ incremental: options?.incremental, taskIds: options?.taskIds })),
+			disconnected: h.disconnectedFrom,
+		}, {
+			before: 1,
+			requests: [
+				{ incremental: false, taskIds: undefined },
+				{ incremental: false, taskIds: undefined },
+				{ incremental: true, taskIds: ['changed-task'] },
+			],
+			disconnected: [],
+		});
+	}));
+
 	test('feed catch-up stays incremental without postponing periodic full reconciliation', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const requests: (ICloudSandboxDiscoveryOptions | undefined)[] = [];
 		let sessions = [discoveredSession()];
@@ -3234,7 +3269,6 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 					: { kind: 'complete', sessions };
 			},
 		});
-		harness.setFocused(false);
 		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
 		sessions = [];
 		await timeout(8 * 60_000);

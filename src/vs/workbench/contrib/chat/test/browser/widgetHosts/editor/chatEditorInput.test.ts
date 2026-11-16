@@ -41,7 +41,7 @@ import { IAgentHostEnablementService } from '../../../../../../../platform/agent
 import { IChatModelReference, IChatService, IChatSessionStartOptions } from '../../../../common/chatService/chatService.js';
 import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../../common/chatOpenDiagnosticsService.js';
 import { IChatSessionsService, localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatConfiguration, SessionTypeSelectionReason } from '../../../../common/constants.js';
+import { ChatAgentLocation, SessionTypeSelectionReason } from '../../../../common/constants.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
 import { IChatModel, IInputModel } from '../../../../common/model/chatModel.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../../../common/model/chatUri.js';
@@ -396,7 +396,7 @@ suite('ChatEditorInput', () => {
 					},
 				}),
 				upcastPartial<IDialogService>({}),
-				new TestConfigurationService({ [ChatConfiguration.MigrateLegacyCopilotCliSessions]: true }),
+				new TestConfigurationService(),
 				upcastPartial<IChatSessionsService>({}),
 				upcastPartial<IInstantiationService>({}),
 				upcastPartial<IStorageService>({}),

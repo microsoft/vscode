@@ -45,7 +45,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { SessionAgentMergeEnabledContext, SessionIsActiveContext, DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../sessions/common/contextkeys.js';
+import { SessionAgentMergeEnabledContext, SessionArtifactIntegrationsEnabledContext, SessionIsActiveContext, DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../sessions/common/contextkeys.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { defaultCountBadgeStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
@@ -85,7 +85,7 @@ import { ChecksViewModel } from './checksViewModel.js';
 import { REVEAL_CI_CHECKS_COMMAND_ID } from '../../sessions/browser/fixCIChecks.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move skill button constants out of providers
 import { AGENT_HOST_SKILL_BUTTON_UPDATE_PR_ID, isAgentHostSkillButtonId } from '../../sessions/providers/agentHost/browser/agentHostSkillButtons.js';
-import { AGENT_HOST_AUTO_MERGE_OPERATION_IDS, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_AUTO_MERGE_OPERATION_IDS, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, IsolationMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../../sessions/common/changes.js';
 import { buildTreeChildren, ChangesTreeElement, ChangesTreeRenderer, IChangesFileItem, IChangesTreeRootInfo, isChangesFileItem, isChangesFileResource, toIChangesFileItem } from './changesViewRenderer.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
@@ -349,6 +349,10 @@ export function isChangesActionsWorkspaceReady(session: ISession | undefined, ch
 		&& workspace.folders.every((folder, index) => isEqual(folder.workingDirectory, mountedFolders[index].uri));
 }
 
+const AGENT_MERGE_ENABLED_CONTEXT_KEYS: ReadonlySet<string> = new Set([SessionAgentMergeEnabledContext.key]);
+const ARTIFACT_INTEGRATIONS_ENABLED_CONTEXT_KEYS: ReadonlySet<string> = new Set([SessionArtifactIntegrationsEnabledContext.key]);
+const CHANGES_EDITOR_TRANSITION_CONTEXT_KEYS: ReadonlySet<string> = new Set([DesktopChangesEditorTransitionContext.key]);
+
 class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButtonBarWidget {
 
 	private readonly _buttonBar: WorkbenchButtonBar;
@@ -423,9 +427,11 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			));
 		});
 
-		const agentMergeEnabledObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([SessionAgentMergeEnabledContext.key]))), () =>
+		const agentMergeEnabledObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(AGENT_MERGE_ENABLED_CONTEXT_KEYS)), () =>
 			contextKeyService.getContextKeyValue<boolean>(SessionAgentMergeEnabledContext.key) === true);
-		const changesEditorTransitionObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([DesktopChangesEditorTransitionContext.key]))), () =>
+		const artifactIntegrationsEnabledObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(ARTIFACT_INTEGRATIONS_ENABLED_CONTEXT_KEYS)), () =>
+			SessionArtifactIntegrationsEnabledContext.getValue(contextKeyService) === true);
+		const changesEditorTransitionObs = observableFromEvent(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(CHANGES_EDITOR_TRANSITION_CONTEXT_KEYS)), () =>
 			DesktopChangesEditorTransitionContext.getValue(contextKeyService) === true);
 		const workspaceFoldersObs = observableFromEvent(workspaceContextService.onDidChangeWorkspaceFolders, () =>
 			workspaceContextService.getWorkspace().folders);
@@ -475,10 +481,15 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			// by the host because the Agent Merge menu keys off them to know it
 			// should stand in (see `agentMergeOwnsPrimaryButton`); where Agent
 			// Merge is unavailable this state simply offers no button.
+			//
+			// With artifact integrations, the pull request artifact offers the
+			// pull request operations, such as Mark Ready and Merge, instead.
+			const hidesPullRequestOperations = artifactIntegrationsEnabledObs.read(reader);
 			const operations = changes.changesetOperationsObs.read(reader);
 			const changesetOperations = operations
 				.filter(op => op.scopes.includes(SessionChangesetOperationScope.Changeset))
 				.filter(op => !AGENT_HOST_AUTO_MERGE_OPERATION_IDS.has(op.id))
+				.filter(op => !hidesPullRequestOperations || !AGENT_HOST_PULL_REQUEST_OPERATION_IDS.has(op.id))
 				.filter(op => !excludedOperationIds.has(op.id));
 
 			const toOperationAction = (op: ISessionChangesetOperation) => toAction({
@@ -575,11 +586,16 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 			const usesContributedPrimary = !operations.hasRunning && dropdownMenuActions.primary !== undefined;
 			const primaryAction = usesContributedPrimary ? dropdownMenuActions.primary : operations.groups[0]?.[0];
 
+			// The bar renders a single button, so while an operation owns it the
+			// actions of the toolbar's submenus, such as Submit Feedback, join
+			// its dropdown rather than being dropped behind it.
+			const toolbarActions = primaryAction ? getChangesToolbarDropdownActions(menuActions.primary) : [];
+
 			// The button bar treats the first entry of a submenu as the button
 			// itself and the remainder as the dropdown, so the primary has to
 			// lead. A contributed primary only names its own actions, so the
 			// menu entry it came from is dropped rather than repeated below it.
-			const groups = [...operations.groups, ...dropdownMenuActions.groups]
+			const groups = [...operations.groups, ...dropdownMenuActions.groups, toolbarActions]
 				.map(group => group.filter(action => action !== dropdownMenuActions.contributed))
 				.filter(group => group.length > 0);
 			const entryCount = groups.reduce((count, group) => count + group.length, 0);
@@ -728,6 +744,17 @@ export const CHANGES_HEADER_ACTIONS_ID = 'workbench.changesView.headerActions';
  */
 export function actionsNamingSession<T extends MenuItemAction | SubmenuItemAction>(withSession: [string, T[]][], withResource: [string, T[]][]): [string, T[]][] {
 	return withSession.map(([group, actions], groupIndex) => [group, actions.map((action, index) => action instanceof MenuItemAction && action.item.source ? withResource[groupIndex]?.[1][index] ?? action : action)]);
+}
+
+/**
+ * The actions of the submenus of the Changes toolbar, such as Apply Actions with Submit Feedback, as entries of the
+ * dropdown of the operation that owns the button, such as Merge Changes: the button bar renders only its first action,
+ * so the submenu itself would never show, and the dropdown is a flat list.
+ */
+export function getChangesToolbarDropdownActions(actions: readonly IAction[]): IAction[] {
+	return actions.flatMap(action => action instanceof SubmenuAction
+		? action.actions.filter(child => !(child instanceof Separator))
+		: []);
 }
 
 export class ChangesActionsBarActionViewItem extends BaseActionViewItem {
@@ -1371,6 +1398,9 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	private getTreePaneMinimumSize(reservedSectionHeight: number): number {
+		if (this.isSizeToContent) {
+			return Math.min(this.getTreePaneDesiredSize(), Math.max(0, this.getSplitViewAvailableHeight() - reservedSectionHeight));
+		}
 		if (this.listContainer?.style.display === 'none') {
 			return EMPTY_FILE_CHANGES_MIN_HEIGHT;
 		}
@@ -1398,6 +1428,9 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	private getTreePaneMaximumSize(): number {
+		if (this.isSizeToContent) {
+			return this.getTreePaneDesiredSize();
+		}
 		if (this.listContainer?.style.display === 'none') {
 			return Number.POSITIVE_INFINITY;
 		}
@@ -1407,6 +1440,18 @@ export class ChangesViewPane extends ViewPane {
 
 	private fireTreePaneSizeChange(): void {
 		this.treePaneSizeChange.fire(undefined);
+		this._onDidChangeOptimalHeight.fire();
+	}
+
+	protected override getOptimalBodyHeight(): number | undefined {
+		if (!this.tree || this.tree.contentHeight === 0 && this.changesViewService.activeSessionChangesetLoadingObs.get()) {
+			return undefined;
+		}
+		const checksHeight = this.ciStatusWidget?.visible
+			? this.ciStatusWidget.collapsed ? CIStatusWidget.HEADER_HEIGHT : Math.max(CIStatusWidget.HEADER_HEIGHT, this.ciStatusWidget.desiredHeight)
+			: 0;
+		const actionsHeight = this.actionsContainer?.offsetHeight ?? 0;
+		return this.getTreePaneDesiredSize() + checksHeight + (this.isSizeToContent ? 0 : 16) + actionsHeight + (actionsHeight > 0 ? 8 : 0);
 	}
 
 	/** Compute the height available to the SplitView within the body. */
@@ -1415,7 +1460,7 @@ export class ChangesViewPane extends ViewPane {
 		if (bodyHeight <= 0) {
 			return 0;
 		}
-		const bodyPadding = 16;
+		const bodyPadding = this.isSizeToContent ? 0 : 16;
 		const actionsHeight = this.actionsContainer?.offsetHeight ?? 0;
 		const actionsMargin = actionsHeight > 0 ? 8 : 0;
 		return Math.max(0, bodyHeight - bodyPadding - actionsHeight - actionsMargin);

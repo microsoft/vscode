@@ -68,7 +68,7 @@ export const AgentsWindowMenus = {
  * {@link AgentsWindowMenus.SessionActivityBarCanvas}, top to bottom, each shown under a title.
  */
 export const SessionCanvasMenuGroup = {
-	/** The active chat's canvases whose tab was closed but which are still running. */
+	/** The active chat's running canvases, whether or not their tab is open. */
 	Running: '1_running',
 	/** The canvases that can be opened: the active chat's canvas types and the window's canvases. */
 	Available: '2_available',

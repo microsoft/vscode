@@ -5,7 +5,9 @@
 
 import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
-import { IManagedHover, IManagedHoverContent, isManagedHoverTooltipHTMLElement } from '../../../../../base/browser/ui/hover/hover.js';
+import { ActionViewItem, BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IHoverOptions, IManagedHover, IManagedHoverContent, isManagedHoverTooltipHTMLElement } from '../../../../../base/browser/ui/hover/hover.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -36,11 +38,12 @@ suite('Agents Window titlebar copy experiment', () => {
 	const treatmentName = 'chatOpenInAgentsTitleBarLabel';
 	const expansionTreatmentName = 'chatOpenInAgentsTitleBarExpandOnHover';
 	const richHoverTreatmentName = `config.${ChatConfiguration.TitleBarOpenInAgentsWindowRichHover}`;
+	const richHoverOnClickTreatmentName = `config.${ChatConfiguration.TitleBarOpenInAgentsWindowRichHoverOnClick}`;
 	const cardTitle = 'All your agents, across all your projects, in one window';
 	const manyWindowsToOneCard = { title: cardTitle, graphic: 'many-windows-to-one' };
 	const windowComparisonCard = { title: cardTitle, graphic: 'window-comparison' };
 
-	function createHarness(sessionCount?: number, richHover?: string) {
+	function createHarness(sessionCount?: number, richHover?: string, richHoverOnClick?: boolean) {
 		const instantiation = disposables.add(new TestInstantiationService());
 		const storage = disposables.add(new InMemoryStorageService());
 		if (sessionCount !== undefined) {
@@ -78,7 +81,11 @@ suite('Agents Window titlebar copy experiment', () => {
 			update: content => { hoverContent = content; },
 			hide: () => { hoverHides++; },
 		});
-		const configuration = new TestConfigurationService(richHover === undefined ? {} : { [ChatConfiguration.TitleBarOpenInAgentsWindowRichHover]: richHover });
+		const configuration = new TestConfigurationService({
+			...(richHover === undefined ? {} : { [ChatConfiguration.TitleBarOpenInAgentsWindowRichHover]: richHover }),
+			...(richHoverOnClick === undefined ? {} : { [ChatConfiguration.TitleBarOpenInAgentsWindowRichHoverOnClick]: richHoverOnClick }),
+		});
+		const instantHovers: { options: IHoverOptions; focus: boolean | undefined; widget: { isDisposed: boolean; dispose(): void } }[] = [];
 		disposables.add(configuration.onDidChangeConfigurationEmitter);
 		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(IStorageService, storage);
@@ -93,14 +100,29 @@ suite('Agents Window titlebar copy experiment', () => {
 		instantiation.stub(IWorkbenchAssignmentService, assignment);
 		instantiation.stub(ITelemetryService, telemetry);
 		instantiation.stub(ILogService, log);
-		instantiation.stub(IHoverService, upcastPartial<IHoverService>({ setupManagedHover: () => hover }));
+		instantiation.stub(IHoverService, upcastPartial<IHoverService>({
+			setupManagedHover: () => hover,
+			showInstantHover: (options, focus) => {
+				const widget = {
+					isDisposed: false,
+					dispose: () => {
+						if (!widget.isDisposed) {
+							widget.isDisposed = true;
+							options.onDidHide?.();
+						}
+					},
+				};
+				instantHovers.push({ options, focus, widget });
+				return widget;
+			},
+		}));
 		instantiation.stub(IKeybindingService, upcastPartial<IKeybindingService>({ appendKeybinding: label => `${label} (shortcut)` }));
 		disposables.add(instantiation.createInstance(OpenWorkspaceInAgentsContribution));
 		assert.ok(factory);
 		let actionRuns = 0;
 		const action = disposables.add(new Action('test', 'Open in Agents', undefined, true, async () => { actionRuns++; }));
 		const item = factory(action, {}, instantiation, 1);
-		assert.ok(item);
+		assert.ok(item instanceof BaseActionViewItem);
 		disposables.add(item);
 		const container = $('div');
 		item.render(container);
@@ -139,7 +161,25 @@ suite('Agents Window titlebar copy experiment', () => {
 			await expansionRequests[index].complete(value);
 			await timeout(0);
 		};
-		return { storage, createFirstSession, setSessionCount, setRichHover, hoverCard, hoverState, getHoverHides: () => hoverHides, refetched, requests, expansionRequests, queriedTreatments, warnings, item, container, resolve, resolveExpansion, snapshot, getActionRuns: () => actionRuns };
+		/** The hovers shown by activating the button, as the button shows its card with focus in it. */
+		const focusedHovers = () => instantHovers.map(({ options, focus, widget }) => ({
+			isCard: options.content === hoverCard(),
+			target: options.target === container,
+			sticky: !!options.persistence?.sticky,
+			focus,
+			trapFocus: options.trapFocus,
+			disposed: widget.isDisposed,
+		}));
+		/** Activates the button the way the title bar's toolbar does for Enter and Space. */
+		const activateByKeyboard = async () => {
+			await item.actionRunner.run(item.getActionToRun(new KeyboardEvent('keydown')), undefined);
+			await timeout(0);
+		};
+		const activateByClick = async () => {
+			container.dispatchEvent(new MouseEvent('click'));
+			await timeout(0);
+		};
+		return { storage, createFirstSession, setSessionCount, setRichHover, hoverCard, hoverState, focusedHovers, activateByKeyboard, activateByClick, getHoverHides: () => hoverHides, refetched, requests, expansionRequests, queriedTreatments, warnings, item, container, resolve, resolveExpansion, snapshot, getActionRuns: () => actionRuns };
 	}
 
 	for (const value of [undefined, 'Try Agents']) {
@@ -449,5 +489,88 @@ suite('Agents Window titlebar copy experiment', () => {
 			{ hover: windowComparisonCard, expandOnHover: false, noGrow: true },
 			{ hover: 'Open in Agents Window (shortcut)', expandOnHover: true, noGrow: false },
 		]);
+	});
+
+	test('richHoverOnClick makes activation toggle a focused, non-sticky card only for users who see the card, and triggers in every arm', async () => {
+		const results: Record<string, unknown> = {};
+		for (const richHoverOnClick of [false, true]) {
+			for (const [variant, sessionCount] of [['manyWindowsToOne', 1], ['manyWindowsToOne', 2], ['none', 0]] as const) {
+				const h = createHarness(sessionCount, variant, richHoverOnClick);
+				await h.activateByClick();
+				const afterClick = { actionRuns: h.getActionRuns(), focusedHovers: h.focusedHovers() };
+				await h.activateByKeyboard();
+				results[`${richHoverOnClick ? 'on' : 'off'}, ${variant}, ${sessionCount} sessions`] = {
+					afterClick,
+					afterKeyboard: { actionRuns: h.getActionRuns(), focusedHovers: h.focusedHovers() },
+					triggers: h.snapshot().triggers,
+				};
+				h.item.dispose();
+			}
+		}
+		const opensAgentsWindow = (triggers: string[]) => ({ afterClick: { actionRuns: 1, focusedHovers: [] }, afterKeyboard: { actionRuns: 2, focusedHovers: [] }, triggers });
+		const focusedCard = { isCard: true, target: true, sticky: false, focus: true, trapFocus: true };
+		assert.deepStrictEqual(results, {
+			'off, manyWindowsToOne, 1 sessions': opensAgentsWindow([richHoverOnClickTreatmentName]),
+			'off, manyWindowsToOne, 2 sessions': opensAgentsWindow([]),
+			'off, none, 0 sessions': opensAgentsWindow([]),
+			'on, manyWindowsToOne, 1 sessions': {
+				afterClick: { actionRuns: 0, focusedHovers: [{ ...focusedCard, disposed: false }] },
+				afterKeyboard: { actionRuns: 0, focusedHovers: [{ ...focusedCard, disposed: true }] },
+				triggers: [richHoverOnClickTreatmentName],
+			},
+			'on, manyWindowsToOne, 2 sessions': opensAgentsWindow([]),
+			'on, none, 0 sessions': opensAgentsWindow([]),
+		});
+	});
+
+	test('the focused card closes on Escape, opens the Agents window, and closes when the button stops showing the card', async () => {
+		const h = createHarness(1, 'windowComparison', true);
+		const cardButton = () => h.hoverCard()?.querySelector<HTMLElement>('.monaco-button');
+		await h.activateByClick();
+		// The card's button handles Escape itself, so the hover never sees it.
+		cardButton()?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27 }));
+		const afterEscape = h.focusedHovers().map(hover => hover.disposed);
+		await h.activateByClick();
+		cardButton()?.click();
+		await timeout(0);
+		const afterOpen = { actionRuns: h.getActionRuns(), focusedHovers: h.focusedHovers().map(hover => hover.disposed) };
+		await h.activateByClick();
+		h.setSessionCount(2);
+		assert.deepStrictEqual({ afterEscape, afterOpen, focusedHovers: h.focusedHovers().map(hover => hover.disposed), hover: h.hoverState().hover }, {
+			afterEscape: [true],
+			afterOpen: { actionRuns: 1, focusedHovers: [true, true] },
+			focusedHovers: [true, true, true],
+			hover: 'Open in Agents Window (shortcut)',
+		});
+	});
+
+	test('the focused card closes on a mousedown outside it, even on a toolbar action that stops its propagation', async () => {
+		const h = createHarness(1, 'manyWindowsToOne', true);
+		const otherItem = disposables.add(new ActionViewItem(undefined, disposables.add(new Action('other', 'Other', undefined, true)), {}));
+		const toolbar = $('div');
+		otherItem.render(toolbar);
+		const mouseDown = (target: Element | null | undefined) => target?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+		const rendered = [h.container, toolbar];
+		try {
+			mainWindow.document.body.append(...rendered);
+			await h.activateByClick();
+			const card = h.hoverCard();
+			assert.ok(card);
+			// Where the hover service renders it.
+			rendered.push(card);
+			mainWindow.document.body.append(card);
+			mouseDown(card.querySelector('.monaco-button'));
+			mouseDown(h.container);
+			const afterInsideAndTrigger = h.focusedHovers().map(hover => hover.disposed);
+			await h.activateByClick();
+			await h.activateByClick();
+			mouseDown(toolbar.querySelector('.action-label'));
+			assert.deepStrictEqual({ afterInsideAndTrigger, afterToolbarAction: h.focusedHovers().map(hover => hover.disposed) }, {
+				afterInsideAndTrigger: [false],
+				afterToolbarAction: [true, true],
+			});
+		} finally {
+			rendered.forEach(element => element.remove());
+		}
 	});
 });

@@ -62,6 +62,7 @@ import { appendNewSessionTitleBarMenuItem } from '../../browser/newSessionTitleB
 
 import '../../../../browser/layoutActions.js';
 import '../../browser/runScriptAction.js';
+import '../../../sessions/browser/views/sessionsViewActions.js';
 import '../../../../../workbench/contrib/modernUI/browser/media/tabs.css';
 import '../../../../common/sizes.js';
 import '../../../../browser/media/workbench.css';
@@ -126,6 +127,7 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 		}
 		override isEditorPaneVisible() { return sidePaneVisible; }
 		override isModernUICompact() { return options.compactDensity === true; }
+		override getPanelSpacing() { return this.isModernUICompact() ? 0 : 4; }
 		override getPanelAlignment() { return 'justify' as const; }
 		override getContainer() { return container; }
 	}();
@@ -210,6 +212,9 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	const blockedIndicator = new class extends mock<BlockedSessionsIndicatorModel>() {
 		override readonly onDidRequestBlink = Event.None;
 		override readonly blockedSessions = constObservable([]);
+		override readonly unacknowledgedBlockedSessions = constObservable([]);
+		override readonly reminderSessions = constObservable([]);
+		override readonly attentionSessionCount = constObservable(0);
 		override readonly requiresInputKind = constObservable(undefined);
 		override consumePendingBlink() { return false; }
 	}();

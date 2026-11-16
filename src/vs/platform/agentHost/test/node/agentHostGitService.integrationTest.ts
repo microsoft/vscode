@@ -2661,3 +2661,138 @@ suite('AgentHostGitService - resolveBranchBaselineCommit (real git)', () => {
 		assert.strictEqual(result, undefined);
 	});
 });
+
+suite('AgentHostGitService - getBranchDiffFingerprint (real git)', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const hasGit = (() => {
+		try { cp.execFileSync('git', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; }
+	})();
+
+	let tmpRoot: string | undefined;
+	let svc: AgentHostGitService | undefined;
+	const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+
+	setup(() => {
+		tmpRoot = undefined;
+		svc = createGitService(disposables);
+	});
+
+	teardown(async () => {
+		await rmDirWithRetry(tmpRoot);
+	});
+
+	function initRepo(): (...args: string[]) => Buffer {
+		tmpRoot = realpathSync(mkdtempSync(join(tmpdir(), 'agent-host-git-fingerprint-')));
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: tmpRoot!, env, stdio: 'pipe' });
+		run('init', '-q', '-b', 'main');
+		return run;
+	}
+
+	(hasGit ? test : test.skip)('changes with edits, including to a file that is already modified, commits and the base branch used, and with nothing else', async () => {
+		const fs = await import('fs/promises');
+		const run = initRepo();
+		const directory = URI.file(tmpRoot!);
+		await fs.writeFile(join(tmpRoot!, 'a.txt'), 'base\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'base');
+		run('checkout', '-q', '-b', 'feature');
+		const fingerprint = () => svc!.getBranchDiffFingerprint(directory, 'main');
+		const steps: Record<string, string | undefined> = { clean: await fingerprint() };
+		const unchanged = await fingerprint() === steps.clean;
+
+		await fs.writeFile(join(tmpRoot!, 'a.txt'), 'one\n');
+		steps.modified = await fingerprint();
+		await fs.writeFile(join(tmpRoot!, 'a.txt'), 'two\n');
+		steps.modifiedAgain = await fingerprint();
+		await fs.writeFile(join(tmpRoot!, 'untracked.txt'), 'new\n');
+		steps.untracked = await fingerprint();
+		run('add', '.');
+		run('commit', '-q', '-m', 'feature');
+		steps.committed = await fingerprint();
+		run('checkout', '-q', 'main');
+		await fs.writeFile(join(tmpRoot!, 'b.txt'), 'main\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'main moves');
+		run('checkout', '-q', 'feature');
+		// The base branch moving on leaves the merge base, and with it the diff, as it was.
+		const baseMovedOn = await fingerprint() === steps.committed;
+		steps.noBaseBranch = await svc!.getBranchDiffFingerprint(directory);
+		const settled = baseMovedOn && await fingerprint() === steps.committed;
+
+		assert.deepStrictEqual({
+			unchanged,
+			settled,
+			defined: Object.values(steps).every(value => value !== undefined),
+			distinct: new Set(Object.values(steps)).size,
+		}, {
+			unchanged: true,
+			settled: true,
+			defined: true,
+			distinct: Object.keys(steps).length,
+		});
+	});
+
+	(hasGit ? test : test.skip)('is undefined outside a repository', async () => {
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-git-fingerprint-none-'));
+		assert.strictEqual(await svc!.getBranchDiffFingerprint(URI.file(tmpRoot), 'main'), undefined);
+	});
+});
+
+suite('AgentHostGitService - hasUnignoredPaths (real git)', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const hasGit = (() => {
+		try { cp.execFileSync('git', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; }
+	})();
+
+	let tmpRoot: string | undefined;
+	let svc: AgentHostGitService | undefined;
+	const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+
+	setup(() => {
+		tmpRoot = undefined;
+		svc = createGitService(disposables);
+	});
+
+	teardown(async () => {
+		await rmDirWithRetry(tmpRoot);
+	});
+
+	(hasGit ? test : test.skip)('tells ignored build output from changes that can affect what Git reports', async () => {
+		const fs = await import('fs/promises');
+		tmpRoot = realpathSync(mkdtempSync(join(tmpdir(), 'agent-host-git-ignored-')));
+		const root = tmpRoot;
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: root, env, stdio: 'pipe' });
+		run('init', '-q', '-b', 'main');
+		await fs.mkdir(join(root, 'out'));
+		await fs.mkdir(join(root, 'dist'));
+		await fs.writeFile(join(root, '.gitignore'), 'out/\n');
+		await fs.writeFile(join(root, 'dist', 'bundle.js'), '1');
+		run('add', '.');
+		run('commit', '-q', '-m', 'init');
+		const directory = URI.file(root);
+		const check = (...relativePaths: string[]) => svc!.hasUnignoredPaths(directory, relativePaths.map(relativePath => URI.file(join(root, relativePath))));
+
+		assert.deepStrictEqual({
+			ignoredOnly: await check('out/a.js', 'out/nested/b.js'),
+			deletedIgnored: await check('out/gone.js'),
+			untracked: await check('src/new.ts'),
+			mixed: await check('out/a.js', 'src/new.ts'),
+			tracked: await check('dist/bundle.js'),
+			gitMetadata: await check('.git/HEAD'),
+		}, {
+			ignoredOnly: false,
+			deletedIgnored: false,
+			untracked: true,
+			mixed: true,
+			tracked: true,
+			gitMetadata: true,
+		});
+	});
+
+	(hasGit ? test : test.skip)('is undefined outside a repository', async () => {
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-git-ignored-none-'));
+		assert.strictEqual(await svc!.hasUnignoredPaths(URI.file(tmpRoot), [URI.file(join(tmpRoot, 'a'))]), undefined);
+	});
+});

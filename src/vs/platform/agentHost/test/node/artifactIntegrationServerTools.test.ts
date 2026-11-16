@@ -19,7 +19,7 @@ import { toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDele
 import { ArtifactIntegrationServerToolName, ArtifactServerToolName } from '../../common/serverToolNames.js';
 import { SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus, type Message } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus, ToolCallConfirmationReason, type Message } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostArtifactIntegrationDirectory } from '../../node/artifactIntegrations/agentHostArtifactIntegrationDirectory.js';
 import { ClientArtifactIntegrationEndpoint } from '../../node/artifactIntegrations/clientArtifactIntegrationEndpoint.js';
@@ -165,9 +165,9 @@ suite('Artifact Integration Server Tools', () => {
 				return new ImmortalReference({ model, clientStartedTurn: options.clientStartedTurn ?? true });
 			},
 		});
-		const execute = async (name: string, args?: unknown) => {
+		const execute = async (name: string, args?: unknown, toolCallId?: string) => {
 			try {
-				const text = await group.execute(stateManager, { sessionUri: session, chatUri: chat, turnId: 'turn-1' }, name, args);
+				const text = await group.execute(stateManager, { sessionUri: session, chatUri: chat, turnId: 'turn-1', ...(toolCallId ? { toolCallId } : {}) }, name, args);
 				return text.startsWith('{') ? JSON.parse(text) : text;
 			} catch (error) {
 				return { error: (error as Error).message };
@@ -184,6 +184,15 @@ suite('Artifact Integration Server Tools', () => {
 			{ name: ArtifactIntegrationServerToolName.SetArtifactAutomation, deferLoading: true, confirms: true },
 			{ name: ArtifactIntegrationServerToolName.DisableArtifactAutomation, deferLoading: true, confirms: false },
 		]);
+	});
+
+	test('turning on automation directs native auto-merge requests to the GitHub pull request', () => {
+		const description = artifactIntegrationServerToolDefinitions.find(tool => tool.name === ArtifactIntegrationServerToolName.SetArtifactAutomation)?.description;
+		assert.deepStrictEqual([
+			'turning on a pull request integration\'s own merge automation when the user asks to have the integration merge the pull request once it is ready',
+			'distinct from GitHub\'s native auto-merge',
+			'when the user asks to enable auto-merge, enable auto-merge on the GitHub pull request instead of turning on this automation',
+		].filter(clause => !description?.includes(clause)), []);
 	});
 
 	test('reads live status, details, actions, automation, and runs as bounded data', async () => {
@@ -304,8 +313,8 @@ suite('Artifact Integration Server Tools', () => {
 			enabled: { integrationId: 'github.pullRequest', automation, guidance },
 			alreadyOn: { integrationId: 'github.pullRequest', automation, guidance },
 			configured: [
-				{ integrationId: 'github.pullRequest', revision: 0, values: { merge: 'always' }, actor: agent },
-				{ integrationId: 'github.pullRequest', revision: 1, values: { merge: 'always' }, actor: agent },
+				{ integrationId: 'github.pullRequest', revision: 0, values: { merge: 'always' }, actor: { ...agent, autoApproved: true } },
+				{ integrationId: 'github.pullRequest', revision: 1, values: { merge: 'always' }, actor: { ...agent, autoApproved: true } },
 			],
 			approval: {
 				title: 'Set Artifact Automation?',
@@ -316,6 +325,39 @@ suite('Artifact Integration Server Tools', () => {
 				message: 'Set automation: the requested options. Automation can act on this artifact after this turn without asking again.',
 			},
 		});
+	});
+
+	test('records whether a person confirmed turning automation on or it was approved automatically', async () => {
+		const model = new FakeArtifactModel([contribution()]);
+		const { stateManager, execute } = createHarness({ pr: model });
+		for (const toolCallId of ['confirmed', 'automatic']) {
+			stateManager.dispatchServerAction(chat, { type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId, toolName: ArtifactIntegrationServerToolName.SetArtifactAutomation, displayName: 'Set Artifact Automation' });
+		}
+		stateManager.dispatchServerAction(chat, { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'confirmed', invocationMessage: 'Set automation', confirmationTitle: 'Set Artifact Automation?' });
+		stateManager.dispatchServerAction(chat, { type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'confirmed', approved: true, confirmed: ToolCallConfirmationReason.UserAction });
+		stateManager.dispatchServerAction(chat, { type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'automatic', invocationMessage: 'Set automation', confirmed: ToolCallConfirmationReason.Setting });
+		for (const toolCallId of ['confirmed', 'automatic', undefined]) {
+			await execute(ArtifactIntegrationServerToolName.SetArtifactAutomation, { artifact: 'pr', values: { merge: 'always' } }, toolCallId);
+		}
+
+		assert.deepStrictEqual(model.configured.map(entry => entry.actor), [agent, { ...agent, autoApproved: true }, { ...agent, autoApproved: true }]);
+	});
+
+	test('maps Agent Merge requests to pull request automation', () => {
+		const clauses = [
+			'Pull request automation is Agent Merge',
+			'when the user asks to enable Agent Merge for a recorded pull request, turn on its `addressReviews`, `fixCI`, and `resolveConflicts` options',
+			'`merge` only when they also ask for merging',
+			'when they ask not to enable Agent Merge, turn none of it on',
+		];
+		const missing = (text: string | undefined) => clauses.filter(clause => !text?.includes(clause));
+		const pullRequests: ArtifactIntegrationDescriptor = { id: 'github.pullRequest', label: 'GitHub Pull Request', automationOptions: [] };
+		const experiments: ArtifactIntegrationDescriptor = { id: 'extension.exp', label: 'ExP', automationOptions: [] };
+		assert.deepStrictEqual({
+			tool: missing(artifactIntegrationServerToolDefinitions.find(tool => tool.name === ArtifactIntegrationServerToolName.SetArtifactAutomation)?.description),
+			instruction: missing(createArtifactIntegrationsInstruction([pullRequests, experiments])),
+			withoutPullRequests: createArtifactIntegrationsInstruction([experiments])?.includes('Agent Merge'),
+		}, { tool: [], instruction: [], withoutPullRequests: false });
 	});
 
 	test('retries a conflicting change only when it left the requested options alone', async () => {

@@ -35,6 +35,8 @@ export interface IAgentHostWebSocketConfig {
 	readonly host?: string;
 	/** Connection token value. When set, WebSocket clients must present this token. */
 	readonly connectionToken?: string;
+	/** User data path under which to publish a shared standalone endpoint. */
+	readonly registryUserDataPath?: string;
 }
 
 /** Retains deletion markers so the IPC client's inherited environment cannot restore removed variables. */
@@ -141,6 +143,9 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			}
 			if (this._wsConfig.connectionToken) {
 				env['VSCODE_AGENT_HOST_CONNECTION_TOKEN'] = this._wsConfig.connectionToken;
+			}
+			if (this._wsConfig.registryUserDataPath) {
+				env['VSCODE_AGENT_HOST_REGISTRY_USER_DATA_PATH'] = this._wsConfig.registryUserDataPath;
 			}
 		}
 

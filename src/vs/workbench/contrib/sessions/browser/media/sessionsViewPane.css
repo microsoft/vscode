@@ -136,6 +136,56 @@
 		gap: 4px;
 	}
 
+	.sessions-inbox-scope {
+		display: flex;
+		flex-wrap: wrap;
+		flex-shrink: 0;
+		gap: var(--vscode-spacing-size40);
+		padding: 0 var(--vscode-spacing-size80) var(--vscode-spacing-size40);
+
+		&[hidden],
+		[hidden] {
+			display: none;
+		}
+
+		.scope-picker {
+			flex: 1 1 120px;
+			min-width: 0;
+		}
+
+		.monaco-action-bar,
+		.actions-container,
+		.action-item {
+			width: 100%;
+			min-width: 0;
+		}
+
+		.action-label {
+			display: flex;
+			align-items: center;
+			gap: var(--vscode-spacing-size40);
+			min-height: 24px;
+			min-width: 0;
+			padding: 0 var(--vscode-spacing-size40);
+			border-radius: var(--vscode-cornerRadius-small);
+			font-size: var(--vscode-fontSize-label1);
+			color: var(--vscode-foreground);
+		}
+
+		.scope-label {
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+			min-width: 0;
+			flex: 1;
+		}
+
+		.codicon {
+			flex-shrink: 0;
+			font-size: var(--vscode-codiconFontSize-compact);
+		}
+	}
+
 	/* Inline search input — replaces label + actions when active */
 	.agent-sessions-find-widget-container {
 		flex: 1;

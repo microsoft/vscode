@@ -7,6 +7,9 @@
  */
 
 import { Static, Type } from '@sinclair/typebox';
+// The declarations of the schemas refer to TypeBox's types, which TypeScript can't name through a
+// symlinked node_modules (pnpm's isolated layout). Export them from here, so the declarations can.
+export type { TAny, TArray, TBoolean, TLiteral, TNumber, TObject, TOptional, TRecord, TString, TUnion } from '@sinclair/typebox';
 
 export const MatchError = Type.Object({
 	kind: Type.Literal('failure'),

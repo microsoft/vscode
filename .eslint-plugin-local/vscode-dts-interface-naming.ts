@@ -3,27 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import type * as ESTree from 'estree';
-import { TSESTree } from '@typescript-eslint/utils';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 
-export default new class ApiInterfaceNaming implements eslint.Rule.RuleModule {
+export default new class ApiInterfaceNaming implements CreateRule {
 
 	private static _nameRegExp = /^I[A-Z]/;
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		messages: {
 			naming: 'Interfaces must not be prefixed with uppercase `I`',
 		},
 		schema: false,
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 
 		return {
-			['TSInterfaceDeclaration Identifier']: (node: ESTree.Identifier) => {
+			['TSInterfaceDeclaration Identifier']: (node: ESTree.IdentifierReference | ESTree.IdentifierName | ESTree.BindingIdentifier) => {
 
-				const name = (node as TSESTree.Identifier).name;
+				const name = node.name;
 				if (ApiInterfaceNaming._nameRegExp.test(name)) {
 					context.report({
 						node,

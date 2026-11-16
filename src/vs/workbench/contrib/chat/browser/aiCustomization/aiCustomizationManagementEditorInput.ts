@@ -25,6 +25,7 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 	private _saveHandler?: () => Promise<boolean>;
 	private _harnessLabel: string | undefined;
 	private _workspaceLabel: string | undefined;
+	private _environmentLabel: string | undefined;
 
 	override get capabilities(): EditorInputCapabilities {
 		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.RequiresModal;
@@ -59,11 +60,15 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 	}
 
 	override getDescription(): string | undefined {
-		if (this._harnessLabel && this._workspaceLabel) {
-			return localize('aiCustomizationManagementEditorDescriptionWithHarnessAndWorkspace', "({0} · {1})", this._harnessLabel, this._workspaceLabel);
+		const labels = [this._harnessLabel, this._workspaceLabel, this._environmentLabel].filter(label => label !== undefined);
+		if (labels.length === 3) {
+			return localize('aiCustomizationManagementEditorDescriptionWithThreeTargets', "({0} · {1} · {2})", labels[0], labels[1], labels[2]);
 		}
-		if (this._harnessLabel || this._workspaceLabel) {
-			return localize('aiCustomizationManagementEditorDescriptionWithTarget', "({0})", this._harnessLabel ?? this._workspaceLabel);
+		if (labels.length === 2) {
+			return localize('aiCustomizationManagementEditorDescriptionWithTwoTargets', "({0} · {1})", labels[0], labels[1]);
+		}
+		if (labels.length === 1) {
+			return localize('aiCustomizationManagementEditorDescriptionWithTarget', "({0})", labels[0]);
 		}
 		return undefined;
 	}
@@ -117,12 +122,16 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 		this._saveHandler = handler;
 	}
 
-	setTargetLabels(harnessLabel: string | undefined, workspaceLabel?: string): void {
-		if (this._harnessLabel === harnessLabel && this._workspaceLabel === workspaceLabel) {
+	setTargetLabels(harnessLabel: string | undefined, workspaceLabel?: string, environmentLabel?: string): void {
+		harnessLabel = harnessLabel?.trim() || undefined;
+		workspaceLabel = workspaceLabel?.trim() || undefined;
+		environmentLabel = environmentLabel?.trim() || undefined;
+		if (this._harnessLabel === harnessLabel && this._workspaceLabel === workspaceLabel && this._environmentLabel === environmentLabel) {
 			return;
 		}
 		this._harnessLabel = harnessLabel;
 		this._workspaceLabel = workspaceLabel;
+		this._environmentLabel = environmentLabel;
 		this._onDidChangeLabel.fire();
 	}
 }

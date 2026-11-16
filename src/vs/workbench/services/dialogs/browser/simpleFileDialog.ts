@@ -25,6 +25,7 @@ import { equalsIgnoreCase, format, startsWithIgnoreCase } from '../../../../base
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IRemoteAgentEnvironment } from '../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { isValidBasename } from '../../../../base/common/extpath.js';
+import { win32 } from '../../../../base/common/path.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { createCancelablePromise, CancelablePromise } from '../../../../base/common/async.js';
@@ -1096,11 +1097,8 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 	private async resolvePathFormatting(): Promise<void> {
 		if (this.scopedAuthority) {
 			const resource = URI.from({ scheme: this.scheme, authority: this.scopedAuthority, path: '/' });
-			const [operatingSystem, path] = await Promise.all([
-				this.pathService.getOperatingSystem(resource),
-				this.pathService.getPath(resource),
-			]);
-			this.isWindows = operatingSystem === OperatingSystem.Windows;
+			const path = await this.pathService.getPath(resource);
+			this.isWindows = path === win32;
 			this.separator = path?.sep ?? '/';
 			return;
 		}

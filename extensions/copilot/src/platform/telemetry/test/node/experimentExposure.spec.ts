@@ -59,6 +59,16 @@ describe('ExperimentExposureTracker', () => {
 		expect(exposures).toHaveLength(1);
 	});
 
+	it('reports an exposed flag again after a reset', () => {
+		const { tracker, exposures } = createTracker({ [VSCODE_GATE]: true });
+
+		tracker.onRead('copilotchat.a', true);
+		tracker.reset();
+		tracker.onRead('copilotchat.a', true);
+
+		expect(exposures).toHaveLength(2);
+	});
+
 	it('treats a non-boolean gate value as off', () => {
 		const { tracker, exposures } = createTracker({ [VSCODE_GATE]: 'true' });
 
@@ -86,8 +96,7 @@ describe('ExperimentExposureTracker', () => {
 
 	it('does not report a flag again when reporting reads it', () => {
 		const exposures: IExperimentExposure[] = [];
-		let tracker: ExperimentExposureTracker;
-		tracker = new ExperimentExposureTracker('vscode', () => true, () => CONTEXT, exposure => {
+		const tracker: ExperimentExposureTracker = new ExperimentExposureTracker('vscode', () => true, () => CONTEXT, exposure => {
 			exposures.push(exposure);
 			tracker.onRead('copilotchat.a', 1);
 		});
@@ -133,21 +142,30 @@ describe('exposureMetadata', () => {
 });
 
 describe('sendExperimentExposureTelemetry', () => {
-	it('sends exp_exposure to GitHub and Microsoft telemetry with the metadata as trusted properties', () => {
+	function send(exposure: IExperimentExposure) {
 		const sent: { eventName: string; destination: TelemetryDestination; properties?: TelemetryEventProperties; measurements?: TelemetryEventMeasurements }[] = [];
-		const exposure: IExperimentExposure = { ...CONTEXT, flag: 'copilotchat.a', value: 'treatment', surface: 'vscode' };
 		sendExperimentExposureTelemetry({
 			sendTelemetryEvent: (eventName: string, destination: TelemetryDestination, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements) => {
 				sent.push({ eventName, destination, properties, measurements });
 			}
 		}, exposure);
+		return sent;
+	}
 
-		expect(sent).toHaveLength(1);
-		const [event] = sent;
-		expect(event.eventName).toBe(EXP_EXPOSURE_EVENT);
-		expect(event.destination).toEqual({ github: true, microsoft: true });
-		expect(event.properties).toEqual(Object.fromEntries(Object.entries(exposureMetadata(exposure)).map(([k, v]) => [k, new TelemetryTrustedValue(v)])));
-		expect(event.measurements).toBeUndefined();
+	function trusted(exposure: IExperimentExposure) {
+		return Object.fromEntries(Object.entries(exposureMetadata(exposure)).map(([k, v]) => [k, new TelemetryTrustedValue(v)]));
+	}
+
+	it('sends exp_exposure to GitHub and Microsoft telemetry with the metadata as trusted properties', () => {
+		const exposure: IExperimentExposure = { ...CONTEXT, flag: 'copilotchat.a', value: 'treatment', surface: 'vscode' };
+
+		expect(send(exposure)).toEqual([{ eventName: EXP_EXPOSURE_EVENT, destination: { github: true, microsoft: true }, properties: trusted(exposure), measurements: undefined }]);
+	});
+
+	it('sends a signed-out exposure to Microsoft telemetry only, without a cached tracking ID', () => {
+		const exposure: IExperimentExposure = { ...CONTEXT, trackingId: undefined, flag: 'copilotchat.a', value: 'treatment', surface: 'vscode' };
+
+		expect(send(exposure)).toEqual([{ eventName: EXP_EXPOSURE_EVENT, destination: { github: false, microsoft: true }, properties: { ...trusted(exposure), 'common.tid': '' }, measurements: undefined }]);
 	});
 });
 

@@ -1005,7 +1005,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	getOptimalWidth(): number {
 		if (this.tree) {
 			const parentNode = this.tree.getHTMLElement();
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const childNodes = ([] as HTMLElement[]).slice.call(parentNode.querySelectorAll('.outline-item-label > a'));
 			return DOM.getLargestChildWidth(parentNode, childNodes);
 		}
@@ -1202,37 +1202,33 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 		return !!this.treeView.dataProvider && (element.collapsibleState !== TreeItemCollapsibleState.None);
 	}
 
-	private batch: ITreeItem[] | undefined;
-	private batchPromise: Promise<(readonly ITreeItem[])[] | undefined> | undefined;
+	private pendingBatch: { readonly elements: ITreeItem[]; readonly children: Promise<(readonly ITreeItem[])[] | undefined> } | undefined;
 	async getChildren(element: ITreeItem): Promise<readonly ITreeItem[]> {
 		const dataProvider = this.treeView.dataProvider;
 		if (!dataProvider) {
 			return [];
 		}
-		if (this.batch === undefined) {
-			this.batch = [element];
-			this.batchPromise = undefined;
-		} else {
-			this.batch.push(element);
+		// Calls made in the same tick share one request. Each call reads its children from the batch it joined, so calls
+		// made once that request is sent, such as from the continuation of an earlier call, start a new batch.
+		if (!this.pendingBatch) {
+			const elements: ITreeItem[] = [];
+			const children = timeout(0).then(() => {
+				this.pendingBatch = undefined;
+				return this.withProgress(doGetChildrenOrBatch(dataProvider, elements));
+			});
+			this.pendingBatch = { elements, children };
 		}
-		const indexInBatch = this.batch.length - 1;
-		return new Promise<readonly ITreeItem[]>((resolve, reject) => {
-			setTimeout(async () => {
-				const batch = this.batch;
-				this.batch = undefined;
-				if (!this.batchPromise) {
-					this.batchPromise = this.withProgress(doGetChildrenOrBatch(dataProvider, batch));
-				}
-				try {
-					const result = await this.batchPromise;
-					resolve((result && (indexInBatch < result.length)) ? result[indexInBatch] : []);
-				} catch (e) {
-					if (!(<string>e.message).startsWith('Bad progress location:')) {
-						reject(e);
-					}
-				}
-			}, 0);
-		});
+		const batch = this.pendingBatch;
+		const index = batch.elements.push(element) - 1;
+		try {
+			const children = await batch.children;
+			return children?.[index] ?? [];
+		} catch (e) {
+			if ((<string>e.message).startsWith('Bad progress location:')) {
+				return [];
+			}
+			throw e;
+		}
 	}
 }
 

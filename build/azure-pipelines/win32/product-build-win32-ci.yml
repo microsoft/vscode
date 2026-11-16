@@ -9,6 +9,10 @@ parameters:
     type: string
   - name: VSCODE_TEST_IDS
     type: object
+  # See steps/product-build-win32-setup.yml
+  - name: VSCODE_WORKSPACE_IMAGE
+    type: string
+    default: none
 
 # Each CI job builds the product in parallel, then runs the selected test IDs.
 jobs:
@@ -43,7 +47,8 @@ jobs:
           displayName: Publish Log Files
           sbomEnabled: false
           isProduction: false
-          condition: always()
+          # 1ES PT runs its binary analysis for every published output, so only publish when the logs are needed
+          condition: not(succeeded())
     steps:
       - template: ./steps/product-build-win32-compile.yml@self
         parameters:
@@ -51,3 +56,12 @@ jobs:
           VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}
           VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
           VSCODE_TEST_IDS: ${{ parameters.VSCODE_TEST_IDS }}
+          # Only what the tests of the job use: the unit and Agent Host E2E tests run out-build
+          VSCODE_BUILD_CLIENT: ${{ or(containsValue(parameters.VSCODE_TEST_IDS, 'integration-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'integration-remote'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-pac-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote'), containsValue(parameters.VSCODE_TEST_IDS, 'copilot')) }}
+          # The Smoke job checks the packaged Agent Host of the server
+          VSCODE_BUILD_SERVER: ${{ or(containsValue(parameters.VSCODE_TEST_IDS, 'integration-remote'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}
+          VSCODE_BUILD_SERVER_WEB: ${{ or(containsValue(parameters.VSCODE_TEST_IDS, 'integration-browser-firefox'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium')) }}
+          VSCODE_BUILD_PRODUCT_ASSETS: false
+          VSCODE_BUILD_INTEGRATION_TESTS: ${{ or(containsValue(parameters.VSCODE_TEST_IDS, 'integration-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'integration-browser-firefox'), containsValue(parameters.VSCODE_TEST_IDS, 'integration-remote'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-pac-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}
+          VSCODE_COMPILE_TEST_SUITES: ${{ or(containsValue(parameters.VSCODE_TEST_IDS, 'integration-browser-firefox'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-kerberos-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-wsl-basic-pac-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}
+          VSCODE_WORKSPACE_IMAGE: ${{ parameters.VSCODE_WORKSPACE_IMAGE }}

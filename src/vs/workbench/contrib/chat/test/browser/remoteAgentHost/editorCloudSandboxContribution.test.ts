@@ -88,6 +88,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
+import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 const discovered: ICloudSandboxDiscoveredSession = {
 	environmentId: 'environment-one',
@@ -620,7 +621,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 		override readonly onDidChangeWorkspaceFolders = workspaceFoldersChanged.event;
 		override getWorkspace() {
-			return { id: 'editor-workspace', folders: state.workspaceFolders };
+			return testIWorkspace({ id: 'editor-workspace', folders: state.workspaceFolders });
 		}
 	}());
 	instantiationService.stub(IGitService, new class extends mock<IGitService>() {
@@ -979,6 +980,35 @@ suite('Editor cloud sandbox discovery', () => {
 		await listed.p;
 		assert.deepStrictEqual({ before, network: h.networkCalls }, { before: [], network: ['feed', 'list'] });
 	});
+
+	test('feed renewal allows a minute of inactivity for window focus and Chat visibility', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const h = createHarness(store, { sessionFeed: { connected: true, start: async () => { }, dispose: () => { } } });
+		await Promise.all(h.initialRefreshes);
+		const instances = sinon.spy(h.instantiationService, 'createInstance');
+		await h.setEnabled(CloudSandboxSessionFeedEnabledSettingId, false);
+		await h.setEnabled(CloudSandboxSessionFeedEnabledSettingId, true);
+		await h.refresh('automatic');
+		const canConnect = instances.getCalls().find(call => call.args[0] === CloudSandboxSessionFeed)?.args[4];
+		assert.ok(typeof canConnect === 'function');
+		const allowed = [canConnect()];
+		h.state.hasFocus = false;
+		h.focusChanged.fire(false);
+		await timeout(59_999);
+		allowed.push(canConnect());
+		await timeout(1);
+		allowed.push(canConnect());
+		h.state.hasFocus = true;
+		h.focusChanged.fire(true);
+		allowed.push(canConnect());
+		await h.setChatVisible(false);
+		await timeout(59_999);
+		allowed.push(canConnect());
+		await timeout(1);
+		allowed.push(canConnect());
+		await h.setChatVisible(true);
+		allowed.push(canConnect());
+		assert.deepStrictEqual(allowed, [true, true, false, true, true, false, true]);
+	}));
 
 	test('resumes a deferred feed before one catch-up even when the old socket remains connected', async () => {
 		let deferred = false;

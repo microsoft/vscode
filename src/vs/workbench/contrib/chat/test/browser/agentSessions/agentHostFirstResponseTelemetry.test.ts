@@ -22,8 +22,34 @@ suite('AgentHostFirstResponseTiming', () => {
 		timing.observeText('duplicate');
 		assert.deepStrictEqual(timing.finish({ requestId: 'turn', provider: 'copilot', connectionKind: AgentHostClientConnectionKind.WebPubSub, agentSessionId: 'session', chatId: 'chat', outcome: 'success', sessionTurnKind: 'first', invocationKind: 'newTurn', trustInteractionRequired: false }), {
 			schemaVersion: 1, requestId: 'turn', provider: 'copilot', connectionKind: AgentHostClientConnectionKind.WebPubSub, agentSessionId: 'session', chatId: 'chat', outcome: 'success', sessionTurnKind: 'first', invocationKind: 'newTurn', trustInteractionRequired: false,
-			firstResponseTextMs: 250, rootToolCallsBeforeFirstText: 0, totalElapsedMs: 900, hasResponseText: true,
+			firstResponseTextMs: 250, firstResponseOrReasoningMs: 250, rootToolCallsBeforeFirstText: 0, totalElapsedMs: 900, hasResponseText: true,
 		});
+	});
+
+	test('times the first nonwhitespace reasoning or text without moving the text timing', () => {
+		const time = (outputs: readonly (readonly ['text' | 'reasoning', string])[]) => {
+			let elapsed = 0;
+			const timing = new AgentHostFirstResponseTiming({ elapsed: () => elapsed });
+			for (const [kind, text] of outputs) {
+				elapsed += 100;
+				if (kind === 'text') {
+					timing.observeText(text);
+				} else {
+					timing.observeReasoning(text);
+				}
+			}
+			const { firstResponseTextMs, firstResponseOrReasoningMs, hasResponseText } = timing.finish({ requestId: 'turn', provider: 'copilot', connectionKind: AgentHostClientConnectionKind.Local, outcome: 'success', sessionTurnKind: 'first', invocationKind: 'newTurn', trustInteractionRequired: false });
+			return { firstResponseTextMs, firstResponseOrReasoningMs, hasResponseText };
+		};
+		assert.deepStrictEqual([
+			time([['reasoning', ' \n'], ['reasoning', 'thinking'], ['reasoning', 'more'], ['text', 'answer']]),
+			time([['text', 'answer'], ['reasoning', 'thinking']]),
+			time([['reasoning', 'thinking']]),
+		], [
+			{ firstResponseTextMs: 400, firstResponseOrReasoningMs: 200, hasResponseText: true },
+			{ firstResponseTextMs: 100, firstResponseOrReasoningMs: 100, hasResponseText: true },
+			{ firstResponseTextMs: undefined, firstResponseOrReasoningMs: 100, hasResponseText: false },
+		]);
 	});
 
 	test('counts distinct root tools only until first nonwhitespace text', () => {
@@ -54,7 +80,7 @@ suite('AgentHostFirstResponseTiming', () => {
 			timing.observeToolCall('no-answer');
 			assert.deepStrictEqual(timing.finish({ requestId: 'turn', provider: 'copilot', connectionKind: AgentHostClientConnectionKind.Unknown, outcome, sessionTurnKind: 'unknown', invocationKind: 'unknown', trustInteractionRequired: false }), {
 				schemaVersion: 1, requestId: 'turn', provider: 'copilot', connectionKind: AgentHostClientConnectionKind.Unknown, outcome, sessionTurnKind: 'unknown', invocationKind: 'unknown', trustInteractionRequired: false,
-				firstResponseTextMs: undefined, rootToolCallsBeforeFirstText: undefined, totalElapsedMs: 42, hasResponseText: false,
+				firstResponseTextMs: undefined, firstResponseOrReasoningMs: undefined, rootToolCallsBeforeFirstText: undefined, totalElapsedMs: 42, hasResponseText: false,
 			});
 		});
 	}

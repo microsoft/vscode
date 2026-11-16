@@ -15,6 +15,8 @@ export enum BrowserOverlayType {
 	Hover = 'hover',
 	Dialog = 'dialog',
 	Notification = 'notification',
+	/** The screenshot tool's selection overlay, which shows the page's last screenshot underneath without pausing it visibly. */
+	ScreenshotTool = 'screenshotTool',
 	Unknown = 'unknown'
 }
 
@@ -30,6 +32,9 @@ const OVERLAY_DEFINITIONS: ReadonlyArray<{ className: string; type: BrowserOverl
 	{ className: 'notifications-center', type: BrowserOverlayType.Notification },
 	{ className: 'notification-toast-container', type: BrowserOverlayType.Notification },
 	{ className: 'spotlight-overlay', type: BrowserOverlayType.Unknown },
+	{ className: 'screenshot-tool-overlay', type: BrowserOverlayType.ScreenshotTool },
+	// The markup of a screenshot covers pages like a dialog.
+	{ className: 'screenshot-annotation-editor', type: BrowserOverlayType.Dialog },
 	{ className: 'part-grid-motion', type: BrowserOverlayType.Unknown },
 	// Context view is very generic, so treat the content as unknown
 	{ className: 'context-view', type: BrowserOverlayType.Unknown }
@@ -117,14 +122,14 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 			this._overlayCollections.set(overlayDefinition.className, {
 				type: overlayDefinition.type,
 				// We need dynamic collections for overlay detection, using getElementsByClassName is intentional here
-				// eslint-disable-next-line no-restricted-syntax
+				// eslint-disable-next-line eslint-js/no-restricted-syntax
 				collection: this.targetWindow.document.getElementsByClassName(overlayDefinition.className)
 			});
 		}
 
 		// Initialize live collection for shadow root hosts
 		// We need dynamic collections for overlay detection, using getElementsByClassName is intentional here
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		this._shadowRootHostCollection = this.targetWindow.document.getElementsByClassName('shadow-root-host');
 
 		// Setup structural observer to watch for element additions/removals
@@ -180,7 +185,7 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 					cache = [];
 					for (const overlayDefinition of OVERLAY_DEFINITIONS) {
 						// We need to query shadow roots for overlay detection, using querySelectorAll is intentional here
-						// eslint-disable-next-line no-restricted-syntax
+						// eslint-disable-next-line eslint-js/no-restricted-syntax
 						const elements = shadowRoot.querySelectorAll(`.${overlayDefinition.className}`);
 						for (const element of elements) {
 							cache.push({ element: element as HTMLElement, type: overlayDefinition.type });

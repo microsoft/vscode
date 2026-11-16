@@ -25,7 +25,8 @@ import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../../common/devContainerAgentHost.js';
+import { IDevContainerAgentHostUserStateReport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../../common/devContainerAgentHost.js';
+import { IAgentHostEndpointMetadata } from '../../common/agentHostEndpointRegistry.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { writeUserDataCertificatesFile } from '../../../request/node/certificates.js';
 import { IGitHubService } from '../../../github/common/githubService.js';
@@ -95,7 +96,15 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	failDevContainerUp = false;
 	sandboxSupported = false;
 	sandboxConfigurationPrepared = false;
-	endpointSessionId: string | undefined = NullTelemetryService.sessionId;
+	endpoints: readonly IAgentHostEndpointMetadata[] = [{
+		schemaVersion: 2,
+		type: 'standalone',
+		pid: 42,
+		instanceId: 'instance',
+		protocolVersion: '1',
+		connectionToken: 'token',
+		endpoint: { type: 'tcp', host: '127.0.0.1', port: 1234 },
+	}];
 	containerSessionIds: string[] = [NullTelemetryService.sessionId];
 	endpointPollsBeforeAvailable = 0;
 	endpointPolls = 0;
@@ -112,6 +121,16 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		{ Type: 'volume', Source: '/volumes/vscode', Destination: '/vscode', Name: 'vscode' },
 	];
 	containerMountsError: Error | undefined;
+	/** States of existing containers, see `docker ps --format {{.State}}`. */
+	existingContainerStates: readonly string[] = [];
+	/** Docker volumes and their labels. */
+	readonly volumes = new Map<string, Record<string, string>>();
+	volumeCreateExitCode = 0;
+	linkStateResult: { stdout: string; stderr?: string; code: number } = { stdout: '', code: 0 };
+	userCommandsExitCode = 0;
+	upExitCode = 0;
+	userStateUpArgs: readonly string[] | undefined;
+	linkedBeforeLifecycle: boolean | undefined;
 	cacheSetupError: Error | undefined;
 	cliCacheSetupError: Error | undefined;
 	cacheMountConfigured = false;
@@ -182,6 +201,22 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		if (args[0] === 'exec') {
 			return Promise.resolve({ stdout: `${this.containerSessionIds.join('\n')}\n`, stderr: '', code: 0 });
 		}
+		if (args[0] === 'ps') {
+			return Promise.resolve({ stdout: this.existingContainerStates.map(state => `${state}\n`).join(''), stderr: '', code: 0 });
+		}
+		if (args[0] === 'volume' && args[1] === 'ls') {
+			return Promise.resolve({ stdout: [...this.volumes.keys()].map(name => `${name}\n`).join(''), stderr: '', code: 0 });
+		}
+		if (args[0] === 'volume' && args[1] === 'inspect') {
+			return Promise.resolve({ stdout: `${JSON.stringify(this.volumes.get(args.at(-1)!) ?? null)}\n`, stderr: '', code: 0 });
+		}
+		if (args[0] === 'volume' && args[1] === 'create' && this.volumeCreateExitCode) {
+			return Promise.resolve({ stdout: '', stderr: 'volume create failed', code: this.volumeCreateExitCode });
+		}
+		if (args[0] === 'volume' && args[1] === 'create') {
+			const labels = args.flatMap((arg, i) => args[i - 1] === '--label' ? [arg] : []);
+			this.volumes.set(args.at(-1)!, Object.fromEntries(labels.map(label => [label.substring(0, label.indexOf('=')), label.substring(label.indexOf('=') + 1)])));
+		}
 		return Promise.resolve({ stdout: `${args.at(-1)}\n`, stderr: '', code: 0 });
 	}
 
@@ -229,15 +264,32 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			return Promise.resolve({ stdout: this.sandboxConfigurationOutput ?? JSON.stringify({ configuration: {}, mergedConfiguration: { mounts: this.cacheMountConfigured ? [{ target: '/vscode' }] : [] } }), stderr: this.configurationReadExitCode ? 'configuration read failed' : '', code: this.configurationReadExitCode });
 		}
 		if (args[0] === 'exec') {
-			return Promise.resolve({ stdout: '', stderr: '', code: 0 });
+			return Promise.resolve({ stdout: args.at(-1)?.startsWith('id -u;') ? '1000\n1000\n/custom/home\n' : '', stderr: '', code: 0 });
 		}
-		assert.deepStrictEqual(args, ['up', '--log-level', 'debug', '--workspace-folder', '/workspace', ...this.sandboxConfigurationPrepared ? ['--config', '/workspace/.devcontainer/devcontainer.json', '--override-config', '/sandbox/devcontainer.json'] : [], ...this.cacheMountConfigured ? [] : ['--mount', devContainerServerCacheMount]]);
+		if (args[0] === 'run-user-commands') {
+			this.linkedBeforeLifecycle = this.localCommands.some(command => command.args[2] === 'root' && !!command.args.at(-1)?.includes('link_state'));
+			return Promise.resolve({ stdout: `${JSON.stringify(this.userCommandsExitCode ? { outcome: 'error', description: 'postCreateCommand from devcontainer.json failed with exit code 1.', message: 'npm ERR! Your cache folder contains root-owned files: /home/node/.npm, run: sudo chown -R node /home/node/.npm' } : { outcome: 'success' })}\n`, stderr: '', code: this.userCommandsExitCode });
+		}
+		const expectedUpArgs = ['up', '--log-level', 'debug', '--workspace-folder', '/workspace', ...this.sandboxConfigurationPrepared ? ['--config', '/workspace/.devcontainer/devcontainer.json', '--override-config', '/sandbox/devcontainer.json'] : [], ...this.cacheMountConfigured ? [] : ['--mount', devContainerServerCacheMount]];
+		if (args.includes('--skip-post-create')) {
+			assert.deepStrictEqual(args.slice(0, expectedUpArgs.length), expectedUpArgs);
+			this.userStateUpArgs = args.slice(expectedUpArgs.length);
+		} else {
+			assert.deepStrictEqual(args, expectedUpArgs);
+		}
 		if (this.failDevContainerUp) {
 			return Promise.reject(new Error('devcontainer up failed'));
 		}
+		if (this.upExitCode) {
+			return Promise.resolve({
+				stdout: `${JSON.stringify({ outcome: 'error', description: 'An error occurred setting up the container.', message: 'Command failed: docker run -e API_KEY=secret image' })}\n`,
+				stderr: '[5 ms] Start: Run: docker run -e API_KEY=secret image\ndocker: Error response from daemon: invalid mount config.\n',
+				code: this.upExitCode,
+			});
+		}
 		this._reportOutput(connectionId, 'Starting Dev Container\n');
 		return Promise.resolve({
-			stdout: `[1 ms] Starting...\n${JSON.stringify({ outcome: 'success', containerId: 'container-id', remoteWorkspaceFolder: this.remoteWorkspaceFolder })}\n`,
+			stdout: `[1 ms] Starting...\n${JSON.stringify({ outcome: 'success', containerId: 'container-id', remoteUser: 'node', remoteWorkspaceFolder: this.remoteWorkspaceFolder })}\n`,
 			stderr: '',
 			code: 0,
 		});
@@ -289,7 +341,13 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			if (args.at(-1)?.includes('/cli/bin/') && this.cliCacheSetupError) {
 				throw this.cliCacheSetupError;
 			}
+			if (args.at(-1)?.includes('link_state')) {
+				return Promise.resolve({ stderr: '', ...this.linkStateResult });
+			}
 			return Promise.resolve({ stdout: '', stderr: '', code: 0 });
+		}
+		if (command === 'docker' && args[0] === 'exec' && args[1] === '--user' && args[2] === 'node') {
+			return Promise.resolve({ stdout: '1000\n1000\n/home/node\n', stderr: '', code: 0 });
 		}
 		throw new Error(`Unexpected local command: ${command} ${args.join(' ')}`);
 	}
@@ -360,20 +418,13 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			}
 			if (command.includes('agent endpoints')) {
 				this.endpointPolls++;
-				const endpoints = [{
-					schemaVersion: 2,
-					type: 'standalone',
-					pid: 42,
-					instanceId: 'instance',
-					protocolVersion: '1',
-					connectionToken: 'token',
-					endpoint: { type: 'tcp', host: '127.0.0.1', port: 1234 },
-				}];
+				const endpoints = [...this.endpoints];
 				if (this._spawnedAgentHost) {
 					endpoints.push({
 						...endpoints[0],
 						pid: 43,
 						instanceId: 'spawned-instance',
+						quality: 'insider',
 						endpoint: { type: 'tcp', host: '127.0.0.1', port: 1235 },
 					});
 				}
@@ -385,12 +436,6 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 					stderr: '',
 					code: 0,
 				};
-			}
-			if (command.includes(`/proc/42/environ`)) {
-				return { stdout: this.endpointSessionId ? `${this.endpointSessionId}\n` : '', stderr: '', code: 0 };
-			}
-			if (command.includes(`/proc/43/environ`)) {
-				return { stdout: `${NullTelemetryService.sessionId}\n`, stderr: '', code: 0 };
 			}
 			if (command.includes(`${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=`)) {
 				this._spawnedAgentHost = true;
@@ -424,7 +469,7 @@ suite('Dev Container Agent Host Main Service', () => {
 		test(`reports local certificate eligibility without injecting the AH environment (system certificates: ${enabled})`, async () => {
 			const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, {}, enabled, ['LOCAL CA']));
 			service.inheritedEnvironment = {};
-			service.endpointSessionId = undefined;
+			service.endpointPollsBeforeAvailable = 1;
 			const result = await service.connect({ connectionId: 'certificates', workspaceFolder: '/workspace', name: 'Certificates' });
 
 			assert.deepStrictEqual({
@@ -449,7 +494,7 @@ suite('Dev Container Agent Host Main Service', () => {
 			const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, environment, true, ['LOCAL CA']));
 			service.inheritedEnvironment = {};
 			service.dockerEndpoint = endpoint;
-			service.endpointSessionId = undefined;
+			service.endpointPollsBeforeAvailable = 1;
 			const result = await service.connect({ connectionId: name, workspaceFolder: '/workspace', name });
 			assert.deepStrictEqual({
 				eligible: result.sharesClientNetwork,
@@ -468,7 +513,7 @@ suite('Dev Container Agent Host Main Service', () => {
 			} else {
 				service.dockerContextError = new Error('Docker unavailable');
 			}
-			service.endpointSessionId = undefined;
+			service.endpointPollsBeforeAvailable = 1;
 			const result = await service.connect({ connectionId: `unknown-${failure}`, workspaceFolder: '/workspace', name: 'Unknown Docker host' });
 			assert.deepStrictEqual({
 				eligible: result.sharesClientNetwork,
@@ -532,43 +577,6 @@ suite('Dev Container Agent Host Main Service', () => {
 		} finally {
 			await rm(userDataPath, { recursive: true, force: true });
 		}
-	});
-
-	test('discovers modern, legacy and volume Dev Containers without starting them', async () => {
-		const service = store.add(new class extends TestDevContainerAgentHostMainService {
-			override async isDockerAvailable() { return true; }
-			protected override async _runDocker(args: readonly string[]) {
-				this.dockerCommands.push([...args]);
-				return {
-					code: 0, stderr: '', stdout: [
-						{ id: 'modern', name: 'project', workspaceFolder: '/work/project', legacyFolder: '', metadata: '{}' },
-						{ id: 'legacy', name: 'old', workspaceFolder: '', legacyFolder: '/work/old', metadata: '' },
-						{ id: 'volume', name: 'volume', workspaceFolder: '', legacyFolder: '', metadata: '{}' },
-						{ id: 'other', name: 'database', workspaceFolder: '', legacyFolder: '', metadata: '' },
-					].map(value => JSON.stringify(value)).join('\n')
-				};
-			}
-		}());
-		assert.deepStrictEqual({
-			containers: await service.listDevContainers(CancellationToken.None),
-			commands: service.dockerCommands.map(args => args.slice(0, 3)),
-			starts: service.devContainerArgs,
-		}, {
-			containers: [
-				{ id: 'modern', name: 'project', workspaceFolder: '/work/project' },
-				{ id: 'legacy', name: 'old', workspaceFolder: '/work/old' },
-				{ id: 'volume', name: 'volume', workspaceFolder: undefined },
-			],
-			commands: [['ps', '--all', '--no-trunc']], starts: [],
-		});
-	});
-
-	test('surfaces Docker discovery failures', async () => {
-		const service = store.add(new class extends TestDevContainerAgentHostMainService {
-			override async isDockerAvailable() { return true; }
-			protected override async _runDocker() { return { code: 1, stdout: '', stderr: 'Docker daemon unavailable' }; }
-		}());
-		await assert.rejects(service.listDevContainers(CancellationToken.None), /Docker daemon unavailable/);
 	});
 
 	test('parses the final Dev Container CLI result', () => {
@@ -809,7 +817,7 @@ suite('Dev Container Agent Host Main Service', () => {
 		assert.deepStrictEqual(service.devContainerArgs, []);
 	});
 
-	test('reuses a standalone endpoint and exposes its relay', async () => {
+	test('reuses an untagged standalone endpoint with a session-tagged relay and disconnects only its relay', async () => {
 		const service = store.add(new TestDevContainerAgentHostMainService());
 		const output: string[] = [];
 		store.add(service.onDidOutput(event => output.push(`${event.connectionId}:${event.data}`)));
@@ -820,11 +828,14 @@ suite('Dev Container Agent Host Main Service', () => {
 		});
 		await service.relaySend('connection', '{"jsonrpc":"2.0"}');
 		await service.disconnect('connection');
+		service.dispose();
 
 		assert.deepStrictEqual({
 			result,
 			devContainerArgs: service.devContainerArgs,
 			relayCommand: service.relayCommand,
+			separateExecs: service.separateExecs,
+			dockerOperations: service.dockerCommands.map(command => command[0]),
 			sent: service.relay.sent,
 			disposed: service.relay.disposed,
 			output,
@@ -842,11 +853,43 @@ suite('Dev Container Agent Host Main Service', () => {
 				['read-configuration', '--log-level', 'debug', '--workspace-folder', '/workspace', '--include-merged-configuration'],
 				['up', '--log-level', 'debug', '--workspace-folder', '/workspace', '--mount', devContainerServerCacheMount],
 			],
-			relayCommand: '~/.vscode-server-oss/code-insiders --cli-data-dir ~/.vscode-server-oss/cli agent relay \'instance\' --user-data-dir \'/home/vscode/.config/Code\'',
+			relayCommand: `${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=${shellEscape(NullTelemetryService.sessionId)} ~/.vscode-server-oss/code-insiders --cli-data-dir ~/.vscode-server-oss/cli agent relay 'instance' --user-data-dir '/home/vscode/.config/Code'`,
+			separateExecs: [],
+			dockerOperations: ['context'],
 			sent: ['{"jsonrpc":"2.0"}'],
 			disposed: true,
 			output: ['connection:Starting Dev Container\n', 'connection:Using shared server cache at /vscode/vscode-server-oss/cli/servers/linux-x64\n'],
 		});
+	});
+
+	test('reuses the first compatible standalone endpoint in newest-first registry order', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		const endpoint = service.endpoints[0];
+		service.endpoints = [
+			{ ...endpoint, instanceId: 'standalone-b', quality: 'insider' },
+			{ ...endpoint, instanceId: 'different-quality', quality: 'stable' },
+			{ ...endpoint, instanceId: 'editor', type: 'editor' },
+			{ ...endpoint, instanceId: 'standalone-a', quality: 'insider' },
+		];
+
+		await service.connect({ connectionId: 'connection', workspaceFolder: '/workspace', name: 'Project' });
+
+		assert.deepStrictEqual({
+			reusesNewestCompatible: service.relayCommand?.includes(`agent relay ${shellEscape('standalone-b')}`),
+			separateExecs: service.separateExecs,
+		}, { reusesNewestCompatible: true, separateExecs: [] });
+	});
+
+	test('spawns when only a different-quality standalone is live', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		service.endpoints = [{ ...service.endpoints[0], quality: 'stable' }];
+
+		await service.connect({ connectionId: 'connection', workspaceFolder: '/workspace', name: 'Project' });
+
+		assert.deepStrictEqual({
+			spawnCount: service.separateExecs.length,
+			relaysToSpawnedHost: service.relayCommand?.includes(`agent relay ${shellEscape('spawned-instance')}`),
+		}, { spawnCount: 1, relaysToSpawnedHost: true });
 	});
 
 	test('uses the sandbox override for startup and reports actual container support', async () => {
@@ -1088,6 +1131,199 @@ suite('Dev Container Agent Host Main Service', () => {
 		assert.deepStrictEqual(service.devContainerArgs.filter(args => args[0] === 'up'), [['up', '--log-level', 'debug', '--workspace-folder', '/workspace']]);
 	});
 
+	test('keeps user state on its volume and runs lifecycle commands after linking it', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		service.sandboxConfigurationOutput = JSON.stringify({ configuration: { configFilePath: { scheme: 'file', path: '/workspace/.devcontainer/devcontainer.json' } }, mergedConfiguration: { mounts: [] } });
+		const stateVolume = `vscode-state-project-${'0'.repeat(12)}`;
+		service.containerMounts = [...service.containerMounts, { Type: 'volume', Source: '/volumes/state', Destination: '/workspaces', Name: stateVolume }];
+		service.linkStateResult = { stdout: 'vscode-state:step:folders\nvscode-state:folder:moved\nvscode-state:skip:mounted\n', code: 0 };
+		const reports: IDevContainerAgentHostUserStateReport[] = [];
+		store.add(service.onDidReportUserState(report => reports.push(report)));
+		await service.connect({ connectionId: 'state', workspaceFolder: '/workspace', name: 'Project', persistUserState: true });
+		const [mountFlag, mount, ...rest] = service.userStateUpArgs ?? [];
+		const createdVolume = service.dockerCommands.find(args => args[0] === 'volume' && args[1] === 'create')?.at(-1);
+		const link = service.localCommands.find(command => command.args[2] === 'root' && !!command.args.at(-1)?.includes('link_state'));
+		assert.deepStrictEqual({
+			mountFlag, rest,
+			mount: /^type=volume,source=(vscode-state-workspace-[0-9a-v]{12}),target=\/workspaces,external=true$/.exec(mount ?? '')?.[1] === createdVolume,
+			link: link && [link.args.slice(0, 4), link.args.at(-1)?.includes(`home='/home/node'`), link.args.at(-1)?.includes(`volume='/workspaces'`)],
+			linkedBeforeLifecycle: service.linkedBeforeLifecycle,
+			lifecycle: service.devContainerArgs.filter(args => args[0] === 'run-user-commands'),
+			connected: service.relayCommand !== undefined,
+			reports,
+		}, {
+			mountFlag: '--mount', rest: ['--skip-post-create'],
+			mount: true,
+			link: [['exec', '--user', 'root', 'container-id'], true, true],
+			linkedBeforeLifecycle: true,
+			lifecycle: [['run-user-commands', '--log-level', 'debug', '--workspace-folder', '/workspace', '--container-id', 'container-id']],
+			connected: true,
+			reports: [
+				{ connectionId: 'state', stage: 'mount', outcome: 'added', target: 'workspaces' },
+				{ connectionId: 'state', stage: 'up', outcome: 'succeeded' },
+				{ connectionId: 'state', stage: 'link', outcome: 'linked', target: 'workspaces', restoredFolders: 0, movedFolders: 1, createdFolders: 0, existingFolders: 0, skippedFolders: 1, skipReasons: 'mounted' },
+				{ connectionId: 'state', stage: 'userCommands', outcome: 'succeeded' },
+			],
+		});
+	});
+
+	test('reads HOME through the Dev Containers CLI only when remoteEnv sets it', async () => {
+		const run = async (remoteEnv: object | undefined) => {
+			const service = store.add(new TestDevContainerAgentHostMainService());
+			service.sandboxConfigurationOutput = JSON.stringify({ configuration: {}, mergedConfiguration: { mounts: [], remoteEnv } });
+			service.containerMounts = [...service.containerMounts, { Type: 'volume', Source: '/volumes/state', Destination: '/workspaces', Name: `vscode-state-project-${'0'.repeat(12)}` }];
+			service.linkStateResult = { stdout: 'vscode-state:step:folders\n', code: 0 };
+			await service.connect({ connectionId: 'home', workspaceFolder: '/workspace', name: 'Project', persistUserState: true });
+			const link = service.localCommands.find(command => command.args[2] === 'root' && !!command.args.at(-1)?.includes('link_state'));
+			return {
+				cli: service.devContainerArgs.filter(args => args[0] === 'exec').map(args => args.slice(0, -1)),
+				docker: service.localCommands.filter(command => command.args[2] === 'node').length,
+				home: /^home=(.*)$/m.exec(link?.args.at(-1) ?? '')?.[1],
+			};
+		};
+		assert.deepStrictEqual([await run({ HOME: '/custom/home' }), await run({ PATH: '/bin' })], [
+			{ cli: [['exec', '--log-level', 'debug', '--workspace-folder', '/workspace', '--container-id', 'container-id', '/bin/sh', '-c']], docker: 0, home: `'/custom/home'` },
+			{ cli: [], docker: 1, home: `'/home/node'` },
+		]);
+	});
+
+	test('does not add the user state mount to an existing container', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		service.sandboxConfigurationOutput = JSON.stringify({ configuration: { configFilePath: { scheme: 'file', path: '/workspace/.devcontainer/devcontainer.json' } }, mergedConfiguration: { mounts: [] } });
+		service.existingContainerStates = ['exited'];
+		const reports: IDevContainerAgentHostUserStateReport[] = [];
+		store.add(service.onDidReportUserState(report => reports.push(report)));
+		await service.connect({ connectionId: 'existing', workspaceFolder: '/workspace', name: 'Project', persistUserState: true });
+		assert.deepStrictEqual({
+			upArgs: service.userStateUpArgs,
+			volumeCreated: service.dockerCommands.some(args => args[0] === 'volume' && args[1] === 'create'),
+			reports: reports.map(({ stage, outcome }) => `${stage}:${outcome}`),
+		}, { upArgs: ['--skip-post-create'], volumeCreated: false, reports: ['mount:existingContainer', 'up:succeeded', 'link:noMount', 'userCommands:succeeded'] });
+	});
+
+	test('keeps existing user state folders when the container was already running', async () => {
+		const run = async (states: readonly string[], persistUserState = true) => {
+			const service = store.add(new TestDevContainerAgentHostMainService());
+			service.sandboxConfigurationOutput = JSON.stringify({ configuration: { configFilePath: { scheme: 'file', path: '/workspace/.devcontainer/devcontainer.json' } }, mergedConfiguration: { mounts: [] } });
+			service.existingContainerStates = states;
+			service.containerMounts = [...service.containerMounts, { Type: 'volume', Source: '/volumes/state', Destination: '/workspaces', Name: `vscode-state-project-${'0'.repeat(12)}` }];
+			service.linkStateResult = { stdout: 'vscode-state:step:folders\n', code: 0 };
+			await service.connect({ connectionId: 'running', workspaceFolder: '/workspace', name: 'Project', persistUserState });
+			const link = service.localCommands.find(command => command.args[2] === 'root' && !!command.args.at(-1)?.includes('link_state'));
+			return /^keep_existing=(.*)$/m.exec(link?.args.at(-1) ?? '')?.[1];
+		};
+		assert.deepStrictEqual({
+			new: await run([]),
+			exited: await run(['exited', 'created']),
+			running: await run(['exited', 'running']),
+			paused: await run(['Paused']),
+			settingOff: await run(['exited'], false),
+		}, { new: '', exited: '', running: '1', paused: '1', settingOff: '1' });
+	});
+
+	test('reuses its state volume and rejects a volume of another dev container with the same name', async () => {
+		const configuration = JSON.stringify({ configuration: { configFilePath: { scheme: 'file', path: '/workspace/.devcontainer/devcontainer.json' } }, mergedConfiguration: { mounts: [] } });
+		const run = async (volumes: Map<string, Record<string, string>>) => {
+			const service = store.add(new TestDevContainerAgentHostMainService());
+			service.sandboxConfigurationOutput = configuration;
+			volumes.forEach((labels, name) => service.volumes.set(name, labels));
+			const reports: Omit<IDevContainerAgentHostUserStateReport, 'connectionId'>[] = [];
+			store.add(service.onDidReportUserState(({ connectionId: _, ...report }) => reports.push(report)));
+			await service.connect({ connectionId: 'state', workspaceFolder: '/workspace', name: 'Project', persistUserState: true });
+			return { service, created: service.dockerCommands.some(args => args[0] === 'volume' && args[1] === 'create'), mount: service.userStateUpArgs?.[1], report: reports[0] };
+		};
+		const first = await run(new Map());
+		const [[name, labels]] = first.service.volumes;
+		const localFolder = labels['vscode.dev-container-state.label.devcontainer.local_folder'];
+		const reused = await run(new Map([[name, labels]]));
+		const other = await run(new Map([[name, { ...labels, 'vscode.dev-container-state.id': 'other' }]]));
+		assert.deepStrictEqual({
+			name: /^vscode-state-workspace-[0-9a-v]{12}$/.test(name),
+			labels: Object.keys(labels),
+			localFolder: /[\\/]workspace$/.test(localFolder),
+			reused: { created: reused.created, mount: reused.mount === first.mount, report: reused.report },
+			other: { created: other.created, mount: other.mount, report: other.report },
+		}, {
+			name: true,
+			labels: ['vscode.dev-container-state.id', 'vscode.dev-container-state.label.devcontainer.local_folder', 'vscode.dev-container-state.label.devcontainer.config_file'],
+			localFolder: true,
+			reused: { created: false, mount: true, report: { stage: 'mount', outcome: 'added', target: 'workspaces' } },
+			other: { created: false, mount: undefined, report: { stage: 'mount', outcome: 'failed', reason: 'volume', target: 'workspaces', errorMessage: 'Docker volume vscode-state-<name> is not the state volume of this dev container' } },
+		});
+	});
+
+	test('reports user state failures for telemetry', async () => {
+		const configuration = JSON.stringify({ configuration: { configFilePath: { scheme: 'file', path: '/workspace/.devcontainer/devcontainer.json' } }, mergedConfiguration: { mounts: [] } });
+		const stateMount = { Type: 'volume', Source: '/volumes/state', Destination: '/workspaces', Name: `vscode-state-project-${'0'.repeat(12)}` };
+		const scenarios: { name: string; setup: (service: TestDevContainerAgentHostMainService) => void }[] = [
+			{ name: 'config', setup: service => service.sandboxConfigurationOutput = JSON.stringify({ configuration: { configFilePath: { scheme: 'file', path: '/workspace/.devcontainer/devcontainer.json' }, mounts: ['source=data,target=/workspaces,type=volume', 'source=other,target=/.vscode-volume,type=volume'] }, mergedConfiguration: { mounts: [] } }) },
+			{ name: 'volume', setup: service => service.volumeCreateExitCode = 1 },
+			{ name: 'upRun', setup: service => service.failDevContainerUp = true },
+			{ name: 'upExitCode', setup: service => service.upExitCode = 1 },
+			{ name: 'inspect', setup: service => service.containerMountsError = new Error('inspect failed') },
+			{
+				name: 'script', setup: service => {
+					service.containerMounts = [...service.containerMounts, stateMount];
+					service.linkStateResult = { stdout: 'vscode-state:step:volume\nvscode-state:step:stateFolder\nvscode-state:step:statePath\n', stderr: `mkdir: cannot create directory '/home/node/.cache': Permission denied\n`, code: 1 };
+				}
+			},
+			{ name: 'homeNotFound', setup: service => { service.containerMounts = [...service.containerMounts, stateMount]; service.linkStateResult = { stdout: 'vscode-state:step:home\nvscode-state:noHome\n', code: 0 }; } },
+			{ name: 'userCommands', setup: service => { service.containerMounts = [...service.containerMounts, stateMount]; service.userCommandsExitCode = 1; } },
+		];
+		const results: Record<string, { connected: boolean; reports: Omit<IDevContainerAgentHostUserStateReport, 'connectionId'>[] }> = {};
+		for (const { name, setup } of scenarios) {
+			const service = store.add(new TestDevContainerAgentHostMainService());
+			service.sandboxConfigurationOutput = configuration;
+			setup(service);
+			const reports: Omit<IDevContainerAgentHostUserStateReport, 'connectionId'>[] = [];
+			store.add(service.onDidReportUserState(({ connectionId: _, ...report }) => reports.push(report)));
+			const connected = await service.connect({ connectionId: name, workspaceFolder: '/workspace', name: 'Project', persistUserState: true }).then(() => true, () => false);
+			results[name] = { connected, reports };
+		}
+		const progress = { restoredFolders: 0, movedFolders: 0, createdFolders: 0, existingFolders: 0, skippedFolders: 0, skipReasons: '' };
+		const added = { stage: 'mount', outcome: 'added', target: 'workspaces' } as const;
+		const up = { stage: 'up', outcome: 'succeeded' } as const;
+		const succeeded = { stage: 'userCommands', outcome: 'succeeded' } as const;
+		assert.deepStrictEqual(results, {
+			config: { connected: true, reports: [{ stage: 'mount', outcome: 'failed', reason: 'config', target: undefined, errorMessage: 'Both /workspaces and /.vscode-volume may already be mounted' }, up, { stage: 'link', outcome: 'noMount' }, succeeded] },
+			volume: { connected: true, reports: [{ stage: 'mount', outcome: 'failed', reason: 'volume', target: 'workspaces', errorMessage: 'Cannot create Docker volume vscode-state-<name> (exit 1): volume create failed' }, up, { stage: 'link', outcome: 'noMount' }, succeeded] },
+			upRun: { connected: false, reports: [added, { stage: 'up', outcome: 'failed', reason: 'run', errorMessage: 'devcontainer up failed' }] },
+			upExitCode: { connected: false, reports: [added, { stage: 'up', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorMessage: 'An error occurred setting up the container.\nCommand failed: docker run <args>\nError response from daemon: invalid mount config.' }] },
+			inspect: { connected: true, reports: [added, up, { stage: 'link', outcome: 'failed', reason: 'inspect', step: undefined, exitCode: undefined, target: undefined, errorMessage: 'inspect failed' }, succeeded] },
+			script: { connected: true, reports: [added, up, { stage: 'link', outcome: 'failed', reason: 'script', step: 'statePath', exitCode: 1, target: 'workspaces', ...progress, errorMessage: `Cannot link user state (exit 1): mkdir: cannot create directory '~/.cache': Permission denied` }, succeeded] },
+			homeNotFound: { connected: true, reports: [added, up, { stage: 'link', outcome: 'homeNotFound', target: 'workspaces', ...progress }, succeeded] },
+			userCommands: { connected: false, reports: [added, up, { stage: 'link', outcome: 'linked', target: 'workspaces', ...progress }, { stage: 'userCommands', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorMessage: 'postCreateCommand from devcontainer.json failed with exit code 1.\nnpm ERR! Your cache folder contains root-owned files: ~/.npm, run: sudo chown -R <user> ~/.npm' }] },
+		});
+	});
+
+	test('links user state of a container with a state volume when the setting is off', async () => {
+		const stateMount = { Type: 'volume', Source: '/volumes/state', Destination: '/workspaces', Name: `vscode-state-project-${'0'.repeat(12)}` };
+		const scenarios: { name: string; setup: (service: TestDevContainerAgentHostMainService) => void }[] = [
+			{ name: 'stateMount', setup: service => { service.containerMounts = [...service.containerMounts, stateMount]; service.linkStateResult = { stdout: 'vscode-state:step:folders\nvscode-state:folder:moved\n', code: 0 }; } },
+			{ name: 'noMount', setup: () => { } },
+			{ name: 'inspect', setup: service => service.containerMountsError = new Error('inspect failed') },
+		];
+		const results: Record<string, { connected: boolean; linked: boolean; lifecycle: boolean; reports: string[] }> = {};
+		for (const { name, setup } of scenarios) {
+			const service = store.add(new TestDevContainerAgentHostMainService());
+			setup(service);
+			const reports: string[] = [];
+			store.add(service.onDidReportUserState(({ stage, outcome }) => reports.push(`${stage}:${outcome}`)));
+			const connected = await service.connect({ connectionId: name, workspaceFolder: '/workspace', name: 'Project' }).then(() => true, () => false);
+			results[name] = {
+				connected,
+				linked: service.localCommands.some(command => command.args[2] === 'root' && !!command.args.at(-1)?.includes('link_state')),
+				lifecycle: service.devContainerArgs.some(args => args[0] === 'run-user-commands'),
+				reports,
+			};
+		}
+		assert.deepStrictEqual(results, {
+			stateMount: { connected: true, linked: true, lifecycle: false, reports: ['link:linked'] },
+			noMount: { connected: true, linked: false, lifecycle: false, reports: [] },
+			inspect: { connected: true, linked: false, lifecycle: false, reports: [] },
+		});
+	});
+
 	test('caches bootstrap CLIs for each libc even when the server cache remains private', async () => {
 		for (const [libc, platform] of [['', 'linux-x64'], ['musl', 'alpine-x64']]) {
 			const service = store.add(new TestDevContainerAgentHostMainService(libc, true, undefined, process.env, true, [], new Set(), '/tmp', new NullLogService(), 'a'.repeat(40)));
@@ -1254,7 +1490,7 @@ suite('Dev Container Agent Host Main Service', () => {
 
 	test('runs startup commands in one shell for the started container and starts the Agent Host separately', async () => {
 		const service = store.add(new TestDevContainerAgentHostMainService());
-		service.endpointSessionId = undefined;
+		service.endpointPollsBeforeAvailable = 1;
 		await service.connect({
 			connectionId: 'connection',
 			workspaceFolder: '/workspace',
@@ -1423,7 +1659,7 @@ suite('Dev Container Agent Host Main Service', () => {
 
 	test('marks a newly spawned Agent Host with the VS Code session ID', async () => {
 		const service = store.add(new TestDevContainerAgentHostMainService());
-		service.endpointSessionId = undefined;
+		service.endpoints = [{ ...service.endpoints[0], quality: 'stable' }];
 
 		await service.connect({
 			connectionId: 'connection',

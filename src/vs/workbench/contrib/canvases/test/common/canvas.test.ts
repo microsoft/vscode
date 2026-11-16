@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Verbosity } from '../../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { CanvasInput, canPresentCanvasInGroup, ICanvasContextService } from '../../common/canvas.js';
-import { ICanvas } from '../../../../common/canvasReference.js';
+import { CanvasDefinitionOpener, CanvasInput, canPresentCanvasInGroup, getCanvasDefinitionInstanceId, getCanvasInstanceLabels, ICanvasContextService, ICanvasDefinition } from '../../common/canvas.js';
+import { ICanvas, ICanvasOwner } from '../../../../common/canvasReference.js';
 
 suite('CanvasInput', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -118,5 +119,89 @@ suite('CanvasInput', () => {
 				longTitle: 'Canvas - Closing this tab hides the canvas. Reopen it from the Canvas submenu in Add Tab, use its canvas pill, or ask the agent to open it again.',
 			},
 		]);
+	});
+});
+
+suite('Canvas instance identifiers', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const definition = (extensionId: string): ICanvasDefinition => ({
+		canvasId: 'main', extensionId, extensionSource: 'project', displayName: 'Counter', description: 'A counter.', requiresInput: false,
+	});
+	const instance = (type: ICanvasDefinition, instanceId: string, title = 'Counter'): ICanvas => ({
+		resource: URI.parse(`canvas:/${instanceId}`), instanceId, title, source: undefined, extensionId: type.extensionId, canvasId: type.canvasId,
+	});
+	const owner = (chat: string): ICanvasOwner => ({ providerId: 'local', session: URI.parse('session:/owner'), chat: URI.parse(`chat:/${chat}`) });
+
+	test('numbers new instances of a registered canvas type and labels them by their numbers', async () => {
+		const counter = definition('project:counter');
+		const long = definition(`project:${'a'.repeat(140)}`);
+		const allocate = async (type: ICanvasDefinition, canvases: readonly ICanvas[]) => {
+			let allocated = '';
+			await new CanvasDefinitionOpener().open(owner('main'), type, canvases, async instanceId => { allocated = instanceId; });
+			return allocated;
+		};
+		const first = await allocate(counter, []);
+		const second = await allocate(counter, [instance(counter, first), instance(counter, 'sidebar')]);
+		const gap = await allocate(counter, [instance(counter, first), instance(counter, `${first}-3`)]);
+		const longFirst = await allocate(long, []);
+		const longSecond = await allocate(long, [instance(long, longFirst)]);
+
+		const base = getCanvasDefinitionInstanceId(counter);
+		assert.deepStrictEqual({
+			first,
+			second,
+			gap,
+			longSecond: { length: longSecond.length, suffix: longSecond.slice(-2), sharesPrefix: longFirst.startsWith(longSecond.slice(0, -2)) },
+			labels: getCanvasInstanceLabels([
+				instance(counter, second),
+				instance(counter, 'sidebar'),
+				instance(counter, first),
+				instance(long, longSecond, 'Long'),
+				instance(long, longFirst, 'Long'),
+			]),
+		}, {
+			first: base,
+			second: `${base}-2`,
+			gap: `${base}-2`,
+			longSecond: { length: 128, suffix: '-2', sharesPrefix: true },
+			labels: ['Counter (2)', 'Counter (sidebar)', 'Counter (1)', 'Long (2)', 'Long (1)'],
+		});
+	});
+
+	test('reserves the identifiers of overlapping opens until the chat publishes them, and releases those of failed opens', async () => {
+		const counter = definition('project:counter');
+		const base = getCanvasDefinitionInstanceId(counter);
+		const opener = new CanvasDefinitionOpener();
+		const requested: string[] = [];
+		const pending: DeferredPromise<void>[] = [];
+		const open = (canvases: readonly ICanvas[], chat = 'main') => opener.open(owner(chat), counter, canvases, instanceId => {
+			requested.push(`${chat}:${instanceId.replace(base, 'base')}`);
+			const request = new DeferredPromise<void>();
+			pending.push(request);
+			return request.p;
+		});
+
+		const first = open([]);
+		const second = open([]);
+		const otherChat = open([], 'other');
+		await pending[1].error(new Error('open failed'));
+		await assert.rejects(second, /open failed/);
+		await pending[0].complete();
+		await pending[2].complete();
+		await Promise.all([first, otherChat]);
+		// The first canvas is not published yet: its identifier stays reserved, while the failed one is free again.
+		const third = open([]);
+		await pending[3].complete();
+		await third;
+		// Once published, canvases closed later free their identifiers.
+		const fourth = open([instance(counter, base), instance(counter, `${base}-2`)]);
+		await pending[4].complete();
+		await fourth;
+		const fifth = open([instance(counter, `${base}-2`)]);
+		await pending[5].complete();
+		await fifth;
+
+		assert.deepStrictEqual(requested, ['main:base', 'main:base-2', 'other:base', 'main:base-2', 'main:base-3', 'main:base']);
 	});
 });

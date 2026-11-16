@@ -25,6 +25,13 @@ export interface IAgentHostAuthTokenChangeEvent {
 	readonly token: string | undefined;
 }
 
+export interface IAgentHostAuthCredential {
+	readonly token: string;
+	readonly scopes: readonly string[];
+	readonly account?: IAgentAuthenticationAccount;
+	readonly expiresAt: number | undefined;
+}
+
 export const IAgentHostAuthenticationService = createDecorator<IAgentHostAuthenticationService>('agentHostAuthenticationService');
 export const IAgentHostAuthenticationController = createDecorator<IAgentHostAuthenticationController>('agentHostAuthenticationController');
 
@@ -37,6 +44,10 @@ export interface IAgentHostAuthenticationService {
 	readonly useLocalCredentials?: boolean;
 	getSharedCredential(request: IAgentHostAuthTokenRequest): IAgentHostScopedCredential | undefined;
 	getAuthToken(request: IAgentHostAuthTokenRequest, source?: IAgentHostCredentialSource): string | undefined;
+	/** Reads a credential and its provenance without the legacy unscoped fallback; expired values are opt-in. */
+	getAuthCredential(request: IAgentHostAuthTokenRequest, includeExpired?: boolean): IAgentHostAuthCredential | undefined;
+	/** Forgets the resource's credentials and in-flight writes without signing out an external account. */
+	invalidateAuthTokens(resource: string): void;
 	getAuthAccount(request: IAgentHostAuthTokenRequest): IAgentAuthenticationAccount | undefined;
 	getSessionCredentialBinding(session: string, usage?: 'execution' | 'agentMerge'): IAgentHostCredentialSource | undefined;
 	getSessionCredentialSource(session: string, usage?: 'execution' | 'agentMerge'): IAgentHostCredentialSource | undefined;
@@ -57,13 +68,9 @@ export interface IAgentHostAuthenticationController {
 	replay(provider: IAgent): Promise<void>;
 }
 
-interface IStoredAuthToken {
+interface IStoredAuthToken extends IAgentHostAuthCredential {
 	readonly target?: AuthenticateParams['target'];
 	readonly resource: string;
-	readonly scopes: readonly string[];
-	readonly token: string;
-	readonly expiresAt: number | undefined;
-	readonly account?: IAgentAuthenticationAccount;
 	sharedCredential?: IAgentHostScopedCredential;
 }
 
@@ -77,6 +84,10 @@ interface ILocalCredentialsOptions {
 	readonly isEnabled: () => boolean;
 	readonly getResources: () => readonly ProtectedResourceMetadata[];
 	readonly onDidChange: Event<void>;
+}
+
+function isAccepted(result: PromiseSettledResult<boolean>): boolean {
+	return result.status === 'fulfilled' && result.value;
 }
 
 export class AgentHostAuthenticationService extends Disposable implements IAgentHostAuthenticationService, IAgentHostAuthenticationController {
@@ -134,8 +145,8 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	}
 
 	async authenticate(params: AuthenticateParams, providers: Iterable<IAgent>, scope?: IAgentHostAuthenticationScope): Promise<AuthenticateResult> {
+		const providerList = [...providers];
 		if (scope) {
-			const providerList = [...providers];
 			const resources = [
 				...providerList.flatMap(provider => provider.getProtectedResources().map(resource => resource.resource)),
 				...(scope.principal ? [scope.principal.apiOrigin] : []),
@@ -158,6 +169,9 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			}
 			return { authenticated };
 		}
+		for (const provider of providerList) {
+			provider.validateAuthentication?.(params);
+		}
 		const scopes = normalizeAuthenticationScopes(params.scopes);
 		const key = this._key(params.resource, scopes, params.target);
 		const previousRequest = this._authenticationRequests.get(key);
@@ -166,7 +180,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		// Wake replayers only after the replacement request is visible.
 		previousRequest?.completed.complete();
 		try {
-			return await this._authenticate(params, providers, scopes, key, request);
+			return await this._authenticate(params, providerList, scopes, key, request);
 		} finally {
 			if (this._authenticationRequests.get(key) === request) {
 				this._authenticationRequests.delete(key);
@@ -222,6 +236,9 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 				);
 			}
 		}
+		for (const provider of providerList) {
+			provider.validateAuthentication?.(params);
+		}
 		if (this._authenticationRequests.get(key) !== request) {
 			return { authenticated };
 		}
@@ -249,7 +266,29 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		if (authenticated || previousToken !== token) {
 			this._onDidAuthenticate.fire({ resource: params.resource, scopes });
 		}
+		const accepting = new Set([
+			...matching.filter((_, index) => isAccepted(settled[index])),
+			...sessionResourceHandlers.filter((_, index) => isAccepted(sessionResourceSettled[index])),
+		]);
+		if (accepting.size) {
+			authenticated = await this._completeAuthentication(params, [...accepting]);
+		}
 		return { authenticated };
+	}
+
+	/** Lets accepting providers finish setup from the stored credential and reports whether any still accepts it. */
+	private async _completeAuthentication(params: AuthenticateParams, providers: readonly IAgent[]): Promise<boolean> {
+		const completed = await Promise.allSettled(providers.map(provider => provider.completeAuthentication?.(params)));
+		let accepted = false;
+		for (let i = 0; i < completed.length; i++) {
+			const result = completed[i];
+			if (result.status === 'rejected') {
+				this._logService.error(result.reason, `[AgentHostAuthenticationService] Provider '${providers[i].id}' failed to complete authentication`);
+			} else {
+				accepted = true;
+			}
+		}
+		return accepted;
 	}
 
 	async replay(provider: IAgent): Promise<void> {
@@ -300,6 +339,27 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			return source.getCredential(request)?.token;
 		}
 		return this._getAuthToken(request, false)?.token;
+	}
+
+	getAuthCredential(request: IAgentHostAuthTokenRequest, includeExpired = false): IAgentHostAuthCredential | undefined {
+		const credential = this._getAuthToken(request, includeExpired);
+		return credential && (request.scopes ?? []).every(scope => credential.scopes.includes(scope)) ? credential : undefined;
+	}
+
+	invalidateAuthTokens(resource: string): void {
+		for (const [key, request] of this._authenticationRequests) {
+			if (!request.target && request.resource === resource) {
+				this._authenticationRequests.delete(key);
+				request.completed.complete();
+			}
+		}
+		for (const [key, credential] of this._tokens) {
+			if (!credential.target && credential.resource === resource) {
+				this._tokens.delete(key);
+				this._revocations.set(key, (this._revocations.get(key) ?? 0) + 1);
+				this._onDidChangeAuthToken.fire({ resource, scopes: credential.scopes, token: undefined });
+			}
+		}
 	}
 
 	getAuthAccount(request: IAgentHostAuthTokenRequest): IAgentAuthenticationAccount | undefined {
@@ -466,6 +526,10 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		const { resolveMissionControlIdentity } = await import('./missionControl/missionControlAuthentication.js');
 		const captured = new Map<string, IAgentHostScopedCredential>();
 		for (const resource of resources) {
+			const sameOrigin = new URL(resource.resource).origin === new URL(principal.apiOrigin).origin;
+			if (resource.required === false && !sameOrigin) {
+				continue;
+			}
 			if (this.useLocalCredentials && this._localCredentials?.getResources().some(candidate => candidate.resource === resource.resource)) {
 				const credential = this.getSharedCredential({ resource: resource.resource, scopes: resource.scopes_supported });
 				if (credential) {
@@ -475,7 +539,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 				}
 				continue;
 			}
-			if (new URL(resource.resource).origin !== new URL(principal.apiOrigin).origin) {
+			if (!sameOrigin) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Local credential origin does not match the isolated session owner');
 			}
 			const request = { resource: resource.resource, scopes: resource.scopes_supported };

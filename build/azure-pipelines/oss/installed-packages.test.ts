@@ -13,6 +13,8 @@
  *    1. pnpm's hoisted layout: the top-level packages (`.pnpm` holds only lock.yaml).
  *    2. pnpm's isolated layout: the top-level links, then the store's hoisting folder, then the
  *       package folders of the store, without the links to their dependencies.
+ *    3. A member of a pnpm workspace with the isolated layout: the top-level links, then the
+ *       packages that they reach in the store of the workspace root, nearest first.
  *--------------------------------------------------------------------------------------------*/
 
 import fs from 'fs';
@@ -48,7 +50,7 @@ function listed(nmDir: string): string[] {
 	return collectInstalledPackages(nmDir).map(({ name, dir }) => `${name} ${path.relative(nmDir, dir).split(path.sep).join('/')}`);
 }
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'installed-packages-'));
+const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'installed-packages-')));
 try {
 	// -- 1. hoisted layout --------------------------------------------------------
 	console.log('hoisted layout:');
@@ -80,6 +82,22 @@ try {
 		'a .pnpm/a@1.0.0/node_modules/a',
 		'b .pnpm/b@1.0.0/node_modules/b',
 		'b .pnpm/b@2.0.0/node_modules/b',
+	]));
+
+	// -- 3. member of an isolated workspace ------------------------------------------
+	console.log('member of an isolated workspace:');
+	// The member depends on `a` and on the workspace project `p`. `a` depends on `b@2.0.0`, which
+	// depends on `@s/c`. `b@1.0.0` is another project's.
+	const member = path.join(tmp, 'isolated', 'member', 'node_modules');
+	writePackage(path.join(tmp, 'isolated', 'p'), 'p', '1.0.0');
+	link(path.join(store, 'a@1.0.0', 'node_modules', 'a'), path.join(member, 'a'));
+	link(path.join(tmp, 'isolated', 'p'), path.join(member, 'p'));
+	link(path.join(store, '@s+c@3.0.0', 'node_modules', '@s', 'c'), path.join(store, 'b@2.0.0', 'node_modules', '@s', 'c'));
+	check('lists the top level, then the store packages that it reaches', JSON.stringify(listed(member)) === JSON.stringify([
+		'a a',
+		'p p',
+		'b ../../node_modules/.pnpm/b@2.0.0/node_modules/b',
+		'@s/c ../../node_modules/.pnpm/@s+c@3.0.0/node_modules/@s/c',
 	]));
 } finally {
 	fs.rmSync(tmp, { recursive: true, force: true });
