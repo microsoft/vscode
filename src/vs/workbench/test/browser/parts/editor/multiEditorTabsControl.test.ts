@@ -5017,15 +5017,21 @@ suite('MultiEditorTabsControl', () => {
 		instantiationService.get(IStorageService).store('editor.addTabMenu.recentEntry.test.newTabButton.decorated', 'test.newTabButton.second', StorageScope.PROFILE, StorageTarget.MACHINE);
 
 		const button = disposables.add(instantiationService.createInstance(EditorAddTabControl, container, MenuId.for('test.newTabButton.decorated'), instantiationService.get(IContextKeyService), { recentFirst: true, defaultEntry: true }));
-		const bounds = button.element.getBoundingClientRect();
-		const onButton = { clientX: bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2 };
-		button.element.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true, ...onButton }));
+		// The button can have no size in a headless browser
+		Object.assign(button.element.style, { display: 'inline-block', width: '20px', height: '20px' });
+		// The button can move once the menu shows, so its center is read for each event
+		const onButton = () => {
+			const bounds = button.element.getBoundingClientRect();
+			return { clientX: bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2 };
+		};
+		button.element.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true, ...onButton() }));
 		await timeout(0);
 		const menu = () => [...mainWindow.document.querySelectorAll('.context-view.editor-add-tab-menu .action-item')].map(item => (item.classList.contains('focused') ? '* ' : '') + item.textContent);
 		const onOpen = menu();
-		mainWindow.document.body.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, clientX: bounds.right + 300, clientY: bounds.bottom + 300 }));
+		const { clientX, clientY } = onButton();
+		mainWindow.document.body.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, clientX: clientX + 300, clientY: clientY + 300 }));
 		const pointerElsewhere = menu();
-		button.element.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, ...onButton }));
+		button.element.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, ...onButton() }));
 		const pointerOnButton = menu();
 		menuStore.clear();
 

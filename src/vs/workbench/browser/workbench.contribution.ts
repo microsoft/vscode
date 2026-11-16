@@ -99,7 +99,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				tags: ['experimental', 'onExp'],
 				'markdownDescription': localize('newTabButton', "Controls whether the editor tab bar shows a button to open a new tab, such as a new untitled file or a chat."),
 				'default': false,
-				experiment: { mode: 'auto' }
+				// The treatment keeps the name of the setting before its rename, so that existing assignments still apply
+				experiment: { mode: 'auto', name: 'config.workbench.editor.experimental.newTabButton' }
 			},
 			'workbench.editor.scrollToSwitchTabs': {
 				'type': 'boolean',
@@ -1048,21 +1049,30 @@ if (isNative) {
 		.registerConfigurationMigrations([
 			['workbench.experimental.modernUIFrostedGlass', LayoutSettings.MODERN_UI_FROSTED_GLASS],
 			['workbench.experimental.modernUIFrostedGlassOpacity', LayoutSettings.MODERN_UI_FROSTED_GLASS_OPACITY],
-			['workbench.editor.experimental.newTabButton', NEW_TAB_BUTTON_SETTING],
-		].map<ConfigurationMigration>(([key, newKey]) => ({
-			key,
-			includeApplication: true,
-			migrateFn: (value: unknown, valueAccessor) => {
-				const result: ConfigurationKeyValuePairs = [];
-				if (value !== undefined) {
-					result.push([key, { value: undefined }]);
-					if (valueAccessor(newKey) === undefined) {
-						result.push([newKey, { value }]);
-					}
+		].map(([key, newKey]) => renameSettingMigration(key, newKey)));
+}
+
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([renameSettingMigration('workbench.editor.experimental.newTabButton', NEW_TAB_BUTTON_SETTING)]);
+
+/**
+ * Moves the value of a renamed setting to its new key, unless the new key already has a value.
+ */
+function renameSettingMigration(key: string, newKey: string): ConfigurationMigration {
+	return {
+		key,
+		includeApplication: true,
+		migrateFn: (value: unknown, valueAccessor) => {
+			const result: ConfigurationKeyValuePairs = [];
+			if (value !== undefined) {
+				result.push([key, { value: undefined }]);
+				if (valueAccessor(newKey) === undefined) {
+					result.push([newKey, { value }]);
 				}
-				return result;
 			}
-		})));
+			return result;
+		}
+	};
 }
 
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
