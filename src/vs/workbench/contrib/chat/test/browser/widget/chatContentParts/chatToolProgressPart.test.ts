@@ -253,25 +253,29 @@ suite('ChatToolProgressSubPart', () => {
 		assert.strictEqual(part.hasSameContent(invocation, [], {} as never), false);
 	});
 
-	test('confirmation carousel reports the active subagent title and invokes its reference action', () => {
-		const createPendingInvocation = (toolCallId: string): IChatToolInvocation => ({
+	function createPendingInvocation(toolCallId: string, title = 'Run command?'): IChatToolInvocation {
+		return {
 			...createToolInvocation(),
 			toolCallId,
 			state: observableValue<IChatToolInvocation.State>(`state-${toolCallId}`, {
 				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
 				parameters: undefined,
-				confirmationMessages: { title: 'Run command?', message: 'Run command?' },
+				confirmationMessages: { title, message: title },
 				confirm: () => { },
 			}),
-		});
-		const createExternalPart = () => {
-			const domNode = mainWindow.document.createElement('div');
-			domNode.className = 'chat-tool-invocation-part';
-			return {
-				domNode,
-				addDisposable: (disposable: { dispose(): void }) => disposables.add(disposable),
-			} as unknown as ChatToolInvocationPart;
 		};
+	}
+
+	function createExternalPart(): ChatToolInvocationPart {
+		const domNode = mainWindow.document.createElement('div');
+		domNode.className = 'chat-tool-invocation-part';
+		return {
+			domNode,
+			addDisposable: (disposable: { dispose(): void }) => disposables.add(disposable),
+		} as unknown as ChatToolInvocationPart;
+	}
+
+	test('confirmation carousel reports the active subagent title and invokes its reference action', () => {
 		const revealed: string[] = [];
 		const active: Array<string | undefined> = [];
 		const carousel = disposables.add(new ChatToolConfirmationCarouselPart(() => {
@@ -295,6 +299,50 @@ suite('ChatToolProgressSubPart', () => {
 			revealed: ['subagent-two'],
 			text: '\u2014 Review current branch',
 			label: 'Open Review current branch Chat',
+		});
+	});
+
+	test('confirmation carousel moves its controls below the title when several confirmations are pending in a narrow chat', () => {
+		const host = $('.interactive-session');
+		// The workbench font size, which the test page does not set and the controls' width depends on.
+		host.style.fontSize = '13px';
+		const carouselContainer = host.appendChild($('.interactive-input-part')).appendChild($('.chat-tool-confirmation-carousel-container'));
+		mainWindow.document.body.appendChild(host);
+		disposables.add(toDisposable(() => host.remove()));
+
+		const title = 'Run in terminal: Find accented title and heading characters in the documentation';
+		const carousel = disposables.add(new ChatToolConfirmationCarouselPart(() => {
+			throw new Error('External tool parts should be reused');
+		}, []));
+		const second = createPendingInvocation('second', title);
+		carousel.addToolInvocation(createPendingInvocation('first', title), undefined, undefined, undefined, undefined, createExternalPart());
+		carousel.addToolInvocation(second, undefined, undefined, undefined, undefined, createExternalPart());
+		carouselContainer.appendChild(carousel.domNode);
+
+		const header = carousel.domNode.querySelector<HTMLElement>('.chat-tool-carousel-overlay')!;
+		const titleGroup = carousel.domNode.querySelector<HTMLElement>('.chat-tool-carousel-title-group')!;
+		const controls = carousel.domNode.querySelector<HTMLElement>('.chat-tool-carousel-overlay-actions')!;
+		const layoutAt = (chatWidth: number) => {
+			host.style.width = `${chatWidth}px`;
+			const headerBounds = header.getBoundingClientRect();
+			const titleBounds = titleGroup.getBoundingClientRect();
+			const controlBounds = controls.getBoundingClientRect();
+			return {
+				titleWiderThanControls: titleBounds.width > controlBounds.width,
+				controlsBelowTitle: controlBounds.top >= titleBounds.bottom,
+				controlsInsideHeader: controlBounds.left >= headerBounds.left && controlBounds.right <= headerBounds.right,
+			};
+		};
+
+		const narrow = layoutAt(300);
+		const wide = layoutAt(900);
+		carousel.removeToolInvocation(second);
+		const narrowWithOnePending = layoutAt(300);
+
+		assert.deepStrictEqual({ narrow, wide, narrowWithOnePending }, {
+			narrow: { titleWiderThanControls: true, controlsBelowTitle: true, controlsInsideHeader: true },
+			wide: { titleWiderThanControls: true, controlsBelowTitle: false, controlsInsideHeader: true },
+			narrowWithOnePending: { titleWiderThanControls: true, controlsBelowTitle: false, controlsInsideHeader: true },
 		});
 	});
 

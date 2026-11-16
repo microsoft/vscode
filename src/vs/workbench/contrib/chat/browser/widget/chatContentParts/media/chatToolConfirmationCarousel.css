@@ -39,17 +39,22 @@
 
 	.chat-tool-carousel-overlay {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
-		gap: 8px;
+		gap: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
 		padding: 6px 10px 6px 12px;
 		border-bottom: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
 	}
 
+	/*
+	 * The title keeps at least half of the header. Actions that need more than the other half wrap
+	 * onto their own row, and the title then takes the full header width.
+	 */
 	.chat-tool-carousel-title-group {
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		flex: 1 1 auto;
+		flex: 1 1 50%;
 		min-width: 0;
 		overflow: hidden;
 	}
