@@ -235,8 +235,8 @@ importers:
         specifier: ^0.1.1
         version: 0.1.5
       '@vscode/diff':
-        specifier: 0.0.2-128
-        version: 0.0.2-128
+        specifier: 0.0.2-145
+        version: 0.0.2-145
       '@vscode/fs-copyfile':
         specifier: 2.0.0
         version: 2.0.0
@@ -5578,8 +5578,8 @@ packages:
   '@vscode/diff@0.0.2-0':
     resolution: {integrity: sha512-gmwM9W6mLnqNxcCd0u9WTuL3JJjaAuicoNcPWNEbHFe8OS8SvdQ6q+txVQTwLT6ezUnXQ6e8sQwmjPSE384yxQ==}
 
-  '@vscode/diff@0.0.2-128':
-    resolution: {integrity: sha512-8Dk0Co0mU6gph7ZgthkeDCbHFuWLvMsS8RItCGL13hAGNVnd01KMCBVAYQDLhxFUh/VJ+as5arOMwtqL8YvKGA==}
+  '@vscode/diff@0.0.2-145':
+    resolution: {integrity: sha512-atPcmNrAU4B8OsbrmqYlHbZREt//m8z52o400YA8uuvq3Be5wnmIhLoLqhMum7Jv7kRC0FE+m3WAUbaZF681wg==}
 
   '@vscode/emmet-helper@2.11.0':
     resolution: {integrity: sha512-QLxjQR3imPZPQltfbWRnHU6JecWTF1QSWhx3GAKQpslx7y3Dp6sIIXhKjiUJ/BR9FX8PVthjr9PD6pNwOJfAzw==}
@@ -16421,7 +16421,7 @@ snapshots:
 
   '@vscode/diff@0.0.2-0': {}
 
-  '@vscode/diff@0.0.2-128': {}
+  '@vscode/diff@0.0.2-145': {}
 
   '@vscode/emmet-helper@2.11.0':
     dependencies:
