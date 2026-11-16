@@ -1142,7 +1142,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 								? localize('agentHost.branchSource.detached', "HEAD (Detached at {0})", commit)
 								: localize('agentHost.branchSource.head', "HEAD ({0}, {1})", source.name, commit)
 							: source.name,
-						description: [source.author, commit, fromNow(source.timestamp, true, true), source.subject].join(' \u2022 '),
+						description: [source.author, commit, formatCommitAge(source.timestamp), source.subject].join(' \u2022 '),
 					};
 				}),
 			};
@@ -2335,6 +2335,24 @@ export function worktreeProjectFromRepositoryRoot(repositoryRootRaw: string | un
 
 function errorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Formats a commit age like the Git extension's branch picker, which counts
+ * completed units (6.7 days is "6 days ago") rather than rounding to the nearest.
+ */
+export function formatCommitAge(timestamp: number): string {
+	const now = Date.now();
+	const elapsedSeconds = Math.round((now - timestamp) / 1000);
+	const minute = 60, hour = minute * 60, day = hour * 24, week = day * 7, month = day * 30, year = day * 365;
+	const unit = elapsedSeconds < minute ? 1
+		: elapsedSeconds < hour ? minute
+			: elapsedSeconds < day ? hour
+				: elapsedSeconds < week ? day
+					: elapsedSeconds < month ? week
+						: elapsedSeconds < year ? month
+							: year;
+	return fromNow(now - Math.floor(elapsedSeconds / unit) * unit * 1000, true, true);
 }
 
 function readStringArray(value: unknown): readonly string[] | undefined {

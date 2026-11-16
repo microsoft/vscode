@@ -20,7 +20,7 @@ import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, Respon
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import type { IAgentHostPullRequestResolver, IResolvedPullRequest } from '../../../node/shared/pullRequestResolver.js';
-import { buildWorktreeFailureNotification, detachedWorktreeRecordUri, normalizeWorktreeFailureDiagnostic, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
+import { buildWorktreeFailureNotification, detachedWorktreeRecordUri, formatCommitAge, normalizeWorktreeFailureDiagnostic, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY } from '../../../node/shared/sessionAdditionalWorktrees.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../../common/sessionTestHelpers.js';
 import type { Database } from '@vscode/sqlite3';
@@ -799,6 +799,16 @@ suite('WorktreeIsolation', () => {
 			});
 		});
 	}
+
+	test('branch creation completions count completed units like the Git extension', () => {
+		const day = 24 * 60 * 60 * 1000;
+		const now = Date.now();
+		assert.deepStrictEqual([
+			formatCommitAge(now - 6.7 * day),
+			formatCommitAge(now - 3.8 * 7 * day),
+			formatCommitAge(now - 10 * 1000),
+		], ['6 days ago', '3 weeks ago', 'now']);
+	});
 
 	test('branch creation completions describe HEAD before the first commit', async () => {
 		const gitService = createGitService();
