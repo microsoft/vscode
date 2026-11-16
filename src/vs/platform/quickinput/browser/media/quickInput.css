@@ -180,6 +180,12 @@
 	position: relative;
 }
 
+.quick-input-label {
+	font-weight: var(--vscode-fontWeight-semiBold, 600);
+	padding-bottom: var(--vscode-spacing-size40, 4px);
+	overflow-wrap: anywhere;
+}
+
 .quick-input-check-all {
 	align-self: center;
 	margin: 0;

@@ -18,6 +18,7 @@ const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(QuickAccessExtensi
 quickAccessRegistry.registerQuickAccessProvider({
 	ctor: AnythingQuickAccessProvider,
 	prefix: AnythingQuickAccessProvider.PREFIX,
+	inputLabel: nls.localize('anythingQuickAccessInputLabel', "Search files by name"),
 	placeholder: nls.localize('anythingQuickAccessPlaceholder', "Search files by name (append {0} to go to line or {1} to go to symbol), or paste a link", AbstractGotoLineQuickAccessProvider.GO_TO_LINE_PREFIX, GotoSymbolQuickAccessProvider.PREFIX),
 	contextKey: defaultQuickAccessContextKeyValue,
 	helpEntries: [{

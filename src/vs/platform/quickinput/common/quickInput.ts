@@ -544,6 +544,11 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 	ariaLabel: string | undefined;
 
 	/**
+	 * An optional visible label for the quick pick input.
+	 */
+	inputLabel?: string;
+
+	/**
 	 * The placeholder text for the quick pick input.
 	 */
 	placeholder: string | undefined;

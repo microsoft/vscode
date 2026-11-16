@@ -193,6 +193,11 @@ export interface IQuickAccessProviderDescriptor {
 	readonly prefix: string;
 
 	/**
+	 * A visible label for the input field when the provider is active.
+	 */
+	readonly inputLabel?: string;
+
+	/**
 	 * A placeholder to use for the input field when the provider is active.
 	 * This will also be read out by screen readers and thus helps for
 	 * accessibility.

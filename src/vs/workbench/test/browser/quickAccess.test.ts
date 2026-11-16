@@ -24,6 +24,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { IContextKeyService, ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { mainWindow } from '../../../base/browser/window.js';
 
 suite('QuickAccess', () => {
 
@@ -310,6 +311,110 @@ suite('QuickAccess', () => {
 		defaultPicker.hide();
 		localDisposables.dispose();
 		restore();
+	});
+
+	test('input label follows the active quick access provider while typing', () => {
+		const registry = Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess);
+		const restore = (registry as QuickAccessRegistry).clear();
+		const registrations = disposables.add(new DisposableStore());
+		class FilesProvider implements IQuickAccessProvider {
+			provide(): IDisposable { return toDisposable(() => { }); }
+		}
+		class CommandsProvider implements IQuickAccessProvider {
+			provide(): IDisposable { return toDisposable(() => { }); }
+		}
+
+		try {
+			registrations.add(registry.registerQuickAccessProvider({
+				ctor: FilesProvider,
+				prefix: '',
+				inputLabel: 'Search files by name',
+				placeholder: 'Search files by name or paste a link',
+				helpEntries: [{ description: 'Go to File' }],
+			}));
+			registrations.add(registry.registerQuickAccessProvider({
+				ctor: CommandsProvider,
+				prefix: '>',
+				placeholder: 'Type a command to run',
+				helpEntries: [{ description: 'Show and Run Commands' }],
+			}));
+
+			accessor.quickInputService.quickAccess.show();
+			const label = mainWindow.document.querySelector<HTMLLabelElement>('.quick-input-widget .quick-input-label')!;
+			const input = mainWindow.document.querySelector<HTMLInputElement>('.quick-input-widget .quick-input-box input')!;
+			const state = () => ({
+				label: label.textContent,
+				visible: label.getBoundingClientRect().height > 0,
+				associated: label.control === input,
+				ariaLabel: input.getAttribute('aria-label'),
+				value: input.value,
+			});
+			const beforeTyping = state();
+			input.value = 'example.ts';
+			input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+			const files = state();
+			input.value = '>open';
+			input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+			const commands = state();
+			input.value = 'other.ts';
+			input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+			const filesAgain = state();
+
+			assert.deepStrictEqual({ beforeTyping, files, commands, filesAgain }, {
+				beforeTyping: { label: 'Search files by name', visible: true, associated: true, ariaLabel: 'Search files by name or paste a link', value: '' },
+				files: { label: 'Search files by name', visible: true, associated: true, ariaLabel: 'Search files by name or paste a link', value: 'example.ts' },
+				commands: { label: 'Show and Run Commands', visible: true, associated: true, ariaLabel: 'Show and Run Commands, Type a command to run', value: '>open' },
+				filesAgain: { label: 'Search files by name', visible: true, associated: true, ariaLabel: 'Search files by name or paste a link', value: 'other.ts' },
+			});
+		} finally {
+			accessor.quickInputService.currentQuickInput?.hide();
+			registrations.dispose();
+			restore();
+		}
+	});
+
+	test('custom quick access prompts are labelled without changing anchored pickers', () => {
+		const registry = Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess);
+		const restore = (registry as QuickAccessRegistry).clear();
+		const registrations = disposables.add(new DisposableStore());
+		const anchor = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(anchor);
+		disposables.add(toDisposable(() => anchor.remove()));
+		class FilesProvider implements IQuickAccessProvider {
+			provide(): IDisposable { return toDisposable(() => { }); }
+		}
+
+		try {
+			registrations.add(registry.registerQuickAccessProvider({
+				ctor: FilesProvider,
+				prefix: '',
+				inputLabel: 'Search files by name',
+				helpEntries: [{ description: 'Go to File' }],
+			}));
+
+			accessor.quickInputService.quickAccess.show('', { placeholder: 'Search attachments' });
+			const label = mainWindow.document.querySelector<HTMLLabelElement>('.quick-input-widget .quick-input-label')!;
+			const input = mainWindow.document.querySelector<HTMLInputElement>('.quick-input-widget .quick-input-box input')!;
+			const custom = { label: label.textContent, ariaLabel: input.getAttribute('aria-label') };
+			accessor.quickInputService.currentQuickInput?.hide();
+
+			accessor.quickInputService.quickAccess.show('', { anchor, anchorPosition: 'overlay', placeholder: 'Search attachments' });
+			const anchored = { label: label.textContent, display: mainWindow.getComputedStyle(label).display, placeholder: input.placeholder };
+			accessor.quickInputService.currentQuickInput?.hide();
+
+			accessor.quickInputService.quickAccess.show();
+			const normal = { label: label.textContent, visible: label.getBoundingClientRect().height > 0 };
+
+			assert.deepStrictEqual({ custom, anchored, normal }, {
+				custom: { label: 'Search attachments', ariaLabel: 'Search attachments' },
+				anchored: { label: '', display: 'none', placeholder: 'Search attachments' },
+				normal: { label: 'Search files by name', visible: true },
+			});
+		} finally {
+			accessor.quickInputService.currentQuickInput?.hide();
+			registrations.dispose();
+			restore();
+		}
 	});
 
 	let fastProviderCalled = false;

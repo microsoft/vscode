@@ -244,6 +244,151 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		}, { focusedDuringUpdate: true, reattached: true });
 	});
 
+	test('quick pick input labels remain associated and visible while typing', () => {
+		controller.layout({ height: 400, width: 500 }, 0);
+		const picker = store.add(controller.createQuickPick());
+		picker.inputLabel = 'Search files by name';
+		picker.placeholder = 'Search files by name or paste a link';
+		picker.show();
+
+		const label = fixture.querySelector<HTMLLabelElement>('.quick-input-label')!;
+		const input = fixture.querySelector<HTMLInputElement>('.quick-input-box input')!;
+		const state = () => ({
+			label: label.textContent,
+			visible: label.getBoundingClientRect().height > 0,
+			associated: label.control === input,
+			ariaLabel: input.getAttribute('aria-label'),
+			value: input.value,
+		});
+		const initial = state();
+		input.value = 'example.ts';
+		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		const typed = state();
+		picker.ariaLabel = 'No matching results';
+		const explicitAriaLabel = input.getAttribute('aria-label');
+		input.blur();
+		label.click();
+		const focusedByLabel = mainWindow.document.activeElement === input;
+
+		picker.hideInput = true;
+		const hidden = mainWindow.getComputedStyle(label).display === 'none';
+		picker.hideInput = false;
+		const visibleAgain = label.getBoundingClientRect().height > 0;
+
+		const other = store.add(controller.createQuickPick());
+		other.placeholder = 'Select an item';
+		other.show();
+
+		assert.deepStrictEqual({
+			initial,
+			typed,
+			explicitAriaLabel,
+			focusedByLabel,
+			hidden,
+			visibleAgain,
+			other: { label: label.textContent, display: mainWindow.getComputedStyle(label).display, ariaLabel: input.getAttribute('aria-label') },
+		}, {
+			initial: { label: 'Search files by name', visible: true, associated: true, ariaLabel: 'Search files by name or paste a link', value: '' },
+			typed: { label: 'Search files by name', visible: true, associated: true, ariaLabel: 'Search files by name or paste a link', value: 'example.ts' },
+			explicitAriaLabel: 'Search files by name, No matching results',
+			focusedByLabel: true,
+			hidden: true,
+			visibleAgain: true,
+			other: { label: '', display: 'none', ariaLabel: 'Select an item' },
+		});
+	});
+
+	test('quick pick input labels wrap in narrow layouts', () => {
+		controller.layout({ height: 400, width: 200 }, 0);
+		const picker = store.add(controller.createQuickPick());
+		picker.inputLabel = 'Search files by a long translated name without clipping the label';
+		picker.show();
+
+		const label = fixture.querySelector<HTMLLabelElement>('.quick-input-label')!;
+		const input = fixture.querySelector<HTMLInputElement>('.quick-input-box input')!;
+		label.style.fontSize = '20px';
+		label.style.lineHeight = '24px';
+		const labelRect = label.getBoundingClientRect();
+		const inputRect = input.getBoundingClientRect();
+
+		assert.deepStrictEqual({
+			wrapped: labelRect.height >= 48,
+			notClipped: label.scrollWidth <= label.clientWidth,
+			aboveInput: labelRect.bottom <= inputRect.top,
+		}, { wrapped: true, notClipped: true, aboveInput: true });
+	});
+
+	test('quick pick input labels use fallback styling when size tokens are unavailable', () => {
+		fixture.style.setProperty('--vscode-fontWeight-semiBold', 'initial');
+		fixture.style.setProperty('--vscode-spacing-size40', 'initial');
+		const picker = store.add(controller.createQuickPick());
+		picker.inputLabel = 'Search files by name';
+		picker.show();
+
+		const label = fixture.querySelector<HTMLLabelElement>('.quick-input-label')!;
+		const style = () => {
+			const computed = mainWindow.getComputedStyle(label);
+			return { fontWeight: computed.fontWeight, paddingBottom: computed.paddingBottom };
+		};
+		const fallback = style();
+		fixture.style.setProperty('--vscode-fontWeight-semiBold', '400');
+		fixture.style.setProperty('--vscode-spacing-size40', '8px');
+		const tokens = style();
+
+		assert.deepStrictEqual({ fallback, tokens }, {
+			fallback: { fontWeight: '600', paddingBottom: '4px' },
+			tokens: { fontWeight: '400', paddingBottom: '8px' },
+		});
+	});
+
+	test('quick pick input labels follow theme changes', () => {
+		const picker = store.add(controller.createQuickPick());
+		picker.inputLabel = 'Search files by name';
+		picker.show();
+
+		const widget = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
+		const label = fixture.querySelector<HTMLLabelElement>('.quick-input-label')!;
+		const colors = [
+			{ foreground: '#cccccc', background: '#222222' },
+			{ foreground: '#3b3b3b', background: '#f8f8f8' },
+		].map(({ foreground, background }) => {
+			controller.applyStyles({
+				...testQuickInputStyles,
+				widget: { ...testQuickInputStyles.widget, quickInputForeground: foreground, quickInputBackground: background },
+			});
+			const labelStyle = mainWindow.getComputedStyle(label);
+			return {
+				foreground: labelStyle.color,
+				opacity: labelStyle.opacity,
+				background: mainWindow.getComputedStyle(widget).backgroundColor,
+			};
+		});
+
+		assert.deepStrictEqual(colors, [
+			{ foreground: 'rgb(204, 204, 204)', opacity: '1', background: 'rgb(34, 34, 34)' },
+			{ foreground: 'rgb(59, 59, 59)', opacity: '1', background: 'rgb(248, 248, 248)' },
+		]);
+	});
+
+	test('quick pick labels target their own input when controllers share an id prefix', () => {
+		const otherController = store.add(instantiationService.createInstance(QuickInputController, Reflect.get(controller, 'options')));
+		otherController.layout({ height: 400, width: 500 }, 0);
+		const first = store.add(controller.createQuickPick());
+		const second = store.add(otherController.createQuickPick());
+		first.inputLabel = 'First';
+		second.inputLabel = 'Second';
+		first.show();
+		second.show();
+
+		const widgets = [...fixture.querySelectorAll<HTMLElement>('.quick-input-widget')];
+		const labels = widgets.map(widget => widget.querySelector<HTMLLabelElement>('.quick-input-label')!);
+		const inputs = widgets.map(widget => widget.querySelector<HTMLInputElement>('.quick-input-box input')!);
+		assert.deepStrictEqual({
+			distinctIds: inputs[0].id !== inputs[1].id,
+			associated: labels.map((label, index) => label.control === inputs[index]),
+		}, { distinctIds: true, associated: [true, true] });
+	});
+
 	for (const action of ['click', 'next', 'previous']) {
 		test(`filtered action headers focus the first visible command (${action})`, async () => {
 			controller.layout({ height: 500, width: 600 }, 0);

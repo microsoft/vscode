@@ -16,6 +16,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable, dispose, t
 import Severity from '../../../base/common/severity.js';
 import { isString } from '../../../base/common/types.js';
 import { isModifierKey } from '../../../base/common/keyCodes.js';
+import { defaultGenerator } from '../../../base/common/idGenerator.js';
 import { localize } from '../../../nls.js';
 import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus, QuickInputType, IQuickTree, IQuickTreeItem, QuickInputAlignment } from '../common/quickInput.js';
 import { QuickInputBox } from './quickInputBox.js';
@@ -223,9 +224,12 @@ export class QuickInputController extends Disposable {
 
 		const description2 = dom.append(headerContainer, $('.quick-input-description'));
 		const inputContainer = dom.append(headerContainer, $('.quick-input-and-message'));
+		const inputId = `${this.idPrefix}input-${defaultGenerator.nextId()}`;
+		const inputLabel = dom.append(inputContainer, $<HTMLLabelElement>('label.quick-input-label', { for: inputId }));
 		const filterContainer = dom.append(inputContainer, $('.quick-input-filter'));
 
 		const inputBox = this._register(new QuickInputBox(filterContainer, this.styles.inputBox, this.styles.toggle));
+		inputBox.setAttribute('id', inputId);
 		inputBox.setAttribute('aria-describedby', `${this.idPrefix}message`);
 
 		const visibleCountContainer = dom.append(filterContainer, $('.quick-input-visible-count'));
@@ -462,6 +466,7 @@ export class QuickInputController extends Disposable {
 			inlineActionBar,
 			checkAll,
 			inputContainer,
+			inputLabel,
 			filterContainer,
 			inputBox,
 			visibleCountContainer,
@@ -773,6 +778,8 @@ export class QuickInputController extends Disposable {
 		ui.inlineActionBar.setActions([]);
 		ui.checkAll.checked = false;
 		// ui.inputBox.value = ''; Avoid triggering an event.
+		ui.inputLabel.textContent = '';
+		ui.inputLabel.style.display = 'none';
 		ui.inputBox.placeholder = '';
 		ui.inputBox.password = false;
 		ui.inputBox.showDecoration(Severity.Ignore);
@@ -859,6 +866,7 @@ export class QuickInputController extends Disposable {
 		ui.description2.style.display = visibilities.description && !(visibilities.inputBox || visibilities.checkAll) ? '' : 'none';
 		ui.checkAll.domNode.style.display = visibilities.checkAll ? '' : 'none';
 		ui.inputContainer.style.display = visibilities.inputBox ? '' : 'none';
+		ui.inputLabel.style.display = visibilities.inputLabel ? '' : 'none';
 		ui.filterContainer.style.display = visibilities.inputBox ? '' : 'none';
 		ui.visibleCountContainer.style.display = visibilities.visibleCount ? '' : 'none';
 		ui.countContainer.style.display = visibilities.count ? '' : 'none';

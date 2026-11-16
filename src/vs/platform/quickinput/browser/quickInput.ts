@@ -107,6 +107,7 @@ export interface QuickInputUI {
 	inlineActionBar: ToolBar;
 	checkAll: TriStateCheckbox;
 	inputContainer: HTMLElement;
+	inputLabel: HTMLLabelElement;
 	filterContainer: HTMLElement;
 	inputBox: QuickInputBox;
 	visibleCountContainer: HTMLElement;
@@ -139,6 +140,7 @@ export type Visibilities = {
 	description?: boolean;
 	checkAll?: boolean;
 	inputBox?: boolean;
+	inputLabel?: boolean;
 	checkBox?: boolean;
 	visibleCount?: boolean;
 	count?: boolean;
@@ -527,6 +529,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 
 	private _value = '';
 	private _ariaLabel: string | undefined;
+	private _inputLabel: string | undefined;
 	private _placeholder: string | undefined;
 	private readonly onDidChangeValueEmitter = this._register(new Emitter<string>());
 	private readonly onWillAcceptEmitter = this._register(new Emitter<IQuickPickWillAcceptEvent>());
@@ -616,6 +619,15 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 
 	get ariaLabel() {
 		return this._ariaLabel;
+	}
+
+	get inputLabel() {
+		return this._inputLabel;
+	}
+
+	set inputLabel(inputLabel: string | undefined) {
+		this._inputLabel = inputLabel;
+		this.update();
 	}
 
 	get placeholder() {
@@ -1039,6 +1051,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 			checkAll: this.canSelectMany && !this._hideCheckAll,
 			checkBox: this.canSelectMany,
 			inputBox: !this._hideInput,
+			inputLabel: !!this.inputLabel && !this._hideInput,
 			progressBar: !this._hideInput || hasDescription,
 			visibleCount: true,
 			count: this.canSelectMany && !this._hideCountBadge,
@@ -1047,6 +1060,9 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 			message: !!this.validationMessage || !!this.prompt,
 			customButton: this.customButton
 		};
+		if (this.ui.inputLabel.textContent !== (this.inputLabel ?? '')) {
+			this.ui.inputLabel.textContent = this.inputLabel ?? '';
+		}
 		this.ui.setVisibilities(visibilities);
 		super.update();
 		if (this.ui.inputBox.value !== this.value) {
@@ -1077,8 +1093,11 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 		if (this.ui.list.ariaLabel !== ariaLabel) {
 			this.ui.list.ariaLabel = ariaLabel ?? null;
 		}
-		if (this.ui.inputBox.ariaLabel !== ariaLabel) {
-			this.ui.inputBox.ariaLabel = ariaLabel ?? 'input';
+		const inputAriaLabel = visibilities.inputLabel && this.inputLabel && !ariaLabel?.startsWith(this.inputLabel)
+			? ariaLabel ? localize('quickInput.labelWithDescription', "{0}, {1}", this.inputLabel, ariaLabel) : this.inputLabel
+			: ariaLabel ?? 'input';
+		if (this.ui.inputBox.ariaLabel !== inputAriaLabel) {
+			this.ui.inputBox.ariaLabel = inputAriaLabel;
 		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;

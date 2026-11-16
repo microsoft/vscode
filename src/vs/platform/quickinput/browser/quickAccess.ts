@@ -12,6 +12,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { DefaultQuickAccessFilterValue, Extensions, IQuickAccessController, IQuickAccessOptions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessRegistry } from '../common/quickAccess.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem, ItemActivation } from '../common/quickInput.js';
 import { Registry } from '../../registry/common/platform.js';
+import { localize } from '../../../nls.js';
 
 export class QuickAccessController extends Disposable implements IQuickAccessController {
 
@@ -114,6 +115,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		picker.value = value;
 		this.adjustValueSelection(picker, descriptor, options);
 		picker.placeholder = options?.placeholder ?? descriptor?.placeholder;
+		picker.inputLabel = options?.anchor ? undefined : options?.placeholder || descriptor?.inputLabel || descriptor?.helpEntries[0]?.description || localize('quickAccess.inputLabel', "Quick Access");
 		picker.anchor = options?.anchor;
 		picker.anchorPosition = options?.anchorPosition;
 		picker.quickNavigate = options?.quickNavigateConfiguration;
