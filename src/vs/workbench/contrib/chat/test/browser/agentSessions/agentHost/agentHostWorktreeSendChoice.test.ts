@@ -38,7 +38,7 @@ import { AgentHostWorktreeSessionSources, IAgentHostWorktreeSessionSources } fro
 import { IAgentSession } from '../../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../browser/agentSessions/agentSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../browser/chat.js';
-import { ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from '../../../../browser/chatSubmitRequestHandlerService.js';
+import { ChatSubmitRequestCancelled, ChatSubmitRequestHandlerService, IChatSubmitRequestHandlerService } from '../../../../browser/chatSubmitRequestHandlerService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
@@ -77,20 +77,25 @@ suite('Agent host Work in Parallel choice on send', () => {
 		instantiationService.stub(IAgentHostWorktreeLocationsCache, upcastPartial<IAgentHostWorktreeLocationsCache>({ isActive: () => true, getLocations: () => [], refresh: () => { }, onWillRefresh: Event.None, onDidChange: Event.None }));
 		const chosen = new Set<string>();
 		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({ getFolder: () => undefined, isNoWorkspace: () => false, isNewWorktree: () => false, isIsolationChosen: (resource: URI) => chosen.has(resource.toString()), setIsolationChosen: (resource: URI) => { chosen.add(resource.toString()); } }));
-		// The isolation of each new chat, as its configuration has it; a change to it can be held until `applied` completes, or fail
+		// The isolation of each new chat, as its configuration has it; a change to it can be held until `applied` completes, or
+		// fail: a new worktree before or after it changes the configuration, and where `rollbackFails`, going back to the folder too
 		const isolations = new Map<string, string>();
 		let applied: DeferredPromise<void> | undefined;
-		let applyFails = false;
+		let applyFails: 'beforeChange' | 'afterChange' | 'rollbackToo' | undefined;
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({
 			onDidChange: Event.None,
 			getResolvedConfig: (resource: URI) => ({ schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: [...options.isolations ?? ['folder', 'worktree']] } } }, values: { isolation: isolations.get(resource.toString()) ?? 'folder' } }),
 			getPreparedSessionConfig: () => undefined,
 			applyConfigChange: async (resource: URI, _provider: string, _folder: URI | undefined, partial: Record<string, unknown>) => {
-				await applied?.p;
-				if (applyFails && partial.isolation === 'worktree') {
+				if (applyFails === 'beforeChange' && partial.isolation === 'worktree') {
 					throw new Error('cannot create the worktree');
 				}
+				// The configuration changes at once, and the host is told after
 				isolations.set(resource.toString(), String(partial.isolation));
+				await applied?.p;
+				if (applyFails && (partial.isolation === 'worktree' || applyFails === 'rollbackToo')) {
+					throw new Error(`cannot change to ${partial.isolation}`);
+				}
 				return resource;
 			},
 		}));
@@ -108,8 +113,12 @@ suite('Agent host Work in Parallel choice on send', () => {
 		instantiationService.stub(IAgentHostWorktreeSessionSources, disposables.add(new AgentHostWorktreeSessionSources()));
 		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		const warnings: string[] = [];
+		const errorMessages: string[] = [];
 		const notifications = new TestNotificationService();
-		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ warn: (message: unknown) => { warnings.push(String(message)); return notifications.warn(''); } }));
+		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({
+			warn: (message: unknown) => { warnings.push(String(message)); return notifications.warn(''); },
+			error: (message: unknown) => { errorMessages.push(String(message)); return notifications.error(''); },
+		}));
 		// The worktree control of each chat input, which the callout points at
 		const controls = new Map<string, HTMLElement>();
 		const controlOf = (resource?: URI) => {
@@ -125,56 +134,74 @@ suite('Agent host Work in Parallel choice on send', () => {
 			return control;
 		};
 		const control = controlOf();
-		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ getWidgetBySessionResource: (resource: URI) => upcastPartial<IChatWidget>({ domNode: controlOf(resource).parentElement! }) }));
+		// The chat input showing each new chat, until it is closed
+		const widgets = new Map<string, IChatWidget | undefined>();
+		const widgetOf = (resource: URI) => {
+			const key = resource.toString();
+			if (!widgets.has(key)) {
+				widgets.set(key, upcastPartial<IChatWidget>({ domNode: controlOf(resource).parentElement! }));
+			}
+			return widgets.get(key);
+		};
+		const close = (resource: URI) => { widgets.set(resource.toString(), undefined); };
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ getWidgetBySessionResource: widgetOf }));
 		// The callout: the control it points at, and the user's answers in turn, each held until its `held` completes where given
 		const asked: { readonly onControl: boolean }[] = [];
 		const askedOn: (HTMLElement | undefined)[] = [];
 		const answers: { readonly answer: Answer; readonly held?: DeferredPromise<void> }[] = [];
 		let answer: Answer = 'continue';
+		// As the onboarding service does, a run of a scenario that is running already joins it
+		let running: Promise<OnboardingOutcome> | undefined;
 		instantiationService.stub(IOnboardingScenarioService, upcastPartial<IOnboardingScenarioService>({
-			runScenario: async (id: string) => {
-				const step = (onboardingScenarioRegistry.getScenario(id)!.presentation.payload as ISpotlightPayload).steps[0];
-				const element = resolveOnboardingTarget(mainWindow, step.targetId)?.element;
-				asked.push({ onControl: [...controls.values()].some(control => control === element) });
-				askedOn.push(element);
-				const next = answers.shift() ?? { answer };
-				await next.held?.p;
-				switch (next.answer) {
-					case 'useWorktree':
-						await step.primaryAction!.run(undefined!);
-						return OnboardingOutcome.Completed;
-					case 'continue':
-					case 'escape':
-						return OnboardingOutcome.Skipped;
-					case 'abort':
-						return OnboardingOutcome.Aborted;
-				}
-			},
+			runScenario: (id: string) => running ??= run(id).finally(() => { running = undefined; }),
 		}));
+		const run = async (id: string): Promise<OnboardingOutcome> => {
+			const step = (onboardingScenarioRegistry.getScenario(id)!.presentation.payload as ISpotlightPayload).steps[0];
+			const element = resolveOnboardingTarget(mainWindow, step.targetId)?.element;
+			asked.push({ onControl: [...controls.values()].some(control => control === element) });
+			askedOn.push(element);
+			const next = answers.shift() ?? { answer };
+			await next.held?.p;
+			switch (next.answer) {
+				case 'useWorktree':
+					await step.primaryAction!.run(undefined!);
+					return OnboardingOutcome.Completed;
+				case 'continue':
+				case 'escape':
+					return OnboardingOutcome.Skipped;
+				case 'abort':
+					return OnboardingOutcome.Aborted;
+			}
+		};
 		const submit = new ChatSubmitRequestHandlerService();
 		instantiationService.stub(IChatSubmitRequestHandlerService, submit);
 		const service = disposables.add(instantiationService.createInstance(AgentHostWorktreeSendChoice, () => NOW));
 
-		/** The requests sent, by the isolation each new chat then had. */
+		/** The requests sent, by the isolation each new chat then had; and those kept in the input, neither sent nor cleared. */
 		const sent: string[] = [];
+		const kept: URI[] = [];
 		const newDraft = () => URI.from({ scheme: SessionType.AgentHostCopilot, path: `/untitled-${++draftCount}` });
 		/** Sends the first request of `draft`, as ChatWidget does through its submit handlers. */
 		const send = async (draft: URI) => {
-			if (!await submit.tryHandle({ sessionResource: draft, input: 'hello' })) {
+			const result = await submit.tryHandle({ sessionResource: draft, input: 'hello' });
+			if (result === ChatSubmitRequestCancelled) {
+				kept.push(draft);
+			} else if (!result) {
 				sent.push(isolations.get(draft.toString()) ?? 'folder');
 			}
 		};
 		/** Answers the next callout with `value`, held until `held` completes where given; and the later ones too, unless queued again. */
 		const setAnswer = (value: Answer, held?: DeferredPromise<void>) => { answer = value; answers.push({ answer: value, held }); };
 		const holdApply = (held: DeferredPromise<void> | undefined) => { applied = held; };
-		const failApply = () => { applyFails = true; };
+		const failApply = (when: NonNullable<typeof applyFails>) => { applyFails = when; };
 		/** Picks where `draft` works in its folder chip, as the user does. */
 		const pick = (draft: URI, inWorktree: boolean) => {
 			const choices = instantiationService.createInstance(AgentHostWorktreeFolderChoices, () => draft);
 			return choices.setNewWorktree(inWorktree).finally(() => choices.dispose());
 		};
 		// Its contributions are global, one window at a time
-		return { newDraft, send, sent, asked, askedOn, setAnswer, holdApply, failApply, pick, warnings, service, control, controlOf, dispose: () => disposables.dispose() };
+		const isolationOf = (draft: URI) => isolations.get(draft.toString()) ?? 'folder';
+		return { newDraft, send, sent, kept, errorMessages, widgetOf, asked, askedOn, setAnswer, close, isolationOf, holdApply, failApply, pick, warnings, service, control, controlOf, dispose: () => disposables.dispose() };
 	}
 
 	test('asks of a new chat in the folder only after another chat of the agent host was active in the folder itself within the last day', () => {
@@ -394,21 +421,57 @@ suite('Agent host Work in Parallel choice on send', () => {
 		assert.deepStrictEqual({ askedWhileHeld, askedOn, sent: window.sent }, { askedWhileHeld: 1, askedOn: ['first', 'second'], sent: ['folder', 'worktree'] });
 	});
 
-	test('sends in the folder, with a warning, where the new worktree cannot be applied', async () => {
-		const errors: unknown[] = [];
+	test('sends in the folder, with a warning, only where a new worktree that cannot be applied is undone; else keeps the request in the input', async () => {
+		const results: Record<string, unknown> = {};
 		const handler = errorHandler.getUnexpectedErrorHandler();
-		errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
 		try {
-			const window = createWindow({ firstChatIn: primary });
-			window.setAnswer('useWorktree');
-			window.failApply();
-			await window.send(window.newDraft());
-			window.dispose();
-
-			assert.deepStrictEqual({ sent: window.sent, warnings: window.warnings.length, errors: errors.length }, { sent: ['folder'], warnings: 1, errors: 1 });
+			for (const when of ['beforeChange', 'afterChange', 'rollbackToo'] as const) {
+				const errors: unknown[] = [];
+				errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+				const window = createWindow({ firstChatIn: primary });
+				window.setAnswer('useWorktree');
+				window.failApply(when);
+				await window.send(window.newDraft());
+				window.dispose();
+				results[when] = { sent: window.sent, kept: window.kept.length, warnings: window.warnings.length, errorMessages: window.errorMessages.length, errors: errors.length };
+			}
 		} finally {
 			errorHandler.setUnexpectedErrorHandler(handler);
 		}
+
+		assert.deepStrictEqual(results, {
+			beforeChange: { sent: ['folder'], kept: 0, warnings: 1, errorMessages: 0, errors: 1 },
+			// Undone: back to the folder
+			afterChange: { sent: ['folder'], kept: 0, warnings: 1, errorMessages: 0, errors: 1 },
+			// Not undone: where it works is not known, so it is not sent
+			rollbackToo: { sent: [], kept: 1, warnings: 0, errorMessages: 1, errors: 2 },
+		});
+	});
+
+	test('does not ask where the worktree control is hidden or gone, and remembers nothing', async () => {
+		const results: Record<string, unknown> = {};
+		for (const how of ['hidden', 'removed'] as const) {
+			const window = createWindow({ firstChatIn: primary });
+			window.setAnswer('useWorktree');
+			const draft = window.newDraft();
+			const control = window.controlOf(draft);
+			window.widgetOf(draft);
+			if (how === 'hidden') {
+				control.style.display = 'none';
+			} else {
+				control.remove();
+			}
+			await window.send(draft);
+			await window.send(window.newDraft());
+			window.dispose();
+			results[how] = { asked: window.asked.length, sent: window.sent };
+		}
+
+		assert.deepStrictEqual(results, {
+			// The next new chat, whose control shows, is asked
+			hidden: { asked: 1, sent: ['folder', 'worktree'] },
+			removed: { asked: 1, sent: ['folder', 'worktree'] },
+		});
 	});
 
 	test('another chat surface\'s ask remembers only an answer the user gave, and waits for a callout shown before, with its own control and answer', async () => {
@@ -433,6 +496,22 @@ suite('Agent host Work in Parallel choice on send', () => {
 
 		// The Chat view's Continue in Folder is remembered first, so the later ask applies it without a callout
 		assert.deepStrictEqual({ aborted, askedWhileHeld, askedOn, sent: window.sent, answered }, { aborted: 'folder', askedWhileHeld: 2, askedOn: ['control', 'draft'], sent: ['folder'], answered: 'folder' });
+	});
+
+	test('does not apply a new worktree to a new chat whose chat input closed while it asked', async () => {
+		const window = createWindow({ firstChatIn: primary });
+		const held = new DeferredPromise<void>();
+		window.setAnswer('useWorktree', held);
+		const draft = window.newDraft();
+		const sending = window.send(draft);
+		await timeout(0);
+		window.close(draft);
+		held.complete();
+		await sending;
+		const isolation = window.isolationOf(draft);
+		window.dispose();
+
+		assert.deepStrictEqual({ asked: window.asked.length, isolation }, { asked: 1, isolation: 'folder' });
 	});
 
 	test('its callout offers Use New Worktree and Continue in Folder', () => {

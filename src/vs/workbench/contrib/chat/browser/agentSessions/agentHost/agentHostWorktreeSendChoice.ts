@@ -28,7 +28,7 @@ import { IOnboardingScenarioService } from '../../../../onboarding/common/onboar
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatWidgetService } from '../../chat.js';
-import { IChatSubmitRequest, IChatSubmitRequestHandlerService } from '../../chatSubmitRequestHandlerService.js';
+import { ChatSubmitRequestCancelled, ChatSubmitRequestResult, IChatSubmitRequest, IChatSubmitRequestHandlerService } from '../../chatSubmitRequestHandlerService.js';
 import { isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
 import { IAgentSession } from '../agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
@@ -146,20 +146,23 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 				try {
 					return await this._tryHandle(request);
 				} catch (error) {
-					// Never at the cost of the request: it is sent as it is
 					onUnexpectedError(error);
-					return false;
+					// Sent as it is only where it still works in the folder; else kept in the input, never sent elsewhere
+					return this._worksInFolder(request.sessionResource) ? false : this._cancel();
 				}
 			},
 		}));
 	}
 
-	/** Returns whether it handled the request in place of the send, which it does only for one sent again while it holds it. */
-	private async _tryHandle(request: IChatSubmitRequest): Promise<boolean> {
+	/**
+	 * Returns `false` where the request goes on, and {@link ChatSubmitRequestCancelled} where it stays in the input unsent:
+	 * where it is sent again while held (ChatWidget does not, holding it itself), or where it cannot work where chosen.
+	 */
+	private async _tryHandle(request: IChatSubmitRequest): Promise<ChatSubmitRequestResult> {
 		const resource = request.sessionResource;
 		if (this._holding.has(resource)) {
-			// Sent again while held: the held request goes on once decided, so this one is not sent as well
-			return true;
+			// The held request goes on once decided; this one is neither sent as well nor cleared
+			return ChatSubmitRequestCancelled;
 		}
 		if (!this._isNewChatInFolder(resource) || !this._hasRecentChatInFolder(resource)) {
 			return false;
@@ -170,11 +173,12 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 			if (!choices.canWorkInNewWorktree()) {
 				return false;
 			}
-			const target = this._chatWidgetService.getWidgetBySessionResource(resource)?.domNode;
-			const control = target && getWorktreeControl(target);
+			const widget = this._chatWidgetService.getWidgetBySessionResource(resource);
+			const control = widget && getWorktreeControl(widget.domNode);
 			const choice = this._rememberedChoice() ?? (control ? await this._askAndRemember(control) : 'folder');
-			if (choice === 'worktree') {
-				await this._applyNewWorktree(choices);
+			// Where no chat input shows the draft anymore, its send does not go on (ChatWidget checks too), so nothing is applied
+			if (choice === 'worktree' && this._chatWidgetService.getWidgetBySessionResource(resource) === widget && !await this._applyNewWorktree(choices)) {
+				return this._cancel();
 			}
 			return false;
 		} finally {
@@ -183,23 +187,47 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 		}
 	}
 
-	/** Has the chat work in a new worktree; where that fails, it works in the folder, which a warning tells. */
-	private async _applyNewWorktree(choices: AgentHostWorktreeFolderChoices): Promise<void> {
-		let applied = false;
+	/**
+	 * Has the chat work in a new worktree. Where that fails, it goes back to the folder, which a warning tells. Returns whether
+	 * the chat can be sent: not where it could not be brought back to the folder, so that its configuration is not known.
+	 */
+	private async _applyNewWorktree(choices: AgentHostWorktreeFolderChoices): Promise<boolean> {
 		try {
 			await choices.setNewWorktree(true);
-			applied = choices.isNewWorktreeSelected();
+			if (choices.isNewWorktreeSelected()) {
+				return true;
+			}
 		} catch (error) {
 			onUnexpectedError(error);
 		}
-		if (applied) {
-			return;
-		}
 		if (choices.isNewWorktreeSelected()) {
-			// Set before the change failed: back to the folder, where it is then sent
-			await choices.setNewWorktree(false).catch(onUnexpectedError);
+			// Changed before the change failed: back to the folder, which must take as well
+			try {
+				await choices.setNewWorktree(false);
+			} catch (error) {
+				onUnexpectedError(error);
+				return false;
+			}
+			if (choices.isNewWorktreeSelected()) {
+				return false;
+			}
 		}
 		this._notificationService.warn(localize('agentHost.worktreeSendChoice.notApplied', "This chat could not start in a new worktree, so it works in the folder."));
+		return true;
+	}
+
+	private _worksInFolder(resource: URI): boolean {
+		const choices = this._instantiationService.createInstance(AgentHostWorktreeFolderChoices, () => resource);
+		try {
+			return !choices.isNewWorktreeSelected();
+		} finally {
+			choices.dispose();
+		}
+	}
+
+	private _cancel(): typeof ChatSubmitRequestCancelled {
+		this._notificationService.error(localize('agentHost.worktreeSendChoice.notSent', "This chat could not start in a new worktree nor go back to the folder, so its request was not sent. It is still in the chat input."));
+		return ChatSubmitRequestCancelled;
 	}
 
 	async askWorktreeOnSend(control: HTMLElement): Promise<WorktreeSendChoice> {

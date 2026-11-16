@@ -39,9 +39,12 @@ export function registerWorktreeControl(element: HTMLElement): IDisposable {
 	return toDisposable(() => worktreeControls.delete(element));
 }
 
-/** The rendered worktree control in `container`, such as a chat widget's: its New Worktree checkbox, else its folder chip. */
+/**
+ * The visible worktree control in `container`, such as a chat widget's: its New Worktree checkbox, else its folder chip. Not
+ * one that is hidden or no longer in the document, which a callout could not point at.
+ */
 export function getWorktreeControl(container: HTMLElement): HTMLElement | undefined {
-	const controls = [...worktreeControls].filter(control => container.contains(control));
+	const controls = [...worktreeControls].filter(control => container.contains(control) && control.isConnected && control.getClientRects().length > 0);
 	return controls.find(control => control.classList.contains('chat-input-checkbox-item')) ?? controls[0];
 }
 
