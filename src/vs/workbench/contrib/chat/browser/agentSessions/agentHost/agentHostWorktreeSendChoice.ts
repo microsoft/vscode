@@ -11,7 +11,9 @@ import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resour
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
+import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -38,7 +40,7 @@ const AGENT_HOST_WORKTREE_SEND_CHOICE_TARGET_ID = 'chat.agentHost.worktreeSendCh
 /** Where the user chose new chats in the window's own folder to work, once asked: `worktree` or `folder`. */
 export const AGENT_HOST_WORKTREE_SEND_CHOICE_STORAGE_KEY = 'chat.agentHost.worktreeSendChoice';
 
-type WorktreeSendChoice = 'worktree' | 'folder';
+export type WorktreeSendChoice = 'worktree' | 'folder';
 
 /** How recently another chat in the window's own folder must have been active for a new one there to be asked. */
 export const WORKTREE_SEND_CHOICE_RECENT_MS = 24 * 60 * 60 * 1000;
@@ -66,6 +68,20 @@ export function isRecentChatInFolder(sessions: readonly IWorktreeSendChoiceSessi
 		&& now - session.lastActivity <= WORKTREE_SEND_CHOICE_RECENT_MS);
 }
 
+export const IAgentHostWorktreeSendChoiceService = createDecorator<IAgentHostWorktreeSendChoiceService>('agentHostWorktreeSendChoiceService');
+
+/** Where a new chat in the window's own folder works, as the user chose once: for other chat surfaces' own new chats. */
+export interface IAgentHostWorktreeSendChoiceService {
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * Where the new chat of `sessionResource` works: as the user chose before, else as they choose now in the Work in
+	 * Parallel callout on `control`, its worktree control, which it remembers for the profile. The caller applies it, and
+	 * decides when to ask, such as with {@link isRecentChatInFolder}.
+	 */
+	runWorktreeSendChoice(sessionResource: URI, control: HTMLElement): Promise<WorktreeSendChoice>;
+}
+
 /**
  * Asks once, as the user sends the first request of a new chat that would work in the window's own folder while another
  * chat of an agent host there was active within the last day ({@link isRecentChatInFolder}), whether it works in a new worktree instead, separately from the others; and applies
@@ -75,7 +91,9 @@ export function isRecentChatInFolder(sessions: readonly IWorktreeSendChoiceSessi
  * sent once, in the new worktree or in the folder. It leaves alone a chat whose user chose where it works in its folder chip
  * or New Worktree checkbox, and a session that cannot work in a new worktree.
  */
-export class AgentHostWorktreeSendChoice extends Disposable {
+export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHostWorktreeSendChoiceService {
+
+	declare readonly _serviceBrand: undefined;
 
 	/** New chats whose send is held while the user is asked. */
 	private readonly _asking = new ResourceSet();
@@ -129,16 +147,13 @@ export class AgentHostWorktreeSendChoice extends Disposable {
 			if (!choices.canWorkInNewWorktree()) {
 				return false;
 			}
-			let choice = this._storageService.get(AGENT_HOST_WORKTREE_SEND_CHOICE_STORAGE_KEY, StorageScope.PROFILE) as WorktreeSendChoice | undefined;
-			if (choice !== 'worktree' && choice !== 'folder') {
-				const target = this._chatWidgetService.getWidgetBySessionResource(resource)?.domNode;
-				const control = target && getWorktreeControl(target);
-				if (!control) {
-					return false;
-				}
-				choice = await this._ask(resource, control);
-				this._storageService.store(AGENT_HOST_WORKTREE_SEND_CHOICE_STORAGE_KEY, choice, StorageScope.PROFILE, StorageTarget.USER);
+			const target = this._chatWidgetService.getWidgetBySessionResource(resource)?.domNode;
+			const control = target && getWorktreeControl(target);
+			// Asked only where the user sees what it points at; the choice remembered applies also without
+			if (!control && !this._rememberedChoice()) {
+				return false;
 			}
+			const choice = await this.runWorktreeSendChoice(resource, control);
 			if (choice === 'worktree') {
 				await choices.setNewWorktree(true);
 				if (!choices.isNewWorktreeSelected()) {
@@ -149,6 +164,21 @@ export class AgentHostWorktreeSendChoice extends Disposable {
 		} finally {
 			choices.dispose();
 		}
+	}
+
+	async runWorktreeSendChoice(sessionResource: URI, control: HTMLElement | undefined): Promise<WorktreeSendChoice> {
+		const remembered = this._rememberedChoice();
+		if (remembered || !control) {
+			return remembered ?? 'folder';
+		}
+		const choice = await this._ask(sessionResource, control);
+		this._storageService.store(AGENT_HOST_WORKTREE_SEND_CHOICE_STORAGE_KEY, choice, StorageScope.PROFILE, StorageTarget.USER);
+		return choice;
+	}
+
+	private _rememberedChoice(): WorktreeSendChoice | undefined {
+		const stored = this._storageService.get(AGENT_HOST_WORKTREE_SEND_CHOICE_STORAGE_KEY, StorageScope.PROFILE);
+		return stored === 'worktree' || stored === 'folder' ? stored : undefined;
 	}
 
 	private async _ask(resource: URI, control: HTMLElement): Promise<WorktreeSendChoice> {
@@ -239,12 +269,12 @@ export class AgentHostWorktreeSendChoice extends Disposable {
 	}
 }
 
-class AgentHostWorktreeSendChoiceContribution extends Disposable implements IWorkbenchContribution {
+registerSingleton(IAgentHostWorktreeSendChoiceService, new SyncDescriptor(AgentHostWorktreeSendChoice, [() => Date.now()], false));
+
+/** Creates the service, not delayed, so that the Chat view's new chats are asked as they send. */
+class AgentHostWorktreeSendChoiceContribution implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.agentHostWorktreeSendChoice';
-	constructor(@IInstantiationService instantiationService: IInstantiationService) {
-		super();
-		this._register(instantiationService.createInstance(AgentHostWorktreeSendChoice, () => Date.now()));
-	}
+	constructor(@IAgentHostWorktreeSendChoiceService _service: IAgentHostWorktreeSendChoiceService) { }
 }
 
 registerWorkbenchContribution2(AgentHostWorktreeSendChoiceContribution.ID, AgentHostWorktreeSendChoiceContribution, WorkbenchPhase.AfterRestored);

@@ -126,7 +126,7 @@ suite('Agent host Work in Parallel choice on send', () => {
 		}));
 		const submit = new ChatSubmitRequestHandlerService();
 		instantiationService.stub(IChatSubmitRequestHandlerService, submit);
-		disposables.add(instantiationService.createInstance(AgentHostWorktreeSendChoice, () => NOW));
+		const service = disposables.add(instantiationService.createInstance(AgentHostWorktreeSendChoice, () => NOW));
 
 		/** The requests sent, by the isolation each new chat then had. */
 		const sent: string[] = [];
@@ -144,7 +144,7 @@ suite('Agent host Work in Parallel choice on send', () => {
 			return choices.setNewWorktree(inWorktree).finally(() => choices.dispose());
 		};
 		// Its contributions are global, one window at a time
-		return { newDraft, send, sent, asked, setAnswer, pick, warnings, dispose: () => disposables.dispose() };
+		return { newDraft, send, sent, asked, setAnswer, pick, warnings, service, control, dispose: () => disposables.dispose() };
 	}
 
 	test('asks of a new chat in the folder only after another chat of the agent host was active in the folder itself within the last day', () => {
@@ -256,6 +256,20 @@ suite('Agent host Work in Parallel choice on send', () => {
 			noRecentChatInFolder: { asked: 0, sent: ['folder'] },
 			firstChatInWorktree: { asked: 0, sent: ['folder'] },
 		});
+	});
+
+	test('tells another chat surface where its new chat works: asked once on its control, then as remembered, and the folder without a control to ask on', async () => {
+		const window = createWindow({});
+		const draft = window.newDraft();
+		const withoutControl = await window.service.runWorktreeSendChoice(draft, undefined);
+		window.setAnswer('useWorktree');
+		const first = await window.service.runWorktreeSendChoice(draft, window.control);
+		window.setAnswer('continue');
+		const second = await window.service.runWorktreeSendChoice(window.newDraft(), window.control);
+		const asked = window.asked.length;
+		window.dispose();
+
+		assert.deepStrictEqual({ withoutControl, first, second, asked }, { withoutControl: 'folder', first: 'worktree', second: 'worktree', asked: 1 });
 	});
 
 	test('its callout offers Use New Worktree and Continue in Folder', () => {
