@@ -3,10 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
+import { IActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { CheckboxActionViewItem } from '../../../../../../base/browser/ui/toggle/toggle.js';
+import { IAction } from '../../../../../../base/common/actions.js';
+import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { defaultCheckboxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -61,9 +65,8 @@ export class AgentHostNewWorktreeToggle extends Disposable {
 		this._register(choices.onDidChange(update));
 		this._register(widget.onDidChangeViewModel(update));
 		this._register(configurationService.onDidChangeConfiguration(e => {
+			// The worktrees follow by themselves, read once for the window
 			if (e.affectsConfiguration(ChatConfiguration.EditorWindowEnableWorktree) || e.affectsConfiguration('chat.viewSessions.sessionsList.enabled')) {
-				// The worktrees too: they are read only while worktree support is on
-				choices.refresh();
 				update();
 			}
 		}));
@@ -102,14 +105,13 @@ class AgentHostNewWorktreeToggleContribution extends Disposable implements IWork
 	}
 }
 
-class ToggleAgentHostNewWorktreeAction extends Action2 {
+export class ToggleAgentHostNewWorktreeAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.toggleAgentHostNewWorktree';
 	constructor() {
 		super({
 			id: ToggleAgentHostNewWorktreeAction.ID,
 			title: localize2('agentHost.newWorktreeToggle', "New Worktree"),
 			tooltip: localize('agentHost.newWorktreeToggle.tooltip', "Start the session in a new worktree of the folder"),
-			icon: Codicon.worktree,
 			f1: false,
 			// As the folder chip: only for a new chat, whose session has not started
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.chatSessionIsEmpty),
@@ -135,6 +137,16 @@ class ToggleAgentHostNewWorktreeAction extends Action2 {
 			choices.dispose();
 		}
 	}
+}
+
+/**
+ * The New Worktree toggle in the chat input's toolbar: a checkbox with its name, as it stands in for the folder chip, rather
+ * than the glyph a toolbar shows for a toggled action.
+ */
+export function createNewWorktreeCheckboxViewItem(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
+	return action.id === ToggleAgentHostNewWorktreeAction.ID && action instanceof MenuItemAction
+		? new CheckboxActionViewItem(undefined, action, { ...options, label: true, checkboxStyles: defaultCheckboxStyles })
+		: undefined;
 }
 
 registerAction2(ToggleAgentHostNewWorktreeAction);

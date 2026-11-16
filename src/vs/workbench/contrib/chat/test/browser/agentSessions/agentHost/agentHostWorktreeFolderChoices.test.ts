@@ -20,7 +20,7 @@ import { IFolderLocation, IResolvedFolderLocation, IWorkspaceFolderLocationServi
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostNewSessionFolderService } from '../../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
-import { AgentHostWorktreeFolderChoices } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeFolderChoices.js';
+import { AgentHostWorktreeFolderChoices, AgentHostWorktreeLocationsCache, IAgentHostWorktreeLocationsCache } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeFolderChoices.js';
 import { OpenAgentHostFolderPickerAction } from '../../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { AgentHostNewWorktreeToggle } from '../../../../browser/agentSessions/agentHost/agentHostNewWorktreeToggle.js';
 import { IChatWidget } from '../../../../browser/chat.js';
@@ -39,10 +39,10 @@ suite('AgentHostWorktreeFolderChoices', () => {
 	const session = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-1' });
 
 	/** The choices in a window whose folder is at `at`, recording the folders and isolation it sets for the session. */
-	async function createChoices(options: { readonly enabled: boolean; readonly at: URI; readonly isolation?: string; readonly state?: WorkbenchState; readonly listed?: readonly URI[]; readonly sessionsList?: boolean; readonly resolveLocation?: (location: URI) => Promise<IResolvedFolderLocation | undefined> }) {
+	async function createChoices(options: { readonly enabled: boolean; readonly at: URI; readonly isolation?: string; readonly state?: WorkbenchState; readonly listed?: readonly URI[]; readonly sessionsList?: boolean; readonly read?: boolean; readonly resolveLocation?: (location: URI) => Promise<IResolvedFolderLocation | undefined> }) {
 		const config = { values: { isolation: options.isolation ?? 'folder' } as Record<string, unknown> };
 		const changes: string[] = [];
-		const listed = { locations: options.listed ?? [feature, other] };
+		const listed = { locations: options.listed ?? [feature, other], reads: 0 };
 		const onDidChangeSessions = store.add(new Emitter<void>());
 		const onDidChangeProvisional = store.add(new Emitter<URI>());
 		/** Changing the session's folder resets its configuration until it applies a change, as the provisional service does. */
@@ -60,7 +60,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 			onDidChangeProviders: Event.None,
 			onDidChangeLocation: Event.None,
 			canSetLocation: () => true,
-			getLocations: async () => listed.locations.map(uri => upcastPartial<IFolderLocation>({ uri, label: uri.path.split('/').pop() })),
+			getLocations: async () => (listed.reads++, listed.locations).map(uri => upcastPartial<IFolderLocation>({ uri, label: uri.path.split('/').pop() })),
 			getLocation: () => options.at.path === primary.path ? undefined : upcastPartial<IResolvedFolderLocation>({ uri: options.at, label: options.at.path.split('/').pop() }),
 			// As git links them: only the worktrees of the window's folder resolve, not another repository or the folder itself
 			resolveLocation: async (_primary: URI, location: URI) => options.resolveLocation ? options.resolveLocation(location) : location.path.startsWith('/work/vscode.worktrees/') || location.path.startsWith('/work/checkouts/') ? upcastPartial<IResolvedFolderLocation>({ uri: location }) : undefined,
@@ -86,9 +86,14 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		}));
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>({ onDidChangeSessions: onDidChangeSessions.event }) }));
 		instantiationService.stub(IAgentHostWorktreeSessionSources, store.add(new AgentHostWorktreeSessionSources()));
+		instantiationService.stub(IAgentHostWorktreeLocationsCache, store.add(instantiationService.createInstance(AgentHostWorktreeLocationsCache)));
 		const choices = store.add(instantiationService.createInstance(AgentHostWorktreeFolderChoices, () => session));
-		await new Promise<void>(resolve => setTimeout(resolve, 0));
 		const actions = (selected: URI) => choices.getActions(upcastPartial<MenuItemAction>({}), selected, () => { });
+		// As the chip does as it shows: its first ask reads the worktrees
+		if (options.read !== false) {
+			actions(options.at);
+		}
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
 		const items = (selected: URI) => actions(selected).map(action => `${action.category?.label ? `[${action.category.label}] ` : ''}${action.label}${action.description ? ` (${action.description})` : ''}${action.checked ? ' *' : ''}`);
 		return { choices, actions, items, changes, configDirectories, listed, onDidChangeSessions, instantiationService };
 	}
@@ -303,6 +308,33 @@ suite('AgentHostWorktreeFolderChoices', () => {
 			unchecked: { shown: ['New Worktree [ ]'], changes: ['isolation worktree', 'isolation folder'] },
 			withWorktree: ['Folder'],
 			withNoWorkspace: ['Folder'],
+		});
+	}));
+
+	test('reads the worktrees once for all chat inputs and once per change, never for a chat input that would not offer the checkbox, and not to toggle', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const reads = async (options: { readonly sessionsList: boolean }) => {
+			const { listed, onDidChangeSessions, instantiationService } = await createChoices({ enabled: true, at: primary, listed: [], sessionsList: options.sessionsList, read: false });
+			const widgets = [0, 1, 2].map(() => upcastPartial<IChatWidget>({
+				viewModel: upcastPartial<IChatWidget['viewModel']>({ sessionResource: session }),
+				onDidChangeViewModel: Event.None,
+				scopedContextKeyService: store.add(new ContextKeyService(instantiationService.get(IConfigurationService))),
+			}));
+			for (const widget of widgets) {
+				store.add(instantiationService.createInstance(AgentHostNewWorktreeToggle, widget));
+			}
+			await new Promise<void>(resolve => setTimeout(resolve, 0));
+			const shown = listed.reads;
+			onDidChangeSessions.fire();
+			onDidChangeSessions.fire();
+			await new Promise<void>(resolve => setTimeout(resolve, 1000));
+			const changed = listed.reads;
+			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.action.chat.toggleAgentHostNewWorktree')!.handler(accessor, { widget: widgets[0] }));
+			return { shown, changed, toggled: listed.reads };
+		};
+
+		assert.deepStrictEqual({ oldList: await reads({ sessionsList: false }), sessionsList: await reads({ sessionsList: true }) }, {
+			oldList: { shown: 1, changed: 2, toggled: 2 },
+			sessionsList: { shown: 0, changed: 0, toggled: 0 },
 		});
 	}));
 });
