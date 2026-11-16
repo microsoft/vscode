@@ -113,14 +113,14 @@ export const enum ActivityBarPosition {
 /**
  * Whether the compact menu is owned by the title bar rather than the activity bar.
  * This is the case when the activity bar is at the top or bottom, because the activity
- * bar then lives in the side bar and disappears with the side bar. The title bar
- * only owns the menu while the custom title bar is shown in the main window; otherwise
- * the activity bar keeps it so that the menu remains reachable.
+ * bar then lives in the side bar and disappears with the side bar, and when the activity
+ * bar is hidden. The title bar only owns the menu while the custom title bar is shown in
+ * the main window; otherwise the activity bar keeps it so that the menu remains reachable.
  */
 export function isCompactMenuInTitlebar(configurationService: IConfigurationService): boolean {
 	const activityBarLocation = configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
 	return getMenuBarVisibility(configurationService) === 'compact'
-		&& (activityBarLocation === ActivityBarPosition.TOP || activityBarLocation === ActivityBarPosition.BOTTOM)
+		&& (activityBarLocation === ActivityBarPosition.TOP || activityBarLocation === ActivityBarPosition.BOTTOM || activityBarLocation === ActivityBarPosition.HIDDEN)
 		&& shouldShowCustomTitleBar(configurationService, mainWindow);
 }
 
@@ -758,7 +758,7 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 		}
 	}
 
-	if (!isTitleBarEmpty(configurationService)) {
+	if (!isTitleBarEmpty(configurationService, window)) {
 		return true;
 	}
 
@@ -799,7 +799,7 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 	}
 }
 
-function isTitleBarEmpty(configurationService: IConfigurationService): boolean {
+function isTitleBarEmpty(configurationService: IConfigurationService, window: Window): boolean {
 
 	// with the command center enabled, we should always show
 	if (configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER)) {
@@ -809,6 +809,11 @@ function isTitleBarEmpty(configurationService: IConfigurationService): boolean {
 	// with the activity bar on top, we should always show
 	const activityBarPosition = configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
 	if (activityBarPosition === ActivityBarPosition.TOP || activityBarPosition === ActivityBarPosition.BOTTOM) {
+		return false;
+	}
+
+	// with the activity bar hidden, the main window title bar hosts the compact menu, so we should always show
+	if (activityBarPosition === ActivityBarPosition.HIDDEN && !isAuxiliaryWindow(window) && getMenuBarVisibility(configurationService) === 'compact') {
 		return false;
 	}
 

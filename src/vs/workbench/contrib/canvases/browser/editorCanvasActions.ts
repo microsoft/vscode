@@ -17,7 +17,8 @@ import { ChatViewId, IChatWidget, IChatWidgetService, isIChatViewViewContext } f
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { CanvasDefinitionOpener, getCanvasDefinitionLabels, getCanvasInstanceLabels, ICanvasContext, ICanvasDefinition, ICanvasService, isCanvasOwner } from '../common/canvas.js';
 import { CanvasDefinitionStore } from '../common/canvasDefinitionStore.js';
-import { canvasOwnerKey, getCanvasReferenceKey, ICanvasOwner, ICanvasReference } from '../../../common/canvasReference.js';
+import { canvasOwnerKey, getCanvasReferenceKey, ICanvasOpenOptions, ICanvasOwner, ICanvasReference } from '../../../common/canvasReference.js';
+import { CanvasExtensionConsentDeniedError, notifyCanvasExtensionConsentDenied } from '../common/agentHostCanvasConsent.js';
 
 export const OPEN_EDITOR_CANVAS_COMMAND_ID = 'workbench.action.chat.openCanvas';
 export const REOPEN_EDITOR_CANVAS_COMMAND_ID = 'workbench.action.chat.reopenCanvas';
@@ -179,17 +180,27 @@ export function registerEditorCanvasActions(
 
 	/** Opens a new canvas of `canvas`'s type, beside any canvases of that type the chat already has. */
 	async function openCanvasDefinition(owner: ICanvasOwner, canvas: ICanvasDefinition, label: string): Promise<void> {
+		try {
+			await openCanvasDefinitionIn(owner, canvas);
+		} catch (error) {
+			if (error instanceof CanvasExtensionConsentDeniedError) {
+				notifyCanvasExtensionConsentDenied(notificationService, error, () => openCanvasDefinitionIn(owner, canvas, { retryDeniedConsent: true }));
+				return;
+			}
+			notificationService.error(localize('editorCanvas.openFailed', "Could not open canvas {0}: {1}", label, toErrorMessage(error)));
+		}
+	}
+
+	/** Opens a new canvas of `canvas`'s type while `owner` is the current chat, throwing when the open fails. */
+	async function openCanvasDefinitionIn(owner: ICanvasOwner, canvas: ICanvasDefinition, options?: ICanvasOpenOptions): Promise<void> {
 		const context = currentContext.get();
 		const definitionProvider = context?.definitionProvider;
-		const definitionAvailable = availableDefinitions.get().some(candidate => candidate.extensionId === canvas.extensionId && candidate.canvasId === canvas.canvasId);
+		// A declined extension's canvases stay unregistered until the retry replaces the chat's runtime.
+		const definitionAvailable = options?.retryDeniedConsent || availableDefinitions.get().some(candidate => candidate.extensionId === canvas.extensionId && candidate.canvasId === canvas.canvasId);
 		if (!canvasService.enabled.get() || !context || !definitionProvider || !isCanvasOwner(context.owner, owner) || !definitionAvailable) {
 			return;
 		}
-		try {
-			await opener.open(context.owner, canvas, context.canvases.get() ?? [], instanceId => definitionProvider.openCanvas(canvas, instanceId));
-		} catch (error) {
-			notificationService.error(localize('editorCanvas.openFailed', "Could not open canvas {0}: {1}", label, toErrorMessage(error)));
-		}
+		await opener.open(context.owner, canvas, context.canvases.get() ?? [], instanceId => definitionProvider.openCanvas(canvas, instanceId, options));
 	}
 
 	/** Shows a running canvas of the chat: focuses its tab, or opens it again once the tab was closed. */

@@ -32,7 +32,7 @@ import { preserveAgentHostE2ELogs } from '../e2e/harness/agentHostE2EDiagnostics
 import { getAncillaryStub } from '../e2e/harness/capiStubs.js';
 import { createTestDirectory } from '../e2e/harness/testDirectories.js';
 import { createLocalEndpointCopilotAgent } from './copilotAgentIntegrationTestHarness.js';
-import { credentialEnvironmentSentinels, fakeCapiCredentialForLabel, labelTestCredential, normalizeTestSystemPrompt } from './copilotCredentialTestUtils.js';
+import { credentialEnvironmentSentinels, fakeCapiCredentialForLabel, labelTestCredential, normalizeTestSystemPrompt, replaceCredentialEnvironment } from './copilotCredentialTestUtils.js';
 
 interface ModelRequest {
 	messages: { role: string; content?: string; tool_call_id?: string }[];
@@ -72,7 +72,7 @@ suite('Copilot Agent credential sponsorship', function () {
 	let modelTraffic: ModelTraffic[];
 	let connectorTokens: string[];
 	let unexpectedRequests: string[];
-	let originalEnvironment: Map<string, string | undefined>;
+	let restoreEnvironment: (() => void) | undefined;
 	const signals: AgentSignal[] = [];
 
 	function onProgress(signal: AgentSignal): void {
@@ -83,18 +83,7 @@ suite('Copilot Agent credential sponsorship', function () {
 	}
 
 	setup(async () => {
-		originalEnvironment = new Map(Object.entries(process.env).filter(([key]) =>
-			/(?:AUTH|TOKEN|_KEY|SECRET|PASSWORD)|^(?:GIT_CONFIG_|COPILOT_|GITHUB_|GH_|ANTHROPIC_|OPENAI_|AZURE_OPENAI_|AWS_|AZURE_|VSCODE_AGENT_HOST_CAPI_)|^(?:HTTPS?_PROXY|ALL_PROXY|NO_PROXY)$/i.test(key)));
-		for (const key of new Set([...originalEnvironment.keys(), ...Object.keys(credentialEnvironmentSentinels)])) {
-			const hasOriginal = isWindows
-				? [...originalEnvironment.keys()].some(original => original.toUpperCase() === key.toUpperCase())
-				: originalEnvironment.has(key);
-			if (!hasOriginal) {
-				originalEnvironment.set(key, undefined);
-			}
-			delete process.env[key];
-		}
-		Object.assign(process.env, credentialEnvironmentSentinels);
+		restoreEnvironment = replaceCredentialEnvironment(credentialEnvironmentSentinels);
 		store = new DisposableStore();
 		githubTokens = [];
 		modelTraffic = [];
@@ -266,16 +255,8 @@ suite('Copilot Agent credential sponsorship', function () {
 				}
 			}
 		} finally {
-			for (const key of Object.keys(credentialEnvironmentSentinels)) {
-				delete process.env[key];
-			}
-			for (const [key, value] of originalEnvironment ?? []) {
-				if (value === undefined) {
-					delete process.env[key];
-				} else {
-					process.env[key] = value;
-				}
-			}
+			restoreEnvironment?.();
+			restoreEnvironment = undefined;
 		}
 	});
 

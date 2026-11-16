@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { numberSegment, pathSegment, pathSegments, repositoryPath, withQuery } from '../../common/client/routing.js';
+import { numberSegment, pathSegment, pathSegments, repositoryPath, toRepositoryRef, withQuery } from '../../common/client/routing.js';
 import { GitHubRequestError } from '../../common/githubTypes.js';
 
 suite('GitHub client routing', () => {
@@ -44,6 +44,20 @@ suite('GitHub client routing', () => {
 			'/repos/space%20owner/repo%2F%23%3F',
 			'/repos/space%20owner/repo%2F%23%3F',
 		]);
+	});
+
+	test('repository identifiers preserve owner and repository spelling through routing', () => {
+		const ref = toRepositoryRef('Owner/Repo.name');
+		assert.deepStrictEqual({ ref, path: repositoryPath(ref) }, {
+			ref: { owner: 'Owner', repo: 'Repo.name' },
+			path: '/repos/Owner/Repo.name',
+		});
+	});
+
+	test('repository identifiers reject missing, extra, empty, and dot segments', () => {
+		for (const value of ['', 'owner', 'owner/repo/extra', '/owner/repo', 'owner/repo/', '/repo', 'owner/', ' /repo', 'owner/ ', './repo', 'owner/..']) {
+			assert.throws(() => toRepositoryRef(value), /Expected an owner\/repository identifier\./);
+		}
 	});
 
 	test('numeric path segments encode positive safe integers', () => {

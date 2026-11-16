@@ -35,7 +35,7 @@ import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
-import { getSessionFilterOptions, ISessionFilterOption, sessionFilterKey } from './sessionsListFilters.js';
+import { getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, sessionFilterKey } from './sessionsListFilters.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, IMenuService, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -178,6 +178,7 @@ export class SessionsView extends ViewPane {
 	private navigationShortcutsVisible = false;
 	private readonly customizationsLocation: IObservable<ChatCustomizationsLocation>;
 	private currentGrouping: SessionsGrouping | undefined;
+	private readonly allowWorktreeGrouping: boolean;
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
 	private currentCompact = false;
 	private groupingContextKey: IContextKey | undefined;
@@ -229,10 +230,9 @@ export class SessionsView extends ViewPane {
 		this.sessionsListRearrangeContext = SessionsListRearrangeContext.bindTo(this.scopedContextKeyService);
 
 		// Restore persisted grouping
-		const storedGrouping = this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE);
-		if (storedGrouping && Object.values(SessionsGrouping).includes(storedGrouping as SessionsGrouping)) {
-			this.currentGrouping = storedGrouping as SessionsGrouping;
-		}
+		// The Agents window, which shares the stored grouping, does not offer Worktree grouping: it keeps its default instead
+		this.allowWorktreeGrouping = contextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key) !== true;
+		this.currentGrouping = this.readStoredGrouping();
 
 		// Restore persisted sorting
 		const storedSorting = this.storageService.get(SORTING_STORAGE_KEY, StorageScope.PROFILE);
@@ -399,9 +399,11 @@ export class SessionsView extends ViewPane {
 		});
 		const scopeEnvironments = derived(this, reader => {
 			scopeChanged.read(reader);
-			return this.sessionsProvidersService.getProviders().map(provider => provider.environment);
+			return getSessionFilterEnvironments(this.sessionsProvidersService.getProviders(), reader);
 		});
-		const inboxScope = this._register(this.instantiationService.createInstance(SessionsInboxScope, inboxScopeContainer, sessionsControl.filters, scopeSessions, scopeEnvironments));
+		const inboxScope = this._register(this.instantiationService.createInstance(SessionsInboxScope, inboxScopeContainer, sessionsControl.filters, scopeSessions,
+			derived(reader => scopeEnvironments.read(reader).environments),
+			derived(reader => scopeEnvironments.read(reader).localEnvironmentIds)));
 		this._register(autorun(reader => {
 			scopeChanged.read(reader);
 			const hidden = this.chatEntitlementService.sentimentObs.read(reader).hidden;
@@ -792,7 +794,7 @@ export class SessionsView extends ViewPane {
 			readonly emptySourcesTitle: string | undefined;
 		}>({ owner: this, equalsFn: structuralEquals }, reader => {
 			changed.read(reader);
-			const environments = this.sessionsProvidersService.getProviders().map(provider => provider.environment);
+			const { environments } = getSessionFilterEnvironments(this.sessionsProvidersService.getProviders(), reader);
 			const options = getSessionFilterOptions(
 				this.sessionsManagementService.getSessions(),
 				environments,
@@ -1147,8 +1149,14 @@ export class SessionsView extends ViewPane {
 		return this.currentCompact;
 	}
 
+	/** The stored grouping, unless this build does not know it or this view does not offer it, such as Worktree in the Agents window. */
+	private readStoredGrouping(): SessionsGrouping | undefined {
+		const grouping = Object.values(SessionsGrouping).find(value => value === this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE));
+		return grouping === SessionsGrouping.Worktree && !this.allowWorktreeGrouping ? undefined : grouping;
+	}
+
 	setGrouping(grouping: SessionsGrouping): void {
-		if (this.currentGrouping === grouping) {
+		if (this.currentGrouping === grouping || (grouping === SessionsGrouping.Worktree && !this.allowWorktreeGrouping)) {
 			return;
 		}
 

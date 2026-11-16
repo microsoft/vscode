@@ -18,7 +18,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IInputOptions, IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IPickOptions, IQuickInputHideEvent, IQuickInputService, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -45,6 +45,10 @@ import { SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } 
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
 
 suite('Scheduled chat handoffs', () => {
+	// The custom picker fixture chooses the 15th of next month at 9:30. Tests that use it freeze the clock at a local
+	// midday mid-month, so the picker's initial suggestion never rounds into another month.
+	const fixedNow = new Date(2030, 4, 15, 12, 0).getTime();
+	const customTime = new Date(2030, 5, 15, 9, 30);
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const input: IChatDraft = { inputText: 'Review the changes', attachments: [] };
 	const target: ISavedSessionDraftTarget = { providerId: 'local', sessionTypeId: 'copilot' };
@@ -158,9 +162,24 @@ suite('Scheduled chat handoffs', () => {
 				const item = customTime ? choices.at(-1) : choices[0];
 				return options?.canPickMany ? item && [item] : item;
 			}
-			override async input(options?: IInputOptions) {
-				pickerAnchors.push({ anchor: options?.anchor, anchorPosition: options?.anchorPosition });
-				return '2099-01-15 09:30';
+			override createQuickWidget(): IQuickWidget {
+				const onDidHide = disposables.add(new Emitter<IQuickInputHideEvent>());
+				const picker = upcastPartial<IQuickWidget>({
+					onDidHide: onDidHide.event,
+					show: () => {
+						pickerAnchors.push({ anchor: picker.anchor, anchorPosition: picker.anchorPosition });
+						const form = picker.widget as HTMLElement;
+						form.querySelectorAll<HTMLElement>('.scheduled-chat-calendar-header .monaco-button')[1].click();
+						[...form.querySelectorAll<HTMLElement>('[role="gridcell"]')].find(cell => cell.textContent === '15')!.click();
+						const time = form.querySelector('select')!;
+						time.selectedIndex = 38;
+						time.dispatchEvent(new InputEvent('change'));
+						form.querySelector<HTMLElement>('.scheduled-chat-time-actions .monaco-button')!.click();
+					},
+					hide: () => onDidHide.fire({ reason: QuickInputHideReason.Gesture }),
+					dispose: () => { },
+				});
+				return picker;
 			}
 		};
 		const service = disposables.add(new ScheduledChatsService(config, automationService,
@@ -256,7 +275,7 @@ suite('Scheduled chat handoffs', () => {
 	}
 
 	for (const existingChat of [false, true]) {
-		test(`anchors the time picker and custom input above the send controls (existing chat: ${existingChat})`, async () => {
+		test(`anchors the time picker and custom calendar above the send controls (existing chat: ${existingChat})`, () => runWithFakedTimers({ startTime: fixedNow }, async () => {
 			const fixture = create();
 			fixture.customTime = true;
 			const source = registerInput(fixture.service);
@@ -269,7 +288,7 @@ suite('Scheduled chat handoffs', () => {
 				{ anchor: source.anchor, anchorPosition: 'above' },
 				{ anchor: source.anchor, anchorPosition: 'above' },
 			]);
-		});
+		}));
 	}
 
 	test('opening the time picker retains dropdown availability but prevents duplicate scheduling', async () => {
@@ -286,7 +305,7 @@ suite('Scheduled chat handoffs', () => {
 		});
 	});
 
-	test('rescheduling anchors both time pickers above the scheduled message', async () => {
+	test('rescheduling anchors both time pickers above the scheduled message', () => runWithFakedTimers({ startTime: fixedNow }, async () => {
 		const fixture = create();
 		const source = registerInput(fixture.service);
 		await fixture.service.scheduleChatInput(source.widget);
@@ -298,9 +317,9 @@ suite('Scheduled chat handoffs', () => {
 			runAt: fixture.automations.get()[0].schedule.runAt,
 		}, {
 			anchors: [{ anchor, anchorPosition: 'above' }, { anchor, anchorPosition: 'above' }],
-			runAt: new Date(2099, 0, 15, 9, 30).toISOString(),
+			runAt: customTime.toISOString(),
 		});
-	});
+	}));
 
 	test('scheduled messages belong only to their exact session and chat, and disappear after dispatch', async () => {
 		const fixture = create();
@@ -343,7 +362,7 @@ suite('Scheduled chat handoffs', () => {
 		});
 	});
 
-	test('scheduled conversation edits update text and send time without occupying the chat input', async () => {
+	test('scheduled conversation edits update text and send time without occupying the chat input', () => runWithFakedTimers({ startTime: fixedNow }, async () => {
 		const fixture = create();
 		const conversation = { sessionResource: URI.parse('agent-host-copilot:/session'), chatResource: URI.parse('agent-host-copilot:/session/secondary') };
 		fixture.sessions.set(conversation.sessionResource.toString(), session);
@@ -365,10 +384,10 @@ suite('Scheduled chat handoffs', () => {
 			recoveryText: parse(fixture.storage.get('sessions.scheduledChatHandoffs', StorageScope.PROFILE)!).handoffs[0].input.inputText,
 		}, {
 			text: 'Changed scheduled message', prompt: 'Changed scheduled message', enabled: true,
-			runAt: new Date(2099, 0, 15, 9, 30).toISOString(), calls: ['update'], recoveredInputs: [],
+			runAt: customTime.toISOString(), calls: ['update'], recoveredInputs: [],
 			editing: undefined, anchors: [true, true], recoveryText: 'Changed scheduled message',
 		});
-	});
+	}));
 
 	test('scheduled conversation edit conflicts preserve edits and cancellation keeps the original schedule', async () => {
 		const fixture = create();
@@ -514,6 +533,13 @@ suite('Scheduled chat handoffs', () => {
 			readOnly: false, disabled: false, requests: 0, text: input.inputText,
 		});
 	});
+
+	test('the first time option schedules the request in 5 minutes', () => runWithFakedTimers({}, async () => {
+		const fixture = create();
+		const now = Date.now();
+		await fixture.service.schedule(input, target, session, 'composition');
+		assert.strictEqual(fixture.requests[0].schedule.runAt, new Date(now + 5 * 60_000).toISOString());
+	}));
 
 	test('persists immutable input and configuration before accepting a schedule', async () => {
 		const fixture = create();

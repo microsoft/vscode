@@ -74,19 +74,19 @@ import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, COPILOT_HYDR
 import { agentModelCatalogStatusKey } from '../../common/agentModelCatalogStatus.js';
 import { isAgentModelFusion, readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, readAgentModelFusionInlineChatTier } from '../../common/meta/agentModelMeta.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
-import { buildAgentHostOTelEnv } from '../../common/agentService.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostBrowserUseEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostGitHubMcpServerEnabledSettingId, buildAgentHostOTelEnv } from '../../common/agentService.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostBrowserUseEnabledConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceTrustConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentCanvasInfo, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
+import { AgentSession, AgentExtensionConsentOption, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentCanvasInfo, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService, type StoredAssistantResponsePart } from '../../common/sessionDataService.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
-import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ToolCallCancellationReason, ToolCallStatus, ToolResultContentType, TurnState, customizationId, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
-import { ChatInteractivity, ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ProtectedResourceMetadata, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { buildDefaultChatUri, buildChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputResponseKind, buildSubagentChatUri, buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ToolCallCancellationReason, ToolCallStatus, ToolResultContentType, TurnState, customizationId, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
+import { ChatInteractivity, ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, ToolCallContributorKind, type AgentSelection, type McpServerCustomization, type ModelSelection, type ProtectedResourceMetadata, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { readChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 
@@ -137,7 +137,7 @@ import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../comm
 import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
 import { getCopilotHomePath, ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import { TestCopilotHomeService } from '../../../environment/test/common/testCopilotHomeService.js';
-import { readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
+import { readMcpServerControllingSetting, readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
 import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
 import { COMPUTER_USE_STATUS_KEY } from '../../common/computerUse.js';
 import { readComputerUseStatus } from '../../common/meta/computerUse.js';
@@ -335,6 +335,7 @@ function setLiveChatStub(agent: CopilotAgent, sdkSessionId: string, stub: unknow
 	const chatSession = stub as CopilotAgentSession;
 	chatSession.refreshModelConfiguration ??= () => { };
 	chatSession.clientToolsRequireRestart ??= () => false;
+	(chatSession as { canvasRuntimeEnabled?: boolean }).canvasRuntimeEnabled ??= false;
 	chatSession.topLevelMcpCustomizations ??= () => [];
 	chatSession.mcpServerOwners ??= () => undefined;
 	chatSession.listInstalledPlugins ??= async () => [];
@@ -888,6 +889,7 @@ class TestCopilotClient implements ITestCopilotClient {
 			},
 			checkInUse: async params => {
 				this.checkInUseRequests.push(params.sessionIds);
+				await this.checkInUseGate?.();
 				if (this.checkInUseRequests.length > (this.releaseInUseAfterChecks ?? Infinity)) {
 					this.inUseSessionIds.clear();
 				}
@@ -978,6 +980,8 @@ class TestCopilotClient implements ITestCopilotClient {
 	readonly inUseSessionIds = new Set<string>();
 	/** How many `sessions.checkInUse` calls report {@link inUseSessionIds} before that process releases them. */
 	releaseInUseAfterChecks: number | undefined;
+	/** Awaited by each `sessions.checkInUse` call before it answers. */
+	checkInUseGate: (() => Promise<void>) | undefined;
 	readonly checkInUseRequests: string[][] = [];
 	readonly modelListRequests: Parameters<CopilotModelsList>[0][] = [];
 	readonly pluginInstallRequests: Parameters<CopilotPluginsInstall>[0][] = [];
@@ -1598,6 +1602,7 @@ class TestableCopilotAgent extends CopilotAgent {
 			readRuntimeSelection: async () => fake.readRuntimeSelection?.() ?? { model: {}, agentName: undefined },
 			appliedSnapshot: undefined,
 			clientToolsRequireRestart: () => false,
+			canvasRuntimeEnabled: false,
 			extensionLaunchDirectories: [],
 			setExtensionLaunchAdmission: (admission: IDisposable) => { extensionLaunchAdmission = admission; },
 			dispose: () => {
@@ -4133,6 +4138,43 @@ suite('CopilotAgent', () => {
 		assert.strictEqual(agent.getSessionPlanFile(session, peerChat), undefined);
 	});
 
+	test('publishes the runtime GitHub MCP server as built in before the SDK session starts only when the user does not configure one', async () => {
+		const summarizeGitHubServer = (agent: CopilotAgent, session: URI) => {
+			const servers = (agent as unknown as { _topLevelMcpServers(session: URI): { customizations: readonly McpServerCustomization[] } })._topLevelMcpServers(session).customizations;
+			const server = servers.find(candidate => candidate.name === GITHUB_MCP_SERVER_NAME);
+			return server && { source: readMcpServerSource(server), setting: readMcpServerControllingSetting(server) };
+		};
+		const run = async (userServers: Record<string, unknown>) => {
+			const client = new TestCopilotClient([]);
+			client.mcpConfigListResult = { servers: userServers } as typeof client.mcpConfigListResult;
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				const session = AgentSession.uri('copilotcli', 'not-started');
+				const unread = summarizeGitHubServer(agent, session);
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent['_ensureClient']();
+				await timeout(0);
+				return { unread, read: summarizeGitHubServer(agent, session) };
+			} finally {
+				await disposeAgent(agent);
+			}
+		};
+
+		assert.deepStrictEqual({
+			runtime: await run({}),
+			userConfigured: await run({ [GITHUB_MCP_SERVER_NAME]: { type: 'http', url: 'https://example.test/mcp' } }),
+		}, {
+			runtime: {
+				unread: { source: undefined, setting: undefined },
+				read: { source: 'builtin', setting: AgentHostGitHubMcpServerEnabledSettingId },
+			},
+			userConfigured: {
+				unread: { source: undefined, setting: undefined },
+				read: { source: undefined, setting: undefined },
+			},
+		});
+	});
+
 	test('initializes enablement before disabling the built-in GitHub MCP server at launch', async () => {
 		let initializedSession: string | undefined;
 		const copilotAgentPrototype = CopilotAgent.prototype as unknown as {
@@ -4140,18 +4182,21 @@ suite('CopilotAgent', () => {
 				readonly id: string;
 				_ensureClient(): Promise<{ rpc: { mcp: { config: { list(): Promise<{ servers: Record<string, unknown> }> } } } }>;
 				_isGitHubMcpServerEnabled(): boolean;
+				_readUserMcpServers(client: unknown): Promise<Record<string, unknown>>;
 				_rootMcpCustomizations(sessionId: string, mcpServers: Record<string, unknown>, additionalServerNames?: Iterable<string>): readonly Customization[];
 				readonly _customizationEnablementService: {
 					initializeSession(session: string): Promise<void>;
 					resolve(session: string, target: { readonly name: string }): { kind: 'resolved'; enablement: readonly [{ kind: CustomizationEnablementKind.Session; enabled: boolean }]; enabled: boolean; workingDirectory: { kind: 'workspaceless' } };
 				};
 			}, session: URI, snapshot: { readonly mcpServers: Record<string, unknown> }): Promise<readonly string[]>;
+			_readUserMcpServers(client: unknown): Promise<Record<string, unknown>>;
 			_rootMcpCustomizations(this: { readonly id: string; readonly _isGitHubMcpServerEnabled: () => boolean }, sessionId: string, mcpServers: Record<string, unknown>, additionalServerNames?: Iterable<string>): readonly Customization[];
 		};
 		const result = await copilotAgentPrototype._disabledRootMcpServers.call({
 			id: 'copilotcli',
 			_ensureClient: async () => ({ rpc: { mcp: { config: { list: async () => ({ servers: {} }) } } } }),
 			_isGitHubMcpServerEnabled: () => true,
+			_readUserMcpServers: copilotAgentPrototype._readUserMcpServers,
 			_rootMcpCustomizations: copilotAgentPrototype._rootMcpCustomizations,
 			_customizationEnablementService: {
 				initializeSession: async session => { initializedSession = session; },
@@ -9480,6 +9525,44 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		test('relaunches a runtime that started before canvases were enabled, before a canvas opens while it is idle, without stopping its work, and before its next turn', async () => {
+			const { agent, launches, configurationService } = setup(undefined, [], [], { [AgentHostCanvasesEnabledConfigKey]: false });
+			afterTest(() => disposeAgent(agent));
+			await agent.authenticate('https://api.github.com', 'token');
+			const session = AgentSession.uri('copilotcli', 'late-canvases');
+			const chat = defaultChatUri(session);
+			const directory = URI.file(process.cwd());
+			const context = exactChatContext(session, chat, session);
+			await provisionSession(agent, { session, model: { id: 'gpt-4o' }, workingDirectories: [directory] });
+			await agent.chats.sendMessage(chat, 'first', [directory], undefined, 'first', undefined, context);
+			// The client's configuration enables canvases only after the runtime launched.
+			configurationService.updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
+			const whileBusy = await agent.openSessionCanvas(session, { canvasId: 'preview', instanceId: 'preview' }, chat, context).then(() => 'opened', (error: Error) => error.message);
+			const launched = chatEntriesBySdkId(agent).get(launches[0].sessionId)!.chatSession;
+			launched.discardActiveTurn();
+			// Background subagents outlive the turn and would stop with the runtime.
+			const subagents = stub(launched, 'hasActiveSubagents').get(() => true);
+			const whileSubagents = await agent.openSessionCanvas(session, { canvasId: 'preview', instanceId: 'preview' }, chat, context).then(() => 'opened', (error: Error) => error.message);
+			subagents.restore();
+			await agent.openSessionCanvas(session, { canvasId: 'preview', instanceId: 'preview' }, chat, context);
+			configurationService.updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: false });
+			await agent.chats.sendMessage(chat, 'second', [directory], undefined, 'second', undefined, context);
+
+			assert.deepStrictEqual({
+				whileBusy,
+				whileSubagents,
+				launches: launches.map(launch => ({ kind: launch.kind, canvases: launch.config.requestCanvasRenderer === true, opens: launch.runtime.canvasOpenCalls.map(call => call.instanceId) })),
+			}, {
+				whileBusy: 'Canvases are disabled for this session.',
+				whileSubagents: 'Canvases are disabled for this session.',
+				launches: [
+					{ kind: 'create', canvases: false, opens: [] },
+					{ kind: 'resume', canvases: true, opens: ['preview'] },
+					{ kind: 'resume', canvases: false, opens: [] },
+				],
+			});
+		});
+
 		test('restores released scoped canvases on observation once a client contributes, across repeated releases', async () => {
 			const directory = URI.file(process.cwd());
 			const initialCanvas = {
@@ -9558,7 +9641,7 @@ suite('CopilotAgent', () => {
 				const restoredBeforeClient = [await releaseAndObserve(), await releaseAndObserve()];
 
 				const canvasStates = signals.filter((signal): signal is Extract<AgentSignal, { kind: 'canvas' }> => signal.kind === 'canvas');
-				const urls = canvasStates.map(signal => signal.state.url);
+				const urls = canvasStates.map(signal => signal.state.uri);
 				assert.deepStrictEqual({
 					restoredBeforeClient,
 					launches: launches.map(launch => ({ kind: launch.kind, sends: launch.runtime.sendCalls })),
@@ -9649,6 +9732,69 @@ suite('CopilotAgent', () => {
 				listener.dispose();
 				await disposeAgent(agent);
 			}
+		});
+
+		test('retrying a declined canvas extension starts a new runtime that keeps session approvals and asks again about the declined extension, unless the chat is busy', async () => {
+			const directory = URI.file(process.cwd());
+			const sdkId = 'consent-sdk';
+			const { agent, launches } = setup(undefined, [sdkSession(sdkId, directory.fsPath)], [], { [AgentHostCanvasesEnabledConfigKey]: true });
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'scoped-canvas-consent');
+			const chat = defaultChatUri(session);
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'sponsor', expiresAt: undefined, revision: 1 }) };
+			const context = { ...exactChatContext(session, chat, session), credentials };
+			const envRequest = (extensionName: string) => ({ kind: 'extension-env-access' as const, extensionName, environmentVariables: ['BLACKBIRD_AUTH_METIS_API_KEY'] as [string] });
+			const expired = 'This request to allow the canvas\'s extension is no longer pending. Open the canvas again.';
+			const ask = async (launch: typeof launches[number], extensionName: string) => {
+				const result = await launch.config.onPermissionRequest!(envRequest(extensionName), { sessionId: launch.sessionId });
+				return result.kind === 'attributed' ? result.result.kind : result.kind;
+			};
+			const open = (extensionId: string, answer?: AgentCanvasOpenAnswer) => agent.openSessionCanvas(session, { canvasId: 'demo', extensionId, instanceId: extensionId }, chat, context, answer);
+			const outcome = (result: Promise<AgentCanvasOpenResult>) => result.then(value => value.kind, (error: Error) => error.message);
+			await agent.materializeChat(chat, context, JSON.stringify({ sdkSessionId: sdkId }));
+			const results: string[] = [];
+			// An answer never resumes a runtime: only the runtime that asked could take it.
+			const launchesBeforeAnswer = launches.length;
+			results.push(`answer without a runtime: ${await outcome(open('user:allowed', { kind: 'consent', consentId: 'stale', optionId: AgentExtensionConsentOption.Allow }))}; launched ${launches.length - launchesBeforeAnswer}`);
+			await agent.chats.prepareTurn!(chat, 'first-turn', [directory], context);
+			const first = launches[launches.length - 1];
+			first.runtime.rpc.canvas.open = async params => {
+				if (await ask(first, params.extensionId!) !== 'approve-once') {
+					throw new Error(`extension did not become ready: ${params.extensionId}`);
+				}
+				return { instanceId: params.instanceId, extensionId: params.extensionId!, canvasId: params.canvasId };
+			};
+			let declinedConsentId = '';
+			for (const [extensionId, optionId] of [['user:allowed', AgentExtensionConsentOption.Allow], ['user:declined', AgentExtensionConsentOption.NotNow]] as const) {
+				const asked = await open(extensionId);
+				assert.strictEqual(asked.kind, 'consentRequired');
+				declinedConsentId = asked.consent.id;
+				results.push(`${extensionId}: ${(await open(extensionId, { kind: 'consent', consentId: asked.consent.id, optionId })).kind}`);
+			}
+			const launchCount = launches.length;
+			// A new runtime would stop background subagents that outlive the response.
+			const subagents = stub(chatEntriesBySdkId(agent).get(first.sessionId)!.chatSession, 'hasActiveSubagents').get(() => true);
+			try {
+				results.push(`retry with subagents: ${await outcome(open('user:declined', { kind: 'retry' }))}; launched ${launches.length - launchCount}`);
+			} finally {
+				subagents.restore();
+			}
+			results.push(`retry: ${(await open('user:declined', { kind: 'retry' })).kind}`);
+			results.push(`answer from the replaced runtime: ${await outcome(open('user:declined', { kind: 'consent', consentId: declinedConsentId, optionId: AgentExtensionConsentOption.Allow }))}`);
+			const replacement = launches[launches.length - 1];
+			for (const extensionId of ['user:allowed', 'user:declined']) {
+				results.push(`replacement ${extensionId}: ${await raceTimeout(ask(replacement, extensionId), 0) ?? 'asks again'}`);
+			}
+			assert.deepStrictEqual({ results, newRuntime: launches.length === launchCount + 1 && replacement.sessionId === first.sessionId }, {
+				results: [
+					`answer without a runtime: ${expired}; launched 0`,
+					'user:allowed: opened', 'user:declined: consentDenied',
+					'retry with subagents: Try again after the chat finishes its current work.; launched 0',
+					'retry: opened', `answer from the replaced runtime: ${expired}`,
+					'replacement user:allowed: approve-once', 'replacement user:declined: asks again',
+				],
+				newRuntime: true,
+			});
 		});
 
 		test('paged isolated history shares one replay across a moved chat and concurrent child transcripts without activation', async () => {
@@ -20631,6 +20777,7 @@ suite('CopilotAgent', () => {
 				extensionLaunchDirectories: [],
 				appliedSnapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} } satisfies IActiveClientSnapshot,
 				clientToolsRequireRestart: () => false,
+				canvasRuntimeEnabled: false,
 				onMcpNotification: Event.None,
 				onDidRequireAuth: Event.None,
 				onDidChangeRuntimePlugins: Event.None,
@@ -21246,6 +21393,83 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual({ multiRoot, singleRoot }, {
 				multiRoot: { workingDirectory: URI.file('/repo-a').fsPath, additionalDirectories: [URI.file('/repo-b').fsPath] },
 				singleRoot: { workingDirectory: URI.file('/repo-a').fsPath, additionalDirectories: [] },
+			});
+		});
+
+		/** A chat whose runtime session another process holds; `events` records the questions, cancellations and reloads the turn causes. */
+		async function createHeldChat(options: { readonly answer?: 'takeOver' | 'cancel'; readonly rootConfig?: Record<string, unknown> } = {}) {
+			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
+			const runtimes: MockCopilotSession[] = [];
+			const createRuntime = () => {
+				const runtime = new MockCopilotSession();
+				runtimes.push(runtime);
+				return runtime as unknown as CopilotSession;
+			};
+			client.createSession = async () => createRuntime();
+			client.resumeSession = async () => createRuntime();
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client, sessionDataService: disposables.add(new TestSessionDataService()), rootConfig: options.rootConfig });
+			afterTest(() => disposeAgent(agent));
+			await agent.authenticate('https://api.github.com', 'token');
+			const session = AgentSession.uri('copilotcli', 'held-elsewhere');
+			const chat = defaultChatUri(session);
+			const context = exactChatContext(session, chat, session);
+			const result = await provisionSession(agent, { session, workingDirectories: [URI.file('/workspace')] });
+			client.inUseSessionIds.add(JSON.parse(result.providerData!).sdkSessionId);
+			const events: string[] = [];
+			disposables.add(agent.onDidChangeChatHistory!(change => events.push(`history replace=${change.replace} for chat=${isEqual(change.chat, chat)}`)));
+			disposables.add(agent.onDidChatProgress(signal => {
+				if (signal.kind !== 'action') {
+					return;
+				}
+				if (signal.action.type === ActionType.ChatInputRequested) {
+					const question = signal.action.request.questions?.[0];
+					events.push(`asked ${question?.id}`);
+					if (options.answer) {
+						agent.respondToUserInputRequest(signal.action.request.id, ChatInputResponseKind.Accept, {
+							[question!.id]: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: options.answer } },
+						});
+					}
+				} else if (signal.action.type === ActionType.ChatTurnCancelled) {
+					events.push('cancelled');
+				}
+			}));
+			const send = () => agent.chats.sendMessage(chat, 'hello', [URI.file('/workspace')], undefined, 'turn-1', undefined, context)
+				.then(() => 'resolved', err => isCancellationError(err) ? 'cancelled' : `failed ${(err as { code?: number }).code}`);
+			const running = () => agent['_resolveChatContext'](chat, context).target?.hasActiveTurn;
+			return { agent, client, chat, context, runtimes, events, send, running };
+		}
+
+		for (const answer of ['cancel', 'takeOver'] as const) {
+			test(`a turn in a chat that another process holds asks first, then ${answer === 'takeOver' ? 'takes the session over from storage' : 'ends without sending'}`, async () => {
+				const { runtimes, events, send } = await createHeldChat({ answer });
+				const outcome = await send();
+				assert.deepStrictEqual({ outcome, events, sends: runtimes.map(runtime => runtime.sendCalls), disconnects: runtimes.map(runtime => runtime.disconnectCalls) }, answer === 'takeOver'
+					? { outcome: 'resolved', events: ['asked sessionInUse', 'history replace=true for chat=true'], sends: [0, 1], disconnects: [1, 0] }
+					: { outcome: 'resolved', events: ['asked sessionInUse', 'cancelled'], sends: [0], disconnects: [0] });
+			});
+		}
+
+		test('a turn in a chat that another process holds fails without asking when no one can answer, and leaves no turn running', async () => {
+			const { runtimes, events, send, running } = await createHeldChat({ rootConfig: { [AgentHostAutoReplyEnabledConfigKey]: true } });
+			assert.deepStrictEqual({ outcome: await send(), events, sends: runtimes.map(runtime => runtime.sendCalls), running: running() }, {
+				outcome: `failed ${AhpErrorCodes.Conflict}`, events: [], sends: [0], running: false,
+			});
+		});
+
+		test('stopping a turn while it checks whether another process holds the session neither asks nor sends it', async () => {
+			const { agent, client, chat, context, runtimes, events, send, running } = await createHeldChat({ answer: 'takeOver' });
+			const checking = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			client.checkInUseGate = async () => {
+				checking.complete();
+				await release.p;
+			};
+			const sent = send();
+			await checking.p;
+			await agent.chats.abort(chat, context);
+			release.complete();
+			assert.deepStrictEqual({ outcome: await sent, events, sends: runtimes.map(runtime => runtime.sendCalls), running: running() }, {
+				outcome: 'resolved', events: [], sends: [0], running: false,
 			});
 		});
 
@@ -23234,6 +23458,7 @@ suite('CopilotAgent', () => {
 					extensionLaunchDirectories: [],
 					appliedSnapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} } satisfies IActiveClientSnapshot,
 					clientToolsRequireRestart: () => false,
+					canvasRuntimeEnabled: false,
 					onMcpNotification: Event.None,
 					onDidRequireAuth: Event.None,
 					onDidChangeRuntimePlugins: Event.None,
@@ -26307,6 +26532,7 @@ suite('CopilotAgent', () => {
 				extensionLaunchDirectories: [],
 				appliedSnapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} } satisfies IActiveClientSnapshot,
 				clientToolsRequireRestart: () => false,
+				canvasRuntimeEnabled: false,
 				appliedAdditionalDirectories: [],
 				appliedDisabledRootMcpServers: [],
 				requiresRestartAfterWorkingDirectoryChange: false,
@@ -28353,6 +28579,7 @@ suite('CopilotAgent', () => {
 				sessionId: `sdk-${key}`,
 				appliedSnapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} } satisfies IActiveClientSnapshot,
 				clientToolsRequireRestart: () => false,
+				canvasRuntimeEnabled: false,
 				async send(prompt: string, _attachments: unknown, turnId: string | undefined, _mode: unknown, senderClientId: string | undefined): Promise<void> {
 					rec.sends.push({ prompt, turnId, senderClientId });
 				},
@@ -28394,6 +28621,7 @@ suite('CopilotAgent', () => {
 					extensionLaunchDirectories: [],
 					appliedSnapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} } satisfies IActiveClientSnapshot,
 					clientToolsRequireRestart: () => false,
+					canvasRuntimeEnabled: false,
 					onMcpNotification: Event.None,
 					onDidRequireAuth: Event.None,
 					onDidChangeRuntimePlugins: Event.None,
@@ -30176,6 +30404,7 @@ suite('CopilotAgent', () => {
 			requiresRestartAfterWorkingDirectoryChange: boolean;
 			requiresMcpLaunchConfigurationRefresh: boolean;
 			requiresControlPlaneResync: boolean;
+			canvasRuntimeEnabled: boolean;
 			clientToolsRequireRestart(tools: readonly ToolDefinition[]): boolean;
 			updateClientTools(tools: readonly ToolDefinition[]): Promise<void>;
 			toolUpdates: (readonly ToolDefinition[])[];
@@ -30200,6 +30429,7 @@ suite('CopilotAgent', () => {
 				requiresMcpLaunchConfigurationRefresh: false,
 				requiresControlPlaneResync: false,
 				clientToolsRequireRestart: () => false,
+				canvasRuntimeEnabled: false,
 				toolUpdates: [],
 				async updateClientTools(tools) {
 					this.toolUpdates.push(tools);
@@ -32881,15 +33111,15 @@ suite('CopilotAgent', () => {
 
 			assert.deepStrictEqual(
 				{ first, second, configValues },
-				{ first: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'SDK legacy-adopt', titleSource: 'auto', isRead: true } }, second: { adopted: false, eligible: false, native: true, reason: 'alreadyNative' }, configValues: JSON.stringify({ [SessionConfigKey.Isolation]: 'folder' }) },
+				{ first: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'SDK legacy-adopt', titleSource: 'auto', isRead: true }, timestamps: { startTime: 1000, modifiedTime: 2000 } }, second: { adopted: false, eligible: false, native: true, reason: 'alreadyNative' }, configValues: JSON.stringify({ [SessionConfigKey.Isolation]: 'folder' }) },
 			);
 		});
 
-		function createImportedChat(inUse: boolean, runtimeSelection?: Awaited<ReturnType<NonNullable<IFakeAgentSession['readRuntimeSelection']>>>, lastClientName?: string) {
+		function createImportedChat(inUse: boolean, runtimeSelection?: Awaited<ReturnType<NonNullable<IFakeAgentSession['readRuntimeSelection']>>>, lastClientName?: string, models?: readonly ITestCopilotModelInfo[]) {
 			const sessionId = 'cli-import';
 			const session = AgentSession.uri('copilotcli', sessionId);
 			const chat = defaultChatUri(session);
-			const client = new TestCopilotClient([sdkSession(sessionId, '/workspace', { clientName: 'github/cli', lastClientName, modifiedTime: new Date() })]);
+			const client = new TestCopilotClient([sdkSession(sessionId, '/workspace', { clientName: 'github/cli', lastClientName, modifiedTime: new Date() })], models);
 			if (inUse) {
 				client.inUseSessionIds.add(sessionId);
 			}
@@ -32927,6 +33157,30 @@ suite('CopilotAgent', () => {
 			} finally {
 				await disposeAgent(agent);
 			}
+		});
+
+		test('importing a chat continues with the context size of its runtime tier, including an unset one', async () => {
+			const model: ITestCopilotModelInfo = {
+				id: 'claude-sonnet', name: 'Claude Sonnet',
+				capabilities: { limits: { max_context_window_tokens: 200_000 } },
+				billing: { multiplier: 1, tokenPrices: { contextMax: 200_000, longContext: { contextMax: 1_000_000 } } },
+			};
+			const imported = [];
+			for (const contextTier of [undefined, 'long_context']) {
+				const { agent, chat, context } = createImportedChat(false, { model: { modelId: 'claude-sonnet', reasoningEffort: 'high', contextTier }, agentName: undefined }, undefined, [model]);
+				try {
+					await agent.authenticate('https://api.github.com', 'token');
+					await waitForState(agent.models, models => models.length > 0);
+					await agent.materializeChat(chat, context, undefined);
+					imported.push(await agent.importChat(chat, context));
+				} finally {
+					await disposeAgent(agent);
+				}
+			}
+			assert.deepStrictEqual(imported, [
+				{ model: { id: 'claude-sonnet', config: { thinkingLevel: 'high', contextSize: 200_000 } }, agent: undefined },
+				{ model: { id: 'claude-sonnet', config: { thinkingLevel: 'high', contextSize: 1_000_000 } }, agent: undefined },
+			]);
 		});
 
 		test('importing a chat with a custom agent this host does not offer continues without one', async () => {
@@ -33070,7 +33324,7 @@ suite('CopilotAgent', () => {
 					scratchExists: (await fs.stat(expectedScratchDir.fsPath)).isDirectory(),
 				},
 				{
-					adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'SDK legacy-missing-cwd', titleSource: 'auto', isRead: true } },
+					adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'SDK legacy-missing-cwd', titleSource: 'auto', isRead: true }, timestamps: { startTime: 1000, modifiedTime: 2000 } },
 					persistedCwd: expectedScratchDir.toString(),
 					persistedWorkspaceless: 'true',
 					persistedSessionWorkingDirectories: '[]',
@@ -33203,7 +33457,7 @@ suite('CopilotAgent', () => {
 
 			assert.deepStrictEqual(
 				{ adopted, archived },
-				{ adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'SDK legacy-archived', titleSource: 'auto', isRead: true } }, archived: 'true' },
+				{ adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'SDK legacy-archived', titleSource: 'auto', isRead: true }, timestamps: { startTime: 1000, modifiedTime: 2000 } }, archived: 'true' },
 			);
 		});
 
@@ -33236,7 +33490,7 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual(
 				{ adopted, usages },
 				{
-					adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'SDK legacy-credits', titleSource: 'auto', isRead: true } },
+					adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'SDK legacy-credits', titleSource: 'auto', isRead: true }, timestamps: { startTime: 1000, modifiedTime: 2000 } },
 					usages: [
 						['evt-1', JSON.stringify({ model: 'gpt-5.4', _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } })],
 						['evt-2', JSON.stringify({ model: 'gpt-5.4-mini', _meta: { copilotUsage: { totalNanoAiu: 0 } } })],
@@ -33274,6 +33528,7 @@ suite('CopilotAgent', () => {
 						eligible: true,
 						reason: 'adopted',
 						listVisible: { title: 'My Legacy Session', titleSource: 'user', isRead: true },
+						timestamps: { startTime: 1000, modifiedTime: 2000 },
 					},
 					retried: { adopted: false, eligible: false, native: true, reason: 'alreadyNative' },
 					customTitle: 'My Legacy Session',
@@ -33303,7 +33558,7 @@ suite('CopilotAgent', () => {
 
 			assert.deepStrictEqual(
 				{ adopted, title },
-				{ adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'Telemetry analysis for Agents window', titleSource: 'auto', isRead: true } }, title: 'Telemetry analysis for Agents window' },
+				{ adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'Telemetry analysis for Agents window', titleSource: 'auto', isRead: true }, timestamps: { startTime: 1000, modifiedTime: 2000 } }, title: 'Telemetry analysis for Agents window' },
 			);
 		});
 
@@ -33328,7 +33583,7 @@ suite('CopilotAgent', () => {
 
 			assert.deepStrictEqual(
 				{ adopted, title },
-				{ adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: `SDK ${sessionId}`, titleSource: 'auto', isRead: true } }, title: `SDK ${sessionId}` },
+				{ adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: `SDK ${sessionId}`, titleSource: 'auto', isRead: true }, timestamps: { startTime: 1000, modifiedTime: 2000 } }, title: `SDK ${sessionId}` },
 			);
 		});
 
@@ -33352,7 +33607,7 @@ suite('CopilotAgent', () => {
 
 			assert.deepStrictEqual(
 				{ adopted, isRead },
-				{ adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'SDK legacy-read', titleSource: 'auto', isRead: true } }, isRead: 'true' },
+				{ adopted: { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'SDK legacy-read', titleSource: 'auto', isRead: true }, timestamps: { startTime: 1000, modifiedTime: 2000 } }, isRead: 'true' },
 			);
 		});
 
@@ -33741,7 +33996,7 @@ suite('CopilotAgent', () => {
 
 			const adopted = await ensureDefaultChatAdopted(agent, session);
 
-			assert.deepStrictEqual(adopted, { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'SDK legacy-originless', titleSource: 'auto', isRead: true } });
+			assert.deepStrictEqual(adopted, { adopted: true, eligible: true, reason: 'adopted', listVisible: { title: 'SDK legacy-originless', titleSource: 'auto', isRead: true }, timestamps: { startTime: 1000, modifiedTime: 2000 } });
 		});
 
 		test('does not adopt an origin-less legacy marker without VS Code properties', async () => {

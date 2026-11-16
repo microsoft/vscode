@@ -162,7 +162,7 @@ type CanvasOpenedClassification = IAgentHostEventClassification & {
 export interface ICanvasExtensionsReadyEvent {
 	schemaVersion: number;
 	launchKind: 'create' | 'resume';
-	outcome: 'alreadySettled' | 'settled' | 'timeout' | 'error' | 'cancelled';
+	outcome: 'alreadySettled' | 'settled' | 'consentPending' | 'timeout' | 'error' | 'cancelled';
 	durationMs: number;
 	extensionCount?: number;
 	failedExtensionCount?: number;
@@ -173,7 +173,7 @@ type CanvasExtensionsReadyClassification = {
 	comment: 'Measures host canvas readiness, not runtime startup or model TTFT. Settled may include failed providers.';
 	schemaVersion: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Canvas readiness event schema version.' };
 	launchKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the session is being created or resumed.' };
-	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether extensions were already settled, settled during the wait, timed out, failed, or the operation was cancelled.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether extensions were already settled, settled during the wait, stopped waiting because an extension waits for consent to load, timed out, failed, or the operation was cancelled.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Elapsed milliseconds for the host readiness operation, including extension listing, waiting, and canvas listing.' };
 	extensionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Extensions in the latest observed status snapshot; omitted when no snapshot was obtained.' };
 	failedExtensionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Failed extensions in the latest observed status snapshot; omitted when no snapshot was obtained.' };

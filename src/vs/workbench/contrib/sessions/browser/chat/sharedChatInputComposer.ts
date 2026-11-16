@@ -219,6 +219,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	/** Fires with the model the user selects for the session, once applied: not as the session's model changes otherwise. */
 	get onDidSelectModel(): Event<string> { return this._modelSelection.onDidSelectModel; }
 
+	/** The chat widget of its input, whose submits it sends; undefined until it renders. */
+	get widget(): IChatWidget | undefined { return this._widget; }
+
 	private _widgetContextKeyService: IContextKeyService | undefined;
 
 	constructor(
