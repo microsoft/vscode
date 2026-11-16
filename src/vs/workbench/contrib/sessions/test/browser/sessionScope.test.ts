@@ -244,7 +244,7 @@ suite('SessionsListingScopeFilter', () => {
 		});
 	});
 
-	test('a session is in the scope by its main chat\'s first folder, not by the folders its other chats add, unless its main chat has none, also a legacy Copilot CLI session', () => {
+	test('a session is in the scope by every folder its main chat sets itself, else by its main chat\'s first folder, not by the folders its other chats add, unless its main chat has none, also a legacy Copilot CLI session', () => {
 		// Built as the agent-host provider builds them: the session's workspace from its project and working directories, its
 		// main chat's from its own working directories, or the session's when it sets none, with each folder's GitHub info
 		const options = { fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true };
@@ -253,7 +253,8 @@ suite('SessionsListingScopeFilter', () => {
 			const built = buildTestSession({ id, title: id }).session;
 			const workspace = buildAgentHostSessionWorkspace({ uri: URI.file(project), displayName: id }, workingDirectories.map(path => URI.file(path)), options, constObservable(undefined));
 			const mainChatWorkspace = buildAgentHostChatWorkspace(workspace, mainChatWorkingDirectories?.map(path => URI.file(path)), folderGitHubInfo);
-			return { ...built, mainChat: constObservable({ ...built.mainChat.get(), workspace: constObservable(mainChatWorkspace) }), workspace: constObservable(workspace) };
+			const ownWorkingDirectories = constObservable(mainChatWorkingDirectories?.map(path => URI.file(path)));
+			return { ...built, mainChat: constObservable({ ...built.mainChat.get(), workspace: constObservable(mainChatWorkspace), ownWorkingDirectories }), workspace: constObservable(workspace) };
 		};
 		const aphWorktree = '/work/aph.worktrees/update-docs-33abcbc0';
 		const vscodeWorktree = '/work/vscode.worktrees/sync-docs';
@@ -279,7 +280,7 @@ suite('SessionsListingScopeFilter', () => {
 		folders.set([URI.file('/work/aph')], undefined);
 
 		assert.deepStrictEqual({ vscodeWindow, aphWindow: listed() }, {
-			vscodeWindow: ['mainChatInScopeOwnFolder', 'mainChatInScopeWorktree', 'mainChatWithoutFolder'],
+			vscodeWindow: ['mainChatInScopeOwnFolder', 'mainChatInScopeWorktree', 'mainChatSecondFolderInScope', 'mainChatWithoutFolder'],
 			aphWindow: ['legacy', 'legacyAdopted', 'mainChatSecondFolderInScope', 'mainChatWithoutFolder', 'nestedChatInScope', 'nestedChatInScopeMainChatOwnFolder'],
 		});
 	});

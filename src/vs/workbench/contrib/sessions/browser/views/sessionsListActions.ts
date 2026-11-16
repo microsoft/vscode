@@ -50,7 +50,7 @@ import { AccessibleViewType } from '../../../../../platform/accessibility/browse
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsListNotificationFocused } from './sessionsListNotification.js';
 import { getInboxPullRequestMergeOperation, getSessionInboxSection, SessionInboxAction, SessionInboxSection } from '../../common/sessionInbox.js';
-import { ISessionAttentionService } from '../../common/sessionAttentionService.js';
+import { ISessionAttentionService, InboxTab } from '../../common/sessionAttentionService.js';
 
 async function archiveSessionsWithUndo(
 	sessions: readonly ISession[],
@@ -631,18 +631,10 @@ function setSessionListChatReadState(sessionsManagementService: ISessionsManagem
 	return isRead ? sessionsManagementService.markChatRead(session, chat) : sessionsManagementService.markChatUnread(session, chat);
 }
 
-async function markSessionListTargetsRead(accessor: ServicesAccessor, context: ISession | ISessionChatItem | readonly (ISession | ISessionChatItem)[] | undefined, isRead: boolean): Promise<void> {
+async function markSessionListTargetsRead(accessor: ServicesAccessor, context: ISession | ISession[] | ISessionChatItem | undefined, isRead: boolean): Promise<void> {
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
-	const isChatItem = (target: ISession | ISessionChatItem): target is ISessionChatItem => hasKey(target, { session: true, chat: true });
-	if (context && !Array.isArray(context) && isChatItem(context as ISession | ISessionChatItem)) {
-		await setSessionListChatReadState(sessionsManagementService, context as ISessionChatItem, isRead);
-		return;
-	}
-	// Several targets, each a session or a chat of a session, such as the chat tabs a command runs for
-	if (Array.isArray(context) && context.some(isChatItem)) {
-		for (const target of context) {
-			await (isChatItem(target) ? setSessionListChatReadState(sessionsManagementService, target, isRead) : isRead ? sessionsManagementService.markRead(target) : sessionsManagementService.markUnread(target));
-		}
+	if (context && !Array.isArray(context) && hasKey(context, { session: true, chat: true })) {
+		await setSessionListChatReadState(sessionsManagementService, context, isRead);
 		return;
 	}
 	if (!context) {
@@ -654,22 +646,10 @@ async function markSessionListTargetsRead(accessor: ServicesAccessor, context: I
 			return;
 		}
 	}
-	const sessions = (context ? (Array.isArray(context) ? context : [context]) : getFocusedSessionListTargets(accessor) ?? []) as readonly ISession[];
+	const sessions = context ? (Array.isArray(context) ? context : [context]) : getFocusedSessionListTargets(accessor) ?? [];
 	for (const session of sessions) {
 		await (isRead ? sessionsManagementService.markRead(session) : sessionsManagementService.markUnread(session));
 	}
-}
-
-/**
- * Registers {@link SESSIONS_LIST_MARK_READ_COMMAND_ID} and {@link SESSIONS_LIST_MARK_UNREAD_COMMAND_ID}, which mark what the
- * sessions list and the chat tabs target read or unread, until the returned disposable is disposed. In an editor window, the
- * agent sessions' Mark as Read and Mark as Unread run them for such a target, such as a chat tab of the chat part.
- */
-export function registerSessionsListReadStateCommands(): IDisposable {
-	const store = new DisposableStore();
-	store.add(CommandsRegistry.registerCommand(SESSIONS_LIST_MARK_READ_COMMAND_ID, (accessor, context?: ISession | ISessionChatItem | readonly (ISession | ISessionChatItem)[]) => markSessionListTargetsRead(accessor, context, true)));
-	store.add(CommandsRegistry.registerCommand(SESSIONS_LIST_MARK_UNREAD_COMMAND_ID, (accessor, context?: ISession | ISessionChatItem | readonly (ISession | ISessionChatItem)[]) => markSessionListTargetsRead(accessor, context, false)));
-	return store;
 }
 
 abstract class BaseUnarchiveActiveSessionAction extends Action2 {
@@ -1392,7 +1372,7 @@ function createSessionsListActions(): DisposableStore {
 			super({
 				id: ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID,
 				title: localize2('inboxAcknowledge', "Acknowledge"),
-				tooltip: localize('inboxAcknowledgeTooltip', "Acknowledge: Remove from Inbox until new activity"),
+				tooltip: localize('inboxAcknowledgeTooltip', "Acknowledge: Move to Acknowledged until new activity"),
 				icon: Codicon.eye,
 				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext),
 				menu: [Menus.SessionItemToolbar, SessionItemContextMenuId].map(id => ({
@@ -1419,8 +1399,8 @@ function createSessionsListActions(): DisposableStore {
 				menu: [Menus.SessionItemToolbar, SessionItemContextMenuId].map(id => ({
 					id,
 					group: id === Menus.SessionItemToolbar ? 'navigation' : '1_state',
-					order: 1,
-					when: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionIsArchivedContext.negate(), SessionItemInboxStateContext.notEqualsTo('')),
+					order: id === Menus.SessionItemToolbar ? 0.5 : 1,
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionIsArchivedContext.negate(), IsSessionPinnedContext.negate(), SessionItemInboxStateContext.notEqualsTo('')),
 				})),
 			});
 		}
@@ -1457,7 +1437,7 @@ function createSessionsListActions(): DisposableStore {
 				{ label: localize('snoozeWeek', "In One Week"), value: morning(7) },
 				{ label: localize('snoozeActivity', "Until New Activity"), value: 'untilActivity' as const },
 				{ label: localize('snoozeDate', "Pick a Date and Time..."), value: 'custom' as const },
-			], { placeHolder: localize('snoozeReturnPlaceholder', "When should these sessions leave On hold? They will return to Inbox, Working, or Ready to merge based on their activity.") });
+			], { placeHolder: localize('snoozeReturnPlaceholder', "When should these sessions leave On hold? They will return to Inbox or Working based on their activity.") });
 			if (!picked) {
 				return;
 			}
@@ -1494,12 +1474,12 @@ function createSessionsListActions(): DisposableStore {
 				title: localize2('inboxMergePullRequest', "Merge Pull Request"),
 				icon: Codicon.gitMerge,
 				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionItemCanMergePullRequestContext, SessionItemIsMultiSelectionContext.negate()),
-				menu: [Menus.SessionItemToolbar, SessionItemContextMenuId].map(id => ({
-					id,
-					group: id === Menus.SessionItemToolbar ? 'navigation' : '1_state',
+				menu: [{
+					id: SessionItemContextMenuId,
+					group: '1_state',
 					order: 0,
 					when: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionIsArchivedContext.negate(), SessionItemCanMergePullRequestContext),
-				})),
+				}],
 			});
 		}
 		async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
@@ -1508,7 +1488,8 @@ function createSessionsListActions(): DisposableStore {
 			const attention = accessor.get(ISessionAttentionService).sessionAttention.get();
 			const model = accessor.get(ISessionsListModelService);
 			const merge = session && !session.isArchived.get()
-				&& getSessionInboxSection(session, model.getInboxState(session), undefined, attention.get(session.sessionId)) === SessionInboxSection.ReadyToMerge
+				&& attention.get(session.sessionId)?.tab === InboxTab.ReadyToMerge
+				&& getSessionInboxSection(session, model.getInboxState(session), undefined, attention.get(session.sessionId)) === SessionInboxSection.ReadyForYou
 				? getInboxPullRequestMergeOperation(session) : undefined;
 			if (!merge) {
 				throw new Error(localize('inboxMergeUnavailable', "This pull request is no longer available to merge."));

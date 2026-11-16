@@ -30,6 +30,20 @@
 	justify-content: center;
 }
 
+.new-chat-widget-content.scheduled-draft .chat-execute-toolbar .monaco-dropdown-with-default {
+	align-items: center;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-button-background);
+
+	> .dropdown-action-container {
+		border-left: var(--vscode-strokeThickness) solid var(--vscode-button-separator);
+
+		.action-label {
+			color: var(--vscode-button-foreground);
+		}
+	}
+}
+
 .new-session-send-status {
 	display: flex;
 	align-items: center;
@@ -1119,4 +1133,9 @@
 .action-widget .monaco-list-row.action.sessions-browse-inline-item:hover:not(.option-disabled) .description,
 .action-widget .monaco-list-row.action.sessions-browse-inline-item.focused:not(.option-disabled) .description {
 	visibility: visible;
+}
+
+/* New Worktree as a checkbox chip beside the workspace picker of a composer whose folder has no worktrees */
+.sessions-chat-picker-slot.sessions-chat-checkbox-chip.new-session-new-worktree .sessions-chat-dropdown-label {
+	font-size: var(--vscode-fontSize-body2);
 }

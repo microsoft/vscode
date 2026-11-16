@@ -161,7 +161,12 @@ export abstract class SessionChatEditorEntry extends Disposable implements ISess
 	) {
 		super();
 		this.chat = observableValue<URI>(this, chatResource);
-		this.input = this._register(new ChatEditorInput(chatResource));
+		this.input = new ChatEditorInput(chatResource);
+		// It disposes its editor's input, unless the input is disposed first, such as by its group as its tab closes: what
+		// then disposes this entry as the input disposes does not dispose the input again from within its own dispose
+		const input = this._register(new MutableDisposable<ChatEditorInput>());
+		input.value = this.input;
+		this._register(Event.once(this.input.onWillDispose)(() => input.clearAndLeak()));
 		this._register(registerSessionChatViewHost(this.input, this));
 		this.title = derived(this, reader => {
 			if (this._composer.read(reader)) {

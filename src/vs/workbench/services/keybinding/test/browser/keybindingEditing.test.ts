@@ -12,7 +12,8 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IUserFriendlyKeybinding } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IKeybindingService, IUserFriendlyKeybinding } from '../../../../../platform/keybinding/common/keybinding.js';
+import { KeybindingParser } from '../../../../../base/common/keybindingParser.js';
 import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
 import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -77,6 +78,10 @@ suite('KeybindingsEditing', () => {
 			environmentService: () => environmentService
 		}, disposables);
 
+		instantiationService.stub(IKeybindingService, 'resolveUserBinding', (key: string) => {
+			const parsed = KeybindingParser.parseKeybinding(key);
+			return parsed ? USLayoutResolvedKeybinding.resolveKeybinding(parsed, OS) : [];
+		});
 		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditingService));
 	});
 
@@ -210,6 +215,69 @@ suite('KeybindingsEditing', () => {
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: '-a' }];
 		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstChord: { keyCode: KeyCode.KeyC, modifiers: { altKey: true } } }));
 		assert.deepStrictEqual(await getUserKeybindings(), expected);
+	});
+
+	test('change system-wide scope only for the matching user binding, preserving arguments and when', async () => {
+		const entries: IUserFriendlyKeybinding[] = [
+			{ key: 'alt+c', command: 'a', when: 'editorTextFocus', args: { value: 1 } },
+			{ key: 'escape', command: 'a', when: 'editorTextFocus', args: { value: 2 } },
+			{ key: 'escape', command: 'a', when: 'editorTextFocus', args: { value: 1 } },
+		];
+		await writeToKeybindingsFile(...entries);
+		const binding = new ResolvedKeybindingItem(
+			aResolvedKeybindingItem({ firstChord: { keyCode: KeyCode.Escape } }).resolvedKeybinding,
+			'a', { value: 1 }, ContextKeyExpr.has('editorTextFocus'), false, null, false,
+		);
+		await testObject.setSystemWide(binding, true);
+		assert.deepStrictEqual(await getUserKeybindings(), [entries[0], entries[1], { ...entries[2], systemWide: true }]);
+	});
+
+	test('disable system-wide scope without removing the user binding', async () => {
+		await writeToKeybindingsFile({ key: 'escape', command: 'a', when: 'editorTextFocus', args: { value: 1 }, systemWide: true });
+		const binding = new ResolvedKeybindingItem(
+			aResolvedKeybindingItem({ firstChord: { keyCode: KeyCode.Escape } }).resolvedKeybinding,
+			'a', { value: 1 }, ContextKeyExpr.has('editorTextFocus'), false, null, false, true,
+		);
+		await testObject.setSystemWide(binding, false);
+		assert.deepStrictEqual(await getUserKeybindings(), [{ key: 'escape', command: 'a', when: 'editorTextFocus', args: { value: 1 } }]);
+	});
+
+	for (const systemWide of [false, true]) {
+		test(`override a default keybinding with systemWide=${systemWide} without changing a sibling user binding`, async () => {
+			const sibling: IUserFriendlyKeybinding = { key: 'alt+c', command: 'a' };
+			await writeToKeybindingsFile(sibling);
+			await testObject.setSystemWide(aResolvedKeybindingItem({ command: 'a', firstChord: { keyCode: KeyCode.Escape }, systemWide: !systemWide }), systemWide);
+			assert.deepStrictEqual(await getUserKeybindings(), [
+				sibling,
+				{ key: 'escape', command: 'a', ...(systemWide ? { systemWide: true } : {}) },
+				{ key: 'escape', command: '-a' },
+			]);
+		});
+	}
+
+	test('reject enabling system-wide chords, but allow disabling an existing one', async () => {
+		const binding = aResolvedKeybindingItem({
+			command: 'a', firstChord: { keyCode: KeyCode.Escape }, secondChord: { keyCode: KeyCode.Escape }, isDefault: false, systemWide: true,
+		});
+		await writeToKeybindingsFile({ key: 'escape escape', command: 'a', systemWide: true });
+		await assert.rejects(testObject.setSystemWide(binding, true), /single supported key combination/);
+		await testObject.setSystemWide(binding, false);
+		assert.deepStrictEqual(await getUserKeybindings(), [{ key: 'escape escape', command: 'a' }]);
+	});
+
+	test('reject a stale system-wide edit instead of changing another binding', async () => {
+		const entries = [{ key: 'alt+c', command: 'a' }];
+		await writeToKeybindingsFile(...entries);
+		await assert.rejects(testObject.setSystemWide(aResolvedKeybindingItem({ command: 'a', firstChord: { keyCode: KeyCode.Escape }, isDefault: false }), true), /keybinding has changed/);
+		assert.deepStrictEqual(await getUserKeybindings(), entries);
+	});
+
+	test('reset a system-wide scope override preserves sibling bindings', async () => {
+		const sibling: IUserFriendlyKeybinding = { key: 'alt+c', command: 'a' };
+		await writeToKeybindingsFile(sibling);
+		await testObject.setSystemWide(aResolvedKeybindingItem({ command: 'a', firstChord: { keyCode: KeyCode.Escape }, systemWide: true }), false);
+		await testObject.resetKeybinding(aResolvedKeybindingItem({ command: 'a', firstChord: { keyCode: KeyCode.Escape }, isDefault: false }));
+		assert.deepStrictEqual(await getUserKeybindings(), [sibling]);
 	});
 
 	test('remove a default keybinding should not ad duplicate entries', async () => {

@@ -29,6 +29,8 @@ import { getAgentHostPolicyGaps } from '../../../../../platform/agentHost/common
 import { Extensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { ILocalChatAvailabilityService } from '../../common/localChatAvailability.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 
 suite('ChatConfiguration defaults', () => {
 
@@ -474,6 +476,7 @@ suite('ChatConfiguration defaults', () => {
 		accessor.set(IStorageService, storageService);
 		accessor.set(IWorkspaceContextService, new TestContextService(workspace));
 		accessor.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) });
+		accessor.set(ILocalChatAvailabilityService, upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }));
 		return { sessionType: getDefaultNewChatSessionTypeAndReason(accessor, options).sessionType };
 	}
 
@@ -492,6 +495,7 @@ suite('ChatConfiguration defaults', () => {
 		accessor.set(IStorageService, storageService);
 		accessor.set(IWorkspaceContextService, new TestContextService(workspace));
 		accessor.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) });
+		accessor.set(ILocalChatAvailabilityService, upcastPartial<ILocalChatAvailabilityService>({ hidden: constObservable(false) }));
 		return getDefaultNewChatSessionTypeAndReason(accessor, options);
 	}
 
@@ -1225,6 +1229,30 @@ suite('ChatConfiguration defaults', () => {
 			remoteRepositories: true,
 			customVirtual: true,
 			mixed: false,
+		});
+	});
+
+	test('a feature that hides new local chats turns them off as the setting does, and leaves the setting as it is', () => {
+		const configurationService = new TestConfigurationService({
+			[ChatConfiguration.DefaultToCopilotHarness]: false,
+		});
+		const chatSessionsService = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude);
+		const storageService = disposables.add(new TestStorageService());
+		const resolve = (localChatHidden: boolean) => ({
+			localEnabled: isEditorLocalAgentEnabled(configurationService, localWorkspace, false, localChatHidden),
+			localVisible: isVisibleEditorChatSessionType(localChatSessionType, configurationService, chatSessionsService, localWorkspace, false, true, false, localChatHidden),
+			localUsable: isNewChatSessionTypeUsable(localChatSessionType, configurationService, chatSessionsService, localWorkspace, true, false, false, localChatHidden),
+			newChatIsLocal: getDefaultNewChatSessionType(configurationService, chatSessionsService, storageService, localWorkspace, true, { currentSessionType: localChatSessionType, localChatHidden }) === localChatSessionType,
+		});
+
+		assert.deepStrictEqual({
+			offered: resolve(false),
+			hidden: resolve(true),
+			setting: configurationService.getValue(ChatConfiguration.EditorLocalAgentEnabled),
+		}, {
+			offered: { localEnabled: true, localVisible: true, localUsable: true, newChatIsLocal: true },
+			hidden: { localEnabled: false, localVisible: false, localUsable: false, newChatIsLocal: false },
+			setting: undefined,
 		});
 	});
 

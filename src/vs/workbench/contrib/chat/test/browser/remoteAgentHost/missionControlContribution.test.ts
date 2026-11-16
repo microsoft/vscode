@@ -655,32 +655,43 @@ suite('Mission Control sharing service', () => {
 		assert.deepStrictEqual(calls, [{ options: expectedOptions, withdrawingAccountId: undefined }]);
 	}));
 
-	test('shares all available Windows drives but starts at home without creating a directory', () => runWithFakedTimers({}, async () => {
+	test('shares readable local Windows drives but starts at home without creating a directory', () => runWithFakedTimers({}, async () => {
 		const windowsHome = URI.parse('file:///C:/Users/test');
 		const statRequests: string[] = [];
-		const { sharing, calls, createdFolders } = fixture({
+		const { sharing, calls, createdFolders, logService } = fixture({
 			windows: true, emptyWindow: true, userHome: windowsHome,
 			stat: async resource => {
 				statRequests.push(resource.path);
-				if (!['/C:/', '/D:/', '/Z:/'].includes(resource.path)) {
+				if (resource.path === '/E:/') {
+					throw createFileSystemProviderError('Drive not ready', FileSystemProviderErrorCode.Unknown);
+				}
+				if (!['/C:/', '/D:/', '/F:/', '/Z:/'].includes(resource.path)) {
 					throw new FileOperationError('Drive not found', FileOperationResult.FILE_NOT_FOUND);
 				}
 				return upcastPartial<IFileStatWithPartialMetadata>({ resource, isDirectory: true });
 			},
-			realpath: async resource => resource.path === '/Z:/' ? resource.with({ path: '\\\\server\\share\\' }) : resource,
+			realpath: async resource => {
+				if (resource.path === '/F:/') {
+					throw createFileSystemProviderError('Volume locked', FileSystemProviderErrorCode.Unknown);
+				}
+				return resource.path === '/Z:/' ? resource.with({ path: '\\\\server\\share\\' }) : resource;
+			},
 		});
+		const warn = stub(logService, 'warn');
 		await sharing.setEnabled(true);
-		assert.deepStrictEqual({ options: calls[0].options, statRequests, createdFolders }, {
+		const driveWarnings = warn.getCalls().filter(call => call.args[0] === '[Mission Control] Excluding a drive that cannot be read from local filesystem sharing');
+		assert.deepStrictEqual({ options: calls[0].options, statRequests, createdFolders, driveWarnings: driveWarnings.map(call => call.args.slice(1)) }, {
 			options: {
 				...expectedOptions, roots: [URI.parse('file:///C:/').fsPath, URI.parse('file:///D:/').fsPath, windowsHome.fsPath],
 				projects: [], defaultDirectory: windowsHome.fsPath,
 			},
 			statRequests: Array.from({ length: 26 }, (_, index) => `/${String.fromCharCode(65 + index)}:/`),
 			createdFolders: [],
+			driveWarnings: [['file:///e%3A/', 'Drive not ready'], ['file:///f%3A/', 'Volume locked']],
 		});
 	}));
 
-	test('reports unexpected drive enumeration failures instead of granting a partial filesystem', () => runWithFakedTimers({}, async () => {
+	test('reports drive enumeration failures when no drive can be read instead of granting a partial filesystem', () => runWithFakedTimers({}, async () => {
 		const { sharing, calls } = fixture({
 			windows: true,
 			stat: async () => { throw createFileSystemProviderError('Filesystem unavailable', FileSystemProviderErrorCode.NoPermissions); },

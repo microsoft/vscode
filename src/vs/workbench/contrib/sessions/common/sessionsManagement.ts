@@ -9,7 +9,8 @@ import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from 
 import { DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { IChatSessionItemArchiveState } from '../../chat/common/chatSessionsService.js';
 import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
-import { IObservable } from '../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../base/common/observable.js';
+import { IExtUri } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -161,6 +162,27 @@ export interface ICreateNewChatInSessionOptions extends ICreateNewChatOptions {
 	readonly forceNew?: boolean;
 }
 
+/**
+ * The chat of `session` that `resource` names: one of its chats or its main chat, also by a former resource of the session
+ * (`previousIdentities`), which names its main chat, or with a fragment its chat of that fragment. Reads the session's chats
+ * through `reader`, so that a caller follows them.
+ */
+export function getSessionChatOfResource(session: ISession, resource: URI, extUri: IExtUri, reader?: IReader): IChat | undefined {
+	const chats = session.chats.read(reader);
+	const chat = chats.find(candidate => extUri.isEqual(candidate.resource, resource));
+	if (chat) {
+		return chat;
+	}
+	const mainChat = session.mainChat.read(reader);
+	if (extUri.isEqual(mainChat.resource, resource)) {
+		return mainChat;
+	}
+	if (session.previousIdentities?.some(previous => extUri.isEqual(previous.resource, resource.with({ fragment: '' })))) {
+		return resource.fragment ? chats.find(candidate => candidate.resource.fragment === resource.fragment) : mainChat;
+	}
+	return undefined;
+}
+
 /** A change of one session: see {@link ISessionsManagementService.onDidChangeSession}. */
 export interface ISessionChange {
 	readonly session: ISession;
@@ -300,12 +322,6 @@ export interface ISessionsManagementService {
 	 * Get a session by its resource URI, also a session outside a provider's listing scope.
 	 */
 	getSession(resource: URI): ISession | undefined;
-
-	/**
-	 * Every session the providers know, also those outside their listing scope, such as of another folder: not only the
-	 * listed ones of {@link getSessions}. {@link onDidChangeSession} reports their changes.
-	 */
-	getAllSessions(): readonly ISession[];
 
 	/**
 	 * Resolves a session resource to the one that should actually be opened.

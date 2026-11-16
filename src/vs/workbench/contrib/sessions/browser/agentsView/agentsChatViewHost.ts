@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceTimeout } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { derived, IObservable } from '../../../../../base/common/observable.js';
@@ -27,11 +27,31 @@ import { IAgentsChatPartService } from './agentsChatPart.js';
 import { getEditorWindowComposerTarget } from '../editorWindow/editorWindowSessionsPresenter.js';
 import { AgentsViewAvailable } from './agentsChatPartContext.js';
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
-import { IAgentsViewProvidersService, waitForAgentsViewSession } from './agentsViewProviders.js';
+import { IAgentsViewProvidersService } from './agentsViewProviders.js';
+import { SESSION_OPEN_WAIT_TIMEOUT, waitForSessionChat } from '../sessionOpen.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
 /** How long it waits for the widget of a chat it shows to be created. */
 const WAIT_TIMEOUT = 5_000;
+
+/**
+ * The composer target of a new chat aimed at `target`, or `false` for one that cannot be: a new worktree without a folder.
+ * Without a folder, the composer works in the window's.
+ */
+function toComposerTarget(target: IChatViewNewChatTarget): INewSessionTarget | false {
+	if (target.placement === 'worktree' && !target.folder) {
+		return false;
+	}
+	return {
+		folderUri: target.folder,
+		providerId: target.providerId,
+		sessionTypeId: target.sessionType,
+		modelId: target.modelId,
+		modeId: target.modeId,
+		requireDevContainer: target.requireDevContainer,
+		...(target.placement === 'worktree' ? { placement: 'worktree' } : {}),
+	};
+}
 
 /**
  * The host of the Chat view's chats in an editor window whose chat part replaces the Chat view: it shows in the chat part
@@ -64,6 +84,8 @@ export class AgentsChatViewHost implements IChatViewHost {
 
 	/** Increases as the host is deactivated: what started before then does not open the chat part once it continues. */
 	private _generation = 0;
+	/** Cancelled as the host is deactivated, which ends a wait for a session's chat at once. */
+	private _activation = new CancellationTokenSource();
 
 	/**
 	 * It no longer replaces the Chat view, such as once chat needs setting up: what it is still doing, such as looking up a
@@ -71,6 +93,8 @@ export class AgentsChatViewHost implements IChatViewHost {
 	 */
 	deactivate(): void {
 		this._generation++;
+		this._activation.dispose(true);
+		this._activation = new CancellationTokenSource();
 	}
 
 	/**
@@ -96,7 +120,10 @@ export class AgentsChatViewHost implements IChatViewHost {
 		if (!this._ownsNewChat.get() || !this._available) {
 			return false;
 		}
-		const aimed = target ? { folderUri: target.folder, providerId: target.providerId, sessionTypeId: target.sessionType, modelId: target.modelId, modeId: target.modeId, requireDevContainer: target.requireDevContainer } : this._composerTarget();
+		const aimed = target ? toComposerTarget(target) : this._composerTarget();
+		if (aimed === false) {
+			return false;
+		}
 		await this._chatPart.openComposer(aimed, { newComposer: true, preserveFocus: options?.preserveFocus });
 		return true;
 	}
@@ -127,7 +154,7 @@ export class AgentsChatViewHost implements IChatViewHost {
 		const generation = this._generation;
 		const hold = this._providers.acquire();
 		try {
-			const owner = await waitForAgentsViewSession(this._sessionsManagementService, () => this._sessionsManagementService.getSessionForChatResource(sessionResource));
+			const owner = await waitForSessionChat(this._sessionsManagementService, sessionResource, this._activation.token, SESSION_OPEN_WAIT_TIMEOUT);
 			if (!owner || generation !== this._generation) {
 				return undefined;
 			}
@@ -163,6 +190,11 @@ export class AgentsChatViewHost implements IChatViewHost {
 			this._notificationService.info(localize('agentsChatViewHost.localChatUnavailable', "Local chat sessions are not available while chats open in the chat area."));
 			throw new CancellationError();
 		}
+		const aimed = options.target && toComposerTarget(options.target);
+		if (aimed === false) {
+			this._notificationService.error(localize('agentsChatViewHost.invalidTarget', "A new worktree needs a folder, and a chat without a workspace cannot have one."));
+			throw new CancellationError();
+		}
 		const model = await this._chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, 'AgentsChatViewHost#startSession', 'explicitOverride');
 		if (!model) {
 			throw new Error(`Unable to load the chat session ${sessionResource.toString()}`);
@@ -190,28 +222,29 @@ export class AgentsChatViewHost implements IChatViewHost {
 				}
 				if (!shown) {
 					// Shown before the start completes, and given back by createComposer
-					composer = this._openComposer(sessionType);
+					composer = this._openComposer(sessionType, aimed);
 					await composer;
 				}
 				return shown;
 			},
-			createComposer: () => composer ?? (generation === this._generation ? this._openComposer(sessionType) : Promise.resolve(undefined)),
+			createComposer: () => composer ?? (generation === this._generation ? this._openComposer(sessionType, aimed) : Promise.resolve(undefined)),
 			dispose: () => model.dispose(),
 		};
 	}
 
 	/**
-	 * Shows a new-session composer of the sessions of chat session type `chatSessionType` and resolves to the widget of its
+	 * Shows a new-session composer of the sessions of chat session type `chatSessionType`, aimed at `target` or else at what
+	 * the window works on, and resolves to the widget of its
 	 * input, whose submits create the session.
 	 */
-	private async _openComposer(chatSessionType: string): Promise<IChatWidget | undefined> {
+	private async _openComposer(chatSessionType: string, target: INewSessionTarget | undefined): Promise<IChatWidget | undefined> {
 		if (!this._available) {
 			return undefined;
 		}
 		// The provider's own type, which may differ from the type of its chats, such as `claude` of `agent-host-claude` chats
 		const offered = this._sessionsManagementService.getAllProviderSessionTypes().find(({ sessionType }) => (sessionType.chatSessionType ?? sessionType.id) === chatSessionType);
 		// A composer of its own: the one it shows may aim at sessions of another type
-		await this._chatPart.openComposer({ ...this._composerTarget(), providerId: offered?.providerId, sessionTypeId: offered?.sessionType.id }, { newComposer: true });
+		await this._chatPart.openComposer({ ...(target ?? this._composerTarget()), providerId: offered?.providerId, sessionTypeId: offered?.sessionType.id }, { newComposer: true });
 		return this._chatPart.getComposerWidget();
 	}
 

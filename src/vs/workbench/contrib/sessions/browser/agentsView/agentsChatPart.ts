@@ -52,7 +52,11 @@ import { AgentsChatPartAction, logAgentsChatPartAction } from './agentsChatPartT
 import { AgentsViewAvailable, InAgentsChatPartContext } from './agentsChatPartContext.js';
 import { EditorWindowMainSessionHost } from './editorWindowMainSessionHost.js';
 
-/** The chats of the chat part, which it shows again as the window restores. */
+/**
+ * The chats of the chat part, which it shows again as the window restores. Its editor part's own state would restore bare
+ * chat editors through their serializers; the chat part restores each chat through its session instead, once the
+ * providers know it, as the chat it shows.
+ */
 const CHAT_PART_EDITORS_STORAGE_KEY = 'workbench.chatPart.editors';
 
 /** How long restoring a chat of the chat part waits for its session to load. */
@@ -640,17 +644,13 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			reason: localize('agentsChatPart.cannotMove', "A chat stays in the chat area."),
 			canMoveTo: group => !!this._part?.groups.some(candidate => candidate.id === group),
 		});
-		// Its chat goes with its editor, once the editor's dispose is done: disposing the chat disposes the editor, and what
-		// it shows, which would otherwise happen within the editor's own dispose, such as as its session is removed meanwhile
+		// Its chat goes with its editor: the chat no longer disposes an editor that is disposing (see SessionChatEditorEntry)
 		Event.once(chat.input.onWillDispose)(() => {
 			this._composerModels.delete(chat.input);
 			if (this._composerTabs.get().has(chat.input)) {
 				this._composerTabs.set(new Set([...this._composerTabs.get()].filter(tab => tab !== chat.input)), undefined);
 			}
-			const ending = this._chats.deleteAndLeak(chat.input);
-			if (ending) {
-				queueMicrotask(() => ending.dispose());
-			}
+			this._chats.deleteAndDispose(chat.input);
 		});
 		return chat;
 	}
@@ -681,6 +681,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			container,
 			label: localize('agentsChatPart.label', "Chat"),
 			services: new ServiceCollection([ISessionHost, this.mainWindowHost], [IContextKeyService, scopedContextKeyService]),
+			// With one tab, the session header of the chat it shows is its title, as alone in its group
+			singleTabTitleProvidedByEditor: true,
 		});
 		this._partStore.add(this._frame.part.setContent(part));
 		// It shows its chats as a chat window's chat part does: over the chat surface, with the same options of its tabs
@@ -690,11 +692,9 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		}
 		// Its tabs follow the chat tabs of sessions, as a session's chats do, not the editor area's: by default one tab, of the
 		// active chat, or one of each chat
-		// With one tab, the session header of the chat it shows is its title, as alone in its group
 		this._partStore.add(enforceChatPartOptions(part, derived(reader => ({
 			...getChatWindowMainPartOptions(undefined),
 			showTabs: this._chatTabsMode.read(reader) === SessionsChatTabsMode.Multiple ? 'multiple' : 'single',
-			singleTabTitleProvidedByEditor: true,
 		}))));
 		// The part goes with the window; its chats are not dirty, so nothing moves back to the editor area
 		this._partStore.add(toDisposable(() => {

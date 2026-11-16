@@ -9,14 +9,13 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
-import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
-import { SESSIONS_LIST_MARK_READ_COMMAND_ID } from '../../../../../common/chatSessionCommands.js';
+import { SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../../common/chatSessionCommands.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ISession, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
-import { MarkAgentSessionReadAction, MarkAgentSessionUnreadAction } from '../../../../chat/browser/agentSessions/agentSessionsActions.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { getEditorWindowComposerTarget } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { IAgentsChatPartOpenOptions, IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
@@ -29,6 +28,9 @@ import { SessionIsCreatedContext, SessionSupportsRenameContext } from '../../../
 import { INewSessionTarget } from '../../../browser/parts/chatView.js';
 import { ISessionSection, SessionItemContextMenuId, SessionSectionToolbarMenuId } from '../../../browser/views/sessionsList.js';
 import { buildTestSession } from '../../common/testSessionBuilder.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { isEqual, isEqualOrParent } from '../../../../../../base/common/resources.js';
+import { EditorWindowComposerFoldersService, IEditorWindowComposerFolderOptions, IEditorWindowComposerFoldersService } from '../../../browser/editorWindow/editorWindowComposerFolders.js';
 import { ChatViewId } from '../../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 
@@ -45,9 +47,15 @@ suite('Agents chat part actions', () => {
 		return { ...buildTestSession({ id, title: id }).session, providerId: 'local-agent-host', sessionType: 'copilotcli', createdAt: new Date(createdAt), workspace: constObservable(workspace) };
 	}
 
-	function run(commandId: string, arg: unknown) {
+	function run(commandId: string, arg: unknown, folderOptions?: IEditorWindowComposerFolderOptions) {
 		const opened: { readonly target: INewSessionTarget | undefined; readonly newComposer: boolean | undefined }[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<IWorkspace>({ folders: [] }) }));
+		const composerFolders = instantiationService.createInstance(EditorWindowComposerFoldersService);
+		if (folderOptions) {
+			store.add(composerFolders.setComposerFolderOptions(() => folderOptions));
+		}
+		instantiationService.stub(IEditorWindowComposerFoldersService, composerFolders);
 		instantiationService.stub(IAgentsChatPartService, upcastPartial<IAgentsChatPartService>({
 			openComposer: async (target: INewSessionTarget | undefined, options?: IAgentsChatPartOpenOptions) => { opened.push({ target, newComposer: options?.newComposer }); },
 		}));
@@ -86,27 +94,41 @@ suite('Agents chat part actions', () => {
 		});
 	});
 
-	test('a new quick chat opens a composer of its own without a workspace, from the Chats section and the Command Palette, without a keybinding', async () => {
-		store.add(registerAgentsChatPartActions());
-		const id = 'workbench.action.agentsView.newQuickChat';
+	test('starts a new session in the allowed folder that the session\'s folder is, or that it is inside, also by another form of either, else in the window\'s folder', async () => {
+		store.add(registerAgentsViewNewSessionActions());
+		// The window offers a worktree by a link, whose real path its sessions report, and its repository's folder
+		const link = URI.file('/links/feature');
+		const worktree = URI.file('/work/repo.worktrees/feature');
+		const folderOptions: IEditorWindowComposerFolderOptions = {
+			allowedFolders: constObservable([link, URI.file('/work/repo')]),
+			isSameFolder: (folder, uri) => isEqual(folder, uri) || (isEqual(folder, link) && isEqual(uri, worktree)),
+			isInFolder: (folder, uri) => isEqualOrParent(uri, folder) || (isEqual(folder, link) && isEqualOrParent(uri, worktree)),
+		};
+		const aliased = createSession('aliased', '/work/repo', worktree.path, 1);
+		const inside = createSession('inside', '/work/repo', '/work/repo/packages/a', 1);
+		const insideAliased = createSession('insideAliased', '/work/repo', `${worktree.path}/packages/a`, 1);
+		const outside = createSession('outside', '/elsewhere', '/elsewhere', 1);
+		const folderOf = async (commandId: string, arg: unknown) => (await run(commandId, arg, folderOptions)).map(({ folder }) => folder ?? 'the window\'s');
 
 		assert.deepStrictEqual({
-			opened: await run(id, undefined),
-			menus: {
-				sectionToolbar: menuWhen(SessionSectionToolbarMenuId, id),
-				sectionContext: menuWhen(Menus.SessionSectionContext, id),
-				commandPalette: menuWhen(MenuId.CommandPalette, id),
-			},
-			keybindings: KeybindingsRegistry.getDefaultKeybindings().filter(keybinding => keybinding.command === id).length,
+			worktreeSection: await folderOf('workbench.action.agentsView.newSessionInWorktree', upcastPartial<ISessionSection>({ id: `worktree:${worktree.toString()}`, label: 'feature', sessions: [aliased] })),
+			aliased: await folderOf('workbench.action.agentsView.newSessionInSameFolder', aliased),
+			inside: await folderOf('workbench.action.agentsView.newSessionInSameFolder', inside),
+			insideAliased: await folderOf('workbench.action.agentsView.newSessionInSameFolder', insideAliased),
+			outside: await folderOf('workbench.action.agentsView.newSessionInSameFolder', outside),
 		}, {
-			opened: [{ folder: undefined, providerId: undefined, sessionTypeId: undefined, noWorkspace: true, newComposer: true }],
-			menus: {
-				sectionToolbar: 'agentHostEnabled && chatIsEnabled && sessionSection.type == \'quickchats\'',
-				sectionContext: 'agentHostEnabled && chatIsEnabled && sessionSection.type == \'quickchats\'',
-				commandPalette: 'agentHostEnabled && chatIsEnabled',
-			},
-			keybindings: 0,
+			worktreeSection: ['/links/feature'],
+			aliased: ['/links/feature'],
+			inside: ['/work/repo'],
+			insideAliased: ['/links/feature'],
+			outside: ['the window\'s'],
 		});
+	});
+
+	test('an editor window offers no New Quick Chat: it has no chat without a workspace', () => {
+		store.add(registerAgentsChatPartActions());
+
+		assert.strictEqual(CommandsRegistry.getCommand('workbench.action.agentsView.newQuickChat'), undefined);
 	});
 
 	test('New Session shows in the header of the sessions list, but not in the Chat view\'s, whose title has New Chat already', () => {
@@ -177,7 +199,7 @@ suite('Agents chat part actions', () => {
 		});
 	});
 
-	test('Mark as Read and Mark as Unread of a chat tab mark its chat through the sessions list\'s commands, while the chat part registers its actions', async () => {
+	test('the chat part registers the sessions list\'s Mark as Read and Mark as Unread that its chat tabs run, also while no sessions list shows, until its actions are disposed', async () => {
 		const built = buildTestSession({ id: 's1', title: 'Session' });
 		const session = built.session;
 		const main = built.mainChat.chat;
@@ -190,23 +212,17 @@ suite('Agents chat part actions', () => {
 			markChatRead: async (_target, chat) => { marked.push(`read chat ${chat.resource.fragment}`); },
 			markChatUnread: async (_target, chat) => { marked.push(`unread chat ${chat.resource.fragment}`); },
 		}));
-		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
-			executeCommand: async <R>(id: string, ...args: unknown[]) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor, ...args)) as R,
-		}));
-		const read = new MarkAgentSessionReadAction();
-		const unread = new MarkAgentSessionUnreadAction();
-
-		const before = CommandsRegistry.getCommand(SESSIONS_LIST_MARK_READ_COMMAND_ID);
+		const before = [SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID].map(id => CommandsRegistry.getCommand(id));
 		const registration = registerAgentsChatPartActions();
-		// A chat tab of a side chat and of a session's main chat run the agent sessions' commands
-		for (const [action, context] of [[read, { session, chat: side }], [unread, { session, chat: main }], [unread, [{ session, chat: side }, { session, chat: main }]]] as const) {
-			await instantiationService.invokeFunction(accessor => action.run(accessor, context as never));
+		// What a chat tab runs, of a side chat and of a session's main chat
+		for (const [id, context] of [[SESSIONS_LIST_MARK_READ_COMMAND_ID, { session, chat: side }], [SESSIONS_LIST_MARK_UNREAD_COMMAND_ID, { session, chat: main }]] as const) {
+			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor, context));
 		}
 		registration.dispose();
 
-		assert.deepStrictEqual({ marked, restoredAfterDispose: CommandsRegistry.getCommand(SESSIONS_LIST_MARK_READ_COMMAND_ID) === before }, {
-			marked: ['read chat side', 'unread s1', 'unread chat side', 'unread s1'],
-			restoredAfterDispose: true,
+		assert.deepStrictEqual({ marked, restoredAfterDispose: [SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID].map((id, index) => CommandsRegistry.getCommand(id) === before[index]) }, {
+			marked: ['read chat side', 'unread s1'],
+			restoredAfterDispose: [true, true],
 		});
 	});
 });
