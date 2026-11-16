@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../../../base/common/event.js';
+import { h } from '../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { MarshalledId } from '../../../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
@@ -60,6 +61,48 @@ suite('ChatViewTitleControl', () => {
 				: undefined,
 		}));
 		return instantiationService;
+	}
+
+	/**
+	 * Renders the title label elements inside the ancestors that the title control's styles are scoped to,
+	 * with the font of the workbench and the spacing token that those styles use.
+	 */
+	function renderTitleLabel() {
+		const elements = h('div.chat-viewpane', [
+			h('div.chat-view-title-container.visible', [
+				h('div.chat-view-title-navigation-toolbar', [
+					h('div.chat-view-title-action-item', [
+						h('div.chat-view-title-label-container@labelContainer', [
+							h('span.chat-view-title-harness@harness'),
+							h('span.chat-view-title-separator@separator'),
+							h('span.chat-view-title-label@title'),
+						]),
+					]),
+				]),
+			]),
+		]);
+		elements.harness.textContent = 'Copilot';
+		elements.separator.textContent = '·';
+		elements.title.textContent = 'Session title';
+		elements.root.style.fontSize = '13px';
+		elements.root.style.lineHeight = '1.4em';
+		elements.root.style.setProperty('--vscode-spacing-size40', '4px');
+		mainWindow.document.body.appendChild(elements.root);
+		disposables.add(toDisposable(() => elements.root.remove()));
+		return elements;
+	}
+
+	/**
+	 * Returns the vertical position of the text baseline of the first line of the element.
+	 */
+	function getBaseline(element: HTMLElement): number {
+		// An empty inline-block sits with its bottom edge on the baseline of its line
+		const probe = mainWindow.document.createElement('span');
+		probe.style.display = 'inline-block';
+		element.prepend(probe);
+		const baseline = probe.getBoundingClientRect().bottom;
+		probe.remove();
+		return baseline;
 	}
 
 	test('tracks height changes from ResizeObserver', () => {
@@ -153,27 +196,7 @@ suite('ChatViewTitleControl', () => {
 	});
 
 	test('keeps the harness visible while the session title owns truncation', () => {
-		const root = mainWindow.document.createElement('div');
-		root.className = 'chat-viewpane';
-		const titleContainer = mainWindow.document.createElement('div');
-		titleContainer.className = 'chat-view-title-container';
-		const navigationToolbar = mainWindow.document.createElement('div');
-		navigationToolbar.className = 'chat-view-title-navigation-toolbar';
-		const actionItem = mainWindow.document.createElement('div');
-		actionItem.className = 'chat-view-title-action-item';
-		const labelContainer = mainWindow.document.createElement('div');
-		labelContainer.className = 'chat-view-title-label-container';
-		const harness = mainWindow.document.createElement('span');
-		harness.className = 'chat-view-title-harness';
-		const title = mainWindow.document.createElement('span');
-		title.className = 'chat-view-title-label';
-		labelContainer.append(harness, title);
-		actionItem.appendChild(labelContainer);
-		navigationToolbar.appendChild(actionItem);
-		titleContainer.appendChild(navigationToolbar);
-		root.appendChild(titleContainer);
-		mainWindow.document.body.appendChild(root);
-		disposables.add(toDisposable(() => root.remove()));
+		const { harness, title } = renderTitleLabel();
 
 		const harnessStyle = mainWindow.getComputedStyle(harness);
 		const titleStyle = mainWindow.getComputedStyle(title);
@@ -191,6 +214,44 @@ suite('ChatViewTitleControl', () => {
 			titleFlexShrink: '1',
 			titleOverflow: 'hidden',
 			titleTextOverflow: 'ellipsis',
+		});
+	});
+
+	test('aligns the harness, separator and session title on one text baseline', () => {
+		const { root, harness, separator, title } = renderTitleLabel();
+		const getBaselineOffsets = () => {
+			const harnessBaseline = getBaseline(harness);
+			const getOffset = (element: HTMLElement) => Math.round(Math.abs(getBaseline(element) - harnessBaseline) * 10) / 10;
+			return { separator: getOffset(separator), title: getOffset(title) };
+		};
+
+		// The harness and separator inherit the line height of the workbench, the title sets its own
+		const differentLineHeights = getBaselineOffsets();
+
+		// With equal line heights, the title can still use a larger font size than the harness and separator
+		root.style.lineHeight = '16px';
+		title.style.fontSize = '16px';
+		const differentFontSizes = getBaselineOffsets();
+
+		assert.deepStrictEqual({ differentLineHeights, differentFontSizes }, {
+			differentLineHeights: { separator: 0, title: 0 },
+			differentFontSizes: { separator: 0, title: 0 },
+		});
+	});
+
+	test('keeps room for descenders below the session title without growing the label', () => {
+		const { labelContainer, harness, title } = renderTitleLabel();
+		const getHeight = (element: HTMLElement) => element.getBoundingClientRect().height;
+		const getExcess = (value: number, limit: number) => Math.max(0, Math.round((value - limit) * 10) / 10);
+
+		// Only the title clips its overflow. When the label stretched its items, the title was as tall as the
+		// harness, whose line is the tallest. It keeps that room below its baseline while the label stays as tall.
+		assert.deepStrictEqual({
+			titleShorterThanHarnessBy: getExcess(getHeight(harness), getHeight(title)),
+			labelTallerThanHarnessBy: getExcess(getHeight(labelContainer), getHeight(harness)),
+		}, {
+			titleShorterThanHarnessBy: 0,
+			labelTallerThanHarnessBy: 0,
 		});
 	});
 });
