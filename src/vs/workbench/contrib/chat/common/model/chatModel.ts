@@ -791,11 +791,17 @@ class AbstractResponse implements IResponse {
 					break;
 				case 'markdownContent':
 				case 'markdownVuln':
+					segment = { text: legacySubagentMarkdown.get(index) ?? part.content.value };
+					break;
 				case 'progressTask':
 				case 'progressTaskSerialized':
 				case 'warning':
 				case 'info':
-					segment = { text: legacySubagentMarkdown.get(index) ?? part.content.value };
+					// Status notices are rendered as their own rows, so keep them apart from the surrounding text.
+					if (!part.content.value.trim()) {
+						continue;
+					}
+					segment = { text: part.content.value, isBlock: true };
 					break;
 				default:
 					// Ignore any unknown/obsolete parts, but assert that all are handled:
