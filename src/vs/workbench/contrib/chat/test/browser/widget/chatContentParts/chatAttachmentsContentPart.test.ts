@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { timeout } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { isManagedHoverTooltipHTMLElement } from '../../../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
@@ -34,9 +34,12 @@ import { getGitHubIssueOrPullRequestAttachments } from '../../../../browser/widg
 import { GitHubResourceDetailsResolver, LazyGitHubResourceState } from '../../../../../github/browser/githubResourceDetails.js';
 import { IGitHubIssueHoverModel } from '../../../../../github/browser/githubResourceHover.js';
 import { IWorkbenchGitHubService } from '../../../../../../services/github/common/githubService.js';
-import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { IClipboardService } from '../../../../../../../platform/clipboard/common/clipboardService.js';
+import { TestClipboardService } from '../../../../../../../platform/clipboard/test/common/testClipboardService.js';
+import { IContextMenuService } from '../../../../../../../platform/contextview/browser/contextView.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { IWebWorkerService } from '../../../../../../../platform/webWorker/browser/webWorkerService.js';
 import { ChatAttachmentsContentPart } from '../../../../browser/widget/chatContentParts/chatAttachmentsContentPart.js';
 import { AgentHostCompletionReferenceKind, IChatRequestVariableEntry, OmittedState, toAgentHostCompletionVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../common/languageModels.js';
@@ -731,18 +734,26 @@ suite('ChatAttachmentsContentPart', () => {
 			});
 		});
 
-		for (const hydrated of [false, true]) {
-			test(`should show the thumbnail at once when an image is rendered again (hydrated=${hydrated})`, async () => {
+		suite('images that are rendered again', () => {
+			/** The reads of an image wait for these, in order. A read without one completes right away. */
+			let heldReads: Promise<void>[];
+
+			setup(() => {
+				heldReads = [];
+			});
+
+			function createImage(resource: URI, width: number, height: number, hydrated: boolean): IChatRequestVariableEntry {
 				const canvas = mainWindow.document.createElement('canvas');
-				canvas.width = canvas.height = 16;
+				canvas.width = width;
+				canvas.height = height;
 				const bytes = decodeBase64(canvas.toDataURL('image/png').split(',')[1]);
-				const resource = URI.file(`/test/rendered-again-${hydrated}.png`);
 				instantiationService.stub(IFileService, disposables.add(new class extends TestFileService {
 					override async readFile(resource: URI) {
+						await heldReads.shift();
 						return { ...await super.readFile(resource), value: bytes };
 					}
 				}()));
-				const image: IChatRequestVariableEntry = {
+				return {
 					kind: 'image',
 					id: resource.toString(),
 					name: 'image.png',
@@ -751,50 +762,95 @@ suite('ChatAttachmentsContentPart', () => {
 					isURL: hydrated,
 					references: [{ kind: 'reference', reference: resource }]
 				};
-				const render = () => {
-					const part = disposables.add(instantiationService.createInstance(ChatAttachmentsContentPart, { variables: [image], sessionResource: undefined }));
-					mainWindow.document.body.appendChild(part.domNode!);
-					disposables.add(toDisposable(() => part.domNode?.remove()));
-					return part;
-				};
-				const thumbnail = (part: ChatAttachmentsContentPart) => part.domNode!.querySelector<HTMLImageElement>('img.chat-attached-context-pill-image');
-				const waitForThumbnail = async (part: ChatAttachmentsContentPart) => {
-					const image = thumbnail(part) ?? await new Promise<HTMLImageElement>(resolve => {
-						const observer = new MutationObserver(() => {
-							const image = thumbnail(part);
-							if (image) {
-								observer.disconnect();
-								resolve(image);
-							}
-						});
-						observer.observe(part.domNode!, { childList: true, subtree: true });
-						disposables.add(toDisposable(() => observer.disconnect()));
+			}
+
+			function render(image: IChatRequestVariableEntry): ChatAttachmentsContentPart {
+				const part = disposables.add(instantiationService.createInstance(ChatAttachmentsContentPart, { variables: [image], sessionResource: undefined }));
+				mainWindow.document.body.appendChild(part.domNode!);
+				disposables.add(toDisposable(() => part.domNode?.remove()));
+				return part;
+			}
+
+			function thumbnail(part: ChatAttachmentsContentPart): HTMLImageElement | null {
+				return part.domNode!.querySelector<HTMLImageElement>('img.chat-attached-context-pill-image');
+			}
+
+			async function waitForThumbnail(part: ChatAttachmentsContentPart): Promise<HTMLImageElement> {
+				const image = thumbnail(part) ?? await new Promise<HTMLImageElement>(resolve => {
+					const observer = new MutationObserver(() => {
+						const image = thumbnail(part);
+						if (image) {
+							observer.disconnect();
+							resolve(image);
+						}
 					});
-					await image.decode();
-					return image;
-				};
-
-				const first = render();
-				const url = (await waitForThumbnail(first)).src;
-				// A row that is rendered again disposes its attachments before creating them anew.
-				first.dispose();
-				const second = render();
-				const atOnce = thumbnail(second)?.src;
-				// Let the bytes of the hydrated image load, which renders it once more.
-				await timeout(0);
-				const afterBytesLoaded = thumbnail(second)?.src;
-
-				assert.deepStrictEqual({
-					atOnce: atOnce === url,
-					afterBytesLoaded: afterBytesLoaded === url,
-					width: (await waitForThumbnail(second)).naturalWidth,
-				}, {
-					atOnce: true,
-					afterBytesLoaded: true,
-					width: 16,
+					observer.observe(part.domNode!, { childList: true, subtree: true });
+					disposables.add(toDisposable(() => observer.disconnect()));
 				});
+				await image.decode();
+				return image;
+			}
+
+			for (const hydrated of [false, true]) {
+				test(`should show the thumbnail at once (hydrated=${hydrated})`, async () => {
+					const image = createImage(URI.file(`/test/rendered-again-${hydrated}.png`), 16, 16, hydrated);
+
+					const first = render(image);
+					const url = (await waitForThumbnail(first)).src;
+					// A row that is rendered again disposes its attachments before creating them anew.
+					first.dispose();
+					const second = render(image);
+					const atOnce = thumbnail(second)?.src;
+					// Let the bytes of the hydrated image load, which renders it once more.
+					await timeout(0);
+					const afterBytesLoaded = thumbnail(second)?.src;
+
+					assert.deepStrictEqual({
+						atOnce: atOnce === url,
+						afterBytesLoaded: afterBytesLoaded === url,
+						width: (await waitForThumbnail(second)).naturalWidth,
+					}, {
+						atOnce: true,
+						afterBytesLoaded: true,
+						width: 16,
+					});
+				});
+			}
+
+			test('should copy the image, not the thumbnail shown for it, while its bytes load', async () => {
+				const menus: Parameters<IContextMenuService['showContextMenu']>[0][] = [];
+				instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({
+					showContextMenu: delegate => { menus.push(delegate); }
+				}));
+				const clipboard = new TestClipboardService();
+				instantiationService.stub(IClipboardService, clipboard);
+				instantiationService.stub(IWebWorkerService, new class extends mock<IWebWorkerService>() {
+					override createWorkerClient(): never {
+						throw new Error('No worker in this test');
+					}
+				}());
+				const imageHoverContents = captureImageHovers();
+				// Wider than a thumbnail, which tells a copy of the image from a copy of its thumbnail.
+				const image = createImage(URI.file('/test/copied-while-loading.png'), 1024, 16, true);
+				const first = render(image);
+				await waitForThumbnail(first);
+				first.dispose();
+
+				// The bytes of the image that is rendered again stay pending, unlike those read for its copy.
+				const pendingBytes = new DeferredPromise<void>();
+				disposables.add(toDisposable(() => pendingBytes.complete()));
+				heldReads.push(pendingBytes.p);
+				const second = render(image);
+				const shownWidth = (await waitForThumbnail(second)).naturalWidth;
+				imageHoverContents.at(-1)!.querySelector('img')!.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+				await timeout(0);
+				await menus.at(-1)!.getActions!().find(action => action.id === 'workbench.action.chat.copyImage')!.run();
+				const copied = await createImageBitmap(new Blob([clipboard.writtenImage as Uint8Array<ArrayBuffer>]));
+				disposables.add(toDisposable(() => copied.close()));
+
+				assert.deepStrictEqual({ shownWidth, copiedWidth: copied.width }, { shownWidth: 768, copiedWidth: 1024 });
 			});
-		}
+		});
 
 		suite('hydrated image attachments', () => {
 			async function renderImageAndCollectReads(image: IChatRequestVariableEntry): Promise<string[]> {
