@@ -208,7 +208,7 @@ suite('Saved session draft lifecycle', () => {
 			if (enabled) {
 				composer.updateInput({ inputText: 'Unrelated input', attachments: [] });
 			}
-			await service.preview({ inputText: 'Scheduled input', attachments: [] }, {}, { request: constObservable(undefined), save: async () => { }, reschedule: async () => { } });
+			await service.preview({ inputText: 'Scheduled input', attachments: [] }, {}, { request: constObservable(undefined), save: async () => { }, sendNow: async () => { }, reschedule: async () => { } });
 			const duringPreview = {
 				text: composer.input.inputText,
 				scheduled: !!composer.preview.get(),
@@ -234,7 +234,7 @@ suite('Saved session draft lifecycle', () => {
 		const composer = service.createComposer();
 		disposables.add(service.registerComposer(composer, async draft => composer.updateInput(draft.input), () => { }));
 		const draft = service.save({ inputText: 'Editable input', attachments: [] }, {});
-		await service.preview({ inputText: 'Scheduled input', attachments: [] }, {}, { request: constObservable(undefined), save: async () => { }, reschedule: async () => { } });
+		await service.preview({ inputText: 'Scheduled input', attachments: [] }, {}, { request: constObservable(undefined), save: async () => { }, sendNow: async () => { }, reschedule: async () => { } });
 		await service.open(draft.id);
 		assert.deepStrictEqual({ preview: composer.preview.get(), input: composer.input.inputText }, { preview: undefined, input: 'Editable input' });
 	});
@@ -244,21 +244,21 @@ suite('Saved session draft lifecycle', () => {
 		const composer = service.createComposer();
 		disposables.add(service.registerComposer(composer, async () => assert.fail('Must not restore over input'), () => { }));
 		composer.updateInput({ inputText: 'Unrelated input', attachments: [] });
-		await assert.rejects(() => service.preview({ inputText: 'Scheduled input', attachments: [] }, {}, { request: constObservable(undefined), save: async () => { }, reschedule: async () => { } }), /empty New Session/);
+		await assert.rejects(() => service.preview({ inputText: 'Scheduled input', attachments: [] }, {}, { request: constObservable(undefined), save: async () => { }, sendNow: async () => { }, reschedule: async () => { } }), /empty New Session/);
 	});
 
 	test('scheduled draft changes track input and execution settings until saved', async () => {
 		const { service } = create();
 		const composer = service.createComposer();
 		disposables.add(service.registerComposer(composer, async draft => composer.updateInput(draft.input), () => { }));
-		await service.preview({ inputText: 'Scheduled input', attachments: [] }, {}, { request: constObservable(undefined), save: async () => { }, reschedule: async () => { } });
+		await service.preview({ inputText: 'Scheduled input', attachments: [] }, {}, { request: constObservable(undefined), save: async () => { }, sendNow: async () => { }, reschedule: async () => { } });
 		const states = [composer.hasScheduledChanges.get()];
 		composer.updateInput({ inputText: 'Scheduled input', attachments: [], references: [] });
 		states.push(composer.hasScheduledChanges.get());
 		composer.updateInput({ inputText: 'Edited input', attachments: [] });
 		states.push(composer.hasScheduledChanges.get());
 		assert.throws(() => service.stowAndClear(composer), /save your changes before replacing/);
-		await assert.rejects(() => service.preview({ inputText: 'Another request', attachments: [] }, {}, { request: constObservable(undefined), save: async () => { }, reschedule: async () => { } }), /save your changes before replacing/);
+		await assert.rejects(() => service.preview({ inputText: 'Another request', attachments: [] }, {}, { request: constObservable(undefined), save: async () => { }, sendNow: async () => { }, reschedule: async () => { } }), /save your changes before replacing/);
 		composer.markScheduledSaved();
 		states.push(composer.hasScheduledChanges.get());
 		composer.updateTarget({ modelId: 'another-model' });

@@ -47,7 +47,8 @@ export const ISessionDraftsService = createDecorator<ISessionDraftsService>('ses
 export interface IScheduledSessionDraft {
 	readonly request: IObservable<IChatScheduledRequest | undefined>;
 	save(input: IChatDraft, target: ISavedSessionDraftTarget, session: ISession): Promise<void>;
-	reschedule(anchor?: HTMLElement): Promise<void>;
+	sendNow(): Promise<void>;
+	reschedule(anchor?: HTMLElement, onSendNow?: () => Promise<void>): Promise<void>;
 }
 
 export interface ISessionDraftsService {

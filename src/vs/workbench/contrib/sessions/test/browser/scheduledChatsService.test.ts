@@ -32,7 +32,7 @@ import { IChatModel, IChatModelInputState } from '../../../chat/common/model/cha
 import { MockChatModel } from '../../../chat/test/common/model/mockChatModel.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../chat/common/automations/automation.js';
-import { AutomationMutationGuard, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../chat/common/automations/automationService.js';
+import { AutomationMutationGuard, IAutomationRunRequestResult, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../chat/common/automations/automationsEnabled.js';
 import { IScheduledChatRequestOptions, ScheduledChatsService } from '../../browser/scheduledChatsService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
@@ -79,6 +79,10 @@ suite('Scheduled chat handoffs', () => {
 		let occupied = false;
 		let picks = 0;
 		let customTime = false;
+		let sendNow = false;
+		let runResult: IAutomationRunRequestResult = { kind: 'accepted' };
+		let configuration: Awaited<ReturnType<ISessionsManagementService['getAutomationSessionConfiguration']>> = { sessionTemplate: { modelId: 'chosen-model', config: { permission: 'default' } } };
+		const dispatched: IAutomationDescriptor[] = [];
 		const pickerAnchors: Pick<IPickOptions<IQuickPickItem>, 'anchor' | 'anchorPosition'>[] = [];
 		const automations = observableValue<readonly IAutomationDescriptor[]>('automations', []);
 		const runs = observableValue<readonly IAutomationRun[]>('runs', []);
@@ -135,6 +139,13 @@ suite('Scheduled chat handoffs', () => {
 				}
 				automations.set([], undefined);
 			}
+			override async runAutomation(id: string) {
+				const automation = this.getAutomation(id);
+				assert.ok(automation);
+				calls.push('run');
+				dispatched.push(automation);
+				return runResult;
+			}
 		};
 		const drafts = new class extends mock<ISessionDraftsService>() {
 			override readonly enabled = constObservable(savedDrafts);
@@ -167,7 +178,7 @@ suite('Scheduled chat handoffs', () => {
 				pickerAnchors.push({ anchor: options?.anchor, anchorPosition: options?.anchorPosition });
 				await pickerWait;
 				const choices = (await items).filter((item): item is T => item.type !== 'separator');
-				const item = customTime ? choices.at(-1) : choices[0];
+				const item = sendNow ? choices.find(item => item.label === 'Send Now') : customTime ? choices.at(-1) : choices.find(item => item.label === 'In 5 Minutes');
 				return options?.canPickMany ? item && [item] : item;
 			}
 			override createQuickWidget(): IQuickWidget {
@@ -194,7 +205,7 @@ suite('Scheduled chat handoffs', () => {
 			new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = sessionsChanged.event;
 				override getSession(resource: URI) { return sessions.get(resource.toString()); }
-				override async getAutomationSessionConfiguration() { return { sessionTemplate: { modelId: 'chosen-model', config: { permission: 'default' } } }; }
+				override async getAutomationSessionConfiguration() { return configuration; }
 			}, drafts,
 			new class extends mock<IChatEntitlementService>() {
 				override readonly sentiment = {};
@@ -236,7 +247,7 @@ suite('Scheduled chat handoffs', () => {
 				}
 			}));
 		return {
-			service, storage, config, calls, openedDrafts, previewInputs, loadedChats, openedChats, recoveredInputs, requests, automations, runs, sessions, sessionsChanged, memberships, pickerAnchors,
+			service, storage, config, calls, openedDrafts, previewInputs, loadedChats, openedChats, recoveredInputs, requests, automations, runs, sessions, sessionsChanged, memberships, pickerAnchors, dispatched,
 			get preview(): IObservable<IChatScheduledRequest | undefined> {
 				assert.ok(preview);
 				return preview;
@@ -246,6 +257,9 @@ suite('Scheduled chat handoffs', () => {
 				return scheduledDraft;
 			},
 			set customTime(value: boolean) { customTime = value; },
+			set sendNow(value: boolean) { sendNow = value; },
+			set runResult(value: IAutomationRunRequestResult) { runResult = value; },
+			set configuration(value: typeof configuration) { configuration = value; },
 			get picks() { return picks; },
 			set failCreate(value: boolean) { failCreate = value; },
 			set failDelete(value: boolean) { failDelete = value; },
@@ -838,6 +852,66 @@ suite('Scheduled chat handoffs', () => {
 			text: 'Edited in New Session', runAt, enabled: true, target: changedTarget.folderUri.toString(),
 			template: { modelId: 'chosen-model', config: { permission: 'default' } }, unchangedAfterConflict: true,
 		});
+	});
+
+	test('Send Now from the New Session picker dispatches the edited request using the original automation', async () => {
+		const fixture = create();
+		await fixture.service.schedule(input, target, session, 'composition');
+		await fixture.service.items.get()[0].open();
+		const original = fixture.automations.get()[0];
+		const anchor = $('div');
+		const edited: IChatDraft = {
+			inputText: 'Send the edited request',
+			attachments: [{ kind: 'file', id: 'notes', name: 'notes.txt', value: URI.file('/workspace/notes.txt') }],
+		};
+		const changedTarget = { ...target, folderUri: URI.file('/different-workspace') };
+		fixture.configuration = { sessionTemplate: { modelId: 'updated-model', config: { permission: 'autopilot' } } };
+		fixture.sendNow = true;
+		await fixture.scheduledDraft.reschedule(anchor, async () => {
+			await fixture.scheduledDraft.save(edited, changedTarget, session);
+			await fixture.scheduledDraft.sendNow();
+		});
+		assert.deepStrictEqual({
+			calls: fixture.calls,
+			requestsCreated: fixture.requests.length,
+			dispatched: fixture.dispatched.map(automation => ({
+				id: automation.id, runAt: automation.schedule.runAt, text: automation.request?.text,
+				attachments: automation.request?.attachments,
+				target: automation.target.kind === 'workspace' ? automation.target.folderUri.toString() : undefined,
+				template: automation.sessionTemplate,
+			})),
+			anchored: fixture.pickerAnchors.at(-1)?.anchor === anchor,
+		}, {
+			calls: ['update', 'run'], requestsCreated: 1,
+			dispatched: [{
+				id: original.id, runAt: original.schedule.runAt, text: edited.inputText,
+				attachments: [{ type: 'resource', label: 'notes.txt', uri: 'file:///workspace/notes.txt', displayKind: 'document' }],
+				target: changedTarget.folderUri.toString(),
+				template: { modelId: 'updated-model', config: { permission: 'autopilot' } },
+			}],
+			anchored: true,
+		});
+	});
+
+	test('Send Now propagates a host failure before a new session starts', async () => {
+		const fixture = create();
+		await fixture.service.schedule(input, target, session, 'composition');
+		await fixture.service.items.get()[0].open();
+		fixture.runResult = {
+			kind: 'dispatched',
+			run: upcastPartial<IAutomationRun>({ status: 'failed', errorMessage: 'Session creation failed' }),
+			whenCompleted: Promise.resolve(),
+		};
+		await assert.rejects(() => fixture.scheduledDraft.sendNow(), /Session creation failed/);
+	});
+
+	test('Send Now respects feature disablement after opening a draft', async () => {
+		const fixture = create();
+		await fixture.service.schedule(input, target, session, 'composition');
+		await fixture.service.items.get()[0].open();
+		await fixture.config.setUserConfiguration(SESSIONS_SEND_LATER_ENABLED_SETTING, false);
+		await assert.rejects(() => fixture.scheduledDraft.sendNow(), /disabled/);
+		assert.deepStrictEqual(fixture.dispatched, []);
 	});
 
 	test('with saved drafts disabled an occupied composer leaves cancelled content recoverable', async () => {

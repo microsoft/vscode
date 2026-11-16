@@ -1484,7 +1484,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			folderUri: workspace.folders[0].root,
 			providerId: provider.id,
 			sessionTypeId: activeSession!.sessionType,
-		}, { request, save: async () => { }, reschedule: async () => { } });
+		}, { request, save: async () => { }, sendNow: async () => { }, reschedule: async () => { } });
 		await waitForFixtureDomCondition(view.element, () => {
 			const line = view.element.querySelector('.view-line');
 			return !!line?.textContent?.includes('Review') && line.getBoundingClientRect().height > 0;

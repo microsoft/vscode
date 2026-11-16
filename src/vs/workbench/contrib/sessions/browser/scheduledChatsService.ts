@@ -9,6 +9,7 @@ import { toAction } from '../../../../base/common/actions.js';
 import { SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { parse, stringify } from '../../../../base/common/marshalling.js';
 import { equals, stableStringify } from '../../../../base/common/objects.js';
@@ -669,8 +670,8 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		return automation;
 	}
 
-	private async pickTime(anchor?: HTMLElement): Promise<Date | undefined> {
-		return pickScheduledChatTime(this.quickInputService, anchor);
+	private async pickTime(anchor?: HTMLElement, onSendNow?: () => Promise<void>): Promise<Date | undefined> {
+		return pickScheduledChatTime(this.quickInputService, anchor, onSendNow);
 	}
 
 	private async preview(automation: IAutomationDescriptor): Promise<void> {
@@ -686,8 +687,9 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			save: async (input, target, session) => {
 				automation = await this.saveEditedRequest(automation, { text: input.inputText, input, runAt: automation.schedule.runAt ?? '' }, { target, session });
 			},
-			reschedule: async anchor => {
-				automation = await this.reschedule(automation, anchor) ?? automation;
+			sendNow: () => this.sendNow(automation),
+			reschedule: async (anchor, onSendNow) => {
+				automation = await this.reschedule(automation, anchor, onSendNow) ?? automation;
 			},
 		});
 	}
@@ -695,13 +697,19 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 	private async sendNow(automation: IAutomationDescriptor): Promise<void> {
 		this.assertEnabled();
 		this.assertWritable(automation);
-		await this.automationService.runAutomation(automation.id);
+		const result = await this.automationService.runAutomation(automation.id);
+		if (result.kind === 'dispatched') {
+			void result.whenCompleted.catch(onUnexpectedError);
+		}
+		if (result.kind !== 'accepted' && !result.run.sessionResource && !(automation.conversation && result.run.status === 'completed')) {
+			throw new Error(result.run.errorMessage ?? localize('scheduledChat.sendNotConfirmed', "The request has not started a session. Your input has been kept. Check the scheduled request in Automations before trying again."));
+		}
 	}
 
-	private async reschedule(automation: IAutomationDescriptor, anchor?: HTMLElement): Promise<IAutomationDescriptor | undefined> {
+	private async reschedule(automation: IAutomationDescriptor, anchor?: HTMLElement, onSendNow?: () => Promise<void>): Promise<IAutomationDescriptor | undefined> {
 		this.assertEnabled();
 		this.assertWritable(automation);
-		const date = await this.pickTime(anchor);
+		const date = await this.pickTime(anchor, onSendNow);
 		if (!date) {
 			return;
 		}

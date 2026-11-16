@@ -624,6 +624,29 @@ suite('NewChatWidget', () => {
 	});
 
 	suite('scheduled draft submit', () => {
+		test('dispatch keeps the scheduled label until the composer clears', () => {
+			const store = disposables.add(new DisposableStore());
+			const request = observableValue<{ runAt: string } | undefined>('request', { runAt: new Date(Date.now() + 3_600_000).toISOString() });
+			const preview = observableValue<{ request: typeof request } | undefined>('preview', { request });
+			const harness = {
+				_savedDraftComposer: { preview },
+				_savingScheduledDraft: observableValue('saving', false),
+				_scheduledDraftLabel: observableValue<string | undefined>('label', undefined),
+				_register: <T extends IDisposable>(value: T): T => store.add(value),
+			};
+			const track = Reflect.get(NewChatWidget.prototype, '_trackScheduledDraftLabel') as (this: typeof harness, parent: HTMLElement) => void;
+			track.call(harness, $('div'));
+			const original = harness._scheduledDraftLabel.get();
+			const labels: (string | undefined)[] = [];
+			store.add(autorun(reader => { labels.push(harness._scheduledDraftLabel.read(reader)); }));
+			harness._savingScheduledDraft.set(true, undefined);
+			request.set(undefined, undefined);
+			preview.set(undefined, undefined);
+			harness._savingScheduledDraft.set(false, undefined);
+			assert.deepStrictEqual(labels, [original, undefined]);
+			store.clear();
+		});
+
 		test('the text-only control keeps its label and suppresses the icon in split and disabled states', () => {
 			const workbench = append(mainWindow.document.body, $('.monaco-workbench'));
 			disposables.add(toDisposable(() => workbench.remove()));
@@ -662,7 +685,7 @@ suite('NewChatWidget', () => {
 			});
 		});
 
-		function createHarness(changed: boolean, fail = false) {
+		function createHarness(changed: boolean, fail = false, sendNow = false, failSend = false) {
 			let input: IChatDraft = { inputText: 'Scheduled request', attachments: [] };
 			const events: string[] = [];
 			const scheduled = {
@@ -673,7 +696,18 @@ suite('NewChatWidget', () => {
 						throw new Error('Schedule changed');
 					}
 				},
-				reschedule: async () => { events.push('picker'); },
+				sendNow: async () => {
+					events.push('send');
+					if (failSend) {
+						throw new Error('Send failed');
+					}
+				},
+				reschedule: async (_anchor?: HTMLElement, onSendNow?: () => Promise<void>) => {
+					events.push('picker');
+					if (sendNow) {
+						await onSendNow!();
+					}
+				},
 			};
 			const composer = {
 				preview: constObservable(scheduled),
@@ -729,6 +763,32 @@ suite('NewChatWidget', () => {
 			await assert.rejects(() => fixture.submit(), /Schedule changed/);
 			assert.deepStrictEqual({ events: fixture.events, input: fixture.input() }, {
 				events: ['disabled', 'save', 'enabled', 'focus'], input: 'Scheduled request',
+			});
+		});
+
+		for (const changed of [false, true]) {
+			test(`Send Now saves before dispatch and clears only after acceptance (edited: ${changed})`, async () => {
+				const fixture = createHarness(changed, false, true);
+				await fixture.submit(true);
+				assert.deepStrictEqual({ events: fixture.events, input: fixture.input() }, {
+					events: ['disabled', 'picker', 'save', 'saved', 'send', 'clear', 'enabled', 'focus'], input: '',
+				});
+			});
+		}
+
+		test('Send Now does not dispatch when saving fails', async () => {
+			const fixture = createHarness(true, true, true);
+			await assert.rejects(() => fixture.submit(true), /Schedule changed/);
+			assert.deepStrictEqual({ events: fixture.events, input: fixture.input() }, {
+				events: ['disabled', 'picker', 'save', 'enabled', 'focus'], input: 'Scheduled request',
+			});
+		});
+
+		test('Send Now keeps the editable input when dispatch fails', async () => {
+			const fixture = createHarness(true, false, true, true);
+			await assert.rejects(() => fixture.submit(true), /Send failed/);
+			assert.deepStrictEqual({ events: fixture.events, input: fixture.input() }, {
+				events: ['disabled', 'picker', 'save', 'saved', 'send', 'enabled', 'focus'], input: 'Scheduled request',
 			});
 		});
 	});

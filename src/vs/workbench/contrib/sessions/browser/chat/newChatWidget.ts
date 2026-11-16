@@ -1334,7 +1334,7 @@ export class NewChatWidget extends Disposable {
 			const item = source?.request.read(reader);
 			if (item?.runAt) {
 				reader.store.add(renderScheduledRequestTime(item.runAt, parent, label => this._scheduledDraftLabel.set(label, undefined), true));
-			} else {
+			} else if (!source || !this._savingScheduledDraft.read(reader)) {
 				this._scheduledDraftLabel.set(source ? item?.description ?? localize('scheduledDraft.finished', "No Longer Scheduled") : undefined, undefined);
 			}
 		}));
@@ -1360,16 +1360,22 @@ export class NewChatWidget extends Disposable {
 		composer.isScheduling = true;
 		this._newChatInput.setInputEnabled(false);
 		try {
-			if (!reschedule) {
+			const save = async (sendNow: boolean) => {
 				this._captureSavedDraftTarget();
 				const input = this._newChatInput.getDraft();
 				const target = composer.target;
 				await scheduled.save(input, target, session);
 				composer.markScheduledSaved(input, target);
+				if (sendNow) {
+					await scheduled.sendNow();
+				}
 				composer.isScheduling = false;
 				this.sessionDraftsService.stowAndClear(composer);
+			};
+			if (reschedule) {
+				await scheduled.reschedule(anchor, () => save(true));
 			} else {
-				await scheduled.reschedule(anchor);
+				await save(false);
 			}
 			return true;
 		} finally {
