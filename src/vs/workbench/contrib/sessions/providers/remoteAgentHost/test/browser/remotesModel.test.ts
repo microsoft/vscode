@@ -14,6 +14,8 @@ import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/virtualScheduling/index.js';
 import { cloudSandboxAddress } from '../../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { withAgentHostResources } from '../../../../../../../platform/agentHost/common/meta/agentHostResources.js';
+import { RootState } from '../../../../../../../platform/agentHost/common/state/sessionState.js';
 import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost, IRemoteGitHubEnvironmentShare, IRemoteGitHubEnvironmentSharingService } from '../../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { addSSHRemoteAgentHostEntry, IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService, SSHHostReachability } from '../../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
@@ -84,6 +86,7 @@ suite('RemotesModel', () => {
 		const renameInputs: IInputOptions[] = [];
 		let renameInput: string | undefined;
 		const environmentHosts = observableValue<readonly IMissionControlHost[]>(store, []);
+		const ownEnvironmentId = observableValue<string | undefined>(store, undefined);
 		const environmentAvailable = observableValue<boolean | undefined>(store, false);
 		const environmentState = {
 			account: 'account-one' as string | undefined,
@@ -180,6 +183,7 @@ suite('RemotesModel', () => {
 		instantiationService.stub(IMissionControlAvailabilityService, { available: environmentAvailable });
 		instantiationService.stub(IMissionControlEnvironmentService, {
 			hosts: environmentHosts,
+			ownEnvironmentId,
 			get enabled() {
 				return environmentAvailable.get() === true && configuration.getValue<boolean>(GitHubEnvironmentsEnabledSettingId) === true;
 			},
@@ -287,6 +291,8 @@ suite('RemotesModel', () => {
 			readonly sessions: ISession[] = [];
 			sessionReads = 0;
 			override readonly sessionListVersion = observableValue(this, 0);
+			readonly root = observableValue<RootState | undefined>(this, undefined);
+			override getRootState(): RootState | undefined { return this.root.get(); }
 			override readonly onDidChangeSessions = Event.None;
 			override getSessions(): ISession[] { this.sessionReads++; return this.sessions; }
 			override readonly id = `agenthost-${address}`;
@@ -362,7 +368,7 @@ suite('RemotesModel', () => {
 			setSSHReachability: (check: (host: string) => Promise<SSHHostReachability>) => { sshReachability = check; },
 			setTunnelDiscovery: (discovery: () => Promise<ITunnelInfo[]>) => { tunnelDiscovery = discovery; },
 			setTunnelAuthentication: (authentication: () => Promise<'github' | 'microsoft' | undefined>) => { tunnelAuthentication = authentication; },
-			environmentHosts, environmentAvailable, environmentState, environmentConnections, environmentNames, environmentDeletions, confirmations, sharing,
+			environmentHosts, ownEnvironmentId, environmentAvailable, environmentState, environmentConnections, environmentNames, environmentDeletions, confirmations, sharing,
 			setConfiguration: async (key: string, value: boolean) => {
 				await configuration.setUserConfiguration(key, value);
 				configuration.onDidChangeConfigurationEmitter.fire({
@@ -425,6 +431,86 @@ suite('RemotesModel', () => {
 		updatedAt.set(new Date(400_000), undefined);
 		assert.deepStrictEqual({ pending, observed, latest, cached: model.remotes.get().find(remote => remote.id === 'ssh:build')!.metadata?.lastActivityAt }, {
 			pending: undefined, observed: 200_000, latest: 300_000, cached: 300_000,
+		});
+	});
+
+	test('reads host-reported system resources for every connection method and retains them as last known after disconnect', async () => {
+		const { model, providers, environmentAvailable, environmentHosts, setConfiguration, addEnvironmentProvider, connectionChanges } = setup();
+		environmentAvailable.set(true, undefined);
+		await setConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentHosts.set([{ id: 'personal', name: 'Personal', kind: 'user-local', status: 'online' }], undefined);
+		addEnvironmentProvider('personal');
+		await model.refresh(CancellationToken.None);
+		const samples = [];
+		for (const [address, provider] of providers) {
+			provider.root.set({ agents: [], _meta: withAgentHostResources(undefined, { platform: 'linux', architecture: 'arm64', cpuCount: 8, memoryBytes: 16 * 1024 ** 3 }) }, undefined);
+			provider.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+			const live = model.remotes.get().find(remote => remote.id === address)!;
+			provider.connectionStatus.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
+			const cached = model.remotes.get().find(remote => remote.id === address)!;
+			samples.push({
+				kind: live.kind,
+				resources: [live.metadata?.operatingSystem, live.metadata?.architecture, live.metadata?.cpuCount, live.metadata?.memoryBytes],
+				loadingSessions: live.metadata?.observedSessionCount,
+				liveSystemStale: live.systemMetadataIsStale,
+				retained: cached.metadata?.architecture,
+				cachedSystemStale: cached.systemMetadataIsStale,
+			});
+		}
+		assert.deepStrictEqual({ samples, connectionChanges }, {
+			samples: ['ssh', 'wsl', 'tunnel', 'environment'].map(kind => ({
+				kind, resources: [OperatingSystem.Linux, 'arm64', 8, 16 * 1024 ** 3],
+				loadingSessions: undefined, liveSystemStale: false, retained: 'arm64', cachedSystemStale: true,
+			})),
+			connectionChanges: [],
+		});
+	});
+
+	test('shows resolved SSH identity without connecting or changing the alias used to connect', async () => {
+		const { model, connectionChanges } = setup();
+		await model.refresh(CancellationToken.None);
+		const remote = model.remotes.get().find(remote => remote.id === 'ssh:build')!;
+		assert.deepStrictEqual({ name: remote.name, detail: remote.detail, id: remote.id, connectionChanges }, {
+			name: 'build', detail: 'developer@build.example', id: 'ssh:build', connectionChanges: [],
+		});
+	});
+
+	test('distinguishes ambiguous names without exposing IDs, merging hosts or renumbering on availability changes', async () => {
+		const { model, environmentAvailable, environmentHosts, setConfiguration } = setup();
+		environmentAvailable.set(true, undefined);
+		await setConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentHosts.set(['one', 'two', 'three'].map(id => ({ id, name: 'Workstation', kind: 'user-local', status: 'offline' })), undefined);
+		const before = model.remotes.get().filter(remote => remote.kind === 'environment').map(remote => [remote.id, remote.name]);
+		environmentHosts.set([...environmentHosts.get()].reverse().map(host => ({ ...host, status: 'online' })), undefined);
+		const after = model.remotes.get().filter(remote => remote.kind === 'environment').map(remote => [remote.id, remote.name]);
+		assert.deepStrictEqual({ before, after }, {
+			before: [['cloudsandbox:one', 'Workstation'], ['cloudsandbox:three', 'Workstation (2)'], ['cloudsandbox:two', 'Workstation (3)']],
+			after: before,
+		});
+	});
+
+	test('excludes this computer by registration identity even without a connected local provider, not by its name', async () => {
+		const { model, ownEnvironmentId, environmentAvailable, environmentHosts, setConfiguration } = setup();
+		environmentAvailable.set(true, undefined);
+		await setConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentHosts.set(['own', 'other'].map(id => ({ id, name: 'Workstation', kind: 'user-local', status: 'offline' })), undefined);
+		ownEnvironmentId.set('own', undefined);
+		assert.deepStrictEqual(model.remotes.get().filter(remote => remote.kind === 'environment').map(remote => [remote.id, remote.name]), [
+			['cloudsandbox:other', 'Workstation'],
+		]);
+	});
+
+	test('same-named connection methods get meaningful route names and keep their original connection targets', async () => {
+		const { model, environmentAvailable, environmentHosts, setConfiguration, connectionChanges } = setup();
+		environmentAvailable.set(true, undefined);
+		await setConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentHosts.set([{ id: 'remote', name: 'build', kind: 'user-local', status: 'online' }], undefined);
+		await model.refresh(CancellationToken.None);
+		assert.deepStrictEqual({
+			hosts: model.remotes.get().filter(remote => remote.name.startsWith('build')).map(remote => [remote.id, remote.name]),
+			connectionChanges,
+		}, {
+			hosts: [['ssh:build', 'build (SSH)'], ['cloudsandbox:remote', 'build (GitHub Environment)']], connectionChanges: [],
 		});
 	});
 
@@ -951,6 +1037,31 @@ suite('RemotesModel', () => {
 			initial: 'pending', checking: 'pending', reachable: 'online', rechecking: 'online', unreachable: 'offline', failed: 'unknown',
 		});
 	});
+
+	test('last seen online changes only after a fresh positive check, not cached availability or a failed recheck', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { model, setSSHReachability, setConfiguration } = setup();
+		setSSHReachability(async () => 'reachable');
+		await model.refresh(CancellationToken.None);
+		const onlineAt = () => model.remotes.get().find(remote => remote.id === 'ssh:build')?.metadata?.lastOnlineAt;
+		const first = Date.now();
+		const observations = [onlineAt()];
+		await timeout(60001);
+		await setConfiguration(RemoteAgentHostsEnabledSettingId, true);
+		observations.push(onlineAt());
+		const probe = new DeferredPromise<SSHHostReachability>();
+		setSSHReachability(() => probe.p);
+		const refresh = model.refresh(CancellationToken.None);
+		await timeout(0);
+		observations.push(onlineAt());
+		await probe.complete('unreachable');
+		await refresh;
+		observations.push(onlineAt());
+		await timeout(60001);
+		setSSHReachability(async () => 'reachable');
+		await model.refresh(CancellationToken.None);
+		observations.push(onlineAt());
+		assert.deepStrictEqual(observations, [first, first, first, first, Date.now()]);
+	}));
 
 	test('SSH discovery failure invalidates its previous reachability result without removing the row', async () => {
 		const { model, setSSHDiscovery, setSSHReachability } = setup();

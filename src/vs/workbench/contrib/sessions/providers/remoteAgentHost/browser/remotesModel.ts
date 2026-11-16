@@ -13,9 +13,10 @@ import { isWindows, OperatingSystem } from '../../../../../../base/common/platfo
 import { isObject } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import { cloudSandboxAddress } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { readAgentHostResources } from '../../../../../../platform/agentHost/common/meta/agentHostResources.js';
 import { IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost, IRemoteGitHubEnvironmentShare, IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { addSSHRemoteAgentHostEntry, getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, IRemoteAgentHostSSHConnection, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { computeSSHConnectionKey, ISSHRemoteAgentHostService, SSHHostReachability } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { computeSSHConnectionKey, ISSHRemoteAgentHostService, ISSHResolvedConfig, SSHHostReachability } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { isTunnelHosted, ITunnelAgentHostService, ITunnelInfo, TUNNEL_ADDRESS_PREFIX, TUNNEL_MIN_PROTOCOL_VERSION, TunnelAuthenticationRequiredError } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLRemoteAgentHostService, WSL_ADDRESS_PREFIX } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreference } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
@@ -41,6 +42,9 @@ const metadataKeyPrefix = 'remoteAgentHost.lastKnownMetadata.';
 
 export interface IRemoteMetadata {
 	readonly operatingSystem?: OperatingSystem;
+	readonly architecture?: string;
+	readonly cpuCount?: number;
+	readonly memoryBytes?: number;
 	readonly activeSessionCount?: number;
 	/** Total non-draft sessions in the last reconciled session list. */
 	readonly observedSessionCount?: number;
@@ -92,6 +96,9 @@ export interface ICustomizationRemote {
 	readonly pickerUnavailableReason?: string;
 	readonly metadata?: IRemoteMetadata;
 	readonly metadataIsStale?: boolean;
+	readonly systemMetadataIsStale?: boolean;
+	readonly lastHeartbeatAt?: number;
+	readonly reportedSessionCount?: number;
 	/** Whether this remote's agent host can be shared as a GitHub environment now. */
 	readonly canShareAsGitHubEnvironment?: boolean;
 	/** Present while this remote's agent host is, or is being, shared as a GitHub environment. */
@@ -161,6 +168,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 	private sshConfigAddresses: ReadonlySet<string> | undefined;
 	private sshDiscoveryVersion = 0;
 	private readonly observedConnections = new Map<string, boolean>();
+	private readonly onlineObservations = new Map<string, number>();
 	/** Kinds whose live check is running. */
 	private readonly checkingKinds = new Set<RemoteKind>();
 	/** Kinds whose live check finished at least once in this window, successfully or not. */
@@ -281,6 +289,10 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					}
 					for (const target of targets) {
 						this.targets.set(this.getId(target), target);
+						if (target.kind === 'wsl' && target.running
+							|| target.kind === 'tunnel' && target.tunnel.hostConnectionCount !== undefined && target.tunnel.hostConnectionCount > 0) {
+							this.recordOnlineObservation(target);
+						}
 					}
 					if (kind === 'ssh') {
 						this.sshConfigAddresses = new Set(targets.map(target => this.getId(target)));
@@ -298,6 +310,13 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					}
 					if (kind === 'environment') {
 						this.environmentsVerifiedAccount = this.environmentService.accountKey;
+						if (this.environmentService.enabled && this.environmentsVerifiedAccount !== undefined) {
+							for (const host of this.environmentService.hosts.get()) {
+								if (host.kind === 'user-local' && host.status === 'online') {
+									this.recordOnlineObservation({ kind: 'environment', host, account: this.environmentsVerifiedAccount });
+								}
+							}
+						}
 					}
 					this.checkedKinds.add(kind);
 					this.update();
@@ -337,10 +356,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			return undefined;
 		};
 		const errors = await Promise.all([
-			discover('ssh', async () => (await this.sshService.listSSHConfigHosts()).map(host => ({
-				kind: 'ssh',
-				entry: { name: host, connection: { type: RemoteAgentHostEntryType.SSH, address: `ssh:${host}`, hostName: host, sshConfigHost: host } },
-			})), () => this.checkSSHReachability(token)),
+			discover('ssh', () => this.discoverSSHHosts(token), () => this.checkSSHReachability(token)),
 			discover('wsl', async () => isWindows ? (await this.wslService.listDistros()).map(distro => ({ kind: 'wsl', distro: distro.name, name: distro.name, running: distro.isRunning })) : []),
 			discover('tunnel', async () => {
 				const authProvider = await this.tunnelService.getAuthProvider({ silent: true });
@@ -355,6 +371,36 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			}),
 		]);
 		return errors.filter((error): error is RemoteKind => error !== undefined);
+	}
+
+	private async discoverSSHHosts(token: CancellationToken): Promise<RemoteTarget[]> {
+		const hosts = [...new Set(await this.sshService.listSSHConfigHosts())];
+		const limiter = new Limiter<RemoteTarget>(sshReachabilityConcurrency);
+		try {
+			return await Promise.all(hosts.map(host => limiter.queue(async () => {
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				let resolved: ISSHResolvedConfig | undefined;
+				try {
+					resolved = await this.sshService.resolveSSHConfig(host);
+				} catch (error) {
+					if (isCancellationError(error)) {
+						throw error;
+					}
+					this.logService.info(`[Remotes] Could not resolve SSH configuration for ${host}`, error);
+				}
+				return {
+					kind: 'ssh',
+					entry: { name: host, connection: {
+						type: RemoteAgentHostEntryType.SSH, address: `ssh:${host}`, sshConfigHost: host,
+						hostName: resolved?.hostname ?? host, user: resolved?.user, port: resolved?.port,
+					} },
+				};
+			})));
+		} finally {
+			limiter.dispose();
+		}
 	}
 
 	private async checkSSHReachability(token: CancellationToken): Promise<void> {
@@ -385,6 +431,10 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				const result = await this.probeSSHHost(host, port);
 				if (version === this.sshReachabilityVersion && !this._store.isDisposed) {
 					this.sshReachability.set(id, result);
+					const target = this.targets.get(id);
+					if (result === 'reachable' && !token.isCancellationRequested && target) {
+						this.recordOnlineObservation(target);
+					}
 					this.update();
 				}
 			})));
@@ -422,6 +472,11 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			const running = await this.wslService.listRunningDistros();
 			if (version === this.runningDistrosVersion && !this._store.isDisposed) {
 				this.runningDistros = new Set(running);
+				for (const target of this.targets.values()) {
+					if (target.kind === 'wsl' && this.runningDistros.has(target.distro)) {
+						this.recordOnlineObservation(target);
+					}
+				}
 				this.update();
 			}
 		} catch (error) {
@@ -940,6 +995,9 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		const validNumber = (candidate: unknown): candidate is number => typeof candidate === 'number' && Number.isFinite(candidate) && candidate >= 0;
 		if (!value || !validNumber(value.observedAt)
 			|| value.operatingSystem !== undefined && value.operatingSystem !== OperatingSystem.Windows && value.operatingSystem !== OperatingSystem.Macintosh && value.operatingSystem !== OperatingSystem.Linux
+			|| value.architecture !== undefined && (typeof value.architecture !== 'string' || !value.architecture.trim())
+			|| value.cpuCount !== undefined && (!Number.isSafeInteger(value.cpuCount) || typeof value.cpuCount !== 'number' || value.cpuCount <= 0)
+			|| value.memoryBytes !== undefined && (!Number.isSafeInteger(value.memoryBytes) || typeof value.memoryBytes !== 'number' || value.memoryBytes <= 0)
 			|| value.activeSessionCount !== undefined && (!validNumber(value.activeSessionCount) || !Number.isInteger(value.activeSessionCount))
 			|| value.observedSessionCount !== undefined && (!validNumber(value.observedSessionCount) || !Number.isInteger(value.observedSessionCount))
 			|| value.lastConnectedAt !== undefined && !validNumber(value.lastConnectedAt)
@@ -952,6 +1010,9 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		return {
 			observedAt: value.observedAt,
 			operatingSystem: value.operatingSystem,
+			...(value.architecture !== undefined ? { architecture: value.architecture } : {}),
+			...(value.cpuCount !== undefined ? { cpuCount: value.cpuCount } : {}),
+			...(value.memoryBytes !== undefined ? { memoryBytes: value.memoryBytes } : {}),
 			activeSessionCount: value.activeSessionCount,
 			observedSessionCount: value.observedSessionCount,
 			lastConnectedAt: value.lastConnectedAt,
@@ -960,15 +1021,25 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		};
 	}
 
-	private getMetadata(target: RemoteTarget, provider: IAgentHostSessionsProvider | undefined, status: RemoteAgentHostConnectionStatus, availability: RemoteAvailability, reader?: IReader): Pick<ICustomizationRemote, 'metadata' | 'metadataIsStale'> {
-		const key = `${metadataKeyPrefix}${this.getPickerKey(target)}`;
+	private recordOnlineObservation(target: RemoteTarget): void {
+		this.onlineObservations.set(this.getPickerKey(target), Date.now());
+	}
+
+	private getMetadata(target: RemoteTarget, provider: IAgentHostSessionsProvider | undefined, status: RemoteAgentHostConnectionStatus, reader?: IReader): Pick<ICustomizationRemote, 'metadata' | 'metadataIsStale' | 'systemMetadataIsStale'> {
+		const pickerKey = this.getPickerKey(target);
+		const key = `${metadataKeyPrefix}${pickerKey}`;
 		const previous = this.readMetadata(key);
 		const sessionListVersion = provider?.sessionListVersion?.read(reader) ?? 0;
 		const live = RemoteAgentHostConnectionStatus.isConnected(status);
+		const resources = live ? readAgentHostResources(provider?.getRootState()) : undefined;
+		const operatingSystem = resources?.platform === 'windows' ? OperatingSystem.Windows
+			: resources?.platform === 'macos' ? OperatingSystem.Macintosh
+				: resources?.platform === 'linux' || target.kind === 'wsl' ? OperatingSystem.Linux : undefined;
 		const sessions = live && sessionListVersion > 0 ? provider?.getSessions() : undefined;
 		const justConnected = live && this.observedConnections.get(key) === false;
 		this.observedConnections.set(key, live);
 		const now = Date.now();
+		const onlineAt = live ? now : this.onlineObservations.get(pickerKey);
 		let lastActivityAt = previous?.lastActivityAt;
 		for (const session of sessions ?? []) {
 			const updatedAt = session.updatedAt.read(reader).getTime();
@@ -978,26 +1049,34 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		}
 		const next = {
 			// A host's advertised path style does not identify its operating system.
-			operatingSystem: target.kind === 'wsl' ? OperatingSystem.Linux : previous?.operatingSystem,
+			operatingSystem: operatingSystem ?? previous?.operatingSystem,
+			...(resources?.architecture !== undefined || previous?.architecture !== undefined ? { architecture: resources?.architecture ?? previous?.architecture } : {}),
+			...(resources?.cpuCount !== undefined || previous?.cpuCount !== undefined ? { cpuCount: resources?.cpuCount ?? previous?.cpuCount } : {}),
+			...(resources?.memoryBytes !== undefined || previous?.memoryBytes !== undefined ? { memoryBytes: resources?.memoryBytes ?? previous?.memoryBytes } : {}),
 			activeSessionCount: sessions?.filter(session => isActiveSessionStatus(session.status.read(reader))).length ?? previous?.activeSessionCount,
 			observedSessionCount: sessions?.filter(session => session.status.read(reader) !== SessionStatus.Untitled).length ?? previous?.observedSessionCount,
 			lastConnectedAt: justConnected ? now : previous?.lastConnectedAt,
 			lastActivityAt,
-			lastOnlineAt: availability === 'online' && (previous?.lastOnlineAt === undefined || now - previous.lastOnlineAt >= lastOnlineWriteIntervalMs)
-				? now : previous?.lastOnlineAt,
+			lastOnlineAt: onlineAt !== undefined && (previous?.lastOnlineAt === undefined || onlineAt - previous.lastOnlineAt >= lastOnlineWriteIntervalMs)
+				? onlineAt : previous?.lastOnlineAt,
 		};
-		if (next.operatingSystem === undefined && next.activeSessionCount === undefined && next.observedSessionCount === undefined && next.lastConnectedAt === undefined && next.lastActivityAt === undefined && next.lastOnlineAt === undefined) {
+		if (next.operatingSystem === undefined && next.architecture === undefined && next.cpuCount === undefined && next.memoryBytes === undefined && next.activeSessionCount === undefined && next.observedSessionCount === undefined && next.lastConnectedAt === undefined && next.lastActivityAt === undefined && next.lastOnlineAt === undefined) {
 			return {};
 		}
 		let metadata = previous;
 		const observedChanged = !previous || previous.operatingSystem !== next.operatingSystem || previous.activeSessionCount !== next.activeSessionCount || previous.observedSessionCount !== next.observedSessionCount
+			|| previous.architecture !== next.architecture || previous.cpuCount !== next.cpuCount || previous.memoryBytes !== next.memoryBytes
 			|| previous.lastConnectedAt !== next.lastConnectedAt || previous.lastActivityAt !== next.lastActivityAt;
 		if (observedChanged || previous.lastOnlineAt !== next.lastOnlineAt) {
-			// A last-online heartbeat must not make the recorded system details look freshly observed.
+			// A new online observation does not refresh retained system details.
 			metadata = { ...next, observedAt: observedChanged ? now : previous.observedAt };
 			this.storageService.store(key, metadata, StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
-		return { metadata, metadataIsStale: !live || sessionListVersion === 0 };
+		const systemMetadataIsStale = previous?.operatingSystem !== undefined && operatingSystem === undefined
+			|| previous?.architecture !== undefined && resources?.architecture === undefined
+			|| previous?.cpuCount !== undefined && resources?.cpuCount === undefined
+			|| previous?.memoryBytes !== undefined && resources?.memoryBytes === undefined;
+		return { metadata, metadataIsStale: !live || sessionListVersion === 0, systemMetadataIsStale };
 	}
 
 	private update(reader?: IReader): void {
@@ -1010,6 +1089,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		const shares = environmentsEnabled ? this.remoteSharing.shares.read(reader) : new Map<string, IRemoteGitHubEnvironmentShare>();
 		// Remotes this client shares as GitHub environments are already listed under their own kind.
 		const sharedEnvironmentIds = environmentsEnabled ? this.remoteSharing.environmentIds.read(reader) : new Set<string>();
+		const ownEnvironmentId = environmentsEnabled ? this.environmentService.ownEnvironmentId.read(reader) : undefined;
 		for (const [id, target] of this.targets) {
 			if (target.kind === 'environment') {
 				this.targets.delete(id);
@@ -1018,7 +1098,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		const account = this.environmentService.accountKey;
 		if (environmentsEnabled && account) {
 			for (const host of environments) {
-				if (host.kind === 'user-local' && !sharedEnvironmentIds.has(host.id)) {
+				if (host.kind === 'user-local' && host.id !== ownEnvironmentId && !sharedEnvironmentIds.has(host.id)) {
 					const target = { kind: 'environment' as const, host, account };
 					this.targets.set(this.getId(target), target);
 				}
@@ -1046,7 +1126,9 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		for (const target of registered) {
 			const id = this.getId(target);
 			const existing = this.targets.get(id);
-			if (existing?.kind !== 'tunnel' || existing.source !== 'discovered') {
+			if (existing?.kind === 'ssh' && target.kind === 'ssh' && this.sshConfigAddresses?.has(id)) {
+				this.targets.set(id, { ...target, entry: { ...target.entry, connection: existing.entry.connection } });
+			} else if (existing?.kind !== 'tunnel' || existing.source !== 'discovered') {
 				this.targets.set(id, target);
 			}
 			this.registered.add(id);
@@ -1058,7 +1140,8 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			switch (target.kind) {
 				case 'ssh':
 					name = target.entry.name;
-					detail = target.entry.connection.type === RemoteAgentHostEntryType.SSH ? target.entry.connection.hostName : id;
+					detail = target.entry.connection.type === RemoteAgentHostEntryType.SSH
+						? `${target.entry.connection.user ? `${target.entry.connection.user}@` : ''}${target.entry.connection.hostName}${target.entry.connection.port && target.entry.connection.port !== 22 ? `:${target.entry.connection.port}` : ''}` : id;
 					break;
 				case 'wsl':
 					name = target.name;
@@ -1066,7 +1149,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					break;
 				case 'tunnel':
 					name = target.tunnel.name;
-					detail = target.tunnel.tunnelId;
+					detail = `${target.tunnel.tunnelId} (${target.tunnel.clusterId})`;
 					break;
 				case 'environment':
 					name = target.host.displayName ?? target.host.name;
@@ -1095,7 +1178,10 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			const hidden = this.pickerVisibility.isHidden(this.getPickerKey(target), reader);
 			remotes.push({
 				id, kind: target.kind, name, detail, canRemove, ...availability,
-				...this.getMetadata(target, provider, connectionStatus, availability.availability, reader),
+				...(target.kind === 'environment' ? {
+					lastHeartbeatAt: target.host.lastHeartbeatAt, reportedSessionCount: target.host.reportedSessionCount,
+				} : {}),
+				...this.getMetadata(target, provider, connectionStatus, reader),
 				...(target.kind === 'tunnel' ? {
 					canDelete: this.tunnelService.canDeleteTunnels && !!this.remoteTunnelStatus
 						&& !isTunnelHosted(this.remoteTunnelStatus.type === 'connected' ? this.remoteTunnelStatus.info : undefined, target.tunnel),
@@ -1124,9 +1210,38 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				}
 			}
 		}
+		const names = new Map<string, ICustomizationRemote[]>();
+		const reservedNames = new Set(remotes.map(remote => remote.name.toLowerCase()));
+		for (const remote of remotes) {
+			const key = remote.name.trim().toLowerCase();
+			const members = names.get(key) ?? [];
+			members.push(remote);
+			names.set(key, members);
+		}
+		const displayNames = new Map<string, string>();
+		const usedNames = new Set<string>();
+		for (const members of names.values()) {
+			if (members.length < 2) {
+				continue;
+			}
+			const multipleMethods = new Set(members.map(remote => remote.kind)).size > 1;
+			for (const remote of members.sort((a, b) => a.id.localeCompare(b.id))) {
+				const method = remote.kind === 'tunnel' ? localize('remotes.name.tunnel', "Dev Tunnel")
+					: remote.kind === 'environment' ? localize('remotes.name.environment', "GitHub Environment") : remoteKindLabels[remote.kind];
+				const base = multipleMethods ? localize('remotes.name.withMethod', "{0} ({1})", remote.name, method) : remote.name;
+				let name = base;
+				let suffix = 2;
+				while (usedNames.has(name.toLowerCase()) || name !== remote.name && reservedNames.has(name.toLowerCase())) {
+					name = localize('remotes.name.numbered', "{0} ({1})", base, suffix++);
+				}
+				displayNames.set(remote.id, name);
+				usedNames.add(name.toLowerCase());
+			}
+		}
 		transaction(tx => {
 			this._environmentsEnabled.set(environmentsEnabled, tx);
-			this._remotes.set(remotes.sort((a, b) => remoteKinds.indexOf(a.kind) - remoteKinds.indexOf(b.kind) || a.name.localeCompare(b.name)), tx);
+			this._remotes.set(remotes.map(remote => displayNames.has(remote.id) ? { ...remote, name: displayNames.get(remote.id)! } : remote)
+				.sort((a, b) => remoteKinds.indexOf(a.kind) - remoteKinds.indexOf(b.kind) || a.name.localeCompare(b.name)), tx);
 		});
 	}
 }

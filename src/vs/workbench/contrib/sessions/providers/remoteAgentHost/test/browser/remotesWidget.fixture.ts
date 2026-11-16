@@ -26,27 +26,27 @@ import { IEditorService } from '../../../../../../services/editor/common/editorS
 import { IPreferencesService } from '../../../../../../services/preferences/common/preferences.js';
 import { IProgress } from '../../../../../../../platform/progress/common/progress.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../../test/browser/componentFixtures/fixtureUtils.js';
-import { ICustomizationRemote, IRemoteRefreshProgress, IRemotesModel, RemoteKind } from '../../browser/remotesModel.js';
+import { ICustomizationRemote, IRemoteRefreshProgress, IRemotesModel, RemoteKind, remoteKindLabels } from '../../browser/remotesModel.js';
 import { RemotesWidget } from '../../browser/remotesWidget.js';
-import { getRemoteTypeLabel } from '../../browser/remotesTable.js';
 import { confirmTunnelDeletion } from '../../browser/remoteHostOptions.js';
 import { IConnectionDiagnosticsService } from '../../browser/connectionDiagnostics.js';
 import { RemoteEnvironmentDetails } from '../../browser/remoteEnvironmentDetails.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
 import { INewSessionComposerService } from '../../../../browser/newSessionComposerService.js';
+import '../../../../../../browser/media/style.css';
 
 const remotes: ICustomizationRemote[] = [
-	{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', canRemove: true, copyableAddress: 'build', availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.connected },
+	{ id: 'ssh:build', kind: 'ssh', name: 'Build server', detail: 'build.example.com', canRemove: true, copyableAddress: 'build', availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.connected, metadata: { operatingSystem: OperatingSystem.Linux, architecture: 'x64', cpuCount: 8, memoryBytes: 16 * 1024 ** 3, observedSessionCount: 3, observedAt: 0 } },
 	{ id: 'ssh:staging', kind: 'ssh', name: 'Staging', detail: 'staging.example.com', canRemove: true, canDelete: true, hidden: true, availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.disconnected },
 	{ id: 'wsl:Ubuntu', kind: 'wsl', name: 'Ubuntu', detail: 'Ubuntu-24.04', canRemove: true, availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.connecting },
 	{ id: 'wsl:Debian', kind: 'wsl', name: 'Debian', detail: 'Debian', canRemove: false, availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.disconnected, pickerUnavailableReason: 'Connect once to add this remote to the environment picker.' },
 	{ id: 'tunnel:laptop', kind: 'tunnel', name: 'Work laptop', detail: 'work-laptop-europe', canRemove: true, canDelete: true, availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.reconnecting },
 	{ id: 'tunnel:home', kind: 'tunnel', name: 'Home workstation', detail: 'home-workstation', canRemove: true, canDelete: true, availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.incompatible('The remote host needs an update.', ['1'], undefined, 'vscode/upgrade') },
-	{ id: 'environment:desktop', kind: 'environment', name: 'Shared desktop', detail: 'env-desktop', canRemove: true, availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.connected },
+	{ id: 'environment:desktop', kind: 'environment', name: 'Shared desktop', detail: 'env-desktop', canRemove: true, availability: 'online', connectionStatus: RemoteAgentHostConnectionStatus.connected, metadata: { operatingSystem: OperatingSystem.Windows, architecture: 'arm64', observedSessionCount: 0, observedAt: 0 } },
 	{ id: 'environment:laptop', kind: 'environment', name: 'Shared laptop', detail: 'env-laptop', canRemove: true, availability: 'offline', connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'The remote computer is offline. Start sharing it before connecting.', pickerUnavailableReason: 'Available in the environment picker when the remote computer is online.' },
 ];
 
-async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false, options: { readonly height?: number; readonly connectionError?: string; readonly retrying?: boolean; readonly heading?: string; readonly runBehavior?: boolean; readonly troubleshoot?: ICustomizationRemote; readonly filter?: RemoteKind; readonly query?: string; readonly kinds?: readonly RemoteKind[] } = {}): Promise<void> {
+async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false, options: { readonly height?: number; readonly connectionError?: string; readonly retrying?: boolean; readonly heading?: string; readonly runBehavior?: boolean; readonly troubleshoot?: ICustomizationRemote; readonly expandedKind?: RemoteKind; readonly grouping?: 'none' | 'type' | 'status'; readonly query?: string; readonly kinds?: readonly RemoteKind[] } = {}): Promise<void> {
 	container.style.width = `${width}px`;
 	container.style.height = `${options.height ?? 640}px`;
 	container.classList.add('remotes-editor');
@@ -172,22 +172,28 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 	}
 	const widget = disposableStore.add(instantiationService.createInstance(RemotesWidget, content, model, operatingSystem));
 	widget.setHeading(options.heading);
-	if (options.filter) {
-		const label = getRemoteTypeLabel(options.filter);
-		const filter = [...content.querySelectorAll<HTMLElement>('.remotes-type-filter [role="button"]')].find(element => element.getAttribute('aria-label') === label);
-		if (!filter) {
-			throw new Error(`Missing ${options.filter} filter`);
-		}
-		filter.click();
-	}
+	widget.setGrouping(options.grouping ?? (options.expandedKind ? 'type' : 'none'));
 	widget.setSearchQuery(options.query ?? '');
 	widget.setVisible(true);
 	await waitForFixtureCondition(() => refreshing
 		? content.querySelector('.remotes-header-actions .codicon-modifier-spin') !== null
 		: content.querySelector('.remotes-table-container')?.getAttribute('aria-busy') === 'false', 'Remotes refresh should reach its fixture state before capture');
+	if (options.expandedKind) {
+		const label = remoteKindLabels[options.expandedKind];
+		const group = [...content.querySelectorAll<HTMLElement>('.remotes-group-list-row')].find(row => row.querySelector('.remotes-name')?.textContent === label);
+		if (!group) {
+			throw new Error(`Missing ${options.expandedKind} group`);
+		}
+		group.querySelector<HTMLElement>('.remotes-group-chevron')!.click();
+		await waitForFixtureCondition(() => [...content.querySelectorAll('.remotes-group-list-row[aria-expanded="true"] .remotes-name')].some(name => name.textContent === label), 'Connection-method setup should be expanded before capture');
+	}
 	if (pendingSignIn) {
-		content.querySelector<HTMLElement>('[data-empty-action="tunnel.signIn"]')!.click();
-		await waitForFixtureCondition(() => content.querySelector('[data-empty-action="tunnel.signIn"]')?.getAttribute('aria-disabled') === 'true', 'Sign-in should be pending before capture');
+		const signIn = content.querySelector<HTMLElement>('.remotes-empty-signin .monaco-link');
+		if (!signIn) {
+			throw new Error('Missing Dev Tunnel sign-in action');
+		}
+		signIn.click();
+		await waitForFixtureCondition(() => content.querySelector('.remotes-empty-signin .monaco-link')?.getAttribute('aria-disabled') === 'true', 'Sign-in should be pending before capture');
 	}
 	widget.layout();
 }
@@ -222,16 +228,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
 	}),
 	ConnectionError: defineComponentFixture({
 		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => render(context, 1000, OperatingSystem.Linux, false, [], false, undefined, false, { connectionError: 'connect ECONNREFUSED 127.0.0.1:43192' }),
+		render: context => render(context, 1000, OperatingSystem.Linux, false, [], false, undefined, false, { connectionError: 'connect ECONNREFUSED build.example.com:22' }),
 	}),
 	ConnectionRetry: defineComponentFixture({
 		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => render(context, 1000, OperatingSystem.Linux, false, [], false, undefined, false, { connectionError: 'connect ECONNREFUSED 127.0.0.1:43192', retrying: true }),
+		render: context => render(context, 1000, OperatingSystem.Linux, false, [], false, undefined, false, { connectionError: 'connect ECONNREFUSED build.example.com:22', retrying: true }),
 	}),
 	Recovery: defineComponentFixture({
 		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: async context => {
-			await render(context, 900, OS, false, [], false, undefined, false, { connectionError: 'connect ECONNREFUSED 127.0.0.1:43192' });
+			await render(context, 900, OS, false, [], false, undefined, false, { connectionError: 'connect ECONNREFUSED build.example.com:22' });
 			context.container.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-connect-action')!.click();
 			await waitForFixtureCondition(() => context.container.querySelector('.remotes-task-title')?.textContent === 'Troubleshoot connection', 'Recovery should be open before capture');
 		},
@@ -247,7 +253,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
 	RecoveryNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: async context => {
-			await render(context, 360, OS, false, [], false, undefined, false, { height: 500, connectionError: 'connect ECONNREFUSED 127.0.0.1:43192' });
+			await render(context, 360, OS, false, [], false, undefined, false, { height: 500, connectionError: 'connect ECONNREFUSED build.example.com:22' });
 			context.container.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-connect-action')!.click();
 			await waitForFixtureCondition(() => context.container.querySelector('.remotes-task-title')?.textContent === 'Troubleshoot connection', 'Recovery should be open before capture');
 		},
@@ -273,40 +279,43 @@ export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
 	RefreshingTunnels: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, false, [], true, 'tunnel') }),
 	TunnelDiscoveryFailure: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, ['tunnel'], true, 'ssh') }),
 	TunnelSignIn: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, true, ['tunnel'], true, undefined, true) }),
-	TunnelSigningIn: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, true, ['tunnel'], true, undefined, 'pending', { filter: 'tunnel' }) }),
+	TunnelSigningIn: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, true, ['tunnel'], true, undefined, 'pending', { expandedKind: 'tunnel' }) }),
 	TunnelSignInNarrow: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 360, OS, false, ['tunnel'], true, undefined, true) }),
-	FilteredTunnelSignIn: defineComponentFixture({
+	TunnelSetupSignIn: defineComponentFixture({
 		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => render(context, 1000, OS, true, ['tunnel'], true, undefined, true, { heading: 'Other computers', filter: 'tunnel' }),
+		render: context => render(context, 1000, OS, true, ['tunnel'], true, undefined, true, { heading: 'Other environments', expandedKind: 'tunnel' }),
 	}),
-	FilteredTunnelSignInNarrow: defineComponentFixture({
+	TunnelSetupSignInNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => render(context, 360, OS, true, ['tunnel'], true, undefined, true, { heading: 'Other computers', filter: 'tunnel' }),
+		render: context => render(context, 360, OS, true, ['tunnel'], true, undefined, true, { heading: 'Other environments', expandedKind: 'tunnel' }),
 	}),
 	OtherTypesWithoutTunnelSignIn: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => render(context, 1000, OS, false, ['tunnel'], true, undefined, true, { heading: 'Other computers', kinds: ['ssh'] }),
 	}),
-	FilteredSSHEmpty: defineComponentFixture({
+	SSHSetup: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => render(context, 1000, OS, true, [], true, undefined, false, { filter: 'ssh' }),
+		render: context => render(context, 1000, OS, true, [], true, undefined, false, { expandedKind: 'ssh' }),
 	}),
-	FilteredWSLEmpty: defineComponentFixture({
+	WSLSetup: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => render(context, 1000, OperatingSystem.Windows, true, [], true, undefined, false, { filter: 'wsl' }),
+		render: context => render(context, 1000, OperatingSystem.Windows, true, [], true, undefined, false, { expandedKind: 'wsl' }),
 	}),
-	FilteredGitHubEmpty: defineComponentFixture({
+	GitHubSetup: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => render(context, 1000, OS, true, [], true, undefined, false, { filter: 'environment' }),
+		render: context => render(context, 1000, OS, true, [], true, undefined, false, { expandedKind: 'environment' }),
 	}),
 	SearchMiss: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => render(context, 1000, OS, false, ['tunnel'], true, undefined, true, { filter: 'ssh', query: 'missing' }),
+		render: context => render(context, 1000, OS, false, ['tunnel'], true, undefined, true, { query: 'missing' }),
 	}),
+	EnvironmentsWide: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1400, OS, false, [], true) }),
 	EnvironmentsNarrow: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 360, OS, false, [], true) }),
 	EnvironmentsEmpty: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, [], true) }),
 	EnvironmentsWarning: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, ['environment'], true) }),
 	Table: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000) }),
+	TableGroupedByAvailability: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, false, [], true, undefined, false, { grouping: 'status' }) }),
+	TableGroupedByMethod: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, false, [], true, undefined, false, { grouping: 'type' }) }),
 	TableWithHeading: defineComponentFixture({
 		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => render(context, 1000, OS, false, [], true, undefined, false, { heading: 'Other computers' }),

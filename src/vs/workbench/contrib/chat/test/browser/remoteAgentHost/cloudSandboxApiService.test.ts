@@ -3064,6 +3064,7 @@ suite('Mission Control environment discovery', () => {
 			tasks: [], repositories: new Map(),
 			onRequest: url => url.pathname.endsWith('/agents/environments') ? jsonResponse([{
 				id: 'host', kind: 'user-local', name: 'Native host', status: 'online',
+				last_heartbeat_at: '2026-11-13T12:00:00Z', capabilities: { current_sessions: 3 },
 				webpubsub: {
 					url: 'wss://relay.example.test', hub: 'hub', subprotocol: 'json.reliable.webpubsub.azure.v1',
 					access_token: 'must-not-be-cached', groups: { control: 'control', ingest_ack: 'ack', events: 'events', lifecycle: 'lifecycle' },
@@ -3073,7 +3074,7 @@ suite('Mission Control environment discovery', () => {
 		const first = await service.listEnvironments(CancellationToken.None);
 		assert.strictEqual(await service.listEnvironments(CancellationToken.None), first);
 		assert.strictEqual(service.getCachedEnvironments(), first);
-		assert.deepStrictEqual(first, [{ id: 'host', kind: 'user-local', name: 'Native host', status: 'online' }]);
+		assert.deepStrictEqual(first, [{ id: 'host', kind: 'user-local', name: 'Native host', status: 'online', lastHeartbeatAt: Date.parse('2026-11-13T12:00:00Z'), reportedSessionCount: 3 }]);
 		assert.strictEqual(requestedUrls.filter(url => url.endsWith('/agents/environments')).length, 1);
 		changeAuthentication();
 		assert.strictEqual(service.getCachedEnvironments(), undefined);

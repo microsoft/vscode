@@ -66,7 +66,7 @@ export interface IRemoteTableRow {
 	readonly entry: RemoteTableEntry;
 }
 
-type RemoteColumn = 'name' | 'type' | 'system' | 'status' | 'sessions' | 'activity' | 'actions';
+type RemoteColumn = 'name' | 'type' | 'identity' | 'system' | 'status' | 'sessions' | 'activity' | 'actions';
 export type RemoteRowAction = 'toggleGroup' | 'toggleVisibility' | 'configure' | 'documentation' | 'connect' | 'newSession' | 'rename' | 'copyAddress' | 'locationPreference' | 'githubEnvironment' | 'troubleshoot' | 'updateServer' | 'delete' | 'signIn';
 
 type RemoteCellTemplate = {
@@ -76,7 +76,7 @@ type RemoteCellTemplate = {
 	row?: IRemoteTableRow;
 } & (
 		| { readonly column: 'name'; readonly content: HTMLElement; readonly chevron: HTMLElement; readonly nameRow: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement; readonly gitHubEnvironment: HTMLElement; readonly count: HTMLElement; readonly countBadge: CountBadge; readonly progress: HTMLElement; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
-		| { readonly column: 'type' | 'system' | 'status' | 'sessions' | 'activity'; readonly label: HTMLElement }
+		| { readonly column: 'type' | 'identity' | 'system' | 'status' | 'sessions' | 'activity'; readonly label: HTMLElement }
 		| { readonly column: 'actions'; readonly action: Action; readonly connect: ButtonWithIcon; readonly newSession: ButtonWithIcon; readonly newSessionAction: Action; readonly visibility: Action; readonly rename: Action; readonly copyAddress: Action; readonly locationPreference: Action; readonly gitHubEnvironment: Action; readonly troubleshoot: Action; readonly updateServer: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
 	);
 
@@ -125,21 +125,39 @@ export function getRemoteTypeLabel(kind: RemoteKind): string {
 		: kind === 'tunnel' ? localize('remotes.tunnelType', "Dev Tunnel") : remoteKindLabels[kind];
 }
 
+export function getRemoteAddressLabel(remote: ICustomizationRemote): string {
+	return remote.kind === 'ssh' ? remote.detail : '';
+}
+
 export function getRemoteMetadataLabel(remote: ICustomizationRemote, column: 'system' | 'sessions' | 'activity'): string {
+	if (column === 'activity' && !RemoteAgentHostConnectionStatus.isConnected(remote.connectionStatus) && remote.lastHeartbeatAt !== undefined) {
+		return [
+			remote.reportedSessionCount === undefined ? undefined : localize('remotes.reportedSessions', "{0} sessions reported", remote.reportedSessionCount),
+			localize('remotes.heartbeat', "Last heartbeat {0}", fromNow(remote.lastHeartbeatAt, true)),
+		].filter(Boolean).join(' \u00b7 ');
+	}
 	const metadata = remote.metadata;
 	if (!metadata) {
 		return '';
 	}
 	switch (column) {
-		case 'system': return metadata.operatingSystem === OperatingSystem.Windows ? localize('remotes.system.windows', "Windows")
-			: metadata.operatingSystem === OperatingSystem.Macintosh ? localize('remotes.system.mac', "macOS")
-				: metadata.operatingSystem === OperatingSystem.Linux ? remote.kind === 'wsl' ? localize('remotes.system.wsl', "WSL 2") : localize('remotes.system.linux', "Linux") : '';
+		case 'system': {
+			const system = metadata.operatingSystem === OperatingSystem.Windows ? localize('remotes.system.windows', "Windows")
+				: metadata.operatingSystem === OperatingSystem.Macintosh ? localize('remotes.system.mac', "macOS")
+					: metadata.operatingSystem === OperatingSystem.Linux ? remote.kind === 'wsl' ? localize('remotes.system.wsl', "WSL 2") : localize('remotes.system.linux', "Linux") : '';
+			const label = [
+				system, metadata.architecture,
+				metadata.cpuCount === undefined ? undefined : localize('remotes.system.cpus', "{0} CPUs", metadata.cpuCount),
+				metadata.memoryBytes === undefined ? undefined : localize('remotes.system.memory', "{0} GiB", Math.round(metadata.memoryBytes / 1024 ** 3 * 10) / 10),
+			].filter(Boolean).join(' \u00b7 ');
+			return label && remote.systemMetadataIsStale ? localize('remotes.system.cached', "{0} (last known)", label) : label;
+		}
 		case 'sessions': return metadata.activeSessionCount === undefined ? '' : String(metadata.activeSessionCount);
 		case 'activity': {
 			const parts: string[] = [];
 			if (RemoteAgentHostConnectionStatus.isConnected(remote.connectionStatus)) {
 				const count = !remote.metadataIsStale ? metadata.observedSessionCount : undefined;
-				if (count !== undefined && count > 0) {
+				if (count !== undefined) {
 					parts.push(count === 1 ? localize('remotes.oneSession', "1 session") : localize('remotes.sessionCount', "{0} sessions", count));
 				}
 				if (metadata.lastActivityAt !== undefined) {
@@ -147,6 +165,8 @@ export function getRemoteMetadataLabel(remote: ICustomizationRemote, column: 'sy
 				}
 			} else if (metadata.lastConnectedAt !== undefined) {
 				parts.push(localize('remotes.connectionTime', "Last connected {0}", fromNow(metadata.lastConnectedAt, true)));
+			} else if (metadata.lastOnlineAt !== undefined) {
+				parts.push(localize('remotes.lastSeenTime', "Last seen online {0}", fromNow(metadata.lastOnlineAt, true)));
 			}
 			return parts.join(' \u00b7 ');
 		}
@@ -154,8 +174,9 @@ export function getRemoteMetadataLabel(remote: ICustomizationRemote, column: 'sy
 }
 
 export function getRemoteActivityTime(remote: ICustomizationRemote): number | undefined {
-	const { lastActivityAt, lastConnectedAt } = remote.metadata ?? {};
-	return lastActivityAt === undefined ? lastConnectedAt : lastConnectedAt === undefined ? lastActivityAt : Math.max(lastActivityAt, lastConnectedAt);
+	const { lastActivityAt, lastConnectedAt, lastOnlineAt } = remote.metadata ?? {};
+	return RemoteAgentHostConnectionStatus.isConnected(remote.connectionStatus)
+		? lastActivityAt ?? lastConnectedAt : remote.lastHeartbeatAt ?? lastConnectedAt ?? lastOnlineAt;
 }
 
 /**
@@ -175,7 +196,9 @@ export function getRemoteStatusGroup(remote: ICustomizationRemote): 'ready' | 'a
 }
 
 export function getRemoteAvailabilityLabel(remote: ICustomizationRemote): string {
-	return remoteStatusGroups.find(group => group.key === getRemoteStatusGroup(remote))?.label ?? '';
+	return remoteStatusGroups.find(group => group.key === getRemoteStatusGroup(remote))?.label
+		?? (remote.availability === 'pending' ? localize('remotes.checkingAvailability', "Checking...")
+			: localize('remotes.statusUnverified', "Not verified"));
 }
 
 function isRemoteOffline(remote: ICustomizationRemote): boolean {
@@ -271,6 +294,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 		let template: RemoteCellTemplate;
 		switch (this.column) {
 			case 'type':
+			case 'identity':
 			case 'system':
 			case 'status':
 			case 'sessions':
@@ -412,23 +436,16 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 		switch (template.column) {
 			case 'status': {
 				const remote = entry.type === 'remote' ? entry.remote : undefined;
-				const tableCell = template.container.classList.contains('monaco-table-td');
 				const group = remote ? remoteStatusGroups.find(group => group.key === getRemoteStatusGroup(remote)) : undefined;
 				dom.clearNode(template.label);
-				template.container.hidden = !remote && !tableCell;
-				template.label.classList.toggle('remotes-group-chevron', entry.type === 'group' && tableCell);
-				template.label.setAttribute('aria-hidden', 'true');
-				if (entry.type === 'group' && tableCell) {
-					dom.append(template.label, renderIcon(entry.collapsed ? Codicon.chevronRight : Codicon.chevronDown));
-				}
-				if (group) {
+				if (remote) {
+					const label = getRemoteAvailabilityLabel(remote);
 					const indicator = dom.append(template.label, dom.$('span'));
-					renderStatusIndicator(indicator, group.icon, group.key === 'ready' ? 'connected' : group.key);
-					if (!tableCell) {
-						dom.append(template.label, dom.$('span', undefined, group.label));
-					}
+					renderStatusIndicator(indicator, group?.icon ?? (remote.availability === 'pending' ? ThemeIcon.modify(Codicon.loadingCompact, 'spin') : Codicon.question),
+						group?.key === 'ready' ? 'connected' : group?.key ?? 'unverified');
+					dom.append(template.label, dom.$('span', undefined, label));
 					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.label, {
-						content: group.label, style: HoverStyle.Pointer,
+						content: remote.unavailableReason ? `${label}\n${remote.unavailableReason}` : label, style: HoverStyle.Pointer,
 					}, { groupId: this.hoverGroupId }));
 				}
 				break;
@@ -452,19 +469,28 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				}
 				template.container.hidden = !label;
 				if (label) {
-					const timestamp = template.column === 'activity' ? RemoteAgentHostConnectionStatus.isConnected(remote?.connectionStatus) ? remote?.metadata?.lastActivityAt : remote?.metadata?.lastConnectedAt
+					const timestamp = template.column === 'activity' ? RemoteAgentHostConnectionStatus.isConnected(remote?.connectionStatus) ? remote?.metadata?.lastActivityAt : remote?.lastHeartbeatAt ?? remote?.metadata?.lastConnectedAt
 						: template.column === 'sessions' ? remote?.metadata?.observedAt : undefined;
 					template.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(template.label, {
-						content: timestamp === undefined ? label : `${label}\n${new Date(timestamp).toLocaleString()}`, style: HoverStyle.Mouse,
+						content: template.column === 'system' && remote?.systemMetadataIsStale
+							? localize('remotes.system.lastKnown', "{0}\nLast known system information reported by this host.", label)
+							: template.column === 'activity' && remote?.lastHeartbeatAt !== undefined && !RemoteAgentHostConnectionStatus.isConnected(remote.connectionStatus)
+								? localize('remotes.heartbeatDetail', "{0}\n{1}\nReported by the host at its last service heartbeat, not current machine activity.", label, new Date(remote.lastHeartbeatAt).toLocaleString())
+								: template.column === 'activity' && !RemoteAgentHostConnectionStatus.isConnected(remote?.connectionStatus) && remote?.metadata?.lastConnectedAt === undefined
+								? localize('remotes.lastSeenDetail', "{0}\nLast confirmed online by this window, not a measure of uptime.", label)
+								: timestamp === undefined ? label : `${label}\n${new Date(timestamp).toLocaleString()}`, style: HoverStyle.Mouse,
 					}, { groupId: this.hoverGroupId }));
 				}
 				break;
 			}
+			case 'identity':
 			case 'type': {
 				dom.clearNode(template.label);
 				if (entry.type === 'remote') {
-					dom.append(template.label, renderIcon(remoteKindIcons[entry.remote.kind])).setAttribute('aria-hidden', 'true');
-					const label = getRemoteTypeLabel(entry.remote.kind);
+					if (template.column === 'type') {
+						dom.append(template.label, renderIcon(remoteKindIcons[entry.remote.kind])).setAttribute('aria-hidden', 'true');
+					}
+					const label = template.column === 'identity' ? getRemoteAddressLabel(entry.remote) : getRemoteTypeLabel(entry.remote.kind);
 					dom.append(template.label, dom.$('span', undefined, label));
 					if (label) {
 						template.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(template.label, { content: label, style: HoverStyle.Mouse }, { groupId: this.hoverGroupId }));
@@ -474,15 +500,15 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 			}
 			case 'name': {
 				const offline = entry.type === 'remote' && isRemoteOffline(entry.remote);
-				const rowElement = template.container.closest<HTMLElement>('.remotes-card') ?? template.container.parentElement!;
+				const rowElement = template.container.parentElement!;
 				rowElement.classList.toggle('remotes-group-row', entry.type === 'group');
 				rowElement.classList.toggle('remotes-ready-group', entry.type === 'group' && entry.id === 'remote-status-ready');
 				rowElement.classList.toggle('remotes-available-group', entry.type === 'group' && entry.id === 'remote-status-available');
 				rowElement.classList.toggle('remotes-offline-row', offline);
 				dom.clearNode(template.icon);
 				if (entry.type === 'group' && !entry.kind) {
-					const group = remoteStatusGroups.find(group => entry.id === `remote-status-${group.key}`)!;
-					dom.append(template.icon, renderIcon(group.icon));
+					const group = remoteStatusGroups.find(group => entry.id === `remote-status-${group.key}`);
+					dom.append(template.icon, renderIcon(group?.icon ?? Codicon.question));
 				}
 				template.icon.hidden = !template.icon.hasChildNodes();
 				rowElement.classList.toggle('remotes-empty-row', entry.type === 'empty');
@@ -496,7 +522,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				}
 				const listRow = rowElement.parentElement!;
 				listRow.classList.toggle('remotes-group-list-row', entry.type === 'group');
-				template.chevron.hidden = entry.type !== 'group' || template.container.classList.contains('monaco-table-td');
+				template.chevron.hidden = entry.type !== 'group';
 				if (entry.type === 'group') {
 					if (listRow.tagName !== 'SUMMARY') {
 						listRow.setAttribute('aria-expanded', String(!entry.collapsed));
@@ -559,6 +585,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					content: entry.type === 'group' && entry.description ? entry.description
 						: [
 							template.label.textContent,
+							entry.type === 'remote' ? getRemoteAddressLabel(entry.remote) : undefined,
 							pickerDetail,
 						].filter(Boolean).join('\n\n'),
 					style: HoverStyle.Mouse,
@@ -588,7 +615,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				const showNewSession = showConnection && RemoteAgentHostConnectionStatus.isConnected(entry.remote.connectionStatus);
 				const pending = isConnectionPending(entry);
 				const offline = showConnection && isRemoteOffline(entry.remote);
-				const error = offline ? undefined : getConnectionProblem(entry);
+				const error = getConnectionProblem(entry);
 				const troubleshoot = !!error;
 				const canConnect = showConnection && canConnectToRemote(entry.remote);
 				template.container.classList.toggle('remotes-connection-pending', showConnection && pending);
@@ -695,7 +722,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					const secondary = showConnection ? Separator.join(
 						[...(showNewSession ? [menuAction(template.newSessionAction, 'newSession')] : []),
 						...(canConnect ? [menuAction(template.action, 'connect')] : []),
-						...(!offline ? [menuAction(template.troubleshoot, 'troubleshoot')] : [])],
+						menuAction(template.troubleshoot, 'troubleshoot')],
 						showGitHubEnvironment ? [menuAction(template.gitHubEnvironment, 'githubEnvironment')] : [],
 						[menuAction(template.visibility, 'toggleVisibility')],
 						showCopyAddress ? [menuAction(template.copyAddress, 'copyAddress')] : [],

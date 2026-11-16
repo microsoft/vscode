@@ -18,6 +18,7 @@ import { IQuickInputService } from '../../../../../../platform/quickinput/common
 import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, TunnelMode, TunnelStatus } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ThisComputerSection } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/electron-browser/thisComputerSection.js';
+import '../../../../../../workbench/browser/media/style.css';
 import '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/media/remotesWidget.css';
 
 interface IThisComputerFixtureState {
