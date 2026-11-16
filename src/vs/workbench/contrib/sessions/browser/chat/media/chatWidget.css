@@ -30,6 +30,20 @@
 	justify-content: center;
 }
 
+.new-chat-widget-content.scheduled-draft .chat-execute-toolbar .monaco-dropdown-with-default {
+	align-items: center;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-button-background);
+
+	> .dropdown-action-container {
+		border-left: var(--vscode-strokeThickness) solid var(--vscode-button-separator);
+
+		.action-label {
+			color: var(--vscode-button-foreground);
+		}
+	}
+}
+
 .new-session-send-status {
 	display: flex;
 	align-items: center;
@@ -904,7 +918,21 @@
 	outline-offset: var(--vscode-spacing-sizeNone);
 }
 
-.action-widget .sessions-new-chat-picker-list .monaco-list-row.action .codicon {
+/*
+ * A picker restricted to a window's folders lays out its choices with a detail as the Agents window's isolation picker does.
+ * The list sets a row's line height to its height: the first line keeps to its text, as the title does, so the detail fits
+ * below it; and with descriptions inline, the detail keeps the list's gap above it.
+ */
+.action-widget .sessions-restricted-workspace-picker-list .monaco-list .monaco-list-row.action.has-detail .description {
+	line-height: 14px;
+}
+
+.action-widget .sessions-restricted-workspace-picker-list.inline-description .monaco-list-row.action.has-detail {
+	row-gap: var(--vscode-spacing-size60, 6px);
+}
+
+/* A picker restricted to a window's folders keeps the action list's icons, which its choices' details align with. */
+.action-widget .sessions-new-chat-picker-list:not(.sessions-restricted-workspace-picker-list) .monaco-list-row.action .codicon {
 	font-size: var(--vscode-codiconFontSize);
 }
 
@@ -1105,4 +1133,9 @@
 .action-widget .monaco-list-row.action.sessions-browse-inline-item:hover:not(.option-disabled) .description,
 .action-widget .monaco-list-row.action.sessions-browse-inline-item.focused:not(.option-disabled) .description {
 	visibility: visible;
+}
+
+/* New Worktree as a checkbox chip beside the workspace picker of a composer whose folder has no worktrees */
+.sessions-chat-picker-slot.sessions-chat-checkbox-chip.new-session-new-worktree .sessions-chat-dropdown-label {
+	font-size: var(--vscode-fontSize-body2);
 }

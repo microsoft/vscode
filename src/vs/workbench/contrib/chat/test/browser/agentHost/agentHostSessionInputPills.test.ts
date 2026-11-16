@@ -377,8 +377,11 @@ suite('AgentHostSessionInputPills', () => {
 		const keptInInput = observableValue<ReadonlySet<string>>('keptInInput', new Set());
 		const sessionWorkingSetDiffs = derived(reader => (registeredChanges.read(reader)?.read(reader) ?? []).filter(diff => !keptInInput.read(reader).has(diff.modifiedURI.toString())));
 		let backgroundActivityPillSections: IChatBackgroundActivityPillSections | undefined;
+		// Whether the input shows: not while the chat is read-only without its input
+		const inputVisible = observableValue('inputVisible', true);
 		const widget = upcastPartial<ChatWidget>({
 			domNode: persistentContent,
+			inputVisible,
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
@@ -494,6 +497,7 @@ suite('AgentHostSessionInputPills', () => {
 		const pills = store.add(instantiationService.createInstance(TestAgentHostSessionInputPills, widget, false));
 		return {
 			instantiationService, connection, sessionResource, persistentContent, customizationScheduler, visibility, commands, pills, openedImages,
+			setInputVisible: (visible: boolean) => inputVisible.set(visible, undefined),
 			workingSetChanges: () => workingSetChanges,
 			workingSetUndo: () => workingSetUndo,
 			workingSetKeep: () => workingSetKeep,
@@ -1713,6 +1717,7 @@ suite('AgentHostSessionInputPills', () => {
 		let viewModel = upcastPartial<ChatViewModel>({ sessionResource });
 		const viewModelChanged = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
 		const widget = upcastPartial<ChatWidget>({
+			inputVisible: constObservable(true),
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
@@ -2216,6 +2221,7 @@ suite('AgentHostSessionInputPills', () => {
 		document.body.appendChild(persistentContent);
 		store.add(toDisposable(() => persistentContent.remove()));
 		const widget = upcastPartial<ChatWidget>({
+			inputVisible: constObservable(true),
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
@@ -2552,6 +2558,7 @@ suite('AgentHostSessionInputPills', () => {
 			document.body.appendChild(persistentContent);
 			store.add(toDisposable(() => persistentContent.remove()));
 			const widget = upcastPartial<ChatWidget>({
+				inputVisible: constObservable(true),
 				inputPart: upcastPartial<ChatInputPart>({
 					persistentContentContainerElement: persistentContent,
 					registerChatPetHorizontalPlatformProvider: () => Disposable.None,
@@ -3356,6 +3363,18 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
+	test('the Changes pill shows while the input that shows the working set hides, such as in a read-only chat, and hides again as the input shows', async () => {
+		const { harness, setOperations } = createSessionWorkingSetPills({ workingSetOnly: true });
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
+		await harness.setWorkingSetEnabled(true);
+		const withInput = harness.pills.changesPillHidden.get();
+		harness.setInputVisible(false);
+		const readOnly = harness.pills.changesPillHidden.get();
+		harness.setInputVisible(true);
+
+		assert.deepStrictEqual({ withInput, readOnly, inputAgain: harness.pills.changesPillHidden.get() }, { withInput: true, readOnly: false, inputAgain: true });
+	});
+
 	test('an input that shows only the working set of a host without a Working Set shows the Changes pill again once it kept every file itself', async () => {
 		const { harness, setOperations } = createSessionWorkingSetPills({ workingSetOnly: true, withoutWorkingSet: true });
 		setOperations([discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
@@ -3638,6 +3657,7 @@ suite('AgentHostSessionInputPills', () => {
 		store.add(toDisposable(() => persistentContent.remove()));
 		let persistentContentHeight: number | undefined;
 		const widget = upcastPartial<ChatWidget>({
+			inputVisible: constObservable(true),
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
@@ -3723,6 +3743,7 @@ suite('AgentHostSessionInputPills', () => {
 		store.add(toDisposable(() => persistentContent.remove()));
 		let persistentContentHeight: number | undefined;
 		const widget = upcastPartial<ChatWidget>({
+			inputVisible: constObservable(true),
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
@@ -3888,6 +3909,7 @@ suite('AgentHostSessionInputPills', () => {
 		document.body.appendChild(persistentContent);
 		store.add(toDisposable(() => persistentContent.remove()));
 		const widget = upcastPartial<ChatWidget>({
+			inputVisible: constObservable(true),
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
@@ -4040,6 +4062,7 @@ suite('AgentHostSessionInputPills', () => {
 		document.body.appendChild(persistentContent);
 		store.add(toDisposable(() => persistentContent.remove()));
 		const widget = upcastPartial<ChatWidget>({
+			inputVisible: constObservable(true),
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
@@ -4198,6 +4221,7 @@ suite('AgentHostSessionInputPills', () => {
 		let viewModel = upcastPartial<ChatViewModel>({ sessionResource });
 		const viewModelChanged = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
 		const widget = upcastPartial<ChatWidget>({
+			inputVisible: constObservable(true),
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
@@ -4271,6 +4295,7 @@ suite('AgentHostSessionInputPills', () => {
 		store.add(toDisposable(() => persistentContent.remove()));
 		let backgroundActivityPillSections: IChatBackgroundActivityPillSections | undefined;
 		const widget = upcastPartial<ChatWidget>({
+			inputVisible: constObservable(true),
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,

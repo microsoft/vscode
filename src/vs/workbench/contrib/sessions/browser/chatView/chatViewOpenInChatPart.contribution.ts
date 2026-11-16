@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, observableFromEvent } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { Extensions as ConfigurationExtensions, IConfigurationDefaults, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -19,9 +19,9 @@ import { IViewDescriptorService } from '../../../../common/views.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ChatViewId } from '../../../chat/browser/chat.js';
 import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
-import { IChatViewSessionsListService } from '../../../chat/browser/widgetHosts/viewPane/chatViewSessionsList.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
+import { ILocalChatAvailabilityService } from '../../../chat/common/localChatAvailability.js';
 import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessionsRuntime.js';
 import { AgentsViewAvailable } from '../agentsView/agentsChatPartContext.js';
 import { IEditorWindowChatPartService } from '../agentsView/agentsChatPartContribution.js';
@@ -38,11 +38,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 	},
 });
-
-/** No local chats, which the chat part does not show: as with the sessions list of the Chat view, whose chats are those of sessions. */
-const noLocalChatDefaults: IConfigurationDefaults = {
-	overrides: { [ChatConfiguration.EditorLocalAgentEnabled]: false },
-};
 
 /** The chat part docks beside the Chat view: the Agents viewlet docks it beside its own view, over this. */
 const CHAT_VIEW_ANCHOR_PRIORITY = 1;
@@ -64,8 +59,8 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		@IEditorWindowChatPartService chatPartService: IEditorWindowChatPartService,
 		@IEditorWindowSessionsRuntime sessionsRuntime: IEditorWindowSessionsRuntime,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IChatViewSessionsListService private readonly _sessionsListService: IChatViewSessionsListService,
-		@IChatViewHostService chatViewHostService: IChatViewHostService,
+		@IChatViewHostService private readonly _chatViewHostService: IChatViewHostService,
+		@ILocalChatAvailabilityService localChatAvailabilityService: ILocalChatAvailabilityService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
@@ -88,16 +83,10 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 			if (enabled.read(reader)) {
 				reader.store.add(sessionsRuntime.enable({ viewIds: [ChatViewId] }));
 				// The chats show in the chat part, so the Chat view shows only its sessions, except while it hosts a chat that the chat
-				// part leaves to it, such as a local chat: no chat opens where nothing shows it. Its own autorun, so that a change of
-				// host leaves what the feature holds as it is.
-				reader.store.add(autorun(hostReader => {
-					if (!chatViewHostService.chatViewHosts.read(hostReader)) {
-						hostReader.store.add(this._sessionsListService.claimSessionsOnly());
-					}
-				}));
-				const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-				configurationRegistry.registerDefaultConfigurations([noLocalChatDefaults]);
-				reader.store.add(toDisposable(() => configurationRegistry.deregisterDefaultConfigurations([noLocalChatDefaults])));
+				// part leaves to it, such as a local chat: the seam owns that rule.
+				reader.store.add(this._chatViewHostService.register({ sessionsOnly: true }));
+				// No local chats, which the chat part does not show: as with the sessions list of the Chat view, whose chats are those of sessions
+				reader.store.add(localChatAvailabilityService.hide());
 			}
 		}));
 		this._hideMaximizeWhileSessionsOnly();
@@ -114,7 +103,7 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		// The Chat view can live in another container than its default one
 		const chatViewContainer = observableFromEvent(this, Event.filter(this._viewDescriptorService.onDidChangeContainer, e => e.views.some(view => view.id === ChatViewId)), () => this._viewDescriptorService.getViewContainerByViewId(ChatViewId)?.id);
 		this._register(autorun(reader => {
-			const sessionsOnly = this._sessionsListService.sessionsOnly.read(reader);
+			const sessionsOnly = this._chatViewHostService.sessionsOnly.read(reader);
 			const container = chatViewContainer.read(reader);
 			const hidden = sessionsOnly && container !== undefined && activeAuxiliary.read(reader) === container;
 			if (hidden && !claim.value) {

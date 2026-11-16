@@ -97,6 +97,7 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 					acceptInput: async () => { query = ''; },
 				},
 			},
+			_store: { isDisposed: false },
 			_sending: observableValue('sending', false),
 			_confirmingSend: observableValue('confirmingSend', false),
 			_userInteractionSource: sourceOwner,

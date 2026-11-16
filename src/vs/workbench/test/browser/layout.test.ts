@@ -566,9 +566,22 @@ suite('Workbench layout chat part', () => {
 		});
 	});
 
+	test('listens to the views only while it has an anchor view to follow', () => {
+		const { layout, viewEvents } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } });
+		const listening = () => viewEvents.location.hasListeners();
+
+		const withoutAnchor = listening();
+		layout.setChatPartAnchor({ viewId: 'sessions' });
+		const anchored = listening();
+		layout.setChatPartAnchor({ viewId: 'sessions' });
+		const anchoredAgain = listening();
+		layout.setChatPartAnchor(undefined);
+
+		assert.deepStrictEqual({ withoutAnchor, anchored, anchoredAgain, cleared: listening() }, { withoutAnchor: false, anchored: true, anchoredAgain: true, cleared: false });
+	});
+
 	test('follows its anchor view through the events of the views as they move, deregister and register again', () => {
-		const { layout, middle, anchor, viewEvents } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor: ViewContainerLocation.Sidebar });
-		store.add((Reflect.get(layout, 'followChatPartAnchor') as () => { dispose(): void }).call(layout));
+		const { middle, anchor, viewEvents } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor: ViewContainerLocation.Sidebar });
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 		const container = upcastPartial<ViewContainer>({ id: 'test.chatPartAnchor' });
 		const view = upcastPartial<IViewDescriptor>({ id: 'sessions', name: { value: 'Sessions', original: 'Sessions' } });
@@ -634,8 +647,8 @@ suite('Workbench layout chat part', () => {
 		const auxiliaryBarBefore = grid.getViewSize(views.get(Parts.AUXILIARYBAR_PART)!).width;
 		layout.setPartHidden(false, Parts.CHAT_PART);
 
-		assert.deepStrictEqual({ ...widthsAcross(layout, grid, views, 1200), auxiliaryBarShrank: grid.getViewSize(views.get(Parts.AUXILIARYBAR_PART)!).width < auxiliaryBarBefore }, {
-			fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true, auxiliaryBarShrank: true,
+		assert.deepStrictEqual({ ...widthsAcross(layout, grid, views, 1200), auxiliaryBarShrank: grid.getViewSize(views.get(Parts.AUXILIARYBAR_PART)!).width < auxiliaryBarBefore, chatAtItsSavedWidth: grid.getViewSize(views.get(Parts.CHAT_PART)!).width === 400 }, {
+			fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true, auxiliaryBarShrank: true, chatAtItsSavedWidth: true,
 		});
 	});
 
@@ -664,6 +677,16 @@ suite('Workbench layout chat part', () => {
 		assert.deepStrictEqual({ shown: widthsAcross(shown.layout, shown.grid, shown.views, 1200), moved: widthsAcross(moved.layout, moved.grid, moved.views, 1200) }, {
 			shown: { fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true },
 			moved: { fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true },
+		});
+	});
+
+	test('the chat part shown beside a secondary side bar at its minimum takes the room it still needs from the wide side bar on the other side', () => {
+		const { layout, grid, views } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: false, size: 162 }, anchor: ViewContainerLocation.AuxiliaryBar, widths: { window: 1200, sideBar: 600, auxiliaryBar: 170 } });
+		const sideBarBefore = grid.getViewSize(views.get(Parts.SIDEBAR_PART)!).width;
+		layout.setPartHidden(false, Parts.CHAT_PART);
+
+		assert.deepStrictEqual({ ...widthsAcross(layout, grid, views, 1200), sideBarShrank: grid.getViewSize(views.get(Parts.SIDEBAR_PART)!).width < sideBarBefore }, {
+			fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true, sideBarShrank: true,
 		});
 	});
 
