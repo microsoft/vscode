@@ -91,6 +91,15 @@ suite('Sessions presentation entry isolation', () => {
 			assert.deepStrictEqual(services.filter(file => dependencies.has(file)), services);
 		});
 
+		test(`${entry} registers the workspace-folder location service required by extension-host customers`, () => {
+			const module = 'src/vs/workbench/services/workspaces/common/workspaceFolderLocationService.ts';
+			const dependencies = collectSourceDependencies(entry);
+			const registrations = dependencies.has(module) ? getSingletonRegistrations(module) : [];
+			assert.deepStrictEqual(registrations.filter(([id]) => id === 'IWorkspaceFolderLocationService'), [
+				['IWorkspaceFolderLocationService', 'WorkspaceFolderLocationService'],
+			]);
+		});
+
 		test(`${entry} registers shared session and host services without relying on implementation side effects`, () => {
 			const dependencies = collectSourceDependencies(entry);
 			const registrations = dependencies.has(coreSessionsRegistrations) ? getSingletonRegistrations(coreSessionsRegistrations) : [];
@@ -149,7 +158,7 @@ suite('Sessions presentation entry isolation', () => {
 			}, {
 				canvas: ['IWindowCanvasService', 'WindowCanvasService'],
 				pinnedCanvas: mobile ? undefined : ['IPinnedCanvasService', 'PinnedCanvasService'],
-				chatWindow: ['IChatWindowService', mobile ? 'MobileNullChatWindowService' : 'ChatWindowService'],
+				chatWindow: ['IChatWindowService', mobile ? 'NullChatWindowService' : 'ChatWindowService'],
 				presentation: mobile ? [] : desktopPresentation,
 			});
 		});
@@ -164,6 +173,13 @@ suite('Sessions presentation entry isolation', () => {
 				'src/vs/sessions/contrib/worktreeSuggestion/browser/worktreeSuggestion.contribution.ts',
 				mobilePresentationRoot + 'mobile.contribution.ts',
 			].filter(file => dependencies.has(file)).flatMap(getSingletonRegistrations);
+			const worktreePresentation = [
+				'worktreeSuggestionController.ts',
+				'worktreeSuggestionInputPresentation.ts',
+				'worktreeSuggestionIsolationPicker.ts',
+				'worktreeSuggestionService.ts',
+				'media/worktreeSuggestion.css',
+			].map(file => 'src/vs/workbench/contrib/sessions/browser/worktreeSuggestion/' + file);
 			assert.deepStrictEqual({
 				workingSet: registrations.filter(([id]) => id === 'ISessionEditorWorkingSetService'),
 				screenshot: registrations.filter(([id]) => id === 'IScreenshotToolService'),
@@ -171,33 +187,41 @@ suite('Sessions presentation entry isolation', () => {
 				desktopLayout: dependencies.has('src/vs/sessions/contrib/layout/browser/desktopLayoutController.ts'),
 				desktopScreenshot: dependencies.has('src/vs/workbench/contrib/screenshotTool/browser/screenshotToolService.ts'),
 				worktreeContribution: dependencies.has('src/vs/sessions/contrib/worktreeSuggestion/browser/worktreeSuggestion.contribution.ts'),
+				worktreePresentation: worktreePresentation.filter(file => dependencies.has(file)),
 			}, {
 				workingSet: [['ISessionEditorWorkingSetService', 'SessionEditorWorkingSetService']],
-				screenshot: [['IScreenshotToolService', mobile ? 'MobileNullScreenshotToolService' : 'ScreenshotToolService']],
-				worktreeSuggestion: [['IWorktreeSuggestionService', mobile ? 'MobileNullWorktreeSuggestionService' : 'WorktreeSuggestionService']],
+				screenshot: mobile ? [] : [['IScreenshotToolService', 'ScreenshotToolService']],
+				worktreeSuggestion: mobile ? [] : [['IWorktreeSuggestionService', 'WorktreeSuggestionService']],
 				desktopLayout: !mobile,
 				desktopScreenshot: !mobile,
 				worktreeContribution: !mobile,
+				worktreePresentation: mobile ? [] : worktreePresentation,
 			});
 		});
 
-		test(`${entry} selects edit, list, clipboard and chat-view presentation without importing the other entry`, () => {
+		test(`${entry} selects edit, list, attachment and chat-view presentation without importing the other entry`, () => {
 			const mobile = entry.includes('.mobile.');
 			const dependencies = collectSourceDependencies(entry);
-			const normal = [defaultChatPresentation, defaultEditPresentation, defaultListPresentation];
+			const normal = [
+				defaultChatPresentation, defaultEditPresentation, defaultListPresentation,
+				'src/vs/workbench/contrib/chat/browser/attachments/defaultChatAttachmentWidgetRegistry.ts',
+				'src/vs/workbench/contrib/chat/browser/actions/chatScreenshotContextPicker.ts',
+			];
 			const experimental = ['mobileChatEditPresenter.ts', 'mobileSessionsListPresentation.ts', 'mobileClipboardImageContext.ts', 'mobileChatViewFactory.ts'].map(file => mobilePresentationRoot + file);
 			const registrations = [
-				...getSingletonRegistrations(mobile ? mobilePresentationRoot + 'mobile.contribution.ts' : defaultChatPresentation),
-				...getSingletonRegistrations(mobile ? mobilePresentationRoot + 'mobile.contribution.ts' : defaultSessionsRegistrations),
-			];
+				defaultChatPresentation, defaultSessionsRegistrations, mobilePresentationRoot + 'mobile.contribution.ts',
+				'src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts',
+			].filter(file => dependencies.has(file)).flatMap(getSingletonRegistrations);
 			assert.deepStrictEqual({
 				files: [...normal, ...experimental].filter(file => dependencies.has(file)),
-				edit: registrations.find(([id]) => id === 'IChatEditPresentationService'),
-				list: registrations.find(([id]) => id === 'ISessionsListPresentation'),
+				edit: registrations.filter(([id]) => id === 'IChatEditPresentationService'),
+				list: registrations.filter(([id]) => id === 'ISessionsListPresentation'),
+				attachments: registrations.filter(([id]) => id === 'IChatAttachmentWidgetRegistry'),
 			}, {
 				files: mobile ? experimental : normal,
-				edit: ['IChatEditPresentationService', mobile ? 'MobileChatEditPresenter' : 'DefaultChatEditPresentationService'],
-				list: ['ISessionsListPresentation', mobile ? 'MobileSessionsListPresentation' : 'DefaultSessionsListPresentation'],
+				edit: [['IChatEditPresentationService', mobile ? 'MobileChatEditPresenter' : 'DefaultChatEditPresentationService']],
+				list: [['ISessionsListPresentation', mobile ? 'MobileSessionsListPresentation' : 'DefaultSessionsListPresentation']],
+				attachments: [['IChatAttachmentWidgetRegistry', mobile ? 'ChatAttachmentWidgetRegistry' : 'DefaultChatAttachmentWidgetRegistry']],
 			});
 		});
 

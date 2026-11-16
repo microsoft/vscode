@@ -1107,7 +1107,8 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			const uri = workspaceFolders[index];
 			return uri ? { uri, name: uri.path, index, toResource: () => uri } : null;
 		},
-		onDidChangeWorkspaceFolders: Event.None
+		onDidChangeWorkspaceFolders: Event.None,
+		onDidChangeWorkbenchState: Event.None
 	});
 	const trustController: { result: boolean | undefined; workspaceTrusted: boolean; workspaceTrustCalls: number; resourcesTrustCalls: number; resourcesTrustUris: URI[]; trustedUris: Set<string>; setUrisTrustCalls: string[][] } = { result: true, workspaceTrusted: false, workspaceTrustCalls: 0, resourcesTrustCalls: 0, resourcesTrustUris: [], trustedUris: new Set<string>(), setUrisTrustCalls: [] };
 	instantiationService.stub(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() {
@@ -1480,6 +1481,20 @@ function createByokLanguageModelTestData(groupName?: string): { languageModels: 
 	};
 }
 
+/** BYOK test data with an OpenRouter model and a model of the host's own whose ids clash once the provider is dropped. */
+function createClashingByokLanguageModelTestData(byokModelId: string, hostModelId: string): ReturnType<typeof createByokLanguageModelTestData> {
+	const byok = createByokLanguageModelTestData();
+	return {
+		...byok,
+		languageModels: new Map([
+			...byok.languageModels,
+			[`openrouter/${byokModelId}`, upcastPartial<ILanguageModelChatMetadata>({ name: 'My Model', id: byokModelId, vendor: 'openrouter', isBYOK: true })],
+			[`agent-host-copilot:openrouter/${byokModelId}`, upcastPartial<ILanguageModelChatMetadata>({ name: 'My Model', id: `openrouter/${byokModelId}`, vendor: 'agent-host-copilot', modelGroup: { id: 'openrouter' }, byokModelIdentifier: `openrouter/${byokModelId}` })],
+			[`agent-host-copilot:${hostModelId}`, upcastPartial<ILanguageModelChatMetadata>({ name: 'Host Model', id: hostModelId, vendor: 'agent-host-copilot' })],
+		]),
+	};
+}
+
 function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string; acceptedConfirmationData: unknown[]; metadata: Record<string, unknown>; isSystemInitiated: boolean; agentHostMessageOrigin: IChatAgentRequest['agentHostMessageOrigin']; modeInstructions: IChatAgentRequest['modeInstructions'] }> = {}): IChatAgentRequest {
 	return upcastPartial<IChatAgentRequest>({
 		sessionResource: overrides.sessionResource ?? URI.from({ scheme: 'untitled', path: '/chat-1' }),
@@ -1800,7 +1815,7 @@ suite('AgentHostChatContribution', () => {
 			});
 			agentHostService.chatStates.set(chat.toString(), { ...createChatState(peerSummary), canvases: [{ resource: canvasResource.toString() }] });
 			const state: CanvasState = {
-				instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview', url: 'https://example.test/canvas',
+				instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview', uri: 'https://example.test/canvas',
 			};
 			agentHostService.setCanvasState(canvasResource, state);
 			const provided = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/canvas-owner', fragment: 'peer' }), CancellationToken.None);
@@ -1810,7 +1825,7 @@ suite('AgentHostChatContribution', () => {
 			let canvases: readonly ICanvas[] | undefined;
 			disposables.add(autorun(reader => { canvases = context.canvases.read(reader); }));
 			const initial = canvases?.[0].source?.toString();
-			agentHostService.setCanvasState(canvasResource, { ...state, url: 'https://example.test/replacement' });
+			agentHostService.setCanvasState(canvasResource, { ...state, uri: 'https://example.test/replacement' });
 			assert.deepStrictEqual({
 				ownerChat: context.owner.chat.toString(), ownerSession: context.owner.session.toString(),
 				resource: canvases?.[0].resource.toString(), initial, updated: canvases?.[0].source?.toString(),
@@ -1840,7 +1855,7 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.fireAction({ channel: dispatched.channel, action: dispatched.action, serverSeq: 1, origin: { clientId: dispatched.clientId, clientSeq: dispatched.clientSeq } });
 			const canvasResource = URI.parse('ahp-canvas:/opaque-first-turn');
 			agentHostService.setCanvasState(canvasResource, {
-				instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview', url: 'https://example.test/canvas',
+				instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview', uri: 'https://example.test/canvas',
 			});
 			agentHostService.fireAction({ channel: dispatched.channel, action: { type: ActionType.ChatCanvasesChanged, canvases: [{ resource: canvasResource.toString() }] }, serverSeq: 2, origin: undefined });
 			agentHostService.fireAction({ channel: dispatched.channel, action: chatTurnComplete(dispatched.action.turnId, 1), serverSeq: 3, origin: undefined });
@@ -6432,6 +6447,7 @@ suite('AgentHostChatContribution', () => {
 				getWorkspace: () => (testIWorkspace({ id: 'folder', folders: [{ uri: folder, name: 'repo', index: 0, toResource: () => folder }] })),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
+				onDidChangeWorkbenchState: Event.None,
 			});
 
 			const backendSession = AgentSession.uri('copilot', 'adopted-midflight');
@@ -7225,6 +7241,7 @@ suite('AgentHostChatContribution', () => {
 				getWorkspace: () => (testIWorkspace({ id: '', folders: [{ uri: workspaceFolder, name: 'root', index: 0, toResource: () => workspaceFolder }] })),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
+				onDidChangeWorkbenchState: Event.None,
 			});
 
 			agentHostService.addSession({ session: AgentSession.uri('copilot', 'in-ws'), startTime: 1000, modifiedTime: 2000, summary: 'In workspace', workingDirectories: [URI.file('/workspace/root/sub')] });
@@ -7261,6 +7278,7 @@ suite('AgentHostChatContribution', () => {
 				getWorkspace: () => (testIWorkspace({ id: '', folders: [...folders] })),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+				onDidChangeWorkbenchState: Event.None,
 			});
 
 			agentHostService.addSession({ session: AgentSession.uri('copilot', 'in-ws'), startTime: 1000, modifiedTime: 2000, summary: 'In workspace', workingDirectories: [URI.file('/workspace/root/sub')] });
@@ -7289,6 +7307,95 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('switching the folder of a single-folder window to another location and back keeps its sessions listed', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			// The folder of the window moves to a linked checkout, as its folder location: the workspace stays the same
+			const primary = URI.file('/workspace/root');
+			const checkout = URI.file('/workspace/root.worktrees/feature');
+			let folder = primary;
+			const onDidChangeWorkspaceFolders = disposables.add(new Emitter<{ readonly added: never[]; readonly removed: never[]; readonly changed: never[] }>());
+			instantiationService.stub(IWorkspaceContextService, {
+				getWorkbenchState: () => WorkbenchState.FOLDER,
+				getWorkspace: () => testIWorkspace({ id: '', uri: primary, folders: [{ uri: folder, name: 'root', index: 0, toResource: () => folder }] }),
+				getWorkspaceFolder: () => null,
+				onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+				onDidChangeWorkbenchState: Event.None,
+			});
+
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'primary'), startTime: 1000, modifiedTime: 2000, summary: 'In the folder', workingDirectories: [URI.file('/workspace/root/sub')] });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'checkout'), startTime: 1000, modifiedTime: 3000, summary: 'In the checkout', workingDirectories: [checkout] });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'elsewhere'), startTime: 1000, modifiedTime: 1500, summary: 'Elsewhere', workingDirectories: [URI.file('/other/place')] });
+
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+			const removed: string[] = [];
+			disposables.add(listController.onDidChangeChatSessionItems(delta => removed.push(...(delta.removed ?? []).map(resource => resource.path))));
+			const labels = () => listController.items.map(item => item.label).sort();
+
+			await listController.refresh(CancellationToken.None);
+			const atPrimary = labels();
+			folder = checkout;
+			onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+			await timeout(0);
+			const atCheckout = labels();
+			folder = primary;
+			onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+			await timeout(0);
+
+			// Removing a session from the list disposes the content of its chats that are open, which turns them read-only
+			assert.deepStrictEqual({ atPrimary, atCheckout, back: labels(), removed }, {
+				atPrimary: ['In the folder'],
+				atCheckout: ['In the checkout', 'In the folder'],
+				back: ['In the checkout', 'In the folder'],
+				removed: [],
+			});
+		});
+
+		test('a folder location switch keeps a session with multi-root metadata listed too, and Save Workspace As forgets the locations the folder had', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+
+			const primary = URI.file('/workspace/root');
+			const checkout = URI.file('/workspace/root.worktrees/feature');
+			const workspaceFile = URI.file('/workspace/root.code-workspace');
+			let folder = primary;
+			let configuration: URI | undefined = undefined;
+			const onDidChangeWorkspaceFolders = disposables.add(new Emitter<{ readonly added: never[]; readonly removed: never[]; readonly changed: never[] }>());
+			const onDidChangeWorkbenchState = disposables.add(new Emitter<WorkbenchState>());
+			instantiationService.stub(IWorkspaceContextService, {
+				getWorkbenchState: () => configuration ? WorkbenchState.WORKSPACE : WorkbenchState.FOLDER,
+				getWorkspace: () => testIWorkspace({ id: '', uri: configuration ?? primary, configuration, folders: [{ uri: folder, name: 'root', index: 0, toResource: () => folder }] }),
+				getWorkspaceFolder: () => null,
+				onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+				onDidChangeWorkbenchState: onDidChangeWorkbenchState.event,
+			});
+
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'primary'), startTime: 1000, modifiedTime: 2000, summary: 'In the folder', workingDirectories: [URI.file('/workspace/root/sub')] });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'multi-root'), startTime: 1000, modifiedTime: 2500, summary: 'Multi-root in the folder', workingDirectories: [URI.file('/workspace/root/sub')], _meta: withSessionMultiRootMetadata(undefined, { workspaceFile: URI.file('/workspace/other.code-workspace').toString() }) });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'checkout'), startTime: 1000, modifiedTime: 3000, summary: 'In the checkout', workingDirectories: [checkout] });
+
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+			const labels = () => listController.items.map(item => item.label).sort();
+			const moveTo = async (location: URI) => {
+				folder = location;
+				onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+				await timeout(0);
+			};
+
+			await listController.refresh(CancellationToken.None);
+			await moveTo(checkout);
+			const atCheckout = labels();
+			await moveTo(primary);
+			// Save Workspace As: the same folder in a workspace file, without a change of the folders
+			configuration = workspaceFile;
+			onDidChangeWorkbenchState.fire(WorkbenchState.WORKSPACE);
+			await timeout(0);
+
+			assert.deepStrictEqual({ atCheckout, savedAsWorkspace: labels() }, {
+				atCheckout: ['In the checkout', 'In the folder', 'Multi-root in the folder'],
+				savedAsWorkspace: ['In the folder'],
+			});
+		});
+
 		test('workspace folder change re-filters the retained snapshot when refresh fails', async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 			const workspaceFolder = URI.file('/workspace/root');
@@ -7299,6 +7406,7 @@ suite('AgentHostChatContribution', () => {
 				getWorkspace: () => (testIWorkspace({ id: '', folders: [...folders] })),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+				onDidChangeWorkbenchState: Event.None,
 			});
 			agentHostService.addSession({ session: AgentSession.uri('copilot', 'in-ws'), startTime: 1000, modifiedTime: 2000, summary: 'In workspace', workingDirectories: [URI.file('/workspace/root/sub')] });
 			agentHostService.addSession({ session: AgentSession.uri('copilot', 'out-ws'), startTime: 1000, modifiedTime: 2000, summary: 'Outside workspace', workingDirectories: [URI.file('/other/place')] });
@@ -7340,6 +7448,7 @@ suite('AgentHostChatContribution', () => {
 				getWorkspace: () => (testIWorkspace({ id: 'workspace', configuration, folders: folders.map((uri, index) => ({ uri, name: uri.path, index, toResource: () => uri })) })),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+				onDidChangeWorkbenchState: Event.None,
 			});
 
 			agentHostService.addSession({
@@ -7408,6 +7517,7 @@ suite('AgentHostChatContribution', () => {
 				getWorkspace: () => (testIWorkspace({ id: 'empty', folders: [] })),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
+				onDidChangeWorkbenchState: Event.None,
 			});
 
 			agentHostService.addSession({
@@ -7441,6 +7551,7 @@ suite('AgentHostChatContribution', () => {
 				getWorkspace: () => (testIWorkspace({ id: 'folder', folders: [{ uri: folder, name: 'a', index: 0, toResource: () => folder }] })),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
+				onDidChangeWorkbenchState: Event.None,
 			});
 
 			agentHostService.addSession({
@@ -7475,6 +7586,7 @@ suite('AgentHostChatContribution', () => {
 				getWorkspace: () => (testIWorkspace({ id: 'folder', folders: [{ uri: folder, name: 'repo', index: 0, toResource: () => folder }] })),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
+				onDidChangeWorkbenchState: Event.None,
 			});
 
 			agentHostService.addSession({
@@ -7520,6 +7632,7 @@ suite('AgentHostChatContribution', () => {
 				getWorkspace: () => (testIWorkspace({ id: 'folder', folders: [{ uri: folder, name: 'repo', index: 0, toResource: () => folder }] })),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
+				onDidChangeWorkbenchState: Event.None,
 			});
 
 			// Adoption drops `ehcliAdoptable` and leaves the durable adopted marker
@@ -7549,6 +7662,7 @@ suite('AgentHostChatContribution', () => {
 				getWorkspace: () => (testIWorkspace({ id: '', folders: [{ uri: workspaceFolder, name: 'root', index: 0, toResource: () => workspaceFolder }] })),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
+				onDidChangeWorkbenchState: Event.None,
 			});
 
 			const listController = createSessionListController(disposables, instantiationService, agentHostService);
@@ -7723,6 +7837,7 @@ suite('AgentHostChatContribution', () => {
 				getWorkspace: () => (testIWorkspace({ id: '', folders: [{ uri: workspaceFolder, name: 'root', index: 0, toResource: () => workspaceFolder }] })),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
+				onDidChangeWorkbenchState: Event.None,
 			});
 
 			const rebindCalls: { oldResource: URI; newResource: URI; provider: string }[] = [];
@@ -7899,6 +8014,7 @@ suite('AgentHostChatContribution', () => {
 				})),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
+				onDidChangeWorkbenchState: Event.None,
 			});
 
 			const rebindCalls: { oldResource: URI; newResource: URI }[] = [];
@@ -7948,6 +8064,7 @@ suite('AgentHostChatContribution', () => {
 				})) as unknown as IWorkspace,
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
+				onDidChangeWorkbenchState: Event.None,
 			};
 			instantiationService.stub(IWorkspaceContextService, workspace as IWorkspaceContextService);
 			const folders = disposables.add(new AgentHostNewSessionFolderService({ onDidDisposeSession: Event.None } as Partial<IChatService> as IChatService, workspace as IWorkspaceContextService, { extUri: extUriBiasedIgnorePathCase } as Partial<IUriIdentityService> as IUriIdentityService));
@@ -10504,6 +10621,39 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(result.details, 'Custom Endpoint/My Endpoint/Custom Model • 1 credit');
 		}));
+
+		for (const { name, provider, byokModelId, hostModelId, expected } of [
+			{
+				name: 'live Copilot BYOK turn reporting its bare model id is not attributed to a host model with the same id', provider: 'copilotcli', byokModelId: 'gpt-6-luna', hostModelId: 'gpt-6-luna',
+				expected: { details: 'OpenRouter/My Model', actualModelId: 'agent-host-copilot:openrouter/gpt-6-luna', tokenRows: ['My Model'] },
+			},
+			{
+				name: 'live Copilot BYOK turn reporting its bare model id is not attributed to a host model with its dotted id', provider: 'copilotcli', byokModelId: 'claude-haiku-5-5', hostModelId: 'claude-haiku-5.5',
+				expected: { details: 'OpenRouter/My Model', actualModelId: 'agent-host-copilot:openrouter/claude-haiku-5-5', tokenRows: ['My Model'] },
+			},
+			{
+				name: 'live turn of another agent is attributed to the model it reported, also when that is the tail of the model it selected', provider: 'claude', byokModelId: 'gpt-6-luna', hostModelId: 'gpt-6-luna',
+				expected: { details: 'Host Model', actualModelId: 'agent-host-copilot:gpt-6-luna', tokenRows: ['Host Model'] },
+			},
+		]) {
+			test(name, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { ...createClashingByokLanguageModelTestData(byokModelId, hostModelId), provider });
+
+				const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+					userSelectedModelId: `agent-host-copilot:openrouter/${byokModelId}`,
+				});
+
+				fire({ type: 'chat/usage', session, turnId, usage: { model: byokModelId, inputTokens: 100, _meta: { turnTokenTotals: [{ model: byokModelId, inputTokens: 100, cachedTokens: 0, outputTokens: 0 }] } } } as ChatAction);
+				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+
+				const result = await turnPromise;
+				const usage = collected.flat().findLast(part => part.kind === 'usage');
+
+				assert.deepStrictEqual({
+					details: result.details, actualModelId: usage?.actualModelId, tokenRows: usage?.modelTotals?.map(total => total.model),
+				}, expected);
+			}));
+		}
 
 		test('cancelled turn still returns model credit details from accumulated usage', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
@@ -14781,6 +14931,34 @@ suite('AgentHostChatContribution', () => {
 				return session.history.filter(item => item.type === 'response').map(item => item.details);
 			};
 			assert.deepStrictEqual(await footers(), ['Copilot Fusion Max • 15.5 credits', 'Copilot Fusion High • 15.5 credits']);
+		});
+
+		test('restored Copilot turns reporting the same bare model id are each attributed to the model they selected', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables, { ...createClashingByokLanguageModelTestData('gpt-6-luna', 'gpt-6-luna'), provider: 'copilotcli' });
+			const sessionUri = AgentSession.uri('copilotcli', 'sess-byok-clash');
+			const turn = (id: string, model: string | undefined): Turn => ({
+				id, state: TurnState.Complete, responseParts: [], usage: { model: 'gpt-6-luna', inputTokens: 100 },
+				message: { text: id, origin: { kind: MessageKind.User }, ...(model ? { model: { id: model } } : {}) },
+			});
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...createSessionState({
+					resource: sessionUri.toString(), provider: 'copilotcli', title: 'Test',
+					status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				}),
+				lifecycle: SessionLifecycle.Ready,
+				turns: [turn('unselected', undefined), turn('host', 'gpt-6-luna'), turn('byok', 'openrouter/gpt-6-luna')],
+			});
+
+			const session = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/sess-byok-clash' }), CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+
+			assert.deepStrictEqual(session.history.flatMap(item => item.type === 'response' ? [{
+				details: item.details, actualModelId: item.parts.find(part => part.kind === 'usage')?.actualModelId,
+			}] : []), [
+				{ details: 'Host Model', actualModelId: 'agent-host-copilot:gpt-6-luna' },
+				{ details: 'Host Model', actualModelId: 'agent-host-copilot:gpt-6-luna' },
+				{ details: 'OpenRouter/My Model', actualModelId: 'agent-host-copilot:openrouter/gpt-6-luna' },
+			]);
 		});
 
 		test('history requests get per-turn model selection from usage or message model', async () => {

@@ -17,6 +17,8 @@ import { Action2, MenuRegistry, registerAction2 } from '../../../../../platform/
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { CHAT_ATTACH_CONTEXT_ACTION_ID } from '../../../chat/common/constants.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { Menus } from '../menus.js';
 import { getLabeledPickerResponsiveItems } from './newChatComposerInput.js';
 import { createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
@@ -125,6 +127,7 @@ export function registerSharedChatInputComposerToolbar(): IDisposable {
 		command: { id: CHAT_ATTACH_CONTEXT_ACTION_ID, title: localize('sessionsSharedChatInput.addContext', "Add Context..."), icon: Codicon.addCompact },
 		group: 'navigation',
 		order: -2,
+		when: ChatContextKeys.enabled,
 	}));
 
 	for (const [id, title, busy] of [
@@ -137,7 +140,7 @@ export function registerSharedChatInputComposerToolbar(): IDisposable {
 					id,
 					title,
 					f1: false,
-					menu: { id: Menus.NewSessionChatInputToolbar, group: 'navigation', order: 100, when: SharedChatInputComposerBusyContext.isEqualTo(busy) },
+					menu: { id: Menus.NewSessionChatInputToolbar, group: 'navigation', order: 100, when: ContextKeyExpr.and(ChatContextKeys.enabled, SharedChatInputComposerBusyContext.isEqualTo(busy)) },
 				});
 			}
 			override run(): void { /* progress only */ }
@@ -150,7 +153,7 @@ export function registerSharedChatInputComposerToolbar(): IDisposable {
 				id: COMPOSER_SESSION_CONTROLS_ACTION_ID,
 				title: localize2('sessionsSharedChatInput.sessionControls', "Session Controls"),
 				f1: false,
-				menu: { id: Menus.NewSessionChatInputToolbar, group: 'navigation', order: 0 },
+				menu: { id: Menus.NewSessionChatInputToolbar, group: 'navigation', order: 0, when: ChatContextKeys.enabled },
 			});
 		}
 		override run(): void { /* rendered by the action view item */ }

@@ -41,6 +41,7 @@ import { CREATE_SESSION_CANVAS_COMMAND_ID, DISCOVER_SESSION_CANVASES_COMMAND_ID,
 import { SessionCanvasRegistryService } from '../../electron-browser/sessionCanvasService.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { getCanvasReferenceKey, ICanvasReference } from '../../../../../workbench/common/canvasReference.js';
+import { TestProgressService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 
 suite('SessionCanvasRegistryService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -62,7 +63,7 @@ suite('SessionCanvasRegistryService', () => {
 		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', session);
 		const listedChats: URI[] = [];
 		const didListCanvases = store.add(new Emitter<URI>());
-		const opened: Array<{ chat: URI; canvas: ISessionCanvasDefinition; instanceId: string }> = [];
+		const opened: Array<{ chat: URI; canvas: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>; instanceId: string }> = [];
 		let currentDefinitions: readonly ISessionCanvasDefinition[] | undefined = definitions;
 		let listingGate: DeferredPromise<void> | undefined;
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({
@@ -104,6 +105,7 @@ suite('SessionCanvasRegistryService', () => {
 			sessionsManagementService,
 			canvasService,
 			new TestNotificationService(),
+			new TestProgressService(),
 			new NullLogService(),
 		));
 		return {

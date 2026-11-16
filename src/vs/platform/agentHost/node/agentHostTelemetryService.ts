@@ -26,7 +26,7 @@ import { TelemetryService } from '../../telemetry/common/telemetryService.js';
 import { getPiiPathsFromEnvironment, getUserContentPathsFromEnvironment, isLoggingOnly, NullTelemetryService, supportsTelemetry, type ITelemetryAppender } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel } from '../common/agentHostSchema.js';
 import { AgentHostDevDeviceIdEnvKey, AgentHostMachineIdEnvKey, AgentHostSqmIdEnvKey, AgentHostTelemetryLevelEnvKey } from '../common/agentHostTelemetryEnv.js';
-import { AgentHostRestrictedTelemetrySender, IAgentHostRestrictedTelemetry, IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from './agentHostRestrictedTelemetry.js';
+import { AgentHostRestrictedTelemetrySender, IAgentHostGitHubTelemetryContext, IAgentHostRestrictedTelemetry, IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from './agentHostRestrictedTelemetry.js';
 import { AgentHostInternalTelemetrySender } from './agentHostMicrosoftTelemetry.js';
 import type { IAgentTelemetryContext } from '../common/agent.js';
 
@@ -169,6 +169,13 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 			return;
 		}
 		this._restricted?.sendGHTelemetryEvent(eventName, properties, measurements);
+	}
+
+	sendGHTelemetryEventForContext(context: IAgentHostGitHubTelemetryContext, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		if (this.telemetryLevel < TelemetryLevel.USAGE) {
+			return;
+		}
+		this._restricted?.sendGHTelemetryEventForContext(context, eventName, properties, measurements);
 	}
 
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {

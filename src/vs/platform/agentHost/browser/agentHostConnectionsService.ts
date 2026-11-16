@@ -5,7 +5,6 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { Schemas } from '../../../base/common/network.js';
 import { IPath, posix, win32 } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
@@ -154,15 +153,10 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 	}
 
 	getConnectionByAuthority(authority: string): IAgentConnection | undefined {
-		if (authority === AMBIENT_AGENT_HOST_AUTHORITY || authority === this._ambientResourceAuthority) {
+		if (authority === AMBIENT_AGENT_HOST_AUTHORITY || authority === this._agentHostService.resourceUris.connectionAuthority) {
 			return this._agentHostService;
 		}
 		return this._remoteAgentHostService.getConnectionByAuthority(authority);
-	}
-
-	private get _ambientResourceAuthority(): string | undefined {
-		const resource = this._agentHostService.resourceUris.fromAgentHost(URI.from({ scheme: Schemas.file, path: '/' }));
-		return resource.scheme === AGENT_HOST_SCHEME ? resource.authority : undefined;
 	}
 
 	private async _getPath(resource: URI): Promise<IPath | undefined> {

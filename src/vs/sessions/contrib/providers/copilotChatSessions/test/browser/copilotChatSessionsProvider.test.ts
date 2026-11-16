@@ -1614,7 +1614,7 @@ suite('CopilotChatSessionsProvider', () => {
 		model.addSession(session('elsewhere'));
 		const provider = createProvider(disposables, model);
 		const folders = observableValue<readonly URI[]>('folders', [repository('here')]);
-		provider.setListingScope({ folders, repositories: constObservable([]) });
+		provider.setListingScope({ folders });
 		const titles = (sessions: readonly ISession[]) => sessions.map(session => session.title.get()).sort().join(',');
 		const changes: string[] = [];
 		disposables.add(provider.onDidChangeSessions(e => changes.push(`added=${titles(e.added)} removed=${titles(e.removed)} changed=${titles(e.changed)}`)));
@@ -1641,8 +1641,8 @@ suite('CopilotChatSessionsProvider', () => {
 		const changes: string[] = [];
 		disposables.add(provider.onDidChangeSessions(e => changes.push(`added=${titles(e.added)} removed=${titles(e.removed)} changed=${titles(e.changed)}`)));
 
-		provider.setListingScope({ folders: constObservable([repository('here')]), repositories: constObservable([]) });
-		provider.setListingScope({ folders: constObservable([repository('elsewhere')]), repositories: constObservable([]) });
+		provider.setListingScope({ folders: constObservable([repository('here')]) });
+		provider.setListingScope({ folders: constObservable([repository('elsewhere')]) });
 
 		assert.deepStrictEqual(changes, ['added= removed= changed=elsewhere', 'added=elsewhere removed= changed=here']);
 	});
@@ -3270,7 +3270,7 @@ suite('CopilotChatSessionsProvider', () => {
 		// Who learns of the replacement, such as the sessions management service, subscribed before the scope was set
 		const atReplacement: string[][] = [];
 		disposables.add(provider.onDidReplaceSession(({ from, to }) => atReplacement.push(provider.getSessions().map(listed => listed === to ? 'committed' : listed === from ? 'draft' : listed.resource.toString()))));
-		provider.setListingScope({ folders: constObservable([]), repositories: constObservable([]) });
+		provider.setListingScope({ folders: constObservable([]) });
 
 		const session = provider.createNewSession(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/owner/repo/HEAD' }), CopilotCloudSessionType.id);
 		const added = waitForSessionAdded(provider);

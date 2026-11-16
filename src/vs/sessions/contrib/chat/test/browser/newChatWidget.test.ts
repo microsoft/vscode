@@ -36,10 +36,16 @@ import { WelcomeName } from '../../../../../workbench/contrib/sessions/browser/c
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
+import { IUsersClient, User } from '../../../../../platform/github/common/core/users.js';
+import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
+import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import type { ISessionOptionsIconOnlyPickers } from '../../../../../workbench/contrib/sessions/browser/chat/iconOnlySessionPickers.js';
 import { getNewSessionWelcomePhrases } from '../../../../../workbench/contrib/sessions/common/welcomePhrases.js';
 import { SessionInputPickerVisibility } from '../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
@@ -59,7 +65,7 @@ import { IChatDraft, serializeChatDraft } from '../../../../../workbench/contrib
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { AgentsWindowUsage } from '../../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
 import { SessionComparisonModelSelection } from '../../../../../workbench/contrib/sessions/browser/chat/sessionComparisonModelSelection.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IModelConfigurationAccess } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { createSessionViewTestServices, createTestActiveSession, testPaneOf } from '../../../../test/browser/sessionViewTestUtils.js';
 import { getDefaultSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment } from '../../../../../workbench/contrib/sessions/browser/chat/sessionEnvironmentPicker.js';
@@ -79,6 +85,10 @@ import { ISessionHost, ISessionHostService } from '../../../../../workbench/serv
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
 import { ITestSessionWithChat, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISavedSessionDraft, ISavedSessionDraftTarget } from '../../../../../workbench/contrib/sessions/common/savedSessionDrafts.js';
+import '../../../../../base/browser/ui/codicons/codiconStyles.js';
+import '../../../../../workbench/browser/media/style.css';
+import '../../../../../workbench/contrib/chat/browser/widget/media/chat.css';
+import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsGridContent.css';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -272,18 +282,19 @@ const refreshGitHubProfileName = Reflect.get(WelcomeName.prototype, '_refreshGit
 	readonly _store: { readonly isDisposed: boolean };
 	_githubProfileAccountKey: string | undefined;
 	readonly _githubProfileName: ReturnType<typeof observableValue<string | undefined>>;
-	readonly configurationService: { getValue<T>(key: string): T };
+	readonly configurationService: { getValue<T>(key: string): T | undefined };
 	readonly defaultAccountService: {
 		currentDefaultAccount: { readonly authenticationProvider: { readonly id: string; readonly enterprise: boolean }; readonly sessionId: string } | null;
 		getDefaultAccount(): Promise<{ readonly authenticationProvider: { readonly id: string; readonly enterprise: boolean }; readonly sessionId: string } | null>;
 	};
+	readonly logService: Pick<ILogService, 'warn'>;
 	_fetchGitHubProfileName(providerId: string, enterprise: boolean, sessionId: string): Promise<string | undefined>;
 }) => Promise<void>;
 const fetchGitHubProfileName = Reflect.get(WelcomeName.prototype, '_fetchGitHubProfileName') as (this: {
-	readonly authenticationService: { getSessions(): Promise<readonly never[]> };
-	readonly defaultAccountService: { resolveGitHubUrl(path: string): URI | undefined };
-	readonly requestService: { request(): Promise<never> };
-	readonly logService: { warn(message: string): void };
+	readonly authenticationService: Pick<IAuthenticationService, 'getSessions'>;
+	readonly defaultAccountService: Pick<IDefaultAccountService, 'resolveGitHubUrl'>;
+	readonly gitHubService: Pick<IWorkbenchGitHubService, 'acquireAccountApiClient'>;
+	readonly logService: Pick<ILogService, 'warn'>;
 }, providerId: string, enterprise: boolean, sessionId: string) => Promise<string | undefined>;
 
 interface IPromptOptionsWorkspaceHarness {
@@ -580,7 +591,7 @@ suite('NewChatWidget', () => {
 	test('saved draft navigation captures only when the shown input hides, not on host disposal or send', () => {
 		const hostVisible = observableValue('hostVisible', true);
 		const inputVisible = observableValue('inputVisible', false);
-		const composer = { isSending: false };
+		const composer = { isSending: false, preview: constObservable(undefined), hasScheduledChanges: constObservable(false) };
 		let captures = 0;
 		const stowed: boolean[] = [];
 		const harness = {
@@ -612,6 +623,176 @@ suite('NewChatWidget', () => {
 		});
 	});
 
+	suite('scheduled draft submit', () => {
+		test('dispatch keeps the scheduled label until the composer clears', () => {
+			const store = disposables.add(new DisposableStore());
+			const request = observableValue<{ runAt: string } | undefined>('request', { runAt: new Date(Date.now() + 3_600_000).toISOString() });
+			const preview = observableValue<{ request: typeof request } | undefined>('preview', { request });
+			const harness = {
+				_savedDraftComposer: { preview },
+				_savingScheduledDraft: observableValue('saving', false),
+				_scheduledDraftLabel: observableValue<string | undefined>('label', undefined),
+				_register: <T extends IDisposable>(value: T): T => store.add(value),
+			};
+			const track = Reflect.get(NewChatWidget.prototype, '_trackScheduledDraftLabel') as (this: typeof harness, parent: HTMLElement) => void;
+			track.call(harness, $('div'));
+			const original = harness._scheduledDraftLabel.get();
+			const labels: (string | undefined)[] = [];
+			store.add(autorun(reader => { labels.push(harness._scheduledDraftLabel.read(reader)); }));
+			harness._savingScheduledDraft.set(true, undefined);
+			request.set(undefined, undefined);
+			preview.set(undefined, undefined);
+			harness._savingScheduledDraft.set(false, undefined);
+			assert.deepStrictEqual(labels, [original, undefined]);
+			store.clear();
+		});
+
+		test('the text-only control keeps its label and suppresses the icon in split and disabled states', () => {
+			const workbench = append(mainWindow.document.body, $('.monaco-workbench'));
+			disposables.add(toDisposable(() => workbench.remove()));
+			const sessionsPart = append(workbench, $('.part.sessionspart'));
+			const root = append(sessionsPart, $('.interactive-session'));
+			root.style.setProperty('--chat-input-control-height', '22px');
+			root.style.setProperty('--vscode-button-background', 'rgb(14, 99, 156)');
+			root.style.setProperty('--vscode-button-hoverBackground', 'rgb(14, 99, 156)');
+			root.style.setProperty('--vscode-button-foreground', 'rgb(255, 255, 255)');
+			root.style.setProperty('--vscode-icon-foreground', 'rgb(128, 128, 128)');
+			const toolbars = append(root, $('.chat-input-toolbars'));
+			const toolbar = append(toolbars, $('.chat-execute-toolbar'));
+			const actionBar = append(toolbar, $('.monaco-action-bar'));
+			const split = append(actionBar, $('.action-item.monaco-dropdown-with-default.chat-submit-button-label-only'));
+			const button = append(split, $('.action-container.menu-entry.chat-submit-button.labeled.label-only'));
+			const action = append(button, $('a.action-label.codicon.codicon-arrow-up-compact', { role: 'button', tabindex: '0' }));
+			action.textContent = 'Send in 19 minutes';
+			const duplicate = append(button, $('span.chat-submit-button-label'));
+			duplicate.textContent = action.textContent;
+			const disabledButton = append(actionBar, $('.action-item.disabled.chat-submit-button.labeled.label-only'));
+			const disabledAction = append(disabledButton, $('a.action-label.disabled.codicon.codicon-arrow-up-compact'));
+			disabledAction.textContent = action.textContent;
+			action.focus();
+			assert.deepStrictEqual({
+				height: button.getBoundingClientRect().height,
+				actionHeight: action.getBoundingClientRect().height,
+				background: mainWindow.getComputedStyle(button).backgroundColor,
+				foreground: mainWindow.getComputedStyle(action).color,
+				icon: mainWindow.getComputedStyle(action, '::before').display,
+				disabledIcon: mainWindow.getComputedStyle(disabledAction, '::before').display,
+				duplicate: mainWindow.getComputedStyle(duplicate).display,
+				focused: mainWindow.document.activeElement === action,
+			}, {
+				height: 22, actionHeight: 22, background: 'rgb(14, 99, 156)', foreground: 'rgb(255, 255, 255)',
+				icon: 'none', disabledIcon: 'none', duplicate: 'none', focused: true,
+			});
+		});
+
+		function createHarness(changed: boolean, fail = false, sendNow = false, failSend = false) {
+			let input: IChatDraft = { inputText: 'Scheduled request', attachments: [] };
+			const events: string[] = [];
+			const scheduled = {
+				request: constObservable({ runAt: new Date(Date.now() + 3_600_000).toISOString() }),
+				save: async () => {
+					events.push('save');
+					if (fail) {
+						throw new Error('Schedule changed');
+					}
+				},
+				sendNow: async () => {
+					events.push('send');
+					if (failSend) {
+						throw new Error('Send failed');
+					}
+				},
+				reschedule: async (_anchor?: HTMLElement, onSendNow?: () => Promise<void>) => {
+					events.push('picker');
+					if (sendNow) {
+						await onSendNow!();
+					}
+				},
+			};
+			const composer = {
+				preview: constObservable(scheduled),
+				hasScheduledChanges: constObservable(changed),
+				target: {},
+				isScheduling: false,
+				markScheduledSaved: () => { events.push('saved'); },
+			};
+			const harness = {
+				_savedDraftComposer: composer,
+				_savingScheduledDraft: observableValue('saving', false),
+				_session: constObservable(upcastPartial<ISession>({})),
+				_comparisonSelection: { enabled: constObservable(false) },
+				_feedbackItems: constObservable([]),
+				_captureSavedDraftTarget: () => { },
+				_newChatInput: {
+					getDraft: () => input,
+					setInputEnabled: (enabled: boolean) => { events.push(enabled ? 'enabled' : 'disabled'); },
+					focus: () => { events.push('focus'); },
+				},
+				sessionDraftsService: {
+					stowAndClear: () => {
+						assert.strictEqual(composer.isScheduling, false);
+						events.push('clear');
+						input = { inputText: '', attachments: [] };
+					},
+				},
+			};
+			const submit = Reflect.get(NewChatWidget.prototype, '_submitScheduledDraft') as (this: typeof harness, anchor?: HTMLElement, reschedule?: boolean) => Promise<boolean>;
+			return { submit: (reschedule = false) => submit.call(harness, undefined, reschedule), events, input: () => input.inputText };
+		}
+
+		for (const changed of [false, true]) {
+			test(`Send in saves and clears without opening the picker (edited: ${changed})`, async () => {
+				const fixture = createHarness(changed);
+				await fixture.submit();
+				assert.deepStrictEqual({ events: fixture.events, input: fixture.input() }, {
+					events: ['disabled', 'save', 'saved', 'clear', 'enabled', 'focus'], input: '',
+				});
+			});
+		}
+
+		test('the dropdown alone opens the picker and retains input', async () => {
+			const fixture = createHarness(true);
+			await fixture.submit(true);
+			assert.deepStrictEqual({ events: fixture.events, input: fixture.input() }, {
+				events: ['disabled', 'picker', 'enabled', 'focus'], input: 'Scheduled request',
+			});
+		});
+
+		test('a failed scheduled save keeps the editable input', async () => {
+			const fixture = createHarness(true, true);
+			await assert.rejects(() => fixture.submit(), /Schedule changed/);
+			assert.deepStrictEqual({ events: fixture.events, input: fixture.input() }, {
+				events: ['disabled', 'save', 'enabled', 'focus'], input: 'Scheduled request',
+			});
+		});
+
+		for (const changed of [false, true]) {
+			test(`Send Now saves before dispatch and clears only after acceptance (edited: ${changed})`, async () => {
+				const fixture = createHarness(changed, false, true);
+				await fixture.submit(true);
+				assert.deepStrictEqual({ events: fixture.events, input: fixture.input() }, {
+					events: ['disabled', 'picker', 'save', 'saved', 'send', 'clear', 'enabled', 'focus'], input: '',
+				});
+			});
+		}
+
+		test('Send Now does not dispatch when saving fails', async () => {
+			const fixture = createHarness(true, true, true);
+			await assert.rejects(() => fixture.submit(true), /Schedule changed/);
+			assert.deepStrictEqual({ events: fixture.events, input: fixture.input() }, {
+				events: ['disabled', 'picker', 'save', 'enabled', 'focus'], input: 'Scheduled request',
+			});
+		});
+
+		test('Send Now keeps the editable input when dispatch fails', async () => {
+			const fixture = createHarness(true, false, true, true);
+			await assert.rejects(() => fixture.submit(true), /Send failed/);
+			assert.deepStrictEqual({ events: fixture.events, input: fixture.input() }, {
+				events: ['disabled', 'picker', 'save', 'saved', 'send', 'enabled', 'focus'], input: 'Scheduled request',
+			});
+		});
+	});
+
 	suite('saved draft restoration', () => {
 		function createHarness(session: ISession) {
 			let input: IChatDraft = { inputText: 'previous input', attachments: [] };
@@ -621,6 +802,8 @@ suite('NewChatWidget', () => {
 			const harness = {
 				_store: disposables.add(new DisposableStore()),
 				_restoringSavedDraft: observableValue('restoring', false),
+				_isDraftPreview: constObservable(false),
+				_captureSavedDraftTarget: () => { },
 				_savedDraftTargetUnavailable: observableValue('unavailable', false),
 				_pendingPreferredUpgrade: disposables.add(new MutableDisposable<IDisposable>()),
 				_newSessionCreation: disposables.add(new MutableDisposable<IDisposable>()),
@@ -632,7 +815,7 @@ suite('NewChatWidget', () => {
 					focus: () => { focusStates.push(inputEnabled); },
 				},
 				storageService: disposables.add(new InMemoryStorageService()),
-				sessionsProvidersService: { getProvider: () => ({ sessionTypes: [{ id: 'agent' }] }) },
+				sessionsProvidersService: { getProvider: (): Pick<ISessionsProvider, 'sessionTypes'> | undefined => ({ sessionTypes: [{ id: 'agent', label: 'Agent', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.None }] }) },
 				_environments: constObservable<readonly ISessionCreationEnvironment[]>([]),
 				_pickedEnvironment: observableValue<ISessionCreationEnvironment | undefined>('environment', undefined),
 				_workspacePicker: { ...workspaceIdentity(), setSelectedWorkspace: () => { } },
@@ -641,14 +824,15 @@ suite('NewChatWidget', () => {
 					openQuickChat: () => session,
 				},
 				sessionsManagementService: {
+					onDidChangeSessionTypes: Event.None,
 					configureNewSessionDraft: async (value: ISession) => { configured.push(value); },
 				},
 			};
-			const restore = Reflect.get(NewChatWidget.prototype, '_restoreSavedDraft') as (this: typeof harness, draft: ISavedSessionDraft, token?: CancellationToken) => Promise<void>;
+			const restore = Reflect.get(NewChatWidget.prototype, '_restoreSavedDraft') as (this: typeof harness, draft: ISavedSessionDraft, token?: CancellationToken, preserveFocus?: boolean) => Promise<void>;
 			return {
 				harness, configured, focusStates,
 				input: () => input,
-				restore: (draft: ISavedSessionDraft, token?: CancellationToken) => restore.call(harness, draft, token),
+				restore: (draft: ISavedSessionDraft, token?: CancellationToken, preserveFocus?: boolean) => restore.call(harness, draft, token, preserveFocus),
 			};
 		}
 
@@ -658,6 +842,145 @@ suite('NewChatWidget', () => {
 			input: { inputText: 'saved input', attachments: [] },
 			target: { providerId: 'provider', sessionTypeId: 'agent', folderUri: requested },
 		};
+
+		test('startup cannot seed or capture the picker default while recovering a saved target', async () => {
+			const session = {
+				sessionId: 'picker-default', providerId: 'provider', sessionType: 'agent',
+				status: constObservable(SessionStatus.Untitled),
+				modelId: constObservable('user-model'), mode: constObservable(undefined),
+				application: constObservable({ id: 'test' }),
+			};
+			const composer = {
+				target: draft.target,
+				isRestoring: true,
+				updateTarget: (target: ISavedSessionDraftTarget) => { composer.target = target; },
+			};
+			const seeded: URI[] = [];
+			const harness = {
+				_savedDraftComposer: composer,
+				_restoringSavedDraft: constObservable(false),
+				_savedDraftTargetUnavailable: constObservable(false),
+				_session: constObservable(session),
+				_workspacePicker: { selectedFolderUri: URI.file('/picker-default') },
+				_syncWorkspacePickerFromActiveSession: () => false,
+				_createNewSession: (folder: URI) => { seeded.push(folder); },
+				_environment: constObservable(undefined),
+				sessionsProvidersService: { getProvider: () => undefined },
+			};
+			const capture = Reflect.get(NewChatWidget.prototype, '_captureSavedDraftTarget') as (this: typeof harness, restorationComplete?: boolean) => void;
+			const restoreNoWorkspace = Reflect.get(NewChatWidget.prototype, '_restoreNoWorkspaceDraft') as (this: typeof harness) => Promise<void>;
+			seedWorkspaceDraft.call(harness);
+			await restoreNoWorkspace.call(harness);
+			capture.call(harness);
+			const startupTarget = composer.target;
+			harness._workspacePicker.selectedFolderUri = requested;
+			capture.call(harness, true);
+			const restoredTarget = composer.target.folderUri;
+			composer.isRestoring = false;
+			harness._workspacePicker.selectedFolderUri = URI.file('/user-picked');
+			capture.call(harness);
+			assert.deepStrictEqual({ seeded, startupTarget, restoredTarget, userTarget: composer.target.folderUri }, {
+				seeded: [], startupTarget: draft.target, restoredTarget: requested, userTarget: URI.file('/user-picked'),
+			});
+		});
+
+		test('captures Agent Host mode, worktree and model options as their owning configuration changes', () => {
+			const configChanged = disposables.add(new Emitter<string>());
+			const modelChanged = disposables.add(new Emitter<readonly string[]>());
+			let configuration = { mode: 'interactive', isolationMode: 'workspace', branch: 'main', sessionTemplate: { modelConfiguration: { reasoningEffort: 'medium' } } };
+			const session = upcastPartial<ISession>({
+				sessionId: 'draft', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: 'agent',
+				status: constObservable(SessionStatus.Untitled),
+				modelId: constObservable('model'), mode: constObservable(undefined),
+				workspace: constObservable(undefined), application: constObservable({ id: 'test', label: 'Test' }),
+			});
+			const provider = upcastPartial<IAgentHostSessionsProvider>({
+				id: LOCAL_AGENT_HOST_PROVIDER_ID,
+				onDidChangeSessionConfig: configChanged.event,
+				getDraftSessionConfiguration: () => configuration,
+				getAutomationModelConfiguration: () => upcastPartial<IModelConfigurationAccess>({ onDidChange: modelChanged.event }),
+			});
+			const captured: ISavedSessionDraftTarget[] = [];
+			const composer = { target: {}, updateTarget: (target: ISavedSessionDraftTarget) => { captured.push(target); } };
+			const harness = {
+				_session: constObservable(session),
+				_environment: constObservable(undefined),
+				_savedDraftComposer: composer,
+				_restoringSavedDraft: constObservable(false),
+				_savedDraftTargetUnavailable: constObservable(false),
+				_workspacePicker: { selectedFolderUri: requested },
+				sessionsProvidersService: { getProvider: () => provider },
+				_captureSavedDraftTarget: () => capture.call(harness),
+			};
+			const capture = Reflect.get(NewChatWidget.prototype, '_captureSavedDraftTarget') as (this: typeof harness) => void;
+			const track = Reflect.get(NewChatWidget.prototype, '_trackSavedDraftTarget') as (this: typeof harness) => IDisposable;
+			disposables.add(track.call(harness));
+			configuration = { ...configuration, mode: 'plan', isolationMode: 'worktree', branch: 'selected' };
+			configChanged.fire('unrelated');
+			configChanged.fire(session.sessionId);
+			configuration = { ...configuration, sessionTemplate: { modelConfiguration: { reasoningEffort: 'high' } } };
+			modelChanged.fire(['model']);
+			assert.deepStrictEqual(captured.map(target => target.configuration), [
+				{ mode: 'interactive', isolationMode: 'workspace', branch: 'main', sessionTemplate: { modelConfiguration: { reasoningEffort: 'medium' } } },
+				{ mode: 'plan', isolationMode: 'worktree', branch: 'selected', sessionTemplate: { modelConfiguration: { reasoningEffort: 'medium' } } },
+				configuration,
+			]);
+		});
+
+		test('restoring the singleton backup does not move focus', async () => {
+			const session = upcastPartial<ISession>({
+				providerId: 'provider', sessionType: 'agent',
+				isQuickChat: constObservable(true),
+				workspace: constObservable(undefined),
+			});
+			const fixture = createHarness(session);
+			await fixture.restore({ ...draft, target: { ...draft.target, folderUri: undefined } }, CancellationToken.None, true);
+			assert.deepStrictEqual({ input: fixture.input(), focusStates: fixture.focusStates, unavailable: fixture.harness._savedDraftTargetUnavailable.get() }, {
+				input: draft.input, focusStates: [], unavailable: false,
+			});
+		});
+
+		test('reload recovery waits for the saved provider and its session type', async () => {
+			const session = upcastPartial<ISession>({
+				providerId: 'provider', sessionType: 'agent',
+				isQuickChat: constObservable(true), workspace: constObservable(undefined),
+			});
+			const fixture = createHarness(session);
+			const changed = disposables.add(new Emitter<void>());
+			let provider: Pick<ISessionsProvider, 'sessionTypes'> | undefined;
+			fixture.harness.sessionsProvidersService.getProvider = () => provider;
+			fixture.harness.sessionsManagementService.onDidChangeSessionTypes = changed.event;
+			const restoring = fixture.restore({ ...draft, target: { ...draft.target, folderUri: undefined } }, CancellationToken.None, true);
+			await Promise.resolve();
+			provider = { sessionTypes: [] };
+			changed.fire();
+			const pending = { configured: fixture.configured.length, unavailable: fixture.harness._savedDraftTargetUnavailable.get() };
+			provider = { sessionTypes: [{ id: 'agent', label: 'Agent', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.None }] };
+			changed.fire();
+			await restoring;
+			assert.deepStrictEqual({
+				pending, configured: fixture.configured, input: fixture.input(),
+				unavailable: fixture.harness._savedDraftTargetUnavailable.get(), focusStates: fixture.focusStates,
+			}, {
+				pending: { configured: 0, unavailable: true }, configured: [session], input: draft.input,
+				unavailable: false, focusStates: [],
+			});
+		});
+
+		test('reload recovery can be cancelled while waiting for the saved provider', async () => {
+			const fixture = createHarness(upcastPartial<ISession>({}));
+			fixture.harness.sessionsProvidersService.getProvider = () => undefined;
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const restoring = fixture.restore(draft, cancellation.token, true);
+			await Promise.resolve();
+			cancellation.cancel();
+			await assert.rejects(restoring, /Canceled/);
+			assert.deepStrictEqual({
+				configured: fixture.configured, input: fixture.input(),
+				unavailable: fixture.harness._savedDraftTargetUnavailable.get(),
+				restoring: fixture.harness._restoringSavedDraft.get(),
+			}, { configured: [], input: draft.input, unavailable: true, restoring: false });
+		});
 
 		for (const matches of [false, true]) {
 			for (const quickChat of [false, true]) {
@@ -763,6 +1086,7 @@ suite('NewChatWidget', () => {
 		});
 		const harness = {
 			_session: current,
+			_isDraftPreview: constObservable(false),
 			_newChatInput: { onDidChangeInput: changed.event, getInputValue: () => input },
 			sessionsProvidersService: {
 				getProvider: (id: string) => upcastPartial<ISessionsProvider>({
@@ -940,6 +1264,8 @@ suite('NewChatWidget', () => {
 				return value;
 			};
 			const harness = {
+				_savedDraftComposer: undefined as { cancelRecovery(): void } | undefined,
+				_savedDraftTargetUnavailable: observableValue('unavailable', false),
 				_environment: derived(reader => picked.read(reader) ?? local),
 				_environmentWorkspaces: new Map<string, URI>(),
 				_environmentWorkspaceChanged: { trigger: () => { } },
@@ -978,6 +1304,16 @@ suite('NewChatWidget', () => {
 			const select = Reflect.get(NewChatWidget.prototype, '_selectEnvironment') as (this: typeof harness, environment: ISessionCreationEnvironment) => Promise<void>;
 			return { harness, calls, select: (environment: ISessionCreationEnvironment) => select.call(harness, environment) };
 		}
+
+		test('choosing an environment cancels saved draft recovery before applying the selection', async () => {
+			const { harness, calls, select } = createHarness(true);
+			harness._savedDraftComposer = { cancelRecovery: () => { calls.push('cancelRecovery'); } };
+			harness._savedDraftTargetUnavailable.set(true, undefined);
+			await select(cloud);
+			assert.deepStrictEqual({ firstAction: calls[0], unavailable: harness._savedDraftTargetUnavailable.get(), environment: harness._pickedEnvironment.get()?.id }, {
+				firstAction: 'cancelRecovery', unavailable: false, environment: 'cloud',
+			});
+		});
 
 		test('a composer outside the main window requests the Dev Container of the environment the user picks, and no longer once the user picks another environment', async () => {
 			const { harness, select } = createHarness(true);
@@ -2927,6 +3263,7 @@ suite('NewChatWidget', () => {
 					return currentDefaultAccount;
 				},
 			},
+			logService: { warn: () => assert.fail('Unexpected profile warning') },
 			async _fetchGitHubProfileName(providerId: string, _enterprise: boolean, sessionId: string) {
 				profileRequests.push(`${providerId}:${sessionId}`);
 				return 'Octo Cat';
@@ -2970,6 +3307,7 @@ suite('NewChatWidget', () => {
 				get currentDefaultAccount() { return currentDefaultAccount; },
 				async getDefaultAccount() { return currentDefaultAccount; },
 			},
+			logService: { warn: () => assert.fail('Unexpected profile warning') },
 			_fetchGitHubProfileName(providerId: string) {
 				return providerId === 'github' ? githubProfile.p : enterpriseProfile.p;
 			},
@@ -2978,10 +3316,10 @@ suite('NewChatWidget', () => {
 		const publicRefresh = refreshGitHubProfileName.call(harness);
 		currentDefaultAccount = { authenticationProvider: { id: 'github-enterprise', enterprise: true }, sessionId: 'shared-session' };
 		const enterpriseRefresh = refreshGitHubProfileName.call(harness);
-		githubProfile.complete('Public Name');
-		await publicRefresh;
 		enterpriseProfile.complete('Enterprise Name');
 		await enterpriseRefresh;
+		githubProfile.complete('Public Name');
+		await publicRefresh;
 
 		assert.deepStrictEqual({
 			accountKey: harness._githubProfileAccountKey,
@@ -3004,8 +3342,8 @@ suite('NewChatWidget', () => {
 				},
 			},
 			defaultAccountService: { resolveGitHubUrl: () => undefined },
-			requestService: {
-				async request() {
+			gitHubService: {
+				async acquireAccountApiClient() {
 					profileRequests++;
 					throw new Error('Unexpected profile request');
 				},
@@ -3019,6 +3357,176 @@ suite('NewChatWidget', () => {
 			profileRequests: 0,
 			warnings: ['Failed to fetch GitHub profile name because the enterprise URL is unavailable.'],
 		});
+	});
+
+	suite('GitHub welcome profile', () => {
+		const selectedSession: AuthenticationSession = {
+			id: 'welcome-selected-session',
+			account: { id: 'welcome-account', label: 'Welcome Account' },
+			scopes: ['read:user'],
+			accessToken: 'selected-token',
+		};
+
+		function createProfileHarness(session: AuthenticationSession, getAuthenticated: IUsersClient['getAuthenticated']) {
+			const sessions: AuthenticationSession[] = [
+				{ ...session, id: 'other-account-session', account: { id: 'other-account', label: 'Other Account' }, scopes: ['repo'] },
+				{ ...session, id: 'broader-session', scopes: ['repo', 'read:user'] },
+				session,
+			];
+			const authenticationRequests: Parameters<IAuthenticationService['getSessions']>[] = [];
+			const acquisitions: { providerId: string; session: AuthenticationSession }[] = [];
+			const warnings: { message: string; error: Error | undefined }[] = [];
+			let clientDisposals = 0;
+			const harness: ThisParameterType<typeof fetchGitHubProfileName> = {
+				authenticationService: {
+					async getSessions(...args) {
+						authenticationRequests.push(args);
+						return sessions;
+					},
+				},
+				defaultAccountService: { resolveGitHubUrl: () => session.authorizationServer?.toString() },
+				gitHubService: {
+					async acquireAccountApiClient(...args) {
+						assert.ok(args.length === 3);
+						const [providerId, session] = args;
+						acquisitions.push({ providerId, session });
+						return upcastPartial<IGitHubAccountClient>({
+							users: upcastPartial<IUsersClient>({ getAuthenticated }),
+							dispose: () => { clientDisposals++; },
+						});
+					},
+				},
+				logService: { warn: (message, error?: Error) => warnings.push({ message, error }) },
+			};
+			return { harness, sessions, authenticationRequests, acquisitions, warnings, get clientDisposals() { return clientDisposals; } };
+		}
+
+		for (const { providerId, issuer } of [
+			{ providerId: 'github', issuer: undefined },
+			{ providerId: 'github', issuer: URI.parse('https://github.com/login/oauth') },
+			{ providerId: 'github-enterprise', issuer: URI.parse('https://tenant.ghe.com') },
+		]) {
+			test(`uses the exact selected ${providerId} grant with issuer ${issuer ?? 'unset'}`, async () => {
+				const session = { ...selectedSession, authorizationServer: issuer };
+				let disposalsWhileReading: number | undefined;
+				const state = createProfileHarness(session, async () => {
+					await timeout(0);
+					disposalsWhileReading = state.clientDisposals;
+					return upcastPartial<User>({ name: '  Octo Cat  ' });
+				});
+
+				const profileName = await fetchGitHubProfileName.call(state.harness, providerId, providerId === 'github-enterprise', session.id);
+
+				assert.deepStrictEqual({
+					profileName,
+					authenticationRequests: state.authenticationRequests,
+					acquisitions: state.acquisitions,
+					disposalsWhileReading,
+					clientDisposals: state.clientDisposals,
+					warnings: state.warnings,
+				}, {
+					profileName: 'Octo Cat',
+					authenticationRequests: [[providerId, [], { silent: true }]],
+					acquisitions: [{ providerId, session }],
+					disposalsWhileReading: 0,
+					clientDisposals: 1,
+					warnings: [],
+				});
+			});
+		}
+
+		test('does not replace a missing selected session with another grant', async () => {
+			const state = createProfileHarness(selectedSession, async () => {
+				throw new Error('Unexpected profile request');
+			});
+			state.sessions.pop();
+
+			const profileName = await fetchGitHubProfileName.call(state.harness, 'github', false, selectedSession.id);
+
+			assert.deepStrictEqual({ profileName, acquisitions: state.acquisitions, warnings: state.warnings }, {
+				profileName: undefined,
+				acquisitions: [],
+				warnings: [],
+			});
+		});
+
+		for (const name of ['Octo Cat', undefined]) {
+			test(`evicts failed lookups and caches a successful ${name ? 'named' : 'nameless'} profile`, async () => {
+				const session = { ...selectedSession, id: name ? 'welcome-cache-name' : 'welcome-cache-empty' };
+				const started = new DeferredPromise<void>();
+				const interrupted = new DeferredPromise<User>();
+				let profileRequests = 0;
+				const state = createProfileHarness(session, async () => {
+					if (++profileRequests === 1) {
+						void started.complete();
+						return interrupted.p;
+					}
+					return upcastPartial<User>({ name });
+				});
+				const account = { authenticationProvider: { id: 'github', enterprise: false }, sessionId: session.id };
+				const configurationService = new TestConfigurationService({ [NEW_SESSION_WELCOME_NAME_SETTING]: '' });
+				disposables.add(configurationService.onDidChangeConfigurationEmitter);
+				const harness: ThisParameterType<typeof refreshGitHubProfileName> = {
+					_githubProfileAccountKey: undefined,
+					_githubProfileName: observableValue<string | undefined>('githubProfileName', undefined),
+					enabled: constObservable(true),
+					_store: { isDisposed: false },
+					configurationService,
+					defaultAccountService: {
+						currentDefaultAccount: account,
+						async getDefaultAccount() { return account; },
+					},
+					logService: state.harness.logService,
+					_fetchGitHubProfileName: (providerId, enterprise, sessionId) => fetchGitHubProfileName.call(state.harness, providerId, enterprise, sessionId),
+				};
+
+				const refreshes = [refreshGitHubProfileName.call(harness), refreshGitHubProfileName.call(harness)];
+				await started.p;
+				const renewedSession = { ...session, accessToken: 'renewed-token' };
+				state.sessions[state.sessions.indexOf(session)] = renewedSession;
+				await interrupted.error(new GitHubRequestError('GitHub credential generation was superseded', 'unknown'));
+				await Promise.all(refreshes);
+				const afterFailure = { profileName: harness._githubProfileName.get(), profileRequests, clientDisposals: state.clientDisposals };
+
+				await refreshGitHubProfileName.call(harness);
+				await refreshGitHubProfileName.call(harness);
+
+				assert.deepStrictEqual({
+					afterFailure,
+					profileName: harness._githubProfileName.get(),
+					profileRequests,
+					acquisitions: state.acquisitions,
+					clientDisposals: state.clientDisposals,
+					warnings: state.warnings,
+				}, {
+					afterFailure: { profileName: undefined, profileRequests: 1, clientDisposals: 1 },
+					profileName: name,
+					profileRequests: 2,
+					acquisitions: [{ providerId: 'github', session }, { providerId: 'github', session: renewedSession }],
+					clientDisposals: 2,
+					warnings: [{ message: 'Failed to fetch GitHub profile name.', error: undefined }],
+				});
+			});
+		}
+
+		for (const failure of ['acquisition', 'profile'] as const) {
+			test(`propagates ${failure} errors and releases any acquired client`, async () => {
+				const error = new Error('GitHub profile unavailable');
+				let profileRequests = 0;
+				const state = createProfileHarness(selectedSession, async () => { profileRequests++; throw error; });
+				if (failure === 'acquisition') {
+					state.harness.gitHubService.acquireAccountApiClient = async () => { throw error; };
+				}
+
+				await assert.rejects(fetchGitHubProfileName.call(state.harness, 'github', false, selectedSession.id), error);
+
+				assert.deepStrictEqual({ profileRequests, clientDisposals: state.clientDisposals, warnings: state.warnings }, {
+					profileRequests: failure === 'profile' ? 1 : 0,
+					clientDisposals: failure === 'profile' ? 1 : 0,
+					warnings: [],
+				});
+			});
+		}
 	});
 
 	test('replays a provider change that arrives while creating the draft', async () => {
