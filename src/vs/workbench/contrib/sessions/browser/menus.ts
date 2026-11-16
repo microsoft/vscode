@@ -33,6 +33,7 @@ export const Menus = {
 	SessionsViewEnvironment: new MenuId('SessionsViewEnvironment'),
 	SessionsViewSource: new MenuId('SessionsViewSource'),
 	SessionsViewHarness: new MenuId('SessionsViewHarness'),
+	SessionsViewWorktree: new MenuId('SessionsViewWorktree'),
 	SessionsViewExternalFilter: new MenuId('SessionsViewExternalFilter'),
 	SidebarCustomizations: new MenuId('SessionsSidebarCustomizations'),
 	SidebarCustomizationsEntryPoint: new MenuId('SessionsSidebarCustomizationsEntryPoint'),

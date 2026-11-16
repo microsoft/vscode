@@ -6,6 +6,8 @@
 import assert from 'assert';
 import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { getSessionApplication } from '../../../../../services/sessions/common/sessionApplication.js';
@@ -20,6 +22,44 @@ suite('SessionsListFilters', () => {
 	function createFilters(storage = store.add(new InMemoryStorageService())): SessionsListFilters {
 		return store.add(new SessionsListFilters(storage, store.add(new NullLogService())));
 	}
+
+	test('offers the worktrees that listed sessions work in with their repository, all shown, and hides only an unchecked one until reset', () => {
+		const inFolder = (id: string, path: string, repository?: { readonly uri: string; readonly workTree?: string }): ISession => {
+			const root = URI.file(path);
+			const workspace: ISessionWorkspace = {
+				uri: root, label: id, icon: Codicon.folder, requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+				folders: [{
+					root, workingDirectory: root, name: id, description: undefined,
+					gitRepository: repository && { uri: URI.file(repository.uri), workTreeUri: repository.workTree ? URI.file(repository.workTree) : undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
+				}],
+			};
+			return { ...buildTestSession({ id, title: id }).session, workspace: constObservable(workspace) };
+		};
+		const main = inFolder('main', '/work/vscode', { uri: '/work/vscode' });
+		const first = inFolder('first', '/work/vscode.worktrees/first', { uri: '/work/vscode', workTree: '/work/vscode.worktrees/first' });
+		const second = inFolder('second', '/work/vscode.worktrees/second');
+		const quick = buildTestSession({ id: 'quick', title: 'Quick', isQuickChat: true }).session;
+		const filters = createFilters();
+		const worktreeOptions = (sessions: readonly ISession[]) => getSessionFilterOptions(sessions, [], listAll)
+			.filter(option => option.filter.kind === 'worktree')
+			.map(option => `${option.label}${filters.isExcluded(option.filter) ? ' (unchecked)' : ''}`);
+		const sessions = [main, first, second, quick];
+		const visible = () => sessions.filter(session => filters.matches(session)).map(session => session.sessionId);
+
+		const withoutWorktrees = worktreeOptions([main, quick]);
+		const offered = worktreeOptions(sessions);
+		const firstOption = getSessionFilterOptions(sessions, [], listAll).find(option => option.filter.kind === 'worktree' && option.label === 'first')!;
+		filters.setExcluded(firstOption.filter, true);
+		const unchecked = { options: worktreeOptions(sessions), visible: visible() };
+		filters.reset();
+
+		assert.deepStrictEqual({ withoutWorktrees, offered, unchecked, reset: { options: worktreeOptions(sessions), visible: visible() } }, {
+			withoutWorktrees: [],
+			offered: ['vscode', 'first', 'second'],
+			unchecked: { options: ['vscode', 'first (unchecked)', 'second'], visible: ['main', 'second', 'quick'] },
+			reset: { options: ['vscode', 'first', 'second'], visible: ['main', 'first', 'second', 'quick'] },
+		});
+	});
 
 	test('scheduled-only filtering persists and participates in reset and undo', () => {
 		const storage = store.add(new InMemoryStorageService());

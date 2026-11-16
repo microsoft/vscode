@@ -9,6 +9,7 @@ import { IReader, observableSignalFromEvent } from '../../../../../base/common/o
 import { getComparisonKey } from '../../../../../base/common/resources.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
+import { getSessionWorktreeFolder, getWorktreeFilterKey, getWorktreeFilterOptions, ISessionWorktreeFolder } from '../../../../../platform/agentHost/common/sessionWorktreeFolders.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { getSessionApplication, UNKNOWN_SESSION_APPLICATION_ID } from '../../../../services/sessions/common/sessionApplication.js';
@@ -17,7 +18,7 @@ import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
 
 export type SessionFilter =
-	| { readonly kind: 'harness' | 'environment'; readonly id: string }
+	| { readonly kind: 'harness' | 'environment' | 'worktree'; readonly id: string }
 	| { readonly kind: 'application'; readonly environment: string; readonly id: string };
 
 export interface ISessionFilterOption {
@@ -80,6 +81,18 @@ function isInboxScope(value: unknown): value is IInboxScope {
 
 export function sessionFilterKey(filter: SessionFilter): string {
 	return JSON.stringify(filter.kind === 'application' ? [filter.kind, filter.environment, filter.id] : [filter.kind, filter.id]);
+}
+
+/**
+ * Where `session` works, for the Worktrees filter: the worktree of its first folder, else that folder's working directory,
+ * of the folder's repository. Quick chats and sessions without a folder have none, and no Worktrees filter hides them.
+ */
+export function getSessionWorktreeFilterFolder(session: Pick<ISession, 'workspace' | 'isQuickChat'>, reader?: IReader): ISessionWorktreeFolder | undefined {
+	if (session.isQuickChat?.read(reader)) {
+		return undefined;
+	}
+	const folder = session.workspace.read(reader)?.folders[0];
+	return folder && getSessionWorktreeFolder(folder.gitRepository?.workTreeUri ?? folder.workingDirectory, folder.gitRepository?.uri);
 }
 
 /** Orders environments as the Environment filter lists them: this computer, the cloud, then remote hosts by name. */
@@ -162,6 +175,10 @@ export function getSessionFilterOptions(sessions: readonly ISession[], environme
 				group: `3_applications_${String(index).padStart(6, '0')}`,
 			});
 		}
+	}
+	// The worktrees that listed sessions work in, with their repository's own folder
+	for (const option of getWorktreeFilterOptions(sessions.filter(session => isSessionListed(session, reader)).map(session => getSessionWorktreeFilterFolder(session, reader)))) {
+		options.push({ filter: { kind: 'worktree', id: option.key }, label: option.label, group: option.isRepository ? '4_worktrees_1_repository' : '4_worktrees_2_worktrees' });
 	}
 	return options;
 }
@@ -275,9 +292,11 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 		return true;
 	}
 
-	matches(session: Pick<ISession, 'harness' | 'environment' | 'application'>, inbox = false): boolean {
+	matches(session: Pick<ISession, 'harness' | 'environment' | 'application'> & Partial<Pick<ISession, 'workspace' | 'isQuickChat'>>, inbox = false): boolean {
 		const application = session.application.get();
+		const worktree = session.workspace && getSessionWorktreeFilterFolder({ workspace: session.workspace, isQuickChat: session.isQuickChat });
 		return !this.isExcluded({ kind: 'harness', id: session.harness })
+			&& (!worktree || !this.isExcluded({ kind: 'worktree', id: getWorktreeFilterKey(worktree.folder) }))
 			&& (inbox || !this.isExcluded({ kind: 'environment', id: session.environment }))
 			&& (application.id === UNKNOWN_SESSION_APPLICATION_ID
 				|| !this.isExcluded({ kind: 'application', environment: session.environment, id: application.id }));

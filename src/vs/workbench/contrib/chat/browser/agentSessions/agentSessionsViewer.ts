@@ -1212,6 +1212,8 @@ export interface IAgentSessionsFilterExcludes {
 	readonly read: boolean;
 	readonly automation: boolean;
 	readonly repositoryGroupCapped: boolean;
+	/** The worktree folders, by their Worktrees filter key, whose sessions are hidden. */
+	readonly worktrees?: readonly string[];
 }
 
 export interface IAgentSessionsFilter {

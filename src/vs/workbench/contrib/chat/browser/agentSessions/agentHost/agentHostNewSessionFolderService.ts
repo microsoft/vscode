@@ -214,6 +214,19 @@ export interface IAgentHostNewSessionFolderService {
 	setNoWorkspace(sessionResource: URI): void;
 
 	/**
+	 * Whether the given session resource, not yet shown, is to start in a new worktree of its folder, which its initial
+	 * configuration then asks for, such as for New Chat in Worktree.
+	 */
+	isNewWorktree(sessionResource: URI): boolean;
+
+	/**
+	 * Record that the given session resource starts in a new worktree of its folder: its initial configuration asks for one
+	 * from the start, so that it shows and sends so before any picker could change it. Choosing a folder or No Workspace for
+	 * it, or clearing it, forgets that.
+	 */
+	setNewWorktree(sessionResource: URI): void;
+
+	/**
 	 * Forget any choice recorded for the given session resource.
 	 */
 	clear(sessionResource: URI): void;
@@ -247,6 +260,7 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 
 	private readonly _folders = new ResourceMap<URI>();
 	private readonly _noWorkspace = new ResourceSet();
+	private readonly _newWorktree = new ResourceSet();
 
 	/**
 	 * The most recently chosen folder in this window. Window-level "sticky"
@@ -306,6 +320,7 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 			this._defaultFolder = folder;
 		}
 		const existing = this._folders.get(sessionResource);
+		this._newWorktree.delete(sessionResource);
 		const wasNoWorkspace = this._noWorkspace.delete(sessionResource);
 		if (existing?.toString() === folder.toString() && !wasNoWorkspace) {
 			return;
@@ -323,11 +338,21 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 			return;
 		}
 		this._folders.delete(sessionResource);
+		this._newWorktree.delete(sessionResource);
 		this._noWorkspace.add(sessionResource);
 		this._onDidChangeFolder.fire(sessionResource);
 	}
 
+	isNewWorktree(sessionResource: URI): boolean {
+		return this._newWorktree.has(sessionResource);
+	}
+
+	setNewWorktree(sessionResource: URI): void {
+		this._newWorktree.add(sessionResource);
+	}
+
 	clear(sessionResource: URI): void {
+		this._newWorktree.delete(sessionResource);
 		const hadFolder = this._folders.delete(sessionResource);
 		if (this._noWorkspace.delete(sessionResource) || hadFolder) {
 			this._onDidChangeFolder.fire(sessionResource);

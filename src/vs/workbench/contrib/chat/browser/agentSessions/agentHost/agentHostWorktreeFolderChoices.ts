@@ -19,6 +19,8 @@ import { getSessionIsolationProperty } from '../../../../../../platform/agentHos
 import { MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IActionWidgetDropdownAction } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
+import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { getCurrentFolderLocationDescription, getFolderLocationDetail, getNewWorktreeDetail, getNewWorktreeLabel, groupFolderLocations } from '../../../../../services/workspaces/common/folderLocationSections.js';
@@ -54,18 +56,117 @@ interface IFolderChoice {
  * in the sections that every such picker shows (see `groupFolderLocations`). Picking the folder or a worktree makes it
  * the session's working directory; New Worktree has the session work in a new worktree of the folder.
  */
+export const IAgentHostWorktreeLocationsCache = createDecorator<IAgentHostWorktreeLocationsCache>('agentHostWorktreeLocationsCache');
+
+/**
+ * The worktrees of the window's folder, read once for all the chat inputs and folder chips of the window that ask for them:
+ * at the first ask, then again only as they may have changed, such as as a session comes to work in a new worktree.
+ */
+export interface IAgentHostWorktreeLocationsCache {
+	readonly _serviceBrand: undefined;
+	/** Fires as it starts reading the worktrees again. */
+	readonly onWillRefresh: Event<void>;
+	/** Fires as it has read the worktrees again. */
+	readonly onDidChange: Event<void>;
+	/** Whether the window offers worktrees: in a window with a single local folder, while the setting is on. */
+	isActive(): boolean;
+	/** The worktrees as last read, empty until read: the first ask starts reading them. */
+	getLocations(): readonly IFolderLocation[];
+	/** Reads the worktrees again, such as one that a session created since. */
+	refresh(): void;
+}
+
+export class AgentHostWorktreeLocationsCache extends Disposable implements IAgentHostWorktreeLocationsCache {
+
+	declare readonly _serviceBrand: undefined;
+
+	private _locations: readonly IFolderLocation[] = [];
+	/** Whether anything asked for the worktrees: until then, nothing reads them. */
+	private _asked = false;
+	private readonly _refresh = this._register(new MutableDisposable());
+
+	private readonly _onWillRefresh = this._register(new Emitter<void>());
+	readonly onWillRefresh = this._onWillRefresh.event;
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	readonly onDidChange = this._onDidChange.event;
+
+	constructor(
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceFolderLocationService private readonly _folderLocationService: IWorkspaceFolderLocationService,
+		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
+		@IAgentHostWorktreeSessionSources sessionSources: IAgentHostWorktreeSessionSources,
+	) {
+		super();
+		const refreshIfAsked = () => {
+			if (this._asked) {
+				this.refresh();
+			}
+		};
+		this._register(_folderLocationService.onDidChangeProviders(refreshIfAsked));
+		this._register(_folderLocationService.onDidChangeLocation(refreshIfAsked));
+		this._register(_configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.EditorWindowEnableWorktree)) {
+				refreshIfAsked();
+			}
+		}));
+		// A session can come to work in a new worktree meanwhile, such as one in the background: once for many changes
+		const refreshForSessions = this._register(new RunOnceScheduler(refreshIfAsked, 500));
+		this._register(Event.any(agentSessionsService.model.onDidChangeSessions, sessionSources.onDidChange)(() => {
+			if (this._asked && this.isActive()) {
+				refreshForSessions.schedule();
+			}
+		}));
+	}
+
+	isActive(): boolean {
+		const folder = this._workspaceContextService.getWorkspace().folders[0];
+		return !!this._configurationService.getValue<boolean>(ChatConfiguration.EditorWindowEnableWorktree)
+			&& this._workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER
+			&& !!folder && !!this._workspaceContextService.getWorkspace().uri && this._folderLocationService.canSetLocation(folder);
+	}
+
+	getLocations(): readonly IFolderLocation[] {
+		if (!this._asked) {
+			this.refresh();
+		}
+		return this._locations;
+	}
+
+	refresh(): void {
+		this._asked = true;
+		this._onWillRefresh.fire();
+		const primary = this._workspaceContextService.getWorkspace().uri;
+		if (!primary || !this.isActive()) {
+			this._refresh.clear();
+			if (this._locations.length) {
+				this._locations = [];
+				this._onDidChange.fire();
+			}
+			return;
+		}
+		const source = new CancellationTokenSource();
+		this._refresh.value = toDisposable(() => source.dispose(true));
+		this._folderLocationService.getLocations(primary, source.token).then(locations => {
+			if (!source.token.isCancellationRequested) {
+				this._locations = locations;
+				this._onDidChange.fire();
+			}
+		}, onUnexpectedError);
+	}
+}
+
+registerSingleton(IAgentHostWorktreeLocationsCache, AgentHostWorktreeLocationsCache, InstantiationType.Delayed);
+
 export class AgentHostWorktreeFolderChoices extends Disposable {
 
-	/** The folder's worktrees, read ahead of time, as the chip asks for its choices synchronously. */
-	private _locations: readonly IFolderLocation[] = [];
 	/**
 	 * Whether folders it does not list are worktrees of the window's folder, by the window's folder and the folder, or still
-	 * being resolved: read again as it reads the worktrees again (see {@link refresh}), such as after a failed read.
+	 * being resolved: read again as the worktrees are read again (see {@link refresh}), such as after a failed read.
 	 */
 	private readonly _provenWorktrees = new Map<string, boolean | 'resolving'>();
-	/** Increases as it reads the worktrees again: what resolved before then does not apply. */
+	/** Increases as the worktrees are read again: what resolved before then does not apply. */
 	private _provenGeneration = 0;
-	private readonly _refresh = this._register(new MutableDisposable());
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	/** Fires as its choices or the selected one change. */
@@ -78,49 +179,25 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 		@IWorkspaceFolderLocationService private readonly _folderLocationService: IWorkspaceFolderLocationService,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
-		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
-		@IAgentHostWorktreeSessionSources sessionSources: IAgentHostWorktreeSessionSources,
+		@IAgentHostWorktreeLocationsCache private readonly _locations: IAgentHostWorktreeLocationsCache,
 	) {
 		super();
-		this._register(_folderLocationService.onDidChangeProviders(() => this.refresh()));
-		this._register(_folderLocationService.onDidChangeLocation(() => this.refresh()));
-		// A session can come to work in a new worktree meanwhile, such as one in the background
-		const refreshForSessions = this._register(new RunOnceScheduler(() => this.refresh(), 500));
-		this._register(Event.any(agentSessionsService.model.onDidChangeSessions, sessionSources.onDidChange)(() => {
-			if (this.isActive()) {
-				refreshForSessions.schedule();
-			}
+		this._register(_locations.onWillRefresh(() => {
+			this._provenWorktrees.clear();
+			this._provenGeneration++;
 		}));
+		this._register(_locations.onDidChange(() => this._onDidChange.fire()));
 		this._register(_provisional.onDidChange(() => this._onDidChange.fire()));
-		this.refresh();
 	}
 
 	/** Whether the chip offers these choices: in a window with a single local folder, while the setting is on. */
 	isActive(): boolean {
-		const folder = this._workspaceContextService.getWorkspace().folders[0];
-		return !!this._configurationService.getValue<boolean>(ChatConfiguration.EditorWindowEnableWorktree)
-			&& this._workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER
-			&& !!folder && !!this._workspaceContextService.getWorkspace().uri && this._folderLocationService.canSetLocation(folder);
+		return this._locations.isActive();
 	}
 
 	/** Reads the folder's worktrees again, such as one that a session created since. */
 	refresh(): void {
-		this._provenWorktrees.clear();
-		this._provenGeneration++;
-		const primary = this._workspaceContextService.getWorkspace().uri;
-		if (!primary || !this.isActive()) {
-			this._refresh.clear();
-			this._locations = [];
-			return;
-		}
-		const source = new CancellationTokenSource();
-		this._refresh.value = toDisposable(() => source.dispose(true));
-		this._folderLocationService.getLocations(primary, source.token).then(locations => {
-			if (!source.token.isCancellationRequested) {
-				this._locations = locations;
-				this._onDidChange.fire();
-			}
-		}, onUnexpectedError);
+		this._locations.refresh();
 	}
 
 	/** Whether the chip offers No Workspace: while the Chat view lists sessions with their workspace-less chats. */
@@ -143,6 +220,46 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 	isNewWorktreeSelected(): boolean {
 		const isolation = this._isolation();
 		return !!isolation && isolation.values[isolation.key] === 'worktree';
+	}
+
+	/**
+	 * Whether the chip would offer only the folder and New Worktree: the folder has no worktrees, and No Workspace is neither
+	 * offered nor chosen. A New Worktree checkbox then stands in for the chip.
+	 */
+	offersOnlyNewWorktree(): boolean {
+		// The worktrees last, which reading costs: never for a chat input that would not offer the checkbox anyway
+		return this.isActive()
+			&& !this.isNoWorkspaceAvailable()
+			&& !this.isNoWorkspaceSelected()
+			&& this.canWorkInNewWorktree()
+			&& !this._choices().some(choice => choice.kind === 'worktree');
+	}
+
+	/** Has the session start without a working directory, as No Workspace does. */
+	setNoWorkspace(): void {
+		const sessionResource = this._sessionResource();
+		const provider = sessionResource && getLocalAgentHostSessionProvider(sessionResource);
+		if (!sessionResource) {
+			return;
+		}
+		// Read before the folder changes, which resets the session's configuration
+		const isolation = this._isolation();
+		// All at once, as a send right after it graduates the session with what it then has: without a folder, and not in a
+		// new worktree of a folder it no longer has
+		this._newSessionFolderService.setNoWorkspace(sessionResource);
+		if (provider && isolation?.inPlace && isolation.values[isolation.key] !== isolation.inPlace) {
+			this._provisional.applyConfigChange(sessionResource, provider, undefined, { [isolation.key]: isolation.inPlace }).catch(onUnexpectedError);
+		}
+	}
+
+	/** Whether the session can work in a new worktree of its folder: once its configuration, which says so, is known. */
+	canWorkInNewWorktree(): boolean {
+		return !!this._isolation()?.worktree;
+	}
+
+	/** Has the session work in a new worktree of its folder, or in the folder itself, as New Worktree and the folder do. */
+	setNewWorktree(worktree: boolean): Promise<void> {
+		return this._setIsolation(worktree);
 	}
 
 	/**
@@ -234,19 +351,7 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 				enabled: true,
 				category: workspaceGroup,
 				run: () => {
-					const sessionResource = this._sessionResource();
-					const provider = sessionResource && getLocalAgentHostSessionProvider(sessionResource);
-					if (!sessionResource) {
-						return;
-					}
-					// Read before the folder changes, which resets the session's configuration
-					const isolation = this._isolation();
-					// All at once, as a send right after it graduates the session with what it then has: without a folder,
-					// and not in a new worktree of a folder it no longer has
-					this._newSessionFolderService.setNoWorkspace(sessionResource);
-					if (provider && isolation?.inPlace && isolation.values[isolation.key] !== isolation.inPlace) {
-						this._provisional.applyConfigChange(sessionResource, provider, undefined, { [isolation.key]: isolation.inPlace }).catch(onUnexpectedError);
-					}
+					this.setNoWorkspace();
 					onDidPick();
 				},
 			};
@@ -264,7 +369,7 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 			return [];
 		}
 		const isCurrent = (uri: URI) => extUriBiasedIgnorePathCase.isEqual(uri, folder.uri);
-		const locations: IFolderLocation[] = this._locations.filter(location => !extUriBiasedIgnorePathCase.isEqual(location.uri, primary));
+		const locations: IFolderLocation[] = this._locations.getLocations().filter(location => !extUriBiasedIgnorePathCase.isEqual(location.uri, primary));
 		// Where the folder is now, also a worktree that no session works in any more
 		const current = this._folderLocationService.getLocation(folder);
 		if (current && !isCurrent(primary) && !locations.some(location => isCurrent(location.uri))) {

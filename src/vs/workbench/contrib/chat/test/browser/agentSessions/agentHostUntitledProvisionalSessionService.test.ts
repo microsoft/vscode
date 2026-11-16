@@ -1987,6 +1987,34 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 	}
 
+	test('a new chat to start in a new worktree asks the host for one from its first configuration, until a folder is chosen for it', async () => {
+		const seeded = URI.parse('agent-host-copilotcli:/untitled-in-worktree');
+		const plain = URI.parse('agent-host-copilotcli:/untitled-in-folder');
+		const folder = URI.file('/workspace');
+		workspaceFolders = [folder];
+		folderService.setNewWorktree(seeded);
+		agentHost.resolveQueue = [
+			{ schema: makeSchema(true), values: { isolation: 'worktree' } },
+			{ schema: makeSchema(true), values: { isolation: 'folder' } },
+		];
+
+		await provisional.prepareSessionConfig(seeded);
+		await provisional.prepareSessionConfig(plain);
+		const prepared = provisional.getPreparedSessionConfig(seeded)?.values.isolation;
+		folderService.setFolder(seeded, folder);
+
+		assert.deepStrictEqual({
+			requested: agentHost.resolveCalls.map(call => call.config?.isolation),
+			prepared,
+			// Choosing a folder forgets the seed, so its prepared configuration no longer applies
+			afterFolderChosen: { seeded: folderService.isNewWorktree(seeded), prepared: provisional.getPreparedSessionConfig(seeded) },
+		}, {
+			requested: ['worktree', 'folder'],
+			prepared: 'worktree',
+			afterFolderChosen: { seeded: false, prepared: undefined },
+		});
+	});
+
 	test('discards preparation for a superseded working directory', async () => {
 		const ui = URI.parse('agent-host-copilotcli:/untitled-folder-changed');
 		workspaceFolders = [URI.file('/old-folder')];

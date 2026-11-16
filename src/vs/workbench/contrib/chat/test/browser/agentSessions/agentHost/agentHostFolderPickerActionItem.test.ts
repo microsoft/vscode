@@ -35,6 +35,7 @@ import { AgentHostFolderPickerActionItem, FOLDER_PICKER_LIST_CLASS } from '../..
 import { IAgentHostNewSessionFolderService } from '../../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostWorktreeSessionSources, IAgentHostWorktreeSessionSources } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSessionSources.js';
+import { AgentHostWorktreeLocationsCache, IAgentHostWorktreeLocationsCache } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeFolderChoices.js';
 import { IAgentSessionsService } from '../../../../browser/agentSessions/agentSessionsService.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
@@ -74,6 +75,7 @@ suite('AgentHostFolderPickerActionItem', () => {
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({ onDidChange: Event.None, getResolvedConfig: () => undefined, getPreparedSessionConfig: () => undefined }));
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>({ onDidChangeSessions: Event.None }) }));
 		instantiationService.stub(IAgentHostWorktreeSessionSources, store.add(new AgentHostWorktreeSessionSources()));
+		instantiationService.stub(IAgentHostWorktreeLocationsCache, store.add(instantiationService.createInstance(AgentHostWorktreeLocationsCache)));
 		instantiationService.stub(IAgentHostCustomizationService, upcastPartial<IAgentHostCustomizationService>({ onDidChangeCustomizations: Event.None, getClientWorkingDirectoryUris: () => [] }));
 		instantiationService.stub(ISCMService, upcastPartial<ISCMService>({ getRepository: () => undefined }));
 		const widget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: session }), onDidChangeViewModel: Event.None });
@@ -156,6 +158,7 @@ suite('AgentHostFolderPickerActionItem', () => {
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({ onDidChange: Event.None, getResolvedConfig: () => undefined, getPreparedSessionConfig: () => undefined }));
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>({ onDidChangeSessions: Event.None }) }));
 		instantiationService.stub(IAgentHostWorktreeSessionSources, store.add(new AgentHostWorktreeSessionSources()));
+		instantiationService.stub(IAgentHostWorktreeLocationsCache, store.add(instantiationService.createInstance(AgentHostWorktreeLocationsCache)));
 		// A started session, such as a restored one, which works in the scratch folder the agent host created for it if it has no workspace
 		const scratch = URI.file('/home/.copilot/chats/3e215af6-5a8e-4060-b25e-0d2f1c9a7b41');
 		instantiationService.stub(IAgentHostCustomizationService, upcastPartial<IAgentHostCustomizationService>({

@@ -91,7 +91,7 @@ suite('AgentHostSessionListStore - project root', () => {
 		});
 	});
 
-	test('while matching by project root, also lists the sessions without a workspace, such as quick chats, but not of a multi-root workspace', async () => {
+	test('while matching by project root, does not list the sessions without a workspace, such as quick chats, which only the Sessions list shows', async () => {
 		const workspaceless = (id: string, workspaceFile?: string): IAgentSessionMetadata => ({
 			session: URI.from({ scheme: 'copilot', path: `/${id}` }),
 			startTime: 0,
@@ -113,7 +113,7 @@ suite('AgentHostSessionListStore - project root', () => {
 
 		assert.deepStrictEqual({ off, on: shown() }, {
 			off: ['in-folder'],
-			on: ['in-folder', 'quick-chat'],
+			on: ['in-folder'],
 		});
 	});
 
@@ -195,7 +195,7 @@ suite('AgentHostSessionListStore - project root', () => {
 		assert.deepStrictEqual(log, ['in-vscode', 'in-vscode', 'in-vscode', '']);
 	});
 
-	test('while matching by project root, a session is listed in the window of its first folder or its project, not of a later folder of it, and as before without a workspace or folder', async () => {
+	test('while matching by project root, a session is listed in the window of its first folder or its project, not of a later folder of it, as before without a folder, and not without a workspace', async () => {
 		const sessions = [
 			// Its own folder is A; a nested chat works in B
 			sessionWithChats('first-a', ['/work/a', '/work/b'], '/work/a'),
@@ -203,7 +203,7 @@ suite('AgentHostSessionListStore - project root', () => {
 			sessionWithChats('worktree-of-a', ['/work/a.worktrees/x'], '/work/a'),
 			// Its own folder is B
 			sessionWithChats('first-b', ['/work/b', '/work/a'], '/work/b'),
-			// Without a workspace, every window lists it; without a folder, the window of its project does
+			// Without a workspace, no window lists it, as only the Sessions list shows it; without a folder, the window of its project does
 			sessionWithChats('workspaceless', ['/work/b.worktrees/y'], '/work/b', { workspaceless: true }),
 			sessionWithChats('no-folder', [], '/work/b'),
 		];
@@ -220,8 +220,8 @@ suite('AgentHostSessionListStore - project root', () => {
 			offA: await shownIn('/work/a', false),
 			offB: await shownIn('/work/b', false),
 		}, {
-			a: ['first-a', 'workspaceless', 'worktree-of-a'],
-			b: ['first-b', 'no-folder', 'workspaceless'],
+			a: ['first-a', 'worktree-of-a'],
+			b: ['first-b', 'no-folder'],
 			// Off, as on main: any folder of the session
 			offA: ['first-a', 'first-b'],
 			offB: ['first-a', 'first-b'],

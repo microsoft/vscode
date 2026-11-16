@@ -9,7 +9,10 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { MenuItemAction } from '../../../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuId, MenuItemAction, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
+import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { ContextKeyExpression } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -17,7 +20,11 @@ import { IFolderLocation, IResolvedFolderLocation, IWorkspaceFolderLocationServi
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostNewSessionFolderService } from '../../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
-import { AgentHostWorktreeFolderChoices } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeFolderChoices.js';
+import { AgentHostWorktreeFolderChoices, AgentHostWorktreeLocationsCache, IAgentHostWorktreeLocationsCache } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeFolderChoices.js';
+import { OpenAgentHostFolderPickerAction } from '../../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
+import { AgentHostNewWorktreeToggle } from '../../../../browser/agentSessions/agentHost/agentHostNewWorktreeToggle.js';
+import { IChatWidget } from '../../../../browser/chat.js';
+import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { IAgentSessionsService } from '../../../../browser/agentSessions/agentSessionsService.js';
 import { AgentHostWorktreeSessionSources, IAgentHostWorktreeSessionSources } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSessionSources.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
@@ -32,11 +39,12 @@ suite('AgentHostWorktreeFolderChoices', () => {
 	const session = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-1' });
 
 	/** The choices in a window whose folder is at `at`, recording the folders and isolation it sets for the session. */
-	async function createChoices(options: { readonly enabled: boolean; readonly at: URI; readonly isolation?: string; readonly state?: WorkbenchState; readonly listed?: readonly URI[]; readonly sessionsList?: boolean; readonly resolveLocation?: (location: URI) => Promise<IResolvedFolderLocation | undefined> }) {
+	async function createChoices(options: { readonly enabled: boolean; readonly at: URI; readonly isolation?: string; readonly state?: WorkbenchState; readonly listed?: readonly URI[]; readonly sessionsList?: boolean; readonly read?: boolean; readonly resolveLocation?: (location: URI) => Promise<IResolvedFolderLocation | undefined> }) {
 		const config = { values: { isolation: options.isolation ?? 'folder' } as Record<string, unknown> };
 		const changes: string[] = [];
-		const listed = { locations: options.listed ?? [feature, other] };
+		const listed = { locations: options.listed ?? [feature, other], reads: 0 };
 		const onDidChangeSessions = store.add(new Emitter<void>());
+		const onDidChangeProvisional = store.add(new Emitter<URI>());
 		/** Changing the session's folder resets its configuration until it applies a change, as the provisional service does. */
 		let configReset = false;
 		let noWorkspace = false;
@@ -52,7 +60,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 			onDidChangeProviders: Event.None,
 			onDidChangeLocation: Event.None,
 			canSetLocation: () => true,
-			getLocations: async () => listed.locations.map(uri => upcastPartial<IFolderLocation>({ uri, label: uri.path.split('/').pop() })),
+			getLocations: async () => (listed.reads++, listed.locations).map(uri => upcastPartial<IFolderLocation>({ uri, label: uri.path.split('/').pop() })),
 			getLocation: () => options.at.path === primary.path ? undefined : upcastPartial<IResolvedFolderLocation>({ uri: options.at, label: options.at.path.split('/').pop() }),
 			// As git links them: only the worktrees of the window's folder resolve, not another repository or the folder itself
 			resolveLocation: async (_primary: URI, location: URI) => options.resolveLocation ? options.resolveLocation(location) : location.path.startsWith('/work/vscode.worktrees/') || location.path.startsWith('/work/checkouts/') ? upcastPartial<IResolvedFolderLocation>({ uri: location }) : undefined,
@@ -64,7 +72,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 			setNoWorkspace: () => { changes.push('no workspace'); configReset = true; noWorkspace = true; },
 		}));
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({
-			onDidChange: Event.None,
+			onDidChange: onDidChangeProvisional.event,
 			getResolvedConfig: () => configReset ? undefined : ({ schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } }, values: config.values }),
 			getPreparedSessionConfig: () => undefined,
 			applyConfigChange: async (_resource: URI, _provider: string, workingDirectory: URI | undefined, partial: Record<string, unknown>) => {
@@ -72,16 +80,22 @@ suite('AgentHostWorktreeFolderChoices', () => {
 				configDirectories.push(workingDirectory?.path ?? 'none');
 				config.values = { ...config.values, ...partial };
 				configReset = false;
+				onDidChangeProvisional.fire(session);
 				return session;
 			},
 		}));
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>({ onDidChangeSessions: onDidChangeSessions.event }) }));
 		instantiationService.stub(IAgentHostWorktreeSessionSources, store.add(new AgentHostWorktreeSessionSources()));
+		instantiationService.stub(IAgentHostWorktreeLocationsCache, store.add(instantiationService.createInstance(AgentHostWorktreeLocationsCache)));
 		const choices = store.add(instantiationService.createInstance(AgentHostWorktreeFolderChoices, () => session));
-		await new Promise<void>(resolve => setTimeout(resolve, 0));
 		const actions = (selected: URI) => choices.getActions(upcastPartial<MenuItemAction>({}), selected, () => { });
+		// As the chip does as it shows: its first ask reads the worktrees
+		if (options.read !== false) {
+			actions(options.at);
+		}
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
 		const items = (selected: URI) => actions(selected).map(action => `${action.category?.label ? `[${action.category.label}] ` : ''}${action.label}${action.description ? ` (${action.description})` : ''}${action.checked ? ' *' : ''}`);
-		return { choices, actions, items, changes, configDirectories, listed, onDidChangeSessions };
+		return { choices, actions, items, changes, configDirectories, listed, onDidChangeSessions, instantiationService };
 	}
 
 	test('offers the folder and New Worktree, each with what it does, then under Worktrees the worktrees, with where the folder is now first', async () => {
@@ -252,6 +266,75 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		assert.deepStrictEqual({ before, after: items(primary) }, {
 			before: ['vscode (Current) *', 'New Worktree', '[Worktrees] feature'],
 			after: ['vscode (Current) *', 'New Worktree', '[Worktrees] feature', '[Worktrees] other'],
+		});
+	}));
+
+	test('offers New Worktree as a checkbox instead of the folder chip while the folder has no worktrees, and the chip once it has one', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const shownIn = async (options: { readonly sessionsList?: boolean }) => {
+			const { listed, onDidChangeSessions, instantiationService, changes } = await createChoices({ enabled: true, at: primary, listed: [], sessionsList: options.sessionsList });
+			// The chat input's context, where a local agent host's new chat in a window with a single local folder is
+			const contextKeyService = store.add(new ContextKeyService(instantiationService.get(IConfigurationService)));
+			contextKeyService.createKey(ChatContextKeys.enabled.key, true);
+			contextKeyService.createKey(ChatContextKeys.chatIsAgentHostSession.key, true);
+			contextKeyService.createKey(ChatContextKeys.chatSessionType.key, SessionType.AgentHostCopilot);
+			contextKeyService.createKey('workbenchState', 'folder');
+			contextKeyService.createKey('remoteName', '');
+			const widget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<IChatWidget['viewModel']>({ sessionResource: session }), onDidChangeViewModel: Event.None, scopedContextKeyService: contextKeyService });
+			store.add(instantiationService.createInstance(AgentHostNewWorktreeToggle, widget));
+			await new Promise<void>(resolve => setTimeout(resolve, 0));
+			const shown = () => MenuRegistry.getMenuItems(MenuId.ChatInputSecondary).filter(isIMenuItem)
+				.filter(item => (item.command.id === OpenAgentHostFolderPickerAction.ID || item.command.id === 'workbench.action.chat.toggleAgentHostNewWorktree') && contextKeyService.contextMatchesRules(item.when))
+				.map(item => `${typeof item.command.title === 'string' ? item.command.title : item.command.title.value}${item.command.id === OpenAgentHostFolderPickerAction.ID ? '' : contextKeyService.contextMatchesRules(item.command.toggled as ContextKeyExpression) ? ' [x]' : ' [ ]'}`);
+			const toggle = () => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.action.chat.toggleAgentHostNewWorktree')!.handler(accessor, { widget }));
+			return { shown, toggle, changes, listed, onDidChangeSessions };
+		};
+
+		const list = await shownIn({});
+		const withoutWorktrees = list.shown();
+		await list.toggle();
+		const checked = list.shown();
+		await list.toggle();
+		const unchecked = { shown: list.shown(), changes: [...list.changes] };
+		list.listed.locations = [feature];
+		list.onDidChangeSessions.fire();
+		await new Promise<void>(resolve => setTimeout(resolve, 1000));
+		const withWorktree = list.shown();
+		// No Workspace, which only the chip offers, keeps the chip while the Chat view lists sessions
+		const withNoWorkspace = (await shownIn({ sessionsList: true })).shown();
+
+		assert.deepStrictEqual({ withoutWorktrees, checked, unchecked, withWorktree, withNoWorkspace }, {
+			withoutWorktrees: ['New Worktree [ ]'],
+			checked: ['New Worktree [x]'],
+			unchecked: { shown: ['New Worktree [ ]'], changes: ['isolation worktree', 'isolation folder'] },
+			withWorktree: ['Folder'],
+			withNoWorkspace: ['Folder'],
+		});
+	}));
+
+	test('reads the worktrees once for all chat inputs and once per change, never for a chat input that would not offer the checkbox, and not to toggle', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const reads = async (options: { readonly sessionsList: boolean }) => {
+			const { listed, onDidChangeSessions, instantiationService } = await createChoices({ enabled: true, at: primary, listed: [], sessionsList: options.sessionsList, read: false });
+			const widgets = [0, 1, 2].map(() => upcastPartial<IChatWidget>({
+				viewModel: upcastPartial<IChatWidget['viewModel']>({ sessionResource: session }),
+				onDidChangeViewModel: Event.None,
+				scopedContextKeyService: store.add(new ContextKeyService(instantiationService.get(IConfigurationService))),
+			}));
+			for (const widget of widgets) {
+				store.add(instantiationService.createInstance(AgentHostNewWorktreeToggle, widget));
+			}
+			await new Promise<void>(resolve => setTimeout(resolve, 0));
+			const shown = listed.reads;
+			onDidChangeSessions.fire();
+			onDidChangeSessions.fire();
+			await new Promise<void>(resolve => setTimeout(resolve, 1000));
+			const changed = listed.reads;
+			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.action.chat.toggleAgentHostNewWorktree')!.handler(accessor, { widget: widgets[0] }));
+			return { shown, changed, toggled: listed.reads };
+		};
+
+		assert.deepStrictEqual({ oldList: await reads({ sessionsList: false }), sessionsList: await reads({ sessionsList: true }) }, {
+			oldList: { shown: 1, changed: 2, toggled: 2 },
+			sessionsList: { shown: 0, changed: 0, toggled: 0 },
 		});
 	}));
 });
