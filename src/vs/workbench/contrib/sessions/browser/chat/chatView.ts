@@ -705,7 +705,7 @@ export class ChatView extends AbstractChatView {
 		// Floating status pills above the input.
 		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar, false, () => this._widget.focusInput(), options.session));
 		if (options.input?.workingSet) {
-			const workingSet = this._register(scopedInstantiationService.createInstance(AgentHostSessionWorkingSet, this._widget, 'auto'));
+			const workingSet = this._register(scopedInstantiationService.createInstance(AgentHostSessionWorkingSet, this._widget, { workingSetOnly: true }));
 			this._chatPills.setChangesHidden(workingSet.changesPillHidden);
 			this._chatPills.setChangesContextMenuActions(workingSet.getChangesPillContextMenuActions);
 		}

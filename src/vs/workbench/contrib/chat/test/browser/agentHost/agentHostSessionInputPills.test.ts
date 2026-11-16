@@ -66,7 +66,7 @@ import { IChatImageCarouselService } from '../../../browser/chatImageCarouselSer
 import { IArtifactSourceGroup, IChatArtifacts, IChatArtifactsService } from '../../../common/tools/chatArtifactsService.js';
 import { IChatWidgetService, type IChatWidgetViewModelChangeEvent, type IChatBackgroundActivityPillSections } from '../../../browser/chat.js';
 import { getSubagentEditorResource } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
-import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
+import { AgentHostSessionInputPills, AgentHostSessionWorkingSet, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
 import { AgentHostSnapshotController } from '../../../browser/agentSessions/agentHost/agentHostSnapshotController.js';
 import { WorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
@@ -490,13 +490,22 @@ suite('AgentHostSessionInputPills', () => {
 			protected override get workingSetUndoEnabled() {
 				return !!options?.workingSetUndo;
 			}
-			protected override get workingSetOnly() {
-				return !!options?.workingSetOnly;
-			}
 		}
-		const pills = store.add(instantiationService.createInstance(TestAgentHostSessionInputPills, widget, false));
+		// An input that shows the session's pills itself binds only the working set, as a session's chat outside the Agents
+		// window does; what each creates is recorded, so that it is seen to create none of the pills' sources
+		const created: string[] = [];
+		const createInstance = instantiationService.createInstance.bind(instantiationService) as (ctor: unknown, ...args: unknown[]) => unknown;
+		instantiationService.createInstance = ((ctor: unknown, ...args: unknown[]) => {
+			created.push((ctor as { name?: string }).name ?? String(ctor));
+			return createInstance(ctor, ...args);
+		}) as typeof instantiationService.createInstance;
+		const pills = options?.workingSetOnly
+			? store.add(instantiationService.createInstance(AgentHostSessionWorkingSet, widget, { workingSetOnly: true }))
+			: store.add(instantiationService.createInstance(TestAgentHostSessionInputPills, widget, false));
 		return {
 			instantiationService, connection, sessionResource, persistentContent, customizationScheduler, visibility, commands, pills, openedImages,
+			/** The classes created through the instantiation service, by name. */
+			created: () => created,
 			setInputVisible: (visible: boolean) => inputVisible.set(visible, undefined),
 			workingSetChanges: () => workingSetChanges,
 			workingSetUndo: () => workingSetUndo,
@@ -3341,6 +3350,14 @@ suite('AgentHostSessionInputPills', () => {
 			changesPillHidden: true,
 			pills: 0,
 		});
+	});
+
+	test('an input that shows only the working set creates none of the pills\' sources, only the working set\'s binding', async () => {
+		const { harness, setOperations } = createSessionWorkingSetPills({ workingSetOnly: true });
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
+		await harness.setWorkingSetEnabled(true);
+
+		assert.deepStrictEqual(harness.created(), ['AgentHostSessionWorkingSet']);
 	});
 
 	test('an input that shows only the working set shows the Changes pill again once the working set shows no files, and the pill offers to show the working set again', async () => {
