@@ -3087,42 +3087,28 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		for (const newline of ['\n', '\r\n']) {
-			test(`moves multiline message-only prompt details out of the pinned title (${newline === '\n' ? 'LF' : 'CRLF'})`, () => {
+			test(`preserves reference links across multiline message-only prompts (${newline === '\n' ? 'LF' : 'CRLF'})`, () => {
 				const message = [
-					'Review [config](file:///workspace/config.json)',
+					'Review [config][cfg] and [docs][documentation]',
 					'',
-					'Findings:',
-					'\u2022 First finding',
-					'\u2022 Second finding',
+					'[cfg]: file:///workspace/config.json',
+					'[documentation]: https://example.com/deploy',
 					'',
-					'See [notes](file:///workspace/notes.md).',
+					'Should I deploy to production?',
 				].join(newline);
 				const carousel = createInputRequestCarousel({ id: 'message-only', message }, 'my-host');
 				const question = carousel.questions[0];
-				const details = question.detailedMessage;
+				const rendered = store.add(renderMarkdown(new MarkdownString(question.title), getChatMarkdownRenderOptions()));
 
 				assert.deepStrictEqual({
-					carouselMessage: carousel.message,
-					id: question.id,
-					type: question.type,
-					required: question.required,
-					title: question.title,
-					details: typeof details === 'string' ? details : details?.value,
-					isTrusted: typeof details === 'string' ? undefined : details?.isTrusted,
+					links: [...rendered.element.querySelectorAll('a')].map(link => ({ label: link.textContent, href: link.dataset.href })),
+					retainsQuestion: rendered.element.textContent?.includes('Should I deploy to production?'),
 				}, {
-					carouselMessage: undefined,
-					id: 'answer',
-					type: 'text',
-					required: true,
-					title: `Review [config](${rewriteAgentHostLinkTarget('file:///workspace/config.json', 'my-host')})`,
-					details: [
-						'Findings:',
-						'\u2022 First finding',
-						'\u2022 Second finding',
-						'',
-						`See [notes](${rewriteAgentHostLinkTarget('file:///workspace/notes.md', 'my-host')}).`,
-					].join(newline),
-					isTrusted: false,
+					links: [
+						{ label: 'config', href: rewriteAgentHostLinkTarget('file:///workspace/config.json', 'my-host') },
+						{ label: 'docs', href: 'https://example.com/deploy' },
+					],
+					retainsQuestion: true,
 				});
 			});
 		}
