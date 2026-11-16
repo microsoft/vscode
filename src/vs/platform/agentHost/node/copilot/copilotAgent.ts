@@ -6604,8 +6604,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (session) {
 				roots.push({
 					root: resourceJoinPath(this._copilotHomeService.home, 'session-state', backing.sdkSessionId),
-					session,
-					title: this.sessionTitleSignal.getSessionTitle(session),
+					session: URI.parse(chat),
+					...this.sessionTitleSignal.getChatPathIdentity(URI.parse(chat), session),
 				});
 			}
 		}
