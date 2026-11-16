@@ -659,6 +659,8 @@ interface IWorkingDirectoryChangeTransactionOptions {
 const NO_HOST_CUSTOMIZATIONS: readonly Customization[] = Object.freeze([]);
 const CHAT_QUEUE_STALL_WARNING_MS = 60_000;
 const EXTENSION_RECONCILIATION_LIFECYCLE_FAILED = 'extension_reconciliation_lifecycle_failed';
+const EXTENSION_LIFECYCLE_RETRY_INITIAL_DELAY_MS = 5_000;
+const EXTENSION_LIFECYCLE_RETRY_MAX_DELAY_MS = 5 * 60_000;
 
 class IncompleteCopilotSessionMarkerError extends Error { }
 
@@ -1405,8 +1407,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _appliedExtensionRevisions = new WeakMap<CopilotAgentSession, number>();
 	private readonly _extensionReconciliationFailures = new WeakMap<CopilotAgentSession, { readonly revision: number; readonly message: string }>();
 	private readonly _queuedExtensionCatchUps = new WeakSet<CopilotAgentSession>();
-	/** Runtimes whose last reconcile tolerated a lifecycle failure; each turn retries until one succeeds. */
-	private readonly _extensionLifecycleRetries = new WeakSet<CopilotAgentSession>();
+	/** Runtimes whose last reconcile tolerated a lifecycle failure, retried in the background with a delay that doubles per revision. */
+	private readonly _extensionLifecycleRetries = new WeakMap<CopilotAgentSession, { readonly revision: number; readonly delay: number; readonly retryAt: number }>();
 	/** Exact host chat URI -> persisted provider backing; live SDK sessions are tracked separately. */
 	private readonly _chatBackings = new Map<string, IPersistedChat>();
 	/** Selections awaiting replay survive a failed replacement or model update. */
@@ -3466,8 +3468,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _scheduleExtensionCatchUp(session: CopilotAgentSession, retryFailure = false): void {
 		const canReconcile = () => !this._isShuttingDown && !session.isDisposed
 			&& this._findSessionBySdkId(session.sessionId) === session && this._isAttachedExtensionSession(session)
-			&& !session.hasActiveTurn && !session.hasActiveSubagents && !this._isExtensionEnablementCurrent(session)
-			&& (retryFailure || !this._extensionReconciliationFailure(session));
+			&& !session.hasActiveTurn && !session.hasActiveSubagents
+			&& (this._isExtensionEnablementCurrent(session)
+				? this._isExtensionLifecycleRetryDue(session)
+				: retryFailure || !this._extensionReconciliationFailure(session));
 		if (!canReconcile() || this._queuedExtensionCatchUps.has(session)) {
 			return;
 		}
@@ -3479,7 +3483,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				if (retryFailure) {
 					this._extensionReconciliationFailures.delete(session);
 				}
-				await this._catchUpExtensions(session);
+				await (this._isExtensionEnablementCurrent(session) ? this._retryExtensionLifecycle(session) : this._catchUpExtensions(session));
 			}
 		}).catch(error => {
 			this._logService.warn(`[Copilot:${session.sessionId}] Failed to reconcile canvas extension enablement`, error);
@@ -3487,6 +3491,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 				session.publishCanvases();
 			}
 		});
+	}
+
+	private _isExtensionLifecycleRetryDue(session: CopilotAgentSession): boolean {
+		// The next turn replaces a runtime marked for restart instead.
+		return (this._extensionLifecycleRetries.get(session)?.retryAt ?? Infinity) <= Date.now() && !session.requiresControlPlaneResync;
+	}
+
+	private async _retryExtensionLifecycle(session: CopilotAgentSession): Promise<void> {
+		const retry = this._extensionLifecycleRetries.get(session);
+		if (retry) {
+			// Postpone the next attempt first, so a failure without the lifecycle code can't retry immediately.
+			this._extensionLifecycleRetries.set(session, { ...retry, retryAt: Date.now() + retry.delay });
+		}
+		await this._reconcileExtensionsTolerantly(session);
 	}
 
 	private async _catchUpExtensions(session: CopilotAgentSession, atTurnBoundary = false): Promise<void> {
@@ -3521,17 +3539,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _catchUpExtensionsForTurn(context: IResolvedCopilotChatContext, entry: CopilotAgentSession, workingDirectories: readonly URI[] | undefined, options: ICopilotSessionRefreshOptions): Promise<CopilotAgentSession> {
-		if (this._extensionLifecycleRetries.has(entry) && this._isExtensionEnablementCurrent(entry)) {
-			try {
-				await this._reconcileExtensionsTolerantly(entry);
-			} catch (error) {
-				// This revision is already applied, so a failed retry leaves the chat usable and still owed.
-				if (isCancellationError(error) || error instanceof CopilotExtensionReconcileTargetUnavailableError) {
-					throw error;
-				}
-				this._logService.warn(`[Copilot:${entry.sessionId}] Retrying canvas extension reconciliation failed; the chat remains usable`, error);
-			}
-		}
 		try {
 			await this._catchUpExtensions(entry, true);
 			return entry;
@@ -3555,14 +3562,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _reconcileExtensionsTolerantly(session: CopilotAgentSession): Promise<void> {
 		const lifecycleError = await this._reconcileExtensions(session);
 		if (lifecycleError) {
-			this._logService.warn(`[Copilot:${session.sessionId}] Some canvas extensions failed to start or stop; the chat remains usable and retries before its next turn`, lifecycleError);
+			this._logService.warn(`[Copilot:${session.sessionId}] Some canvas extensions failed to start or stop; the chat remains usable and retries in the background`, lifecycleError);
 		}
 	}
 
 	/**
 	 * Resolves with a lifecycle error instead of rejecting, so an extension that failed to start or stop doesn't block
-	 * the rest of the chat. The runtime retries a failed stop only when reconciled again, so the chat retries before each
-	 * turn until a reconcile succeeds.
+	 * the rest of the chat. The runtime retries a failed stop only when reconciled again, so an idle attached chat
+	 * retries in the background with backoff until a reconcile succeeds.
 	 */
 	private async _reconcileExtensions(session: CopilotAgentSession): Promise<unknown> {
 		const revision = this._extensionPreferenceRevision;
@@ -3590,7 +3597,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		this._appliedExtensionRevisions.set(session, Math.max(this._appliedExtensionRevisions.get(session) ?? 0, revision));
 		if (lifecycleError) {
-			this._extensionLifecycleRetries.add(session);
+			const retry = this._extensionLifecycleRetries.get(session);
+			const delay = retry?.revision === revision ? Math.min(retry.delay * 2, EXTENSION_LIFECYCLE_RETRY_MAX_DELAY_MS) : EXTENSION_LIFECYCLE_RETRY_INITIAL_DELAY_MS;
+			this._extensionLifecycleRetries.set(session, { revision, delay, retryAt: Date.now() + delay });
 		} else {
 			this._extensionLifecycleRetries.delete(session);
 		}

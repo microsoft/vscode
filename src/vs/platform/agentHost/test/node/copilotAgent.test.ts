@@ -27334,7 +27334,9 @@ suite('CopilotAgent', () => {
 			});
 		}
 
-		test('retries a failed extension start or stop before each turn until it succeeds, without restarting', async () => {
+		test('retries a failed extension start or stop in the background with backoff, never before a message', async () => {
+			const clock = useFakeTimers({ now: Date.now(), toFake: ['Date'] });
+			disposables.add(toDisposable(() => clock.restore()));
 			const client = new TestCopilotClient([]);
 			client.extensionInventory = {
 				mode: 'load_and_augment',
@@ -27342,12 +27344,14 @@ suite('CopilotAgent', () => {
 			};
 			const agent = createTestAgent(disposables, { copilotClient: client });
 			afterTest(() => disposeAgent(agent));
-			const session = AgentSession.uri('copilotcli', 'lifecycle-extension-turn');
+			const session = AgentSession.uri('copilotcli', 'lifecycle-extension-retry');
 			const chat = URI.parse(buildChatUri(session, 'peer'));
-			const peer = makeFakeChatSession(session, 'lifecycle-extension-turn-peer');
+			const peer = makeFakeChatSession(session, 'lifecycle-extension-retry-peer');
+			const fake = peer.fake as { chatChannelUri: URI; requiresControlPlaneResync: boolean };
+			fake.chatChannelUri = chat;
 			let reconciles = 0;
 			let launches = 0;
-			const failures = ['extension_reconciliation_lifecycle_failed', 'extension_reconciliation_lifecycle_failed', 'extension_reconciliation_discovery_failed'];
+			const failures = ['extension_reconciliation_lifecycle_failed', 'extension_reconciliation_lifecycle_failed', 'extension_reconciliation_discovery_failed', 'extension_reconciliation_lifecycle_failed'];
 			peer.fake.reconcileExtensions = async () => {
 				const code = failures[reconciles++];
 				if (code) {
@@ -27360,17 +27364,43 @@ suite('CopilotAgent', () => {
 				launches++;
 				return peer.fake;
 			};
-			await agent.setAgentExtensionEnabled('user:preview', false);
 			const context = exactChatContext(session, chat);
-			const prompts = ['first turn', 'second turn', 'third turn', 'fourth turn', 'fifth turn'];
-			const reconciliation: (string | undefined)[] = [];
-			for (const [index, prompt] of prompts.entries()) {
-				await agent.chats.sendMessage(chat, prompt, undefined, undefined, `turn-${index}`, undefined, context);
-				reconciliation.push((await agent.listAgentExtensions(session, chat)).reconciliation?.status);
-			}
+			contributeActiveClient(agent, chat, context);
+			const timeline: { step: string; reconciles: number; blocked: boolean }[] = [];
+			const idle = async (step: string, elapsed = 0) => {
+				clock.tick(elapsed);
+				agent['_onChatTurnEnded']();
+				await agent['_queueChat'](peer.fake.sessionId, peer.fake.sessionId, 'drainExtensionRetry', async () => { });
+				timeline.push({ step, reconciles, blocked: !!(await agent.listAgentExtensions(session, chat)).reconciliation });
+			};
 
-			assert.deepStrictEqual({ reconciles, launches, disposed: peer.rec.disposed, sends: peer.rec.sends.map(s => s.prompt), reconciliation }, {
-				reconciles: 4, launches: 0, disposed: false, sends: prompts, reconciliation: prompts.map(() => undefined),
+			await agent.setAgentExtensionEnabled('user:preview', false);
+			await idle('change');
+			await agent.chats.sendMessage(chat, 'turn', undefined, undefined, 'turn-1', undefined, context);
+			await idle('message');
+			await idle('first retry due', 5_000);
+			await idle('backed off', 5_000);
+			await idle('second retry due', 5_000);
+			fake.requiresControlPlaneResync = true;
+			await idle('marked for restart', 10_000);
+			fake.requiresControlPlaneResync = false;
+			await idle('restart cleared');
+			await idle('third retry due', 20_000);
+			await idle('succeeded', 300_000);
+
+			assert.deepStrictEqual({ timeline, launches, disposed: peer.rec.disposed, sends: peer.rec.sends.map(s => s.prompt) }, {
+				timeline: [
+					{ step: 'change', reconciles: 1, blocked: false },
+					{ step: 'message', reconciles: 1, blocked: false },
+					{ step: 'first retry due', reconciles: 2, blocked: false },
+					{ step: 'backed off', reconciles: 2, blocked: false },
+					{ step: 'second retry due', reconciles: 3, blocked: false },
+					{ step: 'marked for restart', reconciles: 3, blocked: false },
+					{ step: 'restart cleared', reconciles: 4, blocked: false },
+					{ step: 'third retry due', reconciles: 5, blocked: false },
+					{ step: 'succeeded', reconciles: 5, blocked: false },
+				],
+				launches: 0, disposed: false, sends: ['turn'],
 			});
 		});
 
