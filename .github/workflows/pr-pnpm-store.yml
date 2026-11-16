@@ -477,11 +477,18 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local --filter copilot-chat --filter @vscode/chat-lib
 
       # The rebuild below compiles `kerberos` (an optional peer of the proxy agents that
+<<<<<<< HEAD
       # @vscode/test-web uses) whenever the lockfile resolves it for copilot-chat, which needs
       # libkrb5-dev, one of the cached apt packages.
       - name: Install system packages
         if: steps.pnpm-store.outputs.cache-hit != 'true'
         uses: ./.github/actions/install-linux-packages
+=======
+      # @vscode/test-web uses) whenever the lockfile resolves it for copilot-chat.
+      - name: Install system dependencies
+        if: steps.pnpm-store.outputs.cache-hit != 'true'
+        run: sudo apt-get update && sudo apt-get install -y libkrb5-dev
+>>>>>>> 1e3f267714e (build: bump @vscode/vsce to 4.1.1 and @vscode/vsce-sign to 2.1.1 (release/1.147) (#348637))
 
       - name: Build copilot dependencies
         if: steps.pnpm-store.outputs.cache-hit != 'true'
