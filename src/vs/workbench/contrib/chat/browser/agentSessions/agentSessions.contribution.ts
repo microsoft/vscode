@@ -21,6 +21,7 @@ import { AgentHostPermissionUiContribution } from './agentHost/agentHostPermissi
 import { registerExternalSessionsFilterMenu } from './externalSessionsFilterMenu.js';
 import './agentHost/agentHostChatInputPicker.contribution.js';
 import './agentHost/agentHostNewWorktreeToggle.js';
+import './agentHost/agentHostWorktreeSendChoice.js';
 import './agentHost/agentHostNewChatActions.js';
 import './agentHost/agentHostModeSynchronizer.js';
 import { ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';

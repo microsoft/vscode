@@ -70,6 +70,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 			setFolder: (_resource: URI, folder: URI) => { changes.push(`folder ${folder.path}`); configReset = true; noWorkspace = false; },
 			isNoWorkspace: () => noWorkspace,
 			setNoWorkspace: () => { changes.push('no workspace'); configReset = true; noWorkspace = true; },
+			setIsolationChosen: () => { },
 		}));
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({
 			onDidChange: onDidChangeProvisional.event,

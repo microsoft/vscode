@@ -226,6 +226,12 @@ export interface IAgentHostNewSessionFolderService {
 	 */
 	setNewWorktree(sessionResource: URI): void;
 
+	/** Whether the user chose where the given session resource works, in its folder chip or New Worktree checkbox. */
+	isIsolationChosen(sessionResource: URI): boolean;
+
+	/** Record that the user chose where the given session resource works, which clearing it forgets. */
+	setIsolationChosen(sessionResource: URI): void;
+
 	/**
 	 * Forget any choice recorded for the given session resource.
 	 */
@@ -261,6 +267,7 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 	private readonly _folders = new ResourceMap<URI>();
 	private readonly _noWorkspace = new ResourceSet();
 	private readonly _newWorktree = new ResourceSet();
+	private readonly _isolationChosen = new ResourceSet();
 
 	/**
 	 * The most recently chosen folder in this window. Window-level "sticky"
@@ -351,8 +358,17 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 		this._newWorktree.add(sessionResource);
 	}
 
+	isIsolationChosen(sessionResource: URI): boolean {
+		return this._isolationChosen.has(sessionResource);
+	}
+
+	setIsolationChosen(sessionResource: URI): void {
+		this._isolationChosen.add(sessionResource);
+	}
+
 	clear(sessionResource: URI): void {
 		this._newWorktree.delete(sessionResource);
+		this._isolationChosen.delete(sessionResource);
 		const hadFolder = this._folders.delete(sessionResource);
 		if (this._noWorkspace.delete(sessionResource) || hadFolder) {
 			this._onDidChangeFolder.fire(sessionResource);

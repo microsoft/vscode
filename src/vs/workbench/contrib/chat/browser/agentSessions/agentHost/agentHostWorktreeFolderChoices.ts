@@ -449,6 +449,9 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 	/** Has the session work in a new worktree of its folder, or in the folder itself. */
 	private async _setIsolation(worktree: boolean, isolation = this._isolation(), folder?: URI): Promise<void> {
 		const sessionResource = this._sessionResource();
+		if (sessionResource) {
+			this._newSessionFolderService.setIsolationChosen(sessionResource);
+		}
 		const provider = sessionResource && getLocalAgentHostSessionProvider(sessionResource);
 		const value = worktree ? (isolation?.worktree ? 'worktree' : undefined) : isolation?.inPlace;
 		if (!sessionResource || !provider || !isolation || !value || isolation.values[isolation.key] === value) {
