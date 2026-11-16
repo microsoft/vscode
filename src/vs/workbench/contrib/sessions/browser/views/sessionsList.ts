@@ -9463,7 +9463,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					this.notificationService.error(error);
 				}
 			},
-		}]);
+		}], { sticky: true });
 		this.storageService.store(SessionsList.INBOX_AUTO_ADVANCE_EXPLAINED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
 	}
 

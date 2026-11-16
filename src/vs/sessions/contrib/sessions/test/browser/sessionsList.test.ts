@@ -7,7 +7,7 @@ import { IGitHubService } from '../../../../../workbench/contrib/sessions/browse
 import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import assert from 'assert';
 import sinon from 'sinon';
-import { $, append, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { $, append, Dimension, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { DeferredPromise, retry, timeout } from '../../../../../base/common/async.js';
 import { IDelayedHoverOptions, isManagedHoverTooltipMarkdownString } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
@@ -73,6 +73,8 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { NotificationService } from '../../../../../workbench/services/notification/common/notificationService.js';
+import { NotificationsToasts } from '../../../../../workbench/browser/parts/notifications/notificationsToasts.js';
 import { SpotlightPresentation } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightPresentation.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
@@ -5738,13 +5740,23 @@ suite('Sessions - SessionsList', () => {
 					override readonly onDidAcceptRequest = accepted.event;
 				});
 				const notifications: Parameters<INotificationService['prompt']>[] = [];
-				harness.instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+				const notificationService = disposables.add(new class extends NotificationService {
 					override prompt(...args: Parameters<INotificationService['prompt']>) {
 						notifications.push(args);
-						return new NoOpNotification();
+						return super.prompt(...args);
 					}
-				});
+				}(harness.instantiationService.get(IStorageService)));
+				harness.instantiationService.stub(INotificationService, notificationService);
+				disposables.add(toDisposable(() => {
+					for (const notification of [...notificationService.model.notifications]) {
+						notification.close();
+					}
+				}));
+				const toasts = disposables.add(harness.instantiationService.createInstance(NotificationsToasts, harness.createContainer(), notificationService.model));
+				toasts.layout(new Dimension(1024, 600));
+				const toastVisible = Event.toPromise(toasts.onDidChangeVisibility);
 				const tours: { targetIsSource: boolean; hasDismissButton: boolean; targetInteractive: boolean | undefined; role: string | null; focusRestored: boolean }[] = [];
+				const tourFinished = new DeferredPromise<void>();
 				let tourId: string | undefined;
 				let targetId: string | undefined;
 				const focusTarget = append(harness.createContainer(), $('button'));
@@ -5780,6 +5792,7 @@ suite('Sessions - SessionsList', () => {
 							targetInteractive: step.allowTargetInteraction,
 							role, focusRestored: mainWindow.document.activeElement === focusTarget,
 						});
+						void tourFinished.complete();
 						return OnboardingOutcome.Completed;
 					},
 				}));
@@ -5804,15 +5817,25 @@ suite('Sessions - SessionsList', () => {
 					accepted.fire({ chatSessionResource: source.session.mainChat.get().resource, isNewSession: false });
 					await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
 				};
+				const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'], shouldClearNativeTimers: true });
+				disposables.add(toDisposable(() => clock.restore()));
 				await send();
 				const notificationsBeforeOpen = notifications.length;
 				await opening.complete();
+				await toastVisible;
+				clock.tick(10_001);
+				const visibleAfterTimeout = toasts.isVisible;
+				toasts.dispose();
+				clock.restore();
 				await timeout(0);
 				const toursBeforeAction = tours.length;
 				const [severity, message, choices] = notifications[0];
 				const links = message instanceof NotificationText ? message.nodes.filter(node => typeof node !== 'string') : [];
 				focusTarget.focus();
-				await choices[0].run();
+				await notificationService.model.notifications[0].actions!.primary![0].run();
+				await tourFinished.p;
+				await timeout(0);
+				const notificationsAfterAction = notificationService.model.notifications.length;
 				const targetReleased = resolveOnboardingTarget(mainWindow, targetId!) === undefined;
 				list.dispose();
 				transaction(tx => {
@@ -5826,13 +5849,13 @@ suite('Sessions - SessionsList', () => {
 				await timeout(0);
 
 				assert.deepStrictEqual({
-					notificationsBeforeOpen, severity, notifications: notifications.length, toursBeforeAction, tours,
+					notificationsBeforeOpen, severity, notifications: notifications.length, visibleAfterTimeout, notificationsAfterAction, toursBeforeAction, tours,
 					linkArguments: links.map(link => JSON.parse(decodeURIComponent(URI.parse(link.href).query))),
 					linkCommands: links.map(link => URI.parse(link.href).path),
 					showSession: choices[0].label,
 					targetReleased, tourReleased: onboardingScenarioRegistry.getScenario(tourId!),
 				}, {
-					notificationsBeforeOpen: hasNext ? 0 : 1, severity: Severity.Info, notifications: 1, toursBeforeAction: 0,
+					notificationsBeforeOpen: hasNext ? 0 : 1, severity: Severity.Info, notifications: 1, visibleAfterTimeout: true, notificationsAfterAction: 0, toursBeforeAction: 0,
 					tours: [{ targetIsSource: true, hasDismissButton: true, targetInteractive: true, role: 'dialog', focusRestored: true }],
 					linkArguments: [[`@id:${SESSIONS_LIST_INBOX_AUTO_ADVANCE_SETTING}`]],
 					linkCommands: ['workbench.action.openSettings'],

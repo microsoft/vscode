@@ -73,8 +73,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 			screenReaderDefault: content.includes('auto, keeps you in the current conversation when a screen reader is attached'),
 			explicitChoices: content.includes('Set it to off to always stay, or on to always advance'),
 			settingsLink: content.includes('Settings link and Show Session button'),
+			persistentNotification: content.includes('notification stays visible until you dismiss it or choose Show Session'),
 			dismiss: content.includes('press Escape or Got It to dismiss the spotlight'),
-		}, { screenReaderDefault: true, explicitChoices: true, settingsLink: true, dismiss: true });
+		}, { screenReaderDefault: true, explicitChoices: true, settingsLink: true, persistentNotification: true, dismiss: true });
 	});
 
 	test('defers to webview Find help while the Find input is focused', () => {
