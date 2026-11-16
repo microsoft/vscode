@@ -272,9 +272,14 @@ function parseUri(value: string | undefined): URI | undefined {
  * remote window), so that the chat reads and renders the agent host's file. Agents record files with the `file` and the
  * `resource` type; resources that are no files, such as settings, have none.
  */
-function getRecordedFileResource(artifact: ISessionArtifact, resolution: IAgentHostSessionResolution): URI | undefined {
+/**
+ * The window's resource for a recorded file or resource. The agent host's files are mapped into the window, which matters in
+ * remote windows; other schemes, such as an extension's, already name something in the window. Whether the chat can show
+ * it depends on what provides its scheme (see {@link observeChatResourceExists}).
+ */
+function getRecordedResource(artifact: ISessionArtifact, resolution: IAgentHostSessionResolution): URI | undefined {
 	const uri = artifact.type === SessionArtifactType.File || artifact.type === SessionArtifactType.Resource ? parseUri(artifact.uri) : undefined;
-	return uri && uri.scheme === Schemas.file ? resolution.connection.resourceUris.fromAgentHost(uri) : undefined;
+	return uri && uri.scheme === Schemas.file ? resolution.connection.resourceUris.fromAgentHost(uri) : uri;
 }
 
 function referenceLabel(link: string, kind: 'pullRequest' | 'issue', title?: string): string {
@@ -1005,7 +1010,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			return [...artifactSections.read(reader), ...referenceSections.read(reader)].flatMap(section => section.entries.flatMap((entry): IChatResource[] => {
 				const artifact = recordedById.get(entry.id);
 				// Recorded artifacts name the agent host's files; entries that no artifact backs, such as a chat tool's, are in this window's URI space.
-				const resource = artifact ? (currentResolution ? getRecordedFileResource(artifact, currentResolution) : undefined) : entry.resource;
+				const resource = artifact ? (currentResolution ? getRecordedResource(artifact, currentResolution) : undefined) : entry.resource;
 				// The agent's label describes the resource for people; lists show files by their name.
 				return resource ? [{ id: entry.id, label: artifact?.label ?? entry.label, resource, ...(artifact?.mode ? { requested: { mode: artifact.mode, revision: artifact.modeRevision ?? 0 } } : {}) }] : [];
 			}));

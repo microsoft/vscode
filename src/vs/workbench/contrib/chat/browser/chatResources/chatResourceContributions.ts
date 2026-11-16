@@ -10,11 +10,12 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IChatPillEntry, IChatPillSection } from '../../../../browser/chatPills.js';
-import { isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
+import { IExtensionService, isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../../services/extensions/common/extensionsRegistry.js';
-import { observeChatResourceExists } from './chatResourceExistence.js';
+import { IChatResourceProviders, observeChatResourceExists } from './chatResourceExistence.js';
 
 /**
  * A resource an extension adds to every chat whose resource exists, contributed with the proposed `chatResources`
@@ -155,8 +156,11 @@ export class ChatResourceContributionEntries extends Disposable {
 		ids: IObservable<IChatResourceSessionIds | undefined>,
 		open: (resource: URI) => void,
 		@IFileService fileService: IFileService,
+		@ITextModelService textModelService: ITextModelService,
+		@IExtensionService extensionService: IExtensionService,
 	) {
 		super();
+		const providers: IChatResourceProviders = { fileService, textModelService, extensionService };
 		const candidates = derived(this, reader => {
 			const current = ids.read(reader);
 			return current ? contributionList.read(reader).flatMap(contribution => {
@@ -164,10 +168,10 @@ export class ChatResourceContributionEntries extends Disposable {
 				return resource ? [{ contribution, resource }] : [];
 			}) : [];
 		});
-		// A resource of a scheme that no file system provides does not exist: its extension has not made it exist.
+		// A resource that its extension has not made exist, or whose scheme nothing provides, is not listed.
 		const withExistence = mapObservableArrayCached(this, candidates, (candidate, store) => ({
 			...candidate,
-			exists: observeChatResourceExists(fileService, candidate.resource, store, false),
+			exists: observeChatResourceExists(providers, candidate.resource, store),
 		}), candidate => `${getContributedChatResourceEntryId(candidate.contribution)}\u0000${candidate.resource.toString()}`);
 		this.sections = derived(this, reader => {
 			const entries = withExistence.read(reader).filter(candidate => candidate.exists.read(reader)).map(({ contribution, resource }): IChatPillEntry => ({

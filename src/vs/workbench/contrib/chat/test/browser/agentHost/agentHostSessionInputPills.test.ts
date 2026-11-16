@@ -49,7 +49,8 @@ import { GitHubIssue } from '../../../../../../platform/github/common/githubQuer
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { FragmentState, PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
-import { IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
+import { IFileContent, IFileService, IFileSystemProvider } from '../../../../../../platform/files/common/files.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -748,6 +749,11 @@ suite('AgentHostSessionInputPills', () => {
 				defaultChat: 'vendor-chat:/main', chats: [],
 				_meta: withSessionArtifacts(undefined, [{ id: 'status', label: 'Status', uri: 'file:///repo/status.md', type: SessionArtifactType.Resource, isArtifact: true }]),
 			}), undefined, undefined, 'local', undefined, undefined, { configurationService: new TestConfigurationService({ [ChatResourcesEnabledSettingId]: true }), resourceUris });
+			// A remote window has a file system for its remote's files, which the chat checks before it shows one.
+			const windowScheme = resourceUris.fromAgentHost(URI.file('/repo/status.md')).scheme;
+			if (windowScheme !== Schemas.file) {
+				store.add(harness.instantiationService.get(IFileService).registerProvider(windowScheme, upcastPartial<IFileSystemProvider>({})));
+			}
 			const rendered = new DeferredPromise<string>();
 			harness.instantiationService.stub(ITextModelService, upcastPartial<ITextModelService>({ createModelReference: resource => { rendered.complete(resource.toString()); return Promise.reject(new Error('unreadable')); } }));
 			await timeout(0);

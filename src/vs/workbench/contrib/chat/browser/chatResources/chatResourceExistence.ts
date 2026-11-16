@@ -6,14 +6,32 @@
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+
+/** The services that tell what provides a chat resource's scheme. */
+export interface IChatResourceProviders {
+	readonly fileService: IFileService;
+	readonly textModelService: ITextModelService;
+	readonly extensionService: IExtensionService;
+}
 
 /**
- * Whether a resource exists, following changes to it until `store` is disposed.
- * @param existsWithoutProvider Whether a resource that no file system provides counts as existing, because nothing can tell
- * whether it exists.
+ * What provides a resource's scheme: a file system provider, which can tell whether the resource exists, or a text content
+ * provider, which cannot, so its resources are assumed to exist. Without either, the chat cannot show the resource.
  */
-export function observeChatResourceExists(fileService: IFileService, resource: URI, store: DisposableStore, existsWithoutProvider: boolean): IObservable<boolean> {
+export type ChatResourceProviderKind = 'fileSystem' | 'textContent' | undefined;
+
+export function getChatResourceProviderKind(resource: URI, providers: IChatResourceProviders): ChatResourceProviderKind {
+	return providers.fileService.hasProvider(resource) ? 'fileSystem'
+		: providers.textModelService.canHandleResource(resource) ? 'textContent'
+			: undefined;
+}
+
+/** Whether a resource exists (see {@link ChatResourceProviderKind}), following changes to it until `store` is disposed. */
+export function observeChatResourceExists(providers: IChatResourceProviders, resource: URI, store: DisposableStore): IObservable<boolean> {
+	const { fileService, extensionService } = providers;
 	const exists = observableValue<boolean>('chatResourceExists', false);
 	let version = 0;
 	const refresh = async () => {
@@ -21,7 +39,8 @@ export function observeChatResourceExists(fileService: IFileService, resource: U
 		let result = false;
 		try {
 			await fileService.activateProvider(resource.scheme);
-			result = fileService.hasProvider(resource) ? await fileService.exists(resource) : existsWithoutProvider;
+			const kind = getChatResourceProviderKind(resource, providers);
+			result = kind === 'fileSystem' ? await fileService.exists(resource) : kind === 'textContent';
 		} catch {
 			result = false;
 		}
@@ -40,6 +59,12 @@ export function observeChatResourceExists(fileService: IFileService, resource: U
 	store.add(fileService.onDidChangeFileSystemProviderRegistrations(e => {
 		if (e.scheme === resource.scheme) {
 			watch();
+			void refresh();
+		}
+	}));
+	// Text content providers register without an event, when their extension activates.
+	store.add(extensionService.onDidChangeExtensionsStatus(() => {
+		if (!fileService.hasProvider(resource)) {
 			void refresh();
 		}
 	}));
