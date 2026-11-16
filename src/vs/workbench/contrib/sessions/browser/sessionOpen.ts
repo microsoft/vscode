@@ -95,7 +95,15 @@ export function waitForSessionChat(sessionsManagementService: ISessionsManagemen
 			resolve(found);
 		};
 		const follow = (session: ISession | undefined) => {
-			if (!session || resolved || followed.has(session)) {
+			if (!session || resolved) {
+				return;
+			}
+			if (followed.has(session)) {
+				// Followed already: a change of it can name the chat by what no observable reports, such as a former resource
+				const chat = getSessionChatOfResource(session, chatResource, extUri);
+				if (chat) {
+					finish({ session, chat });
+				}
 				return;
 			}
 			followed.add(session);

@@ -198,6 +198,26 @@ suite('waitForSessionChat', () => {
 		}, { main: true, ofFragment: true, beforeTimeout: true, listening: false });
 	}));
 
+	test('finds a chat by a former resource that a session it follows gains later, as only the session\'s change reports it, not its chats', () => runWithFakedTimers({}, async () => {
+		const former = URI.parse('cloud-task:/former');
+		const canonical = sessionWithChats('agent-host-copilot:/canonical');
+		// Its former resources come with its metadata, which no observable of it reports
+		const metadata: { previousIdentities?: ISession['previousIdentities'] } = {};
+		const session: ISession = Object.create(canonical.session, { previousIdentities: { get: () => metadata.previousIdentities } });
+		const { sessionChanged, sessionsManagementService } = create([]);
+		const cts = disposables.add(new CancellationTokenSource());
+
+		const start = Date.now();
+		const found = waitForSessionChat(sessionsManagementService, former, cts.token, SESSION_OPEN_WAIT_TIMEOUT);
+		sessionChanged.fire([{ session, kind: 'added' }]);
+		await timeout(10);
+		metadata.previousIdentities = [{ sessionId: 'former', resource: former }];
+		sessionChanged.fire([{ session, kind: 'changed' }]);
+		const result = await found;
+
+		assert.deepStrictEqual({ main: result?.session === session && result.chat === canonical.session.mainChat.get(), beforeTimeout: Date.now() - start < SESSION_OPEN_WAIT_TIMEOUT, listening: sessionChanged.hasListeners() }, { main: true, beforeTimeout: true, listening: false });
+	}));
+
 	test('follows the session of a peer chat once a provider asks to read every session again, so that the peer it lists later, without a change of the session, is found', () => runWithFakedTimers({}, async () => {
 		const parent = sessionWithChats('agent-host-copilot:/parent');
 		const peer = upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/parent#peer') });
