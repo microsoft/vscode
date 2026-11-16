@@ -23,6 +23,8 @@ import { IAgentHostUntitledProvisionalSessionService } from '../../../../browser
 import { AgentHostWorktreeFolderChoices, AgentHostWorktreeLocationsCache, IAgentHostWorktreeLocationsCache } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeFolderChoices.js';
 import { OpenAgentHostFolderPickerAction } from '../../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { AgentHostNewWorktreeToggle } from '../../../../browser/agentSessions/agentHost/agentHostNewWorktreeToggle.js';
+import { startInNewWorktree } from '../../../../browser/agentSessions/agentHost/agentHostNewChatActions.js';
+import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { IChatWidget } from '../../../../browser/chat.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { IAgentSessionsService } from '../../../../browser/agentSessions/agentSessionsService.js';
@@ -39,7 +41,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 	const session = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-1' });
 
 	/** The choices in a window whose folder is at `at`, recording the folders and isolation it sets for the session. */
-	async function createChoices(options: { readonly enabled: boolean; readonly at: URI; readonly isolation?: string; readonly state?: WorkbenchState; readonly listed?: readonly URI[]; readonly sessionsList?: boolean; readonly read?: boolean; readonly resolveLocation?: (location: URI) => Promise<IResolvedFolderLocation | undefined> }) {
+	async function createChoices(options: { readonly enabled: boolean; readonly at: URI; readonly isolation?: string; readonly state?: WorkbenchState; readonly listed?: readonly URI[]; readonly sessionsList?: boolean; readonly read?: boolean; readonly configReady?: boolean; readonly resolveLocation?: (location: URI) => Promise<IResolvedFolderLocation | undefined> }) {
 		const config = { values: { isolation: options.isolation ?? 'folder' } as Record<string, unknown> };
 		const changes: string[] = [];
 		const listed = { locations: options.listed ?? [feature, other], reads: 0 };
@@ -47,6 +49,8 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		const onDidChangeProvisional = store.add(new Emitter<URI>());
 		/** Changing the session's folder resets its configuration until it applies a change, as the provisional service does. */
 		let configReset = false;
+		/** Whether the new chat's session configuration is prepared, which it is not yet for a chat just opened. */
+		let configReady = options.configReady ?? true;
 		let noWorkspace = false;
 		/** The working directory of each configuration change, `none` without one. */
 		const configDirectories: string[] = [];
@@ -73,7 +77,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		}));
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({
 			onDidChange: onDidChangeProvisional.event,
-			getResolvedConfig: () => configReset ? undefined : ({ schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } }, values: config.values }),
+			getResolvedConfig: () => configReset || !configReady ? undefined : ({ schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } }, values: config.values }),
 			getPreparedSessionConfig: () => undefined,
 			applyConfigChange: async (_resource: URI, _provider: string, workingDirectory: URI | undefined, partial: Record<string, unknown>) => {
 				changes.push(`isolation ${partial.isolation}`);
@@ -95,7 +99,11 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		}
 		await new Promise<void>(resolve => setTimeout(resolve, 0));
 		const items = (selected: URI) => actions(selected).map(action => `${action.category?.label ? `[${action.category.label}] ` : ''}${action.label}${action.description ? ` (${action.description})` : ''}${action.checked ? ' *' : ''}`);
-		return { choices, actions, items, changes, configDirectories, listed, onDidChangeSessions, instantiationService };
+		const prepareConfig = () => {
+			configReady = true;
+			onDidChangeProvisional.fire(session);
+		};
+		return { choices, actions, items, changes, configDirectories, listed, onDidChangeSessions, instantiationService, prepareConfig };
 	}
 
 	test('offers the folder and New Worktree, each with what it does, then under Worktrees the worktrees, with where the folder is now first', async () => {
@@ -335,6 +343,28 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		assert.deepStrictEqual({ oldList: await reads({ sessionsList: false }), sessionsList: await reads({ sessionsList: true }) }, {
 			oldList: { shown: 1, changed: 2, toggled: 2 },
 			sessionsList: { shown: 0, changed: 0, toggled: 0 },
+		});
+	}));
+
+	test('New Chat in Worktree works in a new worktree once the configuration is prepared, also later, and reports when it is not in time rather than working in the folder', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const start = async (config: 'ready' | 'delayed' | 'never') => {
+			const { choices, changes, prepareConfig } = await createChoices({ enabled: true, at: primary, configReady: config === 'ready' });
+			const warnings: string[] = [];
+			const notificationService = upcastPartial<INotificationService>({ warn: (message: unknown) => { warnings.push(String(message)); return undefined!; } });
+			let prepared = 0;
+			const started = await startInNewWorktree(choices, async () => {
+				prepared++;
+				if (config === 'delayed') {
+					setTimeout(prepareConfig, 500);
+				}
+			}, notificationService, 1000);
+			return { started, prepared, isolation: changes, warned: warnings.length };
+		};
+
+		assert.deepStrictEqual({ ready: await start('ready'), delayed: await start('delayed'), timedOut: await start('never') }, {
+			ready: { started: true, prepared: 0, isolation: ['isolation worktree'], warned: 0 },
+			delayed: { started: true, prepared: 1, isolation: ['isolation worktree'], warned: 0 },
+			timedOut: { started: false, prepared: 1, isolation: [], warned: 1 },
 		});
 	}));
 });
