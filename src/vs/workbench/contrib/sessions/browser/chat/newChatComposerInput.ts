@@ -130,6 +130,7 @@ export interface INewChatComposerInputOptions {
 	 * composer restores from it, writes every change to it and brackets each send with an attempt.
 	 */
 	readonly inputSnapshot?: IComposerInputSnapshot;
+	readonly getSavedDraftId?: () => string | undefined;
 	readonly onDidChangeDraft?: (draft: IChatDraft) => void;
 	readonly onWillSendDraft?: (draft: IChatDraft) => void;
 	readonly onDidSendDraft?: (accepted: boolean) => void;

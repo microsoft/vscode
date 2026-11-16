@@ -581,6 +581,7 @@ export class NewChatWidget extends Disposable {
 			canApplyWorkspaceDefault: () => this._canApplyWorkspaceDefault(),
 			sendRequest: async ({ query, attachments, background, userInteraction }) => this._send(query, attachments, background, userInteraction),
 			inputSnapshot: this._draftHost?.input,
+			getSavedDraftId: () => this._savedDraftComposer && this.sessionDraftsService.getDraftRevision(this._savedDraftComposer) ? this._savedDraftComposer.id : undefined,
 			onDidChangeDraft: this._savedDraftComposer ? input => this._savedDraftComposer!.updateInput(input) : undefined,
 			onWillSendDraft: this._savedDraftComposer ? input => {
 				this._captureSavedDraftTarget();
@@ -674,7 +675,8 @@ export class NewChatWidget extends Disposable {
 			}));
 			savedDraftRegistration.value = this.sessionDraftsService.registerComposer(this._savedDraftComposer,
 				(draft, token) => this._restoreSavedDraft(draft, token),
-				() => this._newChatInput.setDraft({ inputText: '', attachments: [] }));
+				() => this._newChatInput.setDraft({ inputText: '', attachments: [] }),
+				() => this._newChatInput.focus());
 			this._register(this._trackSavedDraftVisibility());
 		}
 		this._register(this._trackSessionPreparation());
@@ -1379,7 +1381,7 @@ export class NewChatWidget extends Disposable {
 			this._savedDraftTargetUnavailable.set(true, undefined);
 			this._newChatInput.setInputEnabled(false);
 			this._newChatInput.setDraft(draft.input);
-			writeNewChatDraftState(this.storageService, draft.input);
+			writeNewChatDraftState(this.storageService, draft.input, draft.id);
 			if (this._savedDraftComposer) {
 				this._savedDraftComposer.id = draft.id;
 				this._savedDraftComposer.target = target;
