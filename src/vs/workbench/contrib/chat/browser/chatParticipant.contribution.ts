@@ -30,7 +30,7 @@ import { IChatAgentData, IChatAgentService } from '../common/participants/chatAg
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IRawChatParticipantContribution } from '../common/participants/chatParticipantContribTypes.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
-import { ChatViewId, ChatViewContainerId } from './chat.js';
+import { ChatViewId, ChatViewContainerId, ChatViewOpenKeybindings } from './chat.js';
 import { ChatViewPane } from './widgetHosts/viewPane/chatViewPane.js';
 import { ChatUpdateRequiredView } from './viewsWelcome/chatUpdateRequiredView.js';
 import { MANAGED_SETTINGS_UPDATE_VIEW_ID, ManagedSettingsUpdateRequiredContext } from '../../../services/policies/common/managedSettingsUpdate.js';
@@ -61,16 +61,13 @@ const chatViewDescriptor: IViewDescriptor = {
 		id: ChatViewContainerId,
 		title: chatViewContainer.title,
 		mnemonicTitle: localize({ key: 'miToggleChat', comment: ['&& denotes a mnemonic'] }, "&&Chat"),
-		keybindings: {
-			primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
-			mac: {
-				primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
-			}
-		},
+		keybindings: ChatViewOpenKeybindings,
 		order: 1
 	},
 	ctorDescriptor: new SyncDescriptor(ChatViewPane),
 	when: ContextKeyExpr.and(
+		// The chat part of an editor window with the Agents view replaces it
+		ChatContextKeys.agentsViewActive.negate(),
 		ChatContextKeys.accountPolicyGateActive.negate(),
 		ContextKeyExpr.or(
 			ContextKeyExpr.and(
@@ -92,7 +89,7 @@ Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
 	canToggleVisibility: false,
 	canMoveView: false,
 	ctorDescriptor: new SyncDescriptor(ChatUpdateRequiredView),
-	when: ManagedSettingsUpdateRequiredContext,
+	when: ContextKeyExpr.and(ChatContextKeys.agentsViewActive.negate(), ManagedSettingsUpdateRequiredContext),
 	openCommandActionDescriptor: {
 		id: 'workbench.action.chat.showUpdateRequired',
 		title: localize2('chat.updateRequiredView', "Chat Update Requirement"),

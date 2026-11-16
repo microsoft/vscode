@@ -633,7 +633,7 @@ export class OpenEditorsView extends ViewPane {
 		}
 
 		const parentNode = this.list.getHTMLElement();
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const childNodes: HTMLElement[] = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
 
 		return dom.getLargestChildWidth(parentNode, childNodes);

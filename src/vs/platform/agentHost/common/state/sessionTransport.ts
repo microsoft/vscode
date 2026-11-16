@@ -15,6 +15,7 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import type { AgentHostClientConnectionKind, AgentHostTransportKind } from '../agentHostTelemetry.js';
 import type { ProtocolMessage, AhpServerNotification, JsonRpcNotification, JsonRpcParseErrorResponse, JsonRpcResponse, JsonRpcRequest } from './sessionProtocol.js';
 import type { AuthenticateParams } from '../agent.js';
+import type { ConnectionCloseReason } from '../connectionDiagnostics.js';
 
 const receivedMessageSizes = new WeakMap<object, number>();
 
@@ -39,6 +40,8 @@ export function getProtocolMessageSize(message: object): number {
 export const enum AgentHostTransportFailureReason {
 	Unknown = 'unknown',
 	HostNotRunning = 'hostNotRunning',
+	AuthenticationFailed = 'authenticationFailed',
+	SSHAuthenticationFailed = 'sshAuthenticationFailed',
 }
 
 /** Signals that reconnecting the transport cannot recover the connection. */
@@ -59,6 +62,8 @@ export interface ITransportCloseDetails {
  * serialization, framing, and connection management.
  */
 export interface IProtocolTransport extends IDisposable {
+	/** Source-owned cause available before onClose fires; absent on intentional disposal. */
+	readonly closeReason?: ConnectionCloseReason;
 	/** Bytes queued in the underlying transport, when available. */
 	readonly bufferedAmount?: number;
 	/** Trusted lane identity assigned by a relay server, never supplied by AHP. */

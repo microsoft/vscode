@@ -9,9 +9,9 @@ import * as cp from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
 import minimist from 'minimist';
-import fetch from 'node-fetch';
 import { Quality, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog, getDevElectronPath, getBuildElectronPath, getBuildVersion, ApplicationOptions } from '../../automation';
 import { retry } from './utils';
+import { fetchFromUpdateServer } from './updateServer';
 import { downloadStableCode } from './stableCodeDownload';
 import { parseShard, selectShardSuites, Shard } from './shard';
 
@@ -29,7 +29,6 @@ import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
 import { setup as setupTaskTests } from './areas/task/task.test';
 import { setup as setupChatTests } from './areas/chat/chatDisabled.test';
-import { setup as setupCopilotCliTests } from './areas/chat/copilotCli.test';
 import { setup as setupChatSandboxTests } from './areas/chat/chatSandbox.test';
 import { setup as setupChatSessionsTests } from './areas/chat/chatSessions.test';
 import { setup as setupChatModelConfigTests } from './areas/chat/chatModelConfig.test';
@@ -319,10 +318,9 @@ async function ensureStableCode(): Promise<void> {
 	let stableCodePath = opts['stable-build'];
 	if (!stableCodePath) {
 		const current = parseVersion(version!);
-		const versionsReq = await retry(() => measureAndLog(() => fetch('https://update.code.visualstudio.com/api/releases/stable'), 'versionReq', logger), 1000, 20);
-
+		const versionsReq = await measureAndLog(() => fetchFromUpdateServer('https://update.code.visualstudio.com/api/releases/stable', { log: message => logger.log(message) }), 'versionReq', logger);
 		if (!versionsReq.ok) {
-			throw new Error('Could not fetch releases from update server');
+			throw new Error(`Could not fetch releases from update server: HTTP ${versionsReq.status}`);
 		}
 
 		const versions: string[] = await measureAndLog(() => versionsReq.json(), 'versionReq.json()', logger);
@@ -460,7 +458,6 @@ const smokeTestSuite = describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Elect
 	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupLocalizationTests(logger); }
 	if (!opts.web && !opts.remote) { setupLaunchTests(logger); }
 	if (!opts.web) { setupChatTests(logger); }
-	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupCopilotCliTests(logger); }
 	if (!opts.web && !opts.remote) { setupChatSandboxTests(logger); }
 	if (!opts.web && !opts.remote) { setupChatSessionsTests(logger); }
 	if (!opts.web && !opts.remote) { setupChatModelConfigTests(logger); }

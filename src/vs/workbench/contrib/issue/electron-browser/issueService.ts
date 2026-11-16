@@ -11,6 +11,7 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { ExtensionType } from '../../../../platform/extensions/common/extensions.js';
+import { GitHubAuthorizationContext } from '../../../../platform/github/common/githubTypes.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -27,6 +28,7 @@ import { IWorkbenchAssignmentService } from '../../../services/assignment/common
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { toGitHubAuthorizationContext } from '../../../services/github/common/githubService.js';
 import { IIntegrityService } from '../../../services/integrity/common/integrity.js';
 
 export class NativeIssueService implements IWorkbenchIssueService {
@@ -142,10 +144,14 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		const experiments = await this.experimentService.getCurrentExperiments();
 
 		let githubAccessToken = '';
+		let githubAuthorization: GitHubAuthorizationContext | undefined;
 		try {
 			const githubSessions = await this.authenticationService.getSessions('github');
-			const repoSession = githubSessions.find(session => session.scopes.includes('repo'));
-			githubAccessToken = repoSession?.accessToken ?? '';
+			const session = githubSessions.find(session => dataOverrides.githubAccessToken === undefined
+				? session.scopes.includes('repo')
+				: session.accessToken === dataOverrides.githubAccessToken);
+			githubAccessToken = session?.accessToken ?? '';
+			githubAuthorization = session && toGitHubAuthorizationContext('github', session);
 		} catch (e) {
 			// Ignore
 		}
@@ -167,6 +173,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 			isInstallationPure,
 			isSessionsWindow: this.environmentService.isSessionsWindow,
 			githubAccessToken,
+			githubAuthorization,
 		}, dataOverrides);
 
 		return this.issueFormService.openReporter(issueReporterData);

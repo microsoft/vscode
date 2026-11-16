@@ -342,6 +342,7 @@ suite('ChatInputNotificationWidget', () => {
 		let hasSessions = false;
 		const harness = {
 			environmentService: { isSessionsWindow: false },
+			options: { isSessionsWindow: false },
 			chatService: { hasSessions: () => hasSessions },
 			_deferredNotificationsEnabled: deferredNotificationsEnabled,
 			_isFirstWorkbenchSession: undefined as boolean | undefined,
@@ -372,22 +373,24 @@ suite('ChatInputNotificationWidget', () => {
 		});
 	});
 
-	test('Agents window bypasses the workbench first-session gate', () => {
-		const deferredNotificationsEnabled = observableValue('deferredNotificationsEnabled', false);
-		const harness = {
-			environmentService: { isSessionsWindow: true },
-			chatService: { hasSessions: () => false },
-			_deferredNotificationsEnabled: deferredNotificationsEnabled,
-			_isFirstWorkbenchSession: undefined as boolean | undefined,
-		};
+	test('session chats bypass the workbench first-session gate, in the Agents window and in other windows', () => {
 		const update = Reflect.get(ChatInputPart.prototype, 'updateDeferredNotificationsEligibility') as (
-			this: typeof harness,
+			this: object,
 			event?: { previousSessionResource: URI | undefined; currentSessionResource: URI | undefined },
 		) => void;
+		const enabledFor = (isSessionsWindow: boolean, isSessionsChat: boolean) => {
+			const deferredNotificationsEnabled = observableValue('deferredNotificationsEnabled', false);
+			update.call({
+				environmentService: { isSessionsWindow },
+				options: { isSessionsWindow: isSessionsChat },
+				chatService: { hasSessions: () => false },
+				_deferredNotificationsEnabled: deferredNotificationsEnabled,
+				_isFirstWorkbenchSession: undefined as boolean | undefined,
+			});
+			return deferredNotificationsEnabled.get();
+		};
 
-		update.call(harness);
-
-		assert.strictEqual(deferredNotificationsEnabled.get(), true);
+		assert.deepStrictEqual({ agentsWindow: enabledFor(true, true), sessionChatInEditorWindow: enabledFor(false, true) }, { agentsWindow: true, sessionChatInEditorWindow: true });
 	});
 
 	test('renders markdown descriptions as rich content', () => {

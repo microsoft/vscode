@@ -33,6 +33,7 @@ import {
 } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 
 const connectionDetails = {
+	suspendCount: 0, suspendedMs: 0,
 	environmentOperation: 'resume', provisioningMs: 0, reservationWaitMs: 0, readinessMs: 0,
 	preparationMs: 0, connectionMs: 0,
 	environmentKind: 'cloud',
@@ -739,6 +740,33 @@ suite('cloudSandbox telemetry', () => {
 		]);
 	}));
 
+	test('recovery reports overlapping sleep time and the source-owned stop reason without diagnostic content', () => runWithFakedTimers({}, async () => {
+		const telemetry = new TestTelemetryService();
+		const service = store.add(new CloudSandboxTelemetryService(telemetry));
+		const connection = store.add(service.trackConnection('connection', 'agentsDesktop', 'existing', { environmentKind: 'user-local' }));
+		connection.onConnectionStateChange('connected');
+		const diagnostic = (phase: string) => connection.recordConnectionDiagnostic({
+			operationId: 'private-id', phase, outcome: 'info', timestamp: Date.now(), detail: 'private diagnostic',
+		});
+		diagnostic('power.suspend');
+		await timeout(1000);
+		connection.onConnectionStateChange('reconnecting');
+		await timeout(600_000);
+		diagnostic('power.resume');
+		await timeout(2000);
+		diagnostic('reconnect.timedOut');
+		connection.onConnectionStateChange('failed');
+		const event = telemetry.events.find(event => event.eventName === 'userLocalRelayConnectionOutcome' && event.data?.operation === 'recover');
+		type ClassifiedSample<T> = { [K in keyof Omit<T, 'owner' | 'comment'>]: NonNullable<T[K]> extends { isMeasurement: true } ? number | undefined : string | undefined };
+		const expected: ClassifiedSample<CloudSandboxConnectionOutcomeClassification> = {
+			...connectionDetails, environmentKind: 'user-local', environmentOperation: 'recover',
+			surface: 'agentsDesktop', operation: 'recover', outcome: 'failure', stage: 'connection',
+			durationMs: 602_000, connectionMs: 602_000, readinessMs: 602_000,
+			suspendCount: 1, suspendedMs: 600_000, recoveryStopReason: 'timeout',
+		};
+		assert.deepStrictEqual(event, { eventName: 'userLocalRelayConnectionOutcome', data: expected });
+	}));
+
 	for (const environmentKind of ['cloud', 'user-local'] as const) {
 		for (const outcome of ['success', 'failure', 'cancelled'] as const) {
 			test(`reports ${environmentKind} first session request ${outcome} without counting user idle time`, () => runWithFakedTimers({}, async () => {
@@ -824,6 +852,93 @@ suite('cloudSandbox telemetry', () => {
 			},
 		}]);
 	}));
+
+	test('attributes rapid post-readiness losses to their initiating boundary without multiplying samples or health losses', () => runWithFakedTimers({}, async () => {
+		const telemetry = new TestTelemetryService();
+		const service = store.add(new CloudSandboxTelemetryService(telemetry));
+		const connection = store.add(service.trackConnection('connection', 'agentsDesktop', 'existing', { environmentKind: 'user-local' }));
+		connection.onConnectionStateChange('connected');
+		for (const closeReason of ['hostLaneClosed', 'publishAckTimeout'] as const) {
+			for (const phase of ['protocol.firstSessionRequest', 'protocol.sessionOpen'] as const) {
+				connection.recordConnectionDiagnostic({
+					operationId: `${closeReason}-${phase}`, phase, outcome: 'started', timestamp: Date.now(),
+					requestKind: phase === 'protocol.firstSessionRequest' ? 'listSessions' : 'subscribeSession', connectionOperation: 'recover',
+				});
+			}
+			await timeout(10);
+			connection.recordConnectionDiagnostic({
+				operationId: 'private-id', phase: 'transport.closed', outcome: 'info', timestamp: Date.now(), closeReason,
+				detail: 'private text', error: { name: 'Error', message: 'private error' },
+			});
+			connection.onConnectionStateChange('reconnecting');
+			connection.recordConnectionDiagnostic({
+				operationId: 'retry', phase: 'transport.closed', outcome: 'info', timestamp: Date.now(), closeReason: 'socketError',
+			});
+			connection.onConnectionStateChange('reconnecting');
+			for (const phase of ['protocol.firstSessionRequest', 'protocol.sessionOpen'] as const) {
+				connection.recordConnectionDiagnostic({ operationId: `${closeReason}-${phase}`, phase, outcome: 'failed', timestamp: Date.now() });
+			}
+			await timeout(30);
+			connection.onConnectionStateChange('connected');
+		}
+		connection.recordConnectionDiagnostic({ operationId: 'last', phase: 'protocol.firstSessionRequest', outcome: 'started', timestamp: Date.now() });
+		connection.recordConnectionDiagnostic({ operationId: 'last', phase: 'protocol.firstSessionRequest', outcome: 'succeeded', timestamp: Date.now() });
+		connection.recordConnectionDiagnostic({ operationId: 'dispose', phase: 'protocol.sessionOpen', outcome: 'started', timestamp: Date.now() });
+		connection.dispose();
+		service.dispose();
+
+		assert.deepStrictEqual({
+			samples: telemetry.events.filter(event => event.eventName !== 'userLocalRelayConnectionHealth').map(event => ({
+				event: event.eventName, outcome: event.data?.outcome, reason: event.data?.closeReason, category: event.data?.errorCategory,
+			})),
+			health: telemetry.events.filter(event => event.eventName === 'userLocalRelayConnectionHealth').map(event => event.data),
+			privateContent: JSON.stringify(telemetry.events).includes('private'),
+		}, {
+			samples: [
+				{ event: 'userLocalRelayConnectionOutcome', outcome: 'success', reason: undefined, category: undefined },
+				...['hostLaneClosed', 'publishAckTimeout'].flatMap(reason => [
+					{ event: 'userLocalRelayFirstSessionRequest', outcome: 'failure', reason, category: 'connectionClosed' },
+					{ event: 'userLocalRelaySessionOpen', outcome: 'failure', reason, category: 'connectionClosed' },
+					{ event: 'userLocalRelayConnectionOutcome', outcome: 'success', reason, category: undefined },
+				]),
+				{ event: 'userLocalRelayFirstSessionRequest', outcome: 'success', reason: undefined, category: undefined },
+				{ event: 'userLocalRelaySessionOpen', outcome: 'cancelled', reason: undefined, category: undefined },
+			],
+			health: [{ environmentKind: 'user-local', connectedMs: 20, unexpectedDisconnects: 2, receivedFrames: 0 }],
+			privateContent: false,
+		});
+	}));
+
+	test('allowlists close attribution only at user-local close boundaries, not from text or unrelated diagnostics', () => {
+		const results = [];
+		for (const sample of [
+			{ environmentKind: 'user-local', phase: 'transport.closed', closeReason: 'private reason' },
+			{ environmentKind: 'user-local', phase: 'transport.closed', closeReason: undefined },
+			{ environmentKind: 'user-local', phase: 'unrelated', closeReason: 'socketClose' },
+			{ environmentKind: 'cloud', phase: 'transport.closed', closeReason: 'socketClose' },
+		] as const) {
+			const telemetry = new TestTelemetryService();
+			const service = store.add(new CloudSandboxTelemetryService(telemetry));
+			const connection = store.add(service.trackConnection('connection', 'agentsDesktop', 'existing', { environmentKind: sample.environmentKind === 'user-local' ? sample.environmentKind : undefined }));
+			connection.onConnectionStateChange('connected');
+			connection.recordConnectionDiagnostic({ operationId: 'first', phase: 'protocol.firstSessionRequest', outcome: 'started', timestamp: Date.now() });
+			const diagnostic: IConnectionDiagnosticEvent = { operationId: 'close', phase: sample.phase, outcome: 'info', timestamp: Date.now(), detail: 'watchdog private text' };
+			connection.recordConnectionDiagnostic(Object.assign(diagnostic, { closeReason: sample.closeReason }));
+			connection.onConnectionStateChange('reconnecting');
+			connection.onConnectionStateChange('connected');
+			service.dispose();
+			results.push({
+				reasons: telemetry.events.filter(event => event.data?.outcome === 'failure' || event.data?.operation === 'recover').map(event => event.data?.closeReason),
+				privateContent: JSON.stringify(telemetry.events).includes('private'),
+			});
+		}
+		assert.deepStrictEqual(results, [
+			{ reasons: ['unknown', 'unknown'], privateContent: false },
+			{ reasons: ['unknown', 'unknown'], privateContent: false },
+			{ reasons: [undefined, undefined], privateContent: false },
+			{ reasons: [undefined, undefined], privateContent: false },
+		]);
+	});
 
 	for (const state of ['reconnecting', 'failed', 'disposed'] as const) {
 		test(`settles a pending session snapshot once when ${state}, without counting later completion`, () => runWithFakedTimers({}, async () => {

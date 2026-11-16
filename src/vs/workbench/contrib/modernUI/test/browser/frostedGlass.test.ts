@@ -399,6 +399,70 @@ suite('Frosted glass styles', () => {
 		});
 	});
 
+	(supportsGlass(document.body) ? test : test.skip)('aligns bordered and borderless frosted surfaces to their host curves', () => {
+		const overlays = createOverlays();
+		for (const { surface } of overlays.geometrySurfaces) {
+			surface.style.width = '120px';
+			surface.style.height = '60px';
+		}
+		overlays.root.classList.add('modern-ui-frosted-glass');
+
+		const readGeometry = ({ name, surface }: (typeof overlays.geometrySurfaces)[number]) => {
+			const targetWindow = getWindow(surface);
+			const host = targetWindow.getComputedStyle(surface);
+			const paint = targetWindow.getComputedStyle(surface, '::before');
+			const bounds = surface.getBoundingClientRect();
+			const paintWidth = parseFloat(paint.width) + parseFloat(paint.borderLeftWidth) + parseFloat(paint.borderRightWidth);
+			const paintHeight = parseFloat(paint.height) + parseFloat(paint.borderTopWidth) + parseFloat(paint.borderBottomWidth);
+			return {
+				name,
+				hostRadius: host.borderTopLeftRadius,
+				hostBorder: `${host.borderTopStyle} ${host.borderTopWidth}`,
+				hostBorderColor: host.borderTopStyle === 'none' ? undefined : host.borderTopColor,
+				paintRadius: paint.borderTopLeftRadius,
+				paintBorder: `${paint.borderTopStyle} ${paint.borderTopWidth}`,
+				paintBorderColor: paint.borderTopColor,
+				paintBoxSizing: paint.boxSizing,
+				paintClip: paint.clipPath,
+				paintBackgroundClip: paint.backgroundClip,
+				paintFilter: paint.backdropFilter,
+				sharesBorderBox: Math.abs(paintWidth - bounds.width) < 0.01 && Math.abs(paintHeight - bounds.height) < 0.01,
+			};
+		};
+		const radii = ['8px', '8px', '5px', '8px', '8px', '4px', '4px'];
+		const expected = (bordered: boolean) => overlays.geometrySurfaces.map(({ name }, index) => ({
+			name,
+			hostRadius: radii[index],
+			hostBorder: bordered ? 'solid 1px' : 'none 0px',
+			hostBorderColor: bordered ? 'rgb(90, 123, 157)' : undefined,
+			paintRadius: radii[index],
+			paintBorder: bordered ? 'solid 1px' : 'none 0px',
+			paintBorderColor: 'rgba(0, 0, 0, 0)',
+			paintBoxSizing: 'content-box',
+			paintClip: 'padding-box',
+			paintBackgroundClip: 'padding-box',
+			paintFilter: 'blur(12px)',
+			sharesBorderBox: true,
+		}));
+		const bordered = overlays.geometrySurfaces.map(readGeometry);
+		for (const token of ['widget-border', 'editorWidget-border', 'editorHoverWidget-border']) {
+			overlays.root.style.setProperty(`--vscode-${token}`, 'initial');
+		}
+
+		assert.deepStrictEqual({
+			bordered,
+			borderless: overlays.geometrySurfaces.map(readGeometry),
+			resizableInnerPaint: {
+				content: getWindow(overlays.resizableHoverContent).getComputedStyle(overlays.resizableHoverContent, '::before').content,
+				filter: getWindow(overlays.resizableHoverContent).getComputedStyle(overlays.resizableHoverContent, '::before').backdropFilter,
+			},
+		}, {
+			bordered: expected(true),
+			borderless: expected(false),
+			resizableInnerPaint: { content: 'none', filter: 'none' },
+		});
+	});
+
 	test('keeps picker and nested picker tint steady while opening and uses a solid closing fallback', () => {
 		const { root, picker } = createOverlays();
 		root.classList.add('modern-ui-frosted-glass', 'monaco-enable-motion');
@@ -559,7 +623,12 @@ suite('Frosted glass styles', () => {
 
 	test('does not move fixed-position children when glass is enabled', () => {
 		const overlays = createOverlays();
-		const children = [overlays.quickInput, overlays.menuContainer, overlays.shadowMenuContainer, overlays.picker].map(container => {
+		const containers = [
+			overlays.menuContainer,
+			overlays.shadowMenuContainer,
+			...overlays.geometrySurfaces.map(({ surface }) => surface),
+		];
+		const children = containers.map(container => {
 			const fixed = append(container, 'fixed-child');
 			fixed.style.cssText = 'position: fixed; top: 17px; left: 19px; width: 10px; height: 10px;';
 			return fixed;
@@ -570,8 +639,9 @@ suite('Frosted glass styles', () => {
 		});
 		const before = positions();
 		overlays.root.classList.add('modern-ui-frosted-glass');
-		assert.deepStrictEqual({ before, after: positions() }, {
-			before: children.map(() => [17, 19]), after: children.map(() => [17, 19]),
+		assert.deepStrictEqual({ viewportAnchored: before.slice(0, 4), after: positions() }, {
+			viewportAnchored: before.slice(0, 4).map(() => [17, 19]),
+			after: before,
 		});
 	});
 

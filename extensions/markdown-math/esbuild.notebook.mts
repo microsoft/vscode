@@ -11,7 +11,9 @@ const srcDir = path.join(import.meta.dirname, 'notebook');
 const outDir = path.join(import.meta.dirname, 'notebook-out');
 
 function postBuild(outDir: string) {
-	const katexDir = resolvePackageDirectory(import.meta.dirname, 'katex');
+	// The katex of @vscode/markdown-it-katex, whose JavaScript the notebook bundles
+	const markdownItKatexDir = fs.realpathSync(resolvePackageDirectory(import.meta.dirname, '@vscode/markdown-it-katex'));
+	const katexDir = resolvePackageDirectory(markdownItKatexDir, 'katex');
 	fs.copyFileSync(
 		path.join(katexDir, 'dist', 'katex.min.css'),
 		path.join(outDir, 'katex.min.css'));

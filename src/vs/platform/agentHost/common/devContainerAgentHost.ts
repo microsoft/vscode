@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IRelayChannel } from './relayTransport.js';
 import { IDevContainerRepository, IDevContainerSampleSource } from './devContainerSamples.js';
@@ -22,6 +21,8 @@ export interface IDevContainerAgentHostWorkspaceConfig {
 	readonly resume?: boolean;
 	/** Configure the container to permit nested terminal sandboxing. */
 	readonly sandboxEnabled?: boolean;
+	/** Mount a per-container volume that keeps user and agent state across rebuilds. */
+	readonly persistUserState?: boolean;
 }
 
 export type IDevContainerAgentHostConfig = IDevContainerAgentHostWorkspaceConfig | (Omit<IDevContainerAgentHostWorkspaceConfig, 'workspaceFolder'> & IDevContainerSampleSource);
@@ -53,13 +54,30 @@ export interface IDevContainerAgentHostSandboxSupport {
 	readonly supported: boolean;
 }
 
-export const IDevContainerAgentHostMainService = createDecorator<IDevContainerAgentHostMainService>('devContainerAgentHostMainService');
-
-export interface IDiscoveredDevContainer {
-	readonly id: string;
-	readonly name: string;
-	readonly workspaceFolder?: string;
+/** Outcome of one stage of keeping user state on a volume, reported for telemetry. */
+export interface IDevContainerAgentHostUserStateReport {
+	readonly connectionId: string;
+	readonly stage: 'mount' | 'up' | 'link' | 'userCommands';
+	/** `mount`: added, existingContainer, failed. `link`: linked, noMount, homeNotFound, failed. `up`, `userCommands`: succeeded, failed. */
+	readonly outcome: string;
+	/** Fixed identifier of what failed. */
+	readonly reason?: string;
+	/** The link command's failed step. */
+	readonly step?: string;
+	readonly exitCode?: number;
+	/** Where the state volume is mounted: `workspaces` or `volume`. */
+	readonly target?: string;
+	readonly restoredFolders?: number;
+	readonly movedFolders?: number;
+	readonly createdFolders?: number;
+	readonly existingFolders?: number;
+	readonly skippedFolders?: number;
+	readonly skipReasons?: string;
+	/** Sanitized error message of a failed stage, see `sanitizeDevContainerStateErrorMessage`. */
+	readonly errorMessage?: string;
 }
+
+export const IDevContainerAgentHostMainService = createDecorator<IDevContainerAgentHostMainService>('devContainerAgentHostMainService');
 
 /** Host-side service that owns Dev Container CLI processes and protocol relays. */
 export interface IDevContainerAgentHostMainService extends IRelayChannel {
@@ -69,11 +87,11 @@ export interface IDevContainerAgentHostMainService extends IRelayChannel {
 	/** Streaming stdout and stderr from Dev Container CLI processes. */
 	readonly onDidOutput: Event<IDevContainerAgentHostOutput>;
 	readonly onDidChangeSandboxSupport?: Event<IDevContainerAgentHostSandboxSupport>;
+	/** Reports how keeping user state on a volume went, including for failed startup. */
+	readonly onDidReportUserState?: Event<IDevContainerAgentHostUserStateReport>;
 
 	/** Whether Docker can be resolved from the user's shell environment. */
 	isDockerAvailable(): Promise<boolean>;
-	/** Local desktop discovery only; not exposed by remote protocol clients. */
-	listDevContainers?(token: CancellationToken): Promise<readonly IDiscoveredDevContainer[]>;
 	connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult>;
 	disconnect(connectionId: string): Promise<void>;
 	stopContainer(source: string | IDevContainerSampleSource): Promise<boolean>;

@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { IRemoteAgentHostLocationPreferenceService, isRemoteAgentHostLocationPreference, RemoteAgentHostLocationPreference } from '../common/remoteAgentHostLocationPreference.js';
 
@@ -77,7 +78,9 @@ export class RemoteAgentHostLocationPreferenceService extends Disposable impleme
 			REMOTE_AGENT_HOST_LOCATION_PREFERENCE_STORAGE_KEY,
 			JSON.stringify(Object.fromEntries(preferences)),
 			StorageScope.APPLICATION,
-			StorageTarget.USER,
+			StorageTarget.MACHINE,
 		);
 	}
 }
+
+registerSingleton(IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreferenceService, InstantiationType.Delayed);

@@ -348,6 +348,23 @@ suite('Workbench - TerminalInstance', () => {
 			strictEqual(second.fixedCols, undefined);
 		});
 
+		test('keeps the prompt when shown before its view has a valid layout', async () => {
+			const instance = await createTerminalInstance();
+			// While a view is first laid out its container can have a temporary width but a valid height
+			const container = document.createElement('div');
+			container.style.width = '120px';
+			container.style.height = '300px';
+			document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			instance.attachToElement(container);
+			const prompt = 'PS /Users/user/Desktop/vscode> ';
+			await writeP(instance.xterm!.raw, prompt);
+			instance.layout(new Dimension(120, -22));
+			instance.setVisible(true);
+			instance.layout(new Dimension(800, 300));
+			strictEqual(instance.xterm!.raw.buffer.active.getLine(0)?.translateToString(true), prompt);
+		});
+
 		test('should create an instance of TerminalInstance with env from default profile', async () => {
 			terminalInstance = await createTerminalInstance();
 			// Wait for the terminal instance to resolve shell launch config env.

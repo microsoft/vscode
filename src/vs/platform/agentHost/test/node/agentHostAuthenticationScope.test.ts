@@ -488,6 +488,35 @@ suite('AgentHostAuthenticationScope', () => {
 		assert.deepStrictEqual(requests, []);
 	});
 
+	test('local continuation captures its owner credential without adopting an optional foreign identity', async () => {
+		const validations: string[] = [];
+		const foreign = 'https://graph.microsoft.com';
+		const declared = [{ resource, required: false }, { resource: foreign, required: false }];
+		const service = store.add(new AgentHostAuthenticationService(new NullLogService(), async (_url, init) => {
+			validations.push(new Headers(init?.headers).get('Authorization') ?? '');
+			return Response.json({ id: 1, type: 'User' });
+		}));
+		const provider = new class extends mock<IAgent>() {
+			override getProtectedResources() { return declared; }
+			override async authenticate() { return true; }
+		}();
+		await service.authenticate({ resource, token: 'desktop-github' }, [provider]);
+		await service.authenticate({ resource: foreign, token: 'shared-microsoft' }, [provider]);
+		const source = await service.createLocalCredentialSource(principal, declared);
+		const captured = captureCredentialSource(source, declared);
+		await assert.rejects(service.createLocalCredentialSource(principal, [...declared, { resource: `${resource}/required` }]), { code: AhpErrorCodes.AuthRequired });
+		await assert.rejects(service.createLocalCredentialSource(principal, [{ resource: foreign }]), { code: AhpErrorCodes.PermissionDenied });
+		assert.deepStrictEqual({
+			github: captured.getCredential({ resource })?.token,
+			microsoft: captured.getCredential({ resource: foreign }),
+			validations,
+			sharedMicrosoft: service.getAuthToken({ resource: foreign }),
+		}, {
+			github: 'desktop-github', microsoft: undefined,
+			validations: ['Bearer desktop-github', 'Bearer desktop-github'], sharedMicrosoft: 'shared-microsoft',
+		});
+	});
+
 	test('targeted MCP tokens stay out of agent credentials and retain independent concurrent replay slots', async () => {
 		const service = store.add(new AgentHostAuthenticationService(new NullLogService(), async () => { assert.fail('Targeted MCP tokens must not validate an agent identity'); }));
 		const target = (customizationId: string) => ({ kind: AuthenticateTargetKind.McpServer, session: 'ahp-session:/target', customizationId });

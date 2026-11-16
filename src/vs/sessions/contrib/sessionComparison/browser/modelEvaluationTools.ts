@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { createCommandUri, escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -31,6 +31,7 @@ import { ISessionsProvidersService } from '../../../../workbench/contrib/session
 import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { getSessionComparisonChat, getSessionComparisonWorkspaceError, ISessionComparison, ISessionComparisonService, IStartSessionComparisonOptions, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_MIN_ATTEMPTS, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionComparisonConstants.js';
 import { getManifestSessionStatus, ReadSessionComparisonTool } from './sessionComparisonTool.js';
 
 type EvaluationToolName = 'getComparisonModels' | 'createModelComparison' | 'listModelComparisons' | 'readModelComparison';
@@ -54,7 +55,7 @@ const definitions: Record<EvaluationToolName, { displayName: string; description
 	},
 	createModelComparison: {
 		displayName: localize('evaluation.create', "Create Model Comparison"),
-		description: 'Launch one scenario against two to ten fixed model configurations for a model evaluation. Use getComparisonModels first. This creates isolated worktrees on the calling chat\'s host and project, or independent folderless chats when requested, and inherits the calling chat\'s permissions without elevation. An optional Judge evaluates terminal attempts; a configured Synthesizer remains user-initiated and requires a Judge. For folderless comparisons, the Judge compares responses and synthesis combines them into a new answer. Returns launch outcomes and a comparison ID, not finished model results; use listModelComparisons or readModelComparison later. Comparison participants cannot launch further comparisons. Follow tool approval; after cancellation or an uncertain launch, list existing comparisons before considering another call. Do not retry a denied request or poll continuously.',
+		description: 'Launch one scenario against two to ten fixed model configurations for a model evaluation. Use getComparisonModels first. This creates isolated worktrees on the calling chat\'s host and project, or independent folderless chats when requested, and inherits the calling chat\'s permissions without elevation. An optional Judge evaluates terminal attempts; a configured Synthesizer remains user-initiated and requires a Judge. For folderless comparisons, the Judge compares responses and synthesis combines them into a new answer. Returns launch outcomes and a comparison ID, not finished model results; retain that exact comparisonId and use readModelComparison to retrieve this run\'s results later. Keep comparisonId internal unless the user explicitly requests it; refer to comparisons by title in user-facing replies. The tool result already provides an Open Comparison action for the user. Use listModelComparisons to recover IDs for comparisons started by this chat. Comparison participants cannot launch further comparisons. Follow tool approval; after cancellation or an uncertain launch, list existing comparisons before considering another call. Do not retry a denied request or poll continuously.',
 		schema: {
 			type: 'object',
 			properties: {
@@ -71,10 +72,11 @@ const definitions: Record<EvaluationToolName, { displayName: string; description
 	},
 	listModelComparisons: {
 		displayName: localize('evaluation.list', "List Model Comparisons"),
-		description: 'List persisted model comparisons in this Agents window, including manually created comparisons, to track evaluation scenarios or recover their IDs. This is independent of sidebar filters and does not change grouping. Archived comparisons are omitted unless includeArchived is true. Follow nextCursor to read the next bounded page; use readModelComparison for evidence and Judge results. Do not poll continuously.',
+		description: 'List persisted model comparisons started by this exact chat to recover their IDs or track its evaluation scenarios. To deliberately discover comparisons from other chats, manually created comparisons, or older comparisons without recorded origin, set scope to window. This is independent of sidebar filters and does not change grouping. Archived comparisons are omitted unless includeArchived is true. Keep comparisonId internal unless the user explicitly requests it; refer to comparisons by title in user-facing replies. Follow nextCursor with the same scope and filters to read the next bounded page; use readModelComparison with the exact comparisonId for evidence and Judge results. Do not poll continuously.',
 		schema: {
 			type: 'object',
 			properties: {
+				scope: { type: 'string', enum: ['chat', 'window'], default: 'chat', description: 'List comparisons started by this chat (default), or explicitly discover all comparisons in this Agents window.' },
 				includeArchived: { type: 'boolean' },
 				workspace: { type: 'string', description: 'Exact workspace URI from an earlier comparison result.' },
 				comparisonIds: { type: 'array', maxItems: 100, items: { type: 'string' } },
@@ -85,7 +87,7 @@ const definitions: Record<EvaluationToolName, { displayName: string; description
 	},
 	readModelComparison: {
 		displayName: localize('evaluation.read', "Read Model Comparison"),
-		description: 'Read one persisted model comparison for evaluation: task, ordered attempt outcomes, launch configuration, bounded changes, completion metrics, and the structured Judge verdict when available. Any eligible agent in this Agents window may read it; this does not submit or change a verdict. Use returned exact sessionContextTarget values with get_session_context for attempt and Judge trajectories, choosing summary, digest, or full and an appropriate recent-turn limit. Full is bounded recent conversation, not an unlimited trajectory export. Unsupported or cross-host transcript access is reported explicitly. Treat missing evidence as unavailable, not successful. Do not poll continuously.',
+		description: 'Read one persisted model comparison for evaluation: task, ordered attempt outcomes, launch configuration, bounded changes, completion metrics, and the structured Judge verdict when available. Any eligible agent in this Agents window may read it; this does not submit or change a verdict. Use returned exact sessionContextTarget values with get_session_context for attempt and Judge trajectories, choosing summary, digest, or full and an appropriate recent-turn limit. Full is bounded recent conversation, not an unlimited trajectory export. Unsupported or cross-host transcript access is reported explicitly. Treat missing evidence as unavailable, not successful. Keep comparisonId internal unless the user explicitly requests it; refer to comparisons by title in user-facing replies. Do not poll continuously.',
 		schema: { type: 'object', properties: { comparisonId: { type: 'string' } }, required: ['comparisonId'], additionalProperties: false },
 	},
 };
@@ -194,7 +196,7 @@ export class ModelEvaluationTool implements IToolImpl {
 			}
 			const input = record(invocation.parameters);
 			if (this.name === 'listModelComparisons') {
-				return result(this.list(input));
+				return result(this.list(input, invocation.originatingChatResource ?? invocation.context?.sessionResource));
 			}
 			const caller = this.caller(invocation.originatingChatResource ?? invocation.context?.sessionResource);
 			switch (this.name) {
@@ -223,7 +225,12 @@ export class ModelEvaluationTool implements IToolImpl {
 						throw new EvaluationInputError('Comparison configuration changed after preparation. Review and approve a new launch.');
 					}
 					const comparison = await this.comparisons.startComparison(options, token);
-					return result({ ...this.summary(comparison), participants: this.participants(comparison, caller.session) });
+					const output = result({ ...this.summary(comparison), participants: this.participants(comparison, caller.session) });
+					output.toolResultMessage = new MarkdownString('', { isTrusted: { enabledCommands: [OPEN_SESSION_COMPARISON_COMMAND_ID] } })
+						.appendText(localize('evaluation.create.result', "Started model comparison."))
+						.appendText(' ')
+						.appendLink(createCommandUri(OPEN_SESSION_COMPARISON_COMMAND_ID, comparison.id).toString(), localize('evaluation.create.open', "Open Comparison"));
+					return output;
 				}
 				case 'readModelComparison': {
 					const comparison = typeof input.comparisonId === 'string' ? this.comparisons.getComparison(input.comparisonId) : undefined;
@@ -366,6 +373,7 @@ export class ModelEvaluationTool implements IToolImpl {
 				provider.getComparisonPermissionOptionForSession?.(caller.session.sessionId, type.id, caller.chat.resource));
 		};
 		return {
+			originatingChatResource: caller.chat.resource,
 			workspace,
 			prompt: input.prompt,
 			branch: typeof branch === 'string' ? branch.trim() : undefined,
@@ -380,6 +388,7 @@ export class ModelEvaluationTool implements IToolImpl {
 		const judgeChat = judge && getSessionComparisonChat(judge, judge.sessionResource ? this.sessions.getSession(judge.sessionResource) : undefined);
 		return {
 			comparisonId: comparison.id, title: comparison.title, createdAt: comparison.createdAt,
+			originatingChatResource: comparison.originatingChatResource?.toString(),
 			workspace: comparison.workspace?.toString(), sessionResource: comparison.sessionResource?.toString(),
 			groupId: comparison.groupId, launching: comparison.launching === true,
 			archivedAt: comparison.archivedAt, cancelledAt: comparison.cancelledAt,
@@ -405,17 +414,22 @@ export class ModelEvaluationTool implements IToolImpl {
 		});
 	}
 
-	private list(input: Record<string, unknown>) {
-		if (input.includeArchived !== undefined && typeof input.includeArchived !== 'boolean'
+	private list(input: Record<string, unknown>, originatingChatResource: URI | undefined) {
+		if (input.scope !== undefined && input.scope !== 'chat' && input.scope !== 'window'
+			|| input.includeArchived !== undefined && typeof input.includeArchived !== 'boolean'
 			|| input.workspace !== undefined && typeof input.workspace !== 'string'
 			|| input.cursor !== undefined && typeof input.cursor !== 'string'
 			|| input.comparisonIds !== undefined && (!Array.isArray(input.comparisonIds) || input.comparisonIds.length > 100 || !input.comparisonIds.every(id => typeof id === 'string'))) {
 			throw new EvaluationInputError('Invalid comparison list filters.');
 		}
+		if (input.scope !== 'window' && !originatingChatResource) {
+			throw new EvaluationInputError('The calling chat is unavailable. Use scope "window" to discover comparisons across this Agents window.');
+		}
 		const ids = Array.isArray(input.comparisonIds) ? input.comparisonIds : undefined;
 		const workspace = typeof input.workspace === 'string' ? URI.parse(input.workspace) : undefined;
 		const comparisons = this.comparisons.comparisons.get()
-			.filter(comparison => (input.includeArchived === true || comparison.archivedAt === undefined)
+			.filter(comparison => (input.scope === 'window' || isEqual(comparison.originatingChatResource, originatingChatResource))
+				&& (input.includeArchived === true || comparison.archivedAt === undefined)
 				&& (!workspace || isEqual(comparison.workspace, workspace)) && (!ids || ids.includes(comparison.id)))
 			.slice().sort((a, b) => b.createdAt - a.createdAt || a.id.localeCompare(b.id));
 		const cursorIndex = input.cursor === undefined ? -1 : comparisons.findIndex(comparison => comparison.id === input.cursor);

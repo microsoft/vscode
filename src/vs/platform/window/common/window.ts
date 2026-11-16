@@ -222,8 +222,12 @@ export const enum AgentsWindowOpenSource {
 	WelcomeTryOut = 'welcomeTryOut',
 	CommandLine = 'commandLine',
 	Link = 'link',
+	AgentsLauncher = 'agentsLauncher',
 	Unknown = 'unknown',
 }
+
+/** The IPC channel on which the main process asks the Agents window to show the Agents Launcher. */
+export const AGENTS_LAUNCHER_IPC_CHANNEL = 'vscode:showAgentsLauncher';
 
 export function isAgentsWindowOpenSource(value: unknown): value is AgentsWindowOpenSource {
 	switch (value) {
@@ -241,6 +245,7 @@ export function isAgentsWindowOpenSource(value: unknown): value is AgentsWindowO
 		case AgentsWindowOpenSource.WelcomeTryOut:
 		case AgentsWindowOpenSource.CommandLine:
 		case AgentsWindowOpenSource.Link:
+		case AgentsWindowOpenSource.AgentsLauncher:
 		case AgentsWindowOpenSource.Unknown:
 			return true;
 		default:
@@ -580,6 +585,22 @@ export interface IOSConfiguration {
 	readonly arch: string;
 }
 
+/**
+ * The alternate location a single-folder window was at, persisted so that
+ * the window can start at it again after a reload or restart.
+ */
+export interface IWindowFolderLocation {
+
+	/** The resource of the alternate location. */
+	readonly uri: string;
+
+	/** The label of the alternate location. */
+	readonly label: string;
+
+	/** The identifier of the provider that resolved the alternate location. */
+	readonly providerId: string;
+}
+
 export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {
 	mainPid: number;
 	handle?: VSBuffer;
@@ -605,6 +626,12 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	partsSplash?: IPartsSplash;
 
 	workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
+
+	/** Set when the single-folder `workspace` (its primary location) is at an alternate location. */
+	folderLocation?: IWindowFolderLocation;
+
+	/** Set when the window was meant to start at an alternate location that no longer exists. */
+	folderLocationMissing?: { readonly label: string };
 
 	isInitialStartup?: boolean;
 	logLevel: LogLevel;

@@ -1208,9 +1208,9 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 export interface IAgentSessionsFilterExcludes {
 	readonly providers: readonly string[];
 	readonly states: readonly AgentSessionStatus[];
-
 	readonly archived: boolean;
 	readonly read: boolean;
+	readonly automation: boolean;
 	readonly repositoryGroupCapped: boolean;
 }
 
@@ -1335,10 +1335,11 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 		// Sessions model
 		if (isAgentSessionsModel(element)) {
+			const sessions = element.sessionsIncludingAutomationRuns ?? element.sessions;
 
 			// Apply filter if configured
-			const revealed = element.sessions.find(session => session.resource.toString() === this.revealedSession?.toString());
-			const filteredSessions = element.sessions.filter(session => session === revealed || !this.filter?.exclude(session));
+			const revealed = sessions.find(session => session.resource.toString() === this.revealedSession?.toString());
+			const filteredSessions = sessions.filter(session => session === revealed || !this.filter?.exclude(session));
 
 			// Apply sorter unless we group into sections
 			if (!this.filter?.groupResults?.()) {

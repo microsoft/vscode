@@ -40,6 +40,9 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { TestChatWidgetService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent } from '../../browser/chat.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatStatusPromo } from '../../browser/chatStatus/chatStatusPromo.js';
 import type { ChatWidget } from '../../browser/widget/chatWidget.js';
 import type { ChatInputPart } from '../../browser/widget/input/chatInputPart.js';
@@ -124,12 +127,14 @@ suite('ChatStatusPromo', () => {
 		sinon.stub(widgets, 'getAllWidgets').callsFake(() => state.widgets);
 		instantiation.stub(IChatWidgetService, widgets);
 		instantiation.stub(IHoverService, options.hoverService ?? new class extends mock<IHoverService>() { override hideHover() { } }());
+		const contextKeys = store.add(new ContextKeyService(configuration));
+		instantiation.stub(IContextKeyService, contextKeys);
 		const promo = store.add(instantiation.createInstance(ChatStatusPromo));
 		let entry: ReturnType<ChatStatusPromo['getEntryProps']>;
 		const update = () => { entry = promo.getEntryProps(state.visible); };
 		store.add(promo.onDidChange(update));
 		update();
-		return { promo, state, models, modelChanged, storage, configuration, treatment, refetch, warn, telemetry, widgets, widgetAdded, viewVisibility, update, get entry() { return entry; } };
+		return { promo, state, models, modelChanged, storage, configuration, treatment, refetch, warn, telemetry, widgets, widgetAdded, contextKeys, viewVisibility, update, get entry() { return entry; } };
 	}
 
 	function chatView(f: ReturnType<typeof fixture>, sessionType?: string, restored: Promise<void> = Promise.resolve()) {
@@ -266,6 +271,13 @@ suite('ChatStatusPromo', () => {
 			seen: f.storage.get('chat.seenPromoIds', StorageScope.APPLICATION),
 			dismissed: f.storage.get('chat.dismissedPromoIds', StorageScope.APPLICATION), events: f.telemetry.events,
 		}, { pip: false, sameTooltip: true, seen: '["sale"]', dismissed: undefined, events: ['chatPromoWidgetArmed', 'chatPromoWidgetShown'] });
+	});
+
+	test('withdraws its offer as the Agents view replaces the Chat view, in which trying the model would open, as the Chat view hides', () => {
+		const f = fixture({ configured: ChatClosedPromoNotification.CopilotIconPopup });
+		const offered = !!f.entry;
+		ChatContextKeys.agentsViewActive.bindTo(f.contextKeys).set(true);
+		assert.deepStrictEqual({ offered, replaced: f.entry }, { offered: true, replaced: undefined });
 	});
 
 	test('withdraws a displayed offer without dismissing it', () => {

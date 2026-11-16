@@ -510,17 +510,29 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			return;
 		}
 
+		let enablementButton: Button | ButtonWithDropdown;
 		const setEnablement = async (state: ContributionEnablementState) => {
-			splitButton.enabled = false;
+			enablementButton.enabled = false;
 			try {
 				await setAgentPluginEnablement(item.plugin, this.agentPluginService.enablementModel, state);
 				status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
 			} catch (error) {
 				this.notificationService.error(localize('pluginEnablementFailed', "Unable to change plugin enablement: {0}", getErrorMessage(error)));
 			} finally {
-				splitButton.enabled = true;
+				enablementButton.enabled = true;
 			}
 		};
+		if (item.plugin.copilotCliInstallation) {
+			const button = this.renderDisposables.add(new Button(this.titleActionsEl, { ...defaultButtonStyles, secondary: true }));
+			enablementButton = button;
+			this.updateEnablementAction = () => {
+				button.label = isContributionEnabled(item.plugin.enablement.get()) ? localize('disablePluginGlobally', "Disable Globally") : localize('enablePluginGlobally', "Enable Globally");
+			};
+			this.updateEnablementAction();
+			this.renderDisposables.add(button.onDidClick(() => setEnablement(
+				isContributionEnabled(item.plugin.enablement.get()) ? ContributionEnablementState.DisabledProfile : ContributionEnablementState.EnabledProfile)));
+			return;
+		}
 		const contextMenuProvider: IContextMenuProvider = {
 			showContextMenu: delegate => this.contextMenuService.showContextMenu({
 				...delegate,
@@ -546,6 +558,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			},
 			ariaLabel: '',
 		}));
+		enablementButton = splitButton;
 		this.updateEnablementAction = () => {
 			const state = getPluginEnablementActionState(item.plugin.enablement.get());
 			splitButton.element.classList.toggle('embedded-detail-disable-button', state.isEnabled);

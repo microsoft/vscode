@@ -214,7 +214,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		return createAgentHostSandboxToggle(() => this._sandboxState.get(), enabled => this.setSandboxEnabled(enabled));
 	}
 
-	setSandboxEnabled(enabled: boolean): void {
+	setSandboxEnabled(enabled: boolean): Promise<void> {
 		const session = this._session.get();
 		const chat = this._chat.get();
 		const provider = session && this._getProvider(session.providerId, session.sessionId);
@@ -226,7 +226,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		}
 		const operation = provider.setSessionConfigValue(session.sessionId, chat.resource, SessionConfigKey.SandboxEnabled, enabled ? 'on' : 'off');
 		provider.trackSessionConfigOperation?.(session.sessionId, operation);
-		void operation.catch(onUnexpectedError);
+		return operation.catch(onUnexpectedError);
 	}
 
 	async setPermissionLevel(level: ChatPermissionLevel): Promise<void> {

@@ -1290,6 +1290,30 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('a detached worktree attributes its branch-name call to the session it is created for', async () => {
+		const agentSessionIds: (string | undefined)[] = [];
+		const isolation = createIsolation(disposables, {
+			branchNameGenerator: {
+				_serviceBrand: undefined,
+				generateBranchName: async request => {
+					agentSessionIds.push(request.agentSessionId);
+					return `${branchName}-${agentSessionIds.length}`;
+				},
+			},
+		});
+		const request = {
+			workingDirectory: repoRoot,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+			prompt: 'do a thing',
+		};
+
+		await isolation.createDetachedWorktree({ ...request, ownerSession: URI.parse('copilotcli:/owner-session') });
+		// A dev container worktree is prepared before the session that uses it exists.
+		await isolation.createDetachedWorktree(request);
+
+		assert.deepStrictEqual(agentSessionIds, ['owner-session', undefined]);
+	});
+
 	test('lists retained detached paths from persisted records before and after a claim or host restart', async () => {
 		const { service } = createTrackedSessionDataService();
 		const isolation = createIsolation(disposables, { sessionDataService: service });
@@ -2390,6 +2414,21 @@ suite('WorktreeIsolation', () => {
 			recorded: false,
 			branchName: undefined,
 			repositoryRoot: undefined,
+		});
+	});
+
+	test('cleanup-adopted worktrees preserve managed removal guards after the host restarts', async () => {
+		const worktree = URI.joinPath(worktreesRoot, 'cleanup-adopted');
+		const first = createIsolation(disposables);
+		await first.recordAdoptedWorktreeMetadata(sessionUri, {
+			worktreePath: worktree, repositoryRoot: repoRoot, branchName: 'agents/cleanup-adopted', baseBranch: undefined, managedCleanup: true,
+		});
+		const restarted = createIsolation(disposables);
+		const recorded = await restarted.readSessionWorktreeForRemoval(sessionUri);
+		assert.deepStrictEqual({
+			worktree: recorded?.worktree.toString(), repositoryRoot: recorded?.repositoryRoot.toString(), branch: recorded?.branchName, managedCleanup: recorded?.managedCleanup,
+		}, {
+			worktree: worktree.toString(), repositoryRoot: repoRoot.toString(), branch: 'agents/cleanup-adopted', managedCleanup: true,
 		});
 	});
 

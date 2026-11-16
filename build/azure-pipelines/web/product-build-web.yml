@@ -2,27 +2,45 @@ parameters:
   - name: VSCODE_POOL_NAME
     type: string
     default: 1es-ubuntu-22.04-x64
+  - name: mobile
+    type: boolean
+    default: false
 
 jobs:
-  - job: Web
-    displayName: Web
+  - job: ${{ iif(parameters.mobile, 'Mobile', 'Web') }}
+    displayName: ${{ iif(parameters.mobile, 'Mobile', 'Web') }}
+    ${{ if parameters.mobile }}:
+      continueOnError: true
     timeoutInMinutes: 45
     pool:
       name: ${{ parameters.VSCODE_POOL_NAME }}
       os: linux
     variables:
       VSCODE_ARCH: x64
+      WEB_MOBILE_ARCHIVE_READY: 'false'
       BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
     templateContext:
       outputs:
-        - output: pipelineArtifact
-          targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-web.tar.gz
-          artifactName: vscode_web_linux_standalone_archive-unsigned
-          displayName: Publish web archive
-          condition: and(succeeded(), ne(variables['WEB_ARCHIVE_PUBLISHED'], 'true'))
-          sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-web
-          sbomPackageName: "VS Code Linux x64 Web (Standalone)"
-          sbomPackageVersion: $(Build.SourceVersion)
+        - ${{ if not(parameters.mobile) }}:
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-web.tar.gz
+            artifactName: vscode_web_linux_standalone_archive-unsigned
+            displayName: Publish web archive
+            condition: and(succeeded(), ne(variables['WEB_ARCHIVE_PUBLISHED'], 'true'))
+            sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-web
+            sbomPackageName: "VS Code Linux x64 Web (Standalone)"
+            sbomPackageVersion: $(Build.SourceVersion)
+        - ${{ if parameters.mobile }}:
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/out/web/vscode-web-mobile.tar.gz
+            artifactName: vscode_web_linux_mobile_archive-unsigned
+            displayName: Publish mobile web archive
+            condition: and(succeeded(), eq(variables['WEB_MOBILE_ARCHIVE_READY'], 'true'), ne(variables['WEB_MOBILE_ARCHIVE_PUBLISHED'], 'true'))
+            sbomEnabled: true
+            isProduction: true
+            sbomBuildDropPath: $(Build.SourcesDirectory)/out-mobile
+            sbomPackageName: "VS Code Mobile Web"
+            sbomPackageVersion: $(Build.SourceVersion)
     steps:
       - template: ../common/checkout.yml@self
 
@@ -122,33 +140,24 @@ jobs:
       - script: node build/npm/electronTypes.ts
         displayName: Prepare Electron types
 
-      - script: pnpm exec deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
-        env:
-          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: Download Copilot VSIX (background)
-
       - template: ../common/mixin-vscode-capi.yml@self
 
-      - script: pnpm run gulp core-ci
-        env:
-          GITHUB_TOKEN: "$(github-token-code-oss)"
-        displayName: Compile
+      - ${{ if not(parameters.mobile) }}:
+        - script: pnpm run gulp core-ci
+          env:
+            GITHUB_TOKEN: "$(github-token-code-oss)"
+          displayName: Compile
 
-      - script: pnpm exec deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
-        env:
-          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        displayName: Download Copilot VSIX
-
-      - script: |
-          set -e
-          pnpm run gulp vscode-web-min-ci
-          ARCHIVE_PATH="$(Build.ArtifactStagingDirectory)/out/web/vscode-web.tar.gz"
-          mkdir -p $(dirname $ARCHIVE_PATH)
-          tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-web
-          echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
-        env:
-          GITHUB_TOKEN: "$(github-token-code-oss)"
-        displayName: Build
+        - script: |
+            set -e
+            pnpm run gulp vscode-web-min-ci
+            ARCHIVE_PATH="$(Build.ArtifactStagingDirectory)/out/web/vscode-web.tar.gz"
+            mkdir -p $(dirname $ARCHIVE_PATH)
+            tar --owner=0 --group=0 -czf $ARCHIVE_PATH -C .. vscode-web
+            echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
+          env:
+            GITHUB_TOKEN: "$(github-token-code-oss)"
+          displayName: Build
 
       - task: AzureCLI@2
         displayName: Fetch secrets from Azure
@@ -162,40 +171,76 @@ jobs:
             Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
             Write-Host "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]$env:idToken"
 
-      - script: |
-          set -e
-          AZURE_STORAGE_ACCOUNT="vscodeweb" \
-          AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
-          AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
-          AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
-            node build/azure-pipelines/upload-cdn.ts
-        displayName: Upload to CDN
+      - ${{ if not(parameters.mobile) }}:
+        - script: |
+            set -e
+            AZURE_STORAGE_ACCOUNT="vscodeweb" \
+            AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
+            AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
+            AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
+              node build/azure-pipelines/upload-cdn.ts
+          displayName: Upload to CDN
 
-      - script: |
-          set -e
-          AZURE_STORAGE_ACCOUNT="vscodeweb" \
-          AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
-          AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
-          AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
-            node build/azure-pipelines/upload-sourcemaps.ts out-vscode-web-min
-        displayName: Upload sourcemaps (Web)
+        - script: |
+            set -e
+            AZURE_STORAGE_ACCOUNT="vscodeweb" \
+            AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
+            AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
+            AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
+              node build/azure-pipelines/upload-sourcemaps.ts out-vscode-web-min
+          displayName: Upload sourcemaps (Web)
 
-      - script: |
-          set -e
-          AZURE_STORAGE_ACCOUNT="vscodeweb" \
-          AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
-          AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
-          AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
-            node build/azure-pipelines/upload-nlsmetadata.ts
-        displayName: Upload NLS Metadata
+        - script: |
+            set -e
+            AZURE_STORAGE_ACCOUNT="vscodeweb" \
+            AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
+            AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
+            AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
+              node build/azure-pipelines/upload-nlsmetadata.ts
+          displayName: Upload NLS Metadata
+
+      - ${{ if parameters.mobile }}:
+        - script: |
+            set -e
+            trap 'echo "##vso[task.logissue type=warning]Mobile build or validation failed; continuing without a mobile archive."' ERR
+            pnpm run test-mobile
+            node --test build/lib/test/mobileWebPublication.test.ts
+            pnpm run bundle-mobile
+            mkdir -p "$(Build.ArtifactStagingDirectory)/out/web"
+            tar --owner=0 --group=0 --transform='s,^out-mobile,vscode-web-mobile,' \
+              -czf "$(Build.ArtifactStagingDirectory)/out/web/vscode-web-mobile.tar.gz" \
+              out-mobile/out out-mobile/node_modules \
+              out-mobile/extensions out-mobile/mobile.json
+            echo "##vso[task.setvariable variable=WEB_MOBILE_ARCHIVE_READY]true"
+          displayName: Build and validate mobile web archive
+
+        - script: |
+            set -e
+            trap 'echo "##vso[task.logissue type=warning]Mobile CDN upload failed; continuing the ordinary release."' ERR
+            AZURE_STORAGE_ACCOUNT="vscodeweb" \
+            AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
+            AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
+            AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
+              node build/azure-pipelines/upload-cdn.ts --mobile
+          condition: and(succeeded(), eq(variables['WEB_MOBILE_ARCHIVE_READY'], 'true'), eq(variables['VSCODE_PUBLISH'], 'True'))
+          displayName: Upload mobile web assets to the separate commit directory
+
+        - script: >-
+            node build/azure-pipelines/common/checkForArtifact.ts
+            WEB_MOBILE_ARCHIVE_PUBLISHED vscode_web_linux_mobile_archive-unsigned
+          env:
+            SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+          continueOnError: true
+          displayName: Check for a mobile archive published by an earlier attempt
 
       # Pipeline artifacts can't be overwritten, so a retry of this job must skip
       # the artifacts that an earlier attempt already published, for example
       # before an injected SDL step hung (see ../common/checkForArtifact.ts)
-      - script: >-
-          node build/azure-pipelines/common/checkForArtifact.ts
-          WEB_ARCHIVE_PUBLISHED vscode_web_linux_standalone_archive-unsigned
-        env:
-          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-        continueOnError: true
-        displayName: Check for artifacts published by an earlier attempt
+      - ${{ if not(parameters.mobile) }}:
+        - script: >-
+            node build/azure-pipelines/common/checkForArtifact.ts
+            WEB_ARCHIVE_PUBLISHED vscode_web_linux_standalone_archive-unsigned
+          env:
+            SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+          continueOnError: true
+          displayName: Check for artifacts published by an earlier attempt

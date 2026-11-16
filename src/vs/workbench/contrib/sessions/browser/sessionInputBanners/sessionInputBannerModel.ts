@@ -25,7 +25,7 @@ import { GitHubPullRequestCIModel } from '../github/models/githubPullRequestCIMo
 import { GitHubPullRequestState, OPEN_PULL_REQUEST_ACTION_ID } from '../../common/github/types.js';
 import { getWindowHost, ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
-import { getGitHubPullRequestRefs, IChat, IGitHubPullRequestRef, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { getGitHubPullRequestRefs, IGitHubPullRequestRef, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { getSessionAgentMergeConfigurationObservable } from '../sessionAgentMerge.js';
 import { ISessionInputBanner, ISessionInputBannerAction } from './sessionInputBannerWidget.js';
 
@@ -79,14 +79,7 @@ function feedbackForPullRequest(feedback: IAgentFeedback, pullRequest: IGitHubPu
 	return !!source && pullRequestKey(source) === pullRequestKey(pullRequest);
 }
 
-export interface ISessionInputBannerTarget {
-	readonly session: ISession;
-	readonly chat: IChat;
-	validate(): void;
-	submitRequest(query: string): Promise<void>;
-}
-
-/** Shared eligibility and actions for chat-input banners and session-list rows. */
+/** Eligibility and actions for chat-input banners. */
 export class SessionInputBannerModel extends Disposable {
 
 	private readonly _active = observableValue<boolean>(this, false);
@@ -96,7 +89,6 @@ export class SessionInputBannerModel extends Disposable {
 	private readonly _legacyCommentsDismissed = observableValue<ReadonlySet<string>>(this, new Set());
 	private readonly _feedbackChanged: IObservable<void>;
 	private readonly _artifactIntegrationsEnabled: IObservable<boolean>;
-	private readonly _targetFeedback: IObservable<readonly IAgentFeedback[]> | undefined;
 	readonly banners = derived(this, reader => {
 		const states = this._states.read(reader);
 		return states.map((state, index) => this._toBanner(state, index, states.length));
@@ -106,15 +98,15 @@ export class SessionInputBannerModel extends Disposable {
 		if (!this._active.read(reader)) {
 			return undefined;
 		}
-		const session = this.target?.session ?? getWindowHost(this.sessionHost).session.read(reader);
-		if (!session || (this.target?.chat.status ?? session.status).read(reader) !== SessionStatus.Completed) {
+		const session = getWindowHost(this.sessionHost).session.read(reader);
+		if (!session || session.status.read(reader) !== SessionStatus.Completed) {
 			return undefined;
 		}
 		return session;
 	});
 
 	private readonly _chat = derived(this, reader => this._session.read(reader)
-		? this.target?.chat ?? getWindowHost(this.sessionHost).chat.read(reader)
+		? getWindowHost(this.sessionHost).chat.read(reader)
 		: undefined);
 
 	private readonly _agentMergeConfiguration = derived(this, reader => {
@@ -140,7 +132,7 @@ export class SessionInputBannerModel extends Disposable {
 			return states;
 		}
 		this._feedbackChanged.read(reader);
-		const createdFeedback = (this._targetFeedback?.read(reader) ?? this.feedbackService.getFeedback(session.resource))
+		const createdFeedback = this.feedbackService.getFeedback(session.resource)
 			.filter(item => item.state === AgentFeedbackState.Created);
 		const gitHubInfo = activeChat.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 		// Artifact integrations own pull request checks and review comments.
@@ -217,7 +209,6 @@ export class SessionInputBannerModel extends Disposable {
 	});
 
 	constructor(
-		private readonly target: ISessionInputBannerTarget | undefined,
 		@ISessionHost private readonly sessionHost: ISessionHost,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -230,7 +221,6 @@ export class SessionInputBannerModel extends Disposable {
 	) {
 		super();
 
-		this._targetFeedback = target ? feedbackService.getFeedbackObservable(target.session.resource) : undefined;
 		this._feedbackChanged = observableSignalFromEvent(this, this.feedbackService.onDidChangeFeedback);
 		this._artifactIntegrationsEnabled = observableConfigValue(ArtifactIntegrationsSettingId, false, this.configurationService);
 
@@ -450,19 +440,6 @@ export class SessionInputBannerModel extends Disposable {
 	}
 
 	private async _fixChecks(state: IPRBannerState): Promise<void> {
-		const target = this.target;
-		if (target) {
-			await this._withCurrentCIModel(state, async ciModel => {
-				const prompt = await buildFixCIPrompt(ciModel, this._queryFor(state, '/fix-ci'));
-				if (!prompt) {
-					throw new Error(localize('inputBanner.noFailedChecks', "The failed checks are no longer available."));
-				}
-				target.validate();
-				await target.submitRequest(prompt);
-				ciModel.markFixRequested();
-			});
-			return;
-		}
 		const widget = this.chatWidgetService.getWidgetBySessionResource(state.chatResource);
 		if (!widget) {
 			this.logService.error('[SessionInputBanners] Cannot fix CI checks: chat model is unavailable', state.chatResource.toString(), state.pullRequest.number);
@@ -480,18 +457,13 @@ export class SessionInputBannerModel extends Disposable {
 				await this._submitComments(state, this._queryFor(state, '/act-on-feedback'));
 				return;
 			}
-			this.target?.validate();
 			const submitted = await this.feedbackService.submitFeedback(state.sessionResource, {
 				query: prompt,
 				feedbackIds: state.commentIds,
 				targetChat: state.chatResource,
-				...(this.target ? { background: true } : {}),
 				onRequestAccepted: () => ciModel.markFixRequested(),
 			});
 			if (!submitted) {
-				if (this.target) {
-					throw new Error(localize('inputBanner.submitFailed', "The request could not be sent."));
-				}
 				this.logService.error('[SessionInputBanners] Failed to submit combined CI and comments request', state.chatResource.toString(), state.pullRequest.number);
 			}
 		});
@@ -503,9 +475,6 @@ export class SessionInputBannerModel extends Disposable {
 			const pullRequestRef = store.add(this.gitHubService.createPullRequestModelReference(state.pullRequest.owner, state.pullRequest.repo, state.pullRequest.number));
 			const pullRequest = pullRequestRef.object.pullRequest.get();
 			if (!pullRequest) {
-				if (this.target) {
-					throw new Error(localize('inputBanner.pullRequestUnavailable', "The pull request is no longer available."));
-				}
 				this.logService.error('[SessionInputBanners] Cannot act on CI: pull request model is unavailable', state.sessionResource.toString(), state.pullRequest.number);
 				return;
 			}
@@ -522,33 +491,23 @@ export class SessionInputBannerModel extends Disposable {
 	}
 
 	private _acceptComments(state: IBaseBannerState): void {
-		this.target?.validate();
 		for (const commentId of state.commentIds) {
 			this.feedbackService.acceptFeedback(state.sessionResource, commentId);
 		}
 	}
 
 	private async _submitComments(state: IBaseBannerState, query: string): Promise<void> {
-		this.target?.validate();
 		const submitted = await this.feedbackService.submitFeedback(state.sessionResource, {
 			query,
 			feedbackIds: state.commentIds,
 			targetChat: state.chatResource,
-			...(this.target ? { background: true } : {}),
 		});
 		if (!submitted) {
-			if (this.target) {
-				throw new Error(localize('inputBanner.submitFailed', "The request could not be sent."));
-			}
 			this.logService.error('[SessionInputBanners] Failed to submit comments', state.chatResource.toString());
 		}
 	}
 
 	private async _waitForChatModel(sessionResource: URI): Promise<boolean> {
-		if (this.target) {
-			this.target.validate();
-			return true;
-		}
 		const widget = await whenChatWidgetForSession(this.chatWidgetService, sessionResource);
 		if (widget) {
 			return true;

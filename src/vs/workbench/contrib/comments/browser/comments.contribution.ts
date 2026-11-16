@@ -30,6 +30,7 @@ import { AccessibleViewProviderId } from '../../../../platform/accessibility/bro
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { CommentsAccessibleView, CommentThreadAccessibleView } from './commentsAccessibleView.js';
 import { CommentsAccessibilityHelp } from './commentsAccessibility.js';
+import { COMMENTS_THREAD_EXPERIMENTAL_STYLE_SETTING, CommentThreadStyle } from '../common/commentsConfiguration.js';
 
 registerAction2(class Collapse extends ViewAction<CommentsPanel> {
 	constructor() {
@@ -145,6 +146,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			enumDescriptions: [nls.localize('confirmOnCollapse.whenHasUnsubmittedComments', "Show a confirmation dialog when collapsing a comment thread with unsubmitted comments."), nls.localize('confirmOnCollapse.never', "Never show a confirmation dialog when collapsing a comment thread.")],
 			default: 'whenHasUnsubmittedComments',
 			description: nls.localize('confirmOnCollapse', "Controls whether a confirmation dialog is shown when collapsing a comment thread.")
+		},
+		[COMMENTS_THREAD_EXPERIMENTAL_STYLE_SETTING]: {
+			type: 'string',
+			enum: ['inline', 'floating'] satisfies CommentThreadStyle[],
+			enumDescriptions: [
+				nls.localize('comments.thread.experimental.style.inline', "Show comment threads between the lines of code they are about."),
+				nls.localize('comments.thread.experimental.style.floating', "Show comment threads in floating windows above the code they are about. The windows can be moved by dragging their title and resized by dragging their edges.")
+			],
+			default: 'inline',
+			tags: ['experimental'],
+			description: nls.localize('comments.thread.experimental.style', "Controls how comment threads are shown in the editor.")
 		}
 	}
 });

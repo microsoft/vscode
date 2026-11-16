@@ -298,7 +298,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 
 		// If already showing, just update text
 		if (this._loadingContainer) {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const existingText = this._loadingContainer.querySelector('.chat-loading-content span');
 			if (existingText) {
 				existingText.textContent = message;

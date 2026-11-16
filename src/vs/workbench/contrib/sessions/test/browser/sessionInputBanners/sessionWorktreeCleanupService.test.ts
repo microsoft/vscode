@@ -21,13 +21,13 @@ import { IConfirmation, IDialogService } from '../../../../../../platform/dialog
 import { ByteSize } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
-import { IProgress, IProgressOptions, IProgressService, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
+import { IProgress, IProgressOptions, IProgressService, IProgressStep, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ISessionsListModelService } from '../../../browser/sessionsListModelService.js';
 import { ISessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
 import { DEFAULT_CHAT_CAPABILITIES, IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { IManagedSessionWorktree, ISessionsChangeEvent, ISessionsManagementService } from '../../../common/sessionsManagement.js';
-import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, getWorktreeCleanupId, getWorktreeCleanupTitle, ISessionWorktree, SessionWorktreeCleanupProgress, SessionWorktreeCleanupService } from '../../../browser/sessionInputBanners/sessionWorktreeCleanupService.js';
+import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, getWorktreeCleanupId, getWorktreeCleanupLastActivity, getWorktreeCleanupTitle, ISessionWorktree, SessionWorktreeCleanupProgress, SessionWorktreeCleanupService } from '../../../browser/sessionInputBanners/sessionWorktreeCleanupService.js';
 
 suite('SessionWorktreeCleanupService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -35,6 +35,158 @@ suite('SessionWorktreeCleanupService', () => {
 	function managedWorktree(worktree = '/repo.worktrees/unlinked'): IManagedSessionWorktree {
 		return { providerId: 'test', repository: URI.file('/repo').toString(), worktree: URI.file(worktree).toString(), branch: 'agents/unlinked', cleanupStatus: { state: 'unknown' } };
 	}
+
+	test('groups shared checkouts, measures once, and cleans up every associated session', async () => {
+		const first = createSession('first', oldDate());
+		const latest = { ...createSession('latest', new Date()), workspace: first.workspace };
+		const sessions = [first, latest];
+		const measured: string[] = [];
+		const archived: string[] = [];
+		const scheduled: string[] = [];
+		const service = disposables.add(createService(sessions, true, session => {
+			measured.push(session.sessionId);
+			return 100;
+		}, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+			onArchive: async session => { archived.push(session.sessionId); },
+			onCleanup: async (session, retry) => { if (retry) { scheduled.push(session.sessionId); } return { state: 'pending' }; },
+			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+		}));
+		const rows = await service.getWorktrees(0);
+		sessions.reverse();
+		const reordered = await service.getWorktrees(0, undefined, undefined, true);
+		await service.cleanupWorktrees(rows);
+		assert.deepStrictEqual({
+			count: rows.length, worktrees: rows[0].worktreeCount, bytes: rows[0].sizeBytes,
+			lastActivity: getWorktreeCleanupLastActivity(rows[0]), measured, archived: archived.sort(), scheduled: scheduled.sort(),
+			stableIdentity: getWorktreeCleanupId(rows[0]) === getWorktreeCleanupId(reordered[0]),
+		}, {
+			count: 1, worktrees: 1, bytes: 100, lastActivity: latest.updatedAt.get(),
+			measured: ['latest', 'latest'], archived: ['first', 'latest'], scheduled: ['first', 'latest'], stableIdentity: true,
+		});
+	});
+
+	test('shared worktrees use the newest activity and protect a running or pinned associated session', async () => {
+		const first = createSession('first', oldDate());
+		const status = observableValue('status', SessionStatus.Completed);
+		const updatedAt = observableValue('updatedAt', new Date());
+		const latest = { ...createSession('latest', oldDate()), workspace: first.workspace, status, updatedAt };
+		const service = disposables.add(createService([first, latest], true, () => 100));
+		const recent = (await service.getWorktrees(15))[0].cleanupState;
+		updatedAt.set(oldDate(), undefined);
+		status.set(SessionStatus.InProgress, undefined);
+		const running = (await service.getWorktrees(0))[0].cleanupState;
+		status.set(SessionStatus.Completed, undefined);
+		const pinnedService = disposables.add(createService([first, latest], true, () => 100, undefined, undefined, undefined, undefined, latest));
+		assert.deepStrictEqual({ recent, running, pinned: (await pinnedService.getWorktrees(0))[0].cleanupState }, { recent: 'recent', running: 'running', pinned: 'pinned' });
+	});
+
+	test('overlapping multi-folder sessions stay together without double-counting worktrees or storage', async () => {
+		const first = createSession('first', oldDate(), SessionStatus.Completed, false, true, 2);
+		const other = createSession('other', oldDate());
+		const overlap = {
+			...other,
+			workspace: constObservable({ ...other.workspace.get()!, folders: [first.workspace.get()!.folders[1], ...other.workspace.get()!.folders] }),
+		};
+		const service = disposables.add(createService([first, overlap], true, () => 200));
+		const rows = await service.getWorktrees(0);
+		assert.deepStrictEqual(rows.map(row => ({ count: row.worktreeCount, size: row.sizeBytes, state: row.cleanupState, sessions: row.sessions?.length })), [
+			{ count: 3, size: undefined, state: 'eligible', sessions: 2 },
+		]);
+	});
+
+	test('active and needs-input members outrank eligible members regardless of representative order', async () => {
+		const first = createSession('first', oldDate());
+		const active = { ...createSession('active', oldDate()), workspace: first.workspace };
+		const needsInput = { ...createSession('input', oldDate(), SessionStatus.NeedsInput), workspace: first.workspace };
+		const results: string[] = [];
+		for (const member of [active, needsInput]) {
+			for (const sessions of [[first, member], [member, first]]) {
+				const service = disposables.add(createService(sessions, true, () => 100, undefined, undefined, [active]));
+				results.push((await service.getWorktrees(0))[0].cleanupState);
+			}
+		}
+		const pinned = disposables.add(createService([first, needsInput], true, () => 100, undefined, undefined, [], undefined, first));
+		results.push((await pinned.getWorktrees(0))[0].cleanupState);
+		assert.deepStrictEqual(results, ['active', 'active', 'needsInput', 'needsInput', 'pinned']);
+	});
+
+	test('prepares every shared session before archive and awaits archive completion before retry', async () => {
+		const first = createSession('first', oldDate());
+		const second = { ...createSession('second', new Date(0)), workspace: first.workspace };
+		const archiveStarted = new DeferredPromise<void>();
+		const archiveCompleted = new DeferredPromise<void>();
+		const calls: string[] = [];
+		const service = disposables.add(createService([first, second], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+			onPrepare: async session => { calls.push(`prepare:${session.sessionId}`); },
+			onArchive: async session => {
+				calls.push(`archive:${session.sessionId}`);
+				await archiveStarted.complete();
+				await archiveCompleted.p;
+			},
+			onCleanup: async (session, retry) => { if (retry) { calls.push(`retry:${session.sessionId}`); } return { state: 'pending' }; },
+			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+		}));
+		const cleanup = service.cleanupWorktrees([{ session: first, sessions: [first, second], sizeBytes: 100, worktreeCount: 1 }]);
+		await archiveStarted.p;
+		const beforeAcknowledgement = [...calls];
+		await archiveCompleted.complete();
+		await cleanup;
+		assert.deepStrictEqual({ beforeAcknowledgement, calls }, {
+			beforeAcknowledgement: ['prepare:first', 'prepare:second', 'archive:first'],
+			calls: ['prepare:first', 'prepare:second', 'archive:first', 'archive:second', 'retry:first', 'retry:second'],
+		});
+	});
+
+	test('preparation failure prevents archiving any associated session', async () => {
+		const first = createSession('first', oldDate());
+		const second = { ...createSession('second', new Date(0)), workspace: first.workspace };
+		const calls: string[] = [];
+		const service = disposables.add(createService([first, second], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+			onPrepare: async session => {
+				calls.push(`prepare:${session.sessionId}`);
+				if (session === second) {
+					throw new Error('Unsupported cleanup preparation');
+				}
+			},
+			onArchive: async session => { calls.push(`archive:${session.sessionId}`); },
+			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+		}));
+		await assert.rejects(service.cleanupWorktrees([{ session: first, sessions: [first, second], sizeBytes: 100, worktreeCount: 1 }]), /Unsupported cleanup preparation/);
+		assert.deepStrictEqual(calls, ['prepare:first', 'prepare:second']);
+	});
+
+	test('publishes cleanup eligibility before disk usage is available', async () => {
+		const measurement = new DeferredPromise<number>();
+		const session = createSession('ready', oldDate());
+		const service = disposables.add(createService([session], true, () => measurement.p));
+		const snapshots: { state: string; measuring: boolean | undefined; size: number | undefined }[] = [];
+		const loading = service.getWorktrees(0, rows => {
+			if (rows[0]) {
+				snapshots.push({ state: rows[0].cleanupState, measuring: rows[0].isMeasuring, size: rows[0].sizeBytes });
+			}
+		});
+		await measurement.complete(100);
+		await loading;
+		assert.deepStrictEqual([snapshots[0], snapshots[snapshots.length - 1]], [
+			{ state: 'eligible', measuring: true, size: undefined },
+			{ state: 'eligible', measuring: false, size: 100 },
+		]);
+	});
+
+	test('explicit cleanup verifies scheduling after archive and rejects an unknown outcome', async () => {
+		const session = createSession('branch', oldDate());
+		const calls: string[] = [];
+		const progress: string[] = [];
+		const service = disposables.add(createService([session], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+			onArchive: async () => { calls.push('archive'); },
+			onCleanup: async (_session, retry) => { calls.push(`cleanup:${retry}`); return { state: 'unknown' }; },
+			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
+		}));
+		await assert.rejects(service.cleanupWorktrees([{ session, sizeBytes: 100, worktreeCount: 1 }], update => progress.push(update.state)), /cleanup was not confirmed/);
+		assert.deepStrictEqual({ calls, progress, operations: service.cleanupOperations.get().map(operation => operation.state) }, {
+			calls: ['archive', 'cleanup:true'], progress: ['started', 'failed'], operations: ['failed'],
+		});
+	});
 
 	test('excludes remote linked and unlinked worktrees before measuring or publishing inventory', async () => {
 		const local = createSession('local', oldDate());
@@ -898,6 +1050,62 @@ suite('SessionWorktreeCleanupService', () => {
 		assert.deepStrictEqual({ before, during, after, measurements }, { before: ByteSize.GB, during: undefined, after: 2 * ByteSize.GB, measurements: 2 });
 	});
 
+	test('distinguishes empty worktrees from missing or unverified worktrees before displaying zero usage', async () => {
+		const session = createSession('session', oldDate());
+		const results: { exists: boolean | undefined; size: number | undefined; failed: boolean | undefined; error: string | undefined }[] = [];
+		for (const exists of [true, false, undefined, 'error'] as const) {
+			const service = disposables.add(createService([session], true, () => 0, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+				onExists: async () => {
+					if (exists === 'error') {
+						throw new Error('Host disconnected');
+					}
+					return exists;
+				},
+			}));
+			const [worktree] = await service.getWorktrees(0);
+			results.push({ exists: worktree.worktreeExists, size: worktree.sizeBytes, failed: worktree.measurementFailed, error: worktree.worktreeCheckError });
+		}
+		assert.deepStrictEqual(results, [
+			{ exists: true, size: 0, failed: false, error: undefined },
+			{ exists: false, size: 0, failed: false, error: undefined },
+			{ exists: undefined, size: undefined, failed: true, error: undefined },
+			{ exists: undefined, size: undefined, failed: true, error: 'Host disconnected' },
+		]);
+	});
+
+	test('does not count missing unarchived worktrees toward cleanup suggestions and rechecks them on refresh', async () => {
+		const sessions = Array.from({ length: 20 }, (_, index) => createSession(`missing-${index}`, oldDate()));
+		let exists = false;
+		const service = disposables.add(createService(sessions, true, () => 0, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+			onExists: async () => exists,
+		}));
+		await service.activate();
+		const before = { suggestion: !!service.suggestion.get(), missing: (await service.getWorktrees(0)).filter(worktree => worktree.worktreeExists === false).length };
+		exists = true;
+		await service.refresh();
+		const after = { suggestion: !!service.suggestion.get(), missing: (await service.getWorktrees(0)).filter(worktree => worktree.worktreeExists === false).length };
+		assert.deepStrictEqual({ before, after }, {
+			before: { suggestion: false, missing: 20 },
+			after: { suggestion: true, missing: 0 },
+		});
+	});
+
+	test('does not hide a restored session using an in-flight archived existence check', async () => {
+		const archived = observableValue('archived', true);
+		const session = createSession('session', oldDate(), SessionStatus.Completed, true, true, 1, archived);
+		const started = new DeferredPromise<void>();
+		const existence = new DeferredPromise<boolean>();
+		const service = disposables.add(createService([session], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+			onExists: async () => { started.complete(); return existence.p; },
+		}));
+		const loading = service.getWorktrees(0);
+		await started.p;
+		archived.set(false, undefined);
+		await existence.complete(false);
+		const [worktree] = await loading;
+		assert.deepStrictEqual({ state: worktree.cleanupState, exists: worktree.worktreeExists }, { state: 'eligible', exists: undefined });
+	});
+
 	test('rechecks archived existence on cached loads without scanning sizes or reusing absence after recreation', async () => {
 		const archived = createSession('archived', oldDate(), SessionStatus.Completed, true);
 		let exists = true;
@@ -1214,9 +1422,9 @@ suite('SessionWorktreeCleanupService', () => {
 		await service.cleanupWorktrees([archivedCandidate]);
 		await service.cleanupWorktrees([activeCandidate, archivedCandidate]);
 		assert.deepStrictEqual(dialogs, [
-			{ message: 'Clean up 1 worktree?', detail: 'Estimated disk usage: 1.00GB. Actual freed space may be lower. The selected sessions will be marked as done. You can restore a session later to recreate its worktree.' },
-			{ message: 'Clean up 1 worktree?', detail: 'This schedules worktree cleanup and marks the selected sessions as done. Disk usage is not measured for sessions already marked as done. You can restore a session later to recreate its worktree.' },
-			{ message: 'Clean up 2 worktrees?', detail: 'This schedules worktree cleanup and marks the selected sessions as done. Disk usage is not measured for sessions already marked as done. You can restore a session later to recreate its worktree.' },
+			{ message: 'Clean up 1 worktree?', detail: 'Sessions will be marked as done. Changes are saved to their branches; ignored files are deleted. You can restore sessions later.' },
+			{ message: 'Clean up 1 worktree?', detail: 'Sessions will be marked as done. Changes are saved to their branches; ignored files are deleted. You can restore sessions later.' },
+			{ message: 'Clean up 2 worktrees?', detail: 'Sessions will be marked as done. Changes are saved to their branches; ignored files are deleted. You can restore sessions later.' },
 		]);
 	});
 
@@ -1378,7 +1586,7 @@ suite('SessionWorktreeCleanupService', () => {
 		assert.strictEqual(cleanups, 0);
 	});
 
-	test('reports cleanup scheduling progress after each archived session', async () => {
+	test('shows concise scheduling progress when no caller handles it', async () => {
 		const archived: string[] = [];
 		const progressService = new TestProgressService();
 		const first = createSession('first', oldDate(), SessionStatus.Completed, false, true, 2);
@@ -1410,6 +1618,7 @@ suite('SessionWorktreeCleanupService', () => {
 			cleaned,
 			archived,
 			progress: progressService.options.map(options => ({
+				location: options.location,
 				title: options.title,
 				total: options.total,
 			})),
@@ -1418,23 +1627,26 @@ suite('SessionWorktreeCleanupService', () => {
 			cleaned: true,
 			archived: ['first', 'second'],
 			progress: [{
-				title: 'Scheduling cleanup for 3 agent session worktrees...',
-				total: undefined,
+				location: ProgressLocation.Notification,
+				title: 'Scheduling worktree cleanup...',
+				total: 3,
 			}],
 			reports: [
-				{ increment: 2 / 3 * 100, message: 'scheduled 2 of 3 worktrees' },
-				{ increment: 1 / 3 * 100, message: 'scheduled 3 of 3 worktrees' },
+				{ increment: 2, message: '2 of 3 worktrees scheduled' },
+				{ increment: 1, message: '3 of 3 worktrees scheduled' },
 			],
 		});
 	});
 
-	test('publishes confirmation and individual outcomes while continuing after scheduling failures', async () => {
+	test('publishes inline progress without a duplicate notification while continuing after scheduling failures', async () => {
 		const first = createSession('first', oldDate(), SessionStatus.Completed, false, true, 2);
 		const second = createSession('second', oldDate());
 		const third = createSession('third', oldDate());
 		const archived: string[] = [];
 		const updates: SessionWorktreeCleanupProgress[] = [];
+		const progressService = new TestProgressService();
 		const service = disposables.add(createService([first, second, third], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+			progressService,
 			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
 			onArchive: async session => {
 				archived.push(session.sessionId);
@@ -1451,6 +1663,7 @@ suite('SessionWorktreeCleanupService', () => {
 		], progress => updates.push(progress)), /Couldn't schedule cleanup for 1 worktrees\.\nsecond: host disconnected/);
 		assert.deepStrictEqual({
 			archived,
+			notifications: progressService.options,
 			updates: updates.map(progress => progress.state === 'started' ? progress : {
 				state: progress.state,
 				session: getWorktreeCleanupId(progress.candidate),
@@ -1458,6 +1671,7 @@ suite('SessionWorktreeCleanupService', () => {
 			}),
 		}, {
 			archived: ['first', 'second', 'third'],
+			notifications: [],
 			updates: [
 				{ state: 'started' },
 				{ state: 'scheduled', session: 'first', message: undefined },
@@ -1955,6 +2169,7 @@ function createService(
 		readonly progressService?: IProgressService;
 		readonly dialogService?: IDialogService;
 		readonly onArchive?: (session: ISession) => Promise<void>;
+		readonly onPrepare?: ISessionsManagementService['prepareSessionWorktreeCleanup'];
 		readonly onCleanup?: ISessionsManagementService['sessionWorktreeCleanup'];
 		readonly canForceWorktreeCleanup?: ISessionsManagementService['canForceWorktreeCleanup'];
 		readonly onExists?: ISessionsManagementService['sessionWorktreeExists'];
@@ -1970,6 +2185,7 @@ function createService(
 			getSessions: () => sessions,
 			getSessionWorktreeDiskUsage: async (session, token) => sizeForSession(session, token),
 			archiveSession: async session => overrides.onArchive?.(session),
+			prepareSessionWorktreeCleanup: async session => overrides.onPrepare?.(session),
 			sessionWorktreeCleanup: overrides.onCleanup,
 			canForceWorktreeCleanup: overrides.canForceWorktreeCleanup,
 			sessionWorktreeExists: overrides.onExists ?? (async () => true),

@@ -40,6 +40,7 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { ChatInteractivity, IChat, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ITestSessionsService, ITestSessionWithChat, stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 class RecordingNotificationService extends TestNotificationService {
 	readonly notifications: { severity: Severity; message: string }[] = [];
@@ -86,6 +87,7 @@ suite('ResponseSelectionSideChatController', () => {
 		sendRequest?: ISessionsManagementService['sendRequest'];
 		getElementFromNode?: IChatWidget['getElementFromNode'];
 		enhancedSelectionMenu?: boolean;
+		showOnSelection?: boolean;
 		responseSelectionSupported?: boolean;
 		initialInput?: string;
 		chatInteractivity?: ChatInteractivity;
@@ -107,6 +109,8 @@ suite('ResponseSelectionSideChatController', () => {
 
 		const markdown = doc.createElement('div');
 		markdown.classList.add('chat-markdown-part');
+		markdown.style.userSelect = 'text';
+		markdown.style.webkitUserSelect = 'text';
 		// Positioned so the selection's real client rects (the controller
 		// measures the range itself) land at known coordinates.
 		markdown.style.position = 'absolute';
@@ -361,6 +365,7 @@ suite('ResponseSelectionSideChatController', () => {
 
 		const controller = store.add(instantiationService.createInstance(ResponseSelectionSideChatController, widget, options?.responseSelectionSupported ?? true, {
 			useActionMenu: () => configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING) === true,
+			showOnSelection: options?.showOnSelection,
 			onAction: (variant, action) => logResponseSelectionWidgetAction(instantiationService.get(ITelemetryService), variant, action),
 		}));
 		bindChat(controller, chat);
@@ -663,6 +668,7 @@ suite('ResponseSelectionSideChatController', () => {
 		const frame = dom.getActiveDocument().createElement('iframe');
 		dom.getActiveDocument().body.appendChild(frame);
 		store.add(toDisposable(() => frame.remove()));
+		store.add(registerTestIframe(frame));
 		const frameWindow = frame.contentWindow! as Window & typeof globalThis & { getSelection: () => Selection | null };
 		frameWindow.document.body.appendChild(widget.domNode);
 		const textNode = transcriptDomNode.querySelector('.chat-markdown-part')!.firstChild as Text;
@@ -699,7 +705,7 @@ suite('ResponseSelectionSideChatController', () => {
 		assert.strictEqual(inputDomNode(controller).style.display, 'none');
 	});
 
-	test('shows the enhanced action menu only when the experiment setting is enabled', () => {
+	test('shows the enhanced action menu when configured', () => {
 		const { controller, setSelection } = setup({ enhancedSelectionMenu: true });
 
 		setSelection('hello world');
@@ -714,6 +720,55 @@ suite('ResponseSelectionSideChatController', () => {
 			menuVisible: true,
 			menuRole: 'Selected response text actions',
 			actions: ['Ask in a Side Chat', 'Quote', 'Copy'],
+		});
+	});
+
+	test('updates response-selection menu visibility when configured', () => {
+		const { controller, setSelection, telemetryEvents } = setup({ enhancedSelectionMenu: true, showOnSelection: false });
+
+		setSelection('hello world');
+		const initiallyVisible = menuDomNode(controller).style.display !== 'none';
+		controller.setShowOnSelection(true);
+		const visibleAfterEnable = menuDomNode(controller).style.display !== 'none';
+		controller.setShowOnSelection(false);
+
+		assert.deepStrictEqual({
+			initiallyVisible,
+			visibleAfterEnable,
+			visibleAfterDisable: menuDomNode(controller).style.display !== 'none',
+			telemetryEvents,
+		}, {
+			initiallyVisible: false,
+			visibleAfterEnable: true,
+			visibleAfterDisable: false,
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+			],
+		});
+	});
+
+	test('waits for an active pointer selection to settle when enabled', async () => {
+		const { controller, beginPointerSelection, finishPointerSelection, setSelection, telemetryEvents } = setup({
+			enhancedSelectionMenu: true,
+			showOnSelection: false,
+		});
+
+		beginPointerSelection();
+		setSelection('hello world');
+		controller.setShowOnSelection(true);
+		const visibleDuringDrag = menuDomNode(controller).style.display !== 'none';
+		await finishPointerSelection();
+
+		assert.deepStrictEqual({
+			visibleDuringDrag,
+			visibleAfterRelease: menuDomNode(controller).style.display !== 'none',
+			telemetryEvents,
+		}, {
+			visibleDuringDrag: false,
+			visibleAfterRelease: true,
+			telemetryEvents: [
+				{ name: 'vscodeAgents.responseSelectionWidget/action', data: { variant: 'actionMenu', action: 'shown' } },
+			],
 		});
 	});
 
@@ -1734,6 +1789,59 @@ suite('ResponseSelectionSideChatController', () => {
 		assert.notStrictEqual(inputDomNode(controller).style.display, 'none', 'the overlay must stay visible so the user can retry');
 		assert.strictEqual(notificationService.notifications.length, 1);
 		assert.strictEqual(notificationService.notifications[0].severity, Severity.Error);
+	});
+
+	test('preserves pending submission tracking when automatic selection UI is disabled', async () => {
+		let rejectCreate!: (error: Error) => void;
+		const pending = new Promise<IChat>((_resolve, reject) => { rejectCreate = reject; });
+		let createCalls = 0;
+		const { controller, setSelection, notificationService } = setup({
+			enhancedSelectionMenu: true,
+			createSideChatInSession: async () => {
+				createCalls++;
+				return pending;
+			},
+		});
+		setSelection('hello world');
+		triggerMenuAction(controller, 'Ask in a Side Chat');
+		submitViaClick(controller, 'keep this question');
+
+		controller.setShowOnSelection(false);
+		controller.setShowOnSelection(true);
+		inputDomNode(controller).querySelector<HTMLElement>('.action-label')!.click();
+		dispatchKey(inputTextArea(controller), 'Enter');
+		const pendingState = {
+			busy: isInputBusy(controller),
+			disabled: inputTextArea(controller).disabled,
+			visible: inputDomNode(controller).style.display !== 'none',
+			createCalls,
+		};
+
+		rejectCreate(new Error('boom'));
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({
+			pendingState,
+			busyAfterFailure: isInputBusy(controller),
+			disabledAfterFailure: inputTextArea(controller).disabled,
+			questionAfterFailure: inputTextArea(controller).value,
+			visibleAfterFailure: inputDomNode(controller).style.display !== 'none',
+			createCalls,
+			notifications: notificationService.notifications,
+		}, {
+			pendingState: {
+				busy: true,
+				disabled: true,
+				visible: true,
+				createCalls: 1,
+			},
+			busyAfterFailure: false,
+			disabledAfterFailure: false,
+			questionAfterFailure: 'keep this question',
+			visibleAfterFailure: true,
+			createCalls: 1,
+			notifications: [{ severity: Severity.Error, message: 'The side chat could not be created.' }],
+		});
 	});
 
 	test('same-chat setChat (e.g. a status/interactivity update) preserves a visible draft', () => {

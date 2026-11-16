@@ -19,6 +19,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../../../workbench/browser/parts/sessions/agentsPartCard.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -289,9 +290,11 @@ suite('Sessions - Editor Contribution', () => {
 
 	test('uses one connected group frame with or without docked details', () => {
 		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench modern-ui-tabs modern-ui-connected-editor-tabs agent-sessions-workbench dock-detail-panel');
+		workbench.classList.add(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS);
 		workbench.style.setProperty('--vscode-agentsPanel-border', '#888888');
 		workbench.style.setProperty('--vscode-editorGroupHeader-tabsBorder', '#445566');
 		workbench.style.setProperty('--vscode-cornerRadius-large', '8px');
+		workbench.style.setProperty('--vscode-agents-layout-floatingPanelGap', '4px');
 		workbench.style.setProperty('--vscode-strokeThickness', '1px');
 		workbench.style.setProperty('--vscode-focusBorder', '#00ff00');
 		workbench.style.setProperty('--vscode-contrastBorder', '#888888');

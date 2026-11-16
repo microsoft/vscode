@@ -3,12 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IPartsSplash } from '../../../platform/theme/common/themeService.js';
+import type { IPartsSplash, IPartsSplashPartBounds } from '../../../platform/theme/common/themeService.js';
+
+export function getPartsSplashPartRadius(layoutInfo: NonNullable<IPartsSplash['layoutInfo']>, bounds: IPartsSplashPartBounds | undefined): number {
+	return layoutInfo.modernUICompact === true ? 0 : bounds?.cornerRadius ?? 8;
+}
 
 export function getPartsSplashLayoutMetrics(layoutInfo: NonNullable<IPartsSplash['layoutInfo']>) {
 	const compact = layoutInfo.modernUICompact === true;
 	return {
-		floatingMargin: compact ? 0 : 4,
+		floatingMargin: compact ? 0 : layoutInfo.panelSpacing ?? 4,
 		floatingOuterMargin: compact ? 0 : 4,
 		floatingBorderWidth: 1,
 		floatingBorderRadius: compact ? 0 : 8,
