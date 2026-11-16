@@ -115,7 +115,10 @@ suite('BrowserViewModel', () => {
 			{ type: 'user' },
 			undefined,
 			{ ...initialState, url, lastFavicon: favicon },
-			upcastPartial<IBrowserViewService>({ destroyBrowserView: async () => { } }),
+			upcastPartial<IBrowserViewService>({
+				destroyBrowserView: async () => { },
+				setBrowserZoomIndex: async () => { },
+			}),
 			events,
 			upcastPartial<IBrowserViewWorkbenchService>({ isSharingAvailable: true, onDidChangeSharingAvailable: Event.None }),
 			NullTelemetryService,
