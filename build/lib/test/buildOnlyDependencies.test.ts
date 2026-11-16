@@ -130,7 +130,7 @@ function runtimeSpecifiers(fileName: string, code: string): string[] {
 			specifiers.push(node.moduleSpecifier.text);
 		} else if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier) && !node.isTypeOnly) {
 			specifiers.push(node.moduleSpecifier.text);
-		} else if (ts.isCallExpression(node) && node.arguments.length && ts.isStringLiteral(node.arguments[0])
+		} else if (ts.isCallExpression(node) && node.arguments.length && ts.isStringLiteralLike(node.arguments[0])
 			&& (node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === 'require'))) {
 			specifiers.push(node.arguments[0].text);
 		}
@@ -219,10 +219,12 @@ suite('scripts of build-only product build jobs', () => {
 		assert.ok(undeclaredBuildImports(['build/darwin/create-universal-app.ts'], withoutMinimatch).includes('minimatch (imported by build/darwin/create-universal-app.ts)'));
 	});
 
-	test('reports an import of an inline script, and walks the files that it imports', () => {
-		const inline = [{ code: 'import "fancy-package"; import "../build/darwin/create-universal-app.ts";', directory: path.join(repositoryRoot, 'cli'), label: 'node -e in a test' }];
+	test('reports the imports of an inline script, also with backtick literals, and walks the files that it imports', () => {
+		const inline = [{ code: 'import "fancy-package"; await import(`backtick-package`); require(`required-package`); import "../build/darwin/create-universal-app.ts";', directory: path.join(repositoryRoot, 'cli'), label: 'node -e in a test' }];
 		const problems = undeclaredBuildImports([], new Set(), inline);
 		assert.ok(problems.includes('fancy-package (imported by node -e in a test)'), problems.join('\n'));
+		assert.ok(problems.includes('backtick-package (imported by node -e in a test)'), problems.join('\n'));
+		assert.ok(problems.includes('required-package (imported by node -e in a test)'), problems.join('\n'));
 		assert.ok(problems.includes('minimatch (imported by build/darwin/create-universal-app.ts)'), problems.join('\n'));
 	});
 });
