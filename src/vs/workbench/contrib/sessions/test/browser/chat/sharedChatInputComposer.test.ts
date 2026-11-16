@@ -49,7 +49,7 @@ suite('SharedChatInputComposer', () => {
 	const context = toPasteVariableEntry('Context', 'Pasted context', { id: 'context' });
 
 	/** A composer over a fake chat widget, recording what the host is asked to send and the commands it runs. */
-	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean | IObservable<boolean>; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void; inputSnapshot?: IComposerInputSnapshot; onSendRequest?: () => void; scheduleRequest?: INewChatComposerInputOptions['scheduleRequest']; tryHandle?: (input: string) => Promise<boolean> } = {}) {
+	function createComposer(options: { submitOverride?: INewChatComposerInputOptions['submitOverride']; shouldPersistInput?: () => boolean; sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean | IObservable<boolean>; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void; inputSnapshot?: IComposerInputSnapshot; onSendRequest?: () => void; scheduleRequest?: INewChatComposerInputOptions['scheduleRequest']; tryHandle?: (input: string) => Promise<boolean> } = {}) {
 		let text = options.text ?? 'Build it';
 		let attachments: IChatRequestVariableEntry[] = options.attachments ?? [context];
 		let references = options.references ?? [];
@@ -126,6 +126,8 @@ suite('SharedChatInputComposer', () => {
 			_canSendRequest: typeof options.canSendRequest === 'object' ? options.canSendRequest : constObservable(options.canSendRequest ?? true),
 			_modelRef: { value: { object: { inputModel: { setState: (state: object) => { draftModelState = state; } } } } },
 			options: {
+				submitOverride: options.submitOverride,
+				shouldPersistInput: options.shouldPersistInput,
 				session: constObservable(options.tryHandle ? { resource: URI.parse('session:/1'), providerId: 'provider', sessionId: '1' } : undefined),
 				canSchedule: constObservable(!!options.scheduleRequest),
 				scheduleRequest: options.scheduleRequest,
@@ -156,6 +158,20 @@ suite('SharedChatInputComposer', () => {
 		});
 		return { composer, widget, executeToolbarElement, readinessWait, inputTransitions, attemptIds, storageWrites: () => storageWrites, state: () => ({ requests, errors, warnings, commands, restoredReferences, input: { text, attachments: attachments.map(entry => entry.id), enabled: inputEnabled }, draftModelState, focusRestored }) };
 	}
+
+	test('scheduled drafts remain editable and save without sending or overwriting ordinary input', async () => {
+		let saves = 0;
+		const { composer, state, storageWrites } = createComposer({ submitOverride: async () => { saves++; return true; }, shouldPersistInput: () => false });
+		composer.setInputEnabled(true);
+		composer.saveState();
+		await composer.submit(true);
+		assert.deepStrictEqual({
+			saves,
+			enabled: state().input.enabled,
+			requests: state().requests,
+			storageWrites: storageWrites(),
+		}, { saves: 1, enabled: true, requests: [], storageWrites: 0 });
+	});
 
 	test('scheduling supplies the send controls as the picker anchor and keeps input on cancel', async () => {
 		let anchor: HTMLElement | undefined;

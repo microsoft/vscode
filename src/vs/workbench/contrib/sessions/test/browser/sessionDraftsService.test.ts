@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import * as DOM from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
@@ -23,7 +27,8 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { SessionDraftsService } from '../../browser/sessionDraftsService.js';
-import { getPendingSessionAriaLabel } from '../../browser/views/pendingSessions.js';
+import { getPendingSessionAriaLabel, IPendingSessionItem, PendingSessionRenderer } from '../../browser/views/pendingSessions.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { ISessionGroupsService } from '../../browser/sessionGroupsService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
 import { ISavedSessionDraft } from '../../common/savedSessionDrafts.js';
@@ -41,6 +46,7 @@ suite('Saved session draft lifecycle', () => {
 		const infoNotifications: NotificationMessage[] = [];
 		const lifecycle = new class extends mock<ILifecycleService>() {
 			override willShutdown = false;
+			override readonly onBeforeShutdown = Event.None;
 		};
 		let openSavedDraft: ((id: string, token: CancellationToken) => Promise<boolean>) | undefined;
 		const view = new class extends mock<ISessionsService>() {
@@ -93,6 +99,41 @@ suite('Saved session draft lifecycle', () => {
 			{ title: 'Workspace request', description: 'vscode', ariaLabel: 'Workspace request, draft, vscode' },
 		]);
 	});
+
+	test('only scheduled draft rows refresh relative send times and stop refreshing when recycled', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const container = DOM.append(mainWindow.document.body, DOM.$('div', { role: 'treeitem' }));
+		disposables.add(toDisposable(() => container.remove()));
+		const renderer = new PendingSessionRenderer(workbenchInstantiationService(undefined, disposables), () => { }, error => { throw error; });
+		const template = renderer.renderTemplate(container);
+		disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+		const item: IPendingSessionItem = {
+			pendingSession: true, id: 'scheduled', kind: 'scheduled', title: 'Review',
+			description: 'Scheduled for an exact date',
+			runAt: new Date(Date.now() + 180_000).toISOString(),
+			folderUri: URI.file('/workspace/vscode'), actions: [], open: async () => { },
+		};
+		const node = upcastPartial<Parameters<PendingSessionRenderer['renderElement']>[0]>({ element: item });
+		const read = () => ({
+			description: template.description.textContent,
+			compactDescription: template.compactDescription.textContent,
+			aria: container.getAttribute('aria-label'),
+		});
+		renderer.renderElement(node, 0, template);
+		const initial = read();
+		await timeout(60_000);
+		const updated = read();
+		renderer.disposeElement(node, 0, template);
+		renderer.renderElement(upcastPartial<Parameters<PendingSessionRenderer['renderElement']>[0]>({ element: { ...item, kind: 'draft', description: 'vscode' } }), 0, template);
+		await timeout(120_000);
+		const ordinaryDraft = read();
+		renderer.renderElement(upcastPartial<Parameters<PendingSessionRenderer['renderElement']>[0]>({ element: { ...item, runAt: undefined, description: 'Needs attention' } }), 0, template);
+		assert.deepStrictEqual({ initial, updated, ordinaryDraft, error: read() }, {
+			initial: { description: 'vscode - Sends in 3 minutes', compactDescription: 'vscode - Sends in 3 minutes', aria: 'Review, scheduled, vscode - Sends in 3 minutes' },
+			updated: { description: 'vscode - Sends in 2 minutes', compactDescription: 'vscode - Sends in 2 minutes', aria: 'Review, scheduled, vscode - Sends in 2 minutes' },
+			ordinaryDraft: { description: 'vscode', compactDescription: 'vscode', aria: 'Review, draft, vscode' },
+			error: { description: 'vscode - Needs attention', compactDescription: 'vscode - Needs attention', aria: 'Review, scheduled, vscode - Needs attention' },
+		});
+	}));
 
 	test('navigation creates an info notification whose link restores the saved draft', async () => {
 		const { service, infoNotifications } = create();
@@ -151,6 +192,71 @@ suite('Saved session draft lifecycle', () => {
 		service.stowAndClear(composer);
 		registration.dispose();
 		assert.deepStrictEqual(infoNotifications.map(message => message.toString()), ['Created draft. Open Draft']);
+	});
+
+	for (const enabled of [true, false]) {
+		test(`scheduled previews use the New Session composer without creating drafts, drafts enabled: ${enabled}`, async () => {
+			const { service, navigation } = create(enabled);
+			const composer = service.createComposer();
+			let cleared = 0;
+			disposables.add(service.registerComposer(composer, async draft => composer.updateInput(draft.input), () => cleared++));
+			if (enabled) {
+				composer.updateInput({ inputText: 'Unrelated input', attachments: [] });
+			}
+			await service.preview({ inputText: 'Scheduled input', attachments: [] }, {}, { request: constObservable(undefined), save: async () => { }, reschedule: async () => { } });
+			const duringPreview = {
+				text: composer.input.inputText,
+				scheduled: !!composer.preview.get(),
+				stowed: service.stow(composer),
+				navigation: navigation.at(-1),
+			};
+			service.stowAndClear(composer);
+			assert.deepStrictEqual({
+				duringPreview, cleared, afterPreview: composer.preview.get(), input: composer.input.inputText,
+				drafts: service.sections.get().flatMap(section => section.items.map(item => item.title)),
+			}, {
+				duringPreview: { text: 'Scheduled input', scheduled: true, stowed: undefined, navigation: undefined },
+				cleared: 1, afterPreview: undefined, input: '',
+				drafts: enabled ? ['Unrelated input'] : [],
+			});
+		});
+	}
+
+	test('opening an ordinary draft exits a scheduled preview', async () => {
+		const { service } = create();
+		const composer = service.createComposer();
+		disposables.add(service.registerComposer(composer, async draft => composer.updateInput(draft.input), () => { }));
+		const draft = service.save({ inputText: 'Editable input', attachments: [] }, {});
+		await service.preview({ inputText: 'Scheduled input', attachments: [] }, {}, { request: constObservable(undefined), save: async () => { }, reschedule: async () => { } });
+		await service.open(draft.id);
+		assert.deepStrictEqual({ preview: composer.preview.get(), input: composer.input.inputText }, { preview: undefined, input: 'Editable input' });
+	});
+
+	test('preview does not replace occupied input when saved drafts are disabled', async () => {
+		const { service } = create(false);
+		const composer = service.createComposer();
+		disposables.add(service.registerComposer(composer, async () => assert.fail('Must not restore over input'), () => { }));
+		composer.updateInput({ inputText: 'Unrelated input', attachments: [] });
+		await assert.rejects(() => service.preview({ inputText: 'Scheduled input', attachments: [] }, {}, { request: constObservable(undefined), save: async () => { }, reschedule: async () => { } }), /empty New Session/);
+	});
+
+	test('scheduled draft changes track input and execution settings until saved', async () => {
+		const { service } = create();
+		const composer = service.createComposer();
+		disposables.add(service.registerComposer(composer, async draft => composer.updateInput(draft.input), () => { }));
+		await service.preview({ inputText: 'Scheduled input', attachments: [] }, {}, { request: constObservable(undefined), save: async () => { }, reschedule: async () => { } });
+		const states = [composer.hasScheduledChanges.get()];
+		composer.updateInput({ inputText: 'Scheduled input', attachments: [], references: [] });
+		states.push(composer.hasScheduledChanges.get());
+		composer.updateInput({ inputText: 'Edited input', attachments: [] });
+		states.push(composer.hasScheduledChanges.get());
+		assert.throws(() => service.stowAndClear(composer), /save your changes before replacing/);
+		await assert.rejects(() => service.preview({ inputText: 'Another request', attachments: [] }, {}, { request: constObservable(undefined), save: async () => { }, reschedule: async () => { } }), /save your changes before replacing/);
+		composer.markScheduledSaved();
+		states.push(composer.hasScheduledChanges.get());
+		composer.updateTarget({ modelId: 'another-model' });
+		states.push(composer.hasScheduledChanges.get());
+		assert.deepStrictEqual(states, [false, false, true, false, true]);
 	});
 
 	test('typing, autosave, reload, and disposal never create drafts or restore one automatically', async () => {

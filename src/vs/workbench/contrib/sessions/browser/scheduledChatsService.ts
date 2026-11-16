@@ -28,7 +28,6 @@ import { observableConfigValue } from '../../../../platform/observable/common/pl
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ChatInteractivity, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 import { ChatDynamicVariableModel } from '../../chat/browser/attachments/chatDynamicVariables.js';
@@ -52,7 +51,6 @@ import { ISessionsService } from './sessionsService.js';
 import { IPendingSessionItem } from './views/pendingSessions.js';
 import { IChatScheduledRequest, IChatScheduledRequestEditing } from '../../chat/common/model/chatViewModel.js';
 import { pickScheduledChatTime } from './scheduledChatTimePicker.js';
-import { ScheduledChatEditorInput } from './scheduledChatEditor.js';
 
 const handoffStorageKey = 'sessions.scheduledChatHandoffs';
 const receiptStorageKey = 'sessions.scheduledChatReceipts';
@@ -147,7 +145,6 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		@IChatService private readonly chatService: IChatService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionGroupsService groupsService: ISessionGroupsService,
-		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 		const configured = observableConfigValue(SESSIONS_SEND_LATER_ENABLED_SETTING, false, configurationService);
@@ -502,14 +499,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		const capturedInput = fromStoredChatDraft(parse(stringify(toStoredChatDraft(input))));
 		const request = await this.captureRequest(capturedInput);
 		const schedule: IAutomationSchedule = { interval: 'once', runAt: date.toISOString(), scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
-		const automationTarget: AutomationTarget = target.folderUri
-			? {
-				kind: 'workspace', folderUri: target.folderUri, providerId: session.providerId, sessionTypeId: session.sessionType,
-				isolation: configuration?.isolationMode === 'worktree'
-					? { kind: 'worktree', branch: configuration.branch ?? '' }
-					: configuration?.isolationMode === 'workspace' ? { kind: 'folder' } : { kind: 'default' },
-			}
-			: { kind: 'quickChat', providerId: session.providerId, sessionTypeId: session.sessionType };
+		const automationTarget = getAutomationTarget(target, session, configuration);
 		const handoff: IScheduledChatHandoff = { id: generateUuid(), compositionId, input: capturedInput, sourceTarget: target, target: { ...target, configuration }, request, automationTarget, schedule, conversation };
 		this.writeHandoff(handoff);
 		await this.submitHandoff(handoff, false);
@@ -685,17 +675,21 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 
 	private async preview(automation: IAutomationDescriptor): Promise<void> {
 		this.assertEnabled();
-		const existing = this.editorService.editors.find(editor => editor instanceof ScheduledChatEditorInput && editor.id === automation.id);
-		const editor = existing ?? new ScheduledChatEditorInput(automation.id, this.items.map(items => items.find(item => item.id === automation.id)), automation.name);
-		try {
-			if (!await this.editorService.openEditor(editor, { pinned: true, revealIfOpened: true })) {
-				throw new Error(localize('scheduledChat.openFailed', "Could not open the scheduled request."));
-			}
-		} finally {
-			if (!this.editorService.editors.includes(editor)) {
-				editor.dispose();
-			}
-		}
+		const handoff = this.readHandoffs().find(candidate => candidate.automationId === automation.id || candidate.id === automation.creationId);
+		const input = handoff ? fromStoredChatDraft(parse(stringify(toStoredChatDraft(handoff.input)))) : { inputText: automation.request?.text ?? automation.prompt, attachments: [] };
+		await this.draftsService.preview(input, handoff?.target ?? {
+			folderUri: automation.target.kind === 'workspace' ? automation.target.folderUri : undefined,
+			providerId: automation.target.providerId,
+			sessionTypeId: automation.target.sessionTypeId,
+		}, {
+			request: derived(reader => this.items.read(reader).find(item => item.id === automation.id)),
+			save: async (input, target, session) => {
+				automation = await this.saveEditedRequest(automation, { text: input.inputText, input, runAt: automation.schedule.runAt ?? '' }, { target, session });
+			},
+			reschedule: async anchor => {
+				automation = await this.reschedule(automation, anchor) ?? automation;
+			},
+		});
 	}
 
 	private async sendNow(automation: IAutomationDescriptor): Promise<void> {
@@ -704,7 +698,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		await this.automationService.runAutomation(automation.id);
 	}
 
-	private async reschedule(automation: IAutomationDescriptor, anchor?: HTMLElement): Promise<void> {
+	private async reschedule(automation: IAutomationDescriptor, anchor?: HTMLElement): Promise<IAutomationDescriptor | undefined> {
 		this.assertEnabled();
 		this.assertWritable(automation);
 		const date = await this.pickTime(anchor);
@@ -716,6 +710,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			throw new Error(localize('scheduledChat.changed', "The scheduled request changed or has started. Refresh the scheduled messages before trying again."));
 		}
 		status(localize('scheduledChat.rescheduled', "Request rescheduled for {0}", formatTime(date.toISOString())));
+		return result.automation;
 	}
 
 	private startEditing(automation: IAutomationDescriptor): void {
@@ -773,10 +768,10 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		this.editingRequest.set({ id: automation.id, state }, undefined);
 	}
 
-	private async saveEditedRequest(automation: IAutomationDescriptor, state: IChatScheduledRequestEditing): Promise<void> {
+	private async saveEditedRequest(automation: IAutomationDescriptor, state: Pick<IChatScheduledRequestEditing, 'text' | 'input' | 'runAt'>, newSession?: { target: ISavedSessionDraftTarget; session: ISession }): Promise<IAutomationDescriptor> {
 		this.assertEnabled();
 		this.assertWritable(automation);
-		if (this.editingRequest.get()?.state !== state) {
+		if (!newSession && this.editingRequest.get()?.state !== state) {
 			throw new Error(localize('scheduledChat.editClosed', "This scheduled-message edit is no longer open."));
 		}
 		const text = state.text;
@@ -807,12 +802,25 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			throw new Error(localize('scheduledChat.emptyEdit', "Enter a message or keep an attachment before saving."));
 		}
 		const request = { ...original, text, attachments };
+		let updatedTarget: { target: ISavedSessionDraftTarget; automationTarget: AutomationTarget } | undefined;
+		if (newSession) {
+			if (newSession.session.providerId !== automation.target.providerId || !this.canSchedule(newSession.session) || newSession.target.requireDevContainer) {
+				throw new Error(localize('scheduledDraft.agentChanged', "Keep this request on its original supported agent host, or cancel its schedule before choosing another host."));
+			}
+			const configuration = await this.sessionsManagementService.getAutomationSessionConfiguration(newSession.session);
+			if (!configuration) {
+				throw new Error(localize('sendLater.configurationUnavailable', "The agent configuration is not ready. Your input has been kept."));
+			}
+			const target = { ...newSession.target, configuration: { ...newSession.target.configuration, ...configuration } };
+			updatedTarget = { target, automationTarget: getAutomationTarget(target, newSession.session, target.configuration) };
+		}
 		const result = await this.automationService.updateAutomationIfUnchanged(automation.id, {
 			name: text.trim().split('\n')[0].slice(0, 100) || automation.name,
 			prompt: text, request, schedule,
+			...(updatedTarget ? { target: updatedTarget.automationTarget, sessionTemplate: updatedTarget.target.configuration?.sessionTemplate } : {}),
 		}, automation, () => {
 			this.assertEnabled();
-			if (this.editingRequest.get()?.state !== state || !(Date.parse(schedule.runAt) > Date.now())) {
+			if (!newSession && this.editingRequest.get()?.state !== state || !(Date.parse(schedule.runAt) > Date.now())) {
 				throw new Error(localize('scheduledChat.editTimePassed', "Choose a future send time before saving."));
 			}
 		});
@@ -822,7 +830,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		if (handoff) {
 			const recovery = input ?? handoff.input;
 			this.writeHandoff({
-				...handoff, request, schedule,
+				...handoff, ...updatedTarget, request, schedule,
 				input: {
 					...recovery, inputText: text,
 					attachments: textChanged ? recovery.attachments.map(attachment => ({ ...attachment, range: undefined })) : recovery.attachments,
@@ -834,6 +842,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			this.editingRequest.set(undefined, undefined);
 		}
 		status(localize('scheduledChat.edited', "Scheduled message saved for {0}", formatTime(schedule.runAt)));
+		return result.automation;
 	}
 
 	private async cancel(automation: IAutomationDescriptor, edit: boolean): Promise<void> {
@@ -906,6 +915,15 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			throw new Error(automation.readOnlyReason);
 		}
 	}
+}
+
+function getAutomationTarget(target: ISavedSessionDraftTarget, session: ISession, configuration: ISavedSessionDraftTarget['configuration']): AutomationTarget {
+	return target.folderUri ? {
+		kind: 'workspace', folderUri: target.folderUri, providerId: session.providerId, sessionTypeId: session.sessionType,
+		isolation: configuration?.isolationMode === 'worktree'
+			? { kind: 'worktree', branch: configuration.branch ?? '' }
+			: configuration?.isolationMode === 'workspace' ? { kind: 'folder' } : { kind: 'default' },
+	} : { kind: 'quickChat', providerId: session.providerId, sessionTypeId: session.sessionType };
 }
 
 function captureChatInput(widget: IChatWidget): IChatDraft {
