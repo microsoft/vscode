@@ -7401,7 +7401,8 @@ export class CopilotAgentSession extends Disposable {
 	 * would. Remove once the runtime returns an `agent-prompt` result for `/fleet`.
 	 */
 	private async _startFleet(rest: string, attachments: readonly MessageAttachment[] | undefined, mode: CopilotSdkMode | undefined, abortToken: CancellationToken, recorder?: IAgentProviderSendStageRecorder): Promise<void> {
-		if (attachments?.length) {
+		const userAttachments = attachments?.filter(attachment => attachment.displayKind !== 'command');
+		if (userAttachments?.length) {
 			// `rpc.fleet.start` accepts only a prompt; fail loudly rather than silently dropping attachments.
 			throw new Error(localize('copilotAgent.fleet.attachmentsUnsupported', "Attachments are not supported with the /fleet command."));
 		}
