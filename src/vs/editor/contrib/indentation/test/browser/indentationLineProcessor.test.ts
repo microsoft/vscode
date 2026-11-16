@@ -120,6 +120,78 @@ suite('Indentation Context Processor - TypeScript/JavaScript', () => {
 	});
 });
 
+suite('Indentation Context Processor - HTML comments', () => {
+	const languageId = Language.HTML;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	let serviceCollection: ServiceCollection;
+
+	setup(() => {
+		const languageService = disposables.add(new LanguageService());
+		const languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
+		disposables.add(registerLanguage(languageService, languageId));
+		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
+		disposables.add(languageConfigurationService.register(languageId, {
+			comments: { lineComment: '//', blockComment: ['<!--', '-->'] }
+		}, 10));
+		serviceCollection = new ServiceCollection(
+			[ILanguageService, languageService],
+			[ILanguageConfigurationService, languageConfigurationService]
+		);
+	});
+
+	test('preserves comment delimiters and removes brackets inside the comment', () => {
+		const text = '<!-- {body} <!-- inner -->';
+		const model = disposables.add(createTextModel(text, languageId, {}));
+
+		withTestCodeEditor(model, { serviceCollection }, (_editor, _viewModel, instantiationService) => {
+			disposables.add(registerTokenizationSupport(instantiationService, [[
+				{ startIndex: 0, standardTokenType: StandardTokenType.Comment },
+				{ startIndex: 2, standardTokenType: StandardTokenType.Comment },
+				{ startIndex: 4, standardTokenType: StandardTokenType.Comment },
+				{ startIndex: 12, standardTokenType: StandardTokenType.Comment },
+				{ startIndex: 16, standardTokenType: StandardTokenType.Comment },
+				{ startIndex: 23, standardTokenType: StandardTokenType.Comment }
+			]], languageId));
+			const processor = new IndentationContextProcessor(model, instantiationService.get(ILanguageConfigurationService));
+			const context = processor.getProcessedTokenContextAroundRange(new Range(1, 6, 1, 6));
+			assert.deepStrictEqual(
+				[context.beforeRangeProcessedTokens.getLineContent(), context.afterRangeProcessedTokens.getLineContent()],
+				['<!-- ', 'body  inner -->']
+			);
+		});
+	});
+
+	test('does not treat a block delimiter inside a line comment as a boundary', () => {
+		const text = '// <!-- body -->';
+		const model = disposables.add(createTextModel(text, languageId, {}));
+
+		withTestCodeEditor(model, { serviceCollection }, (_editor, _viewModel, instantiationService) => {
+			disposables.add(registerTokenizationSupport(instantiationService, [[
+				{ startIndex: 0, standardTokenType: StandardTokenType.Comment }
+			]], languageId));
+			const processor = new IndentationContextProcessor(model, instantiationService.get(ILanguageConfigurationService));
+			const column = model.getLineMaxColumn(1);
+			const context = processor.getProcessedTokenContextAroundRange(new Range(1, column, 1, column));
+			assert.strictEqual(context.beforeRangeProcessedTokens.getLineContent(), '//  body ');
+		});
+	});
+
+	test('a closed comment does not increase indentation', () => {
+		const model = disposables.add(createTextModel('<!-- -->', languageId, {}));
+
+		withTestCodeEditor(model, { serviceCollection }, (_editor, _viewModel, instantiationService) => {
+			disposables.add(registerTokenizationSupport(instantiationService, [[
+				{ startIndex: 0, standardTokenType: StandardTokenType.Comment }
+			]], languageId));
+			const configurationService = instantiationService.get(ILanguageConfigurationService);
+			const indentRules = configurationService.getLanguageConfiguration(languageId).indentRulesSupport;
+			assert.ok(indentRules);
+			const processor = new ProcessedIndentRulesSupport(model, indentRules, configurationService);
+			assert.strictEqual(processor.shouldIncrease(1), false);
+		});
+	});
+});
+
 suite('Processed Indent Rules Support - TypeScript/JavaScript', () => {
 
 	const languageId = Language.TypeScript;

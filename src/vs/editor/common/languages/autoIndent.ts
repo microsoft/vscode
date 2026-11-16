@@ -323,6 +323,11 @@ export function getIndentForEnter(
 	const afterEnterProcessedTokens = processedContextTokens.afterRangeProcessedTokens;
 	const beforeEnterProcessedTokens = processedContextTokens.beforeRangeProcessedTokens;
 	const beforeEnterIndent = strings.getLeadingWhitespace(beforeEnterProcessedTokens.getLineContent());
+	console.log('range : ', range);
+	console.log('afterEnterProcessedTokens.getLineContent() : ', afterEnterProcessedTokens.getLineContent());
+	console.log('afterEnterProcessedTokens.getLineContent().length: ', afterEnterProcessedTokens.getLineContent().length);
+	console.log('beforeEnterProcessedTokens.getLineContent() : ', beforeEnterProcessedTokens.getLineContent());
+	console.log('beforeEnterIndent : ', beforeEnterIndent.length);
 
 	const virtualModel = createVirtualModelWithModifiedTokensAtLine(model, range.startLineNumber, beforeEnterProcessedTokens);
 	const languageIsDifferentFromLineStart = isLanguageDifferentFromLineStart(model, range.getStartPosition());

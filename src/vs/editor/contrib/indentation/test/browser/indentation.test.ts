@@ -1576,6 +1576,26 @@ suite('Auto Indent On Type - HTML', () => {
 		serviceCollection = createTestServiceCollection(disposables, languageId);
 	});
 
+	test('Enter after a closed HTML comment preserves indentation', () => {
+		const model = disposables.add(createTextModel('    <!-- comment -->', languageId, {}));
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
+			disposables.add(instantiationService.get(ILanguageConfigurationService).register(languageId, {
+				comments: { blockComment: ['<!--', '-->'] }
+			}, 10));
+			disposables.add(registerTokenizationSupport(instantiationService, [[
+				{ startIndex: 0, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 4, standardTokenType: StandardTokenType.Comment }
+			]], languageId));
+			editor.setSelection(new Selection(1, model.getLineMaxColumn(1), 1, model.getLineMaxColumn(1)));
+			viewModel.type('\n', 'keyboard');
+			assert.deepStrictEqual(
+				{ lines: model.getLinesContent(), selection: editor.getSelection() },
+				{ lines: ['    <!-- comment -->', '    '], selection: new Selection(2, 5, 2, 5) }
+			);
+		});
+	});
+
 	test.skip('issue #61510: incorrect indentation after // in html file', () => {
 
 		// https://github.com/microsoft/vscode/issues/178334

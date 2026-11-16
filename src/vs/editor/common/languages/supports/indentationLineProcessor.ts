@@ -201,20 +201,40 @@ class IndentationLineProcessor {
 	 */
 	getProcessedTokens(tokens: IViewLineTokens): IViewLineTokens {
 
-		const shouldRemoveBracketsFromTokenType = (tokenType: StandardTokenType): boolean => {
-			return tokenType === StandardTokenType.String
-				|| tokenType === StandardTokenType.RegEx
-				|| tokenType === StandardTokenType.Comment;
-		};
-
 		const languageId = tokens.getLanguageId(0);
-		const bracketsConfiguration = this.languageConfigurationService.getLanguageConfiguration(languageId).bracketsNew;
+		const languageConfiguration = this.languageConfigurationService.getLanguageConfiguration(languageId);
+		const bracketsConfiguration = languageConfiguration.bracketsNew;
 		const bracketsRegExp = bracketsConfiguration.getBracketRegExp({ global: true });
+		const comments = languageConfiguration.comments;
+		const lineText = tokens.getLineContent();
 		const textAndMetadata: { text: string; metadata: number }[] = [];
+		let commentStartEnd = 0;
+		let commentEndStart = 0;
 		tokens.forEach((tokenIndex: number) => {
 			const tokenType = tokens.getStandardTokenType(tokenIndex);
 			let text = tokens.getTokenText(tokenIndex);
-			if (shouldRemoveBracketsFromTokenType(tokenType)) {
+			if (tokenType === StandardTokenType.Comment) {
+				const tokenStart = tokenIndex === 0 ? 0 : tokens.getEndOffset(tokenIndex - 1);
+				if (tokenIndex === 0 || tokens.getStandardTokenType(tokenIndex - 1) !== StandardTokenType.Comment || tokens.getLanguageId(tokenIndex - 1) !== tokens.getLanguageId(tokenIndex)) {
+					let lastCommentToken = tokenIndex;
+					while (lastCommentToken + 1 < tokens.getCount() && tokens.getStandardTokenType(lastCommentToken + 1) === StandardTokenType.Comment && tokens.getLanguageId(lastCommentToken + 1) === tokens.getLanguageId(tokenIndex)) {
+						lastCommentToken++;
+					}
+					const commentEnd = tokens.getEndOffset(lastCommentToken);
+					const blockStart = comments?.blockCommentStartToken;
+					const lineStart = comments?.lineCommentToken;
+					const blockEnd = comments?.blockCommentEndToken;
+					const isBlockStart = !!blockStart && lineText.startsWith(blockStart, tokenStart);
+					const isLineStart = !isBlockStart && !!lineStart && lineText.startsWith(lineStart, tokenStart);
+					commentStartEnd = tokenStart + (isBlockStart ? blockStart.length : isLineStart ? lineStart.length : 0);
+					commentEndStart = !isLineStart && blockEnd && lineText.startsWith(blockEnd, commentEnd - blockEnd.length)
+						? commentEnd - blockEnd.length
+						: commentEnd;
+				}
+				const prefixEnd = Math.max(0, Math.min(text.length, commentStartEnd - tokenStart));
+				const suffixStart = Math.max(prefixEnd, Math.min(text.length, commentEndStart - tokenStart));
+				text = text.slice(0, prefixEnd) + text.slice(prefixEnd, suffixStart).replace(bracketsRegExp, '') + text.slice(suffixStart);
+			} else if (tokenType === StandardTokenType.String || tokenType === StandardTokenType.RegEx) {
 				text = text.replace(bracketsRegExp, '');
 			}
 			const metadata = tokens.getMetadata(tokenIndex);
