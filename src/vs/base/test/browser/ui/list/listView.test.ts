@@ -1201,4 +1201,35 @@ suite('ListView', function () {
 		listView.layout(0, 200);
 		assert.doesNotThrow(() => listView.splice(0, 0, elements));
 	});
+
+	test('supports scroll-triggered re-entrant renders while recycling rows', function () {
+		const element = document.createElement('div');
+		let setScrollTopOnRender = false;
+		const renderer: IListRenderer<number, HTMLElement> = {
+			templateId: 'template',
+			renderTemplate(container) { return container; },
+			renderElement(value, _index, container) {
+				container.textContent = String(value);
+				// Layout changes inside a transaction can report scroll synchronously, which renders again and re-enters the row cache transaction (#205597).
+				if (setScrollTopOnRender) {
+					setScrollTopOnRender = false;
+					listView.setScrollTop(0);
+				}
+			},
+			disposeTemplate() { }
+		};
+
+		const listView = store.add(new ListView<number>(element, {
+			getHeight() { return 20; },
+			getTemplateId() { return 'template'; }
+		}, [renderer]));
+		listView.layout(200, 200);
+		listView.splice(0, 0, range(50));
+
+		// Scroll far enough to recycle rows while the renderer reports a scroll synchronously inside the render transaction.
+		setScrollTopOnRender = true;
+		assert.doesNotThrow(() => listView.setScrollTop(400));
+		assert.strictEqual(listView.contentHeight, 50 * 20);
+		assert.strictEqual(listView.scrollTop, 0);
+	});
 });
