@@ -384,6 +384,46 @@ suite('ChatViewPane sessions refresh', () => {
 		]);
 	}));
 
+	test('the chat area orientation is kept as configured, not coerced to side by side, and is not written back while it is read from the setting', () => {
+		const updates: unknown[][] = [];
+		const configurationService = new TestConfigurationService();
+		configurationService.updateValue = async (...args: unknown[]) => { updates.push(args); };
+		const host = { sessionsViewerOrientationConfiguration: 'sideBySide', configurationService, relayout: () => { } };
+		const update = Reflect.get(ChatViewPane.prototype, 'doUpdateConfiguredSessionsViewerOrientation') as (this: typeof host, orientation: unknown, options: { updateConfiguration: boolean; layout: boolean }) => void;
+
+		update.call(host, 'chatArea', { updateConfiguration: false, layout: false });
+		const readFromSetting = host.sessionsViewerOrientationConfiguration;
+		update.call(host, 'unknown', { updateConfiguration: false, layout: false });
+		const unknownValue = host.sessionsViewerOrientationConfiguration;
+		update.call(host, 'chatArea', { updateConfiguration: true, layout: false });
+
+		assert.deepStrictEqual({ readFromSetting, unknownValue, updates }, { readFromSetting: 'chatArea', unknownValue: 'sideBySide', updates: [[ChatConfiguration.ChatViewSessionsOrientation, 'chatArea']] });
+	});
+
+	test('the chat area orientation is laid out as side by side by width, and telemetry carries it as configured', () => {
+		const events: unknown[] = [];
+		const host = {
+			sessionsContainer: document.createElement('div'),
+			lastDimensions: { width: 1000, height: 600 },
+			bodyVisible: true,
+			isBodyVisible: () => true,
+			restoringSession: undefined,
+			_loadingSessionCount: 0,
+			_sessionsListSuppressionCount: 0,
+			getViewPositionAndLocation: () => ({ position: Position.RIGHT, location: ViewContainerLocation.AuxiliaryBar }),
+			sessionsViewerOrientationConfiguration: 'chatArea',
+			sessionsViewerOrientation: AgentSessionsViewerOrientation.SideBySide,
+			sessionsViewerVisible: true,
+			configurationService: new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsEnabled]: true }),
+			layoutService: { isAuxiliaryBarMaximized: () => false },
+			telemetryService: { publicLog2: (eventName: string, data: object) => events.push({ eventName, ...data }) },
+			lastReportedSessionsLayout: undefined,
+		};
+		(Reflect.get(ChatViewPane.prototype, 'reportSessionsLayout') as (this: typeof host) => void).call(host);
+
+		assert.deepStrictEqual(events, [{ eventName: 'chatViewSessionsLayout', configuredOrientation: 'chatArea', effectiveOrientation: 'sideBySide', sessionsVisible: true, sessionsEnabled: true, position: 'right', chatViewLocation: 'auxiliaryBar', chatViewMaximized: false, reason: 'initial' }]);
+	});
+
 	test('window focus refreshes automatically while the toolbar retains explicit refresh intent', async () => {
 		const focusChanged = store.add(new Emitter<boolean>());
 		const reasons: (ChatSessionRefreshReason | undefined)[] = [];
