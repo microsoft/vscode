@@ -3,9 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout } from '../../../../../../base/common/async.js';
-import { Event } from '../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
@@ -17,18 +14,19 @@ import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/con
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IsSessionsWindowContext, RemoteNameContext, WorkbenchStateContext } from '../../../../../common/contextkeys.js';
 import { CHAT_CATEGORY } from '../../actions/chatActions.js';
-import { ChatSessionPosition, openChatSession } from '../../chatSessions/chatSessions.contribution.js';
+import { ChatSessionPosition, getResourceForNewChatSession, openChatSession } from '../../chatSessions/chatSessions.contribution.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { AgentHostWorktreeFolderChoices } from './agentHostWorktreeFolderChoices.js';
+import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
+import { getSessionIsolationProperty } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 
 /** The setting that shows the Sessions list, with its chats without a workspace, in the Chat view. */
 const SESSIONS_LIST_ENABLED_SETTING = 'chat.viewSessions.sessionsList.enabled';
 
-/** How long a new chat waits for its session's configuration, which says whether it can work in a new worktree. */
-const CONFIGURATION_TIMEOUT = 10_000;
+/** How often a new chat in a worktree prepares its session's configuration, each up to the provisional service's timeout. */
+const CONFIGURATION_ATTEMPTS = 3;
 
 /**
  * Where the entries apply: a window whose agent host is available, as it is on desktop with AI features on, and that is not
@@ -42,37 +40,48 @@ const localAgentHostWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext.negate(),
 );
 
+/** Where a new chat of the local agent host starts. */
+export type NewAgentHostChatPlacement = 'worktree' | 'noWorkspace';
+
 /**
- * Has the new chat of `choices` work in a new worktree of its folder: once its session's configuration, which says whether
- * it can, is prepared, waiting at most `timeout`. Reports when it cannot, rather than leaving a chat that works in the folder.
+ * The resource of a new, not yet shown, chat of the local agent host that starts in `placement`, which it asks for from its
+ * first configuration on: before anything shows it, so that it shows and sends so. A new worktree only where the session's
+ * configuration, prepared first, offers one; otherwise it reports that and returns `undefined`, rather than a chat that
+ * works in the folder.
  */
-export async function startInNewWorktree(choices: AgentHostWorktreeFolderChoices, prepare: () => Promise<void>, notificationService: INotificationService, timeout = CONFIGURATION_TIMEOUT): Promise<boolean> {
-	if (!choices.canWorkInNewWorktree()) {
-		const store = new DisposableStore();
+export async function prepareNewAgentHostChat(
+	resource: URI,
+	placement: NewAgentHostChatPlacement,
+	folderService: IAgentHostNewSessionFolderService,
+	provisional: IAgentHostUntitledProvisionalSessionService,
+	notificationService: INotificationService,
+): Promise<URI | undefined> {
+	if (placement === 'noWorkspace') {
+		folderService.setNoWorkspace(resource);
+		return resource;
+	}
+	folderService.setNewWorktree(resource);
+	for (let attempt = 0; attempt < CONFIGURATION_ATTEMPTS && !provisional.getPreparedSessionConfig(resource); attempt++) {
 		try {
-			const ready = Event.toPromise(Event.filter(choices.onDidChange, () => choices.canWorkInNewWorktree()), store);
-			prepare().catch(onUnexpectedError);
-			await raceTimeout(ready, timeout);
-		} finally {
-			store.dispose();
+			await provisional.prepareSessionConfig(resource);
+		} catch (error) {
+			onUnexpectedError(error);
 		}
 	}
-	try {
-		if (choices.canWorkInNewWorktree()) {
-			await choices.setNewWorktree(true);
-		}
-	} catch (error) {
-		onUnexpectedError(error);
+	const config = provisional.getPreparedSessionConfig(resource);
+	const isolation = config && getSessionIsolationProperty(config.schema);
+	if (isolation && (isolation.schema.enum ?? []).includes('worktree') && config.values[isolation.key] === 'worktree') {
+		return resource;
 	}
-	if (choices.isNewWorktreeSelected()) {
-		return true;
-	}
-	notificationService.warn(localize('chat.newChatInWorktree.failed', "The new chat could not be set to work in a new worktree, so it works in the folder. Choose New Worktree in its folder picker to try again."));
-	return false;
+	folderService.clear(resource);
+	notificationService.warn(config
+		? localize('chat.newChatInWorktree.unsupported', "A new chat cannot work in a new worktree of this folder.")
+		: localize('chat.newChatInWorktree.notReady', "A new chat in a worktree could not be prepared. Try again, or choose New Worktree in a new chat."));
+	return undefined;
 }
 
-/** Opens a new chat of the local agent host in the Chat view, and has `choose` set where its session works. */
-async function openLocalAgentHostChat(accessor: ServicesAccessor, choose: (choices: AgentHostWorktreeFolderChoices, resource: URI) => Promise<unknown> | void): Promise<URI | undefined> {
+/** Opens a new chat of the local agent host in the Chat view that starts in `placement`; `undefined` where it cannot. */
+async function openLocalAgentHostChat(accessor: ServicesAccessor, placement: NewAgentHostChatPlacement): Promise<URI | undefined> {
 	const contribution = accessor.get(IChatSessionsService).getChatSessionContribution(SessionType.AgentHostCopilot);
 	const notificationService = accessor.get(INotificationService);
 	if (!contribution || !accessor.get(IAgentHostEnablementService).enabled.get()) {
@@ -80,17 +89,9 @@ async function openLocalAgentHostChat(accessor: ServicesAccessor, choose: (choic
 		return undefined;
 	}
 	const instantiationService = accessor.get(IInstantiationService);
-	const resource = await openChatSession(accessor, { type: contribution.type, displayName: contribution.displayName, position: ChatSessionPosition.Sidebar });
-	if (!resource) {
-		return undefined;
-	}
-	const choices = instantiationService.createInstance(AgentHostWorktreeFolderChoices, () => resource);
-	try {
-		await choose(choices, resource);
-	} finally {
-		choices.dispose();
-	}
-	return resource;
+	const openOptions = { type: contribution.type, displayName: contribution.displayName, position: ChatSessionPosition.Sidebar };
+	const resource = await prepareNewAgentHostChat(getResourceForNewChatSession(openOptions), placement, accessor.get(IAgentHostNewSessionFolderService), accessor.get(IAgentHostUntitledProvisionalSessionService), notificationService);
+	return resource && instantiationService.invokeFunction(accessor => openChatSession(accessor, { ...openOptions, sessionResource: resource }));
 }
 
 export class NewChatInWorktreeAction extends Action2 {
@@ -117,9 +118,7 @@ export class NewChatInWorktreeAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor): Promise<URI | undefined> {
-		const provisional = accessor.get(IAgentHostUntitledProvisionalSessionService);
-		const notificationService = accessor.get(INotificationService);
-		return openLocalAgentHostChat(accessor, (choices, resource) => startInNewWorktree(choices, () => provisional.prepareSessionConfig(resource), notificationService));
+		return openLocalAgentHostChat(accessor, 'worktree');
 	}
 }
 
@@ -146,7 +145,7 @@ export class NewChatWithoutWorkspaceAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor): Promise<URI | undefined> {
-		return openLocalAgentHostChat(accessor, choices => choices.setNoWorkspace());
+		return openLocalAgentHostChat(accessor, 'noWorkspace');
 	}
 }
 

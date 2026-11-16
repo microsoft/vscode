@@ -547,7 +547,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				throw new Error('No connected agent host is available for session configuration');
 			}
 			const workingDirectory = this._newSessionFolderService.resolveNewSessionPrimary(sessionResource);
-			const config = this._getInitialConfig();
+			const config = this._getInitialConfig(sessionResource);
 			this._resolvedConfigConnections.set(sessionResource, resolution);
 			const resolveConfig = async () => {
 				if (!await isAgentHostTargetFolderTrusted(workingDirectory, this._workspaceTrustManagementService)
@@ -590,7 +590,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			return undefined;
 		}
 		const entry = this._entries.get(sessionResource);
-		const config = entry ? entry.config : this._getInitialConfig();
+		const config = entry ? entry.config : this._getInitialConfig(sessionResource);
 		const workingDirectory = entry ? entry.workingDirectory : this._newSessionFolderService.resolveNewSessionPrimary(sessionResource);
 		if (!equals(prepared.config, config) || !isEqual(prepared.workingDirectory, workingDirectory)
 			|| !this._isCurrentConfigConnection(sessionResource, prepared.resolution)) {
@@ -659,7 +659,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		if (this._retired.has(sessionResource)) {
 			return undefined;
 		}
-		const entry = this._createEntry(provider, { ...(this._getInitialConfig() ?? {}) }, 0, workingDirectory);
+		const entry = this._createEntry(provider, { ...(this._getInitialConfig(sessionResource) ?? {}) }, 0, workingDirectory);
 		this._entries.set(sessionResource, entry);
 		return entry;
 	}
@@ -1310,11 +1310,12 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	 * Skipped entirely in the Agents window, where the sessions provider
 	 * supplies config via `request.agentHostSessionConfig` instead.
 	 */
-	private _getInitialConfig(): Record<string, unknown> | undefined {
+	/** The initial configuration, of `sessionResource` where given: in a new worktree where it is to start in one. */
+	private _getInitialConfig(sessionResource?: URI): Record<string, unknown> | undefined {
 		if (this._environmentService.isSessionsWindow) {
 			return undefined;
 		}
-		const config: Record<string, unknown> = { [SessionConfigKey.Isolation]: 'folder' };
+		const config: Record<string, unknown> = { [SessionConfigKey.Isolation]: sessionResource && this._newSessionFolderService.isNewWorktree(sessionResource) ? 'worktree' : 'folder' };
 
 		const configuredDefaults = getChatDefaultConfiguration(this._configurationService);
 		const configuredApprovals = getAgentHostApprovalDefault(this._configurationService);
