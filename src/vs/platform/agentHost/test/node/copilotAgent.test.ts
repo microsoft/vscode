@@ -15419,6 +15419,32 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		test('with a PAC URL, answers the Copilot runtime with the PAC\'s proxy even when system proxy discovery is disabled, and not with the http.proxy credentials', async () => {
+			const proxyResolver = new TestProxyResolver();
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				proxyResolver,
+				rootConfig: {
+					[AgentHostProxyConfigKey.ProxyPacUrl]: 'https://pac.example/proxy.pac',
+					[AgentHostProxyConfigKey.Proxy]: 'http://alice:s%40cret@proxy.example:3128',
+					[AgentHostSystemProxyEnabledConfigKey]: false,
+				},
+			});
+			afterTest(() => disposeAgent(agent));
+			await agent.listChatsToMigrate();
+			const network = getCreatedClientOptions(agent).at(-1)?.network;
+			const signal = new AbortController().signal;
+			proxyResolver.resolvedProxyInfo = { url: 'http://pac-proxy.example:8080', type: 'PROXY', source: 'system', result: 'PROXY pac-proxy.example:8080' };
+
+			assert.deepStrictEqual({
+				proxy: await network?.resolveProxy?.({ url: 'https://api.example/' }, signal),
+				credentials: await network?.authenticateBasic?.({ proxy: 'http://proxy.example:3128', realm: 'Corp', previousRejected: false }, signal),
+			}, {
+				proxy: 'PROXY pac-proxy.example:8080',
+				credentials: { username: 'user', password: 'secret' },
+			});
+		});
+
 		test('authenticates the Copilot runtime with this machine\'s ticket for the principal it requests, or a client\'s', async () => {
 			const proxyResolver = new TestProxyResolver();
 			const { agent } = createTestAgentContext(disposables, {

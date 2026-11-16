@@ -31,6 +31,7 @@ export enum PolicyCategory {
 	Extensions = 'Extensions',
 	IntegratedTerminal = 'IntegratedTerminal',
 	InteractiveSession = 'InteractiveSession',
+	Network = 'Network',
 	Telemetry = 'Telemetry',
 	Update = 'Update',
 }
@@ -51,6 +52,11 @@ export const PolicyCategoryData: {
 	[PolicyCategory.InteractiveSession]: {
 		name: {
 			key: 'interactiveSessionConfigurationTitle', value: localize('interactiveSessionConfigurationTitle', "Chat"),
+		}
+	},
+	[PolicyCategory.Network]: {
+		name: {
+			key: 'networkConfigurationTitle', value: localize('networkConfigurationTitle', "Network"),
 		}
 	},
 	[PolicyCategory.Telemetry]: {

@@ -8,6 +8,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { PolicyCategory } from '../../../base/common/policy.js';
 import { listenStream } from '../../../base/common/stream.js';
 import { IHeaders, IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
 import { localize } from '../../../nls.js';
@@ -322,7 +323,26 @@ function registerProxyConfigurations(useHostProxy = true, useHostProxyDefault = 
 			type: 'object',
 			scope: ConfigurationScope.APPLICATION,
 			properties: {
-				'http.electronFetch': {
+				'http.proxyPacUrl': {
+						type: 'string',
+						default: '',
+						pattern: '^https?://.+$|^$',
+						markdownDescription: localize('proxyPacUrl', "The URL of a proxy auto-config (PAC) file, for example `https://proxy.example.com/proxy.pac`. Only `http` and `https` URLs are supported. When set, it is used to choose the proxy for each request and the {0} and {1} settings are ignored.", '`#http.proxy#`', '`#http.noProxy#`'),
+						restricted: true,
+						agentHost: { key: 'http.proxyPacUrl', scope: AgentHostConfigurationSyncScope.Local, transform: value => typeof value === 'string' ? value : '' },
+						policy: {
+							name: 'ProxyPacUrl',
+							category: PolicyCategory.Network,
+							minimumVersion: '1.145',
+							localization: {
+								description: {
+									key: 'http.proxyPacUrl',
+									value: localize('http.proxyPacUrl', "The URL of a proxy auto-config (PAC) file used to choose the proxy for each request. When set, the user's proxy settings are ignored."),
+								}
+							}
+						},
+					},
+					'http.electronFetch': {
 					type: 'boolean',
 					default: false,
 					description: localize('electronFetch', "Controls whether use of Electron's fetch implementation instead of Node.js' should be enabled. All local extensions will get Electron's fetch implementation for the global fetch API."),

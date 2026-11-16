@@ -185,6 +185,8 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	EnableFeedback: { status: 'enforced' },
 	UpdateMode: { status: 'enforced' },
 	UpdateRestartWhenIdle: { status: 'enforced' },
+	// Only the local Agent Host receives the PAC, and resolves proxies through the window session that applies it.
+	ProxyPacUrl: { status: 'partial' },
 	// Windows setup, the Linux DEB/RPM scripts, and the `copilot` command on every platform read the
 	// policy themselves, so it applies to shells of every session type.
 	CopilotCliCommand: { status: 'enforced' },

@@ -230,6 +230,11 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 		return this._configurationService.getRootValue(agentHostProxyConfigSchema, key) as T | undefined;
 	}
 
+	/** A PAC file replaces `http.proxy` and `http.noProxy`. */
+	private hasPacUrl(): boolean {
+		return !!this.getConfigurationValue<string>(AgentHostProxyConfigKey.ProxyPacUrl)?.trim();
+	}
+
 	get clientCertificates(): readonly string[] {
 		return this._clientCertificates;
 	}
@@ -429,9 +434,9 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 				// session (system settings / PAC scripts).
 				resolveProxy: (url) => this._hostResolveProxy(url),
 				lookupProxyAuthorization: this._createProxyAuthorizationLookup(proxyLog),
-				getProxyURL: () => this.getConfigurationValue<string>(AgentHostProxyConfigKey.Proxy),
+				getProxyURL: () => this.hasPacUrl() ? undefined : this.getConfigurationValue<string>(AgentHostProxyConfigKey.Proxy),
 				getProxySupport: () => 'override',
-				getNoProxyConfig: () => this.getConfigurationValue<string[]>(AgentHostProxyConfigKey.NoProxy) || [],
+				getNoProxyConfig: () => this.hasPacUrl() ? [] : this.getConfigurationValue<string[]>(AgentHostProxyConfigKey.NoProxy) || [],
 				isAdditionalFetchSupportEnabled: () => true,
 				isWebSocketPatchEnabled: () => true,
 				addCertificatesV1: () => true,

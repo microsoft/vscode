@@ -10797,6 +10797,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return spn || undefined;
 	}
 
+	/** A PAC file replaces `http.proxy` and `http.noProxy`. */
+	private _hasPacUrl(): boolean {
+		return !!this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.ProxyPacUrl)?.trim();
+	}
+
 	/** The network callbacks through which the Copilot runtime resolves proxies and looks up Kerberos tickets and proxy credentials. */
 	private _createRuntimeNetworkConfig(): NetworkConfig {
 		this._logService.info('[Copilot] The Copilot runtime resolves proxies and Kerberos tickets through this agent host');
@@ -10857,7 +10862,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** The credentials of the `http.proxy` setting when it names `proxy`, as this agent host's own requests use them. */
 	private _readConfiguredProxyCredentials(proxy: string): NetworkAuthenticateBasicResult | undefined {
-		return getProxyUrlCredentials(this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.Proxy)?.trim(), proxy);
+		return this._hasPacUrl() ? undefined : getProxyUrlCredentials(this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.Proxy)?.trim(), proxy);
 	}
 
 	/**
@@ -10873,7 +10878,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const { url: proxyUrl, result, source } = await this._proxyResolver.resolveProxyByURL(url);
 		const fromClient = source === 'system' || source === 'system_cached' || source === 'fallback';
 		const fromEnvironmentWithCredentials = source === 'env' && hasProxyCredentials(proxyUrl);
-		const proxy = source === 'remote' || !result || fromClient && !this._isSystemProxyEnabled() || fromEnvironmentWithCredentials
+		const proxy = source === 'remote' || !result || fromClient && !this._isSystemProxyEnabled() && !this._hasPacUrl() || fromEnvironmentWithCredentials
 			? undefined
 			: getRuntimeProxyList(result);
 		this._logService.debug(`[Copilot] Resolved the Copilot runtime's proxy for ${originsOnlyForLog(url)} from ${source}: ${proxy ?? (fromEnvironmentWithCredentials ? 'resolved by the runtime from its environment, to keep the credentials' : 'resolved by the runtime')}`);
