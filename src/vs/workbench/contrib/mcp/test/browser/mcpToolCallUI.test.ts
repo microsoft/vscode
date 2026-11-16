@@ -7,13 +7,19 @@ import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostConnectionsService } from '../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
+import { IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { agentHostAuthority, createEditorRemoteAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IPathService } from '../../../../../platform/path/common/pathService.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { McpToolCallUI } from '../../browser/mcpToolCallUI.js';
@@ -129,6 +135,46 @@ suite('McpToolCallUI', () => {
 		const loaded = await pending;
 		assert.deepStrictEqual({ loaded, calls }, {
 			loaded: { html: '<html>App</html>', mimeType: 'text/html' },
+			calls: [{ channel, method: 'resources/read', params: { uri: 'ui://probe/app' } }],
+		});
+	});
+
+	test('loads an app through the ambient editor-remote connection', async () => {
+		const calls: { channel: string; method: string; params: Record<string, unknown> | undefined }[] = [];
+		const remoteAuthority = 'dev-container+test';
+		const authority = agentHostAuthority(`vscode-remote://${remoteAuthority}`);
+		const connection = upcastPartial<IAgentHostService>({
+			resourceUris: createEditorRemoteAgentHostResourceUriMapper(remoteAuthority, authority),
+			onAgentHostStart: Event.None,
+			onAgentHostExit: Event.None,
+			onMcpNotification: Event.None,
+			handleMcpRequest: async (channel, method, params) => {
+				calls.push({ channel, method, params });
+				return { contents: [{ uri: 'ui://probe/app', text: '<html>Remote App</html>' }] };
+			},
+		});
+		const connectionsService = store.add(new AgentHostConnectionsService(
+			connection,
+			upcastPartial<IRemoteAgentHostService>({
+				connections: [],
+				onDidChangeConnections: Event.None,
+				getConnectionByAuthority: () => undefined,
+			}),
+			upcastPartial<IPathService>({ registerPathProvider: () => Disposable.None }),
+			upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None }),
+		));
+		const instantiationService = store.add(new TestInstantiationService(new ServiceCollection(
+			[IAgentHostConnectionsService, connectionsService],
+			[IThemeService, new TestThemeService()],
+		)));
+		const channel = 'mcp://opaque-host-defined-channel/probe';
+		const ui = store.add(instantiationService.createInstance(McpToolCallUI, {
+			kind: 'agentHost', resourceUri: 'ui://probe/app', connectionAuthority: authority, channel, serverId: 'probe',
+		}));
+		const loaded = await ui.loadResource(CancellationToken.None);
+
+		assert.deepStrictEqual({ loaded, calls }, {
+			loaded: { html: '<html>Remote App</html>', mimeType: 'text/html' },
 			calls: [{ channel, method: 'resources/read', params: { uri: 'ui://probe/app' } }],
 		});
 	});

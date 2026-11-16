@@ -8,6 +8,9 @@ import { stub } from 'sinon';
 import { isSafari } from '../../../../../base/browser/browser.js';
 import { $, Dimension, EventType, ModifierKeyEmitter, reset, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { Menu } from '../../../../../base/browser/ui/menu/menu.js';
+import { defaultMenuStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -19,7 +22,8 @@ import { ITreeViewsDnDService } from '../../../../../editor/common/services/tree
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { CapturingTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
@@ -27,6 +31,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
 import { MultiEditorTabsControl } from '../../../../browser/parts/editor/multiEditorTabsControl.js';
+import { EditorAddTabControl } from '../../../../browser/parts/editor/editorAddTabControl.js';
 import { MultiRowEditorControl } from '../../../../browser/parts/editor/multiRowEditorTabsControl.js';
 import { EditorInputCapabilities, EditorsOrder, IEditorPartOptions, Verbosity } from '../../../../common/editor.js';
 import { EditorGroupModel } from '../../../../common/editor/editorGroupModel.js';
@@ -4920,5 +4925,121 @@ suite('MultiEditorTabsControl', () => {
 		]);
 	});
 
+	test('the new tab button lists the entry picked last above its entries, as its default entry that a second press picks', async () => {
+		const executed: string[] = [];
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<R>(id: string): Promise<R> { executed.push(id); return undefined as R; }
+		}());
+		instantiationService.stub(IMenuService, new class extends TestMenuService {
+			override createMenu(): IMenu {
+				return {
+					onDidChange: Event.None,
+					dispose: () => { },
+					getActions: options => [['navigation', ['test.newTabButton.first', 'test.newTabButton.second'].map(id =>
+						instantiationService.createInstance(MenuItemAction, { id, title: id }, undefined, options, undefined, undefined))]],
+				};
+			}
+		}());
+		let shownMenu: IContextMenuDelegate | undefined;
+		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+			override readonly onDidShowContextMenu = Event.None;
+			override readonly onDidHideContextMenu = Event.None;
+			override showContextMenu(delegate: IContextMenuDelegate): void { shownMenu = delegate; }
+		}());
+		instantiationService.stub(IContextViewService, new class extends mock<IContextViewService>() {
+			override hideContextView(): void { const menu = shownMenu; shownMenu = undefined; menu?.onHide?.(true); }
+		}());
+
+		const createButton = () => disposables.add(instantiationService.createInstance(EditorAddTabControl, container, MenuId.for('test.newTabButton'), instantiationService.get(IContextKeyService), { recentFirst: true, defaultEntry: true }));
+		const press = (button: EditorAddTabControl) => {
+			const bounds = button.element.getBoundingClientRect();
+			button.element.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true, clientX: bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2 }));
+		};
+		const open = (button: EditorAddTabControl) => {
+			press(button);
+			const menu = shownMenu!.getActions().map(action => action.id);
+			shownMenu!.onHide?.(true);
+			return menu;
+		};
+
+		const button = createButton();
+		const initially = open(button);
+		press(button);
+		// Like the context menu: picking an entry hides the menu first
+		const picked = shownMenu!;
+		picked.onHide?.(false);
+		await picked.actionRunner!.run(picked.getActions()[1], picked.getActionsContext?.());
+		const afterPickingSecond = open(button);
+		// A second press while the menu is open picks the default entry and closes the menu
+		press(button);
+		press(button);
+		await timeout(0);
+		const menuOpen = !!shownMenu;
+
+		assert.deepStrictEqual({
+			initially,
+			afterPickingSecond,
+			inAnotherButton: open(createButton()),
+			executed,
+			menuOpen,
+		}, {
+			initially: ['test.newTabButton.first', 'test.newTabButton.second'],
+			afterPickingSecond: ['test.newTabButton.second', 'test.newTabButton.first'],
+			inAnotherButton: ['test.newTabButton.second', 'test.newTabButton.first'],
+			executed: ['test.newTabButton.second', 'test.newTabButton.second'],
+			menuOpen: false,
+		});
+	});
+
+	test('the new tab button menu describes the recent entry and highlights it only while the pointer is over the button', async () => {
+		instantiationService.stub(IMenuService, new class extends TestMenuService {
+			override createMenu(): IMenu {
+				return {
+					onDidChange: Event.None,
+					dispose: () => { },
+					getActions: options => [['navigation', ['test.newTabButton.first', 'test.newTabButton.second'].map(id =>
+						instantiationService.createInstance(MenuItemAction, { id, title: id }, undefined, options, undefined, undefined))]],
+				};
+			}
+		}());
+		// Renders the menu like the context menu service does: in a context view with the menu's class names
+		const menuStore = disposables.add(new DisposableStore());
+		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+			override readonly onDidShowContextMenu = Event.None;
+			override readonly onDidHideContextMenu = Event.None;
+			override showContextMenu(delegate: IContextMenuDelegate): void {
+				const contextView = $(`.context-view.${delegate.getMenuClassName!().split(' ').join('.')}`);
+				mainWindow.document.body.appendChild(contextView);
+				menuStore.add(toDisposable(() => contextView.remove()));
+				menuStore.add(new Menu(contextView, delegate.getActions(), {}, defaultMenuStyles));
+			}
+		}());
+		instantiationService.get(IStorageService).store('editor.addTabMenu.recentEntry.test.newTabButton.decorated', 'test.newTabButton.second', StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		const button = disposables.add(instantiationService.createInstance(EditorAddTabControl, container, MenuId.for('test.newTabButton.decorated'), instantiationService.get(IContextKeyService), { recentFirst: true, defaultEntry: true }));
+		// The button can have no size in a headless browser
+		Object.assign(button.element.style, { display: 'inline-block', width: '20px', height: '20px' });
+		// The button can move once the menu shows, so its center is read for each event
+		const onButton = () => {
+			const bounds = button.element.getBoundingClientRect();
+			return { clientX: bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2 };
+		};
+		button.element.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true, ...onButton() }));
+		await timeout(0);
+		const menu = () => [...mainWindow.document.querySelectorAll('.context-view.editor-add-tab-menu .action-item')].map(item => (item.classList.contains('focused') ? '* ' : '') + item.textContent);
+		const onOpen = menu();
+		const { clientX, clientY } = onButton();
+		mainWindow.document.body.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, clientX: clientX + 300, clientY: clientY + 300 }));
+		const pointerElsewhere = menu();
+		button.element.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, ...onButton() }));
+		const pointerOnButton = menu();
+		menuStore.clear();
+
+		assert.deepStrictEqual({ onOpen, pointerElsewhere, pointerOnButton }, {
+			onOpen: ['* test.newTabButton.secondrecently used', 'test.newTabButton.first'],
+			pointerElsewhere: ['test.newTabButton.secondrecently used', 'test.newTabButton.first'],
+			pointerOnButton: ['* test.newTabButton.secondrecently used', 'test.newTabButton.first'],
+		});
+	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

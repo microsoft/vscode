@@ -15,7 +15,6 @@ import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IAgentHostAuthTokenRequest } from '../common/agent.js';
 import { captureCredentialSource, isScopedCredentialUsable, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
-import { authenticationAccountId } from '../common/meta/agentAuthenticationAccount.js';
 import { AhpErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
@@ -60,7 +59,7 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 		let hasRepositoryToken = false;
 		const selectedAccount = () => {
 			const resource = _endpointService.getRepoResource();
-			return authenticationAccountId(_authenticationService.getAuthAccount({ resource: resource.resource, scopes: resource.scopes_supported }));
+			return _authenticationService.getAuthAccountId({ resource: resource.resource, scopes: resource.scopes_supported });
 		};
 		let repositoryAccountId = selectedAccount();
 		const onDidChangeRepositoryAccount = new Emitter<void>();
@@ -86,7 +85,7 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 				const request = { resource: context.sessionId, scopes: context.scopes };
 				const accountId = context.sessionId === _endpointService.getRepoResource().resource
 					? synchronizeRepositoryAccount()
-					: authenticationAccountId(_authenticationService.getAuthAccount(request));
+					: _authenticationService.getAuthAccountId(request);
 				if (accountId !== context.accountId) {
 					return undefined;
 				}

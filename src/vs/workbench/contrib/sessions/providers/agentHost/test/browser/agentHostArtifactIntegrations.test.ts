@@ -698,7 +698,7 @@ suite('Agent Host artifact workspace settings', () => {
 				transformed: remoteAddress ? [metadata.resource] : [],
 				forwarded: [{
 					resource: metadata.resource, scopes: ['read'], token: remoteAddress ? 'sealed-token' : 'plain-token',
-					_meta: { 'vscode.authentication.account': { accountId: 'account', providerId: 'test-auth' } },
+					accountId: '["test-auth","account",null]',
 				}],
 			});
 		});

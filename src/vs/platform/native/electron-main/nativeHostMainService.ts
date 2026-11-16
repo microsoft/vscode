@@ -432,11 +432,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.handleTitleDoubleClick();
 	}
 
-	async getCursorScreenPoint(windowId: number | undefined): Promise<{ readonly point: IPoint; readonly display: IRectangle }> {
+	async getCursorScreenPoint(windowId: number | undefined): Promise<{ readonly point: IPoint; readonly display: IRectangle; readonly workArea: IRectangle }> {
 		const point = screen.getCursorScreenPoint();
 		const display = screen.getDisplayNearestPoint(point);
 
-		return { point, display: display.bounds };
+		return { point, display: display.bounds, workArea: display.workArea };
 	}
 
 	async isMaximized(windowId: number | undefined, options?: INativeHostOptions): Promise<boolean> {
@@ -529,6 +529,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async setWindowOpacity(windowId: number | undefined, opacity: number, options?: INativeHostOptions): Promise<void> {
 		this.exactWindowById(windowId, options)?.win?.setOpacity(Math.min(1, Math.max(0, opacity)));
+	}
+
+	async setWindowIgnoreMouseEvents(windowId: number | undefined, ignore: boolean, options?: INativeHostOptions): Promise<void> {
+		this.exactWindowById(windowId, options)?.win?.setIgnoreMouseEvents(ignore, { forward: true });
 	}
 
 	async updateWindowControls(windowId: number | undefined, options: INativeHostOptions & { height?: number; horizontalInset?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void> {

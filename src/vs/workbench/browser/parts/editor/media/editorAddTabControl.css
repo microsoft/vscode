@@ -3,5 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { authenticationAccountId, authenticationAccountMeta, readAuthenticationAccount } from './vscode/agentAuthenticationAccount.js';
-export type { IAgentAuthenticationAccount } from './vscode/agentAuthenticationAccount.js';
+.context-view.editor-add-tab-menu .monaco-menu .monaco-action-bar.vertical .add-tab-menu-entry-description {
+	flex: 0 0 auto;
+	font-size: inherit;
+	opacity: 0.7;
+}
