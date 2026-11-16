@@ -5,8 +5,9 @@
 
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { SessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 
@@ -16,53 +17,65 @@ export interface IEditorWindowShownChat {
 	readonly chat: IChat;
 }
 
+export const IEditorWindowShownChatService = createDecorator<IEditorWindowShownChatService>('editorWindowShownChatService');
+
+/** Options of a binding of {@link IEditorWindowShownChatService.bind}. */
+export interface IEditorWindowShownChatBindOptions {
+	/** Whether it shows its chat in place of those bound without it, such as the chat of the Chat view while chats open there. */
+	readonly override?: boolean;
+}
+
 /**
- * The session host of an editor window, as the service `ISessionHost` of the window: it shows the chat that a feature binds
- * (see {@link bindShownChat}), such as that of the active tab of the chat part. What the editors of the editor area show of
- * a session, such as the Changes editor that the pills of a chat open, is of that chat. Until a feature binds one, it shows
- * nothing and does nothing: it only derives what it shows from what is bound.
+ * The chat that an editor window shows as its session host's, which features bind: such as the active tab of the chat part,
+ * or, in its place, the chat of the Chat view. The bindings stack: one bound to override wins over the others, and among
+ * equals the one bound last; disposing one shows the one it was bound over again.
+ */
+export interface IEditorWindowShownChatService {
+	readonly _serviceBrand: undefined;
+	/** The chat that the winning binding names, if any. */
+	readonly shown: IObservable<IEditorWindowShownChat | undefined>;
+	/** Shows the chat `shown` names while this binding wins, until the returned disposable is disposed. */
+	bind(shown: IObservable<IEditorWindowShownChat | undefined>, options?: IEditorWindowShownChatBindOptions): IDisposable;
+}
+
+export class EditorWindowShownChatService implements IEditorWindowShownChatService {
+
+	declare readonly _serviceBrand: undefined;
+
+	/** One per call of {@link bind}, in the order bound. */
+	private readonly _bindings = observableValue<readonly { readonly shown: IObservable<IEditorWindowShownChat | undefined>; readonly override: boolean }[]>(this, []);
+
+	readonly shown: IObservable<IEditorWindowShownChat | undefined> = derived(this, reader => {
+		const bindings = this._bindings.read(reader);
+		return (bindings.findLast(binding => binding.override) ?? bindings.at(-1))?.shown.read(reader);
+	});
+
+	bind(shown: IObservable<IEditorWindowShownChat | undefined>, options?: IEditorWindowShownChatBindOptions): IDisposable {
+		const binding = { shown, override: !!options?.override };
+		this._bindings.set([...this._bindings.get(), binding], undefined);
+		return toDisposable(() => this._bindings.set(this._bindings.get().filter(candidate => candidate !== binding), undefined));
+	}
+}
+
+/**
+ * The session host of an editor window, as the service `ISessionHost` of the window: it shows the chat that features bind
+ * (see {@link IEditorWindowShownChatService}), such as that of the active tab of the chat part. What the editors of the
+ * editor area show of a session, such as the Changes editor that the pills of a chat open, is of that chat. Until a feature
+ * binds one, it shows nothing and does nothing: it only derives what it shows from what is bound.
  */
 export class EditorWindowMainSessionHost extends SessionHost {
 
-	private readonly _shown: ISettableObservable<IObservable<IEditorWindowShownChat | undefined> | undefined>;
-	private readonly _override: ISettableObservable<IObservable<IEditorWindowShownChat | undefined> | undefined>;
-
-	constructor(@IContextKeyService contextKeyService: IContextKeyService) {
-		const source = observableValue<IObservable<IEditorWindowShownChat | undefined> | undefined>('editorWindowShownChat', undefined);
-		const override = observableValue<IObservable<IEditorWindowShownChat | undefined> | undefined>('editorWindowShownChatOverride', undefined);
-		const shown = derived(reader => (override.read(reader) ?? source.read(reader))?.read(reader));
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IEditorWindowShownChatService shownChatService: IEditorWindowShownChatService,
+	) {
 		super({
 			kind: SessionHostKind.MainWindow,
 			parent: undefined,
-			session: derived(reader => shown.read(reader)?.session),
-			chat: derived(reader => shown.read(reader)?.chat),
+			session: derived(reader => shownChatService.shown.read(reader)?.session),
+			chat: derived(reader => shownChatService.shown.read(reader)?.chat),
 			contextKeyService,
 			windowId: constObservable(mainWindow.vscodeWindowId),
-		});
-		this._shown = source;
-		this._override = override;
-	}
-
-	/**
-	 * Shows the chat `shown` names in place of the one bound with {@link bindShownChat}, until the returned disposable is
-	 * disposed: such as the chat of the Chat view while the chats open there, and not in the chat part.
-	 */
-	overrideShownChat(shown: IObservable<IEditorWindowShownChat | undefined>): IDisposable {
-		this._override.set(shown, undefined);
-		return toDisposable(() => {
-			if (this._override.get() === shown) {
-				this._override.set(undefined, undefined);
-			}
-		});
-	}
-
-	/** Shows the chat `shown` names, until the returned disposable is disposed. */
-	bindShownChat(shown: IObservable<IEditorWindowShownChat | undefined>): IDisposable {
-		this._shown.set(shown, undefined);
-		return toDisposable(() => {
-			if (this._shown.get() === shown) {
-				this._shown.set(undefined, undefined);
-			}
 		});
 	}
 }
