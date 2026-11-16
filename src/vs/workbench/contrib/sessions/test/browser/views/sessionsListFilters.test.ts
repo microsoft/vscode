@@ -13,7 +13,7 @@ import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../..
 import { getSessionApplication } from '../../../../../services/sessions/common/sessionApplication.js';
 import { ISession, ISessionEnvironment, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { buildTestSession, buildTestWorkspace } from '../../common/testSessionBuilder.js';
-import { getInboxWorkspaceFilter, getInboxWorkspaceOptions, getSessionFilterOptions, getWorktreeFilterKeys, sessionFilterKey, SessionsListFilters } from '../../../browser/views/sessionsListFilters.js';
+import { getInboxWorkspaceFilter, getInboxWorkspaceOptions, getSessionFilterOptions, getWorktreeFilterKeys, sessionFilterKey, SessionsListFilters, SessionsWorktreeOpener } from '../../../browser/views/sessionsListFilters.js';
 
 suite('SessionsListFilters', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -58,6 +58,44 @@ suite('SessionsListFilters', () => {
 			selected: { options: ['vscode', 'first', 'second'], checked: 'first', visible: ['first'] },
 			lastArchived: { options: ['vscode', 'second'], checked: 'All Worktrees', visible: ['main', 'first', 'second'] },
 			unarchived: { options: ['vscode', 'first', 'second'], checked: 'first', visible: ['first'] },
+		});
+	});
+
+	test('picking a worktree folder opens the session of it shown last, else its most recent one not archived, and nothing while the shown one works in it', () => {
+		const inFolder = (id: string, path: string, minutesAgo: number, isArchived = false): ISession => {
+			const root = URI.file(path);
+			const workspace: ISessionWorkspace = {
+				uri: root, label: id, icon: Codicon.folder, requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+				folders: [{ root, workingDirectory: root, name: id, description: undefined, gitRepository: undefined }],
+			};
+			return { ...buildTestSession({ id, title: id, minutesAgo, isArchived }).session, workspace: constObservable(workspace) };
+		};
+		const main = inFolder('main', '/work/vscode', 1);
+		const older = inFolder('older', '/work/vscode.worktrees/first', 30);
+		const newer = inFolder('newer', '/work/vscode.worktrees/first', 20);
+		// The most recent of the folder, but archived
+		const archived = inFolder('archived', '/work/vscode.worktrees/first', 5, true);
+		const second = inFolder('second', '/work/vscode.worktrees/second', 10);
+		const sessions = [main, older, newer, archived, second];
+		const first = getSessionFilterOptions(sessions, [], listAll).find(option => option.filter.kind === 'worktree' && option.label === 'first')!.filter.id;
+		const shown = observableValue<ISession | undefined>('shown', main);
+		const opened: string[] = [];
+		const opener = store.add(new SessionsWorktreeOpener(shown, () => sessions, session => opened.push(session.sessionId)));
+
+		opener.open(first);
+		const mostRecent = [...opened];
+		// The user shows the older one of the folder, then another folder's
+		shown.set(older, undefined);
+		shown.set(second, undefined);
+		opener.open(first);
+		const remembered = opened.slice(mostRecent.length);
+		shown.set(newer, undefined);
+		opener.open(first);
+
+		assert.deepStrictEqual({ mostRecent, remembered, alreadyShown: opened.slice(mostRecent.length + remembered.length) }, {
+			mostRecent: ['newer'],
+			remembered: ['older'],
+			alreadyShown: [],
 		});
 	});
 

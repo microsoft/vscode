@@ -49,6 +49,9 @@ export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilte
 
 	readonly groupResults?: () => AgentSessionsGrouping | undefined;
 	readonly sortResults?: () => AgentSessionsSorting | undefined;
+
+	/** As the user picks a worktree folder, by its key, in the Worktrees submenu: not All Worktrees, nor a choice that applies again. */
+	readonly onDidPickWorktree?: (worktree: string) => void;
 }
 
 const DEFAULT_EXCLUDES: IAgentSessionsFilterExcludes = Object.freeze({
@@ -365,6 +368,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 				}
 				run(): void {
 					that.storeExcludes(withWorktree(that.excludes, option.key));
+					that.options.onDidPickWorktree?.(option.key);
 				}
 			}));
 		}

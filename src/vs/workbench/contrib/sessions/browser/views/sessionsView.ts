@@ -35,7 +35,7 @@ import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
-import { getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, sessionFilterKey } from './sessionsListFilters.js';
+import { getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, sessionFilterKey, SessionsWorktreeOpener } from './sessionsListFilters.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, IMenuService, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -782,6 +782,12 @@ export class SessionsView extends ViewPane {
 	}
 
 	private registerSessionFilters(sessionsControl: SessionsList): void {
+		// Picking a worktree folder opens a session of it, as a click in the list does
+		const worktreeOpener = this._register(new SessionsWorktreeOpener(
+			this._mainWindowHost.session,
+			() => this.sessionsManagementService.getSessions().filter(session => sessionsControl.isSessionListed(session)),
+			session => this.sessionsService.openSession(session.resource, { preserveFocus: false, source: 'sessionsList', forceMainChat: true }).then(() => this._handleSessionOpened(session)).catch(onUnexpectedError),
+		));
 		const changed = observableSignalFromEvent(this, Event.any(
 			this.sessionsManagementService.onDidChangeSessions,
 			this.sessionsManagementService.onDidChangeSessionTypes,
@@ -890,6 +896,7 @@ export class SessionsView extends ViewPane {
 					override run() {
 						if (option.filter.kind === 'worktree') {
 							sessionsControl.filters.setSelectedWorktree(option.filter.id);
+							worktreeOpener.open(option.filter.id);
 						} else {
 							sessionsControl.filters.setExcluded(option.filter, !sessionsControl.filters.isExcluded(option.filter));
 						}

@@ -103,3 +103,50 @@ function getDistinguishingParents(folders: readonly URI[]): string[] {
 	}
 	return folders.map(folder => `${folder.authority}${dirname(folder).path}`);
 }
+
+/** A session as the Worktrees filter picks one to open: its folder's filter key, if it has one, and how recently it was used. */
+export interface IWorktreeFilterSession {
+	readonly id: string;
+	/** Its folder's Worktrees filter key ({@link getWorktreeFilterKey}); none for sessions without a folder. */
+	readonly worktree: string | undefined;
+	readonly isArchived: boolean;
+	/** When it was last used, for the most recent one. */
+	readonly time: number;
+}
+
+/** The session last shown of each worktree folder, by its Worktrees filter key: the most recent folders only. */
+export class WorktreeLastSessions {
+
+	private readonly _sessions = new Map<string, string>();
+
+	constructor(private readonly _limit = 50) { }
+
+	remember(worktree: string, session: string): void {
+		this._sessions.delete(worktree);
+		this._sessions.set(worktree, session);
+		for (const oldest of this._sessions.keys()) {
+			if (this._sessions.size <= this._limit) {
+				break;
+			}
+			this._sessions.delete(oldest);
+		}
+	}
+
+	get(worktree: string): string | undefined {
+		return this._sessions.get(worktree);
+	}
+}
+
+/**
+ * The session to open as the user picks the worktree folder `worktree` in the Worktrees filter: none while the shown session
+ * works in it already; else the one last shown of it, while it still works there and is not archived; else its most recent
+ * session not archived. Archived sessions are never picked.
+ */
+export function getWorktreeSessionToOpen(worktree: string, shown: IWorktreeFilterSession | undefined, sessions: readonly IWorktreeFilterSession[], last: string | undefined): IWorktreeFilterSession | undefined {
+	if (shown?.worktree === worktree) {
+		return undefined;
+	}
+	const candidates = sessions.filter(session => session.worktree === worktree && !session.isArchived);
+	return candidates.find(session => session.id === last)
+		?? candidates.reduce<IWorktreeFilterSession | undefined>((latest, session) => !latest || session.time > latest.time ? session : latest, undefined);
+}
