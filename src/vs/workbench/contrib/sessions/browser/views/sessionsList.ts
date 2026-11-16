@@ -1652,6 +1652,7 @@ const SESSION_EXTERNAL_APPLICATION_BADGE_HOVERED_CLASS = 'external-application-b
 
 interface ISessionItemTemplate {
 	readonly container: HTMLElement;
+	scheduledIndicator?: { readonly resource: URI; readonly element: HTMLElement };
 	readonly statusIcon: SessionStatusIcon;
 	readonly title: HighlightedLabel;
 	readonly titleRow: HTMLElement;
@@ -1986,9 +1987,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		indicator.setAttribute('role', 'button');
 		indicator.setAttribute('aria-label', localize('showScheduledMessages', "Show Scheduled Messages"));
 		const showHover = (focus: boolean) => this.hoverService.showInstantHover({
-			...hoverOptions(), target: indicator, persistence: { hideOnHover: false, sticky: true },
+			...hoverOptions(), target: indicator, trapFocus: focus, persistence: { hideOnHover: false, sticky: true },
 		}, focus);
-		for (const type of [DOM.EventType.POINTER_DOWN, DOM.EventType.MOUSE_DOWN, DOM.EventType.POINTER_UP, DOM.EventType.MOUSE_UP, DOM.EventType.DBLCLICK]) {
+		store.add(Gesture.ignoreTarget(indicator));
+		for (const type of [DOM.EventType.MOUSE_OVER, DOM.EventType.POINTER_DOWN, DOM.EventType.MOUSE_DOWN, DOM.EventType.POINTER_UP, DOM.EventType.MOUSE_UP, DOM.EventType.DBLCLICK]) {
 			store.add(DOM.addDisposableListener(indicator, type, e => e.stopPropagation()));
 		}
 		store.add(DOM.addDisposableListener(indicator, DOM.EventType.CLICK, e => {
@@ -2008,9 +2010,14 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		template.elementDisposables.clear();
 		const scheduledSessionResources = this.options.scheduledSessionResources;
 		if (scheduledSessionResources) {
-			const indicator = DOM.$(`span.session-scheduled-indicator${ThemeIcon.asCSSSelector(Codicon.clock)}`, { 'aria-hidden': 'true' });
-			template.compactHoverDescription.after(indicator);
-			template.elementDisposables.add(toDisposable(() => indicator.remove()));
+			let scheduledIndicator = template.scheduledIndicator;
+			if (!scheduledIndicator || !isEqual(scheduledIndicator.resource, element.resource)) {
+				scheduledIndicator?.element.remove();
+				const indicator = DOM.$(`span.session-scheduled-indicator${ThemeIcon.asCSSSelector(Codicon.clock)}`, { 'aria-hidden': 'true' });
+				template.compactHoverDescription.after(indicator);
+				template.scheduledIndicator = scheduledIndicator = { resource: element.resource, element: indicator };
+			}
+			const indicator = scheduledIndicator.element;
 			template.elementDisposables.add(autorun(reader => {
 				indicator.classList.toggle('visible', scheduledSessionResources.read(reader).has(element.resource.toString()));
 			}));

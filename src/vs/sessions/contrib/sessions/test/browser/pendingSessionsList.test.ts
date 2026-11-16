@@ -7,6 +7,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { $, append, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
+import { Gesture } from '../../../../../base/browser/touch.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { timeout } from '../../../../../base/common/async.js';
@@ -18,11 +19,14 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import '../../../../../workbench/browser/actions/listCommands.js';
@@ -419,6 +423,109 @@ suite('Sessions - pending list items', () => {
 			});
 		});
 	}
+
+	function createScheduledPreview() {
+		const session = createTestSession('scheduled').session;
+		const harness = createListHarness(disposables, [session]);
+		const configuration = new TestConfigurationService();
+		configuration.setUserConfiguration('workbench.hover.delay', 0);
+		harness.instantiationService.stub(IConfigurationService, configuration);
+		harness.instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
+		const hoverService = disposables.add(harness.instantiationService.createInstance(HoverService));
+		disposables.add(toDisposable(() => hoverService.hideHover(true)));
+		harness.instantiationService.stub(IHoverService, hoverService);
+		const opened: string[] = [];
+		const container = harness.createContainer(400, 800);
+		const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
+			scheduledSessionResources: constObservable(new Set([session.resource.toString()])),
+			scheduledRequests: constObservable(new Map([[getComparisonKey(session.resource), [{
+				id: 'message', text: 'Check the build', description: 'Tomorrow', attachments: [], actions: [],
+			}]]])),
+			onSessionOpen: resource => { opened.push(resource.toString()); },
+		}));
+		list.layout(800, 400);
+		const indicator = list.getItemRow({ session: session.resource })!.querySelector<HTMLElement>('.session-scheduled-indicator')!;
+		return { list, indicator, session, opened, container };
+	}
+
+	async function settleIntersections(container: HTMLElement): Promise<void> {
+		const sentinel = append(container, $('div', { style: 'position:fixed;top:0;left:0;width:1px;height:1px;pointer-events:none' }));
+		disposables.add(toDisposable(() => sentinel.remove()));
+		const observe = (intersecting: boolean) => new Promise<void>(resolve => {
+			const observer = new mainWindow.IntersectionObserver(entries => {
+				if (entries.some(entry => entry.isIntersecting === intersecting)) {
+					observer.disconnect();
+					resolve();
+				}
+			});
+			disposables.add(toDisposable(() => observer.disconnect()));
+			observer.observe(sentinel);
+		});
+		await observe(true);
+		sentinel.remove();
+		await observe(false);
+	}
+
+	test('clock mouseover opens the scheduled preview rather than the parent session hover', async () => {
+		const { indicator, opened } = createScheduledPreview();
+		indicator.dispatchEvent(new mainWindow.MouseEvent('mouseover', { bubbles: true }));
+		await timeout(0);
+		assert.deepStrictEqual({
+			preview: mainWindow.document.querySelector('.monaco-hover .session-scheduled-card-text')?.textContent,
+			opened,
+		}, { preview: 'Check the build', opened: [] });
+	});
+
+	test('an open scheduled preview survives the real hover lifecycle during a row refresh', async () => {
+		const { list, indicator, session, container } = createScheduledPreview();
+		indicator.click();
+		const preview = mainWindow.document.querySelector('.monaco-hover.session-scheduled-card-hover');
+		assert.ok(preview);
+		await settleIntersections(container);
+		list.update();
+		await settleIntersections(container);
+		assert.deepStrictEqual({
+			sameClock: list.getItemRow({ session: session.resource })!.querySelector('.session-scheduled-indicator') === indicator,
+			previewConnected: preview.isConnected,
+		}, { sameClock: true, previewConnected: true });
+	});
+
+	test('Escape restores clock focus after a keyboard-opened scheduled preview', async () => {
+		const { indicator } = createScheduledPreview();
+		indicator.focus();
+		indicator.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		const preview = mainWindow.document.querySelector('.monaco-hover.session-scheduled-card-hover');
+		assert.ok(preview && preview.contains(mainWindow.document.activeElement));
+		mainWindow.document.activeElement!.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+		await timeout(0);
+		assert.deepStrictEqual({
+			closed: !preview.isConnected, clockFocused: mainWindow.document.activeElement === indicator,
+		}, { closed: true, clockFocused: true });
+	});
+
+	test('clock touches bypass list gestures without suppressing the preview click', async () => {
+		const touchDevice = sinon.stub(Gesture, 'isTouchDevice').returns(true);
+		disposables.add(toDisposable(() => touchDevice.restore()));
+		const { indicator, opened } = createScheduledPreview();
+		const bounds = indicator.getBoundingClientRect();
+		const touch = new mainWindow.Touch({
+			identifier: 1, target: indicator, clientX: bounds.x + bounds.width / 2, clientY: bounds.y + bounds.height / 2,
+			pageX: bounds.x + bounds.width / 2, pageY: bounds.y + bounds.height / 2,
+		});
+		const start = new mainWindow.TouchEvent('touchstart', { touches: [touch], targetTouches: [touch], changedTouches: [touch], bubbles: true, cancelable: true });
+		const end = new mainWindow.TouchEvent('touchend', { touches: [], targetTouches: [], changedTouches: [touch], bubbles: true, cancelable: true });
+		indicator.dispatchEvent(start);
+		indicator.dispatchEvent(end);
+		if (!start.defaultPrevented && !end.defaultPrevented) {
+			indicator.click();
+		}
+		await timeout(0);
+		assert.deepStrictEqual({
+			startPrevented: start.defaultPrevented, endPrevented: end.defaultPrevented, opened,
+			preview: mainWindow.document.querySelector('.monaco-hover .session-scheduled-card-text')?.textContent,
+		}, { startPrevented: false, endPrevented: false, opened: [], preview: 'Check the build' });
+	});
 
 	test('pending filtering composes harness, environment and application with strict Inbox workspace scope', () => {
 		const harness = createListHarness(disposables, []);
