@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
-import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
+import { IAgentsViewProvidersReleaseParticipant, IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
 import { EditorWindowSessionsRuntime } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
 import { EditorWindowSessionsPresenterService, IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { IChatViewHostService } from '../../../../chat/browser/chatViewHost.js';
@@ -136,6 +136,7 @@ suite('EditorWindowSessionsPresenterService', () => {
 		const service = disposables.add(new EditorWindowSessionsPresenterService(
 			upcastPartial<IChatViewHostService>({ reveal: async preserveFocus => { calls.push(`reveal preserveFocus=${preserveFocus}`); return undefined; } }),
 			upcastPartial<ICommandService>({ executeCommand: async (id: string) => { calls.push(id); return undefined; } }),
+			upcastPartial<IAgentsViewProvidersService>({ registerReleaseParticipant: () => toDisposable(() => { }) }),
 		));
 
 		await service.presenter.get().openComposer(undefined, { preserveFocus: true });
@@ -144,7 +145,7 @@ suite('EditorWindowSessionsPresenterService', () => {
 	});
 
 	test('the presenter registered last presents, until its registration is disposed, also when the same presenter is registered twice', () => {
-		const service = disposables.add(new EditorWindowSessionsPresenterService(upcastPartial<IChatViewHostService>({}), upcastPartial<ICommandService>({})));
+		const service = disposables.add(new EditorWindowSessionsPresenterService(upcastPartial<IChatViewHostService>({}), upcastPartial<ICommandService>({}), upcastPartial<IAgentsViewProvidersService>({ registerReleaseParticipant: () => toDisposable(() => { }) })));
 		const chatView = service.presenter.get();
 		const first = upcastPartial<IEditorWindowSessionsPresenter>({});
 		const second = upcastPartial<IEditorWindowSessionsPresenter>({});
@@ -165,18 +166,35 @@ suite('EditorWindowSessionsPresenterService', () => {
 		assert.deepStrictEqual(steps, ['first', 'first', 'second', 'chat view']);
 	});
 
-	test('counts the composers of what holds them, also once it no longer presents the sessions, until it no longer holds them', async () => {
-		const service = disposables.add(new EditorWindowSessionsPresenterService(upcastPartial<IChatViewHostService>({}), upcastPartial<ICommandService>({})));
+	test('as the providers are released, closes the idle composers of what holds them, also once it no longer presents the sessions, and keeps the providers while a composer remains', async () => {
+		const participants: IAgentsViewProvidersReleaseParticipant[] = [];
+		const service = disposables.add(new EditorWindowSessionsPresenterService(upcastPartial<IChatViewHostService>({}), upcastPartial<ICommandService>({}), upcastPartial<IAgentsViewProvidersService>({
+			registerReleaseParticipant: participant => {
+				participants.push(participant);
+				return toDisposable(() => participants.splice(participants.indexOf(participant), 1));
+			},
+		})));
 		const closed: string[] = [];
+		const composer = { open: true, idle: false };
 		const presenter = service.registerPresenter(upcastPartial<IEditorWindowSessionsPresenter>({}));
-		const holder = service.registerComposerHolder({ hasComposer: () => true, closeIdleComposers: async () => { closed.push('chat part'); } });
+		const holder = service.registerComposerHolder({
+			hasComposer: () => composer.open,
+			closeIdleComposers: async () => {
+				if (composer.idle) {
+					composer.open = false;
+					closed.push('chat part');
+				}
+			},
+		});
 
 		presenter.dispose();
-		const afterPresenter = service.hasComposer();
-		await service.closeIdleComposers();
+		const withInput = await participants[0].prepareRelease();
+		composer.idle = true;
+		const idle = await participants[0].prepareRelease();
 		holder.dispose();
+		service.dispose();
 
-		assert.deepStrictEqual({ afterPresenter, closed, afterHolder: service.hasComposer() }, { afterPresenter: true, closed: ['chat part'], afterHolder: false });
+		assert.deepStrictEqual({ withInput, idle, closed, participants: participants.length }, { withInput: false, idle: true, closed: ['chat part'], participants: 0 });
 	});
 });
 
@@ -189,6 +207,7 @@ suite('EditorWindowSessionsService', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ reveal: async () => { calls.push('reveal'); return undefined; } }));
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({ executeCommand: async (id: string) => { calls.push(id); return undefined; } }));
+		instantiationService.stub(IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({ registerReleaseParticipant: () => toDisposable(() => { }) }));
 		const presenterService = disposables.add(instantiationService.createInstance(EditorWindowSessionsPresenterService));
 		instantiationService.stub(IEditorWindowSessionsPresenterService, presenterService);
 		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({}));
@@ -219,6 +238,7 @@ suite('EditorWindowSessionsService', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({}));
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({}));
+		instantiationService.stub(IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({ registerReleaseParticipant: () => toDisposable(() => { }) }));
 		const presenterService = disposables.add(instantiationService.createInstance(EditorWindowSessionsPresenterService));
 		const registration = presenterService.registerPresenter(upcastPartial<IEditorWindowSessionsPresenter>({
 			openChat: async session => { opened.push(session.sessionId); },
@@ -257,6 +277,7 @@ suite('EditorWindowSessionsService', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({}));
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({}));
+		instantiationService.stub(IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({ registerReleaseParticipant: () => toDisposable(() => { }) }));
 		const presenterService = disposables.add(instantiationService.createInstance(EditorWindowSessionsPresenterService));
 		const registration = presenterService.registerPresenter(upcastPartial<IEditorWindowSessionsPresenter>({
 			openChat: async (session, chat, options) => { events.push(`show ${session.sessionId}${chat ? ' chat' : ''}${options?.sideBySide ? ' to the side' : ''}`); },
@@ -303,6 +324,7 @@ suite('EditorWindowSessionsService', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({}));
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({}));
+		instantiationService.stub(IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({ registerReleaseParticipant: () => toDisposable(() => { }) }));
 		const presenterService = disposables.add(instantiationService.createInstance(EditorWindowSessionsPresenterService));
 		instantiationService.stub(IEditorWindowSessionsPresenterService, presenterService);
 		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({}));
@@ -334,6 +356,7 @@ suite('EditorWindowSessionsService', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({}));
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({}));
+		instantiationService.stub(IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({ registerReleaseParticipant: () => toDisposable(() => { }) }));
 		const presenterService = disposables.add(instantiationService.createInstance(EditorWindowSessionsPresenterService));
 		const registration = presenterService.registerPresenter(upcastPartial<IEditorWindowSessionsPresenter>({ openChat: async session => { opened.push(session.sessionId); } }));
 		instantiationService.stub(IEditorWindowSessionsPresenterService, presenterService);
@@ -366,6 +389,7 @@ suite('EditorWindowSessionsService', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({}));
 			instantiationService.stub(ICommandService, upcastPartial<ICommandService>({}));
+			instantiationService.stub(IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({ registerReleaseParticipant: () => toDisposable(() => { }) }));
 			const presenterService = disposables.add(instantiationService.createInstance(EditorWindowSessionsPresenterService));
 			const registration = presenterService.registerPresenter(upcastPartial<IEditorWindowSessionsPresenter>({
 				openChat: async session => { events.push(`open ${session.sessionId}`); },
@@ -419,6 +443,7 @@ suite('EditorWindowSessionsService', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({}));
 			instantiationService.stub(ICommandService, upcastPartial<ICommandService>({}));
+			instantiationService.stub(IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({ registerReleaseParticipant: () => toDisposable(() => { }) }));
 			const presenterService = disposables.add(instantiationService.createInstance(EditorWindowSessionsPresenterService));
 			const registration = presenterService.registerPresenter(upcastPartial<IEditorWindowSessionsPresenter>({ openChat: async (session, chat) => { shown.push(`${session.sessionId}${chat ? ' chat' : ''}`); }, openComposer: async () => { shown.push('composer'); }, isShowing: () => false }));
 			instantiationService.stub(IEditorWindowSessionsPresenterService, presenterService);
@@ -482,6 +507,7 @@ suite('EditorWindowSessionsService', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({}));
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({}));
+		instantiationService.stub(IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({ registerReleaseParticipant: () => toDisposable(() => { }) }));
 		const presenterService = disposables.add(instantiationService.createInstance(EditorWindowSessionsPresenterService));
 		const registration = presenterService.registerPresenter(upcastPartial<IEditorWindowSessionsPresenter>({ openChat: async (session, chat) => { shown.push(`${session.sessionId}${chat ? ' chat' : ''}`); }, isShowing: () => false }));
 		instantiationService.stub(IEditorWindowSessionsPresenterService, presenterService);

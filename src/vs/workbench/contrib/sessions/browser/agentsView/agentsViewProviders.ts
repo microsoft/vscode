@@ -17,4 +17,13 @@ export interface IAgentsViewProvidersService {
 
 	/** Registers the providers, unless they are, and holds them until the returned disposable is disposed. */
 	acquire(): IDisposable;
+
+	/** Asks `participant` before it releases the providers, until the returned disposable is disposed. */
+	registerReleaseParticipant(participant: IAgentsViewProvidersReleaseParticipant): IDisposable;
+}
+
+/** What takes part as the providers of an editor window are released, such as what holds new-session composers, whose drafts are their sessions. */
+export interface IAgentsViewProvidersReleaseParticipant {
+	/** Prepares for the providers to go, such as by closing the composers the user left; resolves to whether they can go. */
+	prepareRelease(): Promise<boolean>;
 }

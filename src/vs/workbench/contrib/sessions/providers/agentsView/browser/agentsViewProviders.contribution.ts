@@ -9,8 +9,7 @@ import { isWeb } from '../../../../../../base/common/platform.js';
 import { InstantiationType } from '../../../../../../platform/instantiation/common/extensions.js';
 import { registerEditorWindowSessionsSingleton } from '../../../browser/editorWindow/editorWindowSessionsServices.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
-import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
+import { IAgentsViewProvidersReleaseParticipant, IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
 import { registerLocalAgentHostSessionsProvider } from '../../agentHost/browser/localAgentHostSessionsProviderRegistration.js';
 import { registerCopilotChatSessionsProviders } from '../../copilotChatSessions/browser/copilotChatSessionsProvidersRegistration.js';
 import { registerAgentsViewComposerControls } from './agentsViewComposerControls.js';
@@ -42,8 +41,9 @@ export const AGENTS_VIEW_PROVIDERS_RELEASE_DELAY = 60_000;
  * sessions of the agent host. The chats of the chat part's tabs find their sessions again once the providers return, as a provider going away
  * hides its sessions without removing them.
  *
- * A new-session composer of the chat part holds them too, as its draft session is its provider's: one with nothing typed or
- * attached closes as they are released, and one with input holds them until it is sent or closed.
+ * What takes part in the release (see {@link registerReleaseParticipant}) can keep them, such as what holds new-session
+ * composers, whose drafts are the providers' sessions: one with nothing typed or attached closes as they are released, and one
+ * with input keeps them until it is sent or closed.
  */
 export class AgentsViewProvidersService extends Disposable implements IAgentsViewProvidersService {
 
@@ -55,9 +55,15 @@ export class AgentsViewProvidersService extends Disposable implements IAgentsVie
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IEditorWindowSessionsPresenterService private readonly _presenterService: IEditorWindowSessionsPresenterService,
 	) {
 		super();
+	}
+
+	private readonly _participants = new Set<IAgentsViewProvidersReleaseParticipant>();
+
+	registerReleaseParticipant(participant: IAgentsViewProvidersReleaseParticipant): IDisposable {
+		this._participants.add(participant);
+		return toDisposable(() => this._participants.delete(participant));
 	}
 
 	acquire(): IDisposable {
@@ -86,15 +92,14 @@ export class AgentsViewProvidersService extends Disposable implements IAgentsVie
 		if (this._holds > 0) {
 			return;
 		}
-		// A composer the user left without typing anything goes, so the providers can go too
-		await this._presenterService.closeIdleComposers();
+		const releasable = await Promise.all([...this._participants].map(participant => participant.prepareRelease()));
 		if (this._store.isDisposed || this._holds > 0 || this._release.value) {
 			return;
 		}
-		if (this._presenterService.hasComposer()) {
-			this._releaseLater();
-		} else {
+		if (releasable.every(canRelease => canRelease)) {
 			this._registration.clear();
+		} else {
+			this._releaseLater();
 		}
 	}
 }

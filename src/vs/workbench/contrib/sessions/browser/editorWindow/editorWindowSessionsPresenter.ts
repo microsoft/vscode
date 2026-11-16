@@ -15,6 +15,7 @@ import { IChat, ISession } from '../../../../services/sessions/common/session.js
 import { ACTION_ID_NEW_CHAT } from '../../../chat/browser/actions/chatActions.js';
 import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
 import { INewSessionTarget } from '../parts/chatView.js';
+import { IAgentsViewProvidersService } from '../agentsView/agentsViewProviders.js';
 
 /** A chat that a presenter shows, with its session. */
 export interface IEditorWindowPresentedChat {
@@ -130,8 +131,16 @@ export class EditorWindowSessionsPresenterService extends Disposable implements 
 	constructor(
 		@IChatViewHostService chatViewHostService: IChatViewHostService,
 		@ICommandService commandService: ICommandService,
+		@IAgentsViewProvidersService providers: IAgentsViewProvidersService,
 	) {
 		super();
+		// A composer the user left without typing anything goes as the providers go; one with input keeps them, as its draft is their session
+		this._register(providers.registerReleaseParticipant({
+			prepareRelease: async () => {
+				await this.closeIdleComposers();
+				return !this.hasComposer();
+			},
+		}));
 		const chatView = new ChatViewSessionsPresenter(chatViewHostService, commandService);
 		this.presenter = derived(this, reader => this._registered.read(reader).at(-1)?.presenter ?? chatView);
 	}
