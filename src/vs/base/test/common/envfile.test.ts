@@ -127,4 +127,62 @@ suite('parseEnvFile', () => {
 		const RNPayload = parseEnvFile('SERVER=localhost\r\nPASSWORD=password\r\nDB=tests\r\n');
 		assert.deepStrictEqual([...RNPayload], expectedPayload);
 	});
+
+	test('parses multi-line double quoted values', () => {
+		const env = `
+PRIVATE_KEY="-----BEGIN PRIVATE KEY-----
+MIIEow==
+-----END PRIVATE KEY-----"
+OTHER=1
+`;
+		const parsed = parseEnvFile(env);
+		assert.strictEqual(parsed.get('PRIVATE_KEY'), '-----BEGIN PRIVATE KEY-----\nMIIEow==\n-----END PRIVATE KEY-----');
+		assert.strictEqual(parsed.get('OTHER'), '1');
+	});
+
+	test('parses multi-line single and backtick quoted values', () => {
+		const env = `
+SINGLE='hello
+world'
+BACKTICK=\`foo
+bar\`
+`;
+		const parsed = parseEnvFile(env);
+		assert.strictEqual(parsed.get('SINGLE'), 'hello\nworld');
+		assert.strictEqual(parsed.get('BACKTICK'), 'foo\nbar');
+	});
+
+	test('handles comments and empty lines inside and after multi-line quoted values', () => {
+		const env = `
+CERT="line1
+# not a comment
+line3" # closing comment
+EMPTY_LINES="first
+
+third"
+`;
+		const parsed = parseEnvFile(env);
+		assert.strictEqual(parsed.get('CERT'), 'line1\n# not a comment\nline3');
+		assert.strictEqual(parsed.get('EMPTY_LINES'), 'first\n\nthird');
+	});
+
+	test('preserves behavior on unterminated quotes', () => {
+		const env = `
+UNTERMINATED="hello
+world
+FOO=bar
+`;
+		const parsed = parseEnvFile(env);
+		assert.strictEqual(parsed.get('UNTERMINATED'), '"hello');
+		assert.strictEqual(parsed.get('FOO'), 'bar');
+	});
+
+	test('handles export prefix and escaped quotes in multi-line values', () => {
+		const env = `
+export MULTI="line with \\"escaped\\" quotes
+second line"
+`;
+		const parsed = parseEnvFile(env);
+		assert.strictEqual(parsed.get('MULTI'), 'line with \\"escaped\\" quotes\nsecond line');
+	});
 });

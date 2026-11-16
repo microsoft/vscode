@@ -18,11 +18,57 @@ export function parseEnvFile(src: string) {
 	const normalizedSrc = src.replace(/\r\n?/g, '\n');
 	const lines = normalizedSrc.split('\n');
 
-	for (let line of lines) {
+	for (let i = 0; i < lines.length; i++) {
+		let line = lines[i];
+
 		// Skip empty lines and comments
-		line = line.trim();
-		if (!line || line.startsWith('#')) {
+		const trimmed = line.trim();
+		if (!trimmed || trimmed.startsWith('#')) {
 			continue;
+		}
+
+		let lineToExamine = line.trimStart();
+		if (lineToExamine.startsWith('export ')) {
+			lineToExamine = lineToExamine.substring(7).trimStart();
+		}
+
+		// Check if this line starts a quoted value that spans multiple lines
+		const separatorIndex = findIndexOutsideQuotes(lineToExamine, c => c === '=' || c === ':');
+		if (separatorIndex !== -1) {
+			const valueStart = lineToExamine.substring(separatorIndex + 1).trimStart();
+			const quoteChar = valueStart[0];
+			if (quoteChar === '"' || quoteChar === '\'' || quoteChar === '`') {
+				let hasClosingQuote = false;
+				for (let idx = 1; idx < valueStart.length; idx++) {
+					if (valueStart[idx] === quoteChar && !isEscaped(valueStart, idx)) {
+						hasClosingQuote = true;
+						break;
+					}
+				}
+
+				if (!hasClosingQuote) {
+					let closingLineIndex = -1;
+					for (let j = i + 1; j < lines.length; j++) {
+						const nextLine = lines[j];
+						let foundInNextLine = false;
+						for (let k = 0; k < nextLine.length; k++) {
+							if (nextLine[k] === quoteChar && !isEscaped(nextLine, k)) {
+								foundInNextLine = true;
+								break;
+							}
+						}
+						if (foundInNextLine) {
+							closingLineIndex = j;
+							break;
+						}
+					}
+
+					if (closingLineIndex !== -1) {
+						line = lines.slice(i, closingLineIndex + 1).join('\n');
+						i = closingLineIndex;
+					}
+				}
+			}
 		}
 
 		// Parse the line into key and value
@@ -84,7 +130,7 @@ export function parseEnvFile(src: string) {
 			const char = text[i];
 
 			if (inQuote) {
-				if (char === quoteChar && text[i - 1] !== '\\') {
+				if (char === quoteChar && !isEscaped(text, i)) {
 					inQuote = false;
 				}
 			} else if (char === '"' || char === '\'' || char === '`') {
@@ -96,5 +142,13 @@ export function parseEnvFile(src: string) {
 		}
 
 		return -1;
+	}
+
+	function isEscaped(text: string, index: number): boolean {
+		let backslashCount = 0;
+		for (let i = index - 1; i >= 0 && text[i] === '\\'; i--) {
+			backslashCount++;
+		}
+		return backslashCount % 2 === 1;
 	}
 }
