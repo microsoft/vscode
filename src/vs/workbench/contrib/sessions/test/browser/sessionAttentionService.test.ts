@@ -81,7 +81,7 @@ suite('SessionAttentionService', () => {
 		const github = new TestGitHubService();
 		const sentiment = observableValue<IChatSentiment>('sentiment', {});
 		const sessionsManagement = upcastPartial<ISessionsManagementService>({
-			onDidChangeSessions: sessionsChanged.event, onDidDeleteSession: Event.None, getSessions: () => [...sessions],
+			onDidChangeSessions: sessionsChanged.event, onDidDeleteSession: Event.None, onDidReplaceSession: Event.None, getSessions: () => [...sessions],
 		});
 		const service = store.add(new SessionAttentionService(
 			sessionsManagement,

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceTimeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -10,7 +11,7 @@ import { autorun, IObservable, IReader, observableSignalFromEvent, observableVal
 import { isWindows, OperatingSystem } from '../../../../../../base/common/platform.js';
 import { localize } from '../../../../../../nls.js';
 import { cloudSandboxAddress } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost, IRemoteGitHubEnvironmentShare, IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { addSSHRemoteAgentHostEntry, getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, IRemoteAgentHostSSHConnection, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { computeSSHConnectionKey, ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { isTunnelHosted, ITunnelAgentHostService, ITunnelInfo, TUNNEL_ADDRESS_PREFIX, TUNNEL_MIN_PROTOCOL_VERSION, TunnelAuthenticationRequiredError } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
@@ -53,6 +54,10 @@ export interface ICustomizationRemote {
 	readonly unavailableReason?: string;
 	readonly hidden?: boolean;
 	readonly pickerUnavailableReason?: string;
+	/** Whether this remote's agent host can be shared as a GitHub environment now. */
+	readonly canShareAsGitHubEnvironment?: boolean;
+	/** Present while this remote's agent host is, or is being, shared as a GitHub environment. */
+	readonly gitHubEnvironment?: IRemoteGitHubEnvironmentShare;
 }
 
 export type IRemoteRefreshProgress =
@@ -71,6 +76,7 @@ export interface IRemotesModel extends IDisposable {
 	copyAddress(id: string): Promise<void>;
 	changePreferredAgentLocation(id: string): Promise<void>;
 	updateServer(id: string): Promise<void>;
+	setSharedAsGitHubEnvironment(id: string, shared: boolean): Promise<void>;
 	deleteTunnel(id: string): Promise<void>;
 	deleteSSHHost(id: string): Promise<void>;
 	remove(id: string): Promise<void>;
@@ -127,6 +133,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		@IProgressService private readonly progressService: IProgressService,
 		@IProductService private readonly productService: IProductService,
 		@IRemoteTunnelService remoteTunnelService: IRemoteTunnelService,
+		@IRemoteGitHubEnvironmentSharingService private readonly remoteSharing: IRemoteGitHubEnvironmentSharingService,
 	) {
 		super();
 		this.pickerVisibility = this._register(new RemoteAgentHostPickerVisibility(storageService));
@@ -138,6 +145,10 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		this._register(autorun(reader => {
 			providersChanged.read(reader);
 			environmentAvailabilityService.available.read(reader);
+			// Read unconditionally: `update` only reads them while GitHub environments are enabled.
+			remoteSharing.shareable.read(reader);
+			remoteSharing.shares.read(reader);
+			remoteSharing.environmentIds.read(reader);
 			for (const provider of providersService.getProviders().filter(isAgentHostProvider)) {
 				provider.localRegistration?.read(reader);
 			}
@@ -335,6 +346,27 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		await upgradeRemoteHost(provider, status.vscodeUpgradeMethod, this.remoteAgentHostService, this.notificationService, this.progressService);
 	}
 
+	async setSharedAsGitHubEnvironment(id: string, shared: boolean): Promise<void> {
+		const target = this.targets.get(id);
+		const remote = this._remotes.get().find(remote => remote.id === id);
+		if (!this.enabled || this._store.isDisposed || !remote || !target || target.kind === 'environment' || remote.gitHubEnvironment?.state === 'unavailable'
+			|| (shared ? !remote.canShareAsGitHubEnvironment : !remote.gitHubEnvironment)) {
+			throw new Error(localize('remotes.unavailable', "This remote is no longer available."));
+		}
+		await this.remoteSharing.setShared(id, shared);
+	}
+
+	/**
+	 * Stops sharing a remote before it is removed, while it can still withdraw its registration.
+	 * Bounded so that an unresponsive remote cannot block removal; the service retries a failed withdrawal.
+	 */
+	private async unshareBeforeRemoval(id: string): Promise<void> {
+		const share = this.remoteSharing.shares.get().get(id);
+		if (share && share.state !== 'unavailable') {
+			await raceTimeout(this.remoteSharing.setShared(id, false), 5000);
+		}
+	}
+
 	async rename(id: string): Promise<void> {
 		const remote = this._remotes.get().find(remote => remote.id === id);
 		if (!remote || !this.enabled) {
@@ -389,6 +421,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			if (!provider) {
 				throw new Error(localize('remotes.providerUnavailable', "The remote is not ready to be removed. Try again."));
 			}
+			await this.unshareBeforeRemoval(id);
 			await removeRemoteHost(provider, this.remoteAgentHostService, this.configurationService);
 		}
 		this.targets.delete(id);
@@ -413,6 +446,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			throw new CancellationError();
 		}
 		this.checkTunnelDeletion(current.tunnel);
+		await this.unshareBeforeRemoval(id);
 		await this.tunnelService.deleteTunnel(current.tunnel, current.authProvider);
 		this.tunnelDiscoveryVersion++;
 		this.targets.delete(id);
@@ -437,6 +471,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		if (sshConnectionKey(current) !== sshConnectionKey(connection)) {
 			throw new CancellationError();
 		}
+		await this.unshareBeforeRemoval(id);
 		removeSSHRemoteAgentHostEntry(this.storageService, id);
 		this.sshDiscoveryVersion++;
 		try {
@@ -519,12 +554,17 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				} else {
 					throw new Error(localize('remotes.providerNotReady', "The remote provider is not ready. Try again."));
 				}
-			} else if (provider?.disconnect) {
-				await provider.disconnect();
-			} else if (provider?.remoteAddress) {
-				await this.remoteAgentHostService.removeRemoteAgentHost(provider.remoteAddress);
 			} else {
-				throw new Error(localize('remotes.providerNotReady', "The remote provider is not ready. Try again."));
+				if (target.kind !== 'environment' && !await this.remoteSharing.confirmDisconnect(id, this._remotes.get().find(remote => remote.id === id)?.name ?? provider?.label ?? id)) {
+					return;
+				}
+				if (provider?.disconnect) {
+					await provider.disconnect();
+				} else if (provider?.remoteAddress) {
+					await this.remoteAgentHostService.removeRemoteAgentHost(provider.remoteAddress);
+				} else {
+					throw new Error(localize('remotes.providerNotReady', "The remote provider is not ready. Try again."));
+				}
 			}
 		} finally {
 			if (!this._store.isDisposed) {
@@ -604,6 +644,10 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		const tunnels = this.tunnelService.getCachedTunnels().filter(tunnel => !this.tunnelService.isTunnelDismissed(tunnel.tunnelId));
 		const environments = this.environmentService.hosts.read(reader);
 		const environmentsEnabled = this.enabled && this.environmentService.enabled;
+		const shareable = environmentsEnabled ? this.remoteSharing.shareable.read(reader) : new Set<string>();
+		const shares = environmentsEnabled ? this.remoteSharing.shares.read(reader) : new Map<string, IRemoteGitHubEnvironmentShare>();
+		// Remotes this client shares as GitHub environments are already listed under their own kind.
+		const sharedEnvironmentIds = environmentsEnabled ? this.remoteSharing.environmentIds.read(reader) : new Set<string>();
 		for (const [id, target] of this.targets) {
 			if (target.kind === 'environment') {
 				this.targets.delete(id);
@@ -612,7 +656,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		const account = this.environmentService.accountKey;
 		if (environmentsEnabled && account) {
 			for (const host of environments) {
-				if (host.kind === 'user-local') {
+				if (host.kind === 'user-local' && !sharedEnvironmentIds.has(host.id)) {
 					const target = { kind: 'environment' as const, host, account };
 					this.targets.set(this.getId(target), target);
 				}
@@ -692,6 +736,10 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					canDelete: this.registered.has(id) && target.entry.connection.type === RemoteAgentHostEntryType.SSH && !this.isSSHHostConfigured(target.entry.connection),
 				} : {}),
 				hidden, pickerUnavailableReason: this.getPickerUnavailableReason(target, provider, hidden, reader),
+				...(target.kind !== 'environment' && (shareable.has(id) || shares.has(id)) ? {
+					canShareAsGitHubEnvironment: shareable.has(id),
+					...(shares.has(id) ? { gitHubEnvironment: shares.get(id) } : {}),
+				} : {}),
 				connectionStatus: connectionStatuses.get(id) ?? RemoteAgentHostConnectionStatus.disconnected,
 				...(connectionErrors.has(id) ? { lastConnectionError: connectionErrors.get(id) } : {}),
 			});

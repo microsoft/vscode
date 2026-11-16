@@ -54,6 +54,7 @@ import { externalUriOpenersSettingId } from '../../../../../workbench/contrib/ex
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ISessionHost, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionGridPane } from '../../../../../workbench/services/sessions/browser/sessionGridPane.js';
@@ -87,6 +88,7 @@ suite('SessionChatInputToolbar', () => {
 			chatModels: constObservable([]),
 		}));
 		instantiationService.stub(IChatImageCarouselService, upcastPartial<IChatImageCarouselService>({}));
+		instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({ getWindow: () => undefined }));
 		instantiationService.stub(IWorkbenchGitHubService, upcastPartial<IWorkbenchGitHubService>({
 			onDidChangeDefaultClient: Event.None,
 		}));
@@ -119,9 +121,16 @@ suite('SessionChatInputToolbar', () => {
 		return { instantiationService, visibility, configuration };
 	}
 
-	async function createGitHubActivityBar(kind: SessionArtifactKind.PullRequest | SessionArtifactKind.Issue, providerId: string, getOpener?: IExternalUriOpenerService['getOpener']) {
+	async function createGitHubActivityBar(kind: SessionArtifactKind.PullRequest | SessionArtifactKind.Issue, providerId: string, getOpener?: IExternalUriOpenerService['getOpener'], inChatWindow = false, chatWindowRegistered = true) {
 		const services = createServices();
 		const { instantiationService } = services;
+		const reveals: string[] = [];
+		if (inChatWindow) {
+			instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({ kind: SessionHostKind.ChatWindow, parent: undefined, windowId: constObservable(7) }));
+			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
+				getWindow: windowId => windowId === 7 && chatWindowRegistered ? upcastPartial<IChatWindow>({ mainPart: upcastPartial<IChatWindow['mainPart']>({ activeGroup: upcastPartial<IChatWindow['mainPart']['activeGroup']>({ id: 99 }), getGroup: id => id === 50 ? upcastPartial<IChatWindow['mainPart']['activeGroup']>({ id }) : undefined }), showEditor: () => { reveals.push('chatWindow.showEditor'); } }) : undefined,
+			}));
+		}
 		const extensionsChanged = store.add(new Emitter<{ added: []; removed: [] }>());
 		instantiationService.stub(IExtensionService, 'onDidChangeExtensions', extensionsChanged.event);
 		if (getOpener) {
@@ -177,7 +186,7 @@ suite('SessionChatInputToolbar', () => {
 			isEditorPaneVisible: () => paneVisible || detailVisible,
 			isVisible: part => part === Parts.EDITOR_PART ? paneVisible : detailVisible,
 			hideSidePane: () => { paneVisible = false; detailVisible = false; stateChanged.fire(); },
-			revealEditorPartExplicitly: () => { paneVisible = true; stateChanged.fire(); },
+			revealEditorPartExplicitly: () => { reveals.push('main.revealEditorPartExplicitly'); paneVisible = true; stateChanged.fire(); },
 		}));
 		stubSessionsHostLayout(instantiationService);
 		instantiationService.stub(ISessionsService, 'panes', constObservable([]));
@@ -193,7 +202,7 @@ suite('SessionChatInputToolbar', () => {
 		store.add(autorun(reader => toolbar.activityBarActions.read(reader)));
 		await timeout(0);
 		return {
-			...services, toolbar, session, main, peer, artifacts, artifact, opened, revealed, sentiment, pullRequest, extensionsChanged,
+			...services, toolbar, session, main, peer, artifacts, artifact, opened, revealed, reveals, sentiment, pullRequest, extensionsChanged,
 			setEditor: (input: EditorInput | undefined) => {
 				editor = input;
 				if (input && !editors.some(entry => entry.editor === input)) {
@@ -233,6 +242,20 @@ suite('SessionChatInputToolbar', () => {
 			await timeout(0);
 		}
 		assert.deepStrictEqual({ counts, lookups: lookups - before }, { counts: Array(10).fill(1), lookups: 0 });
+	});
+
+	test('activity bar does not repeat opener checks when a state update recreates the same links', async () => {
+		let lookups = 0;
+		const { toolbar, artifacts } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID, async () => {
+			lookups++;
+			return upcastPartial<IExternalUriOpener>({ id: 'supported' });
+		});
+		const before = lookups;
+		for (let i = 0; i < 10; i++) {
+			artifacts.set(artifacts.get().map(entry => ({ ...entry, link: entry.link && URI.parse(entry.link.toString()) })), undefined);
+			await timeout(0);
+		}
+		assert.deepStrictEqual({ actions: toolbar.activityBarActions.get().length, lookups: lookups - before }, { actions: 1, lookups: 0 });
 	});
 
 	test('activity bar retains supported PRs while opener revalidation is pending', async () => {
@@ -278,6 +301,20 @@ suite('SessionChatInputToolbar', () => {
 			await toolbar.activityBarActions.get()[0].run();
 			assert.deepStrictEqual({ before, after: toolbar.activityBarActions.get()[0].checked, opened }, { before: false, after: true, opened: [] });
 		});
+
+		for (const { name, inChatWindow, registered, editorGroupId, expected } of [
+			{ name: 'the main window', inChatWindow: false, registered: true, editorGroupId: 1, expected: { reveals: ['main.revealEditorPartExplicitly'], revealed: [1] } },
+			{ name: 'the chat window that hosts the chat, from the group of another window', inChatWindow: true, registered: true, editorGroupId: 1, expected: { reveals: ['chatWindow.showEditor'], revealed: [99] } },
+			{ name: 'the chat window that hosts the chat, from its own group', inChatWindow: true, registered: true, editorGroupId: 50, expected: { reveals: ['chatWindow.showEditor'], revealed: [50] } },
+			{ name: 'no window when the chat window of the chat is not available', inChatWindow: true, registered: false, editorGroupId: 1, expected: { reveals: [], revealed: [] } },
+		]) {
+			test(`activity bar reveals an open ${kind} editor in ${name}`, async () => {
+				const { toolbar, setEditors, artifact, main, reveals, revealed } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID, undefined, inChatWindow, registered);
+				setEditors([{ editor: store.add(new TestEditorInput(artifact(1, main).link!, 'test.githubEditor')), groupId: editorGroupId }]);
+				await toolbar.activityBarActions.get()[0].run();
+				assert.deepStrictEqual({ reveals, revealed: revealed.map(entry => entry.groupId) }, expected);
+			});
+		}
 
 		test(`activity bar toggles ${kind} editors on repeated activation`, async () => {
 			const { toolbar, setEditor, setPaneVisible, artifact, main, opened } = await createGitHubActivityBar(kind, LOCAL_AGENT_HOST_PROVIDER_ID);
@@ -1115,20 +1152,28 @@ suite('SessionChatInputToolbar', () => {
 			mainChat: constObservable(mainChat),
 			workspace: mainChat.workspace,
 		});
-		const opened: { resource: string; chatResource: string | undefined }[] = [];
-		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({ kind: SessionHostKind.ChatWindow, parent: undefined }));
+		const opened: { resource: string; chatResource: string | undefined; group: unknown }[] = [];
+		const calls: string[] = [];
+		const chatWindowGroup = { id: 42 };
+		instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
+			getWindow: windowId => windowId === 7 ? upcastPartial<IChatWindow>({
+				mainPart: upcastPartial<IChatWindow['mainPart']>({ activeGroup: upcastPartial<IChatWindow['mainPart']['activeGroup']>(chatWindowGroup) }),
+				showEditor: () => { calls.push('chatWindow.showEditor'); },
+			}) : undefined,
+		}));
+		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({ kind: SessionHostKind.ChatWindow, parent: undefined, windowId: constObservable(7) }));
 		instantiationService.stub(ISessionsService, 'getPaneOfHost', () => undefined);
 		instantiationService.stub(ISessionsService, 'panes', constObservable([]));
 		instantiationService.stub(ISessionsService, 'setActive', () => { });
 		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
 			// The dropdowns of the pills show in the container of their window.
 			getContainer: window => window.document.body,
-			revealEditorPartExplicitly: () => { },
+			revealEditorPartExplicitly: () => { calls.push('main.revealEditorPartExplicitly'); },
 		}));
 		stubSessionsHostLayout(instantiationService);
 		instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
-			openChangesEditor: async (resource, options) => {
-				opened.push({ resource: resource.toString(), chatResource: options?.chatResource?.toString() });
+			openChangesEditor: async (resource, options, group) => {
+				opened.push({ resource: resource.toString(), chatResource: options?.chatResource?.toString(), group });
 				return undefined;
 			},
 		}));
@@ -1140,10 +1185,13 @@ suite('SessionChatInputToolbar', () => {
 			pill.click();
 		}
 
-		assert.deepStrictEqual(opened, [
-			{ resource: 'session:1', chatResource: 'chat:nested' },
-			{ resource: 'session:1', chatResource: 'chat:main' },
-		]);
+		assert.deepStrictEqual({ opened, calls }, {
+			opened: [
+				{ resource: 'session:1', chatResource: 'chat:nested', group: chatWindowGroup },
+				{ resource: 'session:1', chatResource: 'chat:main', group: chatWindowGroup },
+			],
+			calls: ['chatWindow.showEditor', 'chatWindow.showEditor'],
+		});
 	});
 
 	test('uses one GitHub row presentation in dedicated, artifact, and reference collections', () => {
@@ -1917,7 +1965,7 @@ suite('SessionChatInputToolbar', () => {
 		toolbar.setSession(session, chat);
 		const labels = () => Array.from(toolbar.element.querySelectorAll('.chat-pill-label'), label => label.textContent);
 		const clickPill = () => {
-			const pill = toolbar.getChatPetPlatformElements()[0];
+			const pill = toolbar.element.querySelector<HTMLElement>('.chat-pill-item > .chat-pill-button');
 			assert.ok(pill);
 			pill.click();
 		};
@@ -2070,7 +2118,7 @@ suite('SessionChatInputToolbar', () => {
 			};
 		};
 		const single = presentation();
-		toolbar.getChatPetPlatformElements()[0]?.click();
+		toolbar.element.querySelector<HTMLElement>('.chat-pill-item > .chat-pill-button')?.click();
 		toolbar.element.querySelector<HTMLElement>('.chat-pill-promoted-action')?.click();
 		canvases.set([preview, dashboard], undefined);
 		const multiple = presentation();
@@ -2177,7 +2225,7 @@ suite('SessionChatInputToolbar', () => {
 						: new MouseEvent('contextmenu', { bubbles: true }));
 					return menuActions;
 				};
-				const subagentPill = toolbar.getChatPetPlatformElements().at(-1);
+				const subagentPill = [...toolbar.element.querySelectorAll<HTMLElement>('.chat-pill-item > .chat-pill-button')].at(-1);
 				assert.ok(subagentPill);
 				subagentPill.click();
 				hideDropdown?.();
@@ -2194,7 +2242,7 @@ suite('SessionChatInputToolbar', () => {
 					visible: toolbar.visible,
 					empty: toolbar.element.classList.contains('empty'),
 				};
-				const recoveryTarget = toolbar.getChatPetPlatformElements()[0] ?? toolbar.element.querySelector<HTMLElement>('.chat-pills-row-content');
+				const recoveryTarget = toolbar.element.querySelector<HTMLElement>('.chat-pill-item > .chat-pill-button') ?? toolbar.element.querySelector<HTMLElement>('.chat-pills-row-content');
 				assert.ok(recoveryTarget);
 				const recoveryOptions = openMenu(recoveryTarget).find(action => action instanceof SubmenuAction);
 				assert.ok(recoveryOptions instanceof SubmenuAction);
@@ -2847,7 +2895,7 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
-	test('decorates a promoted PR as a details disclosure and leaves reference links plain', async () => {
+	test('decorates a promoted PR with an integration pill whose main part opens the pull request, and leaves reference links plain', async () => {
 		const { instantiationService } = createServices(true);
 		const link = URI.parse('https://github.com/microsoft/vscode/pull/42');
 		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
@@ -2903,11 +2951,57 @@ suite('SessionChatInputToolbar', () => {
 		const contribution = snapshot.get().contributions[0];
 		snapshot.set({ ...snapshot.get(), contributions: [{ ...contribution, view: { ...contribution.view, sections: [contribution.view.sections[0]] } }] }, undefined);
 		toolbar.element.querySelector<HTMLElement>('.artifact-integration-pill .chat-dropdown-pill-button')!.click();
+		const openedByPill = opened;
 		await toolbar.activityBarActions.get()[0].run();
 		assert.deepStrictEqual({
-			initial, updated: labels(), integratedPills: toolbar.element.querySelectorAll('.artifact-integration-pill').length, opened,
+			initial, updated: labels(), integratedPills: toolbar.element.querySelectorAll('.artifact-integration-pill').length, openedByPill, opened,
 			referencesPresent: !!toolbar.element.querySelector('.chat-dropdown-pill-button[aria-label="Show 1 reference"]'),
-		}, { initial: ['#42', '3/5', '2'], updated: ['#42', '3/5'], integratedPills: 1, opened: 1, referencesPresent: true });
+		}, { initial: ['#42', '3/5', '2'], updated: ['#42', '3/5'], integratedPills: 1, openedByPill: 1, opened: 2, referencesPresent: true });
+	});
+
+	test('offers the chat pet the whole integrated artifact pill, including its status sections', async () => {
+		const { instantiationService } = createServices(true);
+		const link = URI.parse('https://github.com/microsoft/vscode/pull/42');
+		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
+		const session = upcastPartial<ITestSessionWithChat>({
+			sessionId: 'quick-chat', resource: URI.parse('session:quick-chat'),
+			artifacts: constObservable<readonly ISessionArtifact[]>([{ id: 'recorded', kind: SessionArtifactKind.PullRequest, label: 'Recorded title', isArtifact: true, isGitHub: true, link }]),
+			loading: constObservable(false),
+			capabilities: constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true, supportsArtifactIntegrations: true }),
+			chats: constObservable([chat]), workspace: constObservable(undefined),
+		});
+		const snapshot: ArtifactSnapshot = {
+			authority: { id: 'host', targetHost: 'self', location: 'host' }, session: 'session:quick-chat',
+			artifact: { id: 'recorded', label: 'Recorded title', resource: link.toString(), isArtifact: true },
+			mainIntegrationId: 'github.pullRequest', runs: [],
+			contributions: [{
+				integrationId: 'github.pullRequest', label: 'GitHub Pull Request', actions: [], options: [],
+				configuration: { revision: 0, values: {}, generations: {}, disablements: {} },
+				view: {
+					availability: { kind: 'available' },
+					main: { icon: { id: 'git-pull-request' }, label: '#42', detailsId: 'main' },
+					groupId: 'github.pullRequest',
+					sections: [
+						{ id: 'checks', icon: { id: 'pending' }, label: '3/5', detailsId: 'checks' },
+						{ id: 'comments', icon: { id: 'comment-discussion' }, label: '2', detailsId: 'comments' },
+					],
+					stateActions: [], generalActions: [], automationAvailability: [],
+				},
+			}],
+		};
+		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+			createPullRequestModelReference: () => new ImmortalReference(upcastPartial<GitHubPullRequestModel>({ pullRequest: constObservable(undefined) })),
+		}));
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			onDidChangeSessions: Event.None,
+			acquireArtifactIntegration: async () => new ImmortalReference(upcastPartial<IArtifactModel>({ snapshot: constObservable(snapshot) })),
+		}));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined, undefined));
+		toolbar.setSession(session, chat);
+		await timeout(0);
+
+		// The pet must be able to stand on the sections joined to the pill, not only on its main button.
+		assert.deepStrictEqual(toolbar.getChatPetPlatformElements().map(platform => [...platform.querySelectorAll('.chat-pill-label')].map(label => label.textContent)), [['#42', '3/5', '2']]);
 	});
 
 	test('keeps a reference listed and pinnable in the References pill when the open-only filter hides the closed pull request it aliases', async () => {
@@ -2981,7 +3075,7 @@ suite('SessionChatInputToolbar', () => {
 			// The closed pull request is filtered out of the row, but the reference to it stays with the other references.
 			filtered: ['Show 2 references'],
 			dropdown: ['#42', 'Plain'],
-			pinned: ['Show artifact details: #42', 'Open Plain'],
+			pinned: ['Open #42', 'Open Plain'],
 			unpinLabel: 'Unpin #42',
 			unpinned: ['Show 2 references'],
 		});

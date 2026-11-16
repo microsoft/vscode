@@ -46,6 +46,7 @@ suite('Chat customizations hover', () => {
 		const scoped: string[] = [];
 		const events: { name: string; data?: ITelemetryData }[] = [];
 		const opened: { link: URI | string; options?: OpenOptions }[] = [];
+		const projectLabel = observableValue<string | undefined>(store, hasWorkspace ? 'Project' : undefined);
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatCustomizationsLocation]: 'chatInput' });
 		const telemetryService = new class extends NullTelemetryServiceShape {
 			override publicLog2(name?: string, data?: ITelemetryData): void {
@@ -93,7 +94,7 @@ suite('Chat customizations hover', () => {
 				override getDescriptorForSession() { return upcastPartial<IHarnessDescriptor>({ label: 'Claude', hiddenSections }); }
 			},
 			new class extends mock<IAICustomizationWorkspaceService>() {
-				override readonly activeProjectLabel = constObservable('Project');
+				override readonly activeProjectLabel = projectLabel;
 				override readonly activeProjectRoot = constObservable(hasWorkspace ? URI.file('/workspace') : undefined);
 			},
 			new class extends mock<IMcpService>() {
@@ -117,7 +118,7 @@ suite('Chat customizations hover', () => {
 			instantiationService,
 			openerService,
 		);
-		return { hover, observed, scoped, events, opened, configurationService, instantiationService, scopeDisposed: () => scopeDisposed };
+		return { hover, observed, scoped, events, opened, projectLabel, configurationService, instantiationService, scopeDisposed: () => scopeDisposed };
 	}
 
 	test('unfocused widget counts and deep links use that widget without retargeting the active model', async () => {
@@ -134,30 +135,36 @@ suite('Chat customizations hover', () => {
 		).filter(target => typeof target === 'object');
 		assert.deepStrictEqual({
 			observed, scoped, disposed: scopeDisposed(),
-			scope: rendered.querySelector('p:nth-of-type(2)')?.textContent?.replace(/\u00a0/g, ' '),
+			context: rendered.querySelector('p:nth-of-type(2)')?.textContent?.replace(/\u00a0/g, ' '),
 			counts: [...rendered.querySelectorAll('tbody tr')].map(row => row.querySelector('td:last-child')?.textContent?.trim()),
 			targets: links.map(target => target.sessionResource),
 		}, {
 			observed: [], scoped: [resource.toString()], disposed: true,
-			scope: 'Available for Claude and current workspace', counts: ['2', '1', '1', '1', '1'],
+			context: 'Claude \u00b7 other-project',
+			counts: ['2', '1', '1', '1', '1'],
 			targets: Array(6).fill(resource.toJSON()),
 		});
 	});
 
-	test('describes the session harness and workspace without including the workspace name', async () => {
+	test('shows compact harness and workspace context as plain text, or only the harness without a workspace', async () => {
 		const summaries = [];
-		for (const hasWorkspace of [true, false]) {
-			const { hover } = createHover([], Promise.resolve(), [], hasWorkspace);
+		for (const label of ['Project', '<b>Project</b> [Open](command:untrusted)', undefined]) {
+			const { hover, projectLabel } = createHover([], Promise.resolve(), [], label !== undefined);
+			projectLabel.set(label, undefined);
 			const content = (await hover.getContent(CancellationToken.None))!;
 			const rendered = store.add(renderMarkdown(content)).element;
+			const context = rendered.querySelector('p:nth-of-type(2)');
 			summaries.push({
 				title: rendered.querySelector('strong')?.textContent,
-				description: rendered.querySelector('p:nth-of-type(2)')?.textContent?.replace(/\u00a0/g, ' '),
+				context: context?.textContent?.replace(/\u00a0/g, ' '),
+				nestedMarkup: context?.querySelectorAll('b, a').length,
+				order: [...rendered.children].map(element => element.tagName),
 			});
 		}
 		assert.deepStrictEqual(summaries, [
-			{ title: 'Session Customizations', description: 'Available for Copilot and current workspace' },
-			{ title: 'Session Customizations', description: 'Available for Copilot' },
+			{ title: 'Session Customizations', context: 'Copilot \u00b7 Project', nestedMarkup: 0, order: ['P', 'P', 'TABLE', 'HR', 'P'] },
+			{ title: 'Session Customizations', context: 'Copilot \u00b7 <b>Project</b> [Open](command:untrusted)', nestedMarkup: 0, order: ['P', 'P', 'TABLE', 'HR', 'P'] },
+			{ title: 'Session Customizations', context: 'Copilot', nestedMarkup: 0, order: ['P', 'P', 'TABLE', 'HR', 'P'] },
 		]);
 	});
 

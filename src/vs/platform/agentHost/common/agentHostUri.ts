@@ -6,11 +6,11 @@
 import { decodeBase64, encodeBase64, encodeHex, VSBuffer } from '../../../base/common/buffer.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
-import { OperatingSystem } from '../../../base/common/platform.js';
 import { isEqualAuthority } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { createURITransformer } from '../../../base/common/uriTransformer.js';
 import type { ResourceLabelFormatter } from '../../label/common/label.js';
+import { PathStyle } from './state/protocol/common/commands.js';
 
 /**
  * The URI scheme for accessing files on a remote agent host.
@@ -277,21 +277,20 @@ export function agentHostAuthority(address: string): string {
 }
 
 /**
- * Authority of the in-process agent host. It always runs on the same
- * machine — and therefore the same operating system — as the client.
+ * Authority of the in-process agent host.
  */
 export const LOCAL_AGENT_HOST_AUTHORITY = 'local';
 
 /**
  * Fallback label formatter for {@link AGENT_HOST_SCHEME} URIs of hosts
- * whose operating system is unknown. The URI path is already the original
+ * whose path style is unknown. The URI path is already the original
  * resource path, so the label is the path verbatim.
  *
- * Deliberately lossless: without knowing the host's operating system,
+ * Deliberately lossless: without knowing the host's path style,
  * neither `\` separators nor drive letter normalization can be applied
  * safely, since `/c:/repo/a.ts` is a valid POSIX path too and rendering it
- * as `C:/repo/a.ts` would name a different resource. Hosts whose operating
- * system is known get {@link agentHostLabelFormatter} instead.
+ * as `C:/repo/a.ts` would name a different resource. Hosts whose path style
+ * is known get {@link agentHostLabelFormatter} instead.
  */
 export const AGENT_HOST_LABEL_FORMATTER: ResourceLabelFormatter = {
 	scheme: AGENT_HOST_SCHEME,
@@ -303,16 +302,16 @@ export const AGENT_HOST_LABEL_FORMATTER: ResourceLabelFormatter = {
 
 /**
  * Label formatter for {@link AGENT_HOST_SCHEME} URIs of an agent host whose
- * operating system is known, so its paths render the way they do natively
+ * path style is known, so its paths render the way they do natively
  * on that host (`C:\a\b` instead of `/c:/a/b`). This matters because such
  * URIs are shown side by side with plain `file:` URIs — for example as the
  * original side of a diff — which are always rendered natively.
  *
- * Registered per authority since the operating system cannot be derived
+ * Registered per authority since the path style cannot be derived
  * from the client: a Windows client may be connected to a POSIX host.
  */
-export function agentHostLabelFormatter(authority: string, os: OperatingSystem): ResourceLabelFormatter {
-	const isWindows = os === OperatingSystem.Windows;
+export function agentHostLabelFormatter(authority: string, pathStyle: PathStyle): ResourceLabelFormatter {
+	const isWindows = pathStyle === PathStyle.Windows;
 	return {
 		scheme: AGENT_HOST_SCHEME,
 		authority,

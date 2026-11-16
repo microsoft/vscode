@@ -30,7 +30,8 @@ import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../..
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ChangesetKind, resolveChangesetUriTemplate } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, SessionState, StateComponents, type TextRange } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChangesetFileStatus, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, SessionState, StateComponents, type TextRange } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { getChangesetFileStatus } from '../../../../../../platform/agentHost/common/agentHostProtocolTransition.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -155,6 +156,11 @@ class AgentHostEditReviewEntry extends ChatEditingModifiedDocumentEntry {
 		if (!await this._operations?.undo(this)) {
 			throw new CancellationError();
 		}
+	}
+
+	/** The agent host decides what is undone, so a document back at its baseline, as while its changes are stashed, stays undecided. */
+	protected override _rejectsWhenResetToInitialContent(): boolean {
+		return false;
 	}
 
 	/** Changes the agent host didn't keep stay undecided. */
@@ -964,21 +970,24 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	}
 }
 
-/** Reconciles the Working Set baseline without expanding an existing review, or returns undefined if precise comparison is unavailable. */
+/**
+ * Reconciles the Working Set baseline without expanding an existing review, or returns undefined if precise comparison is unavailable.
+ * A document that matches the recorded content holds only the agent's changes, so it is compared with the baseline itself.
+ */
 async function getReviewedOriginal(file: IWorkingSetFile, live: string, eol: string, workerService: IEditorWorkerService, trackedOriginal?: string): Promise<string | undefined> {
+	const baseline = withLineEndings(file.baseline, eol);
+	const current = withLineEndings(file.current, eol);
+	if (live === current) {
+		return baseline;
+	}
 	if (trackedOriginal === live) {
 		return live;
 	}
-	const baseline = withLineEndings(file.baseline, eol);
-	const current = withLineEndings(file.current, eol);
-	let original = baseline;
-	if (live !== current) {
-		const [agent, user] = await Promise.all([computeEdit(baseline, current, workerService), computeEdit(current, live, workerService)]);
-		if (!agent || !user) {
-			return undefined;
-		}
-		original = user.rebaseSkipConflicting(agent.inverse(baseline)).apply(baseline);
+	const [agent, user] = await Promise.all([computeEdit(baseline, current, workerService), computeEdit(current, live, workerService)]);
+	if (!agent || !user) {
+		return undefined;
 	}
+	const original = user.rebaseSkipConflicting(agent.inverse(baseline)).apply(baseline);
 	if (trackedOriginal === undefined || trackedOriginal === original) {
 		return original;
 	}
@@ -1077,7 +1086,7 @@ function isSameWorkingSetFile(a: IWorkingSetFileChange, b: IWorkingSetFileChange
 function toWorkingSetFileChanges(state: ChangesetState, workingSet: IWorkingSet): IWorkingSetFileChange[] {
 	return state.files.map(file => {
 		const diff = agentHostChangesetFileToEntryDiff(file, workingSet.connection, workingSet.resourceAuthority);
-		return diff && { diff, nonce: file.nonce, editing: file.isEditing === true };
+		return diff && { diff, nonce: file.nonce, editing: !!(getChangesetFileStatus(file) & ChangesetFileStatus.Editing) };
 	}).filter(isDefined);
 }
 

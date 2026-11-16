@@ -88,6 +88,7 @@ export const enum AccessibilityVerbositySettingId {
 	AgentsWindowExtensions = 'accessibility.verbosity.agentsWindowExtensions',
 	ConnectionDiagnostics = 'accessibility.verbosity.connectionDiagnostics',
 	BrowserElementCommenting = 'accessibility.verbosity.browserElementCommenting',
+	ScreenshotTool = 'accessibility.verbosity.screenshotTool',
 	ChatPetAchievements = 'accessibility.verbosity.chatPetAchievements',
 	ChatPetJumpGame = 'accessibility.verbosity.chatPetJumpGame'
 }
@@ -305,6 +306,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.BrowserElementCommenting]: {
 			description: localize('verbosity.browserElementCommenting', 'Provide information about how to access element commenting accessibility help in the Integrated Browser.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.ScreenshotTool]: {
+			description: localize('verbosity.screenshotTool', "Provide information about how to access the screenshot tool accessibility help when the screenshot tool opens."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.ChatPetAchievements]: {

@@ -16,16 +16,18 @@ export class GitHubRepositoryFetcher {
 		return this.client.withClient(async (client, signal) => {
 			if (query.trim()) {
 				const [user, organizations] = await Promise.all([
-					client.users.getAuthenticated(signal),
-					client.organizations.listForAuthenticatedUser(signal, { query: { per_page: 100 } }),
+					client.users.getAuthenticated(signal, { caller: 'githubRepositoryFetcher' }),
+					client.organizations.listForAuthenticatedUser(signal, { caller: 'githubRepositoryFetcher', query: { per_page: 100 } }),
 				]);
 				const scope = [`user:${user.login}`, ...organizations.map(organization => `org:${organization.login}`)].join(' ');
 				const response = await client.search.repositories(`${query.trim()} in:name fork:true ${scope}`, signal, {
+					caller: 'githubRepositoryFetcher',
 					query: { sort: 'updated', per_page: 100 },
 				});
 				return response.items.map(toGitHubRepository);
 			}
 			const repositories = await client.repositories.listForAuthenticatedUser(signal, {
+				caller: 'githubRepositoryFetcher',
 				query: { per_page: 100, sort: 'updated', affiliation: 'owner,collaborator,organization_member' },
 			});
 			return repositories.map(toGitHubRepository);

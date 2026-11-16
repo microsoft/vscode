@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.75.0",
+  "version": "0.76.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.147.0",
+    "vscode": "^1.148.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -92,6 +92,7 @@
   "enabledApiProposals": [
     "agentSessionsWorkspace",
     "speech",
+    "structuralDiff",
     "agentsWindowConfiguration",
     "chatDebug",
     "chatHooks",
@@ -6846,7 +6847,6 @@
     "@types/yargs": "^17.0.24",
     "@typescript/native": "npm:typescript@7.1.0-dev.20261105.1",
     "@vitest/snapshot": "^1.5.0",
-    "@vscode/l10n-dev": "0.0.35",
     "@vscode/test-cli": "^0.0.11",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/test-web": "^0.0.81",

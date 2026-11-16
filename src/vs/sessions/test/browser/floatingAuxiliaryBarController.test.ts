@@ -52,6 +52,7 @@ suite('Sessions - Floating Details', () => {
 		let requestedHeight = 400;
 		let collapses = 0;
 		let title = 'Files';
+		let changesViewActive = false;
 		const titleChanges = store.add(new Emitter<void>());
 		const motionChanges = store.add(new Emitter<void>());
 		const contentChanges = store.add(new Emitter<void>());
@@ -70,6 +71,7 @@ suite('Sessions - Floating Details', () => {
 		const host = {
 			getTitle: () => title,
 			getIcon: () => title === 'Changes' ? Codicon.diff : Codicon.files,
+			isChangesViewActive: () => changesViewActive,
 			onDidChangeTitle: titleChanges.event,
 			getWidth: () => requestedWidth,
 			setWidth: (value: number) => {
@@ -98,6 +100,7 @@ suite('Sessions - Floating Details', () => {
 				height = nextHeight;
 				Object.assign(editor.style, { width: `${width}px`, height: `${height}px` });
 			},
+			setChangesViewActive: (value: boolean) => { changesViewActive = value; titleChanges.fire(); },
 			snapshot: () => {
 				const overlay = editor.querySelector<HTMLElement>('.floating-details')!;
 				return {
@@ -1517,6 +1520,19 @@ suite('Sessions - Floating Details', () => {
 			width: 'Resize Changes Width. Use Left and Right Arrow keys.',
 			height: 'Resize Changes Height. Use Up and Down Arrow keys.',
 		});
+	});
+
+	test('marks the floating panel as opaque only while Changes is active', () => {
+		const { editor, controller, setChangesViewActive } = createHost();
+		controller.layout(33);
+		const widget = editor.querySelector<HTMLElement>('.floating-details')!;
+		const states = [widget.classList.contains('changes-view-active')];
+		setChangesViewActive(true);
+		states.push(widget.classList.contains('changes-view-active'));
+		setChangesViewActive(false);
+		states.push(widget.classList.contains('changes-view-active'));
+
+		assert.deepStrictEqual(states, [false, true, false]);
 	});
 
 	test('floating contents do not inherit the pane reveal slide or fade', () => {

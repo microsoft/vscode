@@ -922,6 +922,19 @@ suite('WebPubSubRelayTransport', () => {
 		assert.deepStrictEqual(socket.sentApplicationPublishes(), []);
 	});
 
+	test('refuses a shell authentication answer before publishing, but still sends its cancellation', async () => {
+		const socket = new FakeWebSocket();
+		const transport = createTransport(socket);
+		await connectHandshake(transport, socket);
+		const params = { chat: 'copilot:/chat', requestId: 'shell-auth' };
+		assert.throws(() => transport.send({
+			jsonrpc: '2.0', id: 1, method: 'vscode/answerShellAuthentication', params: { ...params, answer: 'relay-test-password' },
+		}), /Refusing to send a shell authentication answer/);
+		const cancellation: JsonRpcRequest = { jsonrpc: '2.0', id: 2, method: 'vscode/answerShellAuthentication', params };
+		transport.send(cancellation);
+		assert.deepStrictEqual(socket.sentApplicationPublishes().map(publish => publish['data']), [{ kind: 'message', data: cancellation }]);
+	});
+
 	test('redacts sealed authentication from the WPS transcript without changing wire messages', async () => {
 		const fileService = createInMemoryFileService(store, Schemas.file);
 		const logger = store.add(new AhpJsonlLogger(

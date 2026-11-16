@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IAction, Separator, toAction } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IMenu, IMenuActionOptions, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuActionOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { AgentHostPullRequestOperationId } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -51,20 +52,21 @@ suite('ChangesActionsBar', () => {
 						: arg;
 	}
 
-	function createBar(providerId: string, getActionsOptions: Map<MenuId, IMenuActionOptions | undefined> = new Map(), { isMainWindowSession = false, operations = [] as ISessionChangesetOperation[], artifactIntegrationsEnabled = false } = {}) {
+	function createBar(providerId: string, getActionsOptions: Map<MenuId, IMenuActionOptions | undefined> = new Map(), { isMainWindowSession = false, operations = [] as ISessionChangesetOperation[], artifactIntegrationsEnabled = false, toolbar = [] as [string, Array<MenuItemAction | SubmenuItemAction>][] } = {}) {
 		const menus: MenuId[] = [];
 		const toolbarArgs: unknown[] = [];
+		const shownMenus: (readonly IAction[])[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IMenuService, upcastPartial<IMenuService>({
 			createMenu: (id: MenuId) => {
 				menus.push(id);
-				return upcastPartial<IMenu>({ onDidChange: Event.None, getActions: (options?: IMenuActionOptions) => { getActionsOptions.set(id, options); if (id === MenuId.AgentsChangesToolbar) { toolbarArgs.push(options?.args ?? options?.arg); } return []; }, dispose: () => { } });
+				return upcastPartial<IMenu>({ onDidChange: Event.None, getActions: (options?: IMenuActionOptions) => { getActionsOptions.set(id, options); if (id === MenuId.AgentsChangesToolbar) { toolbarArgs.push(options?.args ?? options?.arg); return toolbar; } return []; }, dispose: () => { } });
 			},
 		}));
 		const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
 		SessionArtifactIntegrationsEnabledContext.bindTo(contextKeyService).set(artifactIntegrationsEnabled);
 		instantiationService.stub(IContextKeyService, contextKeyService);
-		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({}));
+		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({ showContextMenu: delegate => { shownMenus.push(delegate.getActions?.() ?? []); } }));
 		instantiationService.stub(IContextViewService, upcastPartial<IContextViewService>({}));
 		instantiationService.stub(IKeybindingService, new MockKeybindingService());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -101,7 +103,7 @@ suite('ChangesActionsBar', () => {
 		};
 		const container = document.createElement('div');
 		store.add(instantiationService.createInstance(ChangesActionsBar, container, source, new Set<string>()));
-		return { menus, session, container, toolbarArgs };
+		return { menus, session, container, toolbarArgs, shownMenus };
 	}
 
 	test('renders the git variant for a non-agent-host source session', () => {
@@ -144,6 +146,23 @@ suite('ChangesActionsBar', () => {
 			// The main window's session waits for its folders to be mounted, as before.
 			mainWindowSession: shown(createBar('local-agent-host', new Map(), { operations, isMainWindowSession: true }).container),
 		}, { otherSession: true, mainWindowSession: false });
+	});
+
+	test('a bar whose button an operation owns, such as Merge Changes, offers the actions of the submenus of its toolbar, such as Submit Feedback, in the dropdown of that button, since it renders only that button', () => {
+		const operations = [upcastPartial<ISessionChangesetOperation>({ id: 'merge', label: 'Merge Changes', scopes: [SessionChangesetOperationScope.Changeset] })];
+		const applyActions = new SubmenuItemAction({ title: 'Apply Actions', submenu: MenuId.AgentsChangesPrimaryActionSubMenu }, undefined, [
+			toAction({ id: 'submitFeedback', label: 'Submit Feedback (3)', run: () => { } }),
+			new Separator(),
+			toAction({ id: 'fixChecks', label: 'Fix Checks', run: () => { } }),
+		]);
+		const { container, shownMenus } = createBar('local-agent-host', new Map(), { operations, toolbar: [['navigation', [applyActions]]] });
+
+		container.querySelector<HTMLElement>('.monaco-dropdown-button')?.click();
+
+		assert.deepStrictEqual({
+			button: container.querySelector('.monaco-button')?.textContent,
+			dropdown: shownMenus.map(actions => actions.map(action => action instanceof Separator ? '---' : action.label)),
+		}, { button: 'Merge Changes', dropdown: [['---', 'Submit Feedback (3)', 'Fix Checks']] });
 	});
 
 	test('the actions of its operations dropdown, such as Agent Merge, act on the session of the bar, such as that of a chat window, not on the active session', () => {

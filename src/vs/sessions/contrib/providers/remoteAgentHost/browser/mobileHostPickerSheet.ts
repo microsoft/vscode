@@ -270,7 +270,7 @@ export class MobileHostPickerSheet extends Disposable {
 		readonly navigates?: boolean;
 		readonly ariaLabel: string;
 	}, select: () => void): HTMLElement {
-		const button = dom.append(body, $('button.host-picker-row', { type: 'button' })) as HTMLButtonElement;
+		const button = dom.append(body, $('button.host-picker-row.agent-sessions-interactive.agent-sessions-interactive-list', { type: 'button' })) as HTMLButtonElement;
 		button.classList.toggle('checked', row.checked === true);
 		button.classList.toggle('navigates', row.navigates === true);
 		// Rows with a `checked` state are one choice among several; the rest
@@ -311,7 +311,7 @@ export class MobileHostPickerSheet extends Disposable {
 	}
 
 	private _renderRefreshAction(section: HTMLElement, store: DisposableStore): HTMLButtonElement {
-		const action = dom.append(section, $('button.host-picker-section-action', { type: 'button' })) as HTMLButtonElement;
+		const action = dom.append(section, $('button.host-picker-section-action.agent-sessions-interactive', { type: 'button' })) as HTMLButtonElement;
 		const icon = dom.append(action, $('span.host-picker-section-action-icon'));
 		icon.append(...renderLabelWithIcons(`$(${Codicon.refresh.id})`));
 		const label = dom.append(action, $('span'));
