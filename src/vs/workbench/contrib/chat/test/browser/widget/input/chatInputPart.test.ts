@@ -6,6 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import * as dom from '../../../../../../../base/browser/dom.js';
+import '../../../../../../../base/browser/ui/codicons/codiconStyles.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../../base/common/async.js';
 import { Action } from '../../../../../../../base/common/actions.js';
@@ -66,6 +67,7 @@ import { IChatToolInvocation } from '../../../../common/chatService/chatService.
 import { ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { Target } from '../../../../common/promptSyntax/promptTypes.js';
+import '../../../../../../browser/media/style.css';
 import '../../../../browser/widget/media/chat.css';
 import { IChatSessionFileChange2 } from '../../../../../../common/chatSessionFileChange.js';
 
@@ -109,13 +111,14 @@ suite('ChatInputPart', () => {
 				},
 			});
 			store.add(MenuRegistry.appendMenuItem(MenuId.ChatExecuteSecondary, { command: { id: 'test.sendLater', title: 'Send Later...', icon: Codicon.clock } }));
-			const send = instantiationService.createInstance(MenuItemAction, { id: 'test.send', title: 'Send', icon: Codicon.arrowUp }, undefined, { shouldForwardArgs: true }, undefined, undefined);
+			const send = instantiationService.createInstance(MenuItemAction, { id: 'test.send', title: 'Send', icon: Codicon.arrowUpCompact }, undefined, { shouldForwardArgs: true }, undefined, undefined);
 			const queue = store.add(new Action('test.queue', 'Queue'));
 			const item = store.add(instantiationService.createInstance(ChatQueuePickerActionItem, busy ? queue : send, busy ? {} : { primaryAction: instantiationService.createInstance(MenuEntryActionViewItem, send, {}) }));
 			const context = { widget: upcastPartial<IChatWidget>({}) };
 			item.setActionContext(context);
-			const root = dom.append(mainWindow.document.body, dom.$('.interactive-session'));
+			const root = dom.append(mainWindow.document.body, dom.$('.monaco-workbench.interactive-session'));
 			store.add(toDisposable(() => root.remove()));
+			root.style.setProperty('--vscode-codiconFontSize-compact', '12px');
 			const toolbars = dom.append(root, dom.$('.chat-input-toolbars'));
 			const toolbar = dom.append(toolbars, dom.$('.chat-execute-toolbar'));
 			const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
@@ -123,6 +126,8 @@ suite('ChatInputPart', () => {
 			item.render(container);
 			item.focus();
 			const primary = container.querySelector<HTMLElement>('.action-container .action-label')!;
+			const primaryStyle = mainWindow.getComputedStyle(primary);
+			const primaryIcon = { fontSize: primaryStyle.fontSize, fontWeight: primaryStyle.fontWeight };
 			primary.click();
 			primary.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
 			const dropdown = container.querySelector<HTMLElement>('.dropdown-action-container .action-label')!;
@@ -136,12 +141,13 @@ suite('ChatInputPart', () => {
 				sharedControl: container.classList.contains('monaco-dropdown-with-default'),
 				circularSend: !!container.querySelector('.chat-submit-button'),
 				nestedButtons: container.querySelectorAll('[role="button"] [role="button"]').length,
-				dropdownFocused, primaryFocused, labels, calls, sendLaterIcon,
+				dropdownFocused, primaryFocused, labels, calls, sendLaterIcon, primaryIcon,
 			}, {
 				sharedControl: true, circularSend: false, nestedButtons: 0,
 				dropdownFocused: true, primaryFocused: true,
 				labels: busy ? ['Stop and Send', 'Add to Queue', 'Steer with Message', 'Send Later...'] : ['Send Later...'],
 				sendLaterIcon: { id: Codicon.clock.id, hidden: false },
+				primaryIcon: { fontSize: busy ? '16px' : '12px', fontWeight: '400' },
 				calls: [{ id: busy ? ChatQueueMessageAction.ID : 'test.send', args: busy ? [] : [context] }, { id: 'test.sendLater', args: [context] }],
 			});
 			if (busy) {
