@@ -138,7 +138,7 @@ import { IChatEditingService } from '../../../common/editing/chatEditingService.
 import { IChatSessionReviewPreferencesService } from '../../../common/editing/chatSessionReviewPreferences.js';
 import { HIDE_AUTO_EXPLAINABILITY_TREATMENT } from '../../../common/chatAutoModeExplainability.js';
 import { isModelRouterModelId, modelRouterNameFromModelId } from '../../../../../../platform/agentHost/common/modelRouter.js';
-import { resolveByokLmReportedModelId } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
+import { isByokLmAgentModelId, resolveByokLmReportedModelId } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
 import { AUTO_RAW_MODEL_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../common/languageModelSourcePresentation.js';
 import { ChatInputStateOrigin, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatRequestModeInstructions, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
@@ -7874,15 +7874,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!sessionType.endsWith(this._config.provider)) {
 			return sessionType;
 		}
+		const chatProvider = this._getOtherAgentChatProvider(sessionResource);
+		return chatProvider
+			? `${sessionType.slice(0, sessionType.length - this._config.provider.length)}${chatProvider}`
+			: sessionType;
+	}
+
+	/** The agent backing the chat `sessionResource` names, when its session's catalog advertises another than the session's. */
+	private _getOtherAgentChatProvider(sessionResource: URI): string | undefined {
 		// A chat is addressed by its fragment or, for a subagent chat, its query parameter: match the backend chat it
 		// resolves to against the session's catalog.
 		const backendSession = this._resolveSessionUri(sessionResource);
 		const state = this._getRawSessionState(backendSession.toString());
 		const chat = state && this._getChatURIOrDefault(sessionResource, backendSession, state);
 		const chatProvider = chat !== undefined ? state?.chats.find(summary => summary.resource === chat)?.provider : undefined;
-		return state && chatProvider && chatProvider !== state.provider
-			? `${sessionType.slice(0, sessionType.length - this._config.provider.length)}${chatProvider}`
-			: sessionType;
+		return state && chatProvider && chatProvider !== state.provider ? chatProvider : undefined;
 	}
 
 	private _getTurnResponseDetails(sessionResource: URI, backendSession: URI, turn: Turn | undefined): string | undefined {
@@ -7906,7 +7912,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/** A {@link _createTurnModelLookup} whose reported model ids are read against the model the turn selected, if any. */
 	private _createSelectedTurnModelLookup(sessionResource: URI, fallbackRawModelId: string | undefined, selectedRawModelId: string | undefined, hideAutoExplainability: boolean | undefined): TurnModelLookup {
 		const resolveRaw = (rawModelId: string | undefined): string | undefined => rawModelId ?? fallbackRawModelId;
-		const reported = (rawModelId: string | undefined) => resolveByokLmReportedModelId(rawModelId, selectedRawModelId);
+		// Dropping a BYOK model's provider is the Copilot runtime's convention; any other agent's reported id is taken as reported.
+		const selectedCopilotByokModelId = selectedRawModelId && isByokLmAgentModelId(selectedRawModelId)
+			&& (this._getOtherAgentChatProvider(sessionResource) ?? this._config.provider) === COPILOT_CLI_AGENT_PROVIDER_ID ? selectedRawModelId : undefined;
+		const reported = (rawModelId: string | undefined) => resolveByokLmReportedModelId(rawModelId, selectedCopilotByokModelId);
 		// Try the raw billed id and its dots-normalised form (slug mismatch:
 		// `claude-sonnet-4-6` → `.6`) before falling back to the picked model.
 		const lookupRawModel = (rawModelId: string | undefined): { identifier: string; model: ILanguageModelChatMetadata; resolvedFromRaw: true } | undefined => {

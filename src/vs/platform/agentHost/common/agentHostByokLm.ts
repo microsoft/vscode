@@ -251,8 +251,8 @@ export function isByokLmAgentModelId(modelId: string): boolean {
 }
 
 /**
- * Returns the model id a turn's reported model id names. The runtime reports a BYOK model without
- * its provider, which in a turn that selected a BYOK model is that selection.
+ * Returns the model id a Copilot turn's reported model id names. The Copilot runtime reports a BYOK
+ * model without its provider, which in a turn that selected a BYOK model is that selection.
  */
 export function resolveByokLmReportedModelId(reportedModelId: string | undefined, selectedModelId: string | undefined): string | undefined {
 	return reportedModelId && selectedModelId?.endsWith(`/${reportedModelId}`) ? selectedModelId : reportedModelId;
