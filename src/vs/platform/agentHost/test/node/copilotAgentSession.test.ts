@@ -1489,6 +1489,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	getUserMcpServers?: () => Promise<Awaited<ReturnType<CopilotClient['rpc']['mcp']['config']['list']>>['servers']>;
 	disabledRootMcpServers?: readonly string[];
 	controlPlaneRpcTimeoutMs?: number;
+	readCanvasIcon?: (path: string, extensionId: string) => Promise<string | undefined>;
 	extensionSessionApprovals?: Set<string>;
 	connectorRefreshTimeoutMs?: number;
 	connectorOwnershipLookupTimeoutMs?: number;
@@ -2009,6 +2010,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			enableDevelopmentErrorInjection: options?.enableDevelopmentErrorInjection ?? true,
 			realpath: options?.realpath,
 			controlPlaneRpcTimeoutMs: options?.controlPlaneRpcTimeoutMs,
+			readCanvasIcon: options?.readCanvasIcon,
 			extensionSessionApprovals: options?.extensionSessionApprovals,
 			connectorRefreshTimeoutMs: options?.connectorRefreshTimeoutMs,
 			connectorOwnershipLookupTimeoutMs: options?.connectorOwnershipLookupTimeoutMs,
@@ -4933,6 +4935,101 @@ suite('CopilotAgentSession', () => {
 		}
 	});
 
+	test('withholds a canvas listing when the extensions reload while its icons are read', async () => {
+		const reading = new DeferredPromise<void>();
+		const read = new DeferredPromise<string | undefined>();
+		const { session, mockSession } = await createAgentSession(disposables, {
+			readCanvasIcon: () => {
+				reading.complete();
+				return read.p;
+			},
+			configureMockSession: mock => {
+				mock.extensions.push({ id: 'user:board', name: 'board', source: 'user', status: 'dormant' });
+				mock.canvases.push({ canvasId: 'board', extensionId: 'user:board', displayName: 'Board', description: 'Shows a board.', icon: '/extensions/board/icon.png' });
+			},
+		});
+		const listing = session.listCanvases();
+		await reading.p;
+		mockSession.fire('session.canvas.registry_changed', { canvases: [] });
+		read.complete(undefined);
+		assert.deepStrictEqual({ stale: await listing, fresh: (await session.listCanvases())?.map(canvas => canvas.canvasId) }, { stale: undefined, fresh: ['board'] });
+		session.dispose();
+	});
+
+	test('settles the canvas registry without waiting for its icons', async () => {
+		const reads: DeferredPromise<string | undefined>[] = [];
+		const { session, mockSession, signals } = await createAgentSession(disposables, {
+			readCanvasIcon: () => {
+				const read = new DeferredPromise<string | undefined>();
+				reads.push(read);
+				return read.p;
+			},
+			configureMockSession: mock => {
+				mock.extensions.push({ id: 'user:board', name: 'board', source: 'user', status: 'dormant' });
+				mock.canvases.push({ canvasId: 'board', extensionId: 'user:board', displayName: 'Board', description: 'Shows a board.', icon: '/extensions/board/icon.png' });
+			},
+		});
+		const changes = () => getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged).length;
+		// A listing while the extension starts leaves the registry unsettled.
+		mockSession.extensions[0] = { ...mockSession.extensions[0], status: 'starting' };
+		const whileStarting = await session.listCanvases();
+		mockSession.extensions[0] = { ...mockSession.extensions[0], status: 'dormant' };
+		const before = changes();
+		const listing = session.listCanvases();
+		await retry(async () => assert.strictEqual(reads.length, 1), 10, 100);
+		const settledWhileReading = changes() > before;
+		reads[0].complete(undefined);
+		assert.deepStrictEqual({ whileStarting, settledWhileReading, listed: (await listing)?.map(canvas => canvas.canvasId) }, { whileStarting: undefined, settledWhileReading: true, listed: ['board'] });
+		session.dispose();
+	});
+
+	test('shows the icon of the latest read of a canvas, whichever read finishes first', async () => {
+		const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+		const [before, after] = [toCanvasIconDataUri(png), toCanvasIconDataUri(Buffer.concat([png, Buffer.alloc(3)]))];
+		const results = [];
+		for (const order of ['olderFirst', 'newerFirst'] as const) {
+			const reads: DeferredPromise<string | undefined>[] = [];
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				readCanvasIcon: () => {
+					const read = new DeferredPromise<string | undefined>();
+					reads.push(read);
+					return read.p;
+				},
+			});
+			mockSession.fire('session.canvas.opened', { instanceId: 'board', extensionId: 'user:board', canvasId: 'board', icon: '/extensions/board/icon.png', url: 'https://example.test/board' });
+			// The extension reloads with a new icon while its first icon is still read.
+			mockSession.fire('session.canvas.registry_changed', { canvases: [] });
+			for (const [read, icon] of order === 'olderFirst' ? [[reads[0], before], [reads[1], after]] as const : [[reads[1], after], [reads[0], before]] as const) {
+				read.complete(icon);
+				await timeout(0);
+			}
+			results.push({ order, reads: reads.length, icons: signals.filter(signal => signal.kind === 'canvas').map(signal => readCanvasIcon(signal.state)) });
+			session.dispose();
+		}
+		assert.deepStrictEqual(results, [
+			{ order: 'olderFirst', reads: 2, icons: [undefined, after] },
+			{ order: 'newerFirst', reads: 2, icons: [undefined, after] },
+		]);
+	});
+
+	test('shows the icon of a canvas that becomes unavailable while its icon is read', async () => {
+		const icon = toCanvasIconDataUri(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64'));
+		const read = new DeferredPromise<string | undefined>();
+		const { session, mockSession, signals } = await createAgentSession(disposables, { readCanvasIcon: () => read.p });
+		const canvas = { instanceId: 'board', extensionId: 'user:board', canvasId: 'board' };
+		mockSession.fire('session.canvas.opened', { ...canvas, icon: '/extensions/board/icon.png', url: 'https://example.test/board' });
+		// The extension stops before its icon is read; the canvas still declares that icon.
+		mockSession.fire('session.canvas.unavailable', canvas);
+		read.complete(icon);
+		await timeout(0);
+		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'canvas').map(signal => ({ uri: signal.state.uri, icon: readCanvasIcon(signal.state) })), [
+			{ uri: 'https://example.test/board', icon: undefined },
+			{ uri: undefined, icon: undefined },
+			{ uri: undefined, icon },
+		]);
+		session.dispose();
+	});
+
 	test('reports why the runtime declined a canvas open, and throws its other failures', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		const results: string[] = [];
@@ -6104,6 +6201,86 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(results, [
 				{ trigger: 'restore', outcome: 'opened', askedForConsent: true },
 				{ trigger: 'restore', outcome: 'consentDenied', askedForConsent: true },
+			]);
+		});
+
+		test('restores a handed-over canvas whose icon is shown again at any step of its restoration, unless it is closed', async () => {
+			const icon = toCanvasIconDataUri(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64'));
+			const results = [];
+			for (const step of ['declarations', 'status', 'open'] as const) {
+				for (const closed of [false, true]) {
+					const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, icon: '/extensions/preview/icon.png', url: 'https://example.test/previous' });
+					const held = new DeferredPromise<void>();
+					const gate = new DeferredPromise<void>();
+					const reopens: string[] = [];
+					let mock: MockCopilotSession | undefined;
+					// Initialization lists the declared canvases, so holding that step holds the session's creation.
+					const creating = createAgentSession(disposables, {
+						resume: true,
+						canvasHandoff: handoff,
+						readCanvasIcon: async () => icon,
+						configureMockSession: configured => {
+							mock = configured;
+							// Holds the restoration at one step: listing the declared canvases after the open ones, reading the extension status, or reopening.
+							if (step === 'declarations') {
+								configured.onCanvasListOpen = () => {
+									configured.canvasListGate = gate.p;
+									void held.complete();
+								};
+								configured.onCanvasList = () => { configured.canvasListGate = undefined; };
+							} else if (step === 'status') {
+								configured.onCanvasList = () => { configured.extensionListGate = gate.p; };
+								configured.onExtensionList = () => {
+									if (configured.extensionListGate) {
+										void held.complete();
+									}
+									configured.extensionListGate = undefined;
+								};
+							}
+							configured.onCanvasOpen = async params => {
+								reopens.push(params.instanceId);
+								if (step === 'open') {
+									void held.complete();
+									await gate.p;
+								}
+								return { ...preview, icon: '/extensions/preview/icon.png', url: 'https://example.test/restored' };
+							};
+						},
+					});
+					await held.p;
+					await timeout(0);
+					// An extension reload shows the canvas's icon again, which changes nothing else about it; the runtime may then close the canvas.
+					mock!.fire('session.canvas.registry_changed', { canvases: [] });
+					await timeout(0);
+					if (closed) {
+						mock!.fire('session.canvas.closed', { instanceId: preview.instanceId, extensionId: preview.extensionId, canvasId: preview.canvasId });
+					}
+					gate.complete();
+					const replacement = await creating;
+					assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+					await timeout(0);
+					await timeout(0);
+					const states = replacement.signals.filter(signal => signal.kind === 'canvas').map(signal => signal.state);
+					const restoredAt = states.findIndex(state => state.uri === 'https://example.test/restored');
+					const iconAt = states.findIndex(state => readCanvasIcon(state) === icon);
+					results.push({
+						step,
+						closed,
+						iconShownBeforeRestore: iconAt !== -1 && (restoredAt === -1 || iconAt < restoredAt),
+						reopens: reopens.length,
+						listed: summarizeCanvasSignals(replacement.signals).membership.at(-1)?.length,
+						restored: states.at(-1)?.uri === 'https://example.test/restored' && readCanvasIcon(states.at(-1)) === icon,
+					});
+					replacement.session.dispose();
+				}
+			}
+			assert.deepStrictEqual(results, [
+				{ step: 'declarations', closed: false, iconShownBeforeRestore: true, reopens: 1, listed: 1, restored: true },
+				{ step: 'declarations', closed: true, iconShownBeforeRestore: true, reopens: 0, listed: 0, restored: false },
+				{ step: 'status', closed: false, iconShownBeforeRestore: true, reopens: 1, listed: 1, restored: true },
+				{ step: 'status', closed: true, iconShownBeforeRestore: true, reopens: 0, listed: 0, restored: false },
+				{ step: 'open', closed: false, iconShownBeforeRestore: true, reopens: 1, listed: 1, restored: true },
+				{ step: 'open', closed: true, iconShownBeforeRestore: true, reopens: 1, listed: 0, restored: false },
 			]);
 		});
 
