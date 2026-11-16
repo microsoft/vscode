@@ -276,7 +276,7 @@ suite('SessionEnvironmentPicker', () => {
 			{ name: 'Ubuntu', connection: { type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' } },
 			{ name: 'desktop', connection: { type: RemoteAgentHostEntryType.CloudSandbox, address: 'cloudsandbox:remote', environmentId: 'remote', environmentKind: 'user-local' } },
 			{ name: 'my_host*', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://localhost:3000' } },
-			{ name: 'Jobs', connection: { type: RemoteAgentHostEntryType.Extension, address: '127.0.0.1:8445', extensionId: 'publisher.airlock', extensionDisplayName: 'Air_lock' } },
+			{ name: 'Jobs', connection: { type: RemoteAgentHostEntryType.Extension, address: '127.0.0.1:8445', extensionId: 'publisher.jobs', extensionDisplayName: 'Job_runner' } },
 		];
 		const providers = entries.map((entry, index) => upcastPartial<IAgentHostSessionsProvider>({
 			...provider(`agenthost-remote-${index}`, 'remote'), label: entry.name, remoteAddress: getEntryAddress(entry),
@@ -318,7 +318,7 @@ suite('SessionEnvironmentPicker', () => {
 			remote('Ubuntu', 'Run this session on Ubuntu in WSL'),
 			remote('desktop', 'Run this session on desktop, shared through GitHub Environments'),
 			remote('my_host*', 'Run this session on my_host*', 'Run this session on my\\_host\\*'),
-			remote('Jobs', 'Run this session on Jobs, registered by the Air_lock extension', 'Run this session on Jobs, registered by the Air\\_lock extension'),
+			remote('Jobs', 'Run this session on Jobs, registered by the Job_runner extension', 'Run this session on Jobs, registered by the Job\\_runner extension'),
 			{ hover: 'Run this session in a dev container for the selected folder', aria: 'Dev Container, Run this session in a dev container for the selected folder' },
 			{ hover: 'Connect over \\*SSH\\*', aria: 'SSH..., Connect over *SSH*' },
 			{ hover: undefined, aria: 'Other...' },

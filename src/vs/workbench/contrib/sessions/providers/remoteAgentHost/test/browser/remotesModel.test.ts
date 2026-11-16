@@ -366,7 +366,7 @@ suite('RemotesModel', () => {
 
 	test('lists extension remotes while registered, connects user-disconnected ones and refuses to remove them', async () => {
 		const { model, extensionHosts, reconnects } = setup();
-		const registration = extensionHosts.registerHost({ extensionId: 'publisher.airlock', extensionDisplayName: 'Airlock', name: 'Airlock Jobs', address: 'ws://127.0.0.1:8445', connectionToken: 'secret' });
+		const registration = extensionHosts.registerHost({ extensionId: 'publisher.jobs', extensionDisplayName: 'Job Runner', name: 'Runner Jobs', address: 'ws://127.0.0.1:8445', connectionToken: 'secret' });
 		extensionHosts.setDisconnected('127.0.0.1:8445', true);
 		const extensionRemotes = () => model.remotes.get().filter(remote => remote.kind === 'extension')
 			.map(({ id, name, detail, contributedBy, canRemove, connectionStatus }) => ({ id, name, detail, contributedBy, canRemove, status: connectionStatus.kind }));
@@ -377,7 +377,7 @@ suite('RemotesModel', () => {
 		registration.dispose();
 
 		assert.deepStrictEqual({ registered, removal, disconnected, reconnects, unregistered: extensionRemotes() }, {
-			registered: [{ id: '127.0.0.1:8445', name: 'Airlock Jobs', detail: '127.0.0.1:8445', contributedBy: 'Airlock', canRemove: false, status: 'disconnected' }],
+			registered: [{ id: '127.0.0.1:8445', name: 'Runner Jobs', detail: '127.0.0.1:8445', contributedBy: 'Job Runner', canRemove: false, status: 'disconnected' }],
 			removal: 'This remote cannot be removed. Only registered remotes that support removal can be removed.',
 			disconnected: [],
 			reconnects: ['127.0.0.1:8445'],

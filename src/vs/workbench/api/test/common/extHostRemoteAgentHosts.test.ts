@@ -20,7 +20,7 @@ suite('ExtHostRemoteAgentHosts', () => {
 			$unregisterRemoteAgentHost: handle => { calls.push(handle); },
 		};
 		const hosts = new ExtHostRemoteAgentHosts(SingleProxyRPCProtocol(proxy));
-		const extension = { ...nullExtensionDescription, displayName: 'Airlock' };
+		const extension = { ...nullExtensionDescription, displayName: 'Job Runner' };
 		const error = (host: { name: string; address: string }) => {
 			try {
 				hosts.registerRemoteAgentHost(extension, host).dispose();
@@ -42,8 +42,8 @@ suite('ExtHostRemoteAgentHosts', () => {
 			badAddress: error({ name: 'Host', address: 'ftp://localhost' }),
 		}, {
 			calls: [
-				{ extensionId: 'nullExtensionDescription', extensionDisplayName: 'Airlock', name: 'Jobs', address: '127.0.0.1:8445', connectionToken: 'from-url' },
-				{ extensionId: 'nullExtensionDescription', extensionDisplayName: 'Airlock', name: 'Secure', address: 'wss://example.com:8443', connectionToken: 'explicit' },
+				{ extensionId: 'nullExtensionDescription', extensionDisplayName: 'Job Runner', name: 'Jobs', address: '127.0.0.1:8445', connectionToken: 'from-url' },
+				{ extensionId: 'nullExtensionDescription', extensionDisplayName: 'Job Runner', name: 'Secure', address: 'wss://example.com:8443', connectionToken: 'explicit' },
 				0,
 				1,
 			],

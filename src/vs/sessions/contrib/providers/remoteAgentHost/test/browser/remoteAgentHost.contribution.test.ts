@@ -683,8 +683,8 @@ suite('Remote agent host provider ownership', () => {
 		owner._extensionRemoteAgentHostsService = { setDisconnected: (address, disconnected) => { events.push(`${disconnected ? 'disconnected' : 'connected'} ${address}`); } };
 		owner._remoteAgentHostService = { removeRemoteAgentHost: async address => { events.push(`closed ${address}`); } };
 		const options = owner._getProviderOptions({
-			name: 'Airlock',
-			connection: { type: RemoteAgentHostEntryType.Extension, address, extensionId: 'publisher.airlock', extensionDisplayName: 'Airlock' },
+			name: 'Job Runner',
+			connection: { type: RemoteAgentHostEntryType.Extension, address, extensionId: 'publisher.jobs', extensionDisplayName: 'Job Runner' },
 		});
 		await options.disconnectOnDemand?.();
 
