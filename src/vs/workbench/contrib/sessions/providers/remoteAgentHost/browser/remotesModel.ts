@@ -392,10 +392,12 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				}
 				return {
 					kind: 'ssh',
-					entry: { name: host, connection: {
-						type: RemoteAgentHostEntryType.SSH, address: `ssh:${host}`, sshConfigHost: host,
-						hostName: resolved?.hostname ?? host, user: resolved?.user, port: resolved?.port,
-					} },
+					entry: {
+						name: host, connection: {
+							type: RemoteAgentHostEntryType.SSH, address: `ssh:${host}`, sshConfigHost: host,
+							hostName: resolved?.hostname ?? host, user: resolved?.user, port: resolved?.port,
+						}
+					},
 				};
 			})));
 		} finally {

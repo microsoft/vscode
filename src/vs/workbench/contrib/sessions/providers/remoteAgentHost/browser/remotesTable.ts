@@ -477,8 +477,8 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 							: template.column === 'activity' && remote?.lastHeartbeatAt !== undefined && !RemoteAgentHostConnectionStatus.isConnected(remote.connectionStatus)
 								? localize('remotes.heartbeatDetail', "{0}\n{1}\nReported by the host at its last service heartbeat, not current machine activity.", label, new Date(remote.lastHeartbeatAt).toLocaleString())
 								: template.column === 'activity' && !RemoteAgentHostConnectionStatus.isConnected(remote?.connectionStatus) && remote?.metadata?.lastConnectedAt === undefined
-								? localize('remotes.lastSeenDetail', "{0}\nLast confirmed online by this window, not a measure of uptime.", label)
-								: timestamp === undefined ? label : `${label}\n${new Date(timestamp).toLocaleString()}`, style: HoverStyle.Mouse,
+									? localize('remotes.lastSeenDetail', "{0}\nLast confirmed online by this window, not a measure of uptime.", label)
+									: timestamp === undefined ? label : `${label}\n${new Date(timestamp).toLocaleString()}`, style: HoverStyle.Mouse,
 					}, { groupId: this.hoverGroupId }));
 				}
 				break;

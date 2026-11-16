@@ -708,10 +708,17 @@
 	margin: 4px 0;
 }
 
-.monaco-hover.history-item-hover .history-item-hover-container div:nth-of-type(3):nth-last-of-type(2) > p {
+.monaco-hover.history-item-hover .history-item-hover-container > .history-item-hover-references > p {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 4px;
+}
+
+.monaco-hover.history-item-hover .history-item-hover-container > .history-item-hover-references > p > span {
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .monaco-hover.history-item-hover .history-item-hover-container span:not(.codicon) {

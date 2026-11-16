@@ -107,13 +107,14 @@ suite('Native workbench GitHub API clients', () => {
 		result.dispose();
 	});
 
-	test('forwards an explicitly selected grant through IPC without choosing the default account', async () => {
+	test('forwards an explicitly selected session through IPC without choosing the default account', async () => {
 		const { service, requests, client, accounts } = setup();
 		accounts.currentDefaultAccount = null;
-		const authorization = { providerId: 'github', sessionId: 'other', accountId: 'other', scopes: ['repo'] };
-		const result = await service.acquireAccountApiClient(authorization, signal());
+		const result = await service.acquireAccountApiClient('github', {
+			id: 'other', account: { id: 'other', label: 'Other' }, scopes: ['repo'], accessToken: 'never-forwarded',
+		}, signal());
 		assert.deepStrictEqual({ sameClient: result === client, requests }, {
-			sameClient: true, requests: [{ ...authorization, authorizationServer: undefined }],
+			sameClient: true, requests: [{ providerId: 'github', sessionId: 'other', accountId: 'other', scopes: ['repo'], authorizationServer: undefined }],
 		});
 		result.dispose();
 	});
@@ -122,7 +123,9 @@ suite('Native workbench GitHub API clients', () => {
 		const { service, client, delay, pending, started, disposed } = setup();
 		delay();
 		const controller = new AbortController();
-		const rejected = assert.rejects(service.acquireAccountApiClient({ providerId: 'github', sessionId: 'other', accountId: 'other', scopes: ['repo'] }, controller.signal));
+		const rejected = assert.rejects(service.acquireAccountApiClient('github', {
+			id: 'other', account: { id: 'other', label: 'Other' }, scopes: ['repo'], accessToken: 'never-forwarded',
+		}, controller.signal));
 		await started.p;
 		controller.abort(new Error('cancelled'));
 		await pending.complete(client);
