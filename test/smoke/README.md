@@ -130,6 +130,19 @@ No setting or environment variable of VS Code carries the current credentials: e
 
 The Agents Window suites accept a WSL server of another commit, provided its Agent Host asks the client for Basic proxy credentials. In CI, the Windows Electron smoke job that runs the WSL Dev Container suite runs this mode after the Kerberos run, with the pinned server of `test/smoke/wslDevContainer.ps1`. The Azure product build runs it as `smoke-wsl-basic-pac-proxy`, with the Linux server of the same run's Linux x64 compile job, or the pinned server without one.
 
+#### Sandboxed commands through the proxy
+
+`-Sandbox` runs Agents Window suites with the Copilot runtime's sandbox on instead: with `-ProxyAuth BasicPac`, the `Agents Window (local AgentHost, Basic PAC proxy, sandbox)` and `Agents Window (WSL AgentHost, Basic PAC proxy, sandbox)` suites, and with `-ProxyAuth Kerberos`, the `Agents Window (WSL AgentHost, Kerberos proxy, sandbox)` suite:
+
+```powershell
+.\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth BasicPac -Sandbox -Distribution Ubuntu -WslServerPath ~/devel/vscode -WslNodePath ~/.local/node/bin/node
+.\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth Kerberos -Sandbox -Suites AgentsWindow -Distribution Ubuntu -WslServerPath ~/devel/vscode -WslNodePath ~/.local/node/bin/node
+```
+
+Each suite sends a prompt whose scenario runs `curl` against a fresh path of the mock server in the Copilot runtime's own shell tool. The sandbox settings allow only the mock host, forbid unsandboxed commands and, on Windows, allow local network access so that the command reaches the sandbox's network proxy over loopback. Only Squid resolves the mock host, so the command reaches the mock server only when the sandbox's network proxy forwards it to the proxy the client resolves, with the credentials typed into the single proxy login dialog or with the client's Kerberos ticket. The suites accept the runtime's URL confirmation, check that the mock server got the request, and check in the Agent Host log that the runtime's shell tool ran the command with the sandbox configuration of the Agent Host. The WSL suites also check that the client served the PAC proxy and the credentials or Kerberos token. The distribution additionally needs the `bubblewrap`, `slirp4netns` and `iptables` packages. `-CopilotRuntimePath` selects a Windows `copilot-runtime.exe`, next to its matching `runtime.node`, for the local Agent Host, like `-WslCopilotRuntimePath` for the WSL one. `-ProxyAuth Basic` and `-Suites EditorWindow` are not supported in this mode. Logs are kept in `.build/logs/agents-window-wsl-<auth>-proxy-sandbox`, and the JUnit report goes to `test-results/*-desktop-smoke-tests-wsl-<auth>-proxy-sandbox-results.xml`.
+
+The Azure product build runs these suites after the Kerberos and Basic PAC runs of `smoke-wsl-kerberos-proxy` and `smoke-wsl-basic-pac-proxy`, only with the Linux server of the same run's Linux x64 compile job, since the Copilot runtime of the pinned server does not proxy sandboxed commands with the client's credentials. Pull request CI does not run them until the pinned server's runtime does.
+
 ### Dev Container sessions over SSH, Tunnels, and WSL
 
 The Agents Window Dev Container suites require a reachable Linux Docker daemon. The SSH suite runs by default on Linux, and locally on macOS when Docker is available. SSH/Tunnel suites are limited to Linux in CI. The SSH fixture uses a loopback SSH server with an ephemeral port, password, and host key; it does not require system `sshd` or change your SSH configuration.
