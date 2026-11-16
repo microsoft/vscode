@@ -134,8 +134,9 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 				this.applyEditsToBuffer(edits[0], model);
 			}
 		} else {
-			// Add the new keybinding with new key
-			this.applyEditsToBuffer(setProperty(model.getValue(), [-1], this.asObject(newKey, keybindingItem.command, when, false, keybindingItem.commandArgs, keybindingItem.systemWide), { tabSize, insertSpaces, eol })[0], model);
+			// Add the new keybinding with new key. A default system-wide keybinding only registers while its `when` clause
+			// holds, but a user's registers always, so the user's copy is not system-wide.
+			this.applyEditsToBuffer(setProperty(model.getValue(), [-1], this.asObject(newKey, keybindingItem.command, when, false, keybindingItem.commandArgs, !keybindingItem.isDefault && keybindingItem.systemWide), { tabSize, insertSpaces, eol })[0], model);
 		}
 	}
 

@@ -467,14 +467,26 @@ function _ahpReplacer(this: unknown, _key: string, value: unknown): unknown {
 			&& value.params.answer !== '<redacted>') {
 			return { ...value, params: { ...value.params, answer: '<redacted>' } };
 		}
-		if (value.type === 'canvas/stateChanged' && isRecord(value.canvas) && value.canvas.url !== undefined) {
-			return { ...value, canvas: { ...value.canvas, url: REDACTED_CANVAS_SOURCE } };
+		if (value.type === 'canvas/stateChanged' && isRecord(value.canvas) && (value.canvas.uri !== undefined || value.canvas.url !== undefined)) {
+			return {
+				...value, canvas: {
+					...value.canvas,
+					...(value.canvas.uri !== undefined ? { uri: REDACTED_CANVAS_SOURCE } : {}),
+					...(value.canvas.url !== undefined ? { url: REDACTED_CANVAS_SOURCE } : {}),
+				},
+			};
 		}
 		const isCanvasResource = typeof value.resource === 'string'
 			? value.resource.toLowerCase().startsWith(`${AHP_CANVAS_SCHEME}:`)
 			: URI.isUri(value.resource) && value.resource.scheme === AHP_CANVAS_SCHEME;
-		if (isCanvasResource && isRecord(value.state) && value.state.url !== undefined) {
-			return { ...value, state: { ...value.state, url: REDACTED_CANVAS_SOURCE } };
+		if (isCanvasResource && isRecord(value.state) && (value.state.uri !== undefined || value.state.url !== undefined)) {
+			return {
+				...value, state: {
+					...value.state,
+					...(value.state.uri !== undefined ? { uri: REDACTED_CANVAS_SOURCE } : {}),
+					...(value.state.url !== undefined ? { url: REDACTED_CANVAS_SOURCE } : {}),
+				},
+			};
 		}
 	}
 	if (

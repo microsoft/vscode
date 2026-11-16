@@ -302,13 +302,13 @@ suite('CanvasStateSubscription', () => {
 	test('buffers new canvas source state across initial and reconnect snapshots', () => {
 		const resource = 'ahp-canvas://another-host/documents/preview';
 		const subscription = disposables.add(new CanvasStateSubscription(resource, 'c1', noop));
-		const initial: CanvasState = { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', url: 'https://example.test/old' };
-		const replacement: CanvasState = { ...initial, url: 'https://example.test/new' };
+		const initial: CanvasState = { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', uri: 'https://example.test/old' };
+		const replacement: CanvasState = { ...initial, uri: 'https://example.test/new' };
 		subscription.receiveEnvelope(makeEnvelope({ type: ActionType.CanvasStateChanged, canvas: replacement }, 2, undefined, undefined, resource));
 		subscription.handleSnapshot(initial, 1);
 		const ready = subscription.value;
 		subscription.beginSnapshotRefresh();
-		const { url: _url, ...unavailable } = replacement;
+		const { uri: _uri, ...unavailable } = replacement;
 		subscription.receiveEnvelope(makeEnvelope({ type: ActionType.CanvasStateChanged, canvas: unavailable }, 4, undefined, undefined, resource));
 		subscription.handleSnapshot(replacement, 3);
 		assert.deepStrictEqual({ ready, unavailable: subscription.value }, { ready: replacement, unavailable });
@@ -1044,7 +1044,7 @@ suite('AgentSubscriptionManager', () => {
 	function createManager(subscribe: (resource: URI) => Promise<IStateSnapshot> = async resource => {
 		const key = resource.toString();
 		subscribedResources.push(key);
-		if (key.endsWith('/annotations')) {
+		if (key.startsWith('ahp-annotations:') || key.endsWith('/annotations')) {
 			return { resource: key, state: { annotations: [] }, fromSeq: 0 };
 		}
 		if (key.startsWith('copilot:')) {

@@ -59,7 +59,10 @@ import { ISessionsProvidersService } from '../../../../../../../workbench/contri
 import { ISessionsService } from '../../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IChat, ISessionChangeset, ISessionChangesetOperationTarget, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
-import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
+import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, PickerActionViewItem } from '../../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
+import { IConfigPickerItem } from '../../../../../../../workbench/contrib/sessions/browser/newSessionInputPresentation.js';
+import { IChatViewFactory } from '../../../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
+import { worktreeSuggestionInputPresentation } from '../../../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionInputPresentation.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../../../../base/browser/domStylesheets.js';
 import { workbenchInstantiationService } from '../../../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -283,14 +286,41 @@ function branchState(container: HTMLElement): { icon: string | undefined; ariaLa
 	};
 }
 
+class TestAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
+	branchCreation: Promise<void> | undefined;
+
+	protected override _createBranch(provider: IAgentHostSessionsProvider, sessionId: string, property: string, from?: boolean): Promise<void> {
+		return this.branchCreation = super._createBranch(provider, sessionId, property, from);
+	}
+}
+
 /** Captures the delegate passed to the last `IActionWidgetService.show` call, so tests can drive a selection. */
 class CapturingActionWidgetHolder {
 	delegate: IActionListDelegate<IConfigPickerItem> | undefined;
+	picker: TestAgentHostSessionConfigPicker | undefined;
 	items: readonly IActionListItem<IConfigPickerItem>[] = [];
 	focusedItem: IActionListItem<IConfigPickerItem> | undefined;
 	accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IConfigPickerItem>>> | undefined;
 	listOptions: IActionListOptions | undefined;
 	readonly events: string[] = [];
+}
+
+function getCreateBranchAction(item: IConfigPickerItem | undefined): 'current' | 'from' | undefined {
+	if (item?.id === AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID) {
+		return 'current';
+	}
+	if (item?.id === `${AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID}:from`) {
+		return 'from';
+	}
+	return undefined;
+}
+
+async function selectCreateBranch(actionWidget: CapturingActionWidgetHolder, item: IConfigPickerItem): Promise<void> {
+	assert.ok(item.run);
+	assert.ok(actionWidget.picker);
+	actionWidget.delegate!.onSelect(item);
+	assert.ok(actionWidget.picker.branchCreation);
+	await actionWidget.picker.branchCreation;
 }
 
 function setupServices(
@@ -300,6 +330,7 @@ function setupServices(
 		checkoutDialogChoice?: 'Stash & Checkout' | 'Commit & Checkout';
 		checkoutDialogShown?: DeferredPromise<void>;
 		checkoutDialogRelease?: DeferredPromise<void>;
+		worktreeSuggestions?: boolean;
 	},
 	onCheckout?: (_meta?: Record<string, unknown>) => Promise<void>,
 ) {
@@ -310,6 +341,10 @@ function setupServices(
 	const notificationErrors: string[] = [];
 
 	const instantiationService = store.add(new TestInstantiationService());
+	const inputPresentation = options?.worktreeSuggestions === false ? undefined : worktreeSuggestionInputPresentation;
+	instantiationService.stub(IChatViewFactory, new class extends mock<IChatViewFactory>() {
+		override readonly newSessionInput = inputPresentation;
+	}());
 	instantiationService.stub(IQuickInputService, new class extends TestQuickInputService {
 		override async input() { return undefined; }
 	}());
@@ -341,7 +376,9 @@ function setupServices(
 	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	instantiationService.stub(ISessionInputPickerVisibility, store.add(new SessionInputPickerVisibility()));
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
-	instantiationService.stub(IWorktreeSuggestionService, new NullWorktreeSuggestionService());
+	if (inputPresentation) {
+		instantiationService.stub(IWorktreeSuggestionService, new NullWorktreeSuggestionService());
+	}
 	const configurationService = new TestConfigurationService({
 		[DevContainerWorktreeEnabledSettingId]: false,
 	});
@@ -434,12 +471,15 @@ function setupServices(
 		override readonly activeChat = constObservable(activeChat);
 	}();
 	const sessionObs = observableValue<ITestSessionWithChat | undefined>('activeSession', activeSession);
-	return { instantiationService, provider, activeSession, sessionObs, workspaceObs, changesetsObs, uncommittedChangeset, actionWidget, checkoutInvocations, branchSelectionEvents, checkoutDialogs, configurationService, notificationErrors };
+	return { instantiationService, inputPresentation, provider, activeSession, sessionObs, workspaceObs, changesetsObs, uncommittedChangeset, actionWidget, checkoutInvocations, branchSelectionEvents, checkoutDialogs, configurationService, notificationErrors };
 }
 
 /** Create and render a fresh picker instance, as the toolbar does on a rebuild. */
 function renderPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, 'add'>, services: ReturnType<typeof setupServices>) {
-	const picker = store.add(services.instantiationService.createInstance(AgentHostSessionConfigPicker, testChatSourceOf(services.sessionObs), undefined));
+	const picker = store.add(services.instantiationService.createInstance(TestAgentHostSessionConfigPicker, testChatSourceOf(services.sessionObs), {
+		isolationPresentation: services.inputPresentation?.createIsolationPicker?.(services.sessionObs, services.instantiationService),
+	}));
+	services.actionWidget.picker = picker;
 	const container = document.createElement('div');
 	picker.render(container);
 	return { picker, container };
@@ -447,7 +487,10 @@ function renderPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeaked
 
 /** Renders a picker attached to the document, so its controls are laid out. */
 function renderAttachedPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, 'add'>, services: ReturnType<typeof setupServices>) {
-	const picker = store.add(services.instantiationService.createInstance(AgentHostSessionConfigPicker, testChatSourceOf(services.sessionObs), undefined));
+	const picker = store.add(services.instantiationService.createInstance(TestAgentHostSessionConfigPicker, testChatSourceOf(services.sessionObs), {
+		isolationPresentation: services.inputPresentation?.createIsolationPicker?.(services.sessionObs, services.instantiationService),
+	}));
+	services.actionWidget.picker = picker;
 	const container = mainWindow.document.body.appendChild(document.createElement('div'));
 	store.add(toDisposable(() => container.remove()));
 	picker.render(container);
@@ -475,7 +518,7 @@ suite('Agent Host Session Config Picker', () => {
 		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 		await timeout(0);
 		const rows = (items: readonly IActionListItem<IConfigPickerItem>[]) => items.map(item =>
-			item.kind === ActionListItemKind.Separator ? 'separator' : item.item?.createBranch ?? item.item?.value);
+			item.kind === ActionListItemKind.Separator ? 'separator' : getCreateBranchAction(item.item) ?? item.item?.value);
 		const initial = rows(services.actionWidget.items);
 		const filtered = rows(await services.actionWidget.delegate!.onFilter!('feature', CancellationToken.None));
 		const empty = rows(await services.actionWidget.delegate!.onFilter!('no-matching-branch', CancellationToken.None));
@@ -502,7 +545,7 @@ suite('Agent Host Session Config Picker', () => {
 			const { container } = renderPicker(store, services);
 			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 			await timeout(0);
-			const creation = services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch)!.item!);
+			const creation = selectCreateBranch(services.actionWidget, services.actionWidget.items.find(item => getCreateBranchAction(item.item))!.item!);
 			await timeout(0);
 			const callsBeforeCreation = services.provider.setSessionConfigValueCalls;
 			created.complete();
@@ -536,7 +579,7 @@ suite('Agent Host Session Config Picker', () => {
 			const { container } = renderPicker(store, services);
 			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 			await timeout(0);
-			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === 'current')!.item!);
+			await selectCreateBranch(services.actionWidget, services.actionWidget.items.find(item => getCreateBranchAction(item.item) === 'current')!.item!);
 			assert.strictEqual(prompt, `Enter a name for the new branch, starting from '${headLabel}'.`);
 		});
 	}
@@ -569,7 +612,7 @@ suite('Agent Host Session Config Picker', () => {
 			const { container } = renderPicker(store, services);
 			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 			await timeout(0);
-			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === 'from')!.item!);
+			await selectCreateBranch(services.actionWidget, services.actionWidget.items.find(item => getCreateBranchAction(item.item) === 'from')!.item!);
 			assert.deepStrictEqual({ rows, matchOnDetail, invocations: services.checkoutInvocations }, {
 				rows: [
 					{ label: 'HEAD (main, abc1234)', detail: description, iconClass: 'codicon codicon-git-branch' },
@@ -619,7 +662,7 @@ suite('Agent Host Session Config Picker', () => {
 			const { container } = renderPicker(store, services);
 			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 			await timeout(0);
-			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === 'from')!.item!);
+			await selectCreateBranch(services.actionWidget, services.actionWidget.items.find(item => getCreateBranchAction(item.item) === 'from')!.item!);
 			assert.deepStrictEqual(rows, host === 'rich'
 				? ['--- Default Branch', 'origin/main', 'main', '--- Current Branch', 'HEAD (feature, abc1234)', '--- Branches', 'feature', '--- Remote Branches', 'origin/feature', '--- Tags', 'v1']
 				: ['--- Default Branch', 'main', '--- Current Branch', 'HEAD (Commit Details Unavailable)', '--- Branches', 'feature']);
@@ -642,7 +685,7 @@ suite('Agent Host Session Config Picker', () => {
 		const { container } = renderPicker(store, services);
 		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 		await timeout(0);
-		const creation = services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === 'from')!.item!);
+		const creation = selectCreateBranch(services.actionWidget, services.actionWidget.items.find(item => getCreateBranchAction(item.item) === 'from')!.item!);
 		try {
 			await timeout(0);
 			const rows = Array.from(mainWindow.document.querySelectorAll<HTMLElement>('.quick-input-list .monaco-list-row[data-index]'));
@@ -678,7 +721,7 @@ suite('Agent Host Session Config Picker', () => {
 			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 			await timeout(0);
 			const barrier = services.provider.completionBarrier = new DeferredPromise<void>();
-			const creation = services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === command)!.item!);
+			const creation = selectCreateBranch(services.actionWidget, services.actionWidget.items.find(item => getCreateBranchAction(item.item) === command)!.item!);
 			try {
 				const input = mainWindow.document.querySelector<HTMLInputElement>('.quick-input-widget input.input')!;
 				const value = command === 'current' ? 'feature/new' : 'dev';
@@ -708,7 +751,7 @@ suite('Agent Host Session Config Picker', () => {
 				branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 				await timeout(0);
 				const barrier = services.provider.completionBarrier = new DeferredPromise<void>();
-				const creation = services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === command)!.item!);
+				const creation = selectCreateBranch(services.actionWidget, services.actionWidget.items.find(item => getCreateBranchAction(item.item) === command)!.item!);
 				try {
 					await timeout(0);
 					const loading = quickInput.currentQuickInput;
@@ -748,7 +791,7 @@ suite('Agent Host Session Config Picker', () => {
 		const destination = container.appendChild(document.createElement('button'));
 		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 		await timeout(0);
-		const creation = services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === 'from')!.item!);
+		const creation = selectCreateBranch(services.actionWidget, services.actionWidget.items.find(item => getCreateBranchAction(item.item) === 'from')!.item!);
 		try {
 			await timeout(0);
 			destination.focus();
@@ -773,7 +816,7 @@ suite('Agent Host Session Config Picker', () => {
 		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 		await timeout(0);
 		const barrier = services.provider.completionBarrier = new DeferredPromise<void>();
-		const creation = services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === 'current')!.item!);
+		const creation = selectCreateBranch(services.actionWidget, services.actionWidget.items.find(item => getCreateBranchAction(item.item) === 'current')!.item!);
 		await barrier.error(new Error('Reference query failed'));
 		await creation;
 		assert.deepStrictEqual({
@@ -794,7 +837,7 @@ suite('Agent Host Session Config Picker', () => {
 		const { container } = renderAttachedPicker(store, services);
 		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 		await timeout(0);
-		await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === 'current')!.item!);
+		await selectCreateBranch(services.actionWidget, services.actionWidget.items.find(item => getCreateBranchAction(item.item) === 'current')!.item!);
 		assert.deepStrictEqual({
 			preservedFocus: mainWindow.document.activeElement === destination,
 			selectedBranch: services.provider.config.values[SessionConfigKey.Branch],
@@ -903,7 +946,7 @@ suite('Agent Host Session Config Picker', () => {
 			const { container } = renderPicker(store, services);
 			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 			await timeout(0);
-			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === 'from')!.item!);
+			await selectCreateBranch(services.actionWidget, services.actionWidget.items.find(item => getCreateBranchAction(item.item) === 'from')!.item!);
 			const nameShown = outcome === 'created' || outcome === 'nameCancel';
 			assert.deepStrictEqual({
 				steps,
@@ -937,8 +980,8 @@ suite('Agent Host Session Config Picker', () => {
 			await timeout(0);
 			const filtered = await services.actionWidget.delegate!.onFilter!('main', CancellationToken.None);
 			assert.deepStrictEqual({
-				initial: services.actionWidget.items.some(item => item.item?.createBranch),
-				filtered: filtered.some(item => item.item?.createBranch),
+				initial: services.actionWidget.items.some(item => getCreateBranchAction(item.item)),
+				filtered: filtered.some(item => getCreateBranchAction(item.item)),
 			}, { initial: false, filtered: false });
 		});
 	}
@@ -953,11 +996,36 @@ suite('Agent Host Session Config Picker', () => {
 		const { container } = renderPicker(store, services);
 		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 		await timeout(0);
-		const action = services.actionWidget.items.find(item => item.item?.createBranch)!.item!;
+		const action = services.actionWidget.items.find(item => getCreateBranchAction(item.item))!.item!;
 		services.provider.config = makeDynamicBranchConfig('main', 'worktree');
-		await services.actionWidget.delegate!.onSelect(action);
+		await selectCreateBranch(services.actionWidget, action);
 		assert.deepStrictEqual({ inputShown, invocations: services.checkoutInvocations }, { inputShown: false, invocations: [] });
 	});
+
+	for (const change of ['session', 'resolving'] as const) {
+		test(`does not open branch creation when ${change} changes after the picker opens`, async () => {
+			const services = setupServices(store, { createBranchSupported: true });
+			services.provider.config = makeDynamicBranchConfig('main', 'folder');
+			let inputShown = false;
+			services.instantiationService.stub(IQuickInputService, new class extends TestQuickInputService {
+				override createInputBox(): IInputBox {
+					inputShown = true;
+					return super.createInputBox();
+				}
+			}());
+			const { container } = renderPicker(store, services);
+			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			const action = services.actionWidget.items.find(item => getCreateBranchAction(item.item) === 'current')!.item!;
+			if (change === 'session') {
+				services.sessionObs.set(otherActiveSession(services.activeSession), undefined);
+			} else {
+				services.provider.resolving.set(true, undefined);
+			}
+			await selectCreateBranch(services.actionWidget, action);
+			assert.deepStrictEqual({ inputShown, invocations: services.checkoutInvocations }, { inputShown: false, invocations: [] });
+		});
+	}
 
 	test('validates new branch names and ref conflicts in the standard quick input', async () => {
 		const services = setupServices(store, { createBranchSupported: true });
@@ -971,7 +1039,7 @@ suite('Agent Host Session Config Picker', () => {
 		const trigger = branchSlot(container)!.querySelector<HTMLElement>('.action-label')!;
 		trigger.click();
 		await timeout(0);
-		await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch)!.item!);
+		await selectCreateBranch(services.actionWidget, services.actionWidget.items.find(item => getCreateBranchAction(item.item))!.item!);
 		// Matches `git check-ref-format --branch`, except where the picker is deliberately stricter.
 		const nameCases: [name: string, accepted: boolean][] = [
 			['feature/new', true], ['fix-123', true], ['release/1.2', true], ['a.b', true], ['a@b', true], ['@b', true],
@@ -1010,7 +1078,7 @@ suite('Agent Host Session Config Picker', () => {
 		const { container } = renderPicker(store, services);
 		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 		await timeout(0);
-		await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch)!.item!);
+		await selectCreateBranch(services.actionWidget, services.actionWidget.items.find(item => getCreateBranchAction(item.item))!.item!);
 		const warning = {
 			content: 'Branch \'Feature/Existing\' already exists with different casing. This can cause problems on case-insensitive but case-preserving file systems. Press Enter to attempt creation anyway.',
 			severity: Severity.Warning,
@@ -1050,7 +1118,7 @@ suite('Agent Host Session Config Picker', () => {
 			const { container } = renderPicker(store, services);
 			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 			await timeout(0);
-			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch)!.item!);
+			await selectCreateBranch(services.actionWidget, services.actionWidget.items.find(item => getCreateBranchAction(item.item))!.item!);
 			assert.deepStrictEqual({
 				selection: services.provider.config.values.branch,
 				writes: services.provider.setSessionConfigValueCalls,
@@ -1070,7 +1138,7 @@ suite('Agent Host Session Config Picker', () => {
 		const { container } = renderPicker(store, services);
 		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 		await timeout(0);
-		assert.strictEqual(services.actionWidget.items.some(item => item.item?.createBranch), false);
+		assert.strictEqual(services.actionWidget.items.some(item => getCreateBranchAction(item.item)), false);
 	});
 
 	test('does not offer branch creation for a fixed branch enum', async () => {
@@ -1078,7 +1146,7 @@ suite('Agent Host Session Config Picker', () => {
 		const { container } = renderPicker(store, services);
 		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 		await timeout(0);
-		assert.strictEqual(services.actionWidget.items.some(item => item.item?.createBranch), false);
+		assert.strictEqual(services.actionWidget.items.some(item => getCreateBranchAction(item.item)), false);
 	});
 
 	test('does not write the created branch into a different repository', async () => {
@@ -1091,7 +1159,7 @@ suite('Agent Host Session Config Picker', () => {
 		const { container } = renderPicker(store, services);
 		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
 		await timeout(0);
-		const creation = services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch)!.item!);
+		const creation = selectCreateBranch(services.actionWidget, services.actionWidget.items.find(item => getCreateBranchAction(item.item))!.item!);
 		await timeout(0);
 		services.workspaceObs.set(makeWorkspace(undefined, 'main', undefined, URI.file('/other')), undefined);
 		created.complete();
@@ -1149,6 +1217,26 @@ suite('Agent Host Session Config Picker', () => {
 				{ sessionId: SESSION_ID, property: 'branch', value: 'new-session-branch' },
 			],
 			checkouts: [],
+		});
+	});
+
+	test('isolation selection works without a suggestion service or presentation', async () => {
+		const services = setupServices(store, { worktreeSuggestions: false });
+		services.provider.config = makeRepoConfig('main', 'folder');
+		const { container } = renderPicker(store, services);
+		container.querySelector<HTMLElement>('.sessions-chat-isolation-picker .action-label')!.click();
+		await timeout(0);
+		const choices = services.actionWidget.items.map(row => ({ value: row.item?.value, badge: row.item?.badge }));
+		await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(row => row.item?.value === 'worktree')!.item!);
+		await timeout(0);
+		assert.deepStrictEqual({
+			choices,
+			count: container.querySelector('.sessions-chat-uncommitted-count'),
+			writes: services.provider.setSessionConfigValueArguments,
+		}, {
+			choices: [{ value: 'folder', badge: undefined }, { value: 'worktree', badge: undefined }],
+			count: null,
+			writes: [{ sessionId: SESSION_ID, property: SessionConfigKey.Isolation, value: 'worktree' }],
 		});
 	});
 
@@ -1310,8 +1398,8 @@ suite('Agent Host Session Config Picker', () => {
 
 	test('renders one repository control per toolbar action view item', () => {
 		const services = setupServices(store);
-		const isolationPicker = store.add(services.instantiationService.createInstance(AgentHostSessionConfigPicker, testChatSourceOf(services.sessionObs), SessionConfigKey.Isolation));
-		const branchPicker = store.add(services.instantiationService.createInstance(AgentHostSessionConfigPicker, testChatSourceOf(services.sessionObs), SessionConfigKey.Branch));
+		const isolationPicker = store.add(services.instantiationService.createInstance(AgentHostSessionConfigPicker, testChatSourceOf(services.sessionObs), { property: SessionConfigKey.Isolation }));
+		const branchPicker = store.add(services.instantiationService.createInstance(AgentHostSessionConfigPicker, testChatSourceOf(services.sessionObs), { property: SessionConfigKey.Branch }));
 		const isolationContainer = document.createElement('div');
 		const branchContainer = document.createElement('div');
 		isolationPicker.render(isolationContainer);
@@ -1753,7 +1841,7 @@ suite('Agent Host Session Config Picker', () => {
 			},
 			values: { autoApprove: 'default' },
 		};
-		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, testChatSourceOf(services.sessionObs), SessionConfigKey.AutoApprove));
+		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, testChatSourceOf(services.sessionObs), { property: SessionConfigKey.AutoApprove }));
 		const container = document.createElement('div');
 		picker.render(container);
 		container.querySelector<HTMLElement>('.action-label')!.click();
@@ -2902,8 +2990,8 @@ suite('Agent Host Session Config Picker', () => {
 	test('serializes interleaved branch and isolation selections before deciding checkout', async () => {
 		const services = setupServices(store);
 		services.provider.config = makeDynamicBranchConfig('main', 'worktree');
-		const branchPicker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, testChatSourceOf(services.sessionObs), SessionConfigKey.Branch));
-		const isolationPicker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, testChatSourceOf(services.sessionObs), SessionConfigKey.Isolation));
+		const branchPicker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, testChatSourceOf(services.sessionObs), { property: SessionConfigKey.Branch }));
+		const isolationPicker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, testChatSourceOf(services.sessionObs), { property: SessionConfigKey.Isolation }));
 
 		await Promise.all([
 			branchPicker.setSessionConfigValueForTest(services.provider, SessionConfigKey.Branch, 'featureA'),

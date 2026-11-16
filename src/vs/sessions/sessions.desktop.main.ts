@@ -163,6 +163,9 @@ import '../workbench/contrib/extensions/electron-browser/extensions.contribution
 // Issues
 import '../workbench/contrib/issue/electron-browser/issue.contribution.js';
 
+// Screenshot Tool
+import '../workbench/contrib/screenshotTool/electron-browser/screenshotTool.contribution.js';
+
 // Surveys
 import '../workbench/contrib/surveys/browser/survey.contribution.js';
 
@@ -236,6 +239,9 @@ import '../workbench/contrib/keybindingsExport/electron-browser/keybindingsExpor
 
 // Computer Use setup: drag Copilot Computer Use into System Settings
 import '../workbench/contrib/chat/electron-browser/agentSessions/computerUseHelperApp.contribution.js';
+
+// Chat: attach a screenshot of the window of another app
+import '../workbench/contrib/chat/electron-browser/actions/chatAppWindowScreenshotActions.js';
 
 //#endregion
 

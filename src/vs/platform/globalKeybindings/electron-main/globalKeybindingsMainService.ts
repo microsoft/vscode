@@ -162,11 +162,15 @@ export class GlobalKeybindingsMainService extends Disposable implements IGlobalK
 
 		// Target window selection:
 		// 1. the focused window if it owns this accelerator (respect that window's own binding)
-		// 2. otherwise the deterministic winner (lowest window id) among alive owners
+		// 2. otherwise the window that was active last if it owns this accelerator, as the user just left it for another app
+		// 3. otherwise the deterministic winner (lowest window id) among alive owners
 		let target: ICodeWindow | undefined;
 		const focused = this.windowsMainService.getFocusedWindow();
+		const lastActive = this.windowsMainService.getLastActiveWindow();
 		if (focused && this.registry.get(focused.id)?.has(accelerator)) {
 			target = focused;
+		} else if (lastActive && this.registry.get(lastActive.id)?.has(accelerator)) {
+			target = lastActive;
 		} else {
 			target = owners
 				.map(windowId => this.windowsMainService.getWindowById(windowId))

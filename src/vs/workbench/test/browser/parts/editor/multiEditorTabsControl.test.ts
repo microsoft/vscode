@@ -990,6 +990,107 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(results, results.map(result => ({ ...result, allIconsVisible: true })));
 	});
 
+	test('fixed tabs respect configured width bounds across tab styles', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		openNamedEditors(['short.ts', 'a-significantly-longer-filename.ts', 'another-significantly-longer-filename.ts']);
+		const results = [];
+		for (const style of ['legacy', 'pill', 'connected']) {
+			root.classList.toggle('modern-ui-tabs', style !== 'legacy');
+			root.classList.toggle('modern-ui-connected-editor-tabs', style === 'connected');
+			for (const [minimum, maximum] of [[50, 50], [50, 60], [50, 160], [120, 140]]) {
+				for (const tabActionLocation of ['left', 'right'] as const) {
+					if (style !== 'connected' && tabActionLocation === 'left') {
+						continue;
+					}
+					for (const tabActionReserveSpace of [false, true]) {
+						const oldOptions = partOptions;
+						partOptions = { ...partOptions, tabSizing: 'fixed', tabActionLocation, tabActionReserveSpace, tabSizingFixedMinWidth: minimum, tabSizingFixedMaxWidth: maximum, editorActionsLocation: 'hidden' };
+						control.updateOptions(oldOptions, partOptions);
+						for (const [available, expectedWidth] of [[maximum * 3 + 100, maximum], [minimum * 3 - 20, minimum]]) {
+							await layoutConnectedGroup(group, available);
+							const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+							results.push({
+								style, tabActionLocation, tabActionReserveSpace, minimum, maximum, available,
+								widths: tabs.map(tab => tab.getBoundingClientRect().width),
+								widthsMatch: tabs.every(tab => Math.abs(tab.getBoundingClientRect().width - expectedWidth) < 1 / 32),
+								actionsInBounds: style === 'legacy' || tabs.every(tab => {
+									const action = tab.querySelector<HTMLElement>('.action-label')!;
+									const bounds = action.getBoundingClientRect();
+									const tabBounds = tab.getBoundingClientRect();
+									return bounds.left >= tabBounds.left && bounds.right <= tabBounds.right;
+								}),
+							});
+						}
+					}
+				}
+			}
+		}
+		assert.deepStrictEqual(results.filter(result => !result.widthsMatch || !result.actionsInBounds), []);
+	});
+
+	test('connected fixed width bounds leave compact and shrink pinned tabs at their dedicated widths', async () => {
+		const group = connectedGroup();
+		openNamedEditors(['sticky.ts', 'regular.ts']);
+		const sticky = model.getEditorByIndex(0)!;
+		model.stick(sticky);
+		control.stickEditor(sticky);
+		const results = [];
+		for (const pinnedTabSizing of ['compact', 'shrink'] as const) {
+			for (const minimum of [50, 120]) {
+				const oldOptions = partOptions;
+				partOptions = { ...partOptions, tabSizing: 'fixed', pinnedTabSizing, tabSizingFixedMinWidth: minimum, tabSizingFixedMaxWidth: 140, editorActionsLocation: 'hidden' };
+				control.updateOptions(oldOptions, partOptions);
+				await layoutConnectedGroup(group, 600);
+				results.push({
+					pinnedTabSizing, minimum,
+					width: container.querySelector<HTMLElement>('.tab.sticky')!.getBoundingClientRect().width,
+				});
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, width: result.pinnedTabSizing === 'compact' ? 28 : 80 })));
+	});
+
+	test('fit and shrink tabs ignore fixed width bounds and respond to available space', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		openNamedEditors(['short.ts', 'a-significantly-longer-filename.ts', 'another-significantly-longer-filename.ts']);
+		const results = [];
+		for (const connected of [false, true]) {
+			root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+			for (const tabSizing of ['fit', 'shrink'] as const) {
+				let baseline: number[] | undefined;
+				for (const fixedWidth of [38, 200]) {
+					const oldOptions = partOptions;
+					partOptions = { ...partOptions, tabSizing, tabActionReserveSpace: true, tabSizingFixedMinWidth: fixedWidth, tabSizingFixedMaxWidth: fixedWidth, editorActionsLocation: 'hidden' };
+					control.updateOptions(oldOptions, partOptions);
+					await layoutConnectedGroup(group, 1200);
+					const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+					const widths = () => tabs.map(tab => tab.getBoundingClientRect().width);
+					const fullNames = () => tabs.every(tab => {
+						const name = tab.querySelector<HTMLElement>('.monaco-icon-name-container')!;
+						return name.scrollWidth <= name.clientWidth;
+					});
+					const wide = widths();
+					const baselineWidths = baseline ??= wide;
+					const wideNamesComplete = fullNames();
+					await layoutConnectedGroup(group, 240);
+					const narrow = widths();
+					const narrowMatchesMode = tabSizing === 'fit'
+						? narrow.every((width, index) => Math.abs(width - wide[index]) < 1 / 32) && fullNames()
+						: narrow.every((width, index) => width <= wide[index] + 1 / 32) && narrow.some((width, index) => width < wide[index] - 1) && !fullNames();
+					await layoutConnectedGroup(group, 1200);
+					results.push({
+						connected, tabSizing, fixedWidth, wideNamesComplete, narrowMatchesMode,
+						ignoresFixedBounds: wide.every((width, index) => Math.abs(width - baselineWidths[index]) < 1 / 32),
+						restored: widths().every((width, index) => Math.abs(width - wide[index]) < 1 / 32) && fullNames(),
+					});
+				}
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, wideNamesComplete: true, narrowMatchesMode: true, ignoresFixedBounds: true, restored: true })));
+	});
+
 	test('connected shrink tabs preserve icons as the editor width changes', async () => {
 		const group = connectedGroup();
 		const iconStyle = document.createElement('style');

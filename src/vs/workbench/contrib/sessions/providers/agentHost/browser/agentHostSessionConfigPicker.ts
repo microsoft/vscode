@@ -28,7 +28,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { IActionViewItemService, type IActionViewItemFactory } from '../../../../../../platform/actions/browser/actionViewItemService.js';
-import { Action2, MenuId, MenuItemAction, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -88,11 +88,10 @@ import { getOrganizationDefaultApprovalLevel, isAutoApproveValuePolicyRestricted
 import { getPermissionLevelBadge } from '../../../../chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { BRANCH_PICKER_MAX_VISIBLE_ITEMS, ensureSelectedBranchPickerItem, filterBranchPickerItems } from '../../../../chat/browser/agentSessions/agentHost/agentHostBranchPicker.js';
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
-import { type IChat, type ISessionChangeset, type ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../../../services/sessions/common/session.js';
+import { type IChat, type ISessionChangeset, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../../../services/sessions/common/session.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionService } from '../../../browser/worktreeSuggestion/worktreeSuggestionService.js';
-import { getChangedFileUri, getModifiedFilesSectionLabel, getUncommittedFilesDescription } from '../../../browser/worktreeSuggestion/worktreeSuggestionPresentation.js';
-import { WorktreeSuggestionVariant } from '../../../common/worktreeSuggestion.js';
+import { IChatViewFactory } from '../../../browser/chatViewFactory.js';
+import type { IConfigPickerItem, ISessionIsolationPickerPresentation } from '../../../browser/newSessionInputPresentation.js';
 
 const ExperimentalSessionComposerLayout = SessionUsesExperimentalComposerLayoutContext;
 const LegacySessionComposerLayout = SessionUsesExperimentalComposerLayoutContext.negate();
@@ -115,22 +114,6 @@ function showActiveSessionModePicker(accessor: ServicesAccessor): void {
 	if (!picker.showPicker(anchor, () => picker.dispose())) {
 		picker.dispose();
 	}
-}
-
-export interface IConfigPickerItem {
-	readonly createBranch?: 'current' | 'from';
-	readonly id?: string;
-	readonly value: string;
-	readonly label: string;
-	readonly description?: string;
-	readonly checked?: boolean;
-	readonly disabled?: boolean;
-	/** Text shown after the label, such as "Recommended". */
-	readonly badge?: string;
-	/** Shows {@link badge} as a quiet secondary pill instead of in the badge color. */
-	readonly secondaryBadge?: boolean;
-	/** Runs instead of selecting a value, for rows that are not options, such as reviewing uncommitted changes. */
-	readonly run?: () => void;
 }
 
 export function getConfigIcon(property: string, value: unknown | undefined, hasUncommittedChanges = false): ThemeIcon | undefined {
@@ -168,72 +151,8 @@ function formatUncommittedChanges(count: number): string {
 		: localize('agentHostSessionConfig.branchItemUncommittedPlural', "{0} uncommitted files", count);
 }
 
-/**
- * Recommends New Worktree over Branch in the isolation picker while the worktree suggestion applies. Once
- * the user has started a session in a new worktree, the recommendation is a quieter secondary pill.
- */
-function withWorktreeSuggestion(item: IConfigPickerItem, suggestion: IWorktreeSuggestion, hasCreatedWorktreeSession: boolean): IConfigPickerItem {
-	if (item.value === 'worktree') {
-		return item.disabled ? item : { ...item, badge: localize('agentHostSessionConfig.isolation.recommended', "Recommended"), secondaryBadge: hasCreatedWorktreeSession };
-	}
-	if (item.value === 'folder' || item.value === 'workspace') {
-		return {
-			...item,
-			description: suggestion.uncommittedChanges === 1
-				? localize('agentHostSessionConfig.isolation.branchWithChangesSingular', "Works alongside your uncommitted file")
-				: localize('agentHostSessionConfig.isolation.branchWithChangesPlural', "Works alongside your {0} uncommitted files", suggestion.uncommittedChanges),
-		};
-	}
-	return item;
-}
-
-/** The worktree suggestion for which an open isolation picker recommends New Worktree, and the presentation that showed it. */
-interface IIsolationPickerRecommendation {
-	readonly variant: WorktreeSuggestionVariant.InlineHint | WorktreeSuggestionVariant.UncommittedFilesCount;
-	readonly suggestion: IWorktreeSuggestion;
-}
-
-/** Number of uncommitted files the isolation picker lists below its options. A row counts the rest. */
-const LISTED_FILES_MAX = 3;
-
-/** Aligns the label of the isolation picker's section of uncommitted files with the files. */
-const LISTED_FILES_CLASS = 'sessions-chat-isolation-listed-changes';
-
 /** Styles the badge of a row whose item has {@link IConfigPickerItem.secondaryBadge}. */
 const SECONDARY_BADGE_CLASS = 'sessions-chat-config-secondary-badge';
-
-/** Prefixes the values of rows that are not options, which no option value contains. */
-const LISTED_FILE_VALUE_PREFIX = '\0worktreeSuggestion:';
-
-/** Identifies the uncommitted files a picker lists, and their lines added and removed. */
-function getListedFilesKey(changes: readonly ISessionFileChange[] | undefined): string {
-	return changes?.map(change => `${getChangedFileUri(change).toString()}\t${change.insertions}\t${change.deletions}`).join('\n') ?? '';
-}
-
-/** Lets a config picker list a worktree suggestion's rows, which run their action when chosen. */
-function toConfigPickerItems(items: readonly IActionListItem<IUncommittedChangesListItem>[]): IActionListItem<IConfigPickerItem>[] {
-	return items.map((row, index): IActionListItem<IConfigPickerItem> => {
-		// The rows replace no items when filtered.
-		const { item, filterItems: _, ...rest } = row;
-		return item ? { ...rest, item: { value: `${LISTED_FILE_VALUE_PREFIX}${index}`, label: row.label ?? '', run: item.run } } : rest;
-	});
-}
-
-/**
- * Appends the number of uncommitted files to the isolation trigger, as a dot followed by the number in the
- * color of modified files. Returns a function that shows the count for a suggestion, or hides it.
- */
-function renderUncommittedCount(trigger: HTMLElement): { readonly element: HTMLElement; readonly update: (suggestion: IWorktreeSuggestion | undefined) => void } {
-	// The trigger's label announces the count.
-	const element = dom.append(trigger, dom.$('span.sessions-chat-uncommitted-count', { 'aria-hidden': 'true' }));
-	return {
-		element,
-		update: suggestion => {
-			element.classList.toggle('visible', !!suggestion);
-			element.textContent = suggestion ? String(suggestion.uncommittedChanges) : '';
-		},
-	};
-}
 
 function getBranchUncommittedChanges(branchName: string, repositoryBranchName: string | undefined, repositoryUncommittedChanges: number | undefined): number | undefined {
 	return branchName === repositoryBranchName && (repositoryUncommittedChanges ?? 0) > 0
@@ -704,6 +623,11 @@ class ConfigCheckboxControl extends Disposable {
 	}
 }
 
+interface IAgentHostSessionConfigPickerOptions {
+	readonly property?: string;
+	readonly isolationPresentation?: ISessionIsolationPickerPresentation;
+}
+
 export class AgentHostSessionConfigPicker extends Disposable {
 
 	protected readonly _renderDisposables = this._register(new DisposableStore());
@@ -711,8 +635,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	private readonly _providerListeners = this._register(new DisposableMap<string>());
 	private readonly _isolationCheckbox = this._register(new MutableDisposable<ConfigCheckboxControl>());
 	private readonly _hostMarker = this._register(new MutableDisposable());
-	/** Refreshes the uncommitted files listed in the open isolation picker as they load or change. */
-	private readonly _listedFilesUpdates = this._register(new MutableDisposable());
+	private readonly _pickerPresentation = this._register(new MutableDisposable());
 	protected readonly _filterDelayer = this._register(new Delayer<readonly IActionListItem<IConfigPickerItem>[]>(200));
 	private _container: HTMLElement | undefined;
 	private _focusableElement: HTMLElement | undefined;
@@ -744,10 +667,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	protected readonly _session: IObservable<ISession | undefined>;
 	/** The chat of {@link _session} whose config the picker shows and sets. */
 	protected readonly _chat: IObservable<IChat | undefined>;
+	private readonly _property: string | undefined;
+	private readonly _isolationPresentation: ISessionIsolationPickerPresentation | undefined;
 
 	constructor(
 		source: ISessionChatSource,
-		private readonly _property: string | undefined,
+		options: IAgentHostSessionConfigPickerOptions | undefined,
 		@IActionWidgetService protected readonly _actionWidgetService: IActionWidgetService,
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 		@IContextKeyService protected readonly _contextKeyService: IContextKeyService,
@@ -764,11 +689,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ISessionInputPickerVisibility private readonly _pickerVisibility: ISessionInputPickerVisibility,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IWorktreeSuggestionService private readonly _worktreeSuggestionService: IWorktreeSuggestionService,
 	) {
 		super();
 		this._session = source.session;
 		this._chat = source.chat;
+		this._property = options?.property;
+		this._isolationPresentation = options?.isolationPresentation;
 
 		this._register(toDisposable(() => this._propertyTriggers.clear()));
 		this._register(autorun(reader => {
@@ -944,15 +870,15 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			// The Branch chip owns its own hover in `_renderTrigger`, because
 			// the content depends on the repository's uncommitted-changes
 			// state and therefore has to be re-evaluated without a re-render.
-			// The Isolation chip of a new session owns its hover in
-			// `_trackWorktreeSuggestion` for the same reason.
-			const tracksWorktreeSuggestion = presentation === SessionConfigKey.Isolation && isNewSession && !isReadOnly && !isLoading;
+			// The optional isolation presentation also owns a state-dependent hover.
+			const isolationPresentation = presentation === SessionConfigKey.Isolation && isNewSession && !isReadOnly && !isLoading
+				? this._isolationPresentation : undefined;
 			const tooltip = presentation !== SessionConfigKey.Branch
 				? presentation === SessionConfigKey.Isolation
 					? localize('agentHostSessionConfig.isolationTooltip', "Working copy for the session")
 					: (schema.description ?? schema.title)
 				: undefined;
-			if (tooltip && !tracksWorktreeSuggestion) {
+			if (tooltip && !isolationPresentation) {
 				const content = () => presentation === SessionConfigKey.Isolation && isNewSession && !isReadOnly
 					? this._keybindingService.appendKeybinding(tooltip, FOCUS_NEW_SESSION_WORKTREE_PICKER_COMMAND_ID)
 					: tooltip;
@@ -963,8 +889,13 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				trigger.setAttribute('aria-disabled', 'true');
 			}
 			this._renderTrigger(trigger, session.sessionId, property, schema, value, isReadOnly);
-			if (tracksWorktreeSuggestion) {
-				this._trackWorktreeSuggestion(trigger, session.sessionId, property, schema, value, tooltip);
+			if (isolationPresentation) {
+				const label = this._getLabel(session.sessionId, property, schema, value);
+				this._renderDisposables.add(isolationPresentation.renderTrigger({
+					trigger, sessionId: session.sessionId, title: schema.title, label,
+					ariaLabel: triggerAriaLabel(schema.title, label, false, false),
+					tooltip, hoverDelegate: this._hoverDelegate,
+				}));
 			}
 		}
 
@@ -1179,6 +1110,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	 * @param from Whether to ask for a starting branch or tag before asking for the new branch name.
 	 */
 	protected async _createBranch(provider: IAgentHostSessionsProvider, sessionId: string, property: string, from = false): Promise<void> {
+		if (!this._isCurrentSession(provider, sessionId) || this._isPickerDisabled(provider, sessionId, property)) {
+			return;
+		}
 		const config = this._getSessionConfig(provider, sessionId);
 		const schema = config?.schema.properties[property];
 		if (!config || !schema || !isSessionConfigWritable(schema, true) || !this._getCreateBranchChangeset(provider, sessionId)) {
@@ -1308,18 +1242,18 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		}
 	}
 
-	private _withCreateBranchAction(provider: IAgentHostSessionsProvider, sessionId: string, isBranchPicker: boolean, items: IActionListItem<IConfigPickerItem>[]): IActionListItem<IConfigPickerItem>[] {
+	private _withCreateBranchAction(provider: IAgentHostSessionsProvider, sessionId: string, property: string, isBranchPicker: boolean, items: IActionListItem<IConfigPickerItem>[]): IActionListItem<IConfigPickerItem>[] {
 		return isBranchPicker && this._getCreateBranchChangeset(provider, sessionId)
 			? [...items, ...(items.length ? [{ kind: ActionListItemKind.Separator }] : []), {
 				kind: ActionListItemKind.Action,
 				label: CREATE_BRANCH_LABEL,
 				group: { title: '', icon: Codicon.gitBranchCreate },
-				item: { value: '', label: CREATE_BRANCH_LABEL, createBranch: 'current' },
+				item: { id: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID, value: '', label: CREATE_BRANCH_LABEL, run: () => { void this._createBranch(provider, sessionId, property).catch(onUnexpectedError); } },
 			}, {
 				kind: ActionListItemKind.Action,
 				label: CREATE_BRANCH_FROM_LABEL,
 				group: { title: '', icon: Codicon.gitBranchCreate },
-				item: { value: '', label: CREATE_BRANCH_FROM_LABEL, createBranch: 'from' },
+				item: { id: `${AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID}:from`, value: '', label: CREATE_BRANCH_FROM_LABEL, run: () => { void this._createBranch(provider, sessionId, property, true).catch(onUnexpectedError); } },
 			}]
 			: items;
 	}
@@ -1402,94 +1336,6 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					: undefined;
 			}
 		}));
-	}
-
-	/**
-	 * Shows the number of uncommitted files after Branch on the isolation trigger of a new session while the
-	 * uncommitted files count presentation applies, and owns the trigger's label and hover, which describe it.
-	 * Like the Branch chip, the trigger is patched in place so a change in Git state never tears down an open
-	 * picker's anchor.
-	 */
-	private _trackWorktreeSuggestion(trigger: HTMLElement, sessionId: string, property: string, schema: SessionConfigPropertySchema, value: unknown | undefined, tooltip: string | undefined): void {
-		const count = renderUncommittedCount(trigger);
-		const label = this._getLabel(sessionId, property, schema, value);
-		let counted: IWorktreeSuggestion | undefined;
-		// A count in a collapsed or hidden row, or on an icon-only trigger, has no size, and does not count as
-		// shown until it is laid out.
-		const reportShown = () => {
-			if (counted && count.element.isConnected && count.element.offsetWidth > 0) {
-				this._worktreeSuggestionService.markShown(WorktreeSuggestionVariant.UncommittedFilesCount, counted);
-			}
-		};
-		const resizeObserver = this._renderDisposables.add(new dom.DisposableResizeObserver('AgentHostSessionConfigPicker.uncommittedFilesCount', () => reportShown(), dom.getWindow(trigger)));
-		this._renderDisposables.add(resizeObserver.observe(count.element));
-
-		this._renderDisposables.add(autorun(reader => {
-			counted = this._getCountedSuggestion(sessionId, reader);
-			// Observing the files while the count shows keeps them loaded for the picker that lists them.
-			if (counted) {
-				this._worktreeSuggestionService.getUncommittedChanges(counted, reader);
-			}
-			count.update(counted);
-			trigger.setAttribute('aria-label', counted
-				? localize('agentHostSessionConfig.isolation.uncommittedCountAria', "{0}: {1}. {2}", schema.title, label, getUncommittedFilesDescription(counted))
-				: triggerAriaLabel(schema.title, label, false, false));
-			reportShown();
-		}));
-		if (tooltip) {
-			this._renderDisposables.add(this._hoverService.setupManagedHover(this._hoverDelegate, trigger, () => {
-				const current = this._getCountedSuggestion(sessionId, undefined);
-				return this._keybindingService.appendKeybinding(current ? getUncommittedFilesDescription(current) : tooltip, FOCUS_NEW_SESSION_WORKTREE_PICKER_COMMAND_ID);
-			}));
-		}
-	}
-
-	/** The worktree suggestion whose uncommitted files the isolation picker of `sessionId` counts and lists, if any. */
-	private _getCountedSuggestion(sessionId: string, reader: IReader | undefined): IWorktreeSuggestion | undefined {
-		return this._worktreeSuggestionService.variant.read(reader) === WorktreeSuggestionVariant.UncommittedFilesCount
-			? this._getWorktreeSuggestion(sessionId, reader)
-			: undefined;
-	}
-
-	/**
-	 * The worktree suggestion for which the isolation picker of `sessionId` recommends New Worktree when it
-	 * opens, if any. The inline hint opens the picker for the user to choose, so the picker recommends New
-	 * Worktree for it until the user closes the hint or keeps Branch.
-	 */
-	private _getIsolationPickerRecommendation(sessionId: string): IIsolationPickerRecommendation | undefined {
-		const variant = this._worktreeSuggestionService.variant.get();
-		if (variant !== WorktreeSuggestionVariant.InlineHint && variant !== WorktreeSuggestionVariant.UncommittedFilesCount) {
-			return undefined;
-		}
-		const suggestion = this._getWorktreeSuggestion(sessionId, undefined);
-		if (!suggestion || variant === WorktreeSuggestionVariant.InlineHint
-			&& (this._worktreeSuggestionService.isHintClosed(undefined) || this._worktreeSuggestionService.hasDeclined(variant, suggestion, undefined))) {
-			return undefined;
-		}
-		return { variant, suggestion };
-	}
-
-	/**
-	 * Lists a few of the suggestion's uncommitted files below the isolation picker's options, so focus starts
-	 * on the selected one, followed by a row that counts the rest.
-	 */
-	private _withListedFiles(suggestion: IWorktreeSuggestion | undefined, options: IActionListItem<IConfigPickerItem>[]): IActionListItem<IConfigPickerItem>[] {
-		if (!suggestion) {
-			return options;
-		}
-		// Counts the files the section lists, which the repository's count can briefly disagree with.
-		const total = this._worktreeSuggestionService.getUncommittedChanges(suggestion, undefined)?.length ?? suggestion.uncommittedChanges;
-		const sectionLabel = getModifiedFilesSectionLabel(total);
-		const files = toConfigPickerItems(this._worktreeSuggestionService.getUncommittedChangesListItems(WorktreeSuggestionVariant.UncommittedFilesCount, suggestion, LISTED_FILES_MAX))
-			// Screen readers skip separators and the header, so each row carries the section in its group title.
-			.map(row => ({ ...row, group: { ...row.group, title: sectionLabel } }));
-		return files.length ? [...options, { kind: ActionListItemKind.Separator, label: sectionLabel }, ...files] : options;
-	}
-
-	/** The worktree suggestion for `sessionId` when it is the session the picker configures. */
-	private _getWorktreeSuggestion(sessionId: string, reader: IReader | undefined): IWorktreeSuggestion | undefined {
-		const session = this._session.read(reader);
-		return session?.sessionId === sessionId ? this._worktreeSuggestionService.getSuggestion(session, reader) : undefined;
 	}
 
 	/**
@@ -1595,15 +1441,13 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			return;
 		}
 		const { items: filteredItems, policyRestricted } = applyAutoApproveFiltering(rawItems, property, this._configurationService);
-		const isolationSuggestion = presentation === SessionConfigKey.Isolation ? this._getIsolationPickerRecommendation(sessionId) : undefined;
-		const hasCreatedWorktreeSession = !!isolationSuggestion && this._worktreeSuggestionService.hasCreatedWorktreeSession(undefined);
-		const items = isolationSuggestion ? filteredItems.map(item => withWorktreeSuggestion(item, isolationSuggestion.suggestion, hasCreatedWorktreeSession)) : filteredItems;
+		const isolationRecommendation = presentation === SessionConfigKey.Isolation ? this._isolationPresentation?.getRecommendation(sessionId) : undefined;
+		const items = isolationRecommendation?.decorateOptions(filteredItems) ?? filteredItems;
 		const isAutoApproveProperty = property === SessionConfigKey.AutoApprove;
 		const config = this._getSessionConfig(provider, sessionId);
 		const currentValue = config?.values[property] ?? schema.default;
 		const currentItem = items.find(i => isSelectedValue(currentValue, i.value));
 		const isBranchPicker = presentation === SessionConfigKey.Branch;
-		const listedFiles = isolationSuggestion?.variant === WorktreeSuggestionVariant.UncommittedFilesCount ? isolationSuggestion.suggestion : undefined;
 		const isolationKey = config && getSessionWorkspaceProperties(config.schema).isolation?.key;
 		const repositoryConfigContainer = isBranchPicker
 			? trigger.closest<HTMLElement>('.new-chat-repo-config-container')
@@ -1614,7 +1458,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const onShowChanges = isBranchPicker
 			? () => this._showChanges()
 			: undefined;
-		const optionItems = this._withCreateBranchAction(provider, sessionId, isBranchPicker, toActionItems(presentation, items, currentValue, policyRestricted, {
+		const optionItems = this._withCreateBranchAction(provider, sessionId, property, isBranchPicker, toActionItems(presentation, items, currentValue, policyRestricted, {
 			...repositoryState,
 			isWorktree: isolationKey !== undefined && config?.values[isolationKey] === 'worktree',
 			onShowChanges,
@@ -1622,7 +1466,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		if (optionItems.length === 0) {
 			return;
 		}
-		const actionItems = this._withListedFiles(listedFiles, optionItems);
+		const actionItems = isolationRecommendation?.appendItems(optionItems) ?? optionItems;
 		const filterItems = async (query: string) => {
 			if (!this._isCurrentSession(provider, sessionId)) {
 				return [];
@@ -1634,7 +1478,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			const { items: filteredItems, policyRestricted: filteredPolicyRestricted } = applyAutoApproveFiltering(filteredRawItems, property, this._configurationService);
 			const filteredRepositoryState = this._getRepositoryBranchState(sessionId);
 			const filteredConfig = this._getSessionConfig(provider, sessionId);
-			return this._withCreateBranchAction(provider, sessionId, isBranchPicker, toActionItems(presentation, filteredItems, filteredConfig?.values[property] ?? schema.default, filteredPolicyRestricted, {
+			return this._withCreateBranchAction(provider, sessionId, property, isBranchPicker, toActionItems(presentation, filteredItems, filteredConfig?.values[property] ?? schema.default, filteredPolicyRestricted, {
 				...filteredRepositoryState,
 				isWorktree: isolationKey !== undefined && filteredConfig?.values[isolationKey] === 'worktree',
 				query,
@@ -1652,21 +1496,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				if (item.disabled || !this._isCurrentSession(provider, sessionId) || this._isPickerDisabled(provider, sessionId, property)) {
 					return;
 				}
-				if (item.createBranch) {
-					await this._createBranch(provider, sessionId, property, item.createBranch === 'from');
-					return;
-				}
 				if (presentation === SessionConfigKey.Isolation && item.value === 'worktree'
 					&& !this._isDevContainerWorktreeEnabled() && provider.isDevContainerEnabled?.(sessionId)) {
 					return;
 				}
-				if (isolationSuggestion) {
-					if (item.value === 'worktree') {
-						this._worktreeSuggestionService.markAccepted(isolationSuggestion.variant, isolationSuggestion.suggestion);
-					} else {
-						this._worktreeSuggestionService.decline(isolationSuggestion.variant, isolationSuggestion.suggestion);
-					}
-				}
+				isolationRecommendation?.onSelect(item.value);
 
 				reportNewChatPickerClosed(this._telemetryService, {
 					id: 'NewChatAgentHostSessionConfigPicker',
@@ -1696,7 +1530,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				? query => branchCompletions !== undefined ? filterItems(query) : this._filterDelayer.trigger(() => filterItems(query))
 				: undefined,
 			onHide: () => {
-				this._listedFilesUpdates.clear();
+				this._pickerPresentation.clear();
 				this._openedPickerSessionId = undefined;
 				trigger.setAttribute('aria-expanded', 'false');
 				repositoryConfigContainer?.removeAttribute(PICKER_OPEN_ATTRIBUTE);
@@ -1735,26 +1569,15 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			},
 			{
 				...(showFilter ? { showFilter: true, filterPlaceholder: localize('agentHostSessionConfig.filter', "Filter options...") } : {}),
-				...(listedFiles ? { className: LISTED_FILES_CLASS } : {}),
-				minWidth: listedFiles ? 300 : 255,
+				className: isolationRecommendation?.className,
+				minWidth: isolationRecommendation?.minWidth ?? 255,
 				anchorPosition: AnchorPosition.BELOW,
 				maxVisibleItems: isBranchPicker ? BRANCH_PICKER_MAX_VISIBLE_ITEMS : undefined,
 			},
 		);
-		if (listedFiles) {
-			// An icon-only chip leaves the count out, so the listed files may be the first to show it.
-			this._worktreeSuggestionService.markShown(WorktreeSuggestionVariant.UncommittedFilesCount, listedFiles);
-			this._worktreeSuggestionService.markOpened(WorktreeSuggestionVariant.UncommittedFilesCount, listedFiles);
-			// The files may still be loading when the picker opens, or change while it is open.
-			let listedKey = getListedFilesKey(this._worktreeSuggestionService.getUncommittedChanges(listedFiles, undefined));
-			this._listedFilesUpdates.value = autorun(reader => {
-				const key = getListedFilesKey(this._worktreeSuggestionService.getUncommittedChanges(listedFiles, reader));
-				if (key !== listedKey) {
-					listedKey = key;
-					this._actionWidgetService.updateItems(this._withListedFiles(listedFiles, optionItems), undefined, { preserveScrollPosition: true });
-				}
-			});
-		}
+		this._pickerPresentation.value = isolationRecommendation?.onDidShow?.(optionItems, items => {
+			this._actionWidgetService.updateItems(items, undefined, { preserveScrollPosition: true });
+		});
 		// Branch groups keep a fixed order, so focus the selected branch wherever it is listed.
 		const focusId = focusValue ?? (isBranchPicker && typeof currentValue === 'string' ? currentValue : undefined);
 		if (focusId !== undefined && actionItems.some(item => item.item?.id === focusId && !item.disabled)) {
@@ -2350,6 +2173,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
 		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
+		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,
 	) {
 		super();
 		// The mode-picker factories below pick the mobile subclass at
@@ -2541,7 +2365,10 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			(action, options, scopedInstantiationService) => {
 				const host = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionHost));
 				return new PickerActionViewItem(
-					scopedInstantiationService.createInstance(MobileAgentHostSessionConfigPicker, host, property),
+					scopedInstantiationService.createInstance(MobileAgentHostSessionConfigPicker, host, {
+						property,
+						isolationPresentation: this._chatViewFactory.newSessionInput?.createIsolationPicker?.(host.session, scopedInstantiationService),
+					}),
 					undefined,
 					true,
 					options,
@@ -2822,4 +2649,24 @@ export class RunningSessionModePickerAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		showActiveSessionModePicker(accessor);
 	}
+}
+/**
+ * Registers the configuration pickers of new and running agent host sessions, until the returned disposable is disposed.
+ *
+ * Call it once per window, from the one module or contribution that owns these registrations: its registrations are
+ * global, and registering them twice throws or duplicates them.
+ */
+export function registerAgentHostSessionConfigPickerActions(): IDisposable {
+	const store = new DisposableStore();
+
+	store.add(registerAction2(NewSessionApprovePickerAction));
+	store.add(registerAction2(NewSessionPermissionModePickerAction));
+	store.add(registerAction2(NewSessionCodexApprovalsPickerAction));
+	store.add(registerAction2(NewSessionModePickerAction));
+	store.add(registerAction2(RunningSessionConfigPickerAction));
+	store.add(registerAction2(RunningSessionPermissionModePickerAction));
+	store.add(registerAction2(RunningSessionCodexApprovalsPickerAction));
+	store.add(registerAction2(RunningSessionModePickerAction));
+
+	return store;
 }

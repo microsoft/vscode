@@ -36,8 +36,8 @@ import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/c
 import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { IAICustomizationItemsModel } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { CustomizationMigrationCategoryId } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
 import { getCustomizationMigrationGroupIgnoreKey, storeIgnoredCustomizationMigrationGroupKeys } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationIgnoredGroups.js';
 import { IAgentHostToolSetEnablementService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
@@ -49,7 +49,7 @@ import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomization
 import { PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IAICustomizationMcpServerCountService } from '../../../../../workbench/contrib/sessions/browser/customizationMcpServerCount.js';
-import { CustomizationLinkViewItem, CustomizationsToolbarContribution } from '../../browser/customizationsToolbar.contribution.js';
+import { CustomizationLinkViewItem, CustomizationsMoreViewItem, CustomizationsToolbarContribution, SHOW_LESS_CUSTOMIZATIONS_COMMAND_ID, SHOW_MORE_CUSTOMIZATIONS_COMMAND_ID } from '../../browser/customizationsToolbar.contribution.js';
 import { CUSTOMIZATION_ITEMS, readCustomizationCount } from '../../../../../workbench/contrib/sessions/browser/customizationItems.js';
 import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from '../../../../../workbench/contrib/extensions/common/extensions.js';
 import { CustomizationsNavigationState } from '../../../../../workbench/contrib/sessions/browser/customizationsNavigationState.js';
@@ -63,6 +63,8 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/browser/customizationsConstants.js';
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { aiCustomizationManagementSectionRegistry } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING, SessionsSidebarCustomizationsCategories } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 
 suite('Customizations toolbar', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -114,6 +116,7 @@ suite('Customizations toolbar', () => {
 			harnessService,
 			disposables.add(new MockContextKeyService()),
 			new TestConfigurationService(),
+			disposables.add(new InMemoryStorageService()),
 		));
 
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(OPEN_AI_CUSTOMIZATIONS_COMMAND_ID)!.handler(accessor));
@@ -210,6 +213,7 @@ suite('Customizations toolbar', () => {
 			},
 			disposables.add(new MockContextKeyService()),
 			new TestConfigurationService(),
+			disposables.add(new InMemoryStorageService()),
 		));
 		const palette = MenuRegistry.getMenuItems(MenuId.CommandPalette).filter(isIMenuItem).find(item => item.command.id === EXTENSIONS_VIEWLET_ID);
 		const keybinding = keybindingsOnLoad[0];
@@ -267,6 +271,7 @@ suite('Customizations toolbar', () => {
 			},
 			contextKeyService,
 			configurationService,
+			disposables.add(new InMemoryStorageService()),
 		));
 
 		// As the Keyboard Shortcuts editor of editor windows writes them, scoped to the Extensions view container's enablement like the default keybinding there.
@@ -545,6 +550,144 @@ suite('Customizations toolbar', () => {
 			shown: { visible: true, ariaLabel: 'Skills to review.', hovers: ['Skills to review.'] },
 			hidden: { visible: false, ariaLabel: null, hovers: [] },
 			cleared: { visible: false, ariaLabel: null, hovers: [] },
+		});
+	});
+
+	test('shows the categories that the reduced section hides with More, hides them with Less, and remembers which was used last', async () => {
+		const configurationService = new TestConfigurationService({
+			[SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING]: SessionsSidebarCustomizationsCategories.All,
+			[EXTENSIONS_AGENTS_WINDOW_MANAGEMENT]: true,
+		});
+		const instantiationService = workbenchInstantiationService({}, disposables);
+		const storageService = instantiationService.get(IStorageService);
+		// Each window, or restart, has its own context.
+		const createWindow = () => {
+			const contextKeyService = new ContextKeyService(configurationService);
+			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+			const contribution = new CustomizationsToolbarContribution(
+				new class extends mock<IActionViewItemService>() {
+					override register() { return toDisposable(() => { }); }
+				},
+				new class extends mock<IInstantiationService>() { },
+				new class extends mock<ICustomizationHarnessService>() {
+					override readonly activeHarness = constObservable('vscode');
+					override readonly availableHarnesses = constObservable<readonly IHarnessDescriptor[]>([]);
+					override getActiveDescriptor() { return upcastPartial<IHarnessDescriptor>({ hiddenSections: [] }); }
+				},
+				contextKeyService,
+				configurationService,
+				storageService,
+			);
+			return {
+				offered: () => MenuRegistry.getMenuItems(Menus.SidebarCustomizations)
+					.filter(item => contextKeyService.contextMatchesRules(item.when))
+					.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+					.map(item => isIMenuItem(item) ? item.command.id : item.submenu.id),
+				dispose: () => {
+					contribution.dispose();
+					contextKeyService.dispose();
+				},
+			};
+		};
+		const run = (id: string) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
+
+		let window = createWindow();
+		const all = window.offered();
+		configurationService.setUserConfiguration(SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING, SessionsSidebarCustomizationsCategories.Reduced);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING]), affectsConfiguration: key => key === SESSIONS_SIDEBAR_CUSTOMIZATIONS_CATEGORIES_SETTING }));
+		const reduced = window.offered();
+		await run(SHOW_MORE_CUSTOMIZATIONS_COMMAND_ID);
+		const more = window.offered();
+		window.dispose();
+		window = createWindow();
+		const moreAfterRestart = window.offered();
+		await run(SHOW_LESS_CUSTOMIZATIONS_COMMAND_ID);
+		const less = window.offered();
+		window.dispose();
+		window = createWindow();
+		const lessAfterRestart = window.offered();
+		window.dispose();
+
+		const kept = [
+			OPEN_AI_CUSTOMIZATIONS_COMMAND_ID,
+			'sessions.customization.plugins',
+			'sessions.customization.mcpServers',
+			'sessions.customization.skills',
+			'sessions.customization.instructions',
+		];
+		const hidden = [
+			'sessions.customization.agents',
+			'sessions.customization.hooks',
+			'sessions.customization.tools',
+			EXTENSIONS_VIEWLET_ID,
+		];
+		assert.deepStrictEqual({ all, reduced, more, moreAfterRestart, less, lessAfterRestart }, {
+			all: [...kept, ...hidden],
+			reduced: [...kept, SHOW_MORE_CUSTOMIZATIONS_COMMAND_ID],
+			more: [...kept, ...hidden, SHOW_LESS_CUSTOMIZATIONS_COMMAND_ID],
+			moreAfterRestart: [...kept, ...hidden, SHOW_LESS_CUSTOMIZATIONS_COMMAND_ID],
+			less: [...kept, SHOW_MORE_CUSTOMIZATIONS_COMMAND_ID],
+			lessAfterRestart: [...kept, SHOW_MORE_CUSTOMIZATIONS_COMMAND_ID],
+		});
+	});
+
+	test('counts and badges the categories that More shows, and tells whether they are shown', async () => {
+		const badge = observableValue<string | undefined>(disposables, undefined);
+		disposables.add(aiCustomizationManagementSectionRegistry.registerBadge(AICustomizationManagementSection.Hooks, () => badge));
+		const instantiationService = telemetryInstantiationService();
+		instantiationService.stub(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+			override readonly activeHarness = constObservable('test');
+			override readonly availableHarnesses = constObservable([upcastPartial<IHarnessDescriptor>({ id: 'test', hiddenSections: [] })]);
+			override findHarnessById(id: string) {
+				return this.availableHarnesses.get().find(harness => harness.id === id);
+			}
+		});
+		instantiationService.stub(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
+			override readonly managementSections = [AICustomizationManagementSection.Skills, AICustomizationManagementSection.Agents, AICustomizationManagementSection.Hooks];
+		});
+		instantiationService.stub(IAICustomizationItemsModel, new class extends mock<IAICustomizationItemsModel>() {
+			override getCount(section: ItemsModelSection) {
+				return constObservable(section === AICustomizationManagementSection.Agents ? 2 : section === AICustomizationManagementSection.Hooks ? 3 : 30);
+			}
+		});
+		instantiationService.stub(IAICustomizationMcpServerCountService, new class extends mock<IAICustomizationMcpServerCountService>() { });
+		instantiationService.stub(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() { });
+		instantiationService.stub(IAgentHostToolSetEnablementService, new class extends mock<IAgentHostToolSetEnablementService>() { });
+		instantiationService.stub(IHoverService, NullHoverService);
+		const moreConfigs = CUSTOMIZATION_ITEMS.filter(config => config.section === AICustomizationManagementSection.Agents || config.section === AICustomizationManagementSection.Hooks);
+		const runs: string[] = [];
+		const render = (expanded: boolean) => {
+			const label = expanded ? 'Less' : 'More';
+			const action = disposables.add(new Action(label, label, undefined, true, () => { runs.push(label); }));
+			const item = disposables.add(instantiationService.createInstance(CustomizationsMoreViewItem, action, {}, expanded, moreConfigs));
+			const container = mainWindow.document.createElement('div');
+			item.render(container);
+			return container.querySelector<HTMLElement>('.customization-link-button');
+		};
+		const more = render(false);
+		const less = render(true);
+		const readState = () => [more, less].map(button => ({
+			count: button?.querySelector('.customization-link-counts')?.textContent,
+			badge: button?.querySelector('.ai-customization-suggestion-badge:not(.hidden)')?.getAttribute('aria-label'),
+			expanded: button?.getAttribute('aria-expanded'),
+		}));
+
+		const withoutBadge = readState();
+		badge.set('Hooks to review.', undefined);
+		more?.click();
+		less?.click();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({ withoutBadge, withBadge: readState(), runs }, {
+			withoutBadge: [
+				{ count: '5', badge: undefined, expanded: 'false' },
+				{ count: '', badge: undefined, expanded: 'true' },
+			],
+			withBadge: [
+				{ count: '5', badge: 'Hooks to review.', expanded: 'false' },
+				{ count: '', badge: undefined, expanded: 'true' },
+			],
+			runs: ['More', 'Less'],
 		});
 	});
 

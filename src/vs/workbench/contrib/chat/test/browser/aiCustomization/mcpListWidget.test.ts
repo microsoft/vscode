@@ -60,11 +60,14 @@ import {
 	getActiveSessionServerDefinitionUnavailable,
 	getActiveSessionServerProvenance,
 	getBuiltinMcpServerEnablementActions,
+	getClientBundledMcpServerEntry,
+	getClientBundledMcpServerSource,
 	getActiveSessionServerOptionsActions,
 	getAgentHostMcpServerEnablementActions,
 	getMcpCompatibilityPresentation,
 	getMcpRowMessagePresentation,
 	getMcpEntryGroup,
+	getMcpEntrySourceUri,
 	getMarketplaceMcpManagementAction,
 	getMcpRowKey,
 	getLocalMcpServerEnablementActions,
@@ -669,6 +672,44 @@ suite('mcpListWidget', () => {
 		]);
 	});
 
+	test('presents client-bundled servers by the VS Code configuration they came from, not the bundle', () => {
+		const mcpResource = URI.file('/workspace/web-app/.vscode/mcp.json');
+		const configured = { id: 'workspace-playwright', name: 'playwright', label: 'playwright', local: { scope: LocalMcpServerScope.Workspace, mcpResource } as IWorkbenchLocalMcpServer } as IWorkbenchMcpServer;
+		// Another folder configures the same name, but the runtime only defines the server above.
+		const shadowed = { id: 'shadowed-playwright', name: 'playwright', label: 'playwright', local: { scope: LocalMcpServerScope.Workspace, mcpResource: URI.file('/workspace/docs/.vscode/mcp.json') } as IWorkbenchLocalMcpServer } as IWorkbenchMcpServer;
+		const configuredRuntime = { definition: { id: configured.id, label: 'playwright' }, collection: { id: 'workspace-collection' }, readDefinitions: () => observableValue('definitions', {}) } as unknown as IMcpServer;
+		const contributed = { definition: { id: 'acme-docs-id', label: 'acme-docs' }, collection: { id: 'acme-collection' }, readDefinitions: () => observableValue('definitions', {}) } as unknown as IMcpServer;
+		const discoveredOrigin = URI.file('/workspace/.claude/settings.json');
+		const discovered = { definition: { id: 'discovered-id', label: 'discovered' }, collection: { id: 'discovered-collection' }, readDefinitions: () => observableValue('definitions', { server: { presentation: { origin: { uri: discoveredOrigin } } } }) } as unknown as IMcpServer;
+		const bundled = (name: string) => createAgentHostServer({ id: `session/${name}`, name, isPluginProvided: true, isClientBundled: true, source: 'plugin', sourcePluginName: 'VS Code Standalone Customizations', sourceUri: URI.file('/workspace/bundle/.mcp.json') });
+		const agentPluginService = { plugins: observableValue('plugins', []) } as unknown as IAgentPluginService;
+		const extensionsWorkbenchService = {
+			local: [{ identifier: { id: 'acme.acme-chat-kit' }, displayName: 'Acme Chat Kit' }],
+		} as unknown as IExtensionsWorkbenchService;
+		const labelService = new class extends mock<ILabelService>() {
+			override getUriLabel(resource: URI): string {
+				return resource.path.slice('/workspace/'.length);
+			}
+		}();
+
+		const presentations = [bundled('playwright'), bundled('acme-docs'), bundled('discovered'), bundled('unknown'), createAgentHostServer({ name: 'playwright' })].map(server => {
+			const entry = getClientBundledMcpServerEntry(server, [shadowed, configured], [configuredRuntime, contributed, discovered], [{ id: 'acme-collection', source: new ExtensionIdentifier('acme.acme-chat-kit') }, { id: 'discovered-collection', source: undefined }]);
+			return entry && {
+				group: getMcpEntryGroup(entry),
+				sourceUri: getMcpEntrySourceUri(entry)?.toString(),
+				label: getClientBundledMcpServerSource(entry, labelService, agentPluginService, extensionsWorkbenchService)?.label,
+			};
+		});
+
+		assert.deepStrictEqual(presentations, [
+			{ group: 'workspace', sourceUri: mcpResource.toString(), label: 'web-app/.vscode/mcp.json' },
+			{ group: 'user', sourceUri: undefined, label: 'Extension: Acme Chat Kit' },
+			{ group: 'user', sourceUri: discoveredOrigin.toString(), label: '.claude/settings.json' },
+			undefined,
+			undefined,
+		]);
+	});
+
 	test('renders Workspace before User even when User has no servers', () => {
 		const localEntry = (scope: LocalMcpServerScope): IMcpInstalledEntry => ({
 			type: 'server-item',
@@ -684,6 +725,8 @@ suite('mcpListWidget', () => {
 					},
 				},
 				installedEntries: entries.map(entry => ({ entry })),
+				collapsedGroups: new Set<string>(),
+				searchQuery: '',
 				isGalleryDiscoveryEnabled: () => true,
 				shouldShowLegacyGallery: () => false,
 				getAvailableGalleryServers: () => [],
@@ -715,6 +758,49 @@ suite('mcpListWidget', () => {
 		});
 	});
 
+	test('keeps collapsed groups collapsed when the server list changes', () => {
+		const localEntry = (id: string, scope: LocalMcpServerScope): IMcpInstalledEntry => ({
+			type: 'server-item',
+			server: { id, local: { scope } as IWorkbenchLocalMcpServer } as IWorkbenchMcpServer,
+		});
+		type TreeNode = { readonly element: { readonly type: string; readonly label?: string }; readonly collapsed?: unknown; readonly children?: readonly unknown[] };
+		const renders: (readonly TreeNode[] | undefined)[] = [];
+		const widget = Object.assign(Object.create(McpListWidget.prototype), {
+			list: { setChildren: (_input: null, children?: readonly TreeNode[]) => renders.push(children) },
+			installedEntries: [localEntry('workspace-one', LocalMcpServerScope.Workspace), localEntry('user-one', LocalMcpServerScope.User)].map(entry => ({ entry })),
+			collapsedGroups: new Set<string>(['user']),
+			searchQuery: '',
+			isGalleryDiscoveryEnabled: () => true,
+			shouldShowLegacyGallery: () => false,
+			getAvailableGalleryServers: () => [],
+			cardScrollableNode: document.createElement('div'),
+			cardDisposables: { clear() { } },
+			updateMcpTreeEmptyState: () => { },
+			workspaceContextService: new class extends mock<IWorkspaceContextService>() {
+				override getWorkspace() {
+					return testIWorkspace({ id: 'test', folders: [] });
+				}
+			}(),
+		});
+		const renderMcpTree = Reflect.get(McpListWidget.prototype, 'renderMcpTree') as (this: object) => void;
+		const describeRenders = () => renders.splice(0).map(children => children?.map(child => `${child.element.label} (${child.children?.length}) ${child.collapsed ? 'collapsed' : 'expanded'}`));
+
+		renderMcpTree.call(widget);
+		const initial = describeRenders();
+		widget.installedEntries = [...widget.installedEntries, { entry: localEntry('user-two', LocalMcpServerScope.User) }];
+		renderMcpTree.call(widget);
+		const afterServerAdded = describeRenders();
+		widget.searchQuery = 'one';
+		renderMcpTree.call(widget);
+		const whileSearching = describeRenders();
+
+		assert.deepStrictEqual({ initial, afterServerAdded, whileSearching }, {
+			initial: [['Workspace (1) expanded', 'User (1) collapsed']],
+			afterServerAdded: [['Workspace (1) expanded', 'User (2) collapsed']],
+			whileSearching: [['Workspace (1) expanded', 'User (2) expanded']],
+		});
+	});
+
 	test('splits workspace MCP sections in multi-root workspaces', () => {
 		const firstUri = URI.file('/workspace/first');
 		const secondUri = URI.file('/workspace/second');
@@ -740,6 +826,8 @@ suite('mcpListWidget', () => {
 		const widget = Object.assign(Object.create(McpListWidget.prototype), {
 			list: { setChildren: (_input: null, children?: readonly TreeNode[]) => renderedChildren = children ?? [] },
 			installedEntries: [createEntry('first', folders[0]), createEntry('second', folders[1])].map(entry => ({ entry })),
+			collapsedGroups: new Set<string>(),
+			searchQuery: '',
 			isGalleryDiscoveryEnabled: () => true,
 			shouldShowLegacyGallery: () => false,
 			getAvailableGalleryServers: () => [],

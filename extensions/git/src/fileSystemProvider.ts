@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from 'path';
 import { workspace, Uri, Disposable, Event, EventEmitter, window, FileSystemProvider, FileChangeEvent, FileStat, FileType, FileChangeType, FileSystemError, LogOutputChannel } from 'vscode';
 import { debounce, throttle } from './decorators';
 import { fromGitUri, toGitUri } from './uri';
@@ -149,6 +150,20 @@ export class GitFileSystemProvider implements FileSystemProvider {
 			this.logger.info(`[GitFileSystemProvider][getOrOpenRepository] Opening repository for ${fsPath}`);
 
 			await this.model.openRepository(fsPath, true, true);
+			return this.model.getRepository(uri);
+		}
+
+		// The repository might not be discovered by the initial repository scan (ex: it is
+		// nested deeper than `git.repositoryScanMaxDepth`) and is only opened when a file from
+		// it is visible in a text editor. Editors that only reference git resources (ex: the
+		// merge editor restored after a window reload) would not open it, so we open it using
+		// the same rules that are used for visible text editors.
+		const autoRepositoryDetection = workspace.getConfiguration('git').get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
+		if (workspace.isTrusted && (autoRepositoryDetection === true || autoRepositoryDetection === 'openEditors')) {
+			const fsPath = typeof uri === 'string' ? uri : path.dirname(fromGitUri(uri).path);
+			this.logger.trace(`[GitFileSystemProvider][getOrOpenRepository] Opening repository for ${fsPath}`);
+
+			await this.model.openRepository(fsPath);
 			repository = this.model.getRepository(uri);
 		}
 

@@ -11,6 +11,7 @@ import { isDeepStrictEqual } from 'util';
 import { useFakeTimers } from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isLinux } from '../../../../base/common/platform.js';
@@ -20,6 +21,7 @@ import { ICopilotApiService, type IRestrictedTelemetryContext } from '../../node
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { PluginFormat, toParsedAgent, type IMcpServerDefinition, type IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
 import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IFileService, type IFileContent } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -54,6 +56,7 @@ import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../..
 import { CopilotExtensionsReloadToolName } from '../../node/copilot/copilotExtensionTools.js';
 import { CopilotManagedSettingsResolver } from '../../node/copilot/copilotManagedSettings.js';
 import type { ICopilotAccountService } from '../../node/copilot/copilotAccountService.js';
+import type { CopilotAccountContext } from '../../common/copilotAccountContext.js';
 import { buildCopilotBuiltinAgents } from '../../node/copilot/copilotBuiltinAgents.js';
 import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import type { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
@@ -423,35 +426,129 @@ suite('CopilotSessionLauncher agent catalog readiness', () => {
 	}
 });
 
-suite('CopilotSessionLauncher discovery-only boundary', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+suite('CopilotSessionLauncher Microsoft account', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const context: Extract<CopilotAccountContext, { kind: 'ready' }> = {
+		kind: 'ready', entraAccountId: 'identity',
+		choice: { service: 'm365', selectionId: 'selected', host: 'https://m365.example', accountName: 'account', resource: 'https://m365.example' },
+	};
+
+	function setup(workingDirectory = testWorkingDirectory) {
+		const calls: string[] = [];
+		const storage: (boolean | undefined)[] = [];
+		const selected = { account: context as CopilotAccountContext };
+		const workspace = toCopilotWorkspace(workingDirectory);
+		const virtualSessionFs = workspace.kind === 'virtual'
+			? new CopilotVirtualSessionFs(workspace, '/session-state', URI.file('/copilot-home/session-state/account-chat'), () => undefined, upcastPartial<IFileService>({})) : undefined;
+		const session = upcastPartial<CopilotSession>({
+			sessionId: 'account-chat', on: () => () => { },
+			disconnect: async () => { calls.push('disconnect'); },
+			rpc: upcastPartial<CopilotSession['rpc']>({
+				agent: upcastPartial<CopilotSession['rpc']['agent']>({ list: async () => { calls.push('agents'); return { agents: [] }; } }),
+				options: { update: async () => ({ success: true }) },
+				managedSettings: upcastPartial<CopilotSession['rpc']['managedSettings']>({
+					get: async () => { assert.fail('Conversation policy must use the runtime-wide resolver'); },
+				}),
+			}),
+		});
+		const client = returningSession(session);
+		const { createSession, resumeSession } = client;
+		client.createSession = config => { calls.push('create'); storage.push(config?.enableSessionStore); return createSession(config); };
+		client.resumeSession = (id, config) => { calls.push('resume'); storage.push(config?.enableSessionStore); return resumeSession(id, config); };
+		client.deleteSession = async () => { calls.push('delete'); };
+		const { resolve } = client.rpc.managedSettings;
+		client.rpc.managedSettings.resolve = request => {
+			calls.push('policy');
+			assert.deepStrictEqual(request, {
+				clientName: 'vscode-agent-host',
+				...(workspace.kind !== 'virtual' ? { workingDirectory: workingDirectory.fsPath } : {}),
+			});
+			return resolve(request);
+		};
+		const accounts = upcastPartial<ICopilotAccountService>({
+			state: upcastPartial<ICopilotAccountService['state']>({ get: () => selected.account }),
+			authenticateSession: async (authenticated, _client, account) => {
+				calls.push(authenticated === session && account === context ? 'authenticate' : 'authenticate another session or account');
+			},
+		});
+		const launcher = createTestLauncher(undefined, undefined, undefined, undefined, undefined, undefined, undefined, accounts);
+		const base = {
+			client, sessionId: session.sessionId, workingDirectory, workspace, virtualSessionFs, isEphemeral: true, resolvedAgentName: undefined,
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromClientAuthentication(undefined),
+		};
+		const plan = (kind: 'create' | 'resume', microsoft = true): CopilotSessionLaunchPlan => {
+			const credentials = { ...base, accountContext: microsoft ? context : undefined };
+			return kind === 'create' ? { ...credentials, kind, model: undefined } : { ...credentials, kind, fallback: { model: undefined } };
+		};
+		return { calls, storage, selected, client, accounts, launcher, plan };
+	}
+
+	for (const scenario of ['create', 'resume', 'virtual-create', 'virtual-resume'] as const) {
+		test(`signs a new session in after creating it fully configured and resumes once without signing in: ${scenario}`, async () => {
+			const kind = scenario.endsWith('resume') ? 'resume' : 'create';
+			const f = setup(scenario.startsWith('virtual') ? URI.parse('vscode-vfs://github/microsoft/vscode') : testWorkingDirectory);
+			store.add(await f.launcher.launch(f.plan(kind), testRuntime));
+			assert.deepStrictEqual({ calls: f.calls, storage: f.storage }, {
+				calls: kind === 'create' ? ['policy', 'create', 'authenticate', 'agents'] : ['policy', 'resume', 'agents'], storage: [false],
+			});
+		});
+	}
 
 	for (const kind of ['create', 'resume'] as const) {
-		test(`${kind} does not treat account discovery as conversation authentication`, async () => {
-			const accountService = upcastPartial<ICopilotAccountService>({
-				state: upcastPartial<ICopilotAccountService['state']>({ get: () => ({ kind: 'error', entraAccountId: 'selected', stage: 'discovery' }) }),
-				requireReady: () => upcastPartial<ReturnType<ICopilotAccountService['requireReady']>>({ kind: 'ready' }),
-			});
-			const launcher = createTestLauncher(undefined, undefined, undefined, undefined,
-				upcastPartial<IAgentConfigurationService>({ copilotM365EnabledAtStartup: true }),
-				undefined, undefined, accountService);
-			const base = {
-				client: new class extends mock<CopilotClient>() { }(), sessionId: 'discovery-only',
-				workingDirectory: testWorkingDirectory, resolvedAgentName: undefined,
-				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
-				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
-				githubCredentials: CopilotGitHubSessionCredentials.fromClientAuthentication(undefined),
-			};
-			const plan: CopilotSessionLaunchPlan = kind === 'create'
-				? { ...base, kind, model: undefined }
-				: { ...base, kind, fallback: { model: undefined } };
-			await assert.rejects(launcher.launch(plan, testRuntime), /conversation authentication is not yet available/);
+		test(`${kind} opens no session when conversation policy cannot be resolved`, async () => {
+			const f = setup();
+			f.client.rpc.managedSettings.resolve = async () => { f.calls.push('policy'); throw new Error('Policy unavailable'); };
+			await assert.rejects(f.launcher.launch(f.plan(kind), testRuntime), /Policy unavailable/);
+			assert.deepStrictEqual(f.calls, ['policy']);
+		});
+	}
+
+	test('the launch plan, not the selected account, decides how a session signs in', async () => {
+		const withoutAccount = setup();
+		store.add(await withoutAccount.launcher.launch(withoutAccount.plan('create', false), testRuntime));
+		const replaced = setup();
+		replaced.selected.account = { ...context };
+		await assert.rejects(replaced.launcher.launch(replaced.plan('create'), testRuntime), isCancellationError);
+		assert.deepStrictEqual({ withoutAccount: withoutAccount.calls, replaced: replaced.calls }, {
+			withoutAccount: ['policy', 'create', 'agents'], replaced: ['policy'],
+		});
+	});
+
+	test('a new session that cannot be signed in is disconnected and deleted', async () => {
+		const f = setup();
+		f.accounts.authenticateSession = async () => { f.calls.push('authenticate'); throw new Error('Login rejected'); };
+		await assert.rejects(f.launcher.launch(f.plan('create'), testRuntime), /Login rejected/);
+		assert.deepStrictEqual(f.calls, ['policy', 'create', 'authenticate', 'disconnect', 'delete']);
+	});
+
+	test('an account change while a signed-in session is finalized disconnects it', async () => {
+		const f = setup();
+		f.accounts.authenticateSession = async () => { f.calls.push('authenticate'); f.selected.account = { kind: 'legacy' }; };
+		await assert.rejects(f.launcher.launch(f.plan('create'), testRuntime), isCancellationError);
+		assert.deepStrictEqual(f.calls, ['policy', 'create', 'authenticate', 'agents', 'disconnect']);
+	});
+
+	for (const emptyHistory of [true, false]) {
+		test(`a resume that fails ${emptyHistory ? 'for lack of history creates and signs in a replacement session' : 'for another reason neither creates nor signs in a session'}`, async () => {
+			const f = setup();
+			const failure = Object.assign(new Error(emptyHistory ? 'Session not found' : 'network fetch failed'), { code: -32603 });
+			f.client.resumeSession = async () => { f.calls.push('resume'); throw failure; };
+			const launching = f.launcher.launch(f.plan('resume'), testRuntime);
+			if (emptyHistory) {
+				store.add(await launching);
+			} else {
+				await assert.rejects(launching, failure);
+			}
+			assert.deepStrictEqual(f.calls, emptyHistory ? ['policy', 'resume', 'create', 'authenticate', 'agents'] : ['policy', 'resume']);
 		});
 	}
 });
 
 suite('CopilotSessionLauncher sandbox policy', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const appBundleRoot = URI.file('/application').fsPath;
 
 	function setup(kind: 'create' | 'resume', reportPolicy = true, enforced = false, allowBypass = false, allowOutbound?: boolean, sandboxUpdateError?: Error, sandboxToggles?: Pick<SandboxConfig, 'sandboxMcpServers' | 'sandboxLspServers' | 'allowDevToolAccess' | 'addCurrentWorkingDirectory' | 'auth'>, allowLocalNetwork?: boolean, networkHosts?: Pick<SandboxNetworkPolicy, 'allowedHosts' | 'blockedHosts'>) {
 		const manager = store.add(new AgentHostStateManager(new NullLogService()));
@@ -533,7 +630,10 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		let attachedSession: CopilotSession | undefined;
 		let sessionClosed = false;
 		const services = new ServiceCollection(
-			[ISessionSandboxPathService, new class extends mock<ISessionSandboxPathService>() { }()],
+			[INativeEnvironmentService, upcastPartial<INativeEnvironmentService>({ appRoot: appBundleRoot, appBundleRoot })],
+			[ISessionSandboxPathService, new class extends mock<ISessionSandboxPathService>() {
+				override async load(): Promise<void> { }
+			}()],
 			[IWorkspaceSandboxPathService, new WorkspaceSandboxPathService(store.add(new AgentHostStorageService(undefined, logService)))],
 			[IAgentConfigurationService, configuration],
 			[IAgentHostStateManager, manager],
@@ -573,7 +673,13 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				attachedSession = session;
 			},
 		};
-		return { manager, configuration, owner, updates, commands, launcher, plan, runtime, sandbox, raw, logService, set sessionClosed(value: boolean) { sessionClosed = value; }, set sandboxUpdateError(error: Error | undefined) { sandboxUpdateError = error; }, get sandboxState() { return readSessionSandboxState(manager.getSessionState(owner)); }, get disconnected() { return disconnected; }, get captured() { return captured; } };
+		const preparedLauncher = {
+			launch: async (plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime) => {
+				await sandbox.prepare();
+				return launcher.launch(plan, runtime);
+			},
+		};
+		return { manager, configuration, owner, updates, commands, launcher: preparedLauncher, plan, runtime, sandbox, raw, logService, set sessionClosed(value: boolean) { sessionClosed = value; }, set sandboxUpdateError(error: Error | undefined) { sandboxUpdateError = error; }, get sandboxState() { return readSessionSandboxState(manager.getSessionState(owner)); }, get disconnected() { return disconnected; }, get captured() { return captured; } };
 	}
 
 	test('a sandbox update failing after shutdown does not broadcast a policy conflict', async () => {
@@ -877,7 +983,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				enabled: true,
 				addCurrentWorkingDirectory: true,
 				auth: { git: true, gh: true },
-				userPolicy: { filesystem: { readonlyPaths: [URI.file('/session-data/sess-1/attachments').fsPath] } },
+				userPolicy: { filesystem: { readonlyPaths: [appBundleRoot, URI.file('/session-data/sess-1/attachments').fsPath] } },
 			}],
 		});
 	});
@@ -914,7 +1020,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			assert.deepStrictEqual(attempts, [true, false]);
 		});
 
-		test(`${kind} applies attachment read roots at launch and does not resend them at the first turn`, async () => {
+		test(`${kind} applies application and attachment read roots at launch and does not resend them at the first turn`, async () => {
 			const fixture = setup(kind);
 			fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'on' });
 
@@ -925,7 +1031,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				enabled: true,
 				addCurrentWorkingDirectory: true,
 				auth: { git: true, gh: true },
-				userPolicy: { filesystem: { readonlyPaths: [URI.file('/session-data/sess-1/attachments').fsPath] } },
+				userPolicy: { filesystem: { readonlyPaths: [appBundleRoot, URI.file('/session-data/sess-1/attachments').fsPath] } },
 			};
 			assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig), [expected]);
 		});
@@ -1257,7 +1363,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				policy: fixture.configuration.getSessionSandboxPolicy(fixture.owner),
 				stored: fixture.configuration.getRootConfigValues()?.sandbox,
 			}, {
-				applied: [{ enabled: true, addCurrentWorkingDirectory: true, allowBypass: false, auth: { git: true, gh: true }, userPolicy: { filesystem: { readonlyPaths: [URI.file('/session-data/sess-1/attachments').fsPath] }, network: { allowOutbound: false } } }],
+				applied: [{ enabled: true, addCurrentWorkingDirectory: true, allowBypass: false, auth: { git: true, gh: true }, userPolicy: { filesystem: { readonlyPaths: [appBundleRoot, URI.file('/session-data/sess-1/attachments').fsPath] }, network: { allowOutbound: false } } }],
 				policy: { enabled: true, allowBypass: false, allowOutbound: false },
 				stored: { enabled: 'off', allowNetwork: true, allowUnsandboxedCommands: false },
 			});
@@ -2352,6 +2458,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeConfigs.push(config);
 				return session;
 			},
+			deleteSession: async () => { assert.fail('Unexpected deletion'); },
 			rpc: { managedSettings: createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 		};
 		const managedSettingsPermissions: IAgentHostManagedSettingsPermissions = {
@@ -3052,6 +3159,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 				interactiveUserOptions.push(config.interactiveUser === true);
 				throw new TestSdkError(message, code);
 			},
+			deleteSession: async () => { assert.fail('Unexpected deletion'); },
 			rpc: { managedSettings: createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 		};
 		return {
@@ -4289,6 +4397,29 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
+	test('places memories in user messages only for the user-prompt memory mode, and reports eligibility for memory-enabled launches whose mode follows the experiment', async () => {
+		const store = disposables.add(new DisposableStore());
+		const launch = async (values: SchemaValues<typeof copilotCliConfigSchema.definition>, isEphemeral?: boolean) => {
+			let eligible: boolean | undefined;
+			const config = await buildResumeConfig(createLauncher(store, values), { id: 'gpt-5' }, undefined, undefined, { setMemoryModeEligible: value => { eligible = value; } }, { isEphemeral });
+			return { memory: config.memory, eligible };
+		};
+
+		assert.deepStrictEqual({
+			unknownProvenance: await launch({}),
+			systemPrompt: await launch({ [CopilotCliConfigKey.MemoryMode]: 'system-prompt', [CopilotCliConfigKey.MemoryModeDefaultControlled]: true }),
+			userPrompt: await launch({ [CopilotCliConfigKey.MemoryMode]: 'user-prompt', [CopilotCliConfigKey.MemoryModeDefaultControlled]: true }),
+			explicitUserPrompt: await launch({ [CopilotCliConfigKey.MemoryMode]: 'user-prompt', [CopilotCliConfigKey.MemoryModeDefaultControlled]: false }),
+			ephemeralUserPrompt: await launch({ [CopilotCliConfigKey.MemoryMode]: 'user-prompt', [CopilotCliConfigKey.MemoryModeDefaultControlled]: true }, true),
+		}, {
+			unknownProvenance: { memory: { enabled: true }, eligible: false },
+			systemPrompt: { memory: { enabled: true }, eligible: true },
+			userPrompt: { memory: { enabled: true, mode: 'user-prompt' }, eligible: true },
+			explicitUserPrompt: { memory: { enabled: true, mode: 'user-prompt' }, eligible: false },
+			ephemeralUserPrompt: { memory: { enabled: false }, eligible: false },
+		});
+	});
+
 	test('configures the stability-ordered system prompt feature flag', async () => {
 		const store = disposables.add(new DisposableStore());
 		const disabled = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
@@ -4767,6 +4898,7 @@ suite('CopilotSessionLauncher auto tier', () => {
 				}
 				return session;
 			},
+			deleteSession: async () => { assert.fail('Unexpected deletion'); },
 		};
 		const launcher = createTestLauncher(undefined, {
 			[CopilotCliConfigKey.AutoModeTierOverride]: override,
@@ -4914,6 +5046,7 @@ suite('CopilotSessionLauncher working directory trust', () => {
 				record(config);
 				return session;
 			},
+			deleteSession: async () => { assert.fail('Unexpected deletion'); },
 			resumeSession: async (_sessionId, config) => {
 				record(config);
 				if (kind === 'fallback') {

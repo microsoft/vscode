@@ -140,6 +140,9 @@ import './contrib/extensions/electron-browser/devtoolsExtensionHost.contribution
 // Issues
 import './contrib/issue/electron-browser/issue.contribution.js';
 
+// Screenshot Tool
+import './contrib/screenshotTool/electron-browser/screenshotTool.contribution.js';
+
 // Surveys
 import './contrib/surveys/browser/survey.contribution.js';
 

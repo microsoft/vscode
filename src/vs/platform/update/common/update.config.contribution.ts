@@ -99,6 +99,16 @@ configurationRegistry.registerConfiguration({
 			tags: ['usesOnlineServices'],
 			agentsWindow: { default: false, readOnly: true },
 		},
+		'update.showReleaseHighlightsVideo': {
+			type: 'boolean',
+			default: false,
+			experiment: { mode: 'auto' },
+			scope: ConfigurationScope.APPLICATION,
+			included: !isWeb,
+			description: localize('showReleaseHighlightsVideo', "Include an available highlights video when opening release notes. The video does not play automatically. Videos are fetched from a Microsoft online service."),
+			tags: ['usesOnlineServices'],
+			agentsWindow: { default: false, readOnly: true },
+		},
 		'update.showPostInstallInfo': {
 			type: 'boolean',
 			default: false,
