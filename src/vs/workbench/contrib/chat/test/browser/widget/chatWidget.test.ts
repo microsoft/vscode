@@ -67,7 +67,7 @@ import { IChatMode } from '../../../common/chatModes.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { ChatResponseModelChangeReason, IChatChangeEvent, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
-import { ChatViewModel, IChatRequestViewModel, IChatScheduledRequestEditing } from '../../../common/model/chatViewModel.js';
+import { ChatViewModel, IChatRequestViewModel, IChatScheduledRequest, IChatScheduledRequestEditing } from '../../../common/model/chatViewModel.js';
 import { IIntendedModelSelection, ModelSelectionReason } from '../../../common/modelSelection.js';
 import { ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
 import { IChatAgentData, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -933,49 +933,80 @@ suite('ChatWidget', () => {
 		return widget;
 	}
 
-	test('scheduled inline editing captures text deletion and attachment removal', async () => {
+	test('scheduled editing in the input captures text deletion and attachment removal, then gives the input back', async () => {
 		await withAsyncTestCodeEditor('Message', {}, async editor => {
 			const attachmentChange = store.add(new Emitter<void>());
 			const attachments = [{ id: 'context', kind: 'generic' as const, name: 'Context', value: 'Captured context' }];
 			const state: IChatScheduledRequestEditing = {
-				text: 'Message', runAt: '2099-01-15T10:00:00Z', description: 'Tomorrow',
+				text: 'Message', runAt: '2099-01-15T10:00:00Z', description: 'Tomorrow 10:00 AM',
 				selectTime: toAction({ id: 'time', label: 'Time', run: async () => { } }),
 				save: async () => { }, cancel: () => { },
 			};
-			const input = {
+			const opened: (IChatScheduledRequestEditing | undefined)[] = [];
+			const inputPart = {
+				element: dom.$('div'),
 				inputEditor: editor,
 				onDidChangeDraft: Event.None,
-				attachmentModel: { attachments, onDidChange: attachmentChange.event, addContext: () => { } },
-				setValue: (text: string) => editor.setValue(text),
+				attachmentModel: { attachments, onDidChange: attachmentChange.event },
+				setScheduledRequestEditing: (editing: IChatScheduledRequestEditing | undefined) => { opened.push(editing); },
+				setEditing: () => { },
 				focus: () => editor.focus(),
 			};
+			const shown: string[][] = [];
 			const widget = Object.setPrototypeOf({
-				input,
-				inputContainer: dom.$('div'),
-				viewModel: undefined,
+				inputPart,
+				viewModel: { editing: undefined, setScheduledRequests: (requests: readonly IChatScheduledRequest[]) => { shown.push(requests.map(request => request.editing ? `${request.id} (editing)` : request.id)); } },
+				contribs: [],
 				_editingDisposables: store.add(new MutableDisposable<DisposableStore>()),
-				_editingAutoScrollHold: store.add(new MutableDisposable<IDisposable>()),
-				createInlineInput: () => { },
-				inputPart: {
-					toggleChatInputOverlay: () => { },
-					dnd: { setDisabledOverlay: () => { } },
-					onDidClickOverlay: Event.None,
-				},
-				listWidget: { acquireAutoScrollHold: () => toDisposable(() => { }) },
 			}, ChatWidget.prototype);
-			widget.renderScheduledRequestInput({}, { id: 'later', editing: state });
+			const request = { id: 'later', text: 'Message', description: 'Tomorrow 10:00 AM', attachments: [], actions: [] };
+			widget.setScheduledRequests([{ ...request, editing: state }]);
+			const editingClass = inputPart.element.classList.contains('editing');
 			editor.executeEdits('test', [{ range: new Range(1, 4, 1, 8), text: '' }]);
 			const afterDeletion = { text: state.text, attachmentIds: state.input?.attachments.map(attachment => attachment.id) };
 			attachments.length = 0;
 			attachmentChange.fire();
-			assert.deepStrictEqual({ afterDeletion, input: state.input }, {
+			const input = state.input;
+			widget.setScheduledRequests([request]);
+			assert.deepStrictEqual({ editingClass, afterDeletion, input, opened, shown, editingClassAfter: inputPart.element.classList.contains('editing') }, {
+				editingClass: true,
 				afterDeletion: { text: 'Mes', attachmentIds: ['context'] },
 				input: { inputText: 'Mes', attachments: [], references: [] },
+				// The input is told on each update, so Save can show a changed send time.
+				opened: [state, state, undefined, undefined],
+				// The transcript shows the message throughout, marked while it is open in the input.
+				shown: [['later (editing)'], ['later']],
+				editingClassAfter: false,
 			});
 		});
 	});
 
-	test('scheduled inline submission saves instead of sending and retains the editor on failure', async () => {
+	test('a scheduled edit takes focus when it opens, not when its chat is shown again', () => {
+		let focuses = 0;
+		const state = upcastPartial<IChatScheduledRequestEditing>({ text: 'Message' });
+		const inputPart = {
+			element: dom.$('div'),
+			inputEditor: { onDidChangeModelContent: Event.None, updateOptions: () => { } },
+			onDidChangeDraft: Event.None,
+			attachmentModel: { onDidChange: Event.None },
+			setScheduledRequestEditing: () => { },
+			setEditing: () => { },
+			focus: () => { focuses++; },
+		};
+		const widget = Object.setPrototypeOf({
+			inputPart,
+			viewModel: { editing: undefined, setScheduledRequests: () => { } },
+			_editingDisposables: store.add(new MutableDisposable<DisposableStore>()),
+		}, ChatWidget.prototype);
+		const request = { id: 'later', text: 'Message', description: 'Tomorrow 10:00 AM', attachments: [], actions: [] };
+		widget.setScheduledRequests([{ ...request, editing: state }]);
+		// Another chat is opened from the sessions list, then this one again.
+		widget.setScheduledRequests([]);
+		widget.setScheduledRequests([{ ...request, editing: state }]);
+		assert.strictEqual(focuses, 1);
+	});
+
+	test('scheduled editing in the input saves instead of sending and stays open on failure', async () => {
 		const calls: string[] = [];
 		const state: IChatScheduledRequestEditing = {
 			text: 'Scheduled edit', runAt: '2099-01-15T10:00:00Z', description: 'Tomorrow',
@@ -984,7 +1015,7 @@ suite('ChatWidget', () => {
 			cancel: () => { calls.push('cancel'); },
 		};
 		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
-			_scheduledRequestEdit: { id: 'scheduled:later', state },
+			_scheduledRequestEdit: state,
 			isInputSubmissionBlocked: () => { throw new Error('Must not enter ordinary submission'); },
 		});
 		Object.defineProperty(widget, 'input', { value: { inputEditor: { getContribution: () => undefined } } });

@@ -81,16 +81,16 @@ suite('Scheduled chat time picker', () => {
 		return new Date(now.getFullYear(), now.getMonth(), now.getDate() + offsetDays, hours, minutes);
 	}
 
-	timedTest('presets include short delays and tomorrow at local 9 AM with exact send times', async () => {
+	timedTest('presets omit timestamps and schedule tomorrow at local 9 AM', async () => {
 		const fixture = create('Tomorrow Morning');
 		const date = await fixture.result;
 		assert.deepStrictEqual({
 			labels: fixture.choices.map(item => item.label),
-			hasDescriptions: fixture.choices.slice(0, -1).every(item => !!item.description),
+			hasDescriptions: fixture.choices.some(item => !!item.description),
 			date: date?.getTime(),
 		}, {
 			labels: ['In 5 Minutes', 'In 10 Minutes', 'In 15 Minutes', 'In 30 Minutes', 'In 1 Hour', 'In 24 Hours', 'Tomorrow Morning', 'Choose Date and Time...'],
-			hasDescriptions: true,
+			hasDescriptions: false,
 			date: today(1, 9).getTime(),
 		});
 	});

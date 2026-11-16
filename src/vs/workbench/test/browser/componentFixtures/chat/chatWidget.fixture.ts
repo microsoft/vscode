@@ -2790,7 +2790,9 @@ async function renderPendingDivider(context: ComponentFixtureContext, kind: Chat
 				viewModel.setScheduledRequests([{
 					id: 'scheduled-follow-up',
 					text: 'Check the review feedback tomorrow and summarize any remaining changes.',
-					description: 'Scheduled for Nov 13, 2026, 10:00 AM PST',
+					description: 'Today 3:00 PM',
+					// Three hours after the fixtures' fixed clock.
+					runAt: '2026-05-14T15:00:00Z',
 					attachments: ['review-notes.md'],
 					actions: ['Preview', 'Send Now', 'Reschedule...', 'Edit', 'Cancel Schedule'].map(label => toAction({ id: label, label, run: () => { } })),
 				}]);

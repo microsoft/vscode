@@ -51,6 +51,7 @@ import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../.
 import { ISessionsService } from '../sessionsService.js';
 import { ISessionDraftsService } from '../sessionDraftsService.js';
 import { IScheduledChatsService } from '../scheduledChatsService.js';
+import { IChatScheduledRequest } from '../../../chat/common/model/chatViewModel.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../menus.js';
 import { MobileSessionFilterChips } from '../mobile/mobileSessionFilterChips.js';
@@ -346,6 +347,16 @@ export class SessionsView extends ViewPane {
 			scheduledSessions: derived(this, reader => this.scheduledChatsService.items.read(reader).filter(item => !item.conversation)),
 			scheduledSessionResources: derived(this, reader => new Set(this.scheduledChatsService.items.read(reader)
 				.flatMap(item => item.conversation ? [item.conversation.sessionResource.toString()] : []))),
+			scheduledRequests: derived(this, reader => {
+				const requests = new Map<string, IChatScheduledRequest[]>();
+				for (const item of this.scheduledChatsService.items.read(reader)) {
+					if (item.conversation) {
+						const key = item.conversation.sessionResource.toString();
+						requests.set(key, [...requests.get(key) ?? [], item]);
+					}
+				}
+				return requests;
+			}),
 			sectionRowHeight: this.presentation.sectionRowHeight,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			grouping: () => this.grouping,

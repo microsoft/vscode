@@ -5265,47 +5265,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-item-container.scheduled-request {
-	&.scheduled-request-editing {
-		opacity: 1;
-
-		.chat-request-timestamp-container {
-			height: auto;
-			margin-top: var(--vscode-spacing-size40);
-			pointer-events: auto;
-		}
-	}
-
-	.scheduled-request-editor {
-		display: flex;
-		flex-direction: column;
-		gap: var(--vscode-spacing-size80);
-		width: 100%;
-	}
-
-	.scheduled-request-editor-actions {
-		display: flex;
-		gap: var(--vscode-spacing-size80);
-	}
-
-	.scheduled-request-editor .monaco-button {
-		width: auto;
-		flex: 0 0 auto;
-		margin: 0;
-
-		&.scheduled-request-edit-time {
-			flex: 0 1 auto;
-			margin-right: auto;
-			min-width: 0;
-
-			> span:not(.codicon) {
-				min-width: 0;
-				overflow: hidden;
-				white-space: nowrap;
-				text-overflow: ellipsis;
-			}
-		}
-	}
-
 	.scheduled-request-actions {
 		top: -17px;
 		opacity: 0;
@@ -5318,14 +5277,53 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.scheduled-request-header {
 		display: flex;
 		align-items: center;
-		gap: var(--vscode-spacing-size80);
+		gap: var(--vscode-spacing-size40);
 		color: var(--vscode-descriptionForeground);
 		font-size: var(--vscode-chat-font-size-body-xs);
+	}
+
+	/* Centered on its line, unlike icons inline with message text. */
+	.value .rendered-markdown .scheduled-request-header > .codicon {
+		top: 0;
+		font-size: var(--vscode-codiconFontSize-compact);
 	}
 
 	.scheduled-request-description {
 		flex: 1;
 		min-width: 0;
+	}
+
+	/* "Sending in 3 hours" turns into the exact send time on hover or focus. */
+	.scheduled-request-time {
+		flex: 0 1 auto;
+		display: inline-grid;
+		overflow: hidden;
+
+		> time {
+			grid-area: 1 / 1;
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+			transition: opacity 160ms ease, transform 160ms ease;
+		}
+
+		> .scheduled-request-exact {
+			opacity: 0;
+			transform: translateY(100%);
+		}
+	}
+
+	.scheduled-request-time:hover,
+	.rendered-markdown:focus-visible .scheduled-request-time {
+		> .scheduled-request-from-now {
+			opacity: 0;
+			transform: translateY(-100%);
+		}
+
+		> .scheduled-request-exact {
+			opacity: 1;
+			transform: translateY(0);
+		}
 	}
 
 	.scheduled-request-text,
@@ -5337,6 +5335,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.scheduled-request-attachments {
 		color: var(--vscode-descriptionForeground);
 		font-size: var(--vscode-chat-font-size-body-xs);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.interactive-item-container.scheduled-request .scheduled-request-time > time {
+		transition: none;
 	}
 }
 

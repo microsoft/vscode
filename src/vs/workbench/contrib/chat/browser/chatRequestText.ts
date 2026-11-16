@@ -5,6 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { IChatRequestViewModel, IChatScheduledRequest } from '../common/model/chatViewModel.js';
+import { formatScheduledRequestTime, formatScheduledRequestTimeFromNow } from '../common/widget/chatScheduledRequestTime.js';
 import { getAgentMergeRequestLabel } from './widget/chatContentParts/chatAgentMergeContentPart.js';
 import { getArtifactRequestAccessibleText, getArtifactRequestLabel, getArtifactRequestPresentation } from './widget/chatContentParts/chatArtifactActionContentPart.js';
 
@@ -36,7 +37,12 @@ export function getChatRequestAccessibleText(item: IChatRequestViewModel): strin
 }
 
 export function getChatScheduledRequestAccessibleText(item: IChatScheduledRequest): string {
-	const parts = [item.description, item.text];
+	const time = item.editing
+		? localize('scheduledEditing', "Editing")
+		: item.runAt
+			? localize('scheduledTime', "{0}, {1}", formatScheduledRequestTimeFromNow(item.runAt), formatScheduledRequestTime(item.runAt))
+			: item.description;
+	const parts = [time, item.text];
 	if (item.attachments.length) {
 		parts.push(localize('scheduledAttachments', "Attachments: {0}", item.attachments.join(', ')));
 	}

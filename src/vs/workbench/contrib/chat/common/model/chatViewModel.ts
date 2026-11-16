@@ -273,7 +273,8 @@ export interface IChatScheduledRequestEditing {
 	readonly retainedAttachments?: readonly string[];
 	readonly isSaving?: IObservable<boolean>;
 	runAt: string;
-	description: string;
+	/** When the edited request will send ("Tomorrow 9:00 AM"), following {@link runAt}. */
+	readonly description: string;
 	readonly selectTime: IAction;
 	save(): Promise<void>;
 	cancel(): void;
@@ -283,7 +284,10 @@ export interface IChatScheduledRequestEditing {
 export interface IChatScheduledRequest {
 	readonly id: string;
 	readonly text: string;
+	/** When the request sends ("Tomorrow 9:00 AM"), or its status while it cannot. */
 	readonly description: string;
+	/** When the request sends, as an ISO date, while it is set to send then. */
+	readonly runAt?: string;
 	readonly attachments: readonly string[];
 	readonly actions: readonly IAction[];
 	readonly editAction?: IAction;
@@ -455,14 +459,21 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	setScheduledRequests(requests: readonly IChatScheduledRequest[]): void {
 		const version = ++this._scheduledRequestsVersion;
-		this._scheduledRequests = requests.map(request => ({
-			...request,
+		this._scheduledRequests = requests.map((request): IChatScheduledRequestViewModel => ({
 			id: `scheduled:${request.id}`,
 			dataId: `scheduled:${request.id}:${version}`,
 			kind: 'scheduledRequest',
 			sessionResource: this.sessionResource,
 			isComplete: true,
 			currentRenderedHeight: undefined,
+			text: request.text,
+			// Read through, so a send time worked out when read ("Today", "Tomorrow") stays right.
+			get description() { return request.description; },
+			runAt: request.runAt,
+			attachments: request.attachments,
+			actions: request.actions,
+			editAction: request.editAction,
+			editing: request.editing,
 		}));
 		this._onDidChange.fire(null);
 	}

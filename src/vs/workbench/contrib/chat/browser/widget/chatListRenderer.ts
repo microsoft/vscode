@@ -8,13 +8,13 @@ import { renderFormattedText } from '../../../../../base/browser/formattedTextRe
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
-import { ButtonBar } from '../../../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { HoverStyle, IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
+import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { CachedListVirtualDelegate, IListElementRenderDetails } from '../../../../../base/browser/ui/list/list.js';
 import { IStickyScrollNodeSourceRange } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { ITreeNode, ITreeRenderer } from '../../../../../base/browser/ui/tree/tree.js';
-import { ActionRunner, IAction, toAction } from '../../../../../base/common/actions.js';
+import { ActionRunner, IAction } from '../../../../../base/common/actions.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
 import { coalesce, distinct } from '../../../../../base/common/arrays.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -49,7 +49,6 @@ import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/mark
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { isCopilotAgentHostSessionType } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { isCreateChatTool, isCreateSessionTool, isSendMessageTool } from '../../../../../platform/agentHost/common/openSessionLink.js';
@@ -68,6 +67,7 @@ import { ChatQuestionCarouselData, maskPasswordAnswers } from '../../common/mode
 import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPasteVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { formatScheduledRequestTime, formatScheduledRequestTimeFromNow, getScheduledRequestTimeFromNowChange } from '../../common/widget/chatScheduledRequestTime.js';
 import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM, IChatTurnPillsPart, IChatScheduledRequestViewModel, isScheduledRequestVM } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
@@ -1976,7 +1976,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderChatTreeItem(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate): void {
 		const sameScheduledRequest = isScheduledRequestVM(element) && templateData.currentElement?.id === element.id;
-		const wasScheduledEditing = sameScheduledRequest && templateData.rowContainer.classList.contains('scheduled-request-editing');
 		const hadScheduledFocus = sameScheduledRequest && (templateData.scheduledRequestHadFocus || dom.isAncestorOfActiveElement(templateData.rowContainer));
 		templateData.scheduledRequestHadFocus = false;
 		templateData.scheduledRequestDisposables.clear();
@@ -2034,7 +2033,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 		if (isScheduledRequestVM(element)) {
-			this.renderScheduledRequest(element, templateData, element.editing ? !wasScheduledEditing || hadScheduledFocus : hadScheduledFocus);
+			this.renderScheduledRequest(element, templateData, !element.editing && hadScheduledFocus);
 			return;
 		}
 
@@ -2384,29 +2383,33 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.preparePendingItem(templateData);
 		const store = templateData.scheduledRequestDisposables;
 		templateData.rowContainer.classList.add('scheduled-request', 'interactive-request', 'pending-request');
-		if (element.editing) {
-			templateData.scheduledRequestHadFocus = focus;
-			templateData.rowContainer.classList.add('scheduled-request-editing', 'editing');
-			this.renderScheduledRequestEditor(element, templateData);
-			return;
-		}
 		const content = dom.append(templateData.value, dom.$('.rendered-markdown'));
 		templateData.scheduledRequestAnchor = content;
 		const header = dom.append(content, dom.$('.scheduled-request-header'));
-		dom.append(header, dom.$('span.codicon.codicon-clock', { 'aria-hidden': 'true' }));
-		dom.append(header, dom.$('span.scheduled-request-description', undefined, element.description));
-		const toolbarContainer = dom.append(templateData.rowContainer, dom.$('.request-hover.scheduled-request-actions'));
-		store.add(toDisposable(() => toolbarContainer.remove()));
-		const toolbar = store.add(this.instantiationService.createInstance(WorkbenchToolBar, toolbarContainer, {
-			ariaLabel: localize('scheduledRequestActions', "Scheduled Message Actions"),
-			actionRunner: this.scheduledRequestActionRunner,
-		}));
-		toolbar.context = content;
-		toolbar.setActions([...element.actions]);
+		if (element.editing) {
+			// Open in the chat input, which saves it or cancels the edit.
+			templateData.rowContainer.classList.add('scheduled-request-editing');
+			dom.append(header, dom.$('span.codicon.codicon-edit', { 'aria-hidden': 'true' }));
+			dom.append(header, dom.$('span.scheduled-request-description', undefined, localize('scheduledRequestEditing', "Editing")));
+		} else {
+			dom.append(header, dom.$('span.codicon.codicon-clock', { 'aria-hidden': 'true' }));
+			this.renderScheduledRequestTime(header, element, store);
+			const toolbarContainer = dom.append(templateData.rowContainer, dom.$('.request-hover.scheduled-request-actions'));
+			store.add(toDisposable(() => toolbarContainer.remove()));
+			const toolbar = store.add(this.instantiationService.createInstance(WorkbenchToolBar, toolbarContainer, {
+				ariaLabel: localize('scheduledRequestActions', "Scheduled Message Actions"),
+				actionRunner: this.scheduledRequestActionRunner,
+			}));
+			toolbar.context = content;
+			toolbar.setActions([...element.actions]);
+		}
 		dom.append(content, dom.$('.scheduled-request-text', undefined, element.text));
 		if (element.attachments.length) {
 			dom.append(content, dom.$('.scheduled-request-attachments', undefined,
 				localize('scheduledRequestAttachments', "Attachments: {0}", element.attachments.join(', '))));
+		}
+		if (element.editing) {
+			return;
 		}
 		content.tabIndex = 0;
 		if (focus) {
@@ -2436,57 +2439,30 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					event.stopPropagation();
 					void this.scheduledRequestActionRunner.run(editAction);
 				}));
-				store.add(this.hoverService.setupDelayedHover(content, {
-					content: localize('scheduledRequestEdit', "Click to Edit Message and Send Time"),
-					style: HoverStyle.Pointer,
-				}));
 			}
 		}
 	}
 
-	private renderScheduledRequestEditor(element: IChatScheduledRequestViewModel, templateData: IChatListItemTemplate): void {
-		const editing = element.editing!;
-		const store = templateData.scheduledRequestDisposables;
-		const container = dom.append(templateData.requestTimestampContainer, dom.$('.scheduled-request-editor'));
-		templateData.scheduledRequestAnchor = container;
-		const retainedAttachments = editing.retainedAttachments ?? (editing.input ? [] : element.attachments);
-		if (retainedAttachments.length) {
-			dom.append(container, dom.$('.scheduled-request-attachments', undefined,
-				localize('scheduledRequestAttachments', "Attachments: {0}", retainedAttachments.join(', '))));
+	/** How long until the request sends ("Sending in 3 hours"), kept current while it shows; hovering shows the exact time. */
+	private renderScheduledRequestTime(container: HTMLElement, element: IChatScheduledRequestViewModel, store: DisposableStore): void {
+		const runAt = element.runAt;
+		if (!runAt) {
+			dom.append(container, dom.$('span.scheduled-request-description', undefined, element.description));
+			return;
 		}
-		const buttons = store.add(new ButtonBar(dom.append(container, dom.$('.scheduled-request-editor-actions'))));
-		const time = buttons.addButton({ ...defaultButtonStyles, secondary: true, supportIcons: true, title: editing.description });
-		time.label = `$(clock) ${editing.description}`;
-		time.element.classList.add('scheduled-request-edit-time');
-		time.element.setAttribute('aria-label', localize('scheduledRequestEditTime', "Change send time, {0}", editing.description));
-		const save = buttons.addButton({ ...defaultButtonStyles });
-		save.label = localize('scheduledRequestSave', "Save");
-		const cancel = buttons.addButton({ ...defaultButtonStyles, secondary: true });
-		cancel.label = localize('scheduledRequestCancelEdit', "Cancel");
-		let busy = false;
-		const saveAction = toAction({
-			id: 'scheduledRequest.save', label: save.label,
-			run: async () => {
-				if (busy) {
-					return;
-				}
-				busy = true;
-				save.enabled = cancel.enabled = time.enabled = false;
-				try {
-					await editing.save();
-				} finally {
-					busy = false;
-					save.enabled = cancel.enabled = time.enabled = true;
-				}
-			},
-		});
-		store.add(time.onDidClick(() => { void this.scheduledRequestActionRunner.run(editing.selectTime, time.element); }));
-		store.add(save.onDidClick(() => { void this.scheduledRequestActionRunner.run(saveAction); }));
-		store.add(cancel.onDidClick(() => editing.cancel()));
-		store.add(autorun(reader => {
-			save.enabled = cancel.enabled = time.enabled = !editing.isSaving?.read(reader);
-		}));
-		this._onDidRerender.fire(templateData);
+		const time = dom.append(container, dom.$('span.scheduled-request-description.scheduled-request-time'));
+		const fromNow = dom.append(time, dom.$('time.scheduled-request-from-now', { datetime: runAt }));
+		const exact = dom.append(time, dom.$('time.scheduled-request-exact', { datetime: runAt }));
+		const timer = store.add(new MutableDisposable());
+		const update = () => {
+			const now = Date.now();
+			fromNow.textContent = formatScheduledRequestTimeFromNow(runAt, now);
+			exact.textContent = formatScheduledRequestTime(runAt, now);
+			const change = getScheduledRequestTimeFromNowChange(runAt, now);
+			// Just past the change, so "Sending in 3 hours" turns over when the sessions list's card does.
+			timer.value = change === undefined ? undefined : disposableTimeout(update, change + 1);
+		};
+		update();
 	}
 
 	private focusScheduledRequest(templateData: IChatListItemTemplate, element: HTMLElement): void {

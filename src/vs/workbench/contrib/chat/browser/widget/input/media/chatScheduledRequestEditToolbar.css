@@ -1,0 +1,89 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Cancel and Save take Send's place while a scheduled message is open in the input. */
+.interactive-session .chat-input-toolbars > .chat-scheduled-edit-toolbar {
+	display: none;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	order: 2;
+	flex-shrink: 0;
+}
+
+.interactive-session .interactive-input-part.editing-scheduled-request .chat-input-toolbars > .chat-execute-toolbar {
+	display: none;
+}
+
+.interactive-session .interactive-input-part.editing-scheduled-request .chat-input-toolbars > .chat-scheduled-edit-toolbar {
+	display: flex;
+}
+
+.chat-scheduled-edit-toolbar :is(.chat-scheduled-edit-cancel, .chat-scheduled-edit-save-label, .chat-scheduled-edit-change-time) {
+	display: flex;
+	align-items: center;
+	box-sizing: border-box;
+	height: var(--chat-input-control-height);
+	font-size: var(--vscode-fontSize-label1);
+	white-space: nowrap;
+	cursor: pointer;
+	outline-offset: 1px;
+}
+
+.chat-scheduled-edit-toolbar :is(.chat-scheduled-edit-cancel, .chat-scheduled-edit-save-label, .chat-scheduled-edit-change-time):focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+}
+
+.chat-scheduled-edit-toolbar .chat-scheduled-edit-cancel {
+	padding: 0 var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-circle);
+	color: var(--vscode-foreground);
+}
+
+.chat-scheduled-edit-toolbar .chat-scheduled-edit-cancel:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+/* Save is Send's filled button with a label (like "Run 3 Attempts"), split by a chevron that changes the time. */
+.chat-scheduled-edit-toolbar .chat-scheduled-edit-save {
+	display: flex;
+	align-items: center;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-contrastBorder, transparent);
+}
+
+.chat-scheduled-edit-toolbar .chat-scheduled-edit-save-label {
+	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size100);
+	border-radius: var(--vscode-cornerRadius-circle) 0 0 var(--vscode-cornerRadius-circle);
+	color: inherit;
+}
+
+.chat-scheduled-edit-toolbar .chat-scheduled-edit-save-separator {
+	align-self: stretch;
+	width: var(--vscode-strokeThickness);
+	margin: var(--vscode-spacing-size40) 0;
+	background-color: var(--vscode-button-separator);
+}
+
+.chat-scheduled-edit-toolbar .chat-scheduled-edit-change-time {
+	justify-content: center;
+	width: 24px;
+	padding-right: 2px;
+	border-radius: 0 var(--vscode-cornerRadius-circle) var(--vscode-cornerRadius-circle) 0;
+	color: inherit;
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.chat-scheduled-edit-toolbar :is(.chat-scheduled-edit-save-label, .chat-scheduled-edit-change-time):hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+.chat-scheduled-edit-toolbar.saving {
+	opacity: 0.5;
+	pointer-events: none;
+}
