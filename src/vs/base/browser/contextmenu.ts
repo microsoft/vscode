@@ -57,6 +57,12 @@ export interface IContextMenuDelegate {
 	 */
 	useWindowContainerForShadowRoot?: boolean;
 	/**
+	 * Host the menu inside `domForShadowRoot` (its owner) as a popover in the top layer,
+	 * so focus stays inside the owner while the menu renders unclipped. Requires
+	 * `domForShadowRoot` and is ignored together with `useWindowContainerForShadowRoot`.
+	 */
+	hostAsPopover?: boolean;
+	/**
 	 * custom context menus with higher layers are rendered higher in z-index order
 	 */
 	layer?: number;

@@ -265,7 +265,7 @@ export class AgentHostSavedChatService {
 
 	/** Resolves saved repository ownership for file previews, without decoding a native transcript. */
 	async readWorkingDirectories(session: URI, owner: URI): Promise<readonly string[] | undefined> {
-		if (await this._database.isSessionTombstoned(session.toString())) {
+		if (await this._database.isSessionSuppressed(session.toString())) {
 			throw new Error(`Saved session not found: ${session.toString()}`);
 		}
 		const registered = await this._database.getSessionV2Registration(session.toString());
@@ -310,7 +310,7 @@ export class AgentHostSavedChatService {
 			this._database.readCatalogSnapshot([key]),
 			this._database.getSessionV2(key),
 		]);
-		if (!snapshot || isAgentHostChatBacking(session, snapshot.isChatBacking) || snapshot.provisional || await this._database.isSessionTombstoned(key)) {
+		if (!snapshot || isAgentHostChatBacking(session, snapshot.isChatBacking) || snapshot.provisional || await this._database.isSessionSuppressed(key)) {
 			throw new Error(`Saved session not found: ${key}`);
 		}
 		if (snapshot.identity.session !== key || catalog && (catalog.provider !== snapshot.identity.provider || snapshot.header?.sessionGeneration !== undefined && snapshot.header.sessionGeneration !== catalog.sessionGeneration)) {

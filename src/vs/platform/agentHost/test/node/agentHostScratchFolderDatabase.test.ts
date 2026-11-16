@@ -131,7 +131,7 @@ suite('AgentHostScratchFolderDatabase', () => {
 			assert.deepStrictEqual({ migrated, reopened: reopened.map(row => row.folder), version, indexes }, {
 				migrated: [],
 				reopened: [FOLDER],
-				version: [{ user_version: 21 }],
+				version: [{ user_version: 22 }],
 				indexes: ['scratch_folders_chat'],
 			});
 		} finally {

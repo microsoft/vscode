@@ -19,6 +19,7 @@ steps:
       path: .build/builtInExtensions
       cacheHitVar: BUILTIN_EXTENSIONS_RESTORED
     displayName: Restore built-in extensions cache
+    retryCountOnTaskFailure: 2
 
   - script: node build/lib/builtInExtensions.ts
     env:

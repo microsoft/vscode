@@ -108,6 +108,9 @@ async fn main() -> Result<(), std::convert::Infallible> {
 				.subcommand
 				.unwrap_or(args::AgentSubcommand::Host(agent_args.host_args))
 			{
+				args::AgentSubcommand::Sandbox(sandbox_args) => {
+					cli::commands::agent_certificate::run(context!(), sandbox_args).await
+				}
 				args::AgentSubcommand::Ps(ps_args) => agent_ps::agent_ps(context!(), ps_args).await,
 				args::AgentSubcommand::Host(ah_args) if ah_args.tunnel => {
 					tunnels::serve(context_no_logger(), ah_args.into()).await

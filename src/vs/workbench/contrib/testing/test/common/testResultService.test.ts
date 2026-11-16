@@ -260,6 +260,7 @@ suite('Workbench - Test Results Service', () => {
 			expected.item.children = undefined;
 			expected.retired = true;
 			delete expected.children;
+			delete expected.computedStateCache;
 			assert.deepStrictEqual(actual, { ...expected });
 			assert.deepStrictEqual(rehydrated.counts, r.counts);
 			assert.strictEqual(typeof rehydrated.completedAt, 'number');

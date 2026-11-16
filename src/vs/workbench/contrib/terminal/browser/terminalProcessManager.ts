@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -46,6 +47,9 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import type { MaybePromise } from '../../../../base/common/async.js';
 import { isString } from '../../../../base/common/types.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { assertTaskWorkspaceTrust, TaskWorkspaceTrustError } from '../../tasks/common/taskSystem.js';
 
 const enum ProcessConstants {
 	/**
@@ -137,6 +141,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	get extEnvironmentVariableCollection(): IMergedEnvironmentVariableCollection | undefined { return this._extEnvironmentVariableCollection; }
 	get processTraits(): IProcessReadyEvent | undefined { return this._processTraits; }
 
+	private _parentWindowId: number | undefined;
+	private _parentWindowHandle: VSBuffer | undefined;
+
 	constructor(
 		private readonly _instanceId: number,
 		cwd: string | URI | undefined,
@@ -159,7 +166,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IHostService private readonly _hostService: IHostService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService
 	) {
 		super();
 		this._cwdWorkspaceFolder = terminalEnvironment.getWorkspaceForTerminal(cwd, this._workspaceContextService, this._historyService);
@@ -245,11 +254,29 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		rows: number,
 		reset: boolean = true
 	): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
+		try {
+			return await this._createProcess(shellLaunchConfig, cols, rows, reset);
+		} catch (error) {
+			if (error instanceof TaskWorkspaceTrustError) {
+				this._logService.warn(error.message);
+				return { message: error.message };
+			}
+			throw error;
+		}
+	}
+
+	private async _createProcess(
+		shellLaunchConfig: IShellLaunchConfig,
+		cols: number,
+		rows: number,
+		reset: boolean = true
+	): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
 		this._shellLaunchConfig = shellLaunchConfig;
 		this._dimensions.cols = cols;
 		this._dimensions.rows = rows;
 
 		let newProcess: ITerminalChildProcess | undefined;
+		let isLiveAttachment = false;
 
 		if (shellLaunchConfig.customPtyImplementation) {
 			this._processType = ProcessType.PsuedoTerminal;
@@ -289,6 +316,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					const result = await backend.attachToProcess(shellLaunchConfig.attachPersistentProcess.id);
 					if (result) {
 						newProcess = result;
+						isLiveAttachment = !result.isRevived && shellLaunchConfig.attachPersistentProcess.pid > 0;
 						if (this._extEnvironmentVariableCollection) {
 							this._onEnvironmentVariableCollectionChange();
 						}
@@ -319,6 +347,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						isScreenReaderOptimized: this._accessibilityService.isScreenReaderOptimized()
 					};
 					try {
+						if (shellLaunchConfig.type === 'Task') {
+							assertTaskWorkspaceTrust(this._workspaceTrustManagementService);
+						}
 						newProcess = await backend.createProcess(
 							shellLaunchConfig,
 							'', // TODO: Fix cwd
@@ -346,6 +377,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					const result = findRevivedId ? await backend.attachToRevivedProcess(id, pid) : await backend.attachToProcess(id);
 					if (result) {
 						newProcess = result;
+						isLiveAttachment = !(result.isRevived ?? findRevivedId) && pid > 0;
 						if (this._extEnvironmentVariableCollection) {
 							this._onEnvironmentVariableCollectionChange();
 						}
@@ -364,16 +396,32 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			}
 		}
 
-		// If the process was disposed during its creation, shut it down and return failure
+		if (this._parentWindowId !== undefined && this._terminalConfigurationService.config.windowsReparentConsoleWindow) {
+			await this._resolveParentWindowHandle();
+		}
+
 		if (this._isDisposed) {
-			newProcess.shutdown(false);
+			await this._releaseProcessBeforeStart(newProcess, isLiveAttachment);
 			return undefined;
+		}
+
+		// No awaits between this check and start(), so cancellation cannot dispose a live attachment.
+		if (shellLaunchConfig.type === 'Task') {
+			try {
+				assertTaskWorkspaceTrust(this._workspaceTrustManagementService);
+			} catch (error) {
+				await this._releaseProcessBeforeStart(newProcess, isLiveAttachment);
+				throw error;
+			}
 		}
 
 		this._process = newProcess;
 		// Don't report the previous shell's pid for the new process before it's ready
 		this.shellProcessId = undefined;
 		this._setProcessState(ProcessState.Launching);
+
+		// Before start() so the shell's first GetConsoleWindow() already has its owner
+		this._updateProcessParentWindow();
 
 		// Add any capabilities inherent to the backend
 		if (this.os === OperatingSystem.Linux || this.os === OperatingSystem.Macintosh) {
@@ -441,6 +489,20 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		});
 
 		return undefined;
+	}
+
+	private async _releaseProcessBeforeStart(process: ITerminalChildProcess, isLiveAttachment: boolean): Promise<void> {
+		if (isLiveAttachment) {
+			if (process.detach) {
+				await process.detach();
+			} else {
+				this._logService.warn('Cannot detach an existing terminal process without detach support');
+			}
+		} else if (process.cancelBeforeStart) {
+			await process.cancelBeforeStart();
+		} else {
+			process.shutdown(false);
+		}
 	}
 
 	async relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, reset: boolean): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
@@ -550,6 +612,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			isScreenReaderOptimized: this._accessibilityService.isScreenReaderOptimized()
 		};
 		const shouldPersist = ((this._configurationService.getValue(TaskSettingId.Reconnection) && shellLaunchConfig.reconnectionProperties) || !shellLaunchConfig.isFeatureTerminal) && this._terminalConfigurationService.config.enablePersistentSessions && !shellLaunchConfig.isTransient;
+		if (shellLaunchConfig.type === 'Task') {
+			assertTaskWorkspaceTrust(this._workspaceTrustManagementService);
+		}
 		return await backend.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._terminalConfigurationService.config.unicodeVersion, env, options, shouldPersist);
 	}
 
@@ -763,6 +828,63 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	async clearBuffer(): Promise<void> {
 		this._process?.clearBuffer?.();
+	}
+
+	async setParentWindow(windowId: number): Promise<void> {
+		if (!isWindows || this.remoteAuthority) {
+			return;
+		}
+		// Track the window even while the setting is off, so processes started after it's turned on
+		// get the window the terminal is in now. The saved handle is for the previous window.
+		if (windowId !== this._parentWindowId) {
+			this._parentWindowId = windowId;
+			this._parentWindowHandle = undefined;
+		}
+		if (!this._terminalConfigurationService.config.windowsReparentConsoleWindow) {
+			return;
+		}
+		const handle = await this._getNativeWindowHandle(windowId);
+		if (windowId !== this._parentWindowId || handle === undefined || this._parentWindowHandle?.equals(handle)) {
+			return;
+		}
+		this._parentWindowHandle = handle;
+		await this._updateProcessParentWindow();
+	}
+
+	/**
+	 * Waits for the handle of the window the terminal is in now, which may change while waiting.
+	 */
+	private async _resolveParentWindowHandle(): Promise<void> {
+		let windowId = this._parentWindowId;
+		while (windowId !== undefined) {
+			const handle = await this._getNativeWindowHandle(windowId);
+			if (windowId === this._parentWindowId) {
+				if (handle !== undefined) {
+					this._parentWindowHandle = handle;
+				}
+				return;
+			}
+			windowId = this._parentWindowId;
+		}
+	}
+
+	private async _getNativeWindowHandle(windowId: number): Promise<VSBuffer | undefined> {
+		try {
+			return await this._hostService.getNativeWindowHandle(windowId);
+		} catch {
+			return undefined;
+		}
+	}
+
+	private async _updateProcessParentWindow(): Promise<void> {
+		if (!this._process || this._parentWindowHandle === undefined || !this._terminalConfigurationService.config.windowsReparentConsoleWindow) {
+			return;
+		}
+		try {
+			await this._process.setParentWindow?.(this._parentWindowHandle);
+		} catch (e) {
+			this._logService.trace('Could not set the parent window of the terminal process', e);
+		}
 	}
 }
 

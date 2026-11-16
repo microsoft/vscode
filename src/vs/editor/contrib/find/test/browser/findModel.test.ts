@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CoreNavigationCommands } from '../../../../browser/coreCommands.js';
 import { IActiveCodeEditor, ICodeEditor } from '../../../../browser/editorBrowser.js';
@@ -18,17 +17,7 @@ import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 
 suite('FindModel', () => {
 
-	let disposables: DisposableStore;
-
-	setup(() => {
-		disposables = new DisposableStore();
-	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function findTest(testName: string, callback: (editor: IActiveCodeEditor) => void): void {
 		test(testName, () => {

@@ -23,6 +23,11 @@
 	outline: none;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer.loading {
 	display: none;
 }

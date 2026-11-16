@@ -68,8 +68,7 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 
 	// #region MCP
 
-	// The workbench filters forwarded collections, but independent runtime discovery does not
-	// consult VS Code MCP access. #328241
+	// Workbench filtering covers MCP collections and MCP-policy-disabled extension tools, not independent runtime discovery. #328241
 	ChatMCP: { status: 'partial' },
 	// Workbench server starts apply these restrictions, but VS Code-only values are not reverse-
 	// forwarded to runtime discovery. Runtime-native managed-setting enforcement, including
@@ -87,6 +86,10 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 
 	// #region Plugins, customizations, and hooks
 
+	// Governs the workbench discovery surface; legacy marketplaces remain available.
+	ChatCustomizationMarketplace: { status: 'enforced' },
+	// The effective setting gates renderer operations and is mirrored to the host's Connector gate.
+	ChatCopilotConnectors: { status: 'enforced' },
 	// The workbench filters the plugins it synchronizes, but runtime configuration discovery and Claude's
 	// native plugin scan find plugins independently. Not yet tracked.
 	ChatPluginsEnabled: { status: 'partial' },
@@ -97,10 +100,9 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	// not reach runtime-owned marketplace operations, whose enforcement needs separate verification.
 	// Extra marketplaces are additive.
 	ChatExtraMarketplaces: { status: 'partial' },
-	// The workbench filters synchronized customizations only for the boolean form, and the VS Code-only
-	// value does not govern independent runtime discovery. Forwarded user and workspace skills and agents,
-	// and all forwarded MCP servers, bypass plugin delivery so runtime-native lockdown can apply to them;
-	// that runtime enforcement, and lockdown of standalone instructions, still need execution verification.
+	// The workbench filters synchronized customizations only for the boolean form. Runtime managed settings
+	// govern independent discovery, including executable Copilot extensions, but VS Code-only policy values
+	// do not reach those paths and standalone instructions still lack equivalent runtime coverage.
 	ChatStrictPluginOnlyCustomization: { status: 'partial' },
 	// Documented as Local-only; Agent Host enables runtime file hooks regardless.
 	ChatHooks: { status: 'notEnforced' },
@@ -122,8 +124,13 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	// Disables all AI features in the workbench, including Agent Host sessions.
 	ChatApprovedAccountOrganizations: { status: 'enforced' },
 	ChatDefaultModel: { status: 'enforced' },
+	// New Copilot sessions in both windows seed their mode and approvals from the effective value; the runtime still applies its own managed default.
+	ChatDefaultConfiguration: { status: 'enforced' },
 	ChatEditorPreferCopilotHarness: { status: 'enforced' },
 	ChatTemporaryDefaultToLocalHarness: { status: 'enforced' },
+	ChatAgentHostGitHubEnvironments: { status: 'enforced' },
+	// Policy-backed configuration gates both workbench presentation and the mirrored Agent Host root setting.
+	ChatCanvases: { status: 'enforced' },
 	// Mirrored into the root config of every host.
 	CopilotSessionSync: { status: 'enforced' },
 
@@ -177,6 +184,7 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	ExtensionGalleryServiceUrl: { status: 'enforced' },
 	EnableFeedback: { status: 'enforced' },
 	UpdateMode: { status: 'enforced' },
+	UpdateRestartWhenIdle: { status: 'enforced' },
 	// Windows setup, the Linux DEB/RPM scripts, and the `copilot` command on every platform read the
 	// policy themselves, so it applies to shells of every session type.
 	CopilotCliCommand: { status: 'enforced' },

@@ -189,29 +189,35 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return super.showOpenDialogSimplified(schema, options);
 		}
 
-		const activeWindow = getActiveWindow();
+		const activeWindow = this.getFilePickerWindow();
 		if (!WebFileSystemAccess.supported(activeWindow)) {
 			return this.showUnsupportedBrowserWarning('open');
 		}
 
-		let uri: URI | undefined;
+		const uris: URI[] = [];
 		const startIn = await this.getFilePickerStartIn(options.defaultUri) ?? 'documents';
 
 		try {
 			if (options.canSelectFiles) {
-				const handle = await activeWindow.showOpenFilePicker({ multiple: false, types: this.getFilePickerTypes(options.filters), ...{ startIn } });
-				if (handle.length === 1 && WebFileSystemAccess.isFileSystemFileHandle(handle[0])) {
-					uri = await this.fileSystemProvider.registerFileHandle(handle[0]);
+				const handles = await activeWindow.showOpenFilePicker({ multiple: options.canSelectMany ?? false, types: this.getFilePickerTypes(options.filters), ...{ startIn } });
+				for (const handle of handles) {
+					if (WebFileSystemAccess.isFileSystemFileHandle(handle)) {
+						uris.push(await this.fileSystemProvider.registerFileHandle(handle));
+					}
 				}
 			} else {
 				const handle = await activeWindow.showDirectoryPicker({ ...{ startIn } });
-				uri = await this.fileSystemProvider.registerDirectoryHandle(handle);
+				uris.push(await this.fileSystemProvider.registerDirectoryHandle(handle));
 			}
 		} catch (error) {
 			// ignore - `showOpenFilePicker` / `showDirectoryPicker` will throw an error when the user cancels
 		}
 
-		return uri ? [uri] : undefined;
+		return uris.length ? uris : undefined;
+	}
+
+	protected getFilePickerWindow(): Window & typeof globalThis {
+		return getActiveWindow();
 	}
 
 	private async getFilePickerStartIn(defaultUri: URI | undefined): Promise<FileSystemDirectoryHandle | undefined> {

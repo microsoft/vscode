@@ -6,15 +6,13 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { AgentHostArtifactRunInitiatorMetaKey, AgentHostArtifactRunMetaKey } from '../../common/meta/agentHostArtifactIntegrationMeta.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
 import { toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputResponseKind, ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, type Message } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, ChatOriginKind, MessageKind, SessionStatus, type Message } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { ArtifactTurnInitiator, canChangeArtifactsInTurn, getArtifactTurnSource } from '../../node/shared/artifactTurnProvenance.js';
-import { requestServerToolConfirmation } from '../../node/shared/serverToolConfirmation.js';
 
 const session = 'copilot:/provenance';
 const chat = buildDefaultChatUri(session);
@@ -105,83 +103,6 @@ suite('Artifact Turn Provenance', () => {
 			subagentOfAutomation: { initiator: ArtifactTurnInitiator.ArtifactAutomation, chat: peer, turnId: 'automatic' },
 			delegatedFromPerson: { initiator: ArtifactTurnInitiator.Person, chat: peer, turnId: 'asked' },
 			unresolved: { initiator: ArtifactTurnInitiator.Unknown },
-		});
-	});
-});
-
-suite('Server Tool Confirmation', () => {
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const confirmation = { title: 'Turn on automation for #1?', message: 'Merges *once* ready.\n\nRuns on the agent host.', confirmLabel: 'Turn On', declineLabel: 'Cancel' };
-
-	function createState(withTurn = true) {
-		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
-		stateManager.createSession({
-			resource: session, defaultChat: chat, provider: 'copilot', title: 'Confirmation', status: SessionStatus.Idle,
-			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
-		});
-		if (withTurn) {
-			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date(0).toISOString(), message: userMessage });
-		}
-		return stateManager;
-	}
-
-	function openRequest(stateManager: AgentHostStateManager) {
-		const part = stateManager.getChatState(chat)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.InputRequest);
-		return part?.kind === ResponsePartKind.InputRequest ? part.request : undefined;
-	}
-
-	function answer(stateManager: AgentHostStateManager, response: ChatInputResponseKind, optionId?: string): void {
-		stateManager.dispatchServerAction(chat, {
-			type: ActionType.ChatInputCompleted,
-			requestId: openRequest(stateManager)!.id,
-			response,
-			...(optionId ? { answers: { decision: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: optionId } } } } : {}),
-		});
-	}
-
-	test('asks the person in the chat and resolves with their answer', async () => {
-		const confirmed = createState();
-		const accepted = requestServerToolConfirmation(confirmed, chat, 'turn-1', confirmation);
-		const request = openRequest(confirmed)!;
-		answer(confirmed, ChatInputResponseKind.Accept, 'confirm');
-
-		const declined = createState();
-		const rejected = requestServerToolConfirmation(declined, chat, 'turn-1', confirmation);
-		answer(declined, ChatInputResponseKind.Accept, 'decline');
-
-		const cancelled = createState();
-		const dismissed = requestServerToolConfirmation(cancelled, chat, 'turn-1', confirmation);
-		answer(cancelled, ChatInputResponseKind.Cancel);
-
-		assert.deepStrictEqual({
-			purpose: readChatInputRequestPurpose(request),
-			question: request.questions?.map(question => ({ title: question.title, message: question.message })),
-			accepted: await accepted,
-			rejected: await rejected,
-			dismissed: await dismissed,
-		}, {
-			purpose: ChatInputRequestPurpose.ServerToolConfirmation,
-			question: [{ title: confirmation.title, message: 'Merges \\*once\\* ready.\n\nRuns on the agent host.' }],
-			accepted: true,
-			rejected: false,
-			dismissed: false,
-		});
-	});
-
-	test('declines when the turn ends first or no turn is running', async () => {
-		const ending = createState();
-		const pending = requestServerToolConfirmation(ending, chat, 'turn-1', confirmation);
-		ending.dispatchServerAction(chat, { type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 0 });
-		const idle = createState(false);
-
-		assert.deepStrictEqual({
-			endedTurn: await pending,
-			noTurn: await requestServerToolConfirmation(idle, chat, 'turn-1', confirmation),
-			attached: openRequest(idle),
-		}, {
-			endedTurn: false,
-			noTurn: false,
-			attached: undefined,
 		});
 	});
 });

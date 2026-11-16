@@ -98,7 +98,9 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 		const ref = git.sha ?? git.ref;
 
 		await this._cloneRepository(repoDir, this._cloneUrl(descriptor), progressTitle, failureLabel, ref);
-		await this._checkoutRevision(repoDir, descriptor, failureLabel);
+		if (!git.sha || (await this._pluginGit.revParse(repoDir, 'HEAD')).toLowerCase() !== git.sha.trim().toLowerCase()) {
+			await this._checkoutRevision(repoDir, descriptor, failureLabel);
+		}
 		return this.getInstallUri(cacheRoot, descriptor);
 	}
 

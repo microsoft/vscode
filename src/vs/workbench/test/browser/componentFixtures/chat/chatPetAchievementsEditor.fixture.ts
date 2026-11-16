@@ -11,7 +11,7 @@ import { ChatPetAchievementsEditor } from '../../../../contrib/chat/browser/chat
 import { ChatPetAchievementsEditorInput, ChatPetCustomizationTab } from '../../../../contrib/chat/browser/chatPetAchievementsEditorInput.js';
 import { chatPetAchievements, ChatPetAccessoryIds, ChatPetAchievementIds } from '../../../../contrib/chat/browser/chatPetAchievements.js';
 import { chatPetColorPresets } from '../../../../contrib/chat/browser/chatPetColors.js';
-import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
+import { ChatPetAppearanceTarget, IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { TestChatEntitlementService } from '../../../common/workbenchTestServices.js';
@@ -25,6 +25,8 @@ interface IAchievementsEditorFixtureOptions extends IChatPetFixtureOptions {
 	readonly height?: number;
 	readonly tab?: ChatPetCustomizationTab;
 	readonly modernUITabs?: 'pill' | 'connected';
+	/** Chosen in Apply to after the page opens with both windows selected. */
+	readonly target?: ChatPetAppearanceTarget;
 }
 
 function createMockEditorGroup(): IEditorGroup {
@@ -56,6 +58,10 @@ async function renderAchievementsEditor(context: ComponentFixtureContext, option
 	editor.layout(new Dimension(width, height));
 	const input = context.disposableStore.add(ChatPetAchievementsEditorInput.getOrCreate());
 	await editor.setInput(input, { tab: options.tab }, {}, CancellationToken.None);
+	if (options.target) {
+		const targets: readonly ChatPetAppearanceTarget[] = ['both', 'editor', 'agents'];
+		context.container.querySelectorAll<HTMLElement>('.chat-pet-appearance-target [role="radio"]')[targets.indexOf(options.target)].click();
+	}
 	// One preview per color preset plus the custom color, or one per achievement plus "No Hat".
 	await waitForChatPetAchievementPreviews(context.container, options.tab === 'color' ? chatPetColorPresets.length + 1 : chatPetAchievements.length + 1);
 }
@@ -168,6 +174,52 @@ export default defineThemedFixtureGroup({ path: 'chat/petAchievements/standalone
 			tab: 'color',
 			unlockedAchievements: [ChatPetAchievementIds.Blobby],
 			color: '#a277e6',
+		}),
+	}),
+	ColorSeparateWindows: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		render: context => renderAchievementsEditor(context, {
+			enabled: true,
+			tab: 'color',
+			unlockedAchievements: [ChatPetAchievementIds.Blobby],
+			color: '#a277e6',
+			agentsColor: '#e6536f',
+		}),
+	}),
+	ColorAgentsWindowNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
+		render: context => renderAchievementsEditor(context, {
+			enabled: true,
+			tab: 'color',
+			unlockedAchievements: [ChatPetAchievementIds.Blobby],
+			color: '#a277e6',
+			agentsColor: '#e6536f',
+			target: 'agents',
+			width: 360,
+			height: 640,
+		}),
+	}),
+	HatsSeparateWindows: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderAchievementsEditor(context, {
+			enabled: true,
+			unlockedAchievements: [ChatPetAchievementIds.RequestRevision, ChatPetAchievementIds.FirstChatMessage],
+			selectedAccessory: ChatPetAccessoryIds.TopHatMonocle,
+			agentsAccessory: ChatPetAccessoryIds.CowboyHat,
+			agentsColor: 'insiders',
+		}),
+	}),
+	HatsAgentsWindow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderAchievementsEditor(context, {
+			enabled: true,
+			unlockedAchievements: [ChatPetAchievementIds.RequestRevision, ChatPetAchievementIds.FirstChatMessage],
+			selectedAccessory: ChatPetAccessoryIds.TopHatMonocle,
+			agentsAccessory: ChatPetAccessoryIds.CowboyHat,
+			agentsColor: 'insiders',
+			target: 'agents',
 		}),
 	}),
 });

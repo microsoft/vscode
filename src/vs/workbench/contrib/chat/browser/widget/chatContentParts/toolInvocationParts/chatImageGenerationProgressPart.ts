@@ -91,7 +91,8 @@ export class ChatImageGenerationToolProgressPart extends BaseChatToolInvocationS
 	}
 
 	public getRevealOrigin(container: HTMLElement): IChatImageRevealOrigin | undefined {
-		return this.animation.value ? { container, size: this.animation.value.size } : undefined;
+		const animation = this.animation.value;
+		return animation ? { container, size: animation.size, takeSurface: () => animation.takeSurface() } : undefined;
 	}
 
 	public setShowAnimation(show: boolean): void {
@@ -113,6 +114,7 @@ export class ChatImageGenerationProgressPart extends BaseChatToolInvocationSubPa
 	public readonly domNode: HTMLElement;
 	public readonly codeblocks: IChatCodeBlockInfo[] = [];
 	private readonly line: HTMLElement;
+	private readonly surface = this._register(new MutableDisposable<GlyphSurface>());
 
 	constructor(
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
@@ -123,7 +125,11 @@ export class ChatImageGenerationProgressPart extends BaseChatToolInvocationSubPa
 		const label = localize('chat.imageGeneration.placeholder', "Generating image");
 		this.domNode = dom.$('.chat-image-generation-placeholder', { role: 'img', 'aria-label': label, 'aria-busy': 'true' });
 		this.line = dom.append(this.domNode, dom.$('.chat-image-generation-line', { 'aria-hidden': 'true' }));
-		this._register(instantiationService.createInstance(GlyphSurface, this.line));
+		this.surface.value = instantiationService.createInstance(GlyphSurface, this.line);
+	}
+
+	takeSurface(): GlyphSurface | undefined {
+		return this.surface.clearAndLeak();
 	}
 
 	/** Side of the loading square in CSS pixels, or undefined while it is not laid out. */

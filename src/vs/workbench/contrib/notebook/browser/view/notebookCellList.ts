@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
+import { isContextViewFocused } from '../../../../../base/browser/ui/contextview/contextview.js';
 import * as domStylesheetsJs from '../../../../../base/browser/domStylesheets.js';
 import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IListRenderer, IListVirtualDelegate, ListError } from '../../../../../base/browser/ui/list/list.js';
@@ -1299,7 +1300,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return;
 		}
 
-		if (!isMacintosh && this.view.domNode.ownerDocument.activeElement && !!DOM.findParentWithClass(<HTMLElement>this.view.domNode.ownerDocument.activeElement, 'context-view')) {
+		if (!isMacintosh && isContextViewFocused(this.view.domNode.ownerDocument)) {
 			return;
 		}
 

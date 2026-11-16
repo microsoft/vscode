@@ -8,6 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IChatService } from '../common/chatService/chatService.js';
 import { getChatSessionInitialMessageVariables } from '../common/chatSessionsService.js';
@@ -16,6 +17,11 @@ import { ChatAgentLocation } from '../common/constants.js';
 import { IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
 import { IChatWidgetService } from './chat.js';
 import { captureSideChatSelection } from './chatSideChat.js';
+
+type ChatBtwUsedClassification = {
+	owner: 'meganrogge';
+	comment: 'Reports a successful /btw side-chat submission, not response completion. No prompt or context is collected.';
+};
 
 export class BtwSlashCommandContribution extends Disposable {
 
@@ -27,6 +33,7 @@ export class BtwSlashCommandContribution extends Disposable {
 		@IChatService chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@INotificationService notificationService: INotificationService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -64,6 +71,7 @@ export class BtwSlashCommandContribution extends Disposable {
 
 			try {
 				await sideChatService.askInSideChat(sessionResource, query, selection, { attachedContext: variables, token });
+				telemetryService.publicLog2<{}, ChatBtwUsedClassification>('chatBtwUsed');
 			} catch (error) {
 				notificationService.error(localize('btw.failed', "The side chat could not be started: {0}", toErrorMessage(error)));
 			}

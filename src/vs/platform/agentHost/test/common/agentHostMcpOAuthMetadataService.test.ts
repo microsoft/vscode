@@ -21,6 +21,14 @@ suite('AgentHostMcpOAuthMetadataService', () => {
 		token_endpoint: `${origin}/v1/token`,
 		registration_endpoint: `${origin}/v1/register`,
 	};
+	const entraOrigin = 'https://login.microsoftonline.com';
+	const entraAuthority = `${entraOrigin}/organizations/v2.0`;
+	const consumerIssuer = `${entraOrigin}/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0`;
+	const entraMetadata = {
+		issuer: `${entraOrigin}/{tenantid}/v2.0`,
+		authorization_endpoint: `${entraOrigin}/organizations/oauth2/v2.0/authorize`,
+		token_endpoint: `${entraOrigin}/organizations/oauth2/v2.0/token`,
+	};
 
 	function createService(responses: Record<string, { status: number; body: object | string }>) {
 		const requests: { url: string | undefined; headers: object | undefined }[] = [];
@@ -62,6 +70,80 @@ suite('AgentHostMcpOAuthMetadataService', () => {
 		assert.deepStrictEqual({ resource: await service.resolveResource(resource), requests }, {
 			resource: protectedResource,
 			requests: [{ url: `${origin}/.well-known/oauth-protected-resource/v1/mcp`, headers: { Accept: 'application/json' } }],
+		});
+	});
+
+	for (const [tenant, issuer] of [
+		['common', entraMetadata.issuer],
+		['organizations', entraMetadata.issuer],
+		['consumers', entraMetadata.issuer],
+		['consumers', consumerIssuer],
+	]) {
+		for (const trailingSlash of ['', '/']) {
+			const authority = `${entraOrigin}/${tenant}/v2.0${trailingSlash}`;
+			test(`accepts Entra issuer ${issuer} for ${authority}`, async () => {
+				const discoveryUrl = `${entraOrigin}/${tenant}/v2.0/.well-known/openid-configuration`;
+				const metadata = {
+					...entraMetadata,
+					issuer,
+					authorization_endpoint: `${entraOrigin}/${tenant}/oauth2/v2.0/authorize`,
+					token_endpoint: `${entraOrigin}/${tenant}/oauth2/v2.0/token`,
+				};
+				const { service } = createService({
+					[discoveryUrl]: { status: 200, body: metadata },
+				});
+				assert.deepStrictEqual(await service.fetch(authority), { metadata, discoveryUrl });
+			});
+		}
+	}
+
+	test('continues to accept an exactly matching Entra issuer', async () => {
+		const metadata = { ...entraMetadata, issuer: entraAuthority };
+		const discoveryUrl = `${entraAuthority}/.well-known/openid-configuration`;
+		const { service } = createService({
+			[discoveryUrl]: { status: 200, body: metadata },
+		});
+		assert.deepStrictEqual(await service.fetch(entraAuthority), { metadata, discoveryUrl });
+	});
+
+	for (const [name, authority, issuer] of [
+		['non-Entra authority', `${origin}/organizations/v2.0`, `${origin}/{tenantid}/v2.0`],
+		['lookalike authority', 'https://login.microsoftonline.com.example/organizations/v2.0', entraMetadata.issuer],
+		['untrusted issuer', entraAuthority, 'https://other.example/{tenantid}/v2.0'],
+		['concrete tenant authority', `${entraOrigin}/tenant-id/v2.0`, entraMetadata.issuer],
+		['different concrete issuer', entraAuthority, `${entraOrigin}/other-tenant/v2.0`],
+		['different consumer tenant', `${entraOrigin}/consumers/v2.0`, `${entraOrigin}/other-tenant/v2.0`],
+		['consumer tenant for organizations', entraAuthority, consumerIssuer],
+		['consumer tenant for common', `${entraOrigin}/common/v2.0`, consumerIssuer],
+		['untrusted consumer issuer', `${entraOrigin}/consumers/v2.0`, 'https://other.example/9188040d-6c67-4c5b-b112-36a304b66dad/v2.0'],
+		['different placeholder', entraAuthority, `${entraOrigin}/{tenant}/v2.0`],
+		['different version', `${entraOrigin}/organizations/v1.0`, entraMetadata.issuer],
+		['insecure authority', 'http://login.microsoftonline.com/organizations/v2.0', entraMetadata.issuer],
+		['insecure issuer', entraAuthority, 'http://login.microsoftonline.com/{tenantid}/v2.0'],
+		['different port', 'https://login.microsoftonline.com:444/organizations/v2.0', entraMetadata.issuer],
+		['query in authority', `${entraAuthority}?unexpected=1`, entraMetadata.issuer],
+		['query in issuer', entraAuthority, `${entraMetadata.issuer}?unexpected=1`],
+		['matching queries', `${entraAuthority}?unexpected=1`, `${entraMetadata.issuer}?unexpected=1`],
+		['matching fragments', `${entraAuthority}#unexpected`, `${entraMetadata.issuer}#unexpected`],
+		['matching credentials', 'https://user:pass@login.microsoftonline.com/organizations/v2.0', 'https://user:pass@login.microsoftonline.com/{tenantid}/v2.0'],
+	]) {
+		test(`rejects an Entra issuer exception with ${name}`, async () => {
+			const discoveryUrl = new URL('/.well-known/oauth-authorization-server', authority).toString() + new URL(authority).pathname;
+			const { service } = createService({
+				[discoveryUrl]: { status: 200, body: { ...entraMetadata, issuer } },
+			});
+			await assert.rejects(() => service.fetch(authority), {
+				message: 'MCP authorization server metadata issuer does not match the requested authorization server',
+			});
+		});
+	}
+
+	test('still requires token endpoints for Entra tenant-independent metadata', async () => {
+		const { service } = createService({
+			[`${entraAuthority}/.well-known/openid-configuration`]: { status: 200, body: { ...entraMetadata, token_endpoint: undefined } },
+		});
+		await assert.rejects(() => service.fetch(entraAuthority), {
+			message: 'MCP authorization server metadata must advertise authorization and token endpoints',
 		});
 	});
 

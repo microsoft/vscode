@@ -19,6 +19,7 @@ import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/c
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { CloudSandboxLifecycleTelemetry, type CloudSandboxLifecycleOperation, type CloudSandboxPreparationStep } from './cloudSandboxLifecycleTelemetry.js';
 
 const UNUSED_RESERVATION_LIFETIME_MS = 5 * 60_000;
 const RESERVATION_WAIT_TIMEOUT_MS = 5 * 60_000;
@@ -29,6 +30,7 @@ type PreparationReleaseReason = 'expired' | 'repositoryChanged' | 'accountChange
 
 interface IPreparation {
 	readonly id: number;
+	readonly operation: CloudSandboxLifecycleOperation;
 	readonly startedAt: number;
 	readonly store: DisposableStore;
 	readonly source: CancellationTokenSource;
@@ -41,6 +43,7 @@ interface IPreparation {
 	expiry?: IDisposable;
 	cleanup?: Promise<void>;
 	submitted?: ICloudSandboxSubmittedDraft;
+	receipt?: ICloudSandboxPreparedReservation;
 }
 
 export class CloudSandboxDraftPreparationService extends Disposable implements ICloudSandboxDraftPreparationService {
@@ -52,6 +55,7 @@ export class CloudSandboxDraftPreparationService extends Disposable implements I
 	private readonly _lifetimes = this._register(new DisposableStore());
 	private readonly _source = this._register(new CancellationTokenSource());
 	private _nextPreparationId = 0;
+	private readonly _lifecycle: CloudSandboxLifecycleTelemetry;
 
 	constructor(
 		@ICloudSandboxApiService private readonly _api: ICloudSandboxApiService,
@@ -62,6 +66,7 @@ export class CloudSandboxDraftPreparationService extends Disposable implements I
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustService: IWorkspaceTrustManagementService,
 	) {
 		super();
+		this._lifecycle = new CloudSandboxLifecycleTelemetry(_telemetryService);
 		const updateEnablement = () => {
 			if (!this._isEnabled()) {
 				void this.clear();
@@ -136,6 +141,7 @@ export class CloudSandboxDraftPreparationService extends Disposable implements I
 		const source = store.add(new CancellationTokenSource(this._source.token));
 		const entry: IPreparation = {
 			id: ++this._nextPreparationId,
+			operation: this._lifecycle.start('preparation', { preparationStep: 'started' }),
 			startedAt: Date.now(),
 			store,
 			source,
@@ -146,6 +152,7 @@ export class CloudSandboxDraftPreparationService extends Disposable implements I
 		this._entries.set(draftResource, entry);
 		this._logEvent(entry, 'started', `hasRepository=${repoNwo !== undefined}`);
 		void entry.reservation.then(prepared => {
+			entry.receipt = prepared;
 			entry.receivedAt = Date.now();
 			this._logEvent(entry, 'receipt', `taskId=${JSON.stringify(prepared.taskId)} environmentId=${JSON.stringify(prepared.environmentId)}`);
 			if (entry.state === 'draft') {
@@ -161,8 +168,8 @@ export class CloudSandboxDraftPreparationService extends Disposable implements I
 				if (this._entries.get(draftResource) === entry) {
 					this._entries.set(draftResource, 'unavailable');
 				}
-				this._logEvent(entry, 'reservationFailed', `cancelled=${isCancellationError(error)}`);
 			}
+			this._logEvent(entry, 'reservationFailed', `cancelled=${isCancellationError(error)}`, error);
 			if (!isCancellationError(error)) {
 				this._logService.warn(`${LOG_PREFIX} Task reservation failed; it will not be retried automatically.`, error);
 			}
@@ -281,6 +288,10 @@ export class CloudSandboxDraftPreparationService extends Disposable implements I
 			throw new Error(localize('cloudSandbox.unknownPreparedReservation', "This reservation was not handed off by draft preparation."));
 		}
 		entry.submitted = { reservation, created, repoNwo };
+		entry.operation.complete('succeeded', {
+			preparationStep: 'submitted',
+			relatedTaskId: reservation.taskId, taskId: created.taskId, environmentId: created.environmentId, agentSessionId: created.sessionId,
+		});
 	}
 
 	async release(prepared: ICloudSandboxPreparedReservation): Promise<void> {
@@ -333,7 +344,7 @@ export class CloudSandboxDraftPreparationService extends Disposable implements I
 			this._logEvent(entry, 'released', `taskId=${JSON.stringify(prepared.taskId)} durationMs=${Math.max(0, Date.now() - startedAt)}`);
 		} catch (error) {
 			this._logService.warn(`${LOG_PREFIX} Could not delete unused reservation ${prepared.taskId}; cleanup is incomplete.`, error);
-			this._logEvent(entry, 'releaseFailed', `taskId=${JSON.stringify(prepared.taskId)} durationMs=${Math.max(0, Date.now() - startedAt)}`);
+			this._logEvent(entry, 'releaseFailed', `taskId=${JSON.stringify(prepared.taskId)} durationMs=${Math.max(0, Date.now() - startedAt)}`, error);
 		}
 	}
 
@@ -344,8 +355,22 @@ export class CloudSandboxDraftPreparationService extends Disposable implements I
 		}
 	}
 
-	private _logEvent(entry: IPreparation, event: 'started' | 'receipt' | 'reservationFailed' | 'sendWait' | 'handoff' | 'sendBlocked' | 'sendWithoutReservation' | 'sendFallback' | 'releaseRequested' | 'released' | 'releaseFailed', details: string): void {
+	private _logEvent(entry: IPreparation, event: CloudSandboxPreparationStep, details: string, error?: unknown): void {
 		this._logService.info(`${LOG_PREFIX} preparationId=${entry.id} event=${event} state=${entry.state} elapsedMs=${Math.max(0, Date.now() - entry.startedAt)} ${details}`);
+		if (event === 'started') {
+			return;
+		}
+		const context = {
+			preparationStep: event,
+			environmentId: entry.receipt?.environmentId, agentSessionId: entry.receipt?.sessionId, taskId: entry.receipt?.taskId,
+		};
+		if (event === 'reservationFailed' || event === 'releaseFailed') {
+			entry.operation.complete(isCancellationError(error) ? 'cancelled' : 'failed', context, error);
+		} else if (event === 'released') {
+			entry.operation.complete('succeeded', context);
+		} else {
+			entry.operation.bind(context);
+		}
 	}
 
 	private _checkCancellation(token: CancellationToken): void {

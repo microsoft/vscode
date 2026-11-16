@@ -58,6 +58,7 @@ export interface ISessionEventToolComplete {
 			/** `content` is result text; `contents` are typed SDK result blocks such as `shell_exit`. */
 			content?: string;
 			contents?: ToolExecutionCompleteContent[];
+			mcpResultMeta?: Record<string, unknown>;
 		};
 		error?: { message: string; code?: string };
 		isUserRequested?: boolean;

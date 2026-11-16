@@ -10,6 +10,7 @@ import { hasKey } from '../../../../../base/common/types.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { VoiceCloseKind } from './voiceCloseCodes.js';
 import { IChatToolInvocation, type ChatVoiceProgressStage } from '../chatService/chatService.js';
+import { IChatModel } from '../model/chatModel.js';
 
 export function normalizeAgentsVoiceId(value: unknown): string {
 	const voiceId = typeof value === 'string' ? value.trim() : '';
@@ -377,8 +378,23 @@ export interface IVoiceSessionContext {
 		attachment_count?: number;
 		last_response_summary?: string;
 		pending?: IVoiceSessionPending;
+		/** Bounded recent conversation, supplied only for GPT Live session awareness. */
+		recent_turns?: { user: string; assistant: string }[];
 	}[];
 	display_locale: string;
+}
+
+export function getVoiceRecentTurns(model: IChatModel, lastN: number, completedResponsesOnly = false): { user: string; assistant: string }[] {
+	return model.getRequests().slice(-lastN).map(request => ({
+		user: (request.message.text ?? '').slice(0, 400),
+		assistant: request.response && (!completedResponsesOnly || request.response.isComplete && !request.response.isCanceled)
+			? request.response.response.value
+				.filter(part => part.kind === 'markdownContent')
+				.map(part => part.content.value)
+				.join(' ')
+				.slice(0, 600)
+			: '',
+	}));
 }
 
 export interface IVoiceModelReference {
@@ -732,6 +748,8 @@ export interface IVoiceClientService {
 	// --- State ---
 	readonly isConnected: boolean;
 	readonly isResuming: boolean;
+	/** Whether the current connection was started with GPT Live session awareness enabled. */
+	readonly isSessionAwarenessEnabled: boolean;
 	/** Whether the current socket close has an automatic retry scheduled. */
 	readonly willReconnect: boolean;
 	/** Backend session id assigned by the realtime server, or ``undefined`` when not yet established. */

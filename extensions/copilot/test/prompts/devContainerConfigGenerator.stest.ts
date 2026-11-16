@@ -57,22 +57,4 @@ ssuite({ title: 'Dev Container Configuration', location: 'external' }, () => {
 			assert.ok(result.features.find(f => d.features.includes(f)));
 		});
 	}
-
-	// // npm run simulate -- --grep=devcontainer.json --n=1
-	// stest({ description: `Suggests a devcontainer.json template` }, async (testingServiceCollection) => {
-	// 	const dataPath = path.join(__dirname, '../test/prompts/fixtures/devcontainer/devContainerConfigTestData.json');
-	// 	const data = JSON.parse(await fs.promises.readFile(dataPath, 'utf8')).slice(0, 11);
-	// 	const results = [];
-	// 	for (let i = 0; i < data.length; i++) {
-	// 		const generator = new DevContainerConfigGenerator(accessor);
-	// 		const result = await generator.generate(await loadIndex(), data[i].files, CancellationToken.None);
-	// 		assert.strictEqual(result.type, 'success');
-	// 		results.push({
-	// 			...data[i],
-	// 			suggestedTemplate: result.template,
-	// 			suggestedFeatures: result.features,
-	// 		});
-	// 	}
-	// 	await fs.promises.writeFile(path.join(__dirname, '../test/prompts/devContainerConfigTestResults.json'), JSON.stringify(results, null, 4));
-	// });
 });

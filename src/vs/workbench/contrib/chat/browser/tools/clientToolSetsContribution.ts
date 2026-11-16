@@ -92,6 +92,19 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 					'organizeSessionsList',
 				],
 			}));
+
+			this._register(this._registerDynamicToolSet(toolsService, {
+				id: 'vscode-appearance',
+				referenceName: 'vscodeAppearance',
+				icon: Codicon.paintcan,
+				description: localize('clientToolSet.appearance.description', "Appearance"),
+				detail: localize('clientToolSet.appearance.detail', "Read theme colors, change the chat background, and capture the Agents window."),
+				members: [
+					'getThemeColors',
+					'setChatBackground',
+					'screenshotWindow',
+				],
+			}));
 		}
 
 		this._register(this._registerDynamicToolSet(toolsService, {

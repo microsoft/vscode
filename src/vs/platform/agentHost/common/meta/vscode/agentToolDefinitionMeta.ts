@@ -6,6 +6,15 @@
 import type { ToolDefinition } from '../../state/protocol/state.js';
 
 const FULL_REFERENCE_NAME_META_KEY = 'vscode.chat.fullReferenceName';
+const TOOL_ORIGIN_META_KEY = 'vscode.chat.toolOrigin';
+
+export function withAgentToolOrigin<T extends ToolDefinition>(tool: T, origin: 'mcpApp'): T {
+	return { ...tool, _meta: { ...tool._meta, [TOOL_ORIGIN_META_KEY]: origin } };
+}
+
+export function readAgentToolOrigin(tool: ToolDefinition | undefined): 'mcpApp' | undefined {
+	return tool?._meta?.[TOOL_ORIGIN_META_KEY] === 'mcpApp' ? 'mcpApp' : undefined;
+}
 
 export function withAgentToolFullReferenceName<T extends ToolDefinition>(tool: T, fullReferenceName: string | undefined): T {
 	return fullReferenceName ? { ...tool, _meta: { ...tool._meta, [FULL_REFERENCE_NAME_META_KEY]: fullReferenceName } } : tool;

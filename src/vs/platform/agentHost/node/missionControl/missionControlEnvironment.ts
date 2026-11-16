@@ -6,14 +6,15 @@
 import { createHash, randomUUID } from 'crypto';
 import { link, mkdir, open, readFile, realpath } from 'fs/promises';
 import { join } from '../../../../base/common/path.js';
-import { disposableLongTimeout, raceTimeout, Sequencer } from '../../../../base/common/async.js';
-import { combinedDisposable, Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../base/common/lifecycle.js';
+import { disposableLongTimeout, raceTimeout, Sequencer, timeout } from '../../../../base/common/async.js';
+import { CancellationToken, cancelOnDispose } from '../../../../base/common/cancellation.js';
+import { combinedDisposable, Disposable, DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../base/common/lifecycle.js';
 import type { Event } from '../../../../base/common/event.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { Promises as FSPromises } from '../../../../base/node/pfs.js';
 import { CloudSandboxRequestError } from '../../common/cloudSandboxAgentHost.js';
 import { emitConnectionDiagnostic, getConnectionDiagnosticError, traceConnectionOperation, type ConnectionDiagnosticObserver, type IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
-import { parseRetryAfter } from '../../../github/common/client/headers.js';
+import { parseGitHubRequestId, parseRetryAfter } from '../../../github/common/client/headers.js';
 import { isRetryableMissionControlError, MISSION_CONTROL_RETRY_BUDGET_MS, missionControlMaxRetries, missionControlRetryDelay, parseMissionControlError } from '../../../github/common/missionControl/missionControlError.js';
 import type { IMissionControlOptions } from '../../common/agentService.js';
 import { parseGroupName } from '../../common/webPubSub/groups.js';
@@ -24,6 +25,7 @@ import { MissionControlProtocolServer, type IMissionControlRelayDetails, type IM
 import { MissionControlAuthentication, MissionControlSealing, resolveMissionControlOwner } from './missionControlAuthentication.js';
 import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
 import type { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
+import { MissionControlOwnerMismatchError } from '../../common/missionControlEnvironment.js';
 
 interface IEnvironmentResponse {
 	readonly id: string;
@@ -125,6 +127,7 @@ export class MissionControlEnvironment extends Disposable {
 	private readonly _mirrorSource = this._register(new MutableDisposable<IDisposable>());
 	private _mirrorEnvironment: string | undefined;
 	private readonly _configuration = new Sequencer();
+	private readonly _configurationWait = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _heartbeat = this._register(new MutableDisposable<IDisposable>());
 	private _heartbeatNotBefore = 0;
 	private _nextHeartbeatAt = 0;
@@ -198,13 +201,17 @@ export class MissionControlEnvironment extends Disposable {
 	}
 
 	get environmentId(): string | undefined { return this._environment?.id; }
+	get environmentName(): string { return this._options?.name ?? this._host.name; }
 	get isEnabled(): boolean { return this._options?.live === true; }
+	get isRepositoryMetadataEnabled(): boolean { return this._options?.disableRepositoryMetadata !== true; }
+
+	get cloneRoot(): string | undefined { return this._options?.cloneRoot; }
 
 	private _getIdentityApiBase(): string {
 		return this._host.getIdentityApiBase?.() ?? 'https://api.github.com';
 	}
 
-	private _createHeartbeat(status: 'online' | 'offline', capabilities?: IEnvironmentCapabilities, options = this._options): object {
+	private _createHeartbeat(status: 'online' | 'offline', capabilities?: IEnvironmentCapabilities, options = this._options): Record<string, unknown> {
 		return {
 			name: options?.name ?? this._host.name,
 			status,
@@ -213,7 +220,7 @@ export class MissionControlEnvironment extends Disposable {
 		};
 	}
 
-	private async _createRegistration(capabilities: IEnvironmentCapabilities, remoteControl: Record<string, unknown> | undefined): Promise<object> {
+	private async _createRegistration(capabilities: IEnvironmentCapabilities, remoteControl: Record<string, unknown> | undefined): Promise<Record<string, unknown>> {
 		return {
 			name: this._options?.name ?? this._host.name,
 			kind: 'user-local',
@@ -229,6 +236,7 @@ export class MissionControlEnvironment extends Disposable {
 		this._configurationEpoch++;
 		this._generation++;
 		this._options = undefined;
+		this._configurationWait.clear();
 		this._environment = undefined;
 		this._roots = [];
 		this._initialRoots = undefined;
@@ -262,7 +270,7 @@ export class MissionControlEnvironment extends Disposable {
 			throw new Error('Mission Control requires a safe origin, credential, account, and project roots');
 		}
 		if (this._ownerAccount && this._ownerAccount !== options.accountId) {
-			throw new Error('Agent Host already belongs to another local account; restart the process to change owners');
+			throw new MissionControlOwnerMismatchError('Agent Host already belongs to another local account; restart the process to change owners');
 		}
 		const identityApiBase = this._getIdentityApiBase();
 		if (options.live && (new URL(identityApiBase).protocol !== 'https:' || (this._identityApiBase && this._identityApiBase !== identityApiBase))) {
@@ -276,7 +284,7 @@ export class MissionControlEnvironment extends Disposable {
 			throw new Error('GitHub identity authority changed during Mission Control configuration');
 		}
 		if (this._canonicalOwner && this._canonicalOwner !== owner) {
-			throw new Error('Credential does not match the Agent Host owner');
+			throw new MissionControlOwnerMismatchError('Credential does not match the Agent Host owner');
 		}
 		const roots = await Promise.all(options.roots.map(root => realpath(root)));
 		const projects = options.projects === undefined ? undefined : await Promise.all(options.projects.map(project => realpath(project)));
@@ -314,9 +322,12 @@ export class MissionControlEnvironment extends Disposable {
 				this._recoveryStopped = false;
 				this._requestFailures = 0;
 				this._failureStartedAt = undefined;
-				await this._checkIn();
+				await this._checkInForConfiguration(epoch);
 			} else {
 				this._options = { ...options, roots: this._roots };
+				if (!this._server.value || this._server.value.isClosed) {
+					await this._checkInForConfiguration(epoch);
+				}
 			}
 			await this._host.updateProjects?.();
 			return;
@@ -337,7 +348,7 @@ export class MissionControlEnvironment extends Disposable {
 				}
 				this._sealing.value = new MissionControlSealing();
 			}
-			await this._checkIn();
+			await this._checkInForConfiguration(epoch);
 		} catch (error) {
 			if (epoch !== this._configurationEpoch || this._store.isDisposed) {
 				throw error;
@@ -445,12 +456,12 @@ export class MissionControlEnvironment extends Disposable {
 		}
 	}
 
-	private async _request(path: string, body?: object, options = this._options): Promise<unknown> {
+	private async _request(path: string, body?: Record<string, unknown>, options = this._options): Promise<unknown> {
 		const operation = path.endsWith('/register') ? 'register' : path.endsWith('/heartbeat') ? 'heartbeat' : path.endsWith('/token') ? 'token' : 'signingKeys';
 		return traceConnectionOperation(this._host.onDiagnostic, operation, () => this._doRequest(path, body, options));
 	}
 
-	private async _doRequest(path: string, body: object | undefined, options: IMissionControlOptions | undefined): Promise<unknown> {
+	private async _doRequest(path: string, body: Record<string, unknown> | undefined, options: IMissionControlOptions | undefined): Promise<unknown> {
 		if (!options) {
 			throw new Error('Mission Control is disabled');
 		}
@@ -476,6 +487,12 @@ export class MissionControlEnvironment extends Disposable {
 					this._heartbeatNotBefore = Math.max(this._heartbeatNotBefore, now + delay);
 				}
 			}
+			const status = body?.status;
+			const advertisedStatus = status === 'online' || status === 'offline' ? status : 'unknown';
+			emitConnectionDiagnostic(this._host.onDiagnostic, {
+				operationId: '', phase: 'heartbeatResponse', timestamp: Date.now(), outcome: 'info',
+				detail: `environmentId=${path.split('/').at(-2)}; advertisedStatus=${advertisedStatus}; httpStatus=${response.status}; relayConnected=${!!this._server.value && !this._server.value.isClosed}; nextHeartbeatInMs=${Math.max(0, this._nextHeartbeatAt - Date.now())}; retryAfterMs=${Math.max(0, this._heartbeatNotBefore - Date.now())}; requestId=${parseGitHubRequestId(response.headers.get('x-github-request-id')) ?? 'none'}`,
+			});
 		}
 		if (!response.ok) {
 			const metadata = parseMissionControlError(await response.text().catch(() => undefined), response.headers.get('x-github-request-id'));
@@ -501,15 +518,39 @@ export class MissionControlEnvironment extends Disposable {
 		}
 	}
 
-	private async _checkIn(): Promise<void> {
+	private async _checkInForConfiguration(epoch: number): Promise<void> {
+		const wait = new DisposableStore();
+		this._configurationWait.value = wait;
+		const token = cancelOnDispose(wait);
+		try {
+			await this._checkIn(token);
+		} catch (error) {
+			if (!token.isCancellationRequested || epoch === this._configurationEpoch && !this._store.isDisposed) {
+				throw error;
+			}
+		} finally {
+			if (this._configurationWait.value === wait) {
+				this._configurationWait.clear();
+			}
+		}
+	}
+
+	private async _checkIn(waitForRetry?: CancellationToken): Promise<void> {
 		if (!this._recoveryStopped && this._failureStartedAt !== undefined && Date.now() - this._failureStartedAt >= MISSION_CONTROL_RETRY_BUDGET_MS) {
 			this._recoveryStopped = true;
 			this._host.onError(new Error('Mission Control request retry budget exhausted; reconfigure the environment to reconnect.'));
 		}
 		if (this._recoveryStopped) {
+			if (waitForRetry) {
+				throw new Error('Mission Control request recovery stopped; reconfigure the environment to reconnect.');
+			}
 			return;
 		}
 		if (Date.now() < this._requestNotBefore) {
+			if (waitForRetry) {
+				await timeout(this._requestNotBefore - Date.now(), waitForRetry);
+				return this._checkIn(waitForRetry);
+			}
 			this._heartbeat.value = disposableLongTimeout(() => {
 				this._heartbeat.clear();
 				this._checkIn().catch(this._host.onError);
@@ -520,7 +561,7 @@ export class MissionControlEnvironment extends Disposable {
 		if (this._currentCheckIn?.generation === generation) {
 			await this._currentCheckIn.operation;
 			if (generation === this._generation && this._options && this._appliedPolicyRefresh !== this._policyRefresh) {
-				return this._checkIn();
+				return this._checkIn(waitForRetry);
 			}
 			return;
 		}

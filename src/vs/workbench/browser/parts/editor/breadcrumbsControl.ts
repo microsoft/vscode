@@ -18,9 +18,12 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { combinedDisposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { basename } from '../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DocumentSymbol } from '../../../../editor/common/languages.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextModel } from '../../../../editor/common/model.js';
 import { OutlineElement } from '../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
@@ -264,6 +267,7 @@ export class BreadcrumbsControl {
 	private readonly _cfUseQuickPick: BreadcrumbsConfig<boolean>;
 	private readonly _cfShowIcons: BreadcrumbsConfig<boolean>;
 	private readonly _cfShowEditorType: BreadcrumbsConfig<boolean>;
+	private readonly _cfShowInUntitledFiles: BreadcrumbsConfig<boolean>;
 	private readonly _cfTitleScrollbarSizing: BreadcrumbsConfig<IEditorPartOptions['titleScrollbarSizing']>;
 	private readonly _cfTitleScrollbarVisibility: BreadcrumbsConfig<IEditorPartOptions['titleScrollbarVisibility']>;
 
@@ -303,6 +307,7 @@ export class BreadcrumbsControl {
 		@ILabelService private readonly _labelService: ILabelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@IModelService private readonly _modelService: IModelService,
 		@IBreadcrumbsService breadcrumbsService: IBreadcrumbsService
 	) {
 		this.domNode = document.createElement('div');
@@ -313,6 +318,7 @@ export class BreadcrumbsControl {
 		this._cfUseQuickPick = BreadcrumbsConfig.UseQuickPick.bindTo(_configurationService);
 		this._cfShowIcons = BreadcrumbsConfig.Icons.bindTo(_configurationService);
 		this._cfShowEditorType = BreadcrumbsConfig.ShowEditorType.bindTo(_configurationService);
+		this._cfShowInUntitledFiles = BreadcrumbsConfig.ShowInUntitledFiles.bindTo(_configurationService);
 		this._cfTitleScrollbarSizing = BreadcrumbsConfig.TitleScrollbarSizing.bindTo(_configurationService);
 		this._cfTitleScrollbarVisibility = BreadcrumbsConfig.TitleScrollbarVisibility.bindTo(_configurationService);
 
@@ -364,6 +370,7 @@ export class BreadcrumbsControl {
 		this._cfUseQuickPick.dispose();
 		this._cfShowIcons.dispose();
 		this._cfShowEditorType.dispose();
+		this._cfShowInUntitledFiles.dispose();
 		this._cfTitleScrollbarSizing.dispose();
 		this._cfTitleScrollbarVisibility.dispose();
 		this._widget.dispose();
@@ -421,6 +428,13 @@ export class BreadcrumbsControl {
 		this._widget.revealLast();
 	}
 
+	private _canShowBreadcrumbsFor(uri: URI): boolean {
+		if (uri.scheme === Schemas.untitled) {
+			return this._cfShowInUntitledFiles.getValue();
+		}
+		return this._fileService.hasProvider(uri);
+	}
+
 	update(): boolean {
 		this._breadcrumbsDisposables.clear();
 
@@ -430,7 +444,7 @@ export class BreadcrumbsControl {
 		const uri = originalUri ?? canonicalUri;
 		const wasHidden = this.isHidden();
 
-		if (!uri || !this._fileService.hasProvider(uri)) {
+		if (!uri || !this._canShowBreadcrumbsFor(uri)) {
 			// cleanup and return when there is no input or when
 			// we cannot handle this input
 			this._ckBreadcrumbsPossible.set(false);
@@ -468,7 +482,10 @@ export class BreadcrumbsControl {
 			const items = elements.map(element => element instanceof FileElement
 				? this._instantiationService.createInstance(FileItem, model, element, options, this._labels, this._hoverDelegate)
 				: this._instantiationService.createInstance(OutlineItem, model, element, options));
-			if (items.length === 0) {
+			if (items.length === 0 && !this._options.showPlaceholder) {
+				this._widget.setEnabled(false);
+				this._widget.setItems([]);
+			} else if (items.length === 0) {
 				this._widget.setEnabled(false);
 				this._widget.setItems([new class extends BreadcrumbsItem {
 					render(container: HTMLElement): void {
@@ -495,6 +512,17 @@ export class BreadcrumbsControl {
 		this._breadcrumbsDisposables.add(toDisposable(() => this._model.clear()));
 		this._breadcrumbsDisposables.add(configListener);
 		this._breadcrumbsDisposables.add(toDisposable(() => this._widget.setItems([])));
+
+		// The editors available for an untitled resource depend on the language of its text model
+		if (uri.scheme === Schemas.untitled) {
+			const updateIfUntitledModel = (model: ITextModel) => {
+				if (isEqual(model.uri, uri)) {
+					this._updateEditorTypeControl();
+				}
+			};
+			this._breadcrumbsDisposables.add(this._modelService.onModelAdded(updateIfUntitledModel));
+			this._breadcrumbsDisposables.add(this._modelService.onModelLanguageChanged(e => updateIfUntitledModel(e.model)));
+		}
 
 		const updateScrollbarSizing = () => {
 			const sizing = this._cfTitleScrollbarSizing.getValue() ?? 'default';
@@ -548,6 +576,7 @@ export class BreadcrumbsControl {
 		return getAvailableEditorTypes(
 			this._editorGroup.activeEditor,
 			this._editorResolverService,
+			this._modelService,
 			this._configurationService.getValue<readonly string[]>(hiddenEditorTypesSettingId)
 		);
 	}
@@ -810,6 +839,15 @@ export class BreadcrumbsControlFactory {
 				// ignore if the scheme of the breadcrumbs resource is not affected
 				return;
 			}
+			if (this._control?.update()) {
+				this._onDidEnablementChange.fire();
+			}
+		}));
+
+		// Notify the owner when visibility changes, so it can reapply its own rules (e.g. hiding
+		// breadcrumbs in inactive groups with a single tab).
+		const showInUntitledFiles = this._disposables.add(BreadcrumbsConfig.ShowInUntitledFiles.bindTo(configurationService));
+		this._disposables.add(showInUntitledFiles.onDidChange(() => {
 			if (this._control?.update()) {
 				this._onDidEnablementChange.fire();
 			}

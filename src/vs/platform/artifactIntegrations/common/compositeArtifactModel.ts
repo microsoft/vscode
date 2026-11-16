@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { derived, IObservable, IReader } from '../../../base/common/observable.js';
-import { ArtifactActor, ArtifactRun, ArtifactSnapshot, IArtifactModel } from './artifactIntegration.js';
+import { ArtifactActor, ArtifactJsonValue, ArtifactRun, ArtifactSnapshot, IArtifactModel } from './artifactIntegration.js';
 
 /** Combines presentation without moving an integration's execution or persistence authority. */
 export class CompositeArtifactModel implements IArtifactModel {
@@ -32,9 +32,9 @@ export class CompositeArtifactModel implements IArtifactModel {
 		return this.forIntegration(integrationId).configure(integrationId, revision, values, actor);
 	}
 
-	async invoke(integrationId: string, actionId: string, chat: string, requestId: string, actor?: ArtifactActor) {
+	async invoke(integrationId: string, actionId: string, chat: string, requestId: string, actor?: ArtifactActor, input?: ArtifactJsonValue) {
 		const model = this.forIntegration(integrationId);
-		const run = await model.invoke(integrationId, actionId, chat, requestId, actor);
+		const run = await model.invoke(integrationId, actionId, chat, requestId, actor, input);
 		this.runOwners.set(run.id, model);
 		return run;
 	}

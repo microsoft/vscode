@@ -12,7 +12,7 @@ import { AbstractDialogHandler, DialogType, IConfirmation, IConfirmationResult, 
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { BrowserDialogHandler } from '../../../../workbench/browser/parts/dialogs/dialogHandler.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { isPhoneLayout } from '../mobile/mobileLayout.js';
+import { isPhoneLayout } from '../../../../workbench/browser/parts/sessions/mobileLayout.js';
 import { IMobileDialogSheetButton, showMobileDialogSheet } from './mobileDialogSheet.js';
 
 /**

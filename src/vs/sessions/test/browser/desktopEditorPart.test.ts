@@ -8,20 +8,25 @@ import { $, append, getActiveElement } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { timeout } from '../../../base/common/async.js';
 import { Codicon } from '../../../base/common/codicons.js';
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { decodeKeybinding, ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { OS } from '../../../base/common/platform.js';
-import { mock } from '../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IMenu, IMenuChangeEvent, IMenuCreateOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../platform/hover/browser/hover.js';
+import { HoverService } from '../../../platform/hover/browser/hoverService.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { ILayoutService } from '../../../platform/layout/browser/layoutService.js';
 import { USLayoutResolvedKeybinding } from '../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { MockKeybindingService } from '../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { INotificationService, NotificationMessage } from '../../../platform/notification/common/notification.js';
@@ -30,8 +35,8 @@ import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.
 import { NullTelemetryServiceShape } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { TestMenuService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { DesktopMainEditorPart } from '../../browser/parts/desktopEditorPart.js';
-import { IEmptyEditorGroup } from '../../browser/parts/emptyEditorGroupAddTab.js';
-import { Menus } from '../../browser/menus.js';
+import { IEmptyEditorGroup } from '../../../workbench/browser/parts/sessions/emptyEditorGroupAddTab.js';
+import { AgentsWindowMenus } from '../../browser/agentsWindowMenus.js';
 import '../../browser/parts/media/editorPart.css';
 import { TestContextViewService } from './testContextViewService.js';
 
@@ -59,10 +64,12 @@ class TestKeybindingService extends MockKeybindingService {
 suite('Sessions - Desktop editor part empty group', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createEmptyGroup(disposables: Pick<DisposableStore, 'add'>) {
+	function createEmptyGroup(disposables: Pick<DisposableStore, 'add'>, options?: { readonly realHovers?: boolean }) {
 		const root = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
 		disposables.add(toDisposable(() => root.remove()));
 		root.style.setProperty('--vscode-spacing-size80', '8px');
+		root.style.setProperty('--vscode-spacing-size240', '24px');
+		root.style.setProperty('--vscode-spacing-size280', '28px');
 		root.style.setProperty('--vscode-codiconFontSize', '16px');
 		const part = append(root, $('.part.editor'));
 		const element = append(append(part, $('.content')), $('.editor-group-container.empty.active'));
@@ -136,6 +143,11 @@ suite('Sessions - Desktop editor part empty group', () => {
 		});
 		const contextViewService = new TestContextViewService();
 		services.stub(IContextViewService, contextViewService);
+		if (options?.realHovers) {
+			services.stub(IConfigurationService, new TestConfigurationService({ 'workbench.hover.delay': 500 }));
+			services.stub(ILayoutService, upcastPartial<ILayoutService>({ activeContainer: root, mainContainer: root, getContainer: () => root, onDidLayoutContainer: Event.None }));
+			services.stub(IHoverService, disposables.add(services.createInstance(HoverService)));
+		}
 
 		const modelChanged = disposables.add(new Emitter<void>());
 		let isEmpty = true;
@@ -145,6 +157,7 @@ suite('Sessions - Desktop editor part empty group', () => {
 			modelChanged.fire();
 		};
 		const group: IEmptyEditorGroup = {
+			id: 1,
 			element,
 			scopedContextKeyService: services.get(IContextKeyService),
 			get isEmpty() { return isEmpty; },
@@ -164,9 +177,9 @@ suite('Sessions - Desktop editor part empty group', () => {
 		return { root, part, element, logo, control, contextViewService, keybindingService, requestedMenus, ran, notifiedErrors, telemetry, state, setEmpty, fireMenuChanged, addTab, list, entries, entry };
 	}
 
-	const isShown = (target: Element | null | undefined) => !!target && mainWindow.getComputedStyle(target).display !== 'none';
+	const isShown = (target: Element | null | undefined) => !!target?.getClientRects().length;
 
-	test('renders the Add Tab menu as a top `+` and a centered watermark list only while the group is empty', () => {
+	test('renders the Add Tab menu as a top `+` and a first-row-aligned watermark only while the group is empty', () => {
 		const { element, logo, control, contextViewService, requestedMenus, ran, state, setEmpty, fireMenuChanged, addTab, list, entries } = createEmptyGroup(store);
 		const snapshot = () => {
 			const groupBounds = element.getBoundingClientRect();
@@ -176,8 +189,8 @@ suite('Sessions - Desktop editor part empty group', () => {
 			return {
 				plus: isShown(plus) && isShown(plus!.querySelector('.tabs-bar-add-tab')) ? { top: plus!.getBoundingClientRect().top - groupBounds.top, left: plus!.getBoundingClientRect().left - groupBounds.left } : undefined,
 				list: isShown(listElement) && listBounds ? {
-					centered: Math.abs((listBounds.top + listBounds.height / 2) - (groupBounds.top + groupBounds.height / 2)) < 1
-						&& Math.abs((listBounds.left + listBounds.width / 2) - (groupBounds.left + groupBounds.width / 2)) < 1,
+					firstRowAligned: Math.abs(listBounds.top - (groupBounds.top + groupBounds.height / 2 - 42)) < 1,
+					centeredHorizontally: Math.abs((listBounds.left + listBounds.width / 2) - (groupBounds.left + groupBounds.width / 2)) < 1,
 					// What ends each row: rows without a keybinding end with the label or, for submenus, the chevron.
 					trailing: entries().map(row => row.lastElementChild?.className),
 					entries: entries().map(row => ({
@@ -243,10 +256,10 @@ suite('Sessions - Desktop editor part empty group', () => {
 			// `+` and list menus for the first render and again when the group becomes empty again.
 			// Each of the two renders reads the Add Tab menu for the `+` dropdown and its own menu for the list, which also follows changes inside submenus (e.g. Canvas).
 			requestedMenus: [
-				{ id: Menus.SessionsEditorTabsBarAddTab, submenuChanges: false },
-				{ id: Menus.SessionsEmptyEditorGroupAddTab, submenuChanges: true },
-				{ id: Menus.SessionsEditorTabsBarAddTab, submenuChanges: false },
-				{ id: Menus.SessionsEmptyEditorGroupAddTab, submenuChanges: true },
+				{ id: AgentsWindowMenus.SessionsEditorTabsBarAddTab, submenuChanges: false },
+				{ id: AgentsWindowMenus.SessionsEmptyEditorGroupAddTab, submenuChanges: true },
+				{ id: AgentsWindowMenus.SessionsEditorTabsBarAddTab, submenuChanges: false },
+				{ id: AgentsWindowMenus.SessionsEmptyEditorGroupAddTab, submenuChanges: true },
 			],
 			ran: ['test.browser'],
 			submenuOnClick: { items: ['Kusto'], focused: true },
@@ -255,7 +268,8 @@ suite('Sessions - Desktop editor part empty group', () => {
 			emptyWithActions: {
 				plus: { top: 0, left: 0 },
 				list: {
-					centered: true,
+					firstRowAligned: true,
+					centeredHorizontally: true,
 					trailing: ['sessions-add-tab-watermark-label', 'sessions-add-tab-watermark-label', 'sessions-add-tab-watermark-submenu-indicator codicon codicon-chevron-right'],
 					entries: [
 						{ label: 'Browser', icon: true, popup: null, submenuIndicator: false },
@@ -266,7 +280,8 @@ suite('Sessions - Desktop editor part empty group', () => {
 				logoShown: false,
 			},
 			emptyWithoutSubmenu: {
-				centered: true,
+				firstRowAligned: true,
+				centeredHorizontally: true,
 				trailing: ['sessions-add-tab-watermark-label', 'sessions-add-tab-watermark-label'],
 				entries: [
 					{ label: 'Browser', icon: true, popup: null, submenuIndicator: false },
@@ -274,7 +289,7 @@ suite('Sessions - Desktop editor part empty group', () => {
 				],
 			},
 			emptyWithoutActions: { plus: undefined, list: undefined, logoShown: true },
-			notEmpty: { plus: undefined, list: undefined, logoShown: true, rendered: false },
+			notEmpty: { plus: undefined, list: undefined, logoShown: false, rendered: false },
 			emptyAgain: { rendered: true, entries: 3 },
 			removedOnDispose: true,
 		});
@@ -298,6 +313,29 @@ suite('Sessions - Desktop editor part empty group', () => {
 			withPanel: 100,
 		});
 	});
+
+	test('does not show the Canvas row\'s hover over its submenu, which hides the hover of another row when it opens', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const disposables = store.add(new DisposableStore());
+		const { root, control, entry } = createEmptyGroup(disposables, { realHovers: true });
+		disposables.add(control);
+		const hover = () => [...root.querySelectorAll('.monaco-hover')].map(element => element.textContent?.trim());
+		const enter = (row: HTMLElement) => {
+			row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			row.dispatchEvent(new MouseEvent('mouseenter'));
+		};
+
+		enter(entry('Browser'));
+		await timeout(1000);
+		const browserHover = hover();
+		enter(entry('Canvas'));
+		await timeout(1000);
+		const canvasRow = { submenu: entry('Canvas').getAttribute('aria-expanded'), hover: hover() };
+
+		assert.deepStrictEqual({ browserHover, canvasRow }, {
+			browserHover: ['Browser'],
+			canvasRow: { submenu: 'true', hover: [] },
+		});
+	}));
 
 	test('keeps rows across unrelated menu refreshes and re-renders on real changes and keybinding updates', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const disposables = store.add(new DisposableStore());

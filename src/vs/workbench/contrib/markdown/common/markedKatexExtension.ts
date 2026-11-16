@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import type * as marked from '../../../../base/common/marked/marked.js';
-import { htmlAttributeEncodeValue } from '../../../../base/common/strings.js';
+import { escape, htmlAttributeEncodeValue } from '../../../../base/common/strings.js';
 
 export const mathInlineRegExp = /(?<![a-zA-Z0-9])(?<dollars>\${1,2})(?!\.|\(["'])((?:\\.|[^\\\n])*?(?:\\.|[^\\\n\$]))\k<dollars>(?![a-zA-Z0-9])/; // Non-standard, but ensure opening $ is not preceded and closing $ is not followed by word/number characters, opening $ not followed by ., (", ('
 export const katexContainerClassName = 'vscode-katex-container';
@@ -40,11 +40,13 @@ export namespace MarkedKatexExtension {
 				});
 
 				// Wrap in a container with attribute as a fallback for extracting the original LaTeX source
-				// This ensures we can always retrieve the source even if the annotation element is not present
-				out = `<span class="${katexContainerClassName}" ${katexContainerLatexAttributeName}="${htmlAttributeEncodeValue(token.text)}">${html}</span>`;
+				// This ensures we can always retrieve the source even if the annotation element is not present.
+				// Encode `$` so that theme icon rendering, which runs on the rendered HTML, cannot insert tags into the attribute.
+				out = `<span class="${katexContainerClassName}" ${katexContainerLatexAttributeName}="${htmlAttributeEncodeValue(token.text).replaceAll('$', '&#36;')}">${html}</span>`;
 			} catch {
-				// On failure, just use the original text including the wrapping $ or $$
-				out = token.raw;
+				// On failure, just show the original text including the wrapping $ or $$.
+				// Escape it: this output is inserted as HTML, also when the Markdown does not support HTML.
+				out = escape(token.raw);
 			}
 			return out + (isBlock ? '\n' : '');
 		};

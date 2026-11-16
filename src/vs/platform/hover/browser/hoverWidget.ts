@@ -53,7 +53,13 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	private readonly _linkHandler: ((url: string) => void) | undefined;
 
 	private _isDisposed: boolean = false;
+	/** The side the hover is currently laid out on, after falling back if it did not fit. */
 	private _hoverPosition: HoverPosition;
+	/**
+	 * The side the hover was asked to show on. Each layout starts from it again, so a hover that
+	 * had to fall back (e.g. while its image was loading) can return once it fits.
+	 */
+	private readonly _requestedHoverPosition: HoverPosition;
 	private _forcePosition: boolean = false;
 	private _x: number = 0;
 	private _y: number = 0;
@@ -167,6 +173,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			: isNumber(options.position.hoverPosition)
 				? options.position.hoverPosition
 				: HoverPosition.BELOW;
+		this._requestedHoverPosition = this._hoverPosition;
 
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
 		// not be selected.
@@ -341,6 +348,8 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	}
 
 	public render(container: HTMLElement): void {
+		this._mouseTracker?.enableMouseOutSuppression();
+		this._lockMouseTracker.enableMouseOutSuppression();
 		container.appendChild(this._hoverContainer);
 		const hoverFocused = this._hoverContainer.contains(this._hoverContainer.ownerDocument.activeElement);
 		const accessibleViewHint = hoverFocused && getHoverAccessibleViewHint(this._configurationService.getValue('accessibility.verbosity.hover') === true && this._accessibilityService.isScreenReaderOptimized(), this._keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel());
@@ -361,26 +370,19 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			this._lockMouseTracker?.suppressPendingMouseOut();
 		}
 
+		// Re-evaluate the fallback from the requested position on every layout, since the
+		// content size may have changed (e.g. an image finished loading)
+		this._hoverPosition = this._requestedHoverPosition;
 		this._hover.containerDomNode.classList.remove('right-aligned');
+		// Measure the full content when choosing the side, not the maximum height of a previous layout
+		this._hover.containerDomNode.style.maxHeight = '';
 		this._hover.contentsDomNode.style.maxHeight = '';
 		this._hover.containerDomNode.style.maxWidth = '';
 
-		const getZoomAccountedBoundingClientRect = (e: HTMLElement) => {
-			const zoom = dom.getDomNodeZoomLevel(e);
-
-			const boundingRect = e.getBoundingClientRect();
-			return {
-				top: boundingRect.top * zoom,
-				bottom: boundingRect.bottom * zoom,
-				right: boundingRect.right * zoom,
-				left: boundingRect.left * zoom,
-			};
-		};
-
-		const targetBounds = this._target.targetElements.map(e => getZoomAccountedBoundingClientRect(e));
+		const targetBounds = this._target.targetElements.map(e => e.getBoundingClientRect());
 		let { top, right, bottom, left } = targetBounds[0];
 		if (this._clippingElement) {
-			const clip = getZoomAccountedBoundingClientRect(this._clippingElement);
+			const clip = this._clippingElement.getBoundingClientRect();
 			const visible = {
 				top: Math.max(top, clip.top),
 				right: Math.min(right, clip.right),
@@ -453,6 +455,9 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			this._hoverPointer.classList.remove('left');
 			this._hoverPointer.classList.remove('right');
 			this._hoverPointer.classList.remove('bottom');
+			// The offset along the previous axis would override the new side's CSS position
+			this._hoverPointer.style.top = '';
+			this._hoverPointer.style.left = '';
 
 			this.setHoverPointerPosition(targetRect);
 		}
@@ -517,6 +522,13 @@ export class HoverWidget extends Widget implements IHoverWidget {
 				this._y = target.center.y + (this._hover.containerDomNode.clientHeight / 2);
 			} else {
 				this._y = target.bottom;
+			}
+
+			// Keep side hovers within the window so the context view does not need to move them
+			// away from the position the pointer was computed for
+			if (!this._forcePosition) {
+				const hoverHeight = this._hover.containerDomNode.clientHeight + Constants.HoverBorderWidth;
+				this._y = Math.max(Math.min(this._y, this._targetWindow.innerHeight - Constants.HoverWindowEdgeMargin), hoverHeight + Constants.HoverWindowEdgeMargin);
 			}
 		}
 
@@ -585,8 +597,9 @@ export class HoverWidget extends Widget implements IHoverWidget {
 					this._hoverPosition = HoverPosition.BELOW;
 				}
 			}
-			// Hover on the left is going beyond window.
-			if (target.left - this._hover.containerDomNode.clientWidth - hoverPointerOffset <= this._targetDocumentElement.clientLeft) {
+			// Hover on the left is going beyond window. Only applies while the hover is still on the
+			// left, so the BELOW fallback chosen above is not overridden
+			if (this._hoverPosition === HoverPosition.LEFT && target.left - this._hover.containerDomNode.clientWidth - hoverPointerOffset <= this._targetDocumentElement.clientLeft) {
 				this._hoverPosition = HoverPosition.RIGHT;
 			}
 		}
@@ -600,11 +613,13 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		}
 
 		const hoverPointerOffset = (this._hoverPointer ? Constants.PointerSize : 0);
+		// Compare against the height the hover will have once its maximum height is applied
+		const maxHeight = this._targetWindow.innerHeight * this._maxHeightRatioRelativeToWindow;
 
 		// Position hover on top of the target
 		if (this._hoverPosition === HoverPosition.ABOVE) {
 			// Hover on top is going beyond window
-			if (target.top - this._hover.containerDomNode.clientHeight - hoverPointerOffset < 0) {
+			if (target.top - Math.min(this._hover.containerDomNode.clientHeight, maxHeight) - hoverPointerOffset < 0) {
 				this._hoverPosition = HoverPosition.BELOW;
 			}
 		}
@@ -612,7 +627,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		// Position hover below the target
 		else if (this._hoverPosition === HoverPosition.BELOW) {
 			// Hover on bottom is going beyond window
-			if (target.bottom + this._hover.containerDomNode.offsetHeight + hoverPointerOffset > this._targetWindow.innerHeight) {
+			if (target.bottom + Math.min(this._hover.containerDomNode.offsetHeight, maxHeight) + hoverPointerOffset > this._targetWindow.innerHeight) {
 				this._hoverPosition = HoverPosition.ABOVE;
 			}
 		}
@@ -711,6 +726,8 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 class CompositeMouseTracker extends Widget {
 	private _isMouseIn: boolean = true;
+	private _canSuppressMouseOut: boolean = false;
+	private _isPendingMouseOutSuppressible: boolean = false;
 	private _suppressNextMouseOut: boolean = false;
 	private readonly _mouseTimer: MutableDisposable<TimeoutTimer> = this._register(new MutableDisposable());
 
@@ -745,6 +762,7 @@ class CompositeMouseTracker extends Widget {
 
 	private _onTargetMouseLeave(): void {
 		this._isMouseIn = false;
+		this._isPendingMouseOutSuppressible = this._canSuppressMouseOut;
 		// Evaluate whether the mouse is still outside asynchronously such that other mouse targets
 		// have the opportunity to first their mouse in event.
 		this._mouseTimer.value = new TimeoutTimer(() => this._fireIfMouseOutside(), this._eventDebounceDelay);
@@ -757,13 +775,24 @@ class CompositeMouseTracker extends Widget {
 	}
 
 	/**
+	 * Allows {@link suppressPendingMouseOut} to suppress mouseouts that start
+	 * after this call. Call this when the tracked elements are shown: a
+	 * mouseout that started before cannot be caused by them being resized or
+	 * repositioned, for example when the mouse left the target while a delayed
+	 * hover was pending.
+	 */
+	enableMouseOutSuppression(): void {
+		this._canSuppressMouseOut = true;
+	}
+
+	/**
 	 * Suppresses the next pending mouseout dismissal. Call this when tracked
 	 * elements are being resized or repositioned to avoid spurious dismissals
 	 * caused by the element shrinking away from the cursor. The suppression
 	 * is cleared when the mouse next enters a tracked element.
 	 */
 	suppressPendingMouseOut(): void {
-		if (!this._isMouseIn) {
+		if (!this._isMouseIn && this._isPendingMouseOutSuppressible) {
 			this._suppressNextMouseOut = true;
 		}
 	}

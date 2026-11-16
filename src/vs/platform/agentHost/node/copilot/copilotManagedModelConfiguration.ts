@@ -11,12 +11,21 @@ import { readAgentModelAutoTiersMeta } from '../../common/meta/agentModelMeta.js
 import { readAgentManagedModelDefaults, withAgentManagedModelDefaults, withAgentModelConfigurationDefaults } from '../../common/meta/agentModelConfigurationMeta.js';
 import type { JsonPrimitive, ModelSelection } from '../../common/state/protocol/state.js';
 import type { ILogService } from '../../../log/common/log.js';
+import { normalizeManagedModelId } from '../../../policy/common/copilotManagedSettings.js';
 
 type ResolvedManagedSettings = Awaited<ReturnType<CopilotClient['rpc']['managedSettings']['resolve']>>;
 /** `layers` carries each source's delivered document, which distinguishes a configured `fusionTier` from the runtime's legacy alias. */
 export type CopilotManagedModelPolicy = Pick<ResolvedManagedSettings, 'values' | 'meta'> & { readonly layers?: ResolvedManagedSettings['layers'] };
 
 const modelOptionKeys = ['thinkingLevel', 'contextSize', 'tier'] as const;
+
+/** The runtime's provider id for Copilot models, which the catalog lists by their bare id. */
+const copilotModelProviderId = 'copilot';
+
+/** The managed default model as a catalog id, with Copilot Fusion read as `auto`. */
+function getManagedModelId(policy: CopilotManagedModelPolicy): string | undefined {
+	return normalizeManagedModelId(policy.values?.model);
+}
 
 const fusionTierKey = 'fusionTier';
 
@@ -99,14 +108,16 @@ export function createCopilotModelConfigurationReport(
 		return [model.id, { defaults: Object.fromEntries(defaults), readOnly, choices: Object.fromEntries(choices), ...(managedDefaults.length ? { managedDefaults } : {}) }];
 	});
 	const options = Object.fromEntries(entries);
-	const currentModelId = current.modelId && (current.providerId ? `${current.providerId}/${current.modelId}` : current.modelId);
+	// Other providers' models are cataloged as `provider/id`.
+	const currentModelId = current.modelId && (current.providerId && current.providerId !== copilotModelProviderId ? `${current.providerId}/${current.modelId}` : current.modelId);
 	const model = models.find(model => model.id === currentModelId);
 	const config: Record<string, JsonPrimitive> = {};
 	if (model && currentModelId) {
 		const properties = model.configSchema?.properties;
 		const values = {
 			thinkingLevel: current.reasoningEffort,
-			contextSize: current.contextTier === undefined ? undefined : current.contextTier === 'long_context' ? properties?.contextSize?.enum?.at(-1) : properties?.contextSize?.enum?.[0],
+			// The runtime runs a session without a context tier on the default tier.
+			contextSize: current.contextTier === 'long_context' ? properties?.contextSize?.enum?.at(-1) : properties?.contextSize?.enum?.[0],
 			tier: current.autoTier,
 		};
 		for (const key of modelOptionKeys) {
@@ -125,13 +136,14 @@ export function createCopilotModelConfigurationReport(
 /** Projects runtime-composed startup defaults without inferring locks from server-normalized values. */
 export function projectCopilotManagedModelConfiguration(model: IAgentModelInfo, policy: CopilotManagedModelPolicy, logService: ILogService): IAgentModelInfo {
 	const schema = model.configSchema;
-	const managedModel = policy.values?.model === model.id;
+	const managedModelId = getManagedModelId(policy);
+	const managedModel = managedModelId === model.id;
 	if (!schema) {
 		return managedModel ? { ...model, _meta: withAgentManagedModelDefaults(model._meta, { model: true, keys: [] }) } : model;
 	}
 	const properties = { ...schema.properties };
 	const values = policy.values;
-	const concreteModel = values?.model === model.id && model.id !== 'auto';
+	const concreteModel = !!values && managedModelId === model.id && model.id !== 'auto';
 	const autoPreference = model.id === 'auto' ? getCopilotManagedAutoPreference(policy, model) : undefined;
 	const entries = [
 		{ key: 'thinkingLevel', value: concreteModel ? values.effortLevel : undefined },
@@ -173,7 +185,7 @@ export function omitCopilotManagedModelDefaults(model: ModelSelection | undefine
 		return model;
 	}
 	const values = policy.values;
-	const concreteModel = values?.model === model.id && model.id !== 'auto';
+	const concreteModel = !!values && getManagedModelId(policy) === model.id && model.id !== 'auto';
 	const options = [
 		['thinkingLevel', concreteModel && values.effortLevel !== undefined],
 		['contextSize', concreteModel && values.contextTier !== undefined],

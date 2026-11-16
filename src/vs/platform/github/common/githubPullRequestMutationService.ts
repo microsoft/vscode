@@ -105,6 +105,8 @@ export interface PullRequestMutationApi {
 	downloadWorkflowJobLog(ref: PullRequestRef, jobId: string, signal: AbortSignal): Promise<GitHubWorkflowLog>;
 	rerunWorkflow(ref: PullRequestRef, options: GitHubWorkflowRerunOptions, signal: AbortSignal): Promise<PullRequestMutationResult<GitHubWorkflowRun>>;
 	prepareMerge(ref: PullRequestRef, expectedHeadSha: string, signal: AbortSignal): Promise<PullRequestMergePreparation>;
+	/** Rejects with the original failure when GitHub may have applied the merge, even if reconciliation cannot read the result. */
 	merge(preparation: PullRequestMergePreparation, options: PullRequestMergeOptions, signal: AbortSignal): Promise<PullRequestMergeResult>;
+	/** Rejects with the original failure when GitHub may have enqueued the pull request, even if reconciliation cannot read the result. */
 	enqueue(preparation: PullRequestMergePreparation, authorization: PullRequestMergeAuthorization, signal: AbortSignal): Promise<PullRequestEnqueueResult>;
 }

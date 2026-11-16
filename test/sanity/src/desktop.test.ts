@@ -264,7 +264,8 @@ export function setup(context: TestContext) {
 
 	async function testDesktopApp(entryPoint: string, dataDir?: string, setuidSandbox = false) {
 		const test = new UITest(context, dataDir);
-		const args = dataDir ? [] : [
+		const args = dataDir ? ['--disable-experiments'] : [
+			'--disable-experiments',
 			'--extensions-dir', test.extensionsDir,
 			'--user-data-dir', test.userDataDir,
 		];
@@ -284,6 +285,7 @@ export function setup(context: TestContext) {
 		if (crashDumpsDir) {
 			args.push('--crash-reporter-directory', crashDumpsDir);
 		}
+		args.push(`--log-net-log=${test.netLogPath}`);
 		args.push(test.workspaceDir);
 		if (setuidSandbox) {
 			args.push('--disable-namespace-sandbox');
@@ -291,13 +293,33 @@ export function setup(context: TestContext) {
 
 		context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
 		const app = await _electron.launch({ executablePath: entryPoint, args });
+		test.resolveProxy = url => app.evaluate(({ session }, url) => session.defaultSession.resolveProxy(url), url);
+		let failure: { error: unknown } | undefined;
 		try {
 			const window = await context.getPage(app.firstWindow());
 			await test.run(window);
-		} finally {
+		} catch (error) {
+			failure = { error };
+		}
+		try {
 			await context.closeElectronApp(app);
+		} catch (error) {
+			if (failure) {
+				context.warn(`Failed to close the application after the test failed: ${error instanceof Error ? error.message : String(error)}`);
+			}
+			failure ??= { error };
 		}
 
-		test.validate();
+		if (!failure) {
+			try {
+				test.validate();
+			} catch (error) {
+				failure = { error };
+			}
+		}
+		if (failure) {
+			test.captureAppLogs();
+			throw failure.error;
+		}
 	}
 }

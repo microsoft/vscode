@@ -28,7 +28,7 @@ import { IProgressService, ProgressLocation } from '../../../../../../platform/p
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../../../files/browser/fileConstants.js';
 import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES, getAttachableImageExtension } from '../../../common/model/chatModel.js';
-import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { IChatRequestVariableEntry, isImageVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IChatImageRevealOrigin } from '../../attachments/chatImageReveal.js';
 import { IChatImageBase64Data } from '../../attachments/chatAttachmentWidgets.js';
 import { ChatAttachmentsContentPart } from './chatAttachmentsContentPart.js';
@@ -132,6 +132,9 @@ export class ChatResourceGroupWidget extends Disposable {
 		));
 
 		attachments.contextMenuHandler = (attachment, event) => {
+			if (isImageVariableEntry(attachment)) {
+				return;
+			}
 			const index = entries.indexOf(attachment);
 			const part = parts[index];
 			if (part) {

@@ -9,7 +9,6 @@ import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { isAhpChatChannel, isSubagentSession, type StringOrMarkdown, type ToolDefinition, type URI } from '../../common/state/sessionState.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
-import { requestServerToolConfirmation, type IServerToolConfirmation } from './serverToolConfirmation.js';
 
 export const IAgentHostServerToolService = createDecorator<IAgentHostServerToolService>('agentHostServerToolService');
 
@@ -56,11 +55,8 @@ export interface IServerToolExecutionContext {
 	readonly sessionUri: URI;
 	readonly chatUri: URI;
 	readonly turnId?: string;
-	/**
-	 * Asks the person in this chat to confirm, through an input request that tool auto-approval cannot answer.
-	 * Resolves `false` when they decline or the turn ends. Absent when the chat has no running turn.
-	 */
-	readonly requestConfirmation?: (confirmation: IServerToolConfirmation) => Promise<boolean>;
+	/** The tool call in the chat's active turn that is executing, when the provider reports it. */
+	readonly toolCallId?: string;
 }
 
 /**
@@ -279,7 +275,7 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 		};
 	}
 
-	executeTool(chatUri: URI, toolName: string, rawArgs: unknown): string | Promise<string> {
+	executeTool(chatUri: URI, toolName: string, rawArgs: unknown, toolCallId?: string): string | Promise<string> {
 		const group = this._groupByToolName.get(toolName);
 		if (!group) {
 			throw new Error(`Unknown server tool: ${toolName}`);
@@ -288,16 +284,15 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 		if (!this._isEnabledForSession(group, chatUri, name, toolName)) {
 			throw new Error(`Server tool "${toolName}" is disabled.`);
 		}
-		return group.execute(this._stateManager, this._executionContext(chatUri), name, rawArgs);
+		return group.execute(this._stateManager, this._executionContext(chatUri, toolCallId), name, rawArgs);
 	}
 
-	private _executionContext(chatUri: URI): IServerToolExecutionContext {
-		const turnId = this._stateManager.getActiveTurnId(chatUri);
+	private _executionContext(chatUri: URI, toolCallId?: string): IServerToolExecutionContext {
 		return {
 			sessionUri: this._stateManager.requireChatOwner(chatUri),
 			chatUri,
-			turnId,
-			...(turnId ? { requestConfirmation: (confirmation: IServerToolConfirmation) => requestServerToolConfirmation(this._stateManager, chatUri, turnId, confirmation) } : {}),
+			turnId: this._stateManager.getActiveTurnId(chatUri),
+			...(toolCallId ? { toolCallId } : {}),
 		};
 	}
 

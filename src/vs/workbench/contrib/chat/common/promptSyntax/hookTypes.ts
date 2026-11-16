@@ -13,6 +13,7 @@ export enum HookType {
 	SessionStart = 'SessionStart',
 	SessionEnd = 'SessionEnd',
 	UserPromptSubmit = 'UserPromptSubmit',
+	UserPromptTransformed = 'UserPromptTransformed',
 	PreToolUse = 'PreToolUse',
 	PostToolUse = 'PostToolUse',
 	PreCompact = 'PreCompact',
@@ -44,8 +45,11 @@ export const HOOKS_BY_TARGET: Record<Target, Record<string, HookType>> = {
 		'sessionStart': HookType.SessionStart,
 		'sessionEnd': HookType.SessionEnd,
 		'userPromptSubmitted': HookType.UserPromptSubmit,
+		'userPromptTransformed': HookType.UserPromptTransformed,
 		'preToolUse': HookType.PreToolUse,
 		'postToolUse': HookType.PostToolUse,
+		'preCompact': HookType.PreCompact,
+		'subagentStart': HookType.SubagentStart,
 		'agentStop': HookType.Stop,
 		'subagentStop': HookType.SubagentStop,
 		'errorOccurred': HookType.ErrorOccurred,
@@ -95,6 +99,10 @@ export const HOOK_METADATA: { [key in HookType]: IHookTypeMeta } = {
 		label: nls.localize('hookType.userPromptSubmit.label', "User Prompt Submit"),
 		description: nls.localize('hookType.userPromptSubmit.description', "Executed when the user submits a prompt to the agent.")
 	},
+	[HookType.UserPromptTransformed]: {
+		label: nls.localize('hookType.userPromptTransformed.label', "User Prompt Transformed"),
+		description: nls.localize('hookType.userPromptTransformed.description', "Executed after the user's prompt is transformed.")
+	},
 	[HookType.PreToolUse]: {
 		label: nls.localize('hookType.preToolUse.label', "Pre-Tool Use"),
 		description: nls.localize('hookType.preToolUse.description', "Executed before the agent uses any tool.")
@@ -133,10 +141,7 @@ const copilotAgentHookMetadata: Record<string, IHookTypeMeta> = {
 	sessionStart: HOOK_METADATA[HookType.SessionStart],
 	sessionEnd: HOOK_METADATA[HookType.SessionEnd],
 	userPromptSubmitted: HOOK_METADATA[HookType.UserPromptSubmit],
-	userPromptTransformed: {
-		label: nls.localize('hookType.userPromptTransformed.label', "User Prompt Transformed"),
-		description: nls.localize('hookType.userPromptTransformed.description', "Executed after the user's prompt is transformed.")
-	},
+	userPromptTransformed: HOOK_METADATA[HookType.UserPromptTransformed],
 	preToolUse: HOOK_METADATA[HookType.PreToolUse],
 	preMcpToolCall: {
 		label: nls.localize('hookType.preMcpToolCall.label', "Pre-MCP Tool Call"),
@@ -166,6 +171,7 @@ const copilotAgentHookAliases: Record<string, string> = {
 	SessionStart: 'sessionStart',
 	SessionEnd: 'sessionEnd',
 	UserPromptSubmit: 'userPromptSubmitted',
+	UserPromptTransformed: 'userPromptTransformed',
 	PreToolUse: 'preToolUse',
 	PreMcpToolCall: 'preMcpToolCall',
 	PostToolUse: 'postToolUse',

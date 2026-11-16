@@ -13,10 +13,10 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { createEditorOpenError, IResourceMultiDiffEditorInput, isEditorOpenError } from '../../../../workbench/common/editor.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { IGitHubPullRequestRef } from '../../../services/sessions/common/session.js';
-import { GitHubPullRequestState, IGitHubPullRequestChanges } from '../common/types.js';
-import { toPRContentUri } from '../common/utils.js';
-import { IGitHubService } from './githubService.js';
+import { IGitHubPullRequestRef } from '../../../../workbench/services/sessions/common/session.js';
+import { GitHubPullRequestState, IGitHubPullRequestChanges } from '../../../../workbench/contrib/sessions/common/github/types.js';
+import { toPRContentUri } from '../../../../workbench/contrib/sessions/common/github/utils.js';
+import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
 
 type PullRequestIdentity = Pick<IGitHubPullRequestRef, 'owner' | 'repo' | 'number'>;
 

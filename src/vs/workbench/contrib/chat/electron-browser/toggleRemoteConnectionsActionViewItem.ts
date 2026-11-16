@@ -5,77 +5,92 @@
 
 import './media/tunnelHost.css';
 import * as dom from '../../../../base/browser/dom.js';
-import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { IManagedHover, IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Action, IAction, IActionRunner, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
+import { IActionListOptions } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService, isGitHubEnvironmentBackend } from '../../../../platform/agentHost/common/missionControlEnvironment.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { GitHubEnvironmentsEnabledSettingId, IMissionControlSharingService } from '../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IRemoteTunnelService, INACTIVE_TUNNEL_MODE, TunnelMode, TunnelStatus } from '../../../../platform/remoteTunnel/common/remoteTunnel.js';
+import { IRemoteTunnelService } from '../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { RemoteTunnelCommandIds } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { getDevTunnelsDetail, getGitHubEnvironmentsDetail, getOffDetail, IRemoteTunnelAccessState, RemoteConnectionsMethod, RemoteConnectionsSharing, RemoteConnectionsState, TUNNEL_ACCESS_DOCS_URL } from './remoteConnectionsSharing.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { getManagedSupportUrl, IManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { getOrganizationSupportActionLabel, getOrganizationSupportActionTooltip, openOrganizationSupport } from '../../../services/policies/common/organizationSupport.js';
 
-const TUNNEL_ACCESS_DOCS_URL = 'https://aka.ms/vscode-agent-tunnel-access';
-
-export interface IRemoteTunnelAccessState {
-	readonly isSharing: boolean;
-	readonly isConnecting: boolean;
-	readonly tunnelName: string | undefined;
+export interface IRemoteConnectionsActionViewItemOptions {
+	/** Adds a separate menu entry after the connection methods, e.g. to manage remote environments. */
+	readonly getManagementAction?: () => IAction | undefined;
 }
 
-export function getRemoteTunnelAccessState(mode: TunnelMode, status: TunnelStatus): IRemoteTunnelAccessState {
-	return {
-		isSharing: status.type === 'connected',
-		isConnecting: status.type === 'connecting' || (mode.active && status.type === 'uninitialized'),
-		tunnelName: status.type === 'connected' ? status.info.tunnelName : undefined,
-	};
+class RemoteConnectionsDropdownActionViewItem extends ActionWidgetDropdownActionViewItem {
+	protected override renderLabel(element: HTMLElement) {
+		element.classList.add('tunnel-host-toggle');
+		const icon = dom.append(element, dom.$('span.tunnel-host-icon', { 'aria-hidden': 'true' }));
+		icon.append(...renderLabelWithIcons(`$(${Codicon.radioTower.id})`));
+		return super.renderLabel(element);
+	}
+
+	protected override setAriaLabelAttributes(element: HTMLElement): void {
+		super.setAriaLabelAttributes(element);
+		element.setAttribute('aria-label', this.action.tooltip || this.action.label);
+	}
 }
 
 export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 
 	private readonly _primaryAction: ToggleRemoteConnectionsActionViewItem;
-	private readonly _dropdown: ActionWidgetDropdownActionViewItem | undefined;
+	private readonly _dropdown: ActionWidgetDropdownActionViewItem;
+	private readonly _sharing: RemoteConnectionsSharing;
+	/** The support URL behind the policy footer of the last opened menu, if it showed that footer. */
+	private _policyFooterSupportUrl: { readonly url: string | undefined } | undefined;
 
 	constructor(
 		action: IAction,
 		private readonly _isChatInput: boolean,
+		private readonly _options: IRemoteConnectionsActionViewItemOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@IProductService productService: IProductService,
+		@IPreferencesService private readonly _preferencesService: IPreferencesService,
+		@IManagedSettingsService private readonly _managedSettingsService: IManagedSettingsService,
+		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 		super(undefined, action);
 
 		this._primaryAction = this._register(instantiationService.createInstance(ToggleRemoteConnectionsActionViewItem, action));
-		if (productService.quality === 'stable') {
-			return;
-		}
-		const dropdownAction = this._register(new Action('remoteConnections.selectMethod', localize('remoteConnections.selectMethod', "Select Remote Connection Method")));
-		dropdownAction.tooltip = localize('remoteConnections.selectMethod.tooltip', "Select Remote Connection Method\nChanging the method turns remote connections off.");
-		this._dropdown = this._register(instantiationService.createInstance(ActionWidgetDropdownActionViewItem,
+		this._sharing = this._register(instantiationService.createInstance(RemoteConnectionsSharing, this._primaryAction, async () => this.action.run(this._context), this._isChatInput ? 'chatInput' : 'titleBar'));
+		const dropdownAction = this._register(new Action('remoteConnections.selectMethod', localize('remoteConnections.label', "Remote Connections")));
+		this._dropdown = this._register(instantiationService.createInstance(RemoteConnectionsDropdownActionViewItem,
 			dropdownAction,
-			{ actionProvider: { getActions: () => this._getConnectionMethods() } },
+			{
+				actionProvider: { getActions: () => this._getConnectionMethods() },
+				listOptionsProvider: { getListOptions: () => this._getListOptions() },
+			},
 		));
+		this._register(this._primaryAction.onDidChangeState(() => this._updateDropdownState()));
+		// The policy footer's link is resolved when the menu opens, so it closes rather than going stale.
+		this._register(this._managedSettingsService.onDidChangeManagedSettings(() => {
+			if (this._policyFooterSupportUrl && getManagedSupportUrl(this._managedSettingsService) !== this._policyFooterSupportUrl.url) {
+				this._dropdown.hide();
+			}
+		}));
 	}
 
 	override set actionRunner(actionRunner: IActionRunner) {
 		super.actionRunner = actionRunner;
 		this._primaryAction.actionRunner = actionRunner;
-		if (this._dropdown) {
-			this._dropdown.actionRunner = actionRunner;
-		}
+		this._dropdown.actionRunner = actionRunner;
 	}
 
 	override get actionRunner(): IActionRunner {
@@ -85,159 +100,226 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 	override setActionContext(context: unknown): void {
 		super.setActionContext(context);
 		this._primaryAction.setActionContext(context);
-		this._dropdown?.setActionContext(context);
+		this._dropdown.setActionContext(context);
 	}
 
 	override render(container: HTMLElement): void {
 		const dropdown = this._dropdown;
-		if (!dropdown) {
-			this._primaryAction.render(container);
-			this.element = this._primaryAction.element;
-			this._updateTabStops();
-			return;
-		}
-
-		super.render(container);
-		container.classList.add('monaco-dropdown-with-primary', 'remote-connections-action');
-		container.role = 'group';
-		container.setAttribute('aria-label', localize('remoteConnections.label', "Remote Connections"));
-
-		const primaryContainer = dom.append(container, dom.$('.action-container'));
-		this._primaryAction.render(primaryContainer);
-		const dropdownContainer = dom.append(container, dom.$('.dropdown-action-container'));
-		dropdown.render(dropdownContainer);
-		dropdown.element?.classList.add('codicon-chevron-down');
-
-		this._register(dom.addDisposableListener(primaryContainer, dom.EventType.KEY_DOWN, e => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.RightArrow)) {
-				this.blur();
-				dropdown.focus();
-				event.preventDefault();
-				event.stopPropagation();
-			}
-		}));
-		this._register(dom.addDisposableListener(dropdownContainer, dom.EventType.KEY_DOWN, e => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.LeftArrow)) {
-				this.blur();
-				this._primaryAction.focus();
-				event.preventDefault();
-				event.stopPropagation();
-			}
-		}));
+		dropdown.render(container);
+		this.element = dropdown.element;
+		this._updateDropdownState();
 		this._updateTabStops();
 	}
 
-	override focus(fromRight?: boolean): void {
-		if (fromRight && this._dropdown) {
-			this._dropdown.focus();
-		} else {
-			this._primaryAction.focus();
-		}
+	override focus(_fromRight?: boolean): void {
+		this._dropdown.focus();
 	}
 
 	override blur(): void {
 		this._primaryAction.blur();
-		this._dropdown?.blur();
+		this._dropdown.blur();
 		this._updateTabStops();
 	}
 
 	override setFocusable(focusable: boolean): void {
-		this._primaryAction.setFocusable(focusable);
-		this._dropdown?.setFocusable(false);
+		this._dropdown.setFocusable(focusable);
 		this._updateTabStops();
 	}
 
 	protected override updateEnabled(): void {
+		this._dropdown.action.enabled = this.isEnabled();
 		this._updateTabStops();
 	}
 
 	private _updateTabStops(): void {
 		if (this._isChatInput) {
-			// Like the other chat input pickers, these controls keep individual Tab stops.
+			// Chat input controls keep a Tab stop independently of toolbar focus.
 			this._primaryAction.setFocusable(this.isEnabled());
-			this._dropdown?.setFocusable(this.isEnabled());
+			this._dropdown.setFocusable(this.isEnabled());
 		}
+	}
+
+	private _updateDropdownState(): void {
+		const dropdown = this._dropdown;
+		const state = this._primaryAction.getState();
+		dropdown.action.enabled = this.isEnabled();
+		dropdown.action.tooltip = state.isSharing || state.isConnecting
+			? this._primaryAction.getAriaLabel()
+			: localize('remoteConnections.offLabel', "Remote Connections: Off");
+		dropdown.element?.classList.toggle('sharing', state.isSharing);
+		dropdown.element?.classList.toggle('connecting', state.isConnecting);
+	}
+
+	private _getListOptions(): IActionListOptions {
+		const options: IActionListOptions = {
+			minWidth: 300,
+			maxWidth: 320,
+			wrapDetails: true,
+			...this._getNameHeader(),
+			widgetClassName: 'remote-connections-picker',
+			hideDefaultKeybindingTooltip: true,
+		};
+		if (this._sharing.gitHubEnvironmentsAvailability !== 'policyDisabled') {
+			this._policyFooterSupportUrl = undefined;
+			return options;
+		}
+		const supportUrl = getManagedSupportUrl(this._managedSettingsService);
+		this._policyFooterSupportUrl = { url: supportUrl };
+		const label = supportUrl ? getOrganizationSupportActionLabel() : localize('remoteConnections.viewSetting', "View Setting");
+		return {
+			...options,
+			footerText: supportUrl
+				? localize('remoteConnections.policyFooterWithSupport', "GitHub Environments is disabled by your organization. {0}", label)
+				: localize('remoteConnections.policyFooter', "GitHub Environments is disabled by your organization. Contact your administrator. {0}", label),
+			footerAction: supportUrl
+				? toAction({
+					id: 'remoteConnections.organizationSupport',
+					label,
+					tooltip: getOrganizationSupportActionTooltip(supportUrl),
+					run: async () => {
+						this._dropdown.hide();
+						await openOrganizationSupport(this._openerService, supportUrl);
+					},
+				})
+				: toAction({
+					id: 'remoteConnections.viewSetting',
+					label,
+					tooltip: localize('remoteConnections.viewManagedSetting', "View the Organization-Managed GitHub Environments Setting"),
+					run: async () => {
+						this._dropdown.hide();
+						await this._preferencesService.openSettings({ query: `@id:${GitHubEnvironmentsEnabledSettingId}` });
+					},
+				}),
+		};
+	}
+
+	/** Shows the name this computer is shared under above the connection methods, linked to rename it. */
+	private _getNameHeader(): Pick<IActionListOptions, 'headerIcon' | 'headerText' | 'headerAction'> {
+		const state = this._sharing.getState();
+		const usesGitHubEnvironment = this._sharing.usesGitHubEnvironment;
+		const name = this._sharing.name;
+		const headerText = name
+			? state.isSharing
+				? usesGitHubEnvironment
+					? localize('remoteConnections.registeredEnvironment', "Registered as GitHub environment: {0}", name)
+					: localize('remoteConnections.sharedTunnel', "Shared as Dev Tunnel: {0}", name)
+				: state.isConnecting
+					? localize('remoteConnections.connectingName', "Connecting as: {0}", name)
+					: localize('remoteConnections.name', "Will be shared as: {0}", name)
+			: this._sharing.namesLoaded
+				? localize('remoteConnections.nameUnavailable', "Remote name unavailable.")
+				: localize('remoteConnections.loadingName', "Loading remote name...");
+		return {
+			headerIcon: Codicon.deviceDesktop,
+			headerText,
+			headerAction: name ? toAction({
+				id: 'remoteConnections.rename',
+				label: name,
+				tooltip: localize('remoteConnections.rename', "Rename Remote Environment"),
+				enabled: this.isEnabled() && !state.isConnecting,
+				run: () => this._rename(usesGitHubEnvironment),
+			}) : undefined,
+		};
+	}
+
+	private async _rename(githubEnvironment: boolean): Promise<void> {
+		if (!this.isEnabled() || this._sharing.getState().isConnecting || githubEnvironment !== this._sharing.usesGitHubEnvironment) {
+			return;
+		}
+		this._dropdown.hide();
+		await this._sharing.rename();
 	}
 
 	private _getConnectionMethods(): IActionWidgetDropdownAction[] {
-		const usesGitHubEnvironment = isGitHubEnvironmentBackend(this._configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId));
-		return [
+		const environments = this._sharing.gitHubEnvironmentsAvailability;
+		// Checks the method chosen last, also in another surface, while choices are being applied.
+		const active = this._sharing.pendingMethod ?? this._sharing.activeMethod;
+		const methods: IActionWidgetDropdownAction[] = [
 			{
 				...toAction({
-					id: 'remoteConnections.devTunnel',
-					label: localize('remoteConnections.devTunnel', "Dev Tunnels"),
-					checked: !usesGitHubEnvironment,
-					run: () => this._selectConnectionMethod('devTunnel'),
+					id: 'remoteConnections.off',
+					label: localize('remoteConnections.off', "Off"),
+					checked: active === 'off',
+					run: () => this._selectConnectionMethod('off'),
 				}),
-				detail: localize('remoteConnections.devTunnel.detail', "Access workspaces and agents on this machine from VS Code or vscode.dev/agents."),
+				labelIcon: Codicon.circleSlash,
+				detail: getOffDetail(),
 			},
-			{
+		];
+		if (environments !== 'unavailable') {
+			methods.push({
 				...toAction({
 					id: 'remoteConnections.githubEnvironment',
 					label: localize('remoteConnections.githubEnvironment', "GitHub Environments"),
-					checked: usesGitHubEnvironment,
+					enabled: environments === 'enabled',
+					checked: active === 'githubEnvironment',
 					run: () => this._selectConnectionMethod('githubEnvironment'),
 				}),
-				detail: localize('remoteConnections.githubEnvironment.detail', "Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot."),
+				labelIcon: environments === 'policyDisabled' ? Codicon.briefcase : Codicon.github,
+				detail: getGitHubEnvironmentsDetail(environments),
 				badge: localize('remoteConnections.preview', "Preview"),
-			},
-		];
+			});
+		}
+		methods.push({
+			...toAction({
+				id: 'remoteConnections.devTunnel',
+				label: localize('remoteConnections.devTunnel', "Dev Tunnels"),
+				checked: active === 'devTunnel',
+				run: () => this._selectConnectionMethod('devTunnel'),
+			}),
+			labelIcon: Codicon.radioTower,
+			detail: getDevTunnelsDetail(),
+		});
+		const management = this._options.getManagementAction?.();
+		if (management) {
+			// Uncategorized entries sort last, so the connection methods need their own category to stay first.
+			for (const method of methods) {
+				method.category = { label: 'methods', order: 0 };
+			}
+			methods.push({
+				...toAction({
+					id: management.id,
+					label: management.label,
+					enabled: management.enabled,
+					run: () => management.run(),
+				}),
+				// Keeps the label aligned with the checkable connection methods.
+				icon: Codicon.blank,
+				labelIcon: Codicon.settingsGear,
+				category: { label: 'management', order: 1 },
+			});
+		}
+		return methods;
 	}
 
-	private async _selectConnectionMethod(backend: 'devTunnel' | 'githubEnvironment'): Promise<void> {
-		const current = this._configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId);
-		if (isGitHubEnvironmentBackend(current) === isGitHubEnvironmentBackend(backend)) {
+	private async _selectConnectionMethod(method: RemoteConnectionsMethod): Promise<void> {
+		if (!this.isEnabled()) {
 			return;
 		}
-		try {
-			await this._configurationService.updateValue(AgentHostRemoteConnectionsSettingId, backend, ConfigurationTarget.USER);
-		} catch (error) {
-			this._notificationService.error(error);
-		}
+		await this._sharing.selectMethod(method);
 	}
 }
 
 export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 
+	private readonly _onDidChangeState = this._register(new Emitter<void>());
+	readonly onDidChangeState = this._onDidChangeState.event;
 	private _iconElement: HTMLElement | undefined;
 	private _hover: IManagedHover | undefined;
-	private _mode: TunnelMode = INACTIVE_TUNNEL_MODE;
-	private _status: TunnelStatus = { type: 'uninitialized' };
-	private _hasReceivedMode = false;
-	private _hasReceivedStatus = false;
+	private readonly _state: RemoteConnectionsState;
 
 	constructor(
 		action: IAction,
-		@IRemoteTunnelService private readonly _remoteTunnelService: IRemoteTunnelService,
+		@IRemoteTunnelService remoteTunnelService: IRemoteTunnelService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IProductService private readonly _productService: IProductService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IMissionControlSharingService private readonly _missionControlSharingService: IMissionControlSharingService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IMissionControlSharingService missionControlSharingService: IMissionControlSharingService,
 	) {
 		super(undefined, action);
 
-		this._register(autorun(reader => {
-			this._missionControlSharingService.state.read(reader);
-			this._updateState();
-		}));
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AgentHostRemoteConnectionsSettingId)) {
-				this._updateState();
-			}
-		}));
-		this._register(this._remoteTunnelService.onDidChangeTunnelStatus(status => {
-			this._hasReceivedStatus = true;
-			this._status = status;
-			this._updateState();
-		}));
-		this._register(this._remoteTunnelService.onDidChangeMode(mode => {
-			this._hasReceivedMode = true;
-			this._mode = mode;
-			this._updateState();
-		}));
-		void this._loadState();
+		this._state = this._register(new RemoteConnectionsState(remoteTunnelService, configurationService, missionControlSharingService));
+		this._register(this._state.onDidChangeState(() => this._updateState()));
 	}
 
 	override render(container: HTMLElement): void {
@@ -263,7 +345,8 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 	}
 
 	private _updateState(): void {
-		const state = this._getState();
+		const state = this.getState();
+		this._onDidChangeState.fire();
 		if (!this.element) {
 			return;
 		}
@@ -271,46 +354,28 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 		this.element.classList.toggle('sharing', state.isSharing);
 		this.element.classList.toggle('connecting', state.isConnecting);
 		this._hover?.update(this._getHoverContent());
-		this.element.setAttribute('aria-label', this._getAriaLabel());
+		this.element.setAttribute('aria-label', this.getAriaLabel());
 		this.element.setAttribute('aria-pressed', String(state.isSharing));
 
 	}
 
 	private _usesMissionControl(): boolean {
-		return isGitHubEnvironmentBackend(this._configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId));
+		return this._state.usesGitHubEnvironment;
 	}
 
-	private _getState(): IRemoteTunnelAccessState {
-		if (this._usesMissionControl()) {
-			const state = this._missionControlSharingService.state.get();
-			return { isSharing: state === 'enabled', isConnecting: state === 'connecting', tunnelName: undefined };
-		}
-		return getRemoteTunnelAccessState(this._mode, this._status);
-	}
-
-	private async _loadState(): Promise<void> {
-		const [mode, status] = await Promise.all([
-			this._remoteTunnelService.getMode(),
-			this._remoteTunnelService.getTunnelStatus(),
-		]);
-		if (!this._hasReceivedMode) {
-			this._mode = mode;
-		}
-		if (!this._hasReceivedStatus) {
-			this._status = status;
-		}
-		this._updateState();
+	getState(): IRemoteTunnelAccessState {
+		return this._state.getState();
 	}
 
 	private _getHoverContent(): IManagedHoverContent {
 		if (this._usesMissionControl()) {
 			return localize('missionControlSharing.hover', "{0}\n\n{1}",
-				this._getAriaLabel(),
-				localize('remoteConnections.githubEnvironment.detail', "Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot."),
+				this.getAriaLabel(),
+				getGitHubEnvironmentsDetail('enabled'),
 			);
 		}
 		const lines: string[] = [];
-		const state = this._getState();
+		const state = this.getState();
 
 		if (state.isConnecting) {
 			lines.push(localize('tunnelHost.hover.connecting', "Establishing tunnel connection..."));
@@ -332,8 +397,8 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 		return { markdown: md, markdownNotSupportedFallback: lines[0] };
 	}
 
-	private _getAriaLabel(): string {
-		const state = this._getState();
+	getAriaLabel(): string {
+		const state = this.getState();
 		if (this._usesMissionControl()) {
 			return state.isConnecting
 				? localize('missionControlSharing.connecting', "Registering GitHub environment...")

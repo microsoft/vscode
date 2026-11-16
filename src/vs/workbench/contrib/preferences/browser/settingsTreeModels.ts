@@ -824,8 +824,8 @@ export function settingKeyToDisplayFormat(key: string, groupId: string = '', isL
 		case AgentSandboxSettingId.AgentSandboxAuthenticateGh:
 			displayLabel = localize('agentSandbox.authenticateGh.label', "Authenticate gh");
 			break;
-		case AgentSandboxSettingId.AgentSandboxMaskedEnvironmentVariables:
-			displayLabel = localize('agentSandbox.maskedEnvironmentVariables.label', "Masked environment variables");
+		case AgentSandboxSettingId.AgentSandboxCredentialEnvVars:
+			displayLabel = localize('agentSandbox.credentialEnvVars.label', "Masked environment variables");
 			break;
 		case AgentSandboxSettingId.AgentSandboxUserConfiguredPaths:
 			displayLabel = localize('agentSandbox.userConfiguredPaths.label', "User-Configured Paths");

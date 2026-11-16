@@ -64,15 +64,17 @@ export async function request(options: IRequestOptions, token: CancellationToken
 			} : {}),
 		};
 	} catch (err) {
-		trace(`${phase}/${token.isCancellationRequested || err?.name === 'AbortError' ? 'cancelled' : 'failed'}`);
+		// Chromium body reads throw AbortError even when the signal was aborted by a timeout.
+		const timedOut = err?.name === 'TimeoutError' || (err?.name === 'AbortError' && signal.reason?.name === 'TimeoutError');
+		trace(`${phase}/${!timedOut && (token.isCancellationRequested || err?.name === 'AbortError') ? 'cancelled' : 'failed'}`);
 		if (isOnline && !isOnline()) {
 			throw new OfflineError();
 		}
+		if (timedOut) {
+			throw new Error(`Fetch timeout: ${options.timeout}ms`);
+		}
 		if (err?.name === 'AbortError') {
 			throw canceled();
-		}
-		if (err?.name === 'TimeoutError') {
-			throw new Error(`Fetch timeout: ${options.timeout}ms`);
 		}
 		throw err;
 	} finally {

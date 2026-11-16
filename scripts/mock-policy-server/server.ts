@@ -647,7 +647,7 @@ function printHelp(): void {
 	console.log('  Mock Copilot policy endpoints dev server.');
 	console.log('');
 	console.log('  Usage:');
-	console.log('    npm run mock-policy-server [-- <options>]');
+	console.log('    pnpm run mock-policy-server [<options>]');
 	console.log('');
 	console.log('  Options:');
 	console.log('    --host <addr>     Address to bind (default 127.0.0.1)');

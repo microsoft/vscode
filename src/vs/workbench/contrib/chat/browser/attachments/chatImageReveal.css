@@ -83,6 +83,7 @@
 		width: fit-content;
 		flex-direction: row;
 		align-items: center;
+		margin-bottom: 0;
 	}
 
 	.chat-collapsible-io-resource-items,

@@ -127,7 +127,6 @@ export class PullRequestMutationService extends Disposable implements PullReques
 				url: this._restUrl(ref, `actions/jobs/${encodeURIComponent(jobId)}/logs`),
 				maximumBytes: maximumWorkflowLogBytes,
 				timeout: workflowLogTimeout,
-				priority: 'interactive',
 			}, combinedSignal);
 			// Drop partial secrets before applying redaction to the entire captured log.
 			const text = response.truncated ? response.text.slice(0, response.text.lastIndexOf('\n') + 1) : response.text;
@@ -297,7 +296,12 @@ export class PullRequestMutationService extends Disposable implements PullReques
 						throw error;
 					}
 					this._resources.invalidatePullRequest(preparation.ref, ['core']);
-					await state.subscription.refresh('core', undefined, { authoritative: true });
+					try {
+						await state.subscription.refresh('core', undefined, { authoritative: true });
+					} catch {
+						// A failed read cannot show that the merge was not applied.
+						throw error;
+					}
 					const reconciled = state.resource.snapshot.get().core.value;
 					if (reconciled?.state === 'merged') {
 						return { outcome: 'reconciled', message: 'Pull request was merged' };
@@ -347,7 +351,12 @@ export class PullRequestMutationService extends Disposable implements PullReques
 						throw error;
 					}
 					this._resources.invalidatePullRequest(preparation.ref, ['mergeability']);
-					await state.subscription.refresh('mergeability', undefined, { authoritative: true });
+					try {
+						await state.subscription.refresh('mergeability', undefined, { authoritative: true });
+					} catch {
+						// A failed read cannot show that the pull request was not enqueued.
+						throw error;
+					}
 					const entryId = state.resource.snapshot.get().mergeability.value?.mergeQueueEntryId;
 					if (entryId) {
 						return { outcome: 'reconciled', mergeQueueEntryId: entryId };
@@ -583,6 +592,10 @@ export class PullRequestMutationService extends Disposable implements PullReques
 	}
 
 	private _handleCredentialInvalidation(event: GitHubCredentialInvalidation): void {
+		// Reauthorizing the same credential does not change what a preparation or rerun is waiting for.
+		if (event.reason === 'reauthorization') {
+			return;
+		}
 		if (this._preparations.size > 0 || this._unconfirmedReruns.size > 0) {
 			this._logService?.debug(`[PullRequestMutationService] Clearing mutation reconciliation state after credential invalidation (${event.reason})`);
 		}

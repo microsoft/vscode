@@ -61,6 +61,19 @@
 	cursor: default;
 }
 
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-failure {
+	flex-shrink: 0;
+	color: var(--vscode-errorForeground);
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-failure.hidden {
+	display: none;
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget.chat-subagent-failed .chat-subagent-pill-open-icon {
+	color: var(--vscode-errorForeground);
+}
+
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-label,
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-active-tool-label {
 	flex: 1;

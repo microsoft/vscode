@@ -744,6 +744,7 @@ suite('AgentPluginRepositoryService', () => {
 					cloneRepository: async (_url, _directory, ref) => { calls.push({ operation: 'clone', revision: ref }); },
 					checkoutCommit: async (_directory, commit) => { calls.push({ operation: 'checkoutCommit', revision: commit }); },
 					checkout: async (_directory, ref) => { calls.push({ operation: 'checkout', revision: ref }); },
+					revParse: async (_directory, ref) => { calls.push({ operation: 'revParse', revision: ref }); return sha?.toUpperCase() ?? ''; },
 				});
 				const plugin = {
 					...createPlugin('microsoft/vscode', 'plugins/test'),
@@ -758,12 +759,51 @@ suite('AgentPluginRepositoryService', () => {
 				}, {
 					calls: [
 						{ operation: 'clone', revision: sha ?? 'main' },
-						{ operation: sha ? 'checkoutCommit' : 'checkout', revision: sha ?? 'main' },
+						{ operation: sha ? 'revParse' : 'checkout', revision: sha ? 'HEAD' : 'main' },
 					],
 					installPath: service.getPluginSourceInstallUri(plugin.sourceDescriptor).path,
 				});
 			});
 		}
+
+		test(`verifies ${sourceDescriptor.kind} pins when a clone reports a different commit`, async () => {
+			const sha = 'a'.repeat(40);
+			const calls: string[] = [];
+			const service = createService(async () => false, undefined, {
+				cloneRepository: async () => { calls.push('clone'); },
+				revParse: async () => { calls.push('revParse'); return 'b'.repeat(40); },
+				checkoutCommit: async (_directory, commit) => {
+					calls.push(`checkoutCommit:${commit}`);
+					throw new Error('Pinned commit resolved to a different commit');
+				},
+			});
+			const plugin = {
+				...createPlugin('microsoft/vscode', 'plugins/test'),
+				sourceDescriptor: { ...sourceDescriptor, sha },
+			};
+
+			await assert.rejects(service.ensurePluginSource(plugin), /Pinned commit resolved to a different commit/);
+
+			assert.deepStrictEqual(calls, ['clone', 'revParse', `checkoutCommit:${sha}`]);
+		});
+
+		test(`still checks out ${sourceDescriptor.kind} pins when reusing a cached repository`, async () => {
+			const sha = 'a'.repeat(40);
+			const calls: string[] = [];
+			const service = createService(async () => true, undefined, {
+				cloneRepository: async () => { calls.push('clone'); },
+				revParse: async () => { calls.push('revParse'); return sha; },
+				checkoutCommit: async (_directory, commit) => { calls.push(`checkoutCommit:${commit}`); },
+			});
+			const plugin = {
+				...createPlugin('microsoft/vscode', 'plugins/test'),
+				sourceDescriptor: { ...sourceDescriptor, sha },
+			};
+
+			await service.ensurePluginSource(plugin);
+
+			assert.deepStrictEqual(calls, [`checkoutCommit:${sha}`]);
+		});
 	}
 
 	test('concurrent ensureRepository calls for the same marketplace clone only once', async () => {

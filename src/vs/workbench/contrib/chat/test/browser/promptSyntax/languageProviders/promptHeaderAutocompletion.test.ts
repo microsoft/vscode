@@ -28,9 +28,10 @@ import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { MockChatModeService } from '../../../common/mockChatModeService.js';
-import { createVSCodeHarnessDescriptor, ICustomizationHarnessService, type IAgentFileToolInventoryEntry } from '../../../../common/customizationHarnessService.js';
+import { createVSCodeHarnessDescriptor, ICustomizationHarnessService, type IAgentFileToolInventoryEntry, type ICustomizationItem } from '../../../../common/customizationHarnessService.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
 import { Event } from '../../../../../../../base/common/event.js';
+import { AICustomizationSources } from '../../../../common/aiCustomizationWorkspaceService.js';
 
 suite('PromptHeaderAutocompletion', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -40,11 +41,15 @@ suite('PromptHeaderAutocompletion', () => {
 	let activeTarget: Target;
 	let copilotToolInventory: readonly IAgentFileToolInventoryEntry[];
 	let otherCopilotToolInventory: readonly IAgentFileToolInventoryEntry[];
+	let copilotSkillInventory: ICustomizationItem[];
+	let otherCopilotSkillInventory: ICustomizationItem[];
 
 	setup(async () => {
 		activeTarget = Target.Undefined;
 		copilotToolInventory = [];
 		otherCopilotToolInventory = [];
+		copilotSkillInventory = [];
+		otherCopilotSkillInventory = [];
 		const testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
 		instaService = workbenchInstantiationService({
@@ -116,7 +121,7 @@ suite('PromptHeaderAutocompletion', () => {
 			customAgentTarget: Target.GitHubCopilot,
 			itemProvider: {
 				onDidChange: Event.None,
-				provideChatSessionCustomizations: async () => [],
+				provideChatSessionCustomizations: async () => copilotSkillInventory,
 				provideAgentFileTools: async () => copilotToolInventory,
 			},
 		};
@@ -126,7 +131,7 @@ suite('PromptHeaderAutocompletion', () => {
 			customAgentTarget: Target.GitHubCopilot,
 			itemProvider: {
 				onDidChange: Event.None,
-				provideChatSessionCustomizations: async () => [],
+				provideChatSessionCustomizations: async () => otherCopilotSkillInventory,
 				provideAgentFileTools: async () => otherCopilotToolInventory,
 			},
 		};
@@ -251,6 +256,7 @@ suite('PromptHeaderAutocompletion', () => {
 				{ label: 'handoffs', result: 'handoffs: $0' },
 				{ label: 'hooks', result: 'hooks:\n  ${1|SessionStart,SessionEnd,UserPromptSubmit,PreToolUse,PostToolUse,PreCompact,SubagentStart,SubagentStop,Stop,ErrorOccurred|}:\n    - type: command\n      command: "$2"' },
 				{ label: 'model', result: 'model: ${0:MAE 4 (olama)}' },
+				{ label: 'model-policy', result: 'model-policy: ${0:preferred}' },
 				{ label: 'name', result: 'name: $0' },
 				{ label: 'reasoning-effort', result: 'reasoning-effort: ${0:low}' },
 				{ label: 'target', result: 'target: ${0:vscode}' },
@@ -449,7 +455,8 @@ suite('PromptHeaderAutocompletion', () => {
 		test('complete github-copilot tools from all matching harness inventories', async () => {
 			copilotToolInventory = [
 				{ name: 'publisher.extension/clientTool', description: 'Provided by the client', availability: 'available' },
-				{ name: 'github/*', availability: 'available' },
+				{ name: 'github/*', availability: 'disabled' },
+				{ name: 'playwright/*', availability: 'unavailable' },
 				{ name: 'disabled/*', availability: 'disabled' },
 			];
 			otherCopilotToolInventory = [{ name: 'other.extension/remoteClientTool', availability: 'available' }];
@@ -463,7 +470,26 @@ suite('PromptHeaderAutocompletion', () => {
 
 			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
 
-			assert.deepStrictEqual(labels, ['execute', 'read', 'edit', 'search', 'agent', 'web', 'todo', '*', 'publisher.extension/clientTool', 'github/*', 'disabled/*', 'other.extension/remoteClientTool', 'playwright/*']);
+			assert.deepStrictEqual(labels, ['execute', 'read', 'edit', 'search', 'agent', 'web', 'todo', '*', 'github/*', 'playwright/*', 'publisher.extension/clientTool', 'disabled/*', 'other.extension/remoteClientTool']);
+		});
+
+		test('complete github-copilot skills from all matching harness inventories', async () => {
+			copilotSkillInventory = [
+				createSkill('review', { description: 'Review changes' }),
+				createSkill('disabled-skill', { enabled: false }),
+			];
+			otherCopilotSkillInventory = [createSkill('testing', { source: AICustomizationSources.plugin })];
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'skills: [|]',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
+
+			assert.deepStrictEqual(labels, ['review', 'disabled-skill', 'testing']);
 		});
 
 		test('complete github-copilot github properties', async () => {
@@ -481,6 +507,19 @@ suite('PromptHeaderAutocompletion', () => {
 
 			assert.deepStrictEqual(labels, ['permissions']);
 		});
+
+		function createSkill(name: string, overrides: Partial<ICustomizationItem> = {}): ICustomizationItem {
+			return {
+				uri: URI.parse(`test:/skills/${name}/SKILL.md`),
+				type: PromptsType.skill,
+				name,
+				source: AICustomizationSources.local,
+				extensionId: undefined,
+				pluginUri: undefined,
+				enabled: true,
+				...overrides,
+			};
+		}
 
 		test('complete first github-copilot github property', async () => {
 			const content = [

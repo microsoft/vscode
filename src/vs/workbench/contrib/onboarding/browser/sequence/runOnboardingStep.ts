@@ -38,8 +38,13 @@ export class RunOnboardingStepPresentation implements IOnboardingSequenceStepPre
 				onUnexpectedError(error);
 			}
 		}
-		return context.cancellationToken.isCancellationRequested
-			? { action: 'abort', shown: false }
-			: { action: 'next', shown: result?.shown === true };
+		if (context.cancellationToken.isCancellationRequested) {
+			return { action: 'abort', shown: false };
+		}
+		// A run step that rendered UI, like prompt options, is the tour's impression when no spotlight step shows.
+		if (result?.shown === true) {
+			context.onDidShow?.();
+		}
+		return { action: 'next', shown: result?.shown === true };
 	}
 }

@@ -36,7 +36,6 @@ Then, implement your tool in `src/extension/tools/node`:
 - If your tool takes input, write an interface and be sure that it matches the schema in package.json exactly, including which properties are required.
 - A typical tool can implement `vscode.LanguageModelTool`. More sophisticated tools can implement `ICopilotTool`, which gives you some extra functionality.
 - Call `ToolRegistry.registerTool(YourTool);` and import your tool file in `allTools.ts`.
-- Is your tool relevant in simulator/swebench scenarios? If so, check that it works.
 - I recommend using prompt-tsx for your tool result if it's not a simple string. This lets you compose the result from multiple parts or reuse other prompt-tsx components.
 
 ### Input validation

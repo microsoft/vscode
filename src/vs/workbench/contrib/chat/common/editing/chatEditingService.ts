@@ -130,8 +130,23 @@ export interface IChatEditReviewSession extends IDisposable {
 	reject(...uris: URI[]): Promise<void>;
 }
 
+/** Finds the pending review for a file, without letting a settled entry in another session hide it. */
+export function findChatEditingSessionEntry(sessions: readonly IChatEditReviewSession[], uri: URI, reader?: IReader): { session: IChatEditReviewSession; entry: IModifiedFileEntry } | undefined {
+	for (const session of sessions) {
+		const entry = reader ? session.readEntry(uri, reader) : session.getEntry(uri);
+		if (entry?.state.read(reader) === ModifiedFileEntryState.Modified) {
+			return { session, entry };
+		}
+	}
+	return undefined;
+}
+
 export interface IChatEditingSession extends IChatEditReviewSession {
 	readonly supportsKeepUndo: IObservable<boolean>;
+	/** Provider-owned review files without editor entries, such as deleted or binary files. */
+	readonly additionalReviewFiles?: IObservable<readonly IEditSessionEntryDiff[]>;
+	/** Waits for provider-owned entries to catch up before opening a review editor. */
+	resolveEntry?(uri: URI): Promise<IModifiedFileEntry | undefined>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	/** Requests disabled by undo/redo in the session */
 	readonly requestDisablement: IObservable<IChatRequestDisablement[]>;

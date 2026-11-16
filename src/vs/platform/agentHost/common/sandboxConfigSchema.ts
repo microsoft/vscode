@@ -120,7 +120,19 @@ export const sandboxConfigSchema = createSchema({
 					envVars: {
 						type: 'object',
 						title: localize('agentHost.config.sandbox.credentials.envVars.title', "Environment Variables"),
-						description: localize('agentHost.config.sandbox.credentials.envVars.description', "Maps environment variable names to objects with an injectHosts array of HTTPS destinations. Credential entries are validated by the runtime."),
+						description: localize('agentHost.config.sandbox.credentials.envVars.description', "Maps environment variable names to objects with an injectHosts array of HTTPS destinations. Destination patterns are validated by the runtime."),
+						additionalProperties: {
+							type: 'object',
+							title: localize('agentHost.config.sandbox.credentials.envVars.entry.title', "Environment Variable"),
+							properties: {
+								injectHosts: {
+									type: 'array',
+									title: localize('agentHost.config.sandbox.credentials.injectHosts.title', "Injection Hosts"),
+									items: { type: 'string', title: localize('agentHost.config.sandbox.credentials.injectHosts.item.title', "Host") },
+								},
+							},
+							required: ['injectHosts'],
+						},
 					},
 				},
 			},
@@ -199,7 +211,6 @@ export const sandboxSettingIdToAgentHostKey: Readonly<Record<string, AgentHostSa
 	[AgentSandboxSettingId.AgentSandboxLspServers]: AgentHostSandboxKey.SandboxLspServers,
 	[AgentSandboxSettingId.AgentSandboxAuthenticateGit]: AgentHostSandboxKey.AuthenticateGit,
 	[AgentSandboxSettingId.AgentSandboxAuthenticateGh]: AgentHostSandboxKey.AuthenticateGh,
-	[AgentSandboxSettingId.AgentSandboxMaskedEnvironmentVariables]: AgentHostSandboxKey.MaskedCredentials,
 	[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess]: AgentHostSandboxKey.AllowDevToolAccess,
 	[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths]: AgentHostSandboxKey.UserConfiguredPaths,
 	[AgentSandboxSettingId.AgentSandboxLinuxFileSystem]: AgentHostSandboxKey.LinuxFileSystem,

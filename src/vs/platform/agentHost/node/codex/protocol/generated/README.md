@@ -16,7 +16,7 @@ locked across machines and CI.
 ## Regenerating
 
 ```sh
-npm run codex:gen-protocol
+pnpm run codex:gen-protocol
 ```
 
 This wipes `generated/` (except `README.md`) and rewrites it from the locally
@@ -43,6 +43,6 @@ scratch dir and fails if the committed files differ. PRs that touch neither are
 skipped. Run it locally with:
 
 ```sh
-npm run codex:check-protocol
+pnpm run codex:check-protocol
 ```
 

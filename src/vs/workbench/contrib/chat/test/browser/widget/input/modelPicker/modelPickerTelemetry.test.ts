@@ -23,7 +23,8 @@ import { IConfigurationService } from '../../../../../../../../platform/configur
 import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IOpenerService } from '../../../../../../../../platform/opener/common/opener.js';
+import { IOpenerService, OpenOptions } from '../../../../../../../../platform/opener/common/opener.js';
+import { COPILOT_COMMUNICATION_SUPPORT_URL_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IProductService } from '../../../../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../../../platform/telemetry/common/telemetry.js';
@@ -33,7 +34,7 @@ import { IUriIdentityService } from '../../../../../../../../platform/uriIdentit
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../../../platform/workspace/common/workspaceTrust.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../services/chat/common/chatEntitlementService.js';
 import { TestChatEntitlementService, TestWorkspaceTrustManagementService } from '../../../../../../../test/common/workbenchTestServices.js';
-import { IModelConfigurationAccess } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
+import { IModelConfigurationAccess, withoutFusionEffortLevel } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ModelPickerTelemetrySession } from '../../../../../browser/widget/input/modelPicker/modelPickerTelemetry.js';
 import { ModelPickerWidget } from '../../../../../browser/widget/input/modelPicker/modelPickerWidget.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelPinTelemetryContext, IModelsControlManifest } from '../../../../../common/languageModels.js';
@@ -64,6 +65,10 @@ function createModel(id: string, metadata: Partial<ILanguageModelChatMetadata> =
 
 suite('ModelPickerTelemetry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	let managedSupportUrl: string | undefined;
+	teardown(() => {
+		managedSupportUrl = undefined;
+	});
 	const model = createModel('test-model');
 	const fastModel = createModel('test-model-fast');
 	const otherModel = createModel('other-model');
@@ -81,13 +86,15 @@ suite('ModelPickerTelemetry', () => {
 		},
 	});
 
-	function createPicker(selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel], entitlement = ChatEntitlement.Pro, supportsProgrammaticSelection = true, showAutoModel = true, controlManifest: IModelsControlManifest = { free: {}, paid: {} }, presentsConfiguration = true) {
+	function createPicker(selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel], entitlement = ChatEntitlement.Pro, supportsProgrammaticSelection = true, showAutoModel = true, controlManifest: IModelsControlManifest = { free: {}, paid: {} }, presentsConfiguration = true, presentConfiguration = (access: IModelConfigurationAccess) => access) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const events: { name: string; data: unknown }[] = [];
 		const pickerEvents: { name: string; data: unknown }[] = [];
 		const pickerSessionIds: string[] = [];
 		const eventNames: string[] = [];
 		const openedLinks: string[] = [];
+		const openedExternally: string[] = [];
+		const managedSettingsChange = store.add(new Emitter<void>());
 		const configurations = new Map<string, IStringDictionary<unknown>>();
 		const savedConfigurations: string[] = [];
 		const pinnedModelIds: string[] = [];
@@ -236,7 +243,19 @@ suite('ModelPickerTelemetry', () => {
 			dispose: () => { },
 		});
 		instantiationService.stub(ICommandService, {});
-		instantiationService.stub(IOpenerService, { open: async resource => { openedLinks.push(resource.toString()); return true; } });
+		instantiationService.stub(IOpenerService, {
+			open: async (resource: URI | string, options?: OpenOptions) => {
+				openedLinks.push(resource.toString());
+				if (options?.openExternal) {
+					openedExternally.push(resource.toString());
+				}
+				return true;
+			}
+		});
+		instantiationService.stub(IManagedSettingsService, new class extends NullManagedSettingsService {
+			override readonly onDidChangeManagedSettings = managedSettingsChange.event;
+			override getManagedSettingValue(key: string) { return key === COPILOT_COMMUNICATION_SUPPORT_URL_KEY ? managedSupportUrl : undefined; }
+		}());
 		instantiationService.stub(ITelemetryService, {
 			publicLog2: (name, data) => {
 				// Replace the random session id with its open order and check each duration
@@ -271,7 +290,6 @@ suite('ModelPickerTelemetry', () => {
 		instantiationService.stub(ILanguageModelsService, new class extends NullLanguageModelsService {
 			override getLanguageModelIds() { return models.map(model => model.identifier); }
 			override getModelsControlManifest() { return controlManifest; }
-			override getRecentlyUsedModelIds() { return [model.identifier]; }
 			override getPinnedModelIds() { return [...pinnedModelIds]; }
 			// The real service reports pin changes; record what the picker passes it instead.
 			override pinModel(id: string, telemetry?: IModelPinTelemetryContext) {
@@ -312,14 +330,15 @@ suite('ModelPickerTelemetry', () => {
 				showManageModelsAction: false, showUnavailableFeatured: true,
 				showAutoModel, showModelIcon: false,
 			}),
-			modelConfiguration: configurationAccess,
+			modelConfiguration: presentConfiguration(configurationAccess),
 		}));
 		picker.setSelectedModel(selectedModel);
 		picker.show(container);
 
 		return {
-			events, pickerEvents, eventNames, openedLinks, picker, container, configurations, savedConfigurations, pinnedModelIds, delegateSelections, programmaticDelegateSelections, configurationService,
+			events, pickerEvents, eventNames, openedLinks, openedExternally, picker, container, configurations, savedConfigurations, pinnedModelIds, delegateSelections, programmaticDelegateSelections, configurationService,
 			get visible() { return visible; },
+			fireManagedSettingsChange: () => managedSettingsChange.fire(),
 			get tabbedShows() { return tabbedShows; },
 			get trustRequests() { return trustRequests; },
 			get tabBarActionIds() { return tabBarActionIds; },
@@ -542,6 +561,30 @@ suite('ModelPickerTelemetry', () => {
 			unavailable: { selected: max.identifier, tier: undefined, savedConfigurations: [] },
 			withoutChatConfiguration: { selected: max.identifier, tier: undefined, savedConfigurations: [] },
 		});
+	});
+
+	test('in inline chat, where the host pins Fusion\'s tier, a chat on a HydraFusion level moves to Fusion without one', async () => {
+		const max = createModel('hydrafusion-max', { name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' } });
+		const fusion = {
+			...autoModel,
+			metadata: {
+				...autoModel.metadata, name: 'Copilot Fusion', autoModelFusion: true, autoModelFusionInlineChatTier: 'fast',
+				configurationSchema: {
+					properties: {
+						tier: { type: 'string' as const, group: 'navigation', title: 'Effort Level', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'], default: 'balance' },
+					},
+				},
+			},
+		};
+		const models = [fusion, max, model];
+		const result = createPicker(max, undefined, models, undefined, undefined, undefined, undefined, undefined, access => withoutFusionEffortLevel(access, id => models.find(candidate => candidate.identifier === id)?.metadata));
+		await timeout(0);
+		assert.deepStrictEqual({
+			selected: result.picker.selectedModel?.identifier,
+			programmatic: result.programmaticDelegateSelections,
+			tier: result.configurations.get(fusion.identifier)?.tier,
+			savedConfigurations: result.savedConfigurations,
+		}, { selected: fusion.identifier, programmatic: [fusion.identifier], tier: undefined, savedConfigurations: [] });
 	});
 
 	test('the input readout opens details directly and restores the invoking control', () => {
@@ -803,6 +846,28 @@ suite('ModelPickerTelemetry', () => {
 				],
 				openedLinks: links,
 			});
+		});
+
+		test('opens the organization help page externally and reports it as contact-admin', () => {
+			managedSupportUrl = 'https://example.com/help?topic=foo\\_bar';
+			const result = createPicker();
+			assert.ok(result.listOptions.linkHandler);
+			// The rendered link percent-encodes the backslash, which must still match the managed URL.
+			result.listOptions.linkHandler(URI.parse('https://example.com/help?topic=foo%5C_bar'), { kind: ActionListItemKind.Action });
+			assert.deepStrictEqual({ events: result.events, openedExternally: result.openedExternally }, {
+				events: [{ name: 'chat.modelPickerInteraction', data: { interaction: 'disabledModelContactAdminClicked' } }],
+				openedExternally: ['https://example.com/help?topic=foo\\_bar'],
+			});
+		});
+
+		test('closes when the organization support URL changes, but not for other managed settings', () => {
+			managedSupportUrl = 'https://example.com/copilot-help';
+			const result = createPicker();
+			result.fireManagedSettingsChange();
+			const afterUnrelatedChange = result.visible;
+			managedSupportUrl = 'https://example.com/other-help';
+			result.fireManagedSettingsChange();
+			assert.deepStrictEqual({ afterUnrelatedChange, afterUrlChange: result.visible }, { afterUnrelatedChange: true, afterUrlChange: false });
 		});
 
 		test('reports the open, the change, and the close of one picker session', () => {

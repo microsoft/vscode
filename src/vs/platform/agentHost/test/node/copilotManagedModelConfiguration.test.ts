@@ -10,7 +10,7 @@ import type { IAgentModelInfo } from '../../common/agent.js';
 import { modelConfigurationSourceKey } from '../../common/agentModelConfiguration.js';
 import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../common/meta/agentModelConfigurationMeta.js';
 import { withAgentModelAutoTiersMeta } from '../../common/meta/agentModelMeta.js';
-import { omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration, type CopilotManagedModelPolicy } from '../../node/copilot/copilotManagedModelConfiguration.js';
+import { createCopilotModelConfigurationReport, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration, type CopilotManagedModelPolicy } from '../../node/copilot/copilotManagedModelConfiguration.js';
 
 suite('Copilot managed model configuration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -47,11 +47,43 @@ suite('Copilot managed model configuration', () => {
 		});
 	});
 
+	test('reports the runtime model by its catalog id and an unset context tier as the default window', () => {
+		const byok: IAgentModelInfo = { ...model, id: 'customendpoint/pool-model', name: 'Pool' };
+		const report = (current: Parameters<typeof createCopilotModelConfigurationReport>[2]) => createCopilotModelConfigurationReport([model, byok], { values: {} }, current, undefined, new NullLogService()).current;
+		assert.deepStrictEqual([
+			report({ modelId: 'gpt-5', providerId: 'copilot', reasoningEffort: 'high' }),
+			report({ modelId: 'gpt-5', providerId: 'copilot', reasoningEffort: 'high', contextTier: 'long_context' }),
+			report({ modelId: 'pool-model', providerId: 'customendpoint', contextTier: 'default' }),
+		], [
+			{ id: 'gpt-5', config: { thinkingLevel: 'high', [modelConfigurationSourceKey('thinkingLevel')]: 'default', contextSize: 200_000, [modelConfigurationSourceKey('contextSize')]: 'default' } },
+			{ id: 'gpt-5', config: { thinkingLevel: 'high', [modelConfigurationSourceKey('thinkingLevel')]: 'default', contextSize: 1_000_000, [modelConfigurationSourceKey('contextSize')]: 'default' } },
+			{ id: 'customendpoint/pool-model', config: { contextSize: 200_000, [modelConfigurationSourceKey('contextSize')]: 'default' } },
+		]);
+	});
+
 	test('unavailable models and unresolved aliases never transfer their options to another model', () => {
 		assert.deepStrictEqual(['unavailable-model', 'gpt', 'auto'].map(id => projectCopilotManagedModelConfiguration(model, {
 			values: { model: id, effortLevel: 'high', contextTier: 'long_context' },
 			meta: { effortLevel: { source: 'server', overridable: false }, contextTier: { source: 'server', overridable: false } },
 		}, new NullLogService()).configSchema), [model.configSchema, model.configSchema, model.configSchema]);
+	});
+
+	test('a managed Copilot Fusion model marks Auto as the managed default', () => {
+		const auto: IAgentModelInfo = {
+			provider: 'copilotcli', id: 'auto', name: 'Auto', supportsVision: false,
+			configSchema: { type: 'object', properties: { tier: { type: 'string', title: 'Effort Level', enum: ['balance', 'hydrafusion'], default: 'balance' } } },
+		};
+		const policy: CopilotManagedModelPolicy = { layers: [{ source: 'device', settings: { model: 'Fusion', fusionTier: 'high' } }], values: { model: 'Fusion', fusionTier: 'high' } };
+		const projected = projectCopilotManagedModelConfiguration(auto, policy, new NullLogService());
+		assert.deepStrictEqual({
+			defaults: readAgentManagedModelDefaults(projected),
+			tier: projected.configSchema?.properties.tier.default,
+			concreteModel: readAgentManagedModelDefaults(projectCopilotManagedModelConfiguration(model, policy, new NullLogService())),
+		}, {
+			defaults: { model: true, keys: ['tier'] },
+			tier: 'hydrafusion',
+			concreteModel: undefined,
+		});
 	});
 
 	test('unsupported efforts do not replace an offered picker default and are diagnosed', () => {

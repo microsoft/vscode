@@ -30,6 +30,7 @@ import { IPathService } from '../../../../../services/path/common/pathService.js
 import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
 import { getAgentFileModelReasoningEfforts, resolveAgentFileModelIdentifier, resolveAgentFileModelIdentifiers, resolveAgentFileModels } from './promptModelResolver.js';
 import { getEffectiveAgentFileToolAvailability, resolveAgentFileToolIdentifiers, resolveAgentFileTools } from './promptToolResolver.js';
+import { getEffectiveAgentFileSkillAvailability, resolveAgentFileSkillIdentifiers, resolveAgentFileSkills } from './promptSkillResolver.js';
 
 export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -401,6 +402,7 @@ export class PromptValidator {
 		this.validateGithubPermissions(attributes, report, false);
 		this.validateCopilotMcpServers(attributes, report);
 		await this.validateCopilotTools(attributes, target, report);
+		await this.validateCopilotSkills(attributes, target, report);
 	}
 
 	private async validateCopilotTools(attributes: IHeaderAttribute[], target: Target, report: (markers: IMarkerData) => void): Promise<void> {
@@ -443,6 +445,45 @@ export class PromptValidator {
 			} else if (availability === 'unavailable') {
 				report(toMarker(
 					localize('promptValidator.copilotToolUnavailable', "Tool '{0}' is recognized but currently unavailable for the matching GitHub Copilot harness.", item.value),
+					item.range,
+					MarkerSeverity.Hint,
+					[MarkerTag.Unnecessary],
+				));
+			}
+		}
+	}
+
+	private async validateCopilotSkills(attributes: IHeaderAttribute[], target: Target, report: (markers: IMarkerData) => void): Promise<void> {
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.skills);
+		if (!attribute || attribute.value.type !== 'sequence') {
+			return;
+		}
+		const catalogue = await resolveAgentFileSkills(target, this.customizationHarnessService, this.logService, CancellationToken.None);
+		if (!catalogue.isResolved) {
+			return;
+		}
+		for (const item of attribute.value.items) {
+			if (item.type !== 'scalar') {
+				continue;
+			}
+			const availability = getEffectiveAgentFileSkillAvailability(resolveAgentFileSkillIdentifiers(item.value, catalogue.skills));
+			if (!availability) {
+				report(toMarker(
+					localize('promptValidator.copilotSkillUnknown', "Skill '{0}' is not recognized by the matching GitHub Copilot harness.", item.value),
+					item.range,
+					MarkerSeverity.Hint,
+					[MarkerTag.Unnecessary],
+				));
+			} else if (availability === 'disabled') {
+				report(toMarker(
+					localize('promptValidator.copilotSkillDisabled', "Skill '{0}' is recognized but disabled for the matching GitHub Copilot harness.", item.value),
+					item.range,
+					MarkerSeverity.Hint,
+					[MarkerTag.Unnecessary],
+				));
+			} else if (availability === 'unavailable') {
+				report(toMarker(
+					localize('promptValidator.copilotSkillUnavailable', "Skill '{0}' is recognized but currently unavailable for the matching GitHub Copilot harness.", item.value),
 					item.range,
 					MarkerSeverity.Hint,
 					[MarkerTag.Unnecessary],
@@ -1008,6 +1049,10 @@ export class PromptValidator {
 					report(toMarker(localize('promptValidator.unknownMatcherProperty', "Unknown property '{0}' in hook matcher.", prop.key.value), prop.key.range, MarkerSeverity.Warning));
 				}
 			}
+			const matcherProperty = item.properties.find(p => p.key.value === 'matcher');
+			if (matcherProperty) {
+				this.validateHookMatcher(matcherProperty.value, target, eventName, report);
+			}
 			if (hooksProperty.value.type !== 'sequence') {
 				report(toMarker(localize('promptValidator.nestedHooksMustBeArray', "The 'hooks' property in a matcher must be an array of command objects."), hooksProperty.value.range, MarkerSeverity.Error));
 				return;
@@ -1081,10 +1126,10 @@ export class PromptValidator {
 		const actionType = typeProperty?.value.type === 'scalar' ? typeProperty.value.value : 'command';
 		switch (actionType) {
 			case 'command':
-				this.validateCopilotCommandHook(item, report);
+				this.validateCopilotCommandHook(item, eventName, report);
 				break;
 			case 'http':
-				this.validateCopilotHttpHook(item, report);
+				this.validateCopilotHttpHook(item, eventName, report);
 				break;
 			case 'prompt':
 				this.validateCopilotPromptHook(item, eventName, report);
@@ -1094,7 +1139,7 @@ export class PromptValidator {
 		}
 	}
 
-	private validateCopilotCommandHook(item: IMapValue, report: (markers: IMarkerData) => void): void {
+	private validateCopilotCommandHook(item: IMapValue, eventName: string, report: (markers: IMarkerData) => void): void {
 		const shellFields = new Set(['bash', 'powershell', 'command', 'windows', 'linux', 'osx']);
 		const validProperties = new Set(['type', ...shellFields, 'exec', 'args', 'cwd', 'env', 'timeoutSec', 'timeout', 'matcher']);
 		let hasShellCommand = false;
@@ -1113,8 +1158,10 @@ export class PromptValidator {
 				this.validateNonEmptyHookString(name, property.value, report);
 			} else if (name === 'args') {
 				this.validateHookStringArray(name, property.value, report);
-			} else if (name === 'cwd' || name === 'matcher') {
+			} else if (name === 'cwd') {
 				this.validateHookString(name, property.value, report);
+			} else if (name === 'matcher') {
+				this.validateHookMatcher(property.value, Target.GitHubCopilot, eventName, report);
 			} else if (name === 'env') {
 				this.validateHookStringMap(name, property.value, report);
 			} else if (name === 'timeout' || name === 'timeoutSec') {
@@ -1129,7 +1176,7 @@ export class PromptValidator {
 		}
 	}
 
-	private validateCopilotHttpHook(item: IMapValue, report: (markers: IMarkerData) => void): void {
+	private validateCopilotHttpHook(item: IMapValue, eventName: string, report: (markers: IMarkerData) => void): void {
 		const validProperties = new Set(['type', 'url', 'headers', 'allowedEnvVars', 'timeoutSec', 'timeout', 'matcher']);
 		const url = item.properties.find(property => property.key.value === 'url');
 		if (!url) {
@@ -1142,7 +1189,7 @@ export class PromptValidator {
 				continue;
 			}
 			if (name === 'url') {
-				if (property.value.type !== 'scalar' || !/^https?:\/\//i.test(property.value.value)) {
+				if (property.value.type !== 'scalar' || !isHttpUrl(property.value.value)) {
 					report(toMarker(localize('promptValidator.httpHookUrlInvalid', "The 'url' property in an HTTP hook action must be an HTTP or HTTPS URL."), property.value.range, MarkerSeverity.Error));
 				}
 			} else if (name === 'headers') {
@@ -1150,7 +1197,7 @@ export class PromptValidator {
 			} else if (name === 'allowedEnvVars') {
 				this.validateHookStringArray(name, property.value, report);
 			} else if (name === 'matcher') {
-				this.validateHookString(name, property.value, report);
+				this.validateHookMatcher(property.value, Target.GitHubCopilot, eventName, report);
 			} else if (name === 'timeout' || name === 'timeoutSec') {
 				this.validateHookTimeout(name, property.value, report);
 			}
@@ -1184,6 +1231,32 @@ export class PromptValidator {
 	private validateHookString(name: string, value: IValue, report: (markers: IMarkerData) => void): void {
 		if (value.type !== 'scalar') {
 			report(toMarker(localize('promptValidator.hookPropertyMustBeString', "The '{0}' property in a hook action must be a string.", name), value.range, MarkerSeverity.Error));
+		}
+	}
+
+	private validateHookMatcher(value: IValue, target: Target, eventName: string, report: (markers: IMarkerData) => void): void {
+		const canonicalEventName = getCanonicalAgentHookName(Target.GitHubCopilot, eventName);
+		if (target === Target.GitHubCopilot && !['preToolUse', 'postToolUse', 'preMcpToolCall', 'permissionRequest', 'subagentStart', 'preCompact', 'notification'].includes(canonicalEventName ?? '')) {
+			return;
+		}
+		if (value.type !== 'scalar') {
+			report(toMarker(localize('promptValidator.hookMatcherMustBeString', "The 'matcher' property in a hook must be a string."), value.range, MarkerSeverity.Error));
+			return;
+		}
+		if (target === Target.GitHubCopilot && value.value.length === 0) {
+			report(toMarker(localize('promptValidator.hookMatcherMustNotBeEmpty', "The 'matcher' property in a hook must not be empty."), value.range, MarkerSeverity.Error));
+			return;
+		}
+		// PascalCase aliases use Claude-compatible matchers, including trimmed match-all patterns.
+		const isCompatibleMatcher = canonicalEventName !== undefined && canonicalEventName !== eventName;
+		const matcher = isCompatibleMatcher ? value.value.trim() : value.value;
+		if (isCompatibleMatcher && (matcher.length === 0 || matcher === '*' || matcher === '**')) {
+			return;
+		}
+		try {
+			new RegExp(`^(?:${matcher})$`);
+		} catch {
+			report(toMarker(localize('promptValidator.hookMatcherMustBeValidRegex', "The 'matcher' property in a hook must be a valid regular expression."), value.range, MarkerSeverity.Error));
 		}
 	}
 
@@ -1475,9 +1548,15 @@ export class PromptValidator {
 				}
 				case 'command':
 				case 'cwd':
+					if (property.value.type !== 'scalar') {
+						report(toMarker(localize('promptValidator.mcpServerPropertyMustBeString', "The '{0}' property for MCP server '{1}' must be a string.", propertyName, name), property.value.range, MarkerSeverity.Error));
+					}
+					break;
 				case 'url':
 					if (property.value.type !== 'scalar') {
 						report(toMarker(localize('promptValidator.mcpServerPropertyMustBeString', "The '{0}' property for MCP server '{1}' must be a string.", propertyName, name), property.value.range, MarkerSeverity.Error));
+					} else if (!isHttpUrl(property.value.value)) {
+						report(toMarker(localize('promptValidator.mcpServerUrlInvalid', "The 'url' property for MCP server '{0}' must be an HTTP or HTTPS URL.", name), property.value.range, MarkerSeverity.Error));
 					}
 					break;
 				case 'args':
@@ -1550,6 +1629,14 @@ function isNullScalar(value: IValue): boolean {
 	return value.type === 'scalar' && value.value === 'null' && value.format === 'none';
 }
 
+function isHttpUrl(value: string): boolean {
+	if (!URL.canParse(value)) {
+		return false;
+	}
+	const url = new URL(value);
+	return (url.protocol === 'http:' || url.protocol === 'https:') && !!url.hostname;
+}
+
 function formatAttributeTypes(types: readonly IValue['type'][], allowNull = false): string {
 	const labels: string[] = types.map(type => {
 		switch (type) {
@@ -1567,7 +1654,7 @@ function formatAttributeTypes(types: readonly IValue['type'][], allowNull = fals
 const allAttributeNames: Record<PromptsType, string[]> = {
 	[PromptsType.prompt]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.mode, PromptHeaderAttributes.agent, PromptHeaderAttributes.argumentHint],
 	[PromptsType.instructions]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.applyTo, PromptHeaderAttributes.excludeAgent],
-	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.reasoningEffort, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer, PromptHeaderAttributes.agents, PromptHeaderAttributes.hooks, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.disableModelInvocation, GithubPromptHeaderAttributes.github],
+	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.modelPolicy, PromptHeaderAttributes.reasoningEffort, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer, PromptHeaderAttributes.agents, PromptHeaderAttributes.hooks, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.disableModelInvocation, GithubPromptHeaderAttributes.github],
 	[PromptsType.skill]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.license, PromptHeaderAttributes.compatibility, PromptHeaderAttributes.metadata, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.disableModelInvocation, PromptHeaderAttributes.context],
 	[PromptsType.hook]: [], // hooks are JSON files, not markdown with YAML frontmatter
 };

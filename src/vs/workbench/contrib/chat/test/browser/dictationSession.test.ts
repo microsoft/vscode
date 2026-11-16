@@ -9,6 +9,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -92,6 +93,16 @@ suite('DictationSession', () => {
 			.filter(decoration => decoration.options.inlineClassName === 'dictation-interim-processing')
 			.map(decoration => Range.lift(decoration.range).toString());
 	}
+
+	test('does not restore the previous session’s sandbox placeholder after switching sessions', async () => {
+		const { service } = createService('', true);
+		const editor = store.add(createTestCodeEditor(store.add(createTextModel(''))));
+		editor.updateOptions({ placeholder: 'Session A (sandbox enabled)' });
+		await startDictation(service, editor, mainWindow, new NullLogService());
+		editor.updateOptions({ placeholder: 'Session B' });
+		await stopDictation();
+		assert.strictEqual(editor.getOption(EditorOption.placeholder), 'Session B');
+	});
 
 	test('does not restore dictated text deleted before stopping', async () => {
 		const transcript = 'hello world';

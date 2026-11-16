@@ -478,6 +478,9 @@ export interface IDialogService {
 
 	readonly _serviceBrand: undefined;
 
+	/** Whether a modal dialog is showing or queued. */
+	readonly hasDialog: boolean;
+
 	/**
 	 * An event that fires when a dialog is about to show.
 	 */

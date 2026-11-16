@@ -6,8 +6,8 @@
 import assert from 'assert';
 import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
-import { CopilotClient, RuntimeConnection, approveAll, type CopilotSession, type SessionConfig } from '@github/copilot-sdk';
-import { retry } from '../../../../base/common/async.js';
+import { CopilotClient, RuntimeConnection, approveAll, type CopilotSession, type PermissionHandler, type PermissionRequest, type PermissionRequestResult, type SessionConfig } from '@github/copilot-sdk';
+import { raceTimeout, retry } from '../../../../base/common/async.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -19,9 +19,15 @@ import { createIsolatedProviderEnvironment } from './providerTestEnvironment.js'
 suite('Copilot SDK - canvas lifecycle', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const instanceId = 'contract-instance';
+	// The runtime strips its secret environment names from extension processes unless the user consents.
+	const sensitiveVariable = 'BLACKBIRD_AUTH_METIS_API_KEY';
+	const sensitiveValue = 'canvas-contract-sentinel';
 
-	/** Writes a model-free canvas provider and returns runtime clients configured to load it. */
-	async function createCanvasContract() {
+	/**
+	 * Writes a model-free canvas provider and returns runtime clients configured to load it.
+	 * A lazy provider declares its canvas in an `extension.json` sidecar, so the runtime starts it on first use.
+	 */
+	async function createCanvasContract(options?: { lazy?: boolean; sensitiveEnvironment?: boolean; onPermissionRequest?: PermissionHandler }) {
 		const { runtimePath, extensionSdkPath, extensionBootstrapPath } = await resolveCopilotRuntimePaths(getAppNodeModulesUri());
 		assert.ok(extensionSdkPath && extensionBootstrapPath, 'Bundled canvas extension assets must be available');
 		const root = await mkdtemp(join(tmpdir(), 'ahp-canvas-contract-'));
@@ -33,7 +39,10 @@ suite('Copilot SDK - canvas lifecycle', () => {
 			baseDirectory: root,
 			useLoggedInUser: false,
 			logLevel: 'error',
-			env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(root)),
+			env: createCopilotCliEnvironment({
+				...createIsolatedProviderEnvironment(root),
+				...(options?.sensitiveEnvironment ? { [sensitiveVariable]: sensitiveValue } : {}),
+			}),
 			extensionLaunchProvider: {
 				resolve: async request => ({
 					launch: {
@@ -52,11 +61,36 @@ suite('Copilot SDK - canvas lifecycle', () => {
 			requestExtensions: true,
 			requestCanvasRenderer: true,
 			extensionSdkPath,
-			onPermissionRequest: approveAll,
+			onPermissionRequest: options?.onPermissionRequest ?? approveAll,
 		};
 		try {
 			await mkdir(extensionDirectory, { recursive: true });
-			await writeFile(join(extensionDirectory, 'extension.mjs'), `
+			if (options?.lazy) {
+				await writeFile(join(extensionDirectory, 'extension.json'), JSON.stringify({
+					version: 1,
+					initialization: 'module',
+					canvases: [{
+						id: 'contract',
+						displayName: 'Contract canvas',
+						description: 'Model-free lazy canvas lifecycle test.',
+						inputSchema: { type: 'object', properties: { label: { type: 'string' } } },
+					}],
+				}), 'utf8');
+				await writeFile(join(extensionDirectory, 'extension.mjs'), `
+import { randomUUID } from 'node:crypto';
+import { createCanvas, joinSession } from '@github/copilot-sdk/extension';
+import declaration from './extension.json' with { type: 'json' };
+const generation = randomUUID();
+await joinSession({
+	${options.sensitiveEnvironment ? `requestedEnvironmentVariables: [${JSON.stringify(sensitiveVariable)}],` : ''}
+	canvases: declaration.canvases.map(canvas => createCanvas({
+		...canvas,
+		open: ({ instanceId, input }) => ({ url: \`http://127.0.0.1:43119/\${generation}/\${instanceId}?label=\${input?.label}&env=\${process.env[${JSON.stringify(sensitiveVariable)}] === ${JSON.stringify(sensitiveValue)} ? 'visible' : 'hidden'}\` }),
+	})),
+});
+`, 'utf8');
+			} else {
+				await writeFile(join(extensionDirectory, 'extension.mjs'), `
 import { randomUUID } from 'node:crypto';
 import { createCanvas, joinSession } from '@github/copilot-sdk/extension';
 const generation = randomUUID();
@@ -69,6 +103,7 @@ await joinSession({
 	})],
 });
 `, 'utf8');
+			}
 		} catch (error) {
 			await rm(root, { recursive: true, force: true });
 			throw error;
@@ -145,8 +180,12 @@ await joinSession({
 			await client.start();
 			session = await client.resumeSession(sessionId, config);
 			observe(session);
-			await waitForOpen(session, reloadedUrl);
+			const restoredUrl = await waitForOpen(session, reloadedUrl);
 			await capture(session, 'cold resume');
+
+			const explicitlyReopened = await session.rpc.canvas.open({ canvasId: 'contract', instanceId });
+			assert.strictEqual(explicitlyReopened.url, restoredUrl);
+			await capture(session, 'explicit reopen after resume');
 
 			assert.deepStrictEqual(observations, [
 				{ phase: 'first open', live: 1, history: 1 },
@@ -154,6 +193,7 @@ await joinSession({
 				{ phase: 'provider reload', live: 1, history: 1 },
 				{ phase: 'close and reopen', live: 2, history: 2 },
 				{ phase: 'cold resume', live: 2, history: 2 },
+				{ phase: 'explicit reopen after resume', live: 2, history: 2 },
 			]);
 		} finally {
 			listeners.dispose();
@@ -195,6 +235,166 @@ await joinSession({
 			await retry(async () => {
 				assert.deepStrictEqual(resumed.openCanvases.map(canvas => ({ instanceId: canvas.instanceId, url: canvas.url })), [{ instanceId, url: restoredUrl }]);
 			}, 100, 300);
+		} finally {
+			try {
+				await session?.disconnect();
+			} finally {
+				try {
+					await client.stop();
+				} finally {
+					await rm(root, { recursive: true, force: true });
+				}
+			}
+		}
+	});
+
+	test('keeps a lazily activated canvas hidden across a resume on the same client until it is reopened', async function () {
+		this.timeout(180_000);
+		const { root, config, createClient } = await createCanvasContract({ lazy: true });
+		const client = createClient();
+		const listeners = disposables.add(new DisposableStore());
+		const input = { label: 'kept' };
+		let session: CopilotSession | undefined;
+
+		try {
+			await client.start();
+			session = await client.createSession(config);
+			await waitForContractCanvas(session);
+			const { extensionId } = await session.rpc.canvas.open({ canvasId: 'contract', instanceId, input });
+			const firstUrl = await waitForOpen(session, undefined);
+			// Closing persists this model-free session so it can be resumed.
+			await session.rpc.canvas.close({ instanceId });
+			await session.rpc.canvas.open({ canvasId: 'contract', instanceId, input });
+
+			// An Agent Host configuration refresh disconnects the SDK session and resumes it on the same client.
+			const sessionId = session.sessionId;
+			await session.disconnect();
+			session = await client.resumeSession(sessionId, config);
+			const resumed = session;
+			let liveRecords = 0;
+			listeners.add(toDisposable(resumed.on('session.canvas.recorded', () => liveRecords++)));
+			const historyRecords = async () => (await resumed.getEvents()).filter(event => event.type === 'session.canvas.recorded').length;
+			const afterResume = {
+				extensionStatus: (await resumed.rpc.extensions.list()).extensions.find(extension => extension.id === extensionId)?.status,
+				resumedOpenCanvases: resumed.openCanvases,
+				listedOpenCanvases: (await resumed.rpc.canvas.listOpen()).openCanvases,
+				historyRecords: await historyRecords(),
+			};
+
+			// The Agent Host demands the handed-over canvas again with its original input, which starts the provider.
+			const reopened = await resumed.rpc.canvas.open({ extensionId, canvasId: 'contract', instanceId, input });
+			const reopenedUrl = reopened.url ? new URL(reopened.url) : undefined;
+
+			assert.deepStrictEqual({
+				afterResume,
+				reopened: {
+					newProvider: reopened.url !== firstUrl,
+					providerInput: reopenedUrl?.searchParams.get('label'),
+					input: reopened.input,
+					listed: (await resumed.rpc.canvas.listOpen()).openCanvases.map(canvas => ({ instanceId: canvas.instanceId, url: canvas.url })),
+					historyRecords: await historyRecords(),
+					liveRecords,
+				},
+			}, {
+				afterResume: {
+					extensionStatus: 'dormant',
+					resumedOpenCanvases: [],
+					listedOpenCanvases: [],
+					historyRecords: 2,
+				},
+				reopened: {
+					newProvider: true,
+					providerInput: input.label,
+					input,
+					listed: [{ instanceId, url: reopened.url }],
+					historyRecords: 2,
+					liveRecords: 0,
+				},
+			});
+		} finally {
+			listeners.dispose();
+			try {
+				await session?.disconnect();
+			} finally {
+				try {
+					await client.stop();
+				} finally {
+					await rm(root, { recursive: true, force: true });
+				}
+			}
+		}
+	});
+
+	/**
+	 * The runtime contract the Agent Host's extension consent relies on: a lazy extension asks for sensitive environment variables
+	 * while it starts, never for a tool call. A person's No fails the extension and is kept for the runtime session, even across a
+	 * provider reload; a resume forgets it, and forgets a session approval too, so the host must remember approvals itself.
+	 */
+	test('asks for sensitive environment consent without a tool call, keeps a denial until resume, and forgets session approvals on resume', async function () {
+		this.timeout(180_000);
+		const requests: { toolCallId: string | undefined; extensionName: string; environmentVariables: readonly string[]; pluginInventoryReadable: boolean }[] = [];
+		let decide: (request: Extract<PermissionRequest, { kind: 'extension-env-access' }>) => PermissionRequestResult = () => ({ kind: 'reject' });
+		let session: CopilotSession | undefined;
+		const { root, config, createClient } = await createCanvasContract({
+			lazy: true,
+			sensitiveEnvironment: true,
+			onPermissionRequest: async request => {
+				if (request.kind !== 'extension-env-access') {
+					return { kind: 'approve-once' };
+				}
+				// The Agent Host reads the plugin inventory while the runtime waits, to tell which install a plugin's extension comes from.
+				const pluginInventoryReadable = await raceTimeout(session!.rpc.plugins.list().then(() => true, () => false), 10_000) ?? false;
+				requests.push({ toolCallId: request.toolCallId, extensionName: request.extensionName, environmentVariables: request.environmentVariables, pluginInventoryReadable });
+				return decide(request);
+			},
+		});
+		const client = createClient();
+		const status = async (target: CopilotSession) => (await target.rpc.extensions.list()).extensions.find(extension => extension.id === 'project:canvas-contract')?.status;
+		const open = async () => {
+			const target = session!;
+			const before = requests.length;
+			const result = await target.rpc.canvas.open({ canvasId: 'contract', instanceId }).then(
+				canvas => `opened with the variable ${new URL(canvas.url!).searchParams.get('env')}`,
+				(error: Error) => error.message.replace(/^.*failed with message: /, ''),
+			);
+			return `${result}; asked ${requests.length - before}; ${await status(target)}`;
+		};
+		const resume = async () => {
+			const sessionId = session!.sessionId;
+			await session!.disconnect();
+			session = await client.resumeSession(sessionId, config);
+		};
+
+		try {
+			await client.start();
+			session = await client.createSession(config);
+			await waitForContractCanvas(session);
+			const observations = [await open(), await open()];
+			await session.rpc.extensions.reload();
+			const reloaded = session;
+			await retry(async () => assert.strictEqual(await status(reloaded), 'failed'), 100, 100);
+			observations.push(await open());
+			await resume();
+			decide = request => ({ kind: 'approve-for-session', approval: { kind: 'extension-env-access', extensionName: request.extensionName, environmentVariables: request.environmentVariables } });
+			observations.push(await open());
+			// Closing persists this model-free session so it can be resumed.
+			await session.rpc.canvas.close({ instanceId });
+			observations.push(await open());
+			await resume();
+			observations.push(await open());
+
+			assert.deepStrictEqual({ request: requests[0], observations }, {
+				request: { toolCallId: undefined, extensionName: 'project:canvas-contract', environmentVariables: [sensitiveVariable], pluginInventoryReadable: true },
+				observations: [
+					'extension did not become ready: project:canvas-contract; asked 1; failed',
+					'No canvas "contract" is registered.; asked 0; failed',
+					// The reload starts the extension again, and the runtime declines it with the kept denial, without asking.
+					'extension did not become ready: project:canvas-contract; asked 0; failed',
+					'opened with the variable visible; asked 1; running',
+					'opened with the variable visible; asked 0; running',
+					'opened with the variable visible; asked 1; running',
+				],
+			});
 		} finally {
 			try {
 				await session?.disconnect();

@@ -16,7 +16,7 @@ export const enum ChatInputRequestPurpose {
 	AskUser = 'askUser',
 	Elicitation = 'elicitation',
 	PlanReview = 'planReview',
-	ServerToolConfirmation = 'serverToolConfirmation',
+	ShellAuthentication = 'shellAuthentication',
 }
 
 /**
@@ -32,7 +32,7 @@ function isChatInputRequestPurpose(value: unknown): value is ChatInputRequestPur
 	return value === ChatInputRequestPurpose.AskUser
 		|| value === ChatInputRequestPurpose.Elicitation
 		|| value === ChatInputRequestPurpose.PlanReview
-		|| value === ChatInputRequestPurpose.ServerToolConfirmation;
+		|| value === ChatInputRequestPurpose.ShellAuthentication;
 }
 
 /** Reads the purpose an input request was created with, if it was classified. */

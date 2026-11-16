@@ -56,6 +56,8 @@
 .monaco-workbench .xterm .xterm-helper-textarea:focus {
 	/* Override the general vscode style applies `opacity:1!important` to textareas */
 	opacity: 0 !important;
+	/* xterm renders its own cursor; avoid native caret blink work on the hidden textarea. */
+	caret-animation: manual;
 }
 
 .monaco-workbench .terminal-tab:not(.terminal-uri-icon)::before {
@@ -436,6 +438,16 @@
 .monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .monaco-icon-description-container {
 	/* The description element doesn't go away once created sometimes so force hide */
 	display: none;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry .monaco-icon-label {
+	min-width: 0;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry .monaco-icon-description-container {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-list .codicon {

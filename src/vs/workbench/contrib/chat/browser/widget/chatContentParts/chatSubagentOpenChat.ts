@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import './media/chatSubagentOpenChat.css';
 import { $, addDisposableListener, EventHelper, EventLike, EventType, isHTMLElement, WindowIntervalTimer } from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
@@ -15,6 +17,7 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../../base/common/objects.js';
+import { autorun, IObservable, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../../nls.js';
@@ -28,6 +31,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { Link } from '../../../../../../platform/opener/browser/link.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
@@ -66,6 +70,7 @@ export interface IOpenSubagentChatContext {
 	readonly parentModelName?: string;
 	readonly parentResolvedModelId?: string;
 	readonly isActive?: boolean;
+	readonly isError?: boolean;
 	readonly activeToolCallId?: string;
 	readonly activeToolLabel?: string;
 	readonly activeToolIcon?: ThemeIcon;
@@ -247,6 +252,9 @@ class OpenSubagentChatAction extends Action2 {
 registerAction2(OpenSubagentChatAction);
 
 export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
+	private static readonly creditUsageSettings = new WeakMap<IConfigurationService, IObservable<boolean>>();
+	private static readonly modelChanges = new WeakMap<ILanguageModelsService, IObservable<void>>();
+
 	private readonly _sourceAction: IAction;
 	private readonly _showElapsedOnly: boolean;
 	private _resolvedTitle: string | undefined;
@@ -279,6 +287,7 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 	private _confirmationCountElement: HTMLElement | undefined;
 	private _iconElement: HTMLElement | undefined;
 	private _statusIconElement: HTMLElement | undefined;
+	private _failureLabelElement: HTMLElement | undefined;
 	private _displayedToolLabel: string | undefined;
 	private _displayedToolIcon: ThemeIcon | undefined;
 	private _displayedToolCallId: string | undefined;
@@ -320,13 +329,19 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 				}
 			},
 		}));
-		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(ChatConfiguration.SubagentsShowCreditUsage)) {
-				this._updateCredits();
-				this.updateTooltip();
-			}
+		const showCredits = OpenSubagentChatActionViewItem.creditUsageSettings.get(configurationService)
+			?? observableConfigValue(ChatConfiguration.SubagentsShowCreditUsage, false, configurationService);
+		OpenSubagentChatActionViewItem.creditUsageSettings.set(configurationService, showCredits);
+		this._register(autorun(reader => {
+			showCredits.read(reader);
+			this._updateCredits();
+			this.updateTooltip();
 		}));
-		this._register(this.languageModelsService.onDidChangeLanguageModels(() => {
+		const modelsChanged = OpenSubagentChatActionViewItem.modelChanges.get(languageModelsService)
+			?? observableSignalFromEvent('subagentModelsChanged', languageModelsService.onDidChangeLanguageModels);
+		OpenSubagentChatActionViewItem.modelChanges.set(languageModelsService, modelsChanged);
+		this._register(autorun(reader => {
+			modelsChanged.read(reader);
 			this._updateModelConfiguration();
 			this.updateTooltip();
 		}));
@@ -343,6 +358,9 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		this._agentTypeElement = $('span.chat-subagent-pill-agent-type.hidden');
 		this._labelElement = $('span.chat-subagent-pill-label');
 		this._modelElement = $('span.chat-subagent-pill-model.hidden');
+		this._failureLabelElement = $('span.chat-subagent-pill-failure.hidden');
+		this._failureLabelElement.textContent = localize('chat.subagent.failed', "Failed");
+		this._failureLabelElement.setAttribute('aria-hidden', 'true');
 		this._confirmationCountElement = $('span.chat-subagent-pill-confirmation-count');
 		const pillContent = $('span.chat-subagent-pill-content');
 		this._pillContentElement = pillContent;
@@ -360,7 +378,7 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		this._activeToolIconElement.setAttribute('aria-hidden', 'true');
 		this._activeToolLabelElement = $('.chat-subagent-pill-active-tool-label');
 		this._activeToolElement.append(connector, this._activeToolIconElement, this._activeToolLabelElement);
-		pillContent.append(this._iconElement, this._agentTypeElement, this._labelElement, this._modelElement, this._confirmationCountElement);
+		pillContent.append(this._iconElement, this._agentTypeElement, this._labelElement, this._modelElement, this._failureLabelElement, this._confirmationCountElement);
 		pillHeader.append(pillContent, this._durationElement, this._creditsElement);
 		container.append(pillHeader, this._activeToolElement);
 		this._pillHover.value = this.hoverService.setupDelayedHover(pillContent, () => ({ content: this.getTooltip() ?? '' }));
@@ -576,13 +594,15 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 			? 'waiting'
 			: this.isActive
 				? 'running'
-				: context?.isActive === false
-					? 'completed'
-					: undefined;
+				: context?.isError
+					? 'failed'
+					: context?.isActive === false
+						? 'completed'
+						: undefined;
 	}
 
 	protected get statusIcon(): ThemeIcon {
-		return Codicon.commentDiscussion;
+		return this.status === 'failed' ? Codicon.error : Codicon.commentDiscussion;
 	}
 
 	private _updateStatus(): void {
@@ -598,6 +618,8 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		const running = status === 'running';
 		this._container?.classList.toggle('chat-subagent-running', running);
 		this._container?.classList.toggle('chat-subagent-waiting', waiting);
+		this._container?.classList.toggle('chat-subagent-failed', status === 'failed');
+		this._failureLabelElement?.classList.toggle('hidden', status !== 'failed');
 		this._spinner.clear();
 		if ((running || waiting) && this._iconElement) {
 			const store = new DisposableStore();
@@ -843,7 +865,9 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 				? localize('chat.subagent.status.waiting', "Subagent is waiting for input")
 				: this._renderedStatus === 'completed'
 					? localize('chat.subagent.status.completed', "Subagent completed")
-					: undefined;
+					: this._renderedStatus === 'failed'
+						? localize('chat.subagent.status.failed', "Subagent failed")
+						: undefined;
 		const agentType = this._reportedAgentType ? localize('chat.subagent.agentTypeAria', "Subagent type {0}", this._reportedAgentType) : undefined;
 		const model = this._reportedModelName ? localize('chat.subagent.modelAria', "Model {0}", this._reportedModelName) : undefined;
 		const activeTool = this._displayedToolSubagent
@@ -854,6 +878,15 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		const duration = this._durationElement?.textContent;
 		const credits = this._creditsElement?.textContent;
 		this.element.setAttribute('aria-label', [label, agentType, status, model, this._modelConfigurationDescription, activeTool, duration, credits].filter(Boolean).join('. '));
+	}
+}
+
+/** Reads the session chat flag of the widget whose scoped instantiation service creates it. */
+class SessionsChatScope {
+	readonly isSessionsChat: boolean;
+
+	constructor(@IContextKeyService contextKeyService: IContextKeyService) {
+		this.isSessionsChat = !!ChatContextKeys.inSessionsChat.getValue(contextKeyService);
 	}
 }
 
@@ -870,7 +903,8 @@ class EditorOpenSubagentChatActionViewItemContribution extends Disposable implem
 		}
 		const onDidRegister = this._register(new Emitter<void>());
 		this._register(actionViewItemService.register(MenuId.ChatSubagentContent, CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, (action, options, instantiationService) => {
-			if (!(action instanceof MenuItemAction)) {
+			// A session chat opens its subagents' chats as the Agents window does, whatever window shows it
+			if (!(action instanceof MenuItemAction) || instantiationService.createInstance(SessionsChatScope).isSessionsChat) {
 				return undefined;
 			}
 			return instantiationService.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, true);

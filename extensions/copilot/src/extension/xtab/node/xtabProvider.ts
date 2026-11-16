@@ -24,6 +24,7 @@ import { AggressivenessSetting, EarlyDivergenceCancellationMode, isEagernessProm
 import { InlineEditRequestLogContext } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
 import { ResponseProcessor } from '../../../platform/inlineEdits/common/responseProcessor';
+import { withoutOtherSensitiveFiles } from '../../../platform/inlineEdits/common/sensitiveFiles';
 import { EditStreaming, EditStreamingWithTelemetry, IStatelessNextEditProvider, NoNextEditReason, RequestEditWindow, RequestEditWindowWithCursorJump, StatelessNextEditDocument, StatelessNextEditRequest, StatelessNextEditTelemetryBuilder, WithStatelessProviderTelemetry } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { editWouldDeleteWhatWasJustInserted, editWouldDeleteWhatWasJustInserted2, IgnoreEmptyLineAndLeadingTrailingWhitespaceChanges, IgnoreWhitespaceOnlyChanges } from '../../../platform/inlineEdits/common/statelessNextEditProviders';
 import { ILanguageContextProviderService, ProviderTarget } from '../../../platform/languageContextProvider/common/languageContextProviderService';
@@ -61,6 +62,7 @@ import { DelaySession } from '../../inlineEdits/common/delay';
 import { getOrDeduceSelectionFromLastEdit } from '../../inlineEdits/common/nearbyCursorInlineEditProvider';
 import { UserInteractionMonitor } from '../../inlineEdits/common/userInteractionMonitor';
 import { IgnoreImportChangesAspect } from '../../inlineEdits/node/importFiltering';
+import { selectRejectedEditsForPrompt } from '../common/diffHistoryForPrompt';
 import { FetchStreamError } from '../common/fetchStreamError';
 import { determineIsInlineSuggestionPosition } from '../common/inlineSuggestion';
 import { LintErrors } from '../common/lintErrors';
@@ -297,9 +299,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				return Result.error(new NoNextEditReason.GotCancelled('afterNeighborSnippetsAwait'));
 			}
 
-			const rejectedEditHistory = xtabPromptOptions.isRejectedEditMemoryEnabled(promptOptions)
-				? request.xtabRejectedEditHistory
-				: [];
+			const rejectedEditHistory = selectRejectedEditsForPrompt(promptOptions.memory, request.xtabRejectedEditHistory, request.xtabEditHistory, activeDocument);
 			const cascade = runGlobalBudgetCascade(activeDocument, request.xtabEditHistory, langCtx, XtabProvider.computeTokens, promptOptions, neighborSnippets, globalBudget, rejectedEditHistory);
 			const currentFileBudget = xtabPromptOptions.GlobalBudgetOptions.currentFileBudget(globalBudget);
 
@@ -1445,13 +1445,14 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					new Edits(StringEdit, []),
 				);
 
+				// The follow-up request is for a different document, so filter the history for it again.
 				const syntheticRequest = new StatelessNextEditRequest(
 					request.headerRequestId,
 					request.opportunityId,
 					targetContent,
 					[syntheticDoc],
 					0,
-					request.xtabEditHistory,
+					withoutOtherSensitiveFiles(request.xtabEditHistory, targetDocumentId),
 					new DeferredPromise<Result<unknown, NoNextEditReason>>(),
 					request.expandedEditWindowNLines,
 					request.isSpeculative,
@@ -1459,7 +1460,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					request.recordingBookmark,
 					request.recording,
 					request.providerRequestStartDateTime,
-					request.xtabRejectedEditHistory,
+					withoutOtherSensitiveFiles(request.xtabRejectedEditHistory, targetDocumentId),
 				);
 
 				return yield* this.doGetNextEditWithSelection(

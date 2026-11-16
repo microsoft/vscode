@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../../base/common/linkedList.js';
@@ -12,10 +13,9 @@ import { URI } from '../../../../base/common/uri.js';
 import * as languages from '../../../../editor/common/languages.js';
 import * as nls from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ViewColumn } from '../../../../platform/editor/common/editor.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IExternalOpener, IOpenerService, OpenInternalOptions } from '../../../../platform/opener/common/opener.js';
+import { IExternalOpener, IExternalUriOpenContext, IOpenerService, OpenInternalOptions } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { defaultExternalUriOpenerId, ExternalUriOpenersConfiguration, externalUriOpenersSettingId } from './configuration.js';
 import { testUrlMatchesGlob } from '../../../../platform/url/common/urlGlob.js';
@@ -34,7 +34,12 @@ export interface IExternalUriOpener {
 	readonly label: string;
 
 	canOpen(uri: URI, token: CancellationToken): Promise<languages.ExternalUriOpenerPriority>;
-	openExternalUri(uri: URI, ctx: { sourceUri: URI; viewColumn?: ViewColumn }, token: CancellationToken): Promise<boolean>;
+
+	/**
+	 * @param href The link to open, after port forwarding, as written. Openers that pass it on as a
+	 * string should use it as is, because parsing it into a URI loses its encoding.
+	 */
+	openExternalUri(href: string, ctx: IExternalUriOpenContext, token: CancellationToken): Promise<boolean>;
 }
 
 export interface IExternalUriOpenerService {
@@ -85,18 +90,19 @@ interface IValidOpener {
  * What opening a uri without choosing an opener uses: an opener, the editor's default opener, or a
  * prompt to choose between the openers.
  *
- * The first preferred opener wins. If all openers are optional, the default opener wins.
- * Otherwise a single opener wins, and several prompt.
+ * The first preferred opener wins. Otherwise a single opener of `Default` priority wins, and several
+ * prompt. Optional openers never win or prompt on their own.
  */
 function chooseOpener(validOpeners: readonly IValidOpener[]): IExternalUriOpener | typeof defaultExternalUriOpenerId | 'prompt' {
 	const best = validOpeners.at(0);
-	if (!best || best.priority === languages.ExternalUriOpenerPriority.Option) {
-		return defaultExternalUriOpenerId;
-	}
-	if (best.priority === languages.ExternalUriOpenerPriority.Preferred || validOpeners.length === 1) {
+	if (best?.priority === languages.ExternalUriOpenerPriority.Preferred) {
 		return best.opener;
 	}
-	return 'prompt';
+	const defaultPriorityOpeners = validOpeners.filter(value => value.priority === languages.ExternalUriOpenerPriority.Default);
+	if (defaultPriorityOpeners.length === 0) {
+		return defaultExternalUriOpenerId;
+	}
+	return defaultPriorityOpeners.length === 1 ? defaultPriorityOpeners[0].opener : 'prompt';
 }
 
 function getDefaultOpenerLabel(): string {
@@ -127,7 +133,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		return { dispose: remove };
 	}
 
-	async openExternal(href: string, ctx: { sourceUri: URI; preferredOpenerId?: string; viewColumn?: ViewColumn }, token: CancellationToken): Promise<boolean> {
+	async openExternal(href: string, ctx: IExternalUriOpenContext & { preferredOpenerId?: string }, token: CancellationToken): Promise<boolean> {
 		const targetUri = URI.parse(href);
 		const allOpeners = await this.getAllOpenersForUri(targetUri);
 		if (allOpeners.size === 0) {
@@ -136,15 +142,15 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 
 		const requestedOpener = this.getRequestedOpener(allOpeners, targetUri, ctx.preferredOpenerId);
 		if (requestedOpener) {
-			return requestedOpener !== defaultExternalUriOpenerId && requestedOpener.openExternalUri(targetUri, ctx, token);
+			return requestedOpener !== defaultExternalUriOpenerId && requestedOpener.openExternalUri(href, ctx, token);
 		}
 
 		const validOpeners = await this.getValidOpeners(allOpeners, ctx.sourceUri, token);
 		const choice = chooseOpener(validOpeners);
 		if (choice === 'prompt') {
-			return this.showOpenerPrompt(validOpeners.map(value => value.opener), targetUri, ctx, token);
+			return this.showOpenerPrompt(validOpeners.map(value => value.opener), href, ctx, token);
 		}
-		return choice !== defaultExternalUriOpenerId && choice.openExternalUri(targetUri, ctx, token);
+		return choice !== defaultExternalUriOpenerId && choice.openExternalUri(href, ctx, token);
 	}
 
 	async getOpener(targetUri: URI, ctx: { sourceUri: URI }, token: CancellationToken): Promise<IExternalUriOpener | undefined> {
@@ -202,7 +208,9 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 			try {
 				return { opener, priority: await opener.canOpen(sourceUri, token) };
 			} catch (e) {
-				this.logService.error(e);
+				if (!isCancellationError(e)) {
+					this.logService.error(e);
+				}
 				return undefined;
 			}
 		}));
@@ -238,8 +246,8 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 
 	private async showOpenerPrompt(
 		openers: ReadonlyArray<IExternalUriOpener>,
-		targetUri: URI,
-		ctx: { sourceUri: URI; viewColumn?: ViewColumn },
+		href: string,
+		ctx: IExternalUriOpenContext,
 		token: CancellationToken
 	): Promise<boolean> {
 		type PickItem = IQuickPickItem & { opener?: IExternalUriOpener | 'configureDefault' };
@@ -262,7 +270,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 			});
 
 		const picked = await this.quickInputService.pick(items, {
-			placeHolder: nls.localize('selectOpenerPlaceHolder', "How would you like to open: {0}", targetUri.toString())
+			placeHolder: nls.localize('selectOpenerPlaceHolder', "How would you like to open: {0}", URI.parse(href).toString())
 		});
 
 		if (!picked) {
@@ -279,7 +287,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 			});
 			return true;
 		} else {
-			return picked.opener.openExternalUri(targetUri, ctx, token);
+			return picked.opener.openExternalUri(href, ctx, token);
 		}
 	}
 }

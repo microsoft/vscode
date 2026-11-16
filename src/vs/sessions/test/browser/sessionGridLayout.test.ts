@@ -10,14 +10,16 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { Event } from '../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
-import { ISessionGridEntry, ISessionGridView, SessionGridLayout } from '../../browser/parts/sessionGridLayout.js';
-import { getSessionDropDirection } from '../../browser/parts/sessionDropTarget.js';
-import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../../services/sessions/browser/sessionGridState.js';
+import { GRID_GAP_SASH_CLASS } from '../../../workbench/browser/parts/partGrid/partGridGap.js';
+import { ISessionGridEntry, ISessionGridView, SessionGridLayout } from '../../../workbench/browser/parts/sessions/sessionGridLayout.js';
+import { getSessionDropDirection } from '../../../workbench/contrib/sessions/browser/parts/sessionDropTarget.js';
+import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../../../workbench/browser/parts/sessions/sessionGridState.js';
 import '../../../workbench/browser/media/style.css';
 import '../../browser/media/workbench.css';
-import '../../browser/parts/media/chatCompositeBar.css';
-import '../../browser/parts/media/sessionsPart.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/chatCompositeBar.css';
+import '../../../workbench/browser/parts/sessions/media/sessionsPart.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/sessionsGridContent.css';
+import '../../../workbench/browser/media/part.css';
 
 suite('Sessions - Grid Layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -142,6 +144,62 @@ suite('Sessions - Grid Layout', () => {
 		});
 	});
 
+	for (const gap of [1, 4, 7, 8, 16]) {
+		test(`centers thin split-chat sashes and meets adjoining ${gap}px gap midpoints`, () => {
+			const { grid, a, b, c } = harness();
+			const root = document.createElement('div');
+			root.className = 'monaco-workbench agent-sessions-workbench';
+			root.style.cssText = '--vscode-sash-size: 4px; --vscode-sash-hover-size: 4px; width: 1200px; height: 600px; position: relative;';
+			const part = root.appendChild(document.createElement('div'));
+			part.className = 'part sessionspart';
+			part.style.cssText = 'width: 1200px; height: 600px;';
+			part.appendChild(grid.element);
+			document.body.appendChild(root);
+			store.add(toDisposable(() => root.remove()));
+			grid.reconcile([a, b, c], 'a');
+			grid.layout(1200, 600, 0, 0, false, gap);
+			const bounds = (view: View) => {
+				const leaf = view.element.parentElement!;
+				const rect = leaf.getBoundingClientRect();
+				const css = mainWindow.getComputedStyle(leaf);
+				return {
+					left: rect.left + Number.parseFloat(css.borderLeftWidth),
+					right: rect.right - Number.parseFloat(css.borderRightWidth),
+					top: rect.top + Number.parseFloat(css.borderTopWidth),
+					bottom: rect.bottom - Number.parseFloat(css.borderBottomWidth),
+				};
+			};
+			const aBounds = bounds(a.view);
+			const bBounds = bounds(b.view);
+			const cBounds = bounds(c.view);
+			const gapped = Array.from(grid.element.querySelectorAll<HTMLElement>(`.monaco-sash.${GRID_GAP_SASH_CLASS}`))
+				.map(sash => {
+					const vertical = sash.classList.contains('vertical');
+					const rect = sash.getBoundingClientRect();
+					const hover = mainWindow.getComputedStyle(sash, '::before');
+					const size = vertical ? rect.width : rect.height;
+					const center = (vertical ? rect.left : rect.top) + size / 2;
+					const expectedCenter = vertical ? (aBounds.right + bBounds.left) / 2 : (bBounds.bottom + cBounds.top) / 2;
+					return {
+						size,
+						hoverSize: Number.parseFloat(vertical ? hover.width : hover.height),
+						centerOffset: center - expectedCenter,
+						meetsCrossing: vertical || Math.abs(rect.left - (aBounds.right + bBounds.left) / 2) < 0.01,
+					};
+				});
+			grid.layout(1200, 600, 0, 0, false, 0);
+			assert.deepStrictEqual({
+				gapped,
+				cleared: Array.from(grid.element.querySelectorAll<HTMLElement>('.monaco-sash')).every(sash => !sash.classList.contains(GRID_GAP_SASH_CLASS)
+					&& sash.style.getPropertyValue('--agents-grid-gap-offset') === ''
+					&& !sash.classList.contains('workbench-sash-start-at-gap') && !sash.classList.contains('workbench-sash-end-at-gap')),
+			}, {
+				gapped: Array.from({ length: 2 }, () => ({ size: 4, hoverSize: 4, centerOffset: 0, meetsCrossing: true })),
+				cleared: true,
+			});
+		});
+	}
+
 	test('hides the gripper when a constrained session sash is disabled', () => {
 		const { grid, a, b } = harness();
 		const workbench = mainWindow.document.createElement('div');
@@ -204,9 +262,9 @@ suite('Sessions - Grid Layout', () => {
 			pointerEvents: mainWindow.getComputedStyle(sash).pointerEvents
 		}));
 		const visible = snapshot();
-		workbench.classList.add('sash-grippers-hidden');
+		workbench.setAttribute('data-sash-grippers-hidden', '');
 		const hidden = snapshot();
-		workbench.classList.remove('sash-grippers-hidden');
+		workbench.removeAttribute('data-sash-grippers-hidden');
 		const restored = snapshot();
 		const transitions = () => sashes.map(sash => {
 			const style = mainWindow.getComputedStyle(sash, '::after');
@@ -214,9 +272,9 @@ suite('Sessions - Grid Layout', () => {
 		});
 		workbench.classList.add('monaco-enable-motion');
 		const motionEnabled = transitions();
-		workbench.classList.add('sash-grippers-hidden');
+		workbench.setAttribute('data-sash-grippers-hidden', '');
 		const fadeOut = transitions();
-		workbench.classList.remove('sash-grippers-hidden');
+		workbench.removeAttribute('data-sash-grippers-hidden');
 		const fadeIn = transitions();
 		workbench.classList.replace('monaco-enable-motion', 'monaco-reduce-motion');
 		assert.deepStrictEqual({ visible, hidden, restored, motionEnabled, fadeOut, fadeIn, reducedMotion: transitions() }, {
@@ -412,7 +470,7 @@ suite('Sessions - Grid Layout', () => {
 		root.className = 'monaco-workbench agent-sessions-workbench mac modern-ui-tabs modern-ui-connected-editor-tabs nopanel noeditorpane nosidebar';
 		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-strokeThickness: 1px; --window-corner-radius: 16px; --modern-ui-connected-tab-border: #445566;';
 		const card = document.createElement('div');
-		card.className = 'part sessionspart agents-part-card';
+		card.className = 'part sessionspart sessions-chat-surface agents-part-card agents-card-surface';
 		root.appendChild(card);
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));

@@ -16,6 +16,7 @@ import { IMarkdownString, isEmptyMarkdownString, isMarkdownString, MarkdownStrin
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { findLastIdx } from '../../../../base/common/arraysFind.js';
+import { htmlAttributeEncodeValue } from '../../../../base/common/strings.js';
 
 export const SWIMLANE_HEIGHT = 22;
 export const SWIMLANE_WIDTH = 11;
@@ -573,16 +574,20 @@ export function toHistoryItemHoverContent(markdownRendererService: IMarkdownRend
 	// the reference is pointing to. They are being added before the last element
 	// of the array which is assumed to contain the hover commands.
 	const tooltipSections = historyItem.tooltip.slice();
+	let referencesMarkdownString: MarkdownString | undefined;
 
 	if (includeReferences && historyItem.references?.length) {
-		const markdownString = new MarkdownString('', { supportHtml: true, supportThemeIcons: true });
+		const markdownString = referencesMarkdownString = new MarkdownString('', { supportHtml: true, supportThemeIcons: true });
 
 		for (const reference of historyItem.references) {
 			const labelIconId = ThemeIcon.isThemeIcon(reference.icon) ? reference.icon.id : '';
 
 			const labelBackgroundColor = reference.color ? asCssVariable(reference.color) : asCssVariable(historyItemHoverDefaultLabelBackground);
 			const labelForegroundColor = reference.color ? asCssVariable(historyItemHoverLabelForeground) : asCssVariable(historyItemHoverDefaultLabelForeground);
-			markdownString.appendMarkdown(`<span style="color:${labelForegroundColor};background-color:${labelBackgroundColor};border-radius:10px;">&nbsp;$(${labelIconId})&nbsp;`);
+			// Long names are truncated (see scm.css), so expose the full name as a title. `$` is
+			// encoded so that theme icon rendering does not rewrite `$(...)` inside the attribute
+			const labelTitle = htmlAttributeEncodeValue(reference.name).replace(/\$/g, '&#36;');
+			markdownString.appendMarkdown(`<span title="${labelTitle}" style="color:${labelForegroundColor};background-color:${labelBackgroundColor};border-radius:10px;">&nbsp;$(${labelIconId})&nbsp;`);
 			markdownString.appendText(reference.name);
 			markdownString.appendMarkdown('&nbsp;&nbsp;</span>');
 		}
@@ -599,6 +604,7 @@ export function toHistoryItemHoverContent(markdownRendererService: IMarkdownRend
 		}
 
 		const renderedContent = markdownRendererService.render(markdownString);
+		renderedContent.element.classList.toggle('history-item-hover-references', markdownString === referencesMarkdownString);
 		hoverContainer.appendChild(renderedContent.element);
 		disposables.add(renderedContent);
 	}

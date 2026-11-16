@@ -153,6 +153,22 @@ suite('ModelCard', () => {
 		return Array.from(card.element.querySelectorAll('[role="radio"][aria-checked="true"]'), option => option.textContent ?? '');
 	}
 
+	test('an unspecified effort remains unchecked until the user chooses it', async () => {
+		let accepted = new DeferredPromise<void>();
+		const model = createModel({ configurationSchema: { properties: { reasoningEffort: { type: 'string', group: 'navigation', enum: ['low', 'high'], enumItemLabels: ['Low', 'High'] } } } });
+		const fixture = createCard({}, { model, onDidAccept: () => accepted.complete() });
+		const before = { selected: selectedOptions(fixture.card), value: fixture.card.element.querySelector('.chat-model-card-section-value')?.textContent };
+		element(fixture.card.element, '[role="radio"]').click();
+		await accepted.p;
+		const after = selectedOptions(fixture.card);
+		accepted = new DeferredPromise<void>();
+		element(fixture.card.element, '[aria-label="Reset to Default"]').click();
+		await accepted.p;
+		assert.deepStrictEqual({ before, after, reset: selectedOptions(fixture.card), writes: fixture.writes }, {
+			before: { selected: [], value: 'Model default' }, after: ['Low'], reset: [], writes: [{ reasoningEffort: 'low' }, { reasoningEffort: undefined }],
+		});
+	});
+
 	/** The option labels of the first segmented control, split where a row break sits. */
 	function segmentRows(card: ModelCard): string[][] {
 		const rows: string[][] = [[]];
@@ -681,6 +697,49 @@ suite('ModelCard', () => {
 			});
 		}
 	}
+
+	for (const contextTiers of [['long_context', 'default'], ['long_context'], ['default']]) {
+		test(`named context tiers use their own prices regardless of enum order: ${contextTiers.join(', ')}`, async () => {
+			const model = createModel({
+				cacheCost: 4, cacheWriteCost: 8,
+				longContextOutputCost: 400, longContextCacheCost: 8, longContextCacheWriteCost: 16,
+				configurationSchema: {
+					properties: {
+						contextTier: {
+							type: 'string', group: 'tokens', enum: contextTiers, default: contextTiers[0],
+							enumItemLabels: contextTiers.map(tier => tier === 'long_context' ? '1M' : '264K'),
+						},
+					},
+				},
+			});
+			const accepted = new DeferredPromise<void>();
+			const { card, writes } = createCard({}, { model, onDidAccept: () => accepted.complete() });
+			const read = () => ({
+				selected: selectedOptions(card),
+				prices: Array.from(card.element.querySelectorAll('.chat-model-card-pricing-value'), element => element.textContent),
+			});
+			const initial = read();
+			const standardPrices = ['40', '200', '4', '8'];
+			const longPrices = ['80', '400', '8', '16'];
+			if (contextTiers.length > 1) {
+				element(card.element, '[role="radio"]:last-child').click();
+				await accepted.p;
+			}
+			assert.deepStrictEqual({ initial, after: read(), writes }, {
+				initial: contextTiers[0] === 'long_context' ? { selected: ['1M'], prices: longPrices } : { selected: ['264K'], prices: standardPrices },
+				after: contextTiers.length === 1 && contextTiers[0] === 'long_context' ? { selected: ['1M'], prices: longPrices } : { selected: ['264K'], prices: standardPrices },
+				writes: contextTiers.length > 1 ? [{ contextTier: 'default' }] : [],
+			});
+		});
+	}
+
+	test('numeric context windows retain their existing tier pricing and missing-rate fallback', () => {
+		const prices = [264000, 1000000].map(context => {
+			const { card } = createCard({ context });
+			return Array.from(card.element.querySelectorAll('.chat-model-card-pricing-value'), element => element.textContent);
+		});
+		assert.deepStrictEqual(prices, [['40', '200'], ['80', '200']]);
+	});
 
 	test('the pricing pill stays with its disclosure heading when collapsed and expanded', () => {
 		const { card } = createCard();

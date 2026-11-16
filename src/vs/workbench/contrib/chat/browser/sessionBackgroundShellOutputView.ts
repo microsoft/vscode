@@ -24,9 +24,9 @@ import { DetachedProcessInfo } from '../../terminal/browser/detachedTerminal.js'
 import { IDetachedTerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
 import { DecorationSelector, getTerminalCommandDecorationState } from '../../terminal/browser/xterm/decorationStyles.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
-import type { ChatBackgroundShellOutput } from '../common/sessionChatPills.js';
 import { getChatMarkdownRenderOptions } from './widget/chatContentMarkdownRenderer.js';
 import './widget/chatContentParts/media/chatTerminalToolProgressPart.css';
+import type { ChatBackgroundShellOutput } from '../../../common/chatBackgroundShell.js';
 
 const enum BackgroundShellOutputViewConstants {
 	/**

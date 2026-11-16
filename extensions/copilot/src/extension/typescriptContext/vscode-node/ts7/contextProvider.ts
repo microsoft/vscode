@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Project, Symbol as NativeSymbol, Type } from '@typescript/native/unstable/async';
+import type { Project, Symbol as NativeSymbol, Type } from '@typescript/native/async';
 import {
 	isIntersectionTypeNode,
 	isTypeAliasDeclaration,
@@ -16,7 +16,7 @@ import {
 	type SourceFile,
 	type TypeAliasDeclaration,
 	type TypeNode,
-} from '@typescript/native/unstable/ast';
+} from '@typescript/native/ast';
 import { CodeSnippetBuilder } from './code';
 import * as protocol from '../../common/serverProtocol';
 import { type CodeCacheItem, type EmitterContext, ProgramContext, RecoverableError, type SnippetProvider } from './types';
