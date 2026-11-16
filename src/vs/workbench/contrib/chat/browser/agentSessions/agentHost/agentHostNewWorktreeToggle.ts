@@ -21,6 +21,7 @@ import { IChatWidget, IChatWidgetService } from '../../chat.js';
 import { ChatContextKeys, ChatContextKeyExprs } from '../../../common/actions/chatContextKeys.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
 import { AgentHostWorktreeFolderChoices } from './agentHostWorktreeFolderChoices.js';
+import './media/agentHostChatInputPicker.css';
 
 /** Whether the chat input offers New Worktree as a checkbox rather than the folder chip: while the folder has no worktrees. */
 export const ChatAgentHostNewWorktreeToggleVisible = new RawContextKey<boolean>('chatAgentHostNewWorktreeToggleVisible', false, { type: 'boolean', description: localize('chatAgentHostNewWorktreeToggleVisible', "Whether the chat input offers New Worktree as a checkbox, as the folder has no worktrees.") });
@@ -150,8 +151,19 @@ export class ToggleAgentHostNewWorktreeAction extends Action2 {
  */
 export function createNewWorktreeCheckboxViewItem(action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined {
 	return action.id === ToggleAgentHostNewWorktreeAction.ID && action instanceof MenuItemAction
-		? new CheckboxActionViewItem(undefined, action, { ...options, label: true, checkboxStyles: defaultCheckboxStyles })
+		? new ChatInputCheckboxActionViewItem(undefined, action, { ...options, label: true, checkboxStyles: { ...defaultCheckboxStyles, size: 14 } })
 		: undefined;
+}
+
+/**
+ * A checkbox sized as the chips of the chat input's toolbar it shows in (`chat-input-checkbox-item`): the compact checkbox
+ * of the workbench's toolbars and chip rows (`size: 14`, its check at the compact codicon size), with the chips' text.
+ */
+class ChatInputCheckboxActionViewItem extends CheckboxActionViewItem {
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('chat-input-checkbox-item');
+	}
 }
 
 registerAction2(ToggleAgentHostNewWorktreeAction);
