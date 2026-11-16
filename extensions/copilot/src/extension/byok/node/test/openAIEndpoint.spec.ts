@@ -358,6 +358,26 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			]);
 		});
 
+		it('issue #348418: omits truncation unless the truncation setting is enabled', async () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				modelMetadata,
+				'test-api-key',
+				'https://api.example.com/v1/responses');
+			const resolveTruncation = () => {
+				const body = endpoint.createRequestBody(createTestOptions([{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' }],
+				}]));
+				return 'truncation' in body ? body.truncation : 'omitted';
+			};
+
+			const settingOff = resolveTruncation();
+			await accessor.get(IConfigurationService).setConfig(ConfigKey.Advanced.UseResponsesApiTruncation, true);
+			const settingOn = resolveTruncation();
+
+			expect({ settingOff, settingOn }).toEqual({ settingOff: 'omitted', settingOn: 'auto' });
+		});
+
 		it('adds an empty object schema to a parameterless tool', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
 				{
