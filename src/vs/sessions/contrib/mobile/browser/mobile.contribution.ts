@@ -21,7 +21,7 @@ import { MobileContextMenuService } from './mobileContextMenuService.js';
 import { MobileKeybindingService } from './mobileKeybindingService.js';
 import { MobileNullAgentHostTerminalService } from './mobileNullAgentHostTerminalService.js';
 import { MobileNullAquariumService } from './mobileNullAquariumService.js';
-import { MobileNullChatWindowService } from './mobileNullChatWindowService.js';
+import { NullChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/nullChatWindowService.js';
 import { MobileQuickInputService } from './mobileQuickInputService.js';
 import { ISessionsListPresentation } from '../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
 import { ISessionRepositoryPicker } from '../../../../workbench/contrib/sessions/browser/sessionRepositoryPicker.js';
@@ -70,7 +70,7 @@ registerSingleton(IAgentHostTerminalService, MobileNullAgentHostTerminalService,
 
 // The aquarium easter egg does not exist on the phone. See MobileNullAquariumService.
 registerSingleton(IAquariumService, MobileNullAquariumService, InstantiationType.Delayed);
-registerSingleton(IChatWindowService, MobileNullChatWindowService, InstantiationType.Delayed);
+registerSingleton(IChatWindowService, NullChatWindowService, InstantiationType.Delayed);
 registerSingleton(IWindowCanvasService, WindowCanvasService, InstantiationType.Delayed);
 registerSingleton(ISessionsListPresentation, MobileSessionsListPresentation, InstantiationType.Delayed);
 registerSingleton(ISessionRepositoryPicker, MobileRepositoryPicker, InstantiationType.Delayed);

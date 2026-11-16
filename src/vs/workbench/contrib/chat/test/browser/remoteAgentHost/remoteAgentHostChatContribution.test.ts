@@ -14,7 +14,6 @@ import { IAgentConnection, type AuthenticateParams } from '../../../../../../pla
 import { IAgentHostAdvertisedAuthenticationResolver } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { IAgentHostMcpAuthenticationRequest } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { ICloudSandboxAgentHostService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
@@ -233,7 +232,7 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		});
 		await context.authenticationSent;
 		assert.deepStrictEqual({ sent: context.sent, errors: context.errors }, {
-			sent: [{ resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token', _meta: authenticationAccountMeta({ providerId: 'docs-provider', accountId: 'account' }) }],
+			sent: [{ resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token', accountId: '["docs-provider","account",null]' }],
 			errors: [],
 		});
 	});

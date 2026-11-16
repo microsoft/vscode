@@ -594,6 +594,32 @@ suite('SpotlightOverlay', () => {
 		});
 	});
 
+	test('focusEndTour wins over hideNext, so End Tour is focused when the target is not focusable', () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));
+		const skips: OnboardingDismissReason[] = [];
+		disposables.add(overlay.onDidSkip(reason => skips.push(reason)));
+		const target = createTarget(container, 100, 100, 80, 30);
+		const press = (element: HTMLElement, key: string, keyCode: number, shiftKey = false) => {
+			const event = new KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true });
+			Object.defineProperty(event, 'keyCode', { get: () => keyCode });
+			element.dispatchEvent(event);
+		};
+
+		overlay.show(target, content({ endTourLabel: 'Got It', showEndTour: true, focusEndTour: true, stepIndex: 0, stepCount: 1, canGoBack: false, isLastStep: true }), { hideNext: true });
+		const [skip, , next] = getButtons(container);
+		const initial = mainWindow.document.activeElement;
+		press(skip, 'Tab', 9);
+		const afterTab = mainWindow.document.activeElement;
+		press(skip, 'Tab', 9, true);
+		const afterShiftTab = mainWindow.document.activeElement;
+		press(skip, 'Escape', 27);
+
+		assert.deepStrictEqual({ initial: initial === skip, afterTab: afterTab === skip, afterShiftTab: afterShiftTab === skip, nextHidden: next.style.display === 'none', skips }, {
+			initial: true, afterTab: true, afterShiftTab: true, nextHidden: true, skips: [OnboardingDismissReason.EscapeKey],
+		});
+	});
+
 	test('observes the target and container for re-layout', () => {
 		const container = createContainer();
 		const observers: FakeResizeObserver[] = [];

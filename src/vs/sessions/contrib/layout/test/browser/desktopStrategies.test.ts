@@ -24,7 +24,7 @@ import { ISessionFileChange, SessionStatus } from '../../../../../workbench/serv
 import { CanvasInput } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { WindowCanvasInput, IWindowCanvas } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
-import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
+import { SESSIONS_FILES_CONTAINER_ID } from '../../../../../workbench/contrib/files/common/files.js';
 import { DesktopDetailPanelCoordinator } from '../../browser/desktop/desktopDetailPanelCoordinator.js';
 import { DesktopDockedTabsCoordinator } from '../../browser/desktop/desktopDockedTabsCoordinator.js';
 import { DesktopDraftSessionStrategy } from '../../browser/desktop/desktopDraftSessionStrategy.js';
