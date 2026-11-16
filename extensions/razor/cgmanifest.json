@@ -6,7 +6,7 @@
 				"git": {
 					"name": "dotnet/razor",
 					"repositoryUrl": "https://github.com/dotnet/roslyn",
-					"commitHash": "79e211a2e4287f9f7508089b81311b2c7fdc169f"
+					"commitHash": "7a33db14140ee4100f0c9c2c13bb2ff493750155"
 				}
 			},
 			"license": "MIT",

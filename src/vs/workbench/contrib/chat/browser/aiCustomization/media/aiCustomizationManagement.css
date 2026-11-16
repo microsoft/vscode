@@ -1482,7 +1482,11 @@ per-word capitalization does not survive translation. */
 	font-weight: var(--vscode-fontWeight-regular);
 }
 
-.ai-customization-management-editor .copilot-customization-tree-item.disabled .copilot-customization-tree-text {
+.ai-customization-management-editor .copilot-customization-tree-icon {
+	flex-shrink: 0;
+}
+
+.ai-customization-management-editor .copilot-customization-tree-item.disabled :is(.copilot-customization-tree-text, .copilot-customization-tree-icon) {
 	opacity: 0.6;
 }
 

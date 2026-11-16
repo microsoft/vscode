@@ -2567,6 +2567,26 @@ suite('AgentHostAutomationService', () => {
 		assert.ok(stateManager.getChatState(conversation.chat));
 	});
 
+	test('timer-driven follow-up does not wait for new-session template readiness', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+		// Mirrors a signed-out provider: a follow-up has no model, so new-session readiness reports unavailable.
+		const conversation = { session: 'mock:/existing', chat: 'ahp-chat:/peer' };
+		const submitted: string[] = [];
+		const service = createService({
+			supportsExistingConversation: true,
+			isSessionTemplateAvailable: () => false,
+			prepareConversation: async (_target, _message, id) => () => { submitted.push(id); },
+		});
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), _meta: scheduledChatMeta(conversation), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z' }] },
+		});
+		await timeout(120_000);
+		const entry = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({ submitted, receipt: getAgentHostOneTimeRun(entry), next: entry.nextRunAt, statuses: entry.runs.map(run => run.lifecycle.status) }, {
+			submitted: [getAgentHostOneTimeRun(entry)], receipt: entry.runs[0]?.resource, next: undefined, statuses: [AutomationRunStatus.Completed],
+		});
+	}));
+
 	test('cancelling a follow-up during target resolution does not cancel an unrelated turn', async () => {
 		const resolving = new DeferredPromise<void>();
 		const release = new DeferredPromise<void>();

@@ -933,6 +933,41 @@ suite('ChatWidget', () => {
 		return widget;
 	}
 
+	test('scheduled inline input inherits the conversation model, configuration, and model pool', () => {
+		const input = mockObject<ChatInputPart>()({});
+		input.requestModelByIdentifier.resolves(true);
+		const resource = URI.parse('agent-host-copilot:/session');
+		const modelConfiguration = { reasoningEffort: 'high' };
+		const mainInput = mockObject<ChatInputPart>()({
+			currentModeObs: constObservable(upcastPartial<IChatMode>({ id: 'agent' })),
+			currentModeInfo: upcastPartial<ChatInputPart['currentModeInfo']>({ permissionLevel: ChatPermissionLevel.Default }),
+			currentLanguageModel: 'agent-host-copilot:opus',
+		});
+		mainInput.getModelConfiguration.returns(modelConfiguration);
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			_respondent: { resource, respondent: { modelSessionType: 'agent-host-copilot' } },
+			_scheduledRequestEdit: {},
+			createInput: () => { },
+			_onDidChangeActiveInputEditor: { fire: () => { } },
+		});
+		Object.defineProperties(widget, { input: { value: input }, inputPart: { value: mainInput } });
+		const container = dom.$('div');
+		const timestamp = dom.append(container, dom.$('div'));
+		const create = Reflect.get(ChatWidget.prototype, 'createInlineInput') as (this: ChatWidget, item: IChatListItemTemplate, store: DisposableStore, type: undefined) => void;
+		create.call(widget, upcastPartial<IChatListItemTemplate>({ requestTimestampContainer: timestamp }), store.add(new DisposableStore()), undefined);
+		assert.deepStrictEqual({
+			pool: input.setModelSessionTypeOverride.args,
+			model: input.requestModelByIdentifier.args,
+			mode: input.setChatMode.args,
+			mainModelChanged: mainInput.requestModelByIdentifier.called,
+		}, {
+			pool: [[{ sessionType: 'agent-host-copilot' }, resource]],
+			model: [['agent-host-copilot:opus', modelConfiguration]],
+			mode: [['agent']],
+			mainModelChanged: false,
+		});
+	});
+
 	test('scheduled inline editing captures text deletion and attachment removal', async () => {
 		await withAsyncTestCodeEditor('Message', {}, async editor => {
 			const attachmentChange = store.add(new Emitter<void>());

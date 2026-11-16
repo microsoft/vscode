@@ -657,6 +657,30 @@ suite('SessionCustomizationDiscovery', () => {
 		});
 	});
 
+	test('publishes a required plugin that failed to install from the session inventory, since global records omit it', async () => {
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const client = hookDiscoveryClient(async () => ({ hooks: [], errors: [], warnings: [] }));
+		client.rpc.plugins.list = async () => ({ plugins: [{ id: 'installed', name: 'installed', marketplace: 'enterprise', enabled: false, rootPath: '/plugins/installed' }] });
+		const sessionPlugins = async () => [
+			{ id: 'installed', name: 'installed', marketplace: 'enterprise', enabled: true, rootPath: '/plugins/installed', managed: true, managedDesiredEnabled: true, installed: true },
+			{ id: 'missing', name: 'missing', marketplace: 'enterprise', enabled: false, managed: true, managedDesiredEnabled: true, installed: false },
+			{ id: 'blocked-missing', name: 'blocked-missing', marketplace: 'enterprise', enabled: false, managed: true, managedDesiredEnabled: false, installed: false },
+			{ id: 'session-only', name: 'session-only', marketplace: '', enabled: true, rootPath: '/plugins/session-only' },
+		];
+		const discover = async (plugins?: () => Promise<Awaited<ReturnType<typeof sessionPlugins>> | undefined>) => (await discovery.discover(client, CancellationToken.None, plugins))
+			.filter(item => item.type === CustomizationType.Plugin)
+			.map(plugin => ({ name: plugin.name, uri: plugin.uri, load: plugin.load?.kind, organization: readCustomizationOrganizationMeta(plugin) }));
+		assert.deepStrictEqual({
+			withoutSession: await discover(),
+			sessionNotReady: await discover(async () => undefined),
+			sessionFailed: await discover(async () => { throw new Error('session closed'); }),
+			session: await discover(sessionPlugins),
+		}, {
+			withoutSession: [], sessionNotReady: [], sessionFailed: [],
+			session: [{ name: 'missing', uri: 'agent-discovery://copilot/plugins/missing', load: CustomizationLoadStatus.Error, organization: { requiredEnabled: true } }],
+		});
+	});
+
 	test('marks plugins the runtime registers as built in', async () => {
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
 		const client = hookDiscoveryClient(async () => ({

@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IObservable, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
-import { isAbsolute } from '../../../../base/common/path.js';
-import { basename, dirname, isEqual, joinPath } from '../../../../base/common/resources.js';
+import { isEqual, joinPath } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { ISessionsListingScope } from '../common/sessionsProvider.js';
 import { parseGitHubRepositoryFromGitConfig } from './gitHubRepositoryResolver.js';
+import { readFolderGitCheckout } from '../../../services/workspaces/common/gitFolderCheckout.js';
 
 /** The hosts of the GitHub repositories that Copilot Cloud sessions work in (`github-remote-file://github/...`). */
 const GITHUB_HOSTS = ['github.com'];
@@ -27,9 +28,10 @@ interface IFolderCheckout {
 }
 
 /**
- * The scope the sessions providers of an editor window list their sessions in: the folders of the window's workspace, the
- * git repositories of its local folders, read from their `.git`, and the GitHub repositories of those repositories'
- * `origin`, read from their `.git/config`, such as for Copilot Cloud sessions. Each folder's `.git` and its repository's
+ * The scope the sessions providers of an editor window list their sessions in: the folders of the window's workspace, also
+ * the folder's own location while it is at another, such as a worktree the window followed a session into, so that the
+ * sessions it lists stay as they were; and the GitHub repositories of the `origin` of its local folders' git repositories,
+ * read from their `.git` and `.git/config`, such as for Copilot Cloud sessions. Each folder's `.git` and its repository's
  * `.git/config` are read once, as the folder joins the workspace, and again only after a read that failed; there are no
  * watchers. A folder that leaves the workspace stops counting at once.
  */
@@ -37,6 +39,7 @@ export class WorkspaceFolderRepositories extends Disposable implements ISessions
 
 	readonly folders: IObservable<readonly URI[]>;
 
+	/** The git repositories its local folders are checkouts of, such as the main checkout of an open worktree, whose `origin` it reads. */
 	private readonly _repositories = observableValue<readonly URI[]>(this, []);
 	readonly repositories: IObservable<readonly URI[]> = this._repositories;
 
@@ -55,9 +58,18 @@ export class WorkspaceFolderRepositories extends Disposable implements ISessions
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this.folders = observableFromEvent(this, _workspaceContextService.onDidChangeWorkspaceFolders, () => _workspaceContextService.getWorkspace().folders.map(folder => folder.uri));
+		// Also as only the workbench state changes, such as the folder saved as a workspace, without a change of its folders
+		this.folders = observableFromEvent(this, Event.any<unknown>(_workspaceContextService.onDidChangeWorkspaceFolders, _workspaceContextService.onDidChangeWorkbenchState), () => this._getScopeFolders());
 		this._register(_workspaceContextService.onDidChangeWorkspaceFolders(() => void this._update()));
 		void this._update();
+	}
+
+	/** The folders of the workspace where they are now, and the folder's own location while it is at another. */
+	private _getScopeFolders(): readonly URI[] {
+		const workspace = this._workspaceContextService.getWorkspace();
+		const folders = workspace.folders.map(folder => folder.uri);
+		const own = this._workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER ? workspace.uri : undefined;
+		return own && !folders.some(folder => isEqual(folder, own)) ? [...folders, own] : folders;
 	}
 
 	private async _update(): Promise<void> {
@@ -111,7 +123,7 @@ export class WorkspaceFolderRepositories extends Disposable implements ISessions
 
 	/** The checkout of `folder`, and whether to read it again as the folders change, as its `origin` could not be read. */
 	private async _readCheckout(folder: URI): Promise<{ readonly checkout: IFolderCheckout; readonly readAgain: boolean }> {
-		const repository = await WorkspaceFolderRepositories._readFolderGitRepository(this._fileService, folder);
+		const repository = (await readFolderGitCheckout(this._fileService, folder))?.repository;
 		if (!repository) {
 			return { checkout: { repository, gitHubRepository: undefined }, readAgain: false };
 		}
@@ -122,39 +134,6 @@ export class WorkspaceFolderRepositories extends Disposable implements ISessions
 			this._logService.warn(`[WorkspaceFolderRepositories] Could not read the git origin of ${repository.toString()}`, error);
 			return { checkout: { repository, gitHubRepository: undefined }, readAgain: true };
 		}
-	}
-
-	/**
-	 * The git repository that a local folder is a checkout of, read from its `.git`: the folder itself when `.git` is a
-	 * directory, and the main checkout when `.git` is the file of a worktree (`gitdir: <repository>/.git/worktrees/<name>`).
-	 * `undefined` for a folder without `.git`, or whose `.git` names no worktree, such as a submodule's. Throws when `.git`
-	 * exists but cannot be read.
-	 */
-	private static async _readFolderGitRepository(fileService: IFileService, folder: URI): Promise<URI | undefined> {
-		const dotGit = joinPath(folder, '.git');
-		let isDirectory: boolean;
-		try {
-			isDirectory = (await fileService.stat(dotGit)).isDirectory;
-		} catch (error) {
-			if (error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
-				return undefined;
-			}
-			throw error;
-		}
-		if (isDirectory) {
-			return folder;
-		}
-		const content = (await fileService.readFile(dotGit)).value.toString();
-		const gitdir = /^gitdir:\s*(?<path>.+?)\s*$/m.exec(content)?.groups?.path;
-		if (!gitdir) {
-			return undefined;
-		}
-		const worktreeGitDir = isAbsolute(gitdir) ? URI.file(gitdir) : joinPath(folder, gitdir);
-		const worktreesDir = dirname(worktreeGitDir);
-		const commonGitDir = dirname(worktreesDir);
-		return basename(worktreesDir) === 'worktrees' && basename(commonGitDir) === '.git' && !isEqual(commonGitDir, worktreesDir)
-			? dirname(commonGitDir)
-			: undefined;
 	}
 
 	/**

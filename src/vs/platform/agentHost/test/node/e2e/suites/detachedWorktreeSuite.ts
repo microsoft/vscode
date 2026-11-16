@@ -120,11 +120,23 @@ export function defineDetachedWorktreeTests(context: IAgentHostE2ETestContext): 
 	async function waitForWorktreeRemoval(repository: string, worktreePath: string): Promise<void> {
 		await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI }, 30_000);
 		const deadline = Date.now() + 30_000;
-		while (existsSync(worktreePath) || isRegisteredWorktree(repository, worktreePath)) {
+		let lastListError: unknown;
+		while (existsSync(worktreePath) || isStillRegistered()) {
 			if (Date.now() > deadline) {
-				throw new Error(`Timed out waiting for the host to remove ${worktreePath}`);
+				throw new Error(`Timed out waiting for the host to remove ${worktreePath}`, { cause: lastListError });
 			}
 			await new Promise(resolve => setTimeout(resolve, 100));
+		}
+
+		function isStillRegistered(): boolean {
+			// `git worktree list` dies with "Invalid path" when the host's prune deletes `.git/worktrees/<name>`
+			// while git is reading it, so a failed listing means the removal is still in progress.
+			try {
+				return isRegisteredWorktree(repository, worktreePath);
+			} catch (error) {
+				lastListError = error;
+				return true;
+			}
 		}
 	}
 

@@ -91,7 +91,7 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 		if (!location) {
 			return undefined;
 		}
-		return location.description && location.description !== location.label ? `${location.label} · ${location.description}` : location.label;
+		return location.label;
 	}
 
 	registerProvider(provider: IWorkspaceFolderLocationProvider, options?: { readonly builtIn?: boolean }): IDisposable {
