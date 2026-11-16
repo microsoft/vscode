@@ -119,16 +119,22 @@ suite('Sessions rename', () => {
 				inputBoxHeight: inputBoxStyle.height,
 			};
 			const compactDescription = row.querySelector<HTMLElement>('.session-compact-hover-description');
+			const toolbar = row.querySelector<HTMLElement>('.session-title-toolbar');
 			assert.ok(compactDescription);
+			assert.ok(toolbar);
+			row.classList.add('hovered');
 			assert.deepStrictEqual({
 				titleRowHeight: mainWindow.getComputedStyle(titleRow).height,
 				inputAlignedWithIcon: centerInRow(inputBox) === iconCenter,
 				compactDescriptionDisplay: mainWindow.getComputedStyle(compactDescription).display,
+				hoveredToolbarDisplay: mainWindow.getComputedStyle(toolbar).display,
 			}, {
 				titleRowHeight: '16px',
 				inputAlignedWithIcon: true,
 				compactDescriptionDisplay: 'none',
+				hoveredToolbarDisplay: 'none',
 			});
+			row.classList.remove('hovered');
 			input.value = ' Renamed ';
 			input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
 
@@ -506,11 +512,18 @@ suite('Sessions rename', () => {
 				inputHeight: inputStyle.height,
 				inputBoxHeight: inputBoxStyle.height,
 			};
+			const row = input.closest<HTMLElement>('.monaco-list-row');
+			const toolbar = row?.querySelector<HTMLElement>('.session-title-toolbar');
+			assert.ok(row && toolbar);
+			row.classList.add('hovered');
+			const hoveredToolbarDisplay = mainWindow.getComputedStyle(toolbar).display;
+			row.classList.remove('hovered');
 			input.value = ' Renamed peer ';
 			input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
 
 			assert.deepStrictEqual({
 				inputGeometry,
+				hoveredToolbarDisplay,
 				renamedChats: harness.managementService.renamedChats,
 				inputClosed: container.querySelector('.session-chat-title-input input') === null,
 			}, {
@@ -519,6 +532,7 @@ suite('Sessions rename', () => {
 					inputHeight: '20px',
 					inputBoxHeight: '22px',
 				},
+				hoveredToolbarDisplay: 'none',
 				renamedChats: [{ session, chatResource: peerChat.resource, title: 'Renamed peer' }],
 				inputClosed: true,
 			});

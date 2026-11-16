@@ -375,9 +375,14 @@
 	.monaco-list-row:is(:hover, .hovered):not(.external-application-badge-hovered),
 	.monaco-list-row.focused:not(.selected),
 	.monaco-list:focus-within .monaco-list-row.focused,
-	.session-item.archive-onboarding {
+	.session-item.archive-onboarding:not(.renaming) {
 		.session-title-toolbar {
 			display: block;
+		}
+
+		/* An inline rename gives the actions' width to the title input. */
+		.renaming .session-title-toolbar {
+			display: none;
 		}
 
 		.session-external-application-badge-title,
@@ -723,7 +728,6 @@
 
 	&.renaming {
 		.session-title,
-		.session-title-toolbar,
 		.session-compact-hover-description,
 		.session-search-hint-title,
 		.session-pending-voice-indicator {
@@ -1275,10 +1279,6 @@
 
 		.session-chat-title-input {
 			display: block;
-		}
-
-		.session-title-toolbar {
-			display: none;
 		}
 	}
 
@@ -1957,6 +1957,10 @@
 		top: 50%;
 		transform: translateY(-50%);
 		height: auto;
+	}
+
+	.monaco-list-row .renaming .session-title-toolbar {
+		display: none;
 	}
 
 	.monaco-list-row .session-external-application-badge-title {
