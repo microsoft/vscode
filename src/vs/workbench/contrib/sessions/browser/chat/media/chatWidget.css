@@ -30,6 +30,20 @@
 	justify-content: center;
 }
 
+.new-chat-widget-content.scheduled-draft .chat-execute-toolbar .monaco-dropdown-with-default {
+	align-items: center;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-button-background);
+
+	> .dropdown-action-container {
+		border-left: var(--vscode-strokeThickness) solid var(--vscode-button-separator);
+
+		.action-label {
+			color: var(--vscode-button-foreground);
+		}
+	}
+}
+
 .new-session-send-status {
 	display: flex;
 	align-items: center;

@@ -9,6 +9,7 @@ import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { readCustomizationOrganizationMeta } from '../../common/meta/customizationOrganizationMeta.js';
 import { readRuntimePluginEnablement } from '../../common/meta/pluginEnablementMeta.js';
 import { X509Certificate } from 'crypto';
 import { rootCertificates } from 'tls';
@@ -335,6 +336,7 @@ function setLiveChatStub(agent: CopilotAgent, sdkSessionId: string, stub: unknow
 	const chatSession = stub as CopilotAgentSession;
 	chatSession.refreshModelConfiguration ??= () => { };
 	chatSession.clientToolsRequireRestart ??= () => false;
+	(chatSession as { canvasRuntimeEnabled?: boolean }).canvasRuntimeEnabled ??= false;
 	chatSession.topLevelMcpCustomizations ??= () => [];
 	chatSession.mcpServerOwners ??= () => undefined;
 	chatSession.listInstalledPlugins ??= async () => [];
@@ -1601,6 +1603,7 @@ class TestableCopilotAgent extends CopilotAgent {
 			readRuntimeSelection: async () => fake.readRuntimeSelection?.() ?? { model: {}, agentName: undefined },
 			appliedSnapshot: undefined,
 			clientToolsRequireRestart: () => false,
+			canvasRuntimeEnabled: false,
 			extensionLaunchDirectories: [],
 			setExtensionLaunchAdmission: (admission: IDisposable) => { extensionLaunchAdmission = admission; },
 			dispose: () => {
@@ -1609,6 +1612,7 @@ class TestableCopilotAgent extends CopilotAgent {
 			},
 			onDidRequireAuth: Event.None,
 			onDidChangeRuntimePlugins: Event.None,
+			onDidReloadRuntimeContributions: Event.None,
 			hasRunningDetachedShells: async () => false,
 			resetTurnState: (newTurnId: string) => { turnId = newTurnId; },
 			emitInitialMarkdown: (content: string) => {
@@ -3203,6 +3207,41 @@ suite('CopilotAgent', () => {
 		});
 	});
 
+	test('publishes what the organization requires from the chat inventory, which global plugin records omit', async () => {
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
+		const required = URI.file('/sdk-installed/required');
+		const own = URI.file('/sdk-installed/own');
+		for (const root of [required, own]) {
+			await fileService.writeFile(URI.joinPath(root, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"plugin"}'));
+		}
+		const client = new TestCopilotClient([]);
+		// The global inventory lists a plugin that managed settings require as an ordinary installation,
+		// and omits a required plugin that could not be installed.
+		client.pluginInstallations = [
+			{ id: 'required', name: 'required', marketplace: 'enterprise', enabled: false, rootPath: required.fsPath },
+			{ id: 'own', name: 'own', marketplace: 'public', enabled: true, rootPath: own.fsPath },
+		];
+		const agent = createTestAgent(disposables, { fileService, copilotClient: client, rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false } });
+		afterTest(() => disposeAgent(agent));
+		const session = AgentSession.uri('copilotcli', 'managed-inventory');
+		setDefaultSessionStub(agent, 'managed-inventory', {
+			listInstalledPlugins: async () => [
+				{ ...client.pluginInstallations[0], enabled: true, managed: true, managedDesiredEnabled: true, installed: true },
+				client.pluginInstallations[1],
+				{ id: 'missing', name: 'missing', marketplace: 'enterprise', enabled: false, managed: true, managedDesiredEnabled: true, installed: false },
+			],
+		});
+		const customizations = await agent['_getOrCreateActiveClient'](session, URI.file('/workspace')).pluginController.getCustomizationsSettled();
+		assert.deepStrictEqual(Object.fromEntries(customizations.filter(item => item.type === CustomizationType.Plugin).map(plugin => {
+			const runtime = readRuntimePluginEnablement(plugin);
+			return [plugin.name, { load: plugin.load?.kind, global: runtime?.globalEnabled, effective: runtime?.effectiveEnabled, required: runtime?.managedDesiredEnabled, organization: readCustomizationOrganizationMeta(plugin) }];
+		})), {
+			required: { load: CustomizationLoadStatus.Loaded, global: false, effective: true, required: true, organization: undefined },
+			own: { load: CustomizationLoadStatus.Loaded, global: true, effective: true, required: undefined, organization: undefined },
+			missing: { load: CustomizationLoadStatus.Error, global: undefined, effective: undefined, required: undefined, organization: { requiredEnabled: true } },
+		});
+	});
+
 	test('plugin inventory becomes available when the chat starts even when the SDK omits inactive plugins', async () => {
 		const client = new TestCopilotClient([]);
 		client.pluginInstallations = [
@@ -3478,6 +3517,56 @@ suite('CopilotAgent', () => {
 		await controller.publishWhenSettled(true);
 		await controller.publishWhenSettled(true);
 		assert.deepStrictEqual(published, []);
+	});
+
+	test('runtime contribution reloads republish only a changed runtime plugin inventory and coalesce bursts', async () => {
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
+		const root = URI.file('/sdk-installed/team');
+		const written = Event.toPromise(fileService.onDidFilesChange);
+		await fileService.writeFile(URI.joinPath(root, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"team"}'));
+		await written;
+		const client = new TestCopilotClient([]);
+		const installation = { name: 'team', marketplace: 'test', enabled: false, rootPath: root.fsPath };
+		client.pluginInstallations = [installation];
+		const agent = createTestAgent(disposables, { fileService, copilotClient: client });
+		afterTest(() => disposeAgent(agent));
+		let listCalls = 0;
+		let gate: DeferredPromise<void> | undefined;
+		setDefaultSessionStub(agent, 'contribution-reload', {
+			listInstalledPlugins: async () => {
+				listCalls++;
+				await gate?.p;
+				return client.pluginInstallations;
+			},
+		});
+		const controller = agent['_getOrCreateActiveClient'](AgentSession.uri('copilotcli', 'contribution-reload'), URI.file('/workspace')).pluginController;
+		await controller.publishIfRuntimePluginsChanged();
+		const published: (boolean | undefined)[] = [];
+		disposables.add(controller.onDidPublish(action => {
+			if (action.type === ActionType.SessionCustomizationsChanged) {
+				published.push(readRuntimePluginEnablement(action.customizations.find(item => item.uri === root.toString())!)?.globalEnabled);
+			}
+		}));
+		const reload = async (count: number) => {
+			const before = listCalls;
+			gate = new DeferredPromise<void>();
+			const reloads = Array.from({ length: count }, () => controller.publishIfRuntimePluginsChanged());
+			gate.complete();
+			await Promise.all(reloads);
+			gate = undefined;
+			return { listCalls: listCalls - before, published: published.splice(0) };
+		};
+
+		const unchanged = await reload(1);
+		installation.enabled = true;
+		const changed = await reload(1);
+		const burst = await reload(3);
+
+		assert.deepStrictEqual({ unchanged, changed, burst }, {
+			unchanged: { listCalls: 1, published: [] },
+			changed: { listCalls: 2, published: [true] },
+			burst: { listCalls: 2, published: [] },
+		});
 	});
 
 	for (const liveSource of [false, true]) {
@@ -9523,6 +9612,44 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		test('relaunches a runtime that started before canvases were enabled, before a canvas opens while it is idle, without stopping its work, and before its next turn', async () => {
+			const { agent, launches, configurationService } = setup(undefined, [], [], { [AgentHostCanvasesEnabledConfigKey]: false });
+			afterTest(() => disposeAgent(agent));
+			await agent.authenticate('https://api.github.com', 'token');
+			const session = AgentSession.uri('copilotcli', 'late-canvases');
+			const chat = defaultChatUri(session);
+			const directory = URI.file(process.cwd());
+			const context = exactChatContext(session, chat, session);
+			await provisionSession(agent, { session, model: { id: 'gpt-4o' }, workingDirectories: [directory] });
+			await agent.chats.sendMessage(chat, 'first', [directory], undefined, 'first', undefined, context);
+			// The client's configuration enables canvases only after the runtime launched.
+			configurationService.updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
+			const whileBusy = await agent.openSessionCanvas(session, { canvasId: 'preview', instanceId: 'preview' }, chat, context).then(() => 'opened', (error: Error) => error.message);
+			const launched = chatEntriesBySdkId(agent).get(launches[0].sessionId)!.chatSession;
+			launched.discardActiveTurn();
+			// Background subagents outlive the turn and would stop with the runtime.
+			const subagents = stub(launched, 'hasActiveSubagents').get(() => true);
+			const whileSubagents = await agent.openSessionCanvas(session, { canvasId: 'preview', instanceId: 'preview' }, chat, context).then(() => 'opened', (error: Error) => error.message);
+			subagents.restore();
+			await agent.openSessionCanvas(session, { canvasId: 'preview', instanceId: 'preview' }, chat, context);
+			configurationService.updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: false });
+			await agent.chats.sendMessage(chat, 'second', [directory], undefined, 'second', undefined, context);
+
+			assert.deepStrictEqual({
+				whileBusy,
+				whileSubagents,
+				launches: launches.map(launch => ({ kind: launch.kind, canvases: launch.config.requestCanvasRenderer === true, opens: launch.runtime.canvasOpenCalls.map(call => call.instanceId) })),
+			}, {
+				whileBusy: 'Canvases are disabled for this session.',
+				whileSubagents: 'Canvases are disabled for this session.',
+				launches: [
+					{ kind: 'create', canvases: false, opens: [] },
+					{ kind: 'resume', canvases: true, opens: ['preview'] },
+					{ kind: 'resume', canvases: false, opens: [] },
+				],
+			});
+		});
+
 		test('restores released scoped canvases on observation once a client contributes, across repeated releases', async () => {
 			const directory = URI.file(process.cwd());
 			const initialCanvas = {
@@ -10469,6 +10596,7 @@ suite('CopilotAgent', () => {
 			hasPendingConnectorRefresh: false,
 			extensionLaunchDirectories: [],
 			onDidChangeRuntimePlugins: Event.None,
+			onDidReloadRuntimeContributions: Event.None,
 			setExtensionLaunchAdmission(admission: IDisposable) { extensionLaunchAdmission = admission; },
 			async initializeSession() {
 				calls.push('initialize');
@@ -15002,6 +15130,39 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('restarts the Copilot runtime without client certificates when http.systemCertificates is turned off', async () => {
+			const directory = await fs.mkdtemp(join(os.tmpdir(), 'copilot-system-certificates-'));
+			const client = new TestCopilotClient([]);
+			const proxyResolver = new TestProxyResolver();
+			proxyResolver.clientCertificates = [rootCertificates[0]];
+			const { agent, configurationService, instantiationService } = createTestAgentContext(disposables, { copilotClient: client, proxyResolver });
+			const environment = instantiationService.invokeFunction(accessor => accessor.get(INativeEnvironmentService));
+			const environmentStub = stub(environment, 'userDataPath').value(directory);
+			try {
+				await agent.listChatsToMigrate();
+				const enabledBundle = getCreatedClientOptions(agent).at(-1)?.env?.NODE_EXTRA_CA_CERTS;
+				configurationService.updateRootConfig({ [AgentHostProxyConfigKey.SystemCertificates]: false });
+				proxyResolver.fireConfigurationChange();
+				await proxyRefresh(agent);
+				await agent.listChatsToMigrate();
+				assert.deepStrictEqual({
+					enabledBundleInUserData: enabledBundle?.startsWith(join(directory, 'certificates')),
+					startCallCount: client.startCallCount,
+					stopCallCount: client.stopCallCount,
+					disabledBundle: getCreatedClientOptions(agent).at(-1)?.env?.NODE_EXTRA_CA_CERTS,
+				}, {
+					enabledBundleInUserData: true,
+					startCallCount: 2,
+					stopCallCount: 1,
+					disabledBundle: process.env.NODE_EXTRA_CA_CERTS,
+				});
+			} finally {
+				await disposeAgent(agent);
+				environmentStub.restore();
+				await fs.rm(directory, { recursive: true, force: true });
+			}
+		});
+
 		test('registers runtime-scoped network callbacks and sets no proxy environment variables', async () => {
 			process.env['HTTPS_PROXY'] = 'http://ambient-proxy.example:8080';
 			process.env['NO_PROXY'] = 'intranet.example';
@@ -15341,6 +15502,21 @@ suite('CopilotAgent', () => {
 					environmentWithCredentials: undefined,
 				},
 			});
+		});
+
+		test('lets the Copilot runtime resolve its proxies itself when http.proxySupport is off', async () => {
+			const proxyResolver = new TestProxyResolver();
+			proxyResolver.resolvedProxyInfo = { url: 'https://secure-proxy.example', type: 'HTTPS', source: 'setting', result: 'HTTPS secure-proxy.example:443' };
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), proxyResolver });
+			afterTest(() => disposeAgent(agent));
+			await agent.listChatsToMigrate();
+			const resolveProxy = getCreatedClientOptions(agent).at(-1)?.network?.resolveProxy;
+			const signal = new AbortController().signal;
+			const on = await resolveProxy?.({ url: 'https://api.example/' }, signal);
+			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.ProxySupport]: 'off' });
+			const off = await resolveProxy?.({ url: 'https://api.example/' }, signal);
+
+			assert.deepStrictEqual({ on, off }, { on: 'HTTPS secure-proxy.example:443', off: undefined });
 		});
 
 		test('authenticates the Copilot runtime with this machine\'s ticket for the principal it requests, or a client\'s', async () => {
@@ -20737,9 +20913,11 @@ suite('CopilotAgent', () => {
 				extensionLaunchDirectories: [],
 				appliedSnapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} } satisfies IActiveClientSnapshot,
 				clientToolsRequireRestart: () => false,
+				canvasRuntimeEnabled: false,
 				onMcpNotification: Event.None,
 				onDidRequireAuth: Event.None,
 				onDidChangeRuntimePlugins: Event.None,
+				onDidReloadRuntimeContributions: Event.None,
 				topLevelMcpCustomizations: () => [],
 				mcpServerOwners: () => undefined,
 				listInstalledPlugins: async () => [],
@@ -22105,10 +22283,12 @@ suite('CopilotAgent', () => {
 			await agent.authenticate('https://api.github.com', 'token');
 
 			const session = AgentSession.uri('copilotcli', 'sync-customizations-test');
+			// PluginController.sync parses the agent files from disk before it publishes them, which takes longer on a loaded machine.
+			const parsedChildrenPublished = Event.toPromise(Event.filter(agent.onDidChatProgress, () => actions.some(a =>
+				a.type === ActionType.SessionCustomizationUpdated && (a.customization as PluginCustomization).children !== undefined
+			)), disposables.add(new DisposableStore()));
 			agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client-1' }).customizations = [{ type: CustomizationType.Plugin, id: customizationId(sourceRoot.toString()), uri: sourceRoot.toString(), name: 'Plugin A' }];
-
-			// Wait for the deferred resolution chain in PluginController.sync.
-			await new Promise(r => setTimeout(r, 50));
+			await parsedChildrenPublished;
 
 			const updatesWithChildren = actions
 				.filter((a): a is Extract<SessionAction, { type: ActionType.SessionCustomizationUpdated }> => a.type === ActionType.SessionCustomizationUpdated)
@@ -23417,9 +23597,11 @@ suite('CopilotAgent', () => {
 					extensionLaunchDirectories: [],
 					appliedSnapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} } satisfies IActiveClientSnapshot,
 					clientToolsRequireRestart: () => false,
+					canvasRuntimeEnabled: false,
 					onMcpNotification: Event.None,
 					onDidRequireAuth: Event.None,
 					onDidChangeRuntimePlugins: Event.None,
+					onDidReloadRuntimeContributions: Event.None,
 					topLevelMcpCustomizations: () => [],
 					mcpServerOwners: () => undefined,
 					listInstalledPlugins: async () => [],
@@ -26490,6 +26672,7 @@ suite('CopilotAgent', () => {
 				extensionLaunchDirectories: [],
 				appliedSnapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} } satisfies IActiveClientSnapshot,
 				clientToolsRequireRestart: () => false,
+				canvasRuntimeEnabled: false,
 				appliedAdditionalDirectories: [],
 				appliedDisabledRootMcpServers: [],
 				requiresRestartAfterWorkingDirectoryChange: false,
@@ -26500,6 +26683,7 @@ suite('CopilotAgent', () => {
 				onMcpNotification: Event.None,
 				onDidRequireAuth: Event.None,
 				onDidChangeRuntimePlugins: Event.None,
+				onDidReloadRuntimeContributions: Event.None,
 				mcpServerStates: observableValue('test', []),
 				setExtensionLaunchAdmission(admission: IDisposable): void { admission.dispose(); },
 				async initializeSession(): Promise<void> { rec.initialized = true; },
@@ -26618,6 +26802,40 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual({ afterRegistration, afterLaterChange: calls.slice(afterRegistration.length) }, {
 				afterRegistration: ['initialized', 'clearAgentCommandCache', 'refreshDiscovery'],
 				afterLaterChange: ['clearAgentCommandCache', 'refreshDiscovery'],
+			});
+		});
+
+		test('checks runtime plugins for contribution reloads before and after a peer chat registers', async () => {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			afterTest(() => disposeAgent(agent));
+			await agent.authenticate('https://api.github.com', 'token');
+			const session = AgentSession.uri('copilotcli', 'contribution-reload-peer');
+			await provisionSession(agent, { session, workingDirectories: [URI.file('/workspace')] });
+			const calls: string[] = [];
+			const reloads = disposables.add(new Emitter<void>());
+			(agent as unknown as ChatInternals)._createAgentSession = (launchPlan, _dir, activeClient, identity) => {
+				const controller = (activeClient as unknown as { pluginController: { refreshDiscovery(): void; publishIfRuntimePluginsChanged(): Promise<void> } }).pluginController;
+				controller.refreshDiscovery = () => calls.push('refreshDiscovery');
+				controller.publishIfRuntimePluginsChanged = async () => { calls.push('publishIfRuntimePluginsChanged'); };
+				const built = makeFakeChatSession(session, launchPlan.sessionId, undefined, launchPlan.shellManager);
+				Object.assign(built.fake, {
+					chatChannelUri: identity?.chatChannelUri,
+					onDidReloadRuntimeContributions: reloads.event,
+					initializeSession: async () => {
+						reloads.fire();
+						calls.push('initialized');
+					},
+				});
+				return built.fake;
+			};
+
+			await agent.chats.createChat(URI.parse(buildChatUri(session, 'peer-a')), session, { model: { id: 'gpt-x' }, workingDirectories: [URI.file('/workspace')] });
+			const afterRegistration = [...calls];
+			reloads.fire();
+
+			assert.deepStrictEqual({ afterRegistration, afterLaterReload: calls.slice(afterRegistration.length) }, {
+				afterRegistration: ['initialized', 'publishIfRuntimePluginsChanged'],
+				afterLaterReload: ['publishIfRuntimePluginsChanged'],
 			});
 		});
 
@@ -28536,6 +28754,7 @@ suite('CopilotAgent', () => {
 				sessionId: `sdk-${key}`,
 				appliedSnapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} } satisfies IActiveClientSnapshot,
 				clientToolsRequireRestart: () => false,
+				canvasRuntimeEnabled: false,
 				async send(prompt: string, _attachments: unknown, turnId: string | undefined, _mode: unknown, senderClientId: string | undefined): Promise<void> {
 					rec.sends.push({ prompt, turnId, senderClientId });
 				},
@@ -28577,9 +28796,11 @@ suite('CopilotAgent', () => {
 					extensionLaunchDirectories: [],
 					appliedSnapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} } satisfies IActiveClientSnapshot,
 					clientToolsRequireRestart: () => false,
+					canvasRuntimeEnabled: false,
 					onMcpNotification: Event.None,
 					onDidRequireAuth: Event.None,
 					onDidChangeRuntimePlugins: Event.None,
+					onDidReloadRuntimeContributions: Event.None,
 					mcpServerStates: observableValue('test', []),
 					setExtensionLaunchAdmission(admission: IDisposable): void { admission.dispose(); },
 					async initializeSession(): Promise<void> { },
@@ -30359,6 +30580,7 @@ suite('CopilotAgent', () => {
 			requiresRestartAfterWorkingDirectoryChange: boolean;
 			requiresMcpLaunchConfigurationRefresh: boolean;
 			requiresControlPlaneResync: boolean;
+			canvasRuntimeEnabled: boolean;
 			clientToolsRequireRestart(tools: readonly ToolDefinition[]): boolean;
 			updateClientTools(tools: readonly ToolDefinition[]): Promise<void>;
 			toolUpdates: (readonly ToolDefinition[])[];
@@ -30383,6 +30605,7 @@ suite('CopilotAgent', () => {
 				requiresMcpLaunchConfigurationRefresh: false,
 				requiresControlPlaneResync: false,
 				clientToolsRequireRestart: () => false,
+				canvasRuntimeEnabled: false,
 				toolUpdates: [],
 				async updateClientTools(tools) {
 					this.toolUpdates.push(tools);

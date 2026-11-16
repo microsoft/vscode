@@ -8,6 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -25,6 +26,8 @@ import { INativeWorkbenchEnvironmentService } from '../../../../services/environ
 import { ICopilotHomeService } from '../../../../../platform/environment/common/copilotHome.js';
 import { TestCopilotHomeService } from '../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
+import { reviveBrowserEditorViewState } from '../../common/browserEditorInput.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IBrowserViewNetworkResolver, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IBrowserZoomService } from '../../common/browserZoomService.js';
@@ -647,6 +650,33 @@ suite('BrowserViewWorkbenchService', () => {
 			{ scope: BrowserViewStorageScope.Ephemeral },
 			{ scope: BrowserViewStorageScope.Workspace, network: { authority: 'ssh-remote+host' } },
 		]);
+	});
+
+	test('opens local files through the open file action on the local network without an associated resource and restores their session', async () => {
+		const { service, events, creationOptions, instantiationService } = createService('ssh-remote+host');
+		events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+		registerProxyProvider(service, []);
+		instantiationService.stub(IEditorService, 'openEditor', async (editor: IResourceEditorInput) => {
+			const id = BrowserViewUri.getId(editor.resource);
+			assert.ok(id);
+			const input = store.add(service.getOrCreateLazy({ id, ...reviveBrowserEditorViewState(editor.options?.viewState) }));
+			await input.resolve();
+			const restored = store.add(service.getOrCreateLazy({ ...input.serialize(), id: 'restored' }));
+			await restored.resolve();
+			return undefined;
+		});
+
+		await instantiationService.invokeFunction(CommandsRegistry.getCommand(BrowserViewCommandId.OpenFile)!.handler, URI.file('/Users/me/index.html'));
+
+		assert.deepStrictEqual(creationOptions.map(options => ({
+			session: options.session,
+			associatedResource: options.associatedResource,
+			initialUrl: options.initialUrl,
+		})), Array(2).fill({
+			session: { scope: BrowserViewStorageScope.Ephemeral },
+			associatedResource: undefined,
+			initialUrl: 'file:///Users/me/index.html',
+		}));
 	});
 
 	function proxy(port: number): ITunnelProxyInfo {

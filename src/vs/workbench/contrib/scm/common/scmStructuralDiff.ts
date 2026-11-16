@@ -9,6 +9,7 @@ import { CancellationError, isCancellationError } from '../../../../base/common/
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
@@ -24,6 +25,7 @@ import { ITextResourceConfigurationService } from '../../../../editor/common/ser
 import { StructuralDiffs } from '../../../../editor/contrib/structuralDiff/common/structuralDiff.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ISCMProvider, ISCMResource, ISCMResourceGroup } from './scm.js';
 
@@ -172,10 +174,14 @@ class StructuralDiffEntry extends Disposable {
 	private readonly disposal = new DeferredPromise<void>();
 	/** Settles when the entry is disposed, for example because its file was collapsed or the view was hidden. */
 	readonly whenDisposed = this.disposal.p;
+	/** Measures the time from the request until its outcome. */
+	readonly stopWatch = StopWatch.create();
 	pending?: Promise<readonly SCMStructuralDiffElement[]>;
 	children?: readonly SCMStructuralDiffElement[];
 	disposed = false;
 	timedOut = false;
+	/** Whether a provider failed, returned an invalid result or cancelled on its own, see {@link StructuralDiffs.compute}. */
+	providerFailed = false;
 
 	constructor(readonly resource: ISCMResource, readonly generation: number) {
 		super();
@@ -201,6 +207,24 @@ export function hasSCMStructuralDiffProvider(languageFeaturesService: ILanguageF
 	return languageFeaturesService.structuralDiffProvider.allNoModel().length > 0;
 }
 
+type StructuralDiffRequestOutcome = 'success' | 'noResult' | 'providerFailed' | 'timedOut' | 'error';
+
+type StructuralDiffRequestedEvent = {
+	outcome: StructuralDiffRequestOutcome;
+	languageId: string;
+	durationMs: number;
+	incomplete: 0 | 1;
+};
+
+type StructuralDiffRequestedClassification = {
+	owner: 'dbaeumer';
+	comment: 'Reports the outcome of requesting the structural changes of a file that was expanded in the Source Control view, to understand how often they are used and how often they can be shown.';
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'success if structural changes were computed, noResult if no provider supplied any, providerFailed if a provider failed, timedOut if computing them took too long, and error if, for example, a document could not be loaded.' };
+	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language of the file.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The time in milliseconds from the request until its outcome.' };
+	incomplete: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: '1 if the provider marked its result as incomplete, otherwise 0.' };
+};
+
 export class SCMStructuralDiffModel extends Disposable {
 	private _enabled = false;
 	get enabled(): boolean { return this._enabled; }
@@ -214,6 +238,14 @@ export class SCMStructuralDiffModel extends Disposable {
 	private readonly _onDidChange = this._register(new Emitter<ISCMResource | undefined>());
 	readonly onDidChange = this._onDidChange.event;
 	private generation = 0;
+	/**
+	 * Files whose expansion was reported. Each expansion is reported once, by the first request that completes after
+	 * it. Reloads of an expanded file are not new expansions, so they are not reported, whether an edit, hiding and
+	 * showing the view, or a provider or language change causes them. Collapsing a file or turning structural diffs off
+	 * ends its expansion. Resources that their group removes or replaces, for example because their status changed, are
+	 * not used again, so they need no cleanup, and the first request of a new resource object is reported.
+	 */
+	private reportedResources = new WeakSet<ISCMResource>();
 	private readonly pendingChanges = new Set<ISCMResource>();
 	private readonly changeScheduler = this._register(new RunOnceScheduler(() => {
 		const resources = [...this.pendingChanges];
@@ -232,6 +264,7 @@ export class SCMStructuralDiffModel extends Disposable {
 		@ITextResourceConfigurationService private readonly configurationService: ITextResourceConfigurationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this.hasProvider = observableFromEvent(this, this.languageFeaturesService.structuralDiffProvider.onDidChange, () => hasSCMStructuralDiffProvider(this.languageFeaturesService));
@@ -268,6 +301,7 @@ export class SCMStructuralDiffModel extends Disposable {
 		this._enabled = enabled;
 		if (!enabled) {
 			this.clear();
+			this.reportedResources = new WeakSet();
 		}
 		this._onDidChange.fire(undefined);
 	}
@@ -319,6 +353,7 @@ export class SCMStructuralDiffModel extends Disposable {
 	}
 
 	release(resource: ISCMResource): void {
+		this.reportedResources.delete(resource);
 		this.entries.deleteAndDispose(resource);
 		this._onDidChange.fire(resource);
 	}
@@ -465,6 +500,7 @@ export class SCMStructuralDiffModel extends Disposable {
 				children.push(this.createStatus(entry, 'incomplete', children.length));
 			}
 			entry.children = children;
+			this.report(entry, result ? 'success' : entry.providerFailed ? 'providerFailed' : 'noResult', !!result?.isIncomplete);
 			if (children.length === 0) {
 				this._onDidChange.fire(resource);
 			}
@@ -491,9 +527,12 @@ export class SCMStructuralDiffModel extends Disposable {
 	 */
 	private async computeStructuralDiff(entry: StructuralDiffEntry, original: ITextModel, modified: ITextModel): Promise<StructuralDiffResult | undefined> {
 		try {
-			return await StructuralDiffs.compute(this.editorWorkerService, this.configurationService, this.languageFeaturesService.structuralDiffProvider, original, modified, entry.cancellation.token);
+			return await StructuralDiffs.compute(this.editorWorkerService, this.configurationService, this.languageFeaturesService.structuralDiffProvider, original, modified, entry.cancellation.token, () => {
+				entry.providerFailed = true;
+			});
 		} catch (error) {
 			if (isCancellationError(error) && !entry.disposed && !entry.cancellation.token.isCancellationRequested) {
+				entry.providerFailed = true;
 				return undefined;
 			}
 			throw error;
@@ -510,7 +549,23 @@ export class SCMStructuralDiffModel extends Disposable {
 		}
 		const children = [this.createStatus(entry, status, 0)];
 		entry.children = children;
+		this.report(entry, status);
 		return children;
+	}
+
+	/** Reports the outcome of the first request that completes after its file was expanded, see {@link SCMStructuralDiffModel.reportedResources}. */
+	private report(entry: StructuralDiffEntry, outcome: StructuralDiffRequestOutcome, incomplete = false): void {
+		if (this.reportedResources.has(entry.resource)) {
+			return;
+		}
+		this.reportedResources.add(entry.resource);
+		const modified = entry.resource.multiDiffEditorModifiedUri!;
+		this.telemetryService.publicLog2<StructuralDiffRequestedEvent, StructuralDiffRequestedClassification>('scmStructuralDiffRequested', {
+			outcome,
+			languageId: this.modelService.getModel(modified)?.getLanguageId() ?? this.languageService.guessLanguageIdByFilepathOrFirstLine(modified) ?? 'plaintext',
+			durationMs: Math.round(entry.stopWatch.elapsed()),
+			incomplete: incomplete ? 1 : 0,
+		});
 	}
 
 	private createStatus(entry: StructuralDiffEntry, status: SCMStructuralDiffStatus['status'], order: number): SCMStructuralDiffStatus {

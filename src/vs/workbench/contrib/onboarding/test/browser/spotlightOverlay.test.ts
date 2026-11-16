@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { $, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -402,6 +402,28 @@ suite('SpotlightOverlay', () => {
 			advances: ['button'],
 		});
 	});
+
+	for (const half of ['primary', 'dropdown'] as const) {
+		test(`Escape from a split button's ${half} half dismisses its wrapper spotlight`, () => {
+			const container = createContainer();
+			const target = disposables.add(new ButtonWithDropdown(container, {
+				...defaultButtonStyles,
+				contextMenuProvider: { showContextMenu: () => { } },
+				actions: [],
+			}));
+			target.label = 'Create with Agent';
+			const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+			const reasons: OnboardingDismissReason[] = [];
+			disposables.add(overlay.onDidSkip(reason => reasons.push(reason)));
+			overlay.show(target.element, content(), { allowTargetInteraction: true });
+
+			const button = half === 'primary' ? target.primaryButton : target.dropdownButton;
+			button.focus();
+			button.element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual(reasons, [OnboardingDismissReason.EscapeKey]);
+		});
+	}
 
 	test('Escape in external target UI skips without consuming the native dismissal', () => {
 		const container = createContainer();

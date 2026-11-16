@@ -31,6 +31,7 @@ import { ITextResourceConfigurationService } from '../../../../../editor/common/
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ISCMProvider, ISCMResource, ISCMResourceGroup } from '../../common/scm.js';
 import { SCMStructuralDiffElement, SCMStructuralDiffModel, getSCMStructuralDiffAriaLabel, getSCMStructuralDiffChange, getSCMStructuralDiffChangeAnnotation, getSCMStructuralDiffDescription, getSCMStructuralDiffLabel } from '../../common/scmStructuralDiff.js';
@@ -82,6 +83,7 @@ class TestResolver extends mock<ITextModelService>() {
 
 class TestProvider implements StructuralDiffProvider {
 	result: StructuralDiff | undefined;
+	error?: Error;
 	pending?: DeferredPromise<StructuralDiff | undefined>;
 	started?: DeferredPromise<CancellationToken>;
 	calls = 0;
@@ -95,6 +97,9 @@ class TestProvider implements StructuralDiffProvider {
 		this.modified = modified;
 		this.context = context;
 		this.started?.complete(token);
+		if (this.error) {
+			throw this.error;
+		}
 		return this.pending?.p ?? this.result;
 	}
 }
@@ -113,6 +118,7 @@ suite('SCM structural diff model', () => {
 	let instantiationService: TestInstantiationService;
 	let registration: { dispose(): void };
 	let errors: number;
+	let telemetryEvents: Record<string, unknown>[];
 	let maxComputationTimeSetting: unknown;
 	let textDiffTimedOut: boolean;
 	let textDiffTimeBudgets: number[];
@@ -145,6 +151,7 @@ suite('SCM structural diff model', () => {
 		languageChanges = store.add(new Emitter<{ model: ITextModel; oldLanguageId: string }>());
 		languageRegistryChanges = store.add(new Emitter<void>());
 		errors = 0;
+		telemetryEvents = [];
 		maxComputationTimeSetting = undefined;
 		textDiffTimedOut = false;
 		textDiffTimeBudgets = [];
@@ -164,6 +171,9 @@ suite('SCM structural diff model', () => {
 		});
 		instantiationService.set(ILogService, new class extends NullLogService {
 			override error(): void { errors++; }
+		});
+		instantiationService.set(ITelemetryService, new class extends mock<ITelemetryService>() {
+			override publicLog2(eventName: string, data?: Record<string, unknown>): void { telemetryEvents.push({ eventName, ...data }); }
 		});
 		instantiationService.set(ITextResourceConfigurationService, new class extends mock<ITextResourceConfigurationService>() {
 			override getValue<T>(): T { return maxComputationTimeSetting as T; }
@@ -943,5 +953,73 @@ suite('SCM structural diff model', () => {
 		}, {
 			labels: ['Structural changes took too long to load'], errors: 0, calls: 0, budgets: [1234], released: [],
 		});
+	});
+
+	test('reports the outcome of the request for an expanded file', async () => {
+		const expand = async () => {
+			model.release(resource);
+			await model.getChildren(resource);
+		};
+		const reported: string[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(error => reported.push(error.message));
+		try {
+			await model.getChildren(resource);
+			provider.result = { ...createResult(), isIncomplete: true };
+			await expand();
+			provider.result = undefined;
+			await expand();
+			provider.error = new Error('Provider failed');
+			await expand();
+			provider.error = new CancellationError();
+			await expand();
+			provider.error = undefined;
+			textDiffTimedOut = true;
+			await expand();
+			textDiffTimedOut = false;
+			resolver.modifiedError = new Error('Cannot resolve modified model');
+			await expand();
+			const requested = (outcome: string, incomplete: 0 | 1 = 0) => ({ eventName: 'scmStructuralDiffRequested', outcome, languageId: 'plaintext', durationMs: 'number', incomplete });
+			assert.deepStrictEqual({ events: telemetryEvents.map(event => ({ ...event, durationMs: typeof event.durationMs })), reported }, {
+				events: [requested('success'), requested('success', 1), requested('noResult'), requested('providerFailed'), requested('providerFailed'), requested('timedOut'), requested('error')],
+				reported: ['Provider failed'],
+			});
+		} finally {
+			setUnexpectedErrorHandler(previousHandler);
+		}
+	});
+
+	test('reports only the first request that completes after a file is expanded', async () => {
+		// The file changes while the provider computes the first request, so that request is abandoned and loaded again.
+		provider.pending = new DeferredPromise<StructuralDiff | undefined>();
+		provider.started = new DeferredPromise<CancellationToken>();
+		const abandoned = model.getChildren(resource);
+		await provider.started.p;
+		modified.setValue(modified.getValue().replace(/return \d/, 'return 3'));
+		await abandoned;
+		await provider.pending.complete(undefined);
+		provider.pending = undefined;
+		await model.getChildren(resource);
+		// Edits, hiding and showing the view, and provider changes reload the expanded file, but do not expand it again.
+		modified.setValue(modified.getValue().replace(/return \d/, 'return 4'));
+		await model.getChildren(resource);
+		model.setVisible(false);
+		model.setVisible(true);
+		await model.getChildren(resource);
+		store.add(features.structuralDiffProvider.register({ scheme: 'file' }, provider));
+		await model.getChildren(resource);
+		// A file that is collapsed while it loads is expanded again.
+		provider.pending = new DeferredPromise<StructuralDiff | undefined>();
+		provider.started = new DeferredPromise<CancellationToken>();
+		model.release(resource);
+		const collapsed = model.getChildren(resource);
+		await provider.started.p;
+		model.release(resource);
+		await collapsed;
+		await provider.pending.complete(provider.result);
+		provider.pending = undefined;
+		await model.getChildren(resource);
+		// The provider ran for each of the seven requests, so the reloads completed without being reported.
+		assert.deepStrictEqual({ outcomes: telemetryEvents.map(event => event.outcome), calls: provider.calls }, { outcomes: ['success', 'success'], calls: 7 });
 	});
 });
