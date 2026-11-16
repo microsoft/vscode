@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ISessionGridPane } from '../../../../services/sessions/browser/sessionGridPane.js';
@@ -12,7 +14,8 @@ import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsNavigationService } from '../sessionsNavigationService.js';
 import type { IOpenChatOptions, IOpenSessionOptions } from '../sessionsService.js';
 import { IEditorWindowSessionsPresenterService } from '../editorWindow/editorWindowSessionsPresenter.js';
-import { IAgentsViewProvidersService, prepareAgentsViewSessionForOpen, waitForAgentsViewSession } from './agentsViewProviders.js';
+import { IAgentsViewProvidersService } from './agentsViewProviders.js';
+import { prepareSessionForOpen, resolveSessionForOpen } from '../sessionOpen.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { requestSessionWorkspaceTrust } from '../../../../services/sessions/browser/worktreeTrust.js';
@@ -22,7 +25,7 @@ import { requestSessionWorkspaceTrust } from '../../../../services/sessions/brow
  * `IEditorWindowSessionsPresenterService`), such as tabs of the chat part. The window has no grid of sessions: the
  * presenter's active chat is its active session.
  */
-export class EditorWindowSessionsNavigationHost implements ISessionsNavigationService {
+export class EditorWindowSessionsNavigationHost extends Disposable implements ISessionsNavigationService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -36,7 +39,9 @@ export class EditorWindowSessionsNavigationHost implements ISessionsNavigationSe
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
-	) { }
+	) {
+		super();
+	}
 
 	/** What shows the chats of sessions: the chat part, while a feature shows them there, or the Chat view. */
 	private get _presenter() {
@@ -47,22 +52,24 @@ export class EditorWindowSessionsNavigationHost implements ISessionsNavigationSe
 		return this._mainWindowHost;
 	}
 
-	/** Increases with each {@link openSession}, which shows its session only while it is the latest. */
-	private _openGeneration = 0;
+	/** The latest open, which a later one cancels: an open shows its session only while it is the latest. */
+	private readonly _open = this._register(new MutableDisposable<CancellationTokenSource>());
+
+	/** Cancels the open under way, if any, and starts another. */
+	private _startOpen(): CancellationToken {
+		this._open.value?.cancel();
+		const open = this._open.value = new CancellationTokenSource();
+		return open.token;
+	}
 
 	async openSession(sessionResource: URI, options?: IOpenSessionOptions): Promise<void> {
 		// A later open supersedes this one while it resolves, waits for or prepares its session: the user's latest pick shows
-		const open = ++this._openGeneration;
+		const token = this._startOpen();
 		// Its session is known only while the providers are held: until it shows, such as in the chat part, which holds them then
 		const hold = this._providers.acquire();
 		try {
-			// Providers redirect superseded resources, such as of a session they adopted, and leave unfamiliar ones unchanged
-			const resolved = await this._sessionsManagementService.resolveSessionResource(sessionResource, 'open');
-			const session = open === this._openGeneration ? await waitForAgentsViewSession(this._sessionsManagementService, () => this._sessionsManagementService.getSession(resolved)) : undefined;
-			if (session && open === this._openGeneration) {
-				await prepareAgentsViewSessionForOpen(this._sessionsProvidersService, session);
-			}
-			if (session && open === this._openGeneration) {
+			const session = await resolveSessionForOpen(this._sessionsManagementService, this._sessionsProvidersService, sessionResource, token);
+			if (session) {
 				await this._presenter.openChat(session, undefined, { preserveFocus: options?.preserveFocus });
 			}
 		} finally {
@@ -71,21 +78,21 @@ export class EditorWindowSessionsNavigationHost implements ISessionsNavigationSe
 	}
 
 	async openSessionToSide(session: ISession, options?: IOpenSessionOptions): Promise<void> {
-		await prepareAgentsViewSessionForOpen(this._sessionsProvidersService, session);
+		await prepareSessionForOpen(this._sessionsProvidersService, session);
 		await this._presenter.openChat(session, undefined, { preserveFocus: options?.preserveFocus, sideBySide: true });
 	}
 
 	async openChat(session: ISession, chatUri: URI, options?: IOpenChatOptions): Promise<void> {
 		// A later open, also of a session, supersedes this one while its session prepares, so that the user's latest pick shows
-		const open = ++this._openGeneration;
-		await prepareAgentsViewSessionForOpen(this._sessionsProvidersService, session);
-		if (open === this._openGeneration) {
+		const token = this._startOpen();
+		await prepareSessionForOpen(this._sessionsProvidersService, session);
+		if (!token.isCancellationRequested) {
 			await this._presenter.openChat(session, chatUri, { preserveFocus: options?.preserveFocus });
 		}
 	}
 
 	async openChatToSide(session: ISession, chatResource: URI, options?: { readonly preserveFocus?: boolean }): Promise<void> {
-		await prepareAgentsViewSessionForOpen(this._sessionsProvidersService, session);
+		await prepareSessionForOpen(this._sessionsProvidersService, session);
 		await this._presenter.openChat(session, chatResource, { preserveFocus: options?.preserveFocus, sideBySide: true });
 	}
 

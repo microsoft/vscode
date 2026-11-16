@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -27,6 +27,8 @@ import { ISessionsManagementService } from '../../../common/sessionsManagement.j
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ISessionOpenTelemetryService } from '../../../browser/sessionOpenTelemetryService.js';
+import { SESSION_OPEN_WAIT_TIMEOUT } from '../../../browser/sessionOpen.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { buildTestSession } from '../../common/testSessionBuilder.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../common/sessionsProvider.js';
@@ -344,7 +346,7 @@ suite('EditorWindowSessionsService', () => {
 		instantiationService.stub(IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({ acquire: () => toDisposable(() => { }) }));
 		instantiationService.stub(IWorkspaceTrustManagementService, upcastPartial<IWorkspaceTrustManagementService>({}));
 		instantiationService.stub(IWorkspaceTrustRequestService, upcastPartial<IWorkspaceTrustRequestService>({}));
-		const host = instantiationService.createInstance(EditorWindowSessionsNavigationHost);
+		const host = disposables.add(instantiationService.createInstance(EditorWindowSessionsNavigationHost));
 
 		const openingA = host.openSession(a.resource);
 		await host.openSession(b.resource);
@@ -354,6 +356,59 @@ suite('EditorWindowSessionsService', () => {
 
 		assert.deepStrictEqual(opened, ['b']);
 	});
+
+	test('an open waiting for a session its providers do not know yet stops as a later open supersedes it, and releases the providers then, by the sessions service and the navigation host alike', () => runWithFakedTimers({}, async () => {
+		const results: Record<string, unknown> = {};
+		for (const opener of ['service', 'host'] as const) {
+			const events: string[] = [];
+			const unknown: ISession = { ...buildTestSession({ id: 'unknown', title: 'Unknown' }).session, loading: constObservable(false) };
+			const b: ISession = { ...buildTestSession({ id: 'b', title: 'B' }).session, loading: constObservable(false) };
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({}));
+			instantiationService.stub(ICommandService, upcastPartial<ICommandService>({}));
+			const presenterService = disposables.add(instantiationService.createInstance(EditorWindowSessionsPresenterService));
+			const registration = presenterService.registerPresenter(upcastPartial<IEditorWindowSessionsPresenter>({
+				openChat: async session => { events.push(`open ${session.sessionId}`); },
+				isShowing: () => false,
+			}));
+			instantiationService.stub(IEditorWindowSessionsPresenterService, presenterService);
+			instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({}));
+			instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+				resolveSessionResource: async resource => resource,
+				getSession: resource => isEqual(resource, b.resource) ? b : undefined,
+				onDidChangeSessions: Event.None,
+				onDidChangeSession: Event.None,
+			}));
+			instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined, onDidChangeProviders: Event.None }));
+			let holds = 0;
+			instantiationService.stub(IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({ acquire: () => { holds++; return toDisposable(() => { holds--; events.push(`release, ${holds} held`); }); } }));
+			instantiationService.stub(ISessionOpenTelemetryService, upcastPartial<ISessionOpenTelemetryService>({
+				withOpenRequest: (async (_source: string, _token: unknown, open: (attempt: unknown) => Promise<void>) => open({})) as ISessionOpenTelemetryService['withOpenRequest'],
+				sessionResolved: () => { }, sessionActivated: () => { }, sessionLoaded: () => { },
+			}));
+			instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({}));
+			instantiationService.stub(IEditorService, upcastPartial<IEditorService>({}));
+			instantiationService.stub(IWorkspaceTrustManagementService, upcastPartial<IWorkspaceTrustManagementService>({}));
+			instantiationService.stub(IWorkspaceTrustRequestService, upcastPartial<IWorkspaceTrustRequestService>({}));
+			const target = opener === 'service'
+				? disposables.add(instantiationService.createInstance(EditorWindowSessionsService))
+				: disposables.add(instantiationService.createInstance(EditorWindowSessionsNavigationHost));
+
+			const start = Date.now();
+			let waited: number | undefined;
+			const openingUnknown = target.openSession(unknown.resource).then(() => { waited = Date.now() - start; });
+			await timeout(10);
+			await target.openSession(b.resource);
+			await openingUnknown;
+			registration.dispose();
+			results[opener] = { events, stoppedAtOnce: waited !== undefined && waited < SESSION_OPEN_WAIT_TIMEOUT };
+		}
+
+		assert.deepStrictEqual(results, {
+			service: { events: ['release, 1 held', 'open b', 'release, 0 held'], stoppedAtOnce: true },
+			host: { events: ['release, 1 held', 'open b', 'release, 0 held'], stoppedAtOnce: true },
+		});
+	}));
 
 	test('a chat open whose session still prepares is superseded by a later open, also of a quick chat, and supersedes an earlier one, by the sessions service and the navigation host alike, so the user\'s latest pick shows', async () => {
 		const a: ISession = { ...buildTestSession({ id: 'a', title: 'A' }).session, loading: constObservable(false) };
@@ -384,7 +439,7 @@ suite('EditorWindowSessionsService', () => {
 			instantiationService.stub(IEditorService, upcastPartial<IEditorService>({ activeEditor: undefined }));
 			instantiationService.stub(IWorkspaceTrustManagementService, upcastPartial<IWorkspaceTrustManagementService>({}));
 			instantiationService.stub(IWorkspaceTrustRequestService, upcastPartial<IWorkspaceTrustRequestService>({}));
-			const host = kind === 'service' ? disposables.add(instantiationService.createInstance(EditorWindowSessionsService)) : instantiationService.createInstance(EditorWindowSessionsNavigationHost);
+			const host = kind === 'service' ? disposables.add(instantiationService.createInstance(EditorWindowSessionsService)) : disposables.add(instantiationService.createInstance(EditorWindowSessionsNavigationHost));
 			const supersededBy = async (later: () => Promise<void>) => {
 				preparingA = new DeferredPromise<void>();
 				const openingA = host.openChat(a, a.mainChat.get().resource);

@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, waitForState } from '../../../../../base/common/observable.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -24,7 +25,8 @@ import { ISessionOpenTelemetryService, SESSION_OPEN_TIMEOUT_MS } from '../sessio
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { ICloseChatOptions, IOpenChatOptions, IOpenNewChatInSessionOptions, IOpenNewSessionOptions, IOpenNewSessionResult, IOpenSessionOptions, IOpenSessionsOptions, ISessionNavigationRequest, ISessionsService, SessionGridDirection } from '../sessionsService.js';
 import { getEditorWindowComposerTarget, IEditorWindowSessionsPresenterService } from '../editorWindow/editorWindowSessionsPresenter.js';
-import { IAgentsViewProvidersService, prepareAgentsViewSessionForOpen, waitForAgentsViewSession } from './agentsViewProviders.js';
+import { IAgentsViewProvidersService } from './agentsViewProviders.js';
+import { prepareSessionForOpen, resolveSessionForOpen, waitForSessionToLoad } from '../sessionOpen.js';
 
 /**
  * The sessions of an editor window, for the UI the Agents window shares with it, such as the chat view and its pills: the
@@ -121,8 +123,15 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 
 	//#region Sessions and chats: shown by the presenter
 
-	/** Increases with each {@link openSession}, which shows its session only while it is the latest. */
-	private _openGeneration = 0;
+	/** The latest open, which a later one cancels: an open shows its session only while it is the latest. */
+	private readonly _open = this._register(new MutableDisposable<CancellationTokenSource>());
+
+	/** Cancels the open under way, if any, and starts another. */
+	private _startOpen(): CancellationToken {
+		this._open.value?.cancel();
+		const open = this._open.value = new CancellationTokenSource();
+		return open.token;
+	}
 
 	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {
 		void this.openSession(sessionResource, options);
@@ -130,17 +139,12 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 
 	async openSession(sessionResource: URI, options?: IOpenSessionOptions): Promise<void> {
 		// A later open supersedes this one while it resolves or waits for its session: the user's latest pick shows
-		const open = ++this._openGeneration;
+		const token = this._startOpen();
 		// Its session is known only while the providers are held: until it shows, such as in the chat part, which holds them then
 		const hold = this._providers.acquire();
 		try {
-			// Providers redirect superseded resources, such as of a session they adopted, and leave unfamiliar ones unchanged
-			const resolved = await this._sessionsManagementService.resolveSessionResource(sessionResource, 'open');
-			const session = open === this._openGeneration ? await waitForAgentsViewSession(this._sessionsManagementService, () => this._sessionsManagementService.getSession(resolved)) : undefined;
-			if (session && open === this._openGeneration) {
-				await prepareAgentsViewSessionForOpen(this._sessionsProvidersService, session);
-			}
-			if (session && open === this._openGeneration) {
+			const session = await resolveSessionForOpen(this._sessionsManagementService, this._sessionsProvidersService, sessionResource, token);
+			if (session) {
 				await this._openSession(session, options);
 			}
 		} finally {
@@ -159,9 +163,8 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 				this._sessionOpenTelemetryService.sessionResolved(attempt, session.resource, session.providerId, this._presenter.isShowing(chatResource), session.loading.get());
 				await this._presenter.openChat(session, undefined, { preserveFocus: options?.preserveFocus });
 				this._sessionOpenTelemetryService.sessionActivated(attempt, chatResource);
-				// Only while it loads: waitForState keeps its cancellation listener when the state holds already
-				if (session.loading.get()) {
-					await waitForState(session.loading, loading => !loading, undefined, cts.token);
+				if (!await waitForSessionToLoad(session, cts.token)) {
+					throw new CancellationError();
 				}
 				this._sessionOpenTelemetryService.sessionLoaded(attempt);
 			});
@@ -176,12 +179,12 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 	}
 
 	async openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI }): Promise<void> {
-		await prepareAgentsViewSessionForOpen(this._sessionsProvidersService, session);
+		await prepareSessionForOpen(this._sessionsProvidersService, session);
 		await this._presenter.openChat(session, options?.chatResource, { preserveFocus: options?.preserveFocus, sideBySide: true });
 	}
 
 	async openChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
-		await prepareAgentsViewSessionForOpen(this._sessionsProvidersService, session);
+		await prepareSessionForOpen(this._sessionsProvidersService, session);
 		await this._presenter.openChat(session, chatResource, { preserveFocus: options?.preserveFocus, sideBySide: true });
 	}
 
@@ -193,9 +196,9 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 
 	async openChat(session: ISession, chatUri: URI, options?: IOpenChatOptions): Promise<void> {
 		// A later open, also of a session, supersedes this one while its session prepares, so that the user's latest pick shows
-		const open = ++this._openGeneration;
-		await prepareAgentsViewSessionForOpen(this._sessionsProvidersService, session);
-		if (open === this._openGeneration) {
+		const token = this._startOpen();
+		await prepareSessionForOpen(this._sessionsProvidersService, session);
+		if (!token.isCancellationRequested) {
 			await this._presenter.openChat(session, chatUri, { preserveFocus: options?.preserveFocus });
 		}
 	}
@@ -257,7 +260,7 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 		const draftSlot = options?.draftSlot && options.draftSlot !== this._sessionsManagementService.defaultNewSessionSlot ? options.draftSlot : undefined;
 		if (!draftSlot) {
 			// A new session supersedes an open still resolving, which would otherwise show its session in place of the composer
-			this._openGeneration++;
+			this._startOpen();
 			// In the folder asked for, else the window's, with what is asked for: without a folder, the composer's picker keeps its own
 			const folderUri = options?.folderUri ?? getEditorWindowComposerTarget(this._workspaceContextService, this._editorService)?.folderUri;
 			const target = folderUri
@@ -300,7 +303,7 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 
 	openQuickChat(options?: ICreateNewSessionOptions): ISession | undefined {
 		// A quick chat supersedes an open still resolving or preparing, which would otherwise show its session in place of the composer
-		this._openGeneration++;
+		this._startOpen();
 		// A target without a folder is a chat without a workspace, with what is asked for; no target keeps the picker's folder
 		void this._presenter.openComposer({ providerId: options?.providerId, sessionTypeId: options?.sessionTypeId, modelId: options?.modelId, modeId: options?.modeId });
 		return undefined;
@@ -308,10 +311,10 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 
 	async openNewChatInSession(session: ISession, options?: IOpenNewChatInSessionOptions): Promise<void> {
 		// A later open supersedes this one while its provider creates the chat, and it supersedes an earlier one, as the Agents window's does
-		const open = ++this._openGeneration;
+		const token = this._startOpen();
 		const { from: _from, ...createOptions } = options ?? {};
 		const chat = await this._sessionsManagementService.createNewChatInSession(session, Object.keys(createOptions).length ? createOptions : undefined);
-		if (chat && open === this._openGeneration) {
+		if (chat && !token.isCancellationRequested) {
 			await this._presenter.openChat(session, chat.resource);
 		}
 	}
