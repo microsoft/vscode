@@ -152,6 +152,11 @@ export interface INewSessionTarget {
 	 * picked; a draft that cannot is not created elsewhere.
 	 */
 	readonly requireDevContainer?: boolean;
+	/**
+	 * Whether the first draft of {@link folderUri} works in a new worktree of it (`worktree`), as the user chose New
+	 * Worktree for it. A draft whose agent cannot is reported, not created in the folder silently.
+	 */
+	readonly placement?: 'worktree';
 }
 
 /** A background send of a composer ({@link INewSessionDraftHost.trackBackgroundSend}). */

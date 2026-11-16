@@ -16,7 +16,7 @@ import { createErrorWithActions, isErrorWithActions } from '../../../../../base/
 import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { combinedDisposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -4931,10 +4931,166 @@ suite('NewChatWidget', () => {
 					_selectRequestedNoWorkspace: (requested: INewSessionTarget) => { calls.push({ noWorkspace: requested }); },
 					_restoreNoWorkspaceDraft: async () => { calls.push('restore no workspace'); },
 					_seedRequestedTarget: (requested: INewSessionTarget) => seedRequestedTarget.call(harness, requested),
+					_pendingWorktreePlacement: observableValue<object | undefined>('pendingWorktreePlacement', undefined),
+					_applyRequestedWorktreePlacement: () => { },
 				};
 				seedWorkspaceDraft.call(harness);
 				return calls;
 			}
+
+			test('a composer restricted to folders without worktrees offers New Worktree as a checkbox instead of in its picker, only with AI features on, the old sessions list and a draft that can work in a new worktree', () => {
+				const createVisible = Reflect.get(NewChatWidget.prototype, '_createNewWorktreeCheckboxVisible') as (this: object, newWorktree: object | undefined, allowedFolders: IObservable<readonly URI[]> | undefined) => IObservable<boolean>;
+				const getPickerNewWorktree = Reflect.get(NewChatWidget.prototype, '_getPickerNewWorktree') as (this: object, newWorktree: object) => { isAvailable(): boolean };
+				const repo = URI.file('/repo');
+				const worktree = URI.file('/repo.worktrees/feature');
+				function offers(options: { chatEnabled?: boolean; sessionsList?: boolean; available?: boolean; folders?: readonly URI[]; draftHost?: boolean } = {}) {
+					const configurationService = new TestConfigurationService(options.sessionsList ? { 'chat.viewSessions.sessionsList.enabled': true } : {});
+					disposables.add(configurationService.onDidChangeConfigurationEmitter);
+					const newWorktree = { isAvailable: () => options.available ?? true };
+					const harness: Record<string, unknown> = {
+						contextKeyService: { onDidChangeContext: Event.None, contextMatchesRules: () => options.chatEnabled ?? true },
+						configurationService,
+						_environmentWorkspaceChanged: observableSignal('changed'),
+						_session: constObservable(undefined),
+						_draftHost: { getFolderPresentation: (folder: URI) => folder.path === worktree.path ? { kind: 'worktree' } : undefined },
+					};
+					const visible = createVisible.call(harness, options.draftHost === false ? undefined : newWorktree, options.draftHost === false ? undefined : constObservable(options.folders ?? [repo]));
+					harness._newWorktreeCheckboxVisible = visible;
+					const shown = visible.get();
+					return { checkbox: shown, inPicker: options.draftHost === false ? undefined : getPickerNewWorktree.call(harness, newWorktree).isAvailable() };
+				}
+
+				assert.deepStrictEqual({
+					noWorktrees: offers(),
+					withWorktrees: offers({ folders: [repo, worktree] }),
+					newSessionsList: offers({ sessionsList: true }),
+					aiOff: offers({ chatEnabled: false }),
+					cannotWorkInNewWorktree: offers({ available: false }),
+					agentsWindow: offers({ draftHost: false }),
+				}, {
+					noWorktrees: { checkbox: true, inPicker: false },
+					withWorktrees: { checkbox: false, inPicker: true },
+					newSessionsList: { checkbox: false, inPicker: true },
+					aiOff: { checkbox: false, inPicker: true },
+					cannotWorkInNewWorktree: { checkbox: false, inPicker: false },
+					agentsWindow: { checkbox: false, inPicker: undefined },
+				});
+			});
+
+			suite('in a new worktree', () => {
+
+				const applyRequestedWorktreePlacement = Reflect.get(NewChatWidget.prototype, '_applyRequestedWorktreePlacement') as (this: object) => void;
+				const bindWorktreePlacement = Reflect.get(NewChatWidget.prototype, '_bindWorktreePlacement') as (this: object, placement: object, result: IOpenNewSessionResult | undefined) => void;
+
+				/**
+				 * A composer that shows draft `a` and is asked for a new worktree of folder `/b`, whose draft `b` its creation
+				 * installs only once `create` completes, as a folder that asks for trust first does. Its New Worktree writes are
+				 * recorded per draft; `agent` says whether a draft's configuration is known and can work in a new worktree.
+				 */
+				function placementHarness(agent: { resolved: boolean; available: boolean } | 'noNewWorktree' = { resolved: true, available: true }) {
+					const calls: string[] = [];
+					const a = upcastPartial<ISession>({ sessionId: 'a', status: constObservable(SessionStatus.Untitled) });
+					const b = upcastPartial<ISession>({ sessionId: 'b', status: constObservable(SessionStatus.Untitled) });
+					const create = new DeferredPromise<IOpenNewSessionResult>();
+					const harness = {
+						_store: { isDisposed: false },
+						_workspacePicker: { setSelectedWorkspace: () => { } },
+						_session: observableValue<ISession | undefined>('session', a),
+						_pendingWorktreePlacement: observableValue<object | undefined>('pendingWorktreePlacement', undefined),
+						_newWorktree: agent === 'noNewWorktree' ? undefined : {
+							isAvailable: () => agent.available,
+							isResolved: () => agent.resolved,
+							setSelected: (selected: boolean) => calls.push(`New Worktree ${selected} for ${harness._session.get()?.sessionId}`),
+						},
+						notificationService: { warn: () => { calls.push(`warning for ${harness._session.get()?.sessionId}`); } },
+						_createNewSession: () => create.p,
+						_selectRequestedNoWorkspace: () => { calls.push('no workspace'); },
+						_applyRequestedWorktreePlacement: () => applyRequestedWorktreePlacement.call(harness),
+						_bindWorktreePlacement: (placement: object, result: IOpenNewSessionResult | undefined) => bindWorktreePlacement.call(harness, placement, result),
+					};
+					seedRequestedTarget.call(harness, { folderUri: URI.file('/b'), placement: 'worktree' });
+					return {
+						harness, calls,
+						/** As the composer's configuration, session and folders autorun applies it. */
+						configChanged: () => applyRequestedWorktreePlacement.call(harness),
+						/** The creation installs `b`, as a draft creation completes. */
+						install: async () => { harness._session.set(b, undefined); create.complete({ session: b, trustDeclined: false }); await timeout(0); },
+						complete: async (result: IOpenNewSessionResult) => { create.complete(result); await timeout(0); },
+					};
+				}
+
+				test('only the draft its creation installs works in a new worktree, once and as the user\'s choice: not the draft shown while the creation waits, also as that draft\'s configuration changes', async () => {
+					const { harness, calls, configChanged, install } = placementHarness();
+					configChanged();
+					const whileCreating = { pending: !!harness._pendingWorktreePlacement.get(), calls: [...calls] };
+					await install();
+					configChanged();
+
+					assert.deepStrictEqual({ whileCreating, pending: !!harness._pendingWorktreePlacement.get(), calls }, {
+						whileCreating: { pending: true, calls: [] },
+						pending: false,
+						calls: ['New Worktree true for b'],
+					});
+				});
+
+				test('waits for the installed draft\'s configuration, which it cannot be sent before', async () => {
+					const agent = { resolved: false, available: false };
+					const { harness, calls, install } = placementHarness(agent);
+					await install();
+					const whileUnknown = { pending: !!harness._pendingWorktreePlacement.get(), calls: [...calls] };
+					agent.resolved = agent.available = true;
+					harness._applyRequestedWorktreePlacement();
+					harness._applyRequestedWorktreePlacement();
+
+					assert.deepStrictEqual({ whileUnknown, pending: !!harness._pendingWorktreePlacement.get(), calls }, {
+						whileUnknown: { pending: true, calls: [] },
+						pending: false,
+						calls: ['New Worktree true for b'],
+					});
+				});
+
+				test('a creation that installs no draft drops it, and the draft shown takes nothing: declined trust, a superseded creation, a composer gone meanwhile', async () => {
+					const declined = placementHarness();
+					await declined.complete({ session: undefined, trustDeclined: true });
+					// Superseded: the creation made `b`, but another draft is shown
+					const superseded = placementHarness();
+					await superseded.complete({ session: upcastPartial<ISession>({ sessionId: 'b' }), trustDeclined: false });
+					const disposed = placementHarness();
+					disposed.harness._store.isDisposed = true;
+					await disposed.install();
+					const results = [declined, superseded, disposed].map(({ harness, calls, configChanged }) => {
+						configChanged();
+						return { pending: !!harness._pendingWorktreePlacement.get(), calls };
+					});
+
+					assert.deepStrictEqual(results, [
+						{ pending: false, calls: [] },
+						{ pending: false, calls: [] },
+						{ pending: false, calls: [] },
+					]);
+				});
+
+				test('a newer request or the user\'s own workspace choice cancels it: the older creation\'s draft takes nothing', async () => {
+					const { harness, calls, install } = placementHarness();
+					// The host asks for another folder before the first creation completes
+					seedRequestedTarget.call(harness, { folderUri: URI.file('/c') });
+					await install();
+
+					assert.deepStrictEqual({ pending: !!harness._pendingWorktreePlacement.get(), calls }, { pending: false, calls: [] });
+				});
+
+				test('an agent that cannot work in a new worktree is reported for the installed draft, not made a chat in the folder silently', async () => {
+					const unavailable = placementHarness({ resolved: true, available: false });
+					await unavailable.install();
+					const notOffered = placementHarness('noNewWorktree');
+					await notOffered.install();
+
+					assert.deepStrictEqual([unavailable, notOffered].map(({ harness, calls }) => ({ pending: !!harness._pendingWorktreePlacement.get(), calls })), [
+						{ pending: false, calls: ['warning for b'] },
+						{ pending: false, calls: ['warning for b'] },
+					]);
+				});
+			});
 
 			test('a draft starts from the requested target, not from the main composer\'s last workspace', () => {
 				assert.deepStrictEqual({
@@ -5094,6 +5250,9 @@ suite('NewChatWidget', () => {
 					_pendingPreferredUpgrade: disposables.add(new MutableDisposable()),
 					_pendingRequestedAgent: disposables.add(new MutableDisposable()),
 					_applyingRequestedSelection: undefined,
+					// Its requested targets work in their folders: New Worktree is tested on its own
+					_pendingWorktreePlacement: observableValue<object | undefined>('pendingWorktreePlacement', undefined),
+					_applyRequestedWorktreePlacement: () => { },
 					_newSessionCreation: disposables.add(new MutableDisposable()),
 					_isWorkspacePickerQuickChat: constObservable(false),
 					_newChatInput: { sessionTypePicker: { getPreferredSessionType: () => undefined }, onDidSelectModel: agents.modelSelections.event },

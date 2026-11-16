@@ -34,6 +34,25 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 const WAIT_TIMEOUT = 5_000;
 
 /**
+ * The composer target of a new chat aimed at `target`, or `false` for one that cannot be: a new worktree without a folder,
+ * or a chat without a workspace in a folder.
+ */
+function toComposerTarget(target: IChatViewNewChatTarget): INewSessionTarget | false {
+	if (target.placement === 'worktree' ? !target.folder : target.placement === 'noWorkspace' && !!target.folder) {
+		return false;
+	}
+	return {
+		folderUri: target.folder,
+		providerId: target.providerId,
+		sessionTypeId: target.sessionType,
+		modelId: target.modelId,
+		modeId: target.modeId,
+		requireDevContainer: target.requireDevContainer,
+		...(target.placement === 'worktree' ? { placement: 'worktree' } : {}),
+	};
+}
+
+/**
  * The host of the Chat view's chats in an editor window whose chat part replaces the Chat view: it shows in the chat part
  * the window's active chat, a new-session composer, or the chat of a session. It shows the chats of sessions only: it
  * leaves local chat and the chats of other kinds to the Chat view (see {@link canShow}).
@@ -96,7 +115,10 @@ export class AgentsChatViewHost implements IChatViewHost {
 		if (!this._ownsNewChat.get() || !this._available) {
 			return false;
 		}
-		const aimed = target ? { folderUri: target.folder, providerId: target.providerId, sessionTypeId: target.sessionType, modelId: target.modelId, modeId: target.modeId, requireDevContainer: target.requireDevContainer } : this._composerTarget();
+		const aimed = target ? toComposerTarget(target) : this._composerTarget();
+		if (aimed === false) {
+			return false;
+		}
 		await this._chatPart.openComposer(aimed, { newComposer: true, preserveFocus: options?.preserveFocus });
 		return true;
 	}
@@ -163,6 +185,11 @@ export class AgentsChatViewHost implements IChatViewHost {
 			this._notificationService.info(localize('agentsChatViewHost.localChatUnavailable', "Local chat sessions are not available while chats open in the chat area."));
 			throw new CancellationError();
 		}
+		const aimed = options.target && toComposerTarget(options.target);
+		if (aimed === false) {
+			this._notificationService.error(localize('agentsChatViewHost.invalidTarget', "A new worktree needs a folder, and a chat without a workspace cannot have one."));
+			throw new CancellationError();
+		}
 		const model = await this._chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, 'AgentsChatViewHost#startSession', 'explicitOverride');
 		if (!model) {
 			throw new Error(`Unable to load the chat session ${sessionResource.toString()}`);
@@ -190,28 +217,29 @@ export class AgentsChatViewHost implements IChatViewHost {
 				}
 				if (!shown) {
 					// Shown before the start completes, and given back by createComposer
-					composer = this._openComposer(sessionType);
+					composer = this._openComposer(sessionType, aimed);
 					await composer;
 				}
 				return shown;
 			},
-			createComposer: () => composer ?? (generation === this._generation ? this._openComposer(sessionType) : Promise.resolve(undefined)),
+			createComposer: () => composer ?? (generation === this._generation ? this._openComposer(sessionType, aimed) : Promise.resolve(undefined)),
 			dispose: () => model.dispose(),
 		};
 	}
 
 	/**
-	 * Shows a new-session composer of the sessions of chat session type `chatSessionType` and resolves to the widget of its
+	 * Shows a new-session composer of the sessions of chat session type `chatSessionType`, aimed at `target` or else at what
+	 * the window works on, and resolves to the widget of its
 	 * input, whose submits create the session.
 	 */
-	private async _openComposer(chatSessionType: string): Promise<IChatWidget | undefined> {
+	private async _openComposer(chatSessionType: string, target: INewSessionTarget | undefined): Promise<IChatWidget | undefined> {
 		if (!this._available) {
 			return undefined;
 		}
 		// The provider's own type, which may differ from the type of its chats, such as `claude` of `agent-host-claude` chats
 		const offered = this._sessionsManagementService.getAllProviderSessionTypes().find(({ sessionType }) => (sessionType.chatSessionType ?? sessionType.id) === chatSessionType);
 		// A composer of its own: the one it shows may aim at sessions of another type
-		await this._chatPart.openComposer({ ...this._composerTarget(), providerId: offered?.providerId, sessionTypeId: offered?.sessionType.id }, { newComposer: true });
+		await this._chatPart.openComposer({ ...(target ?? this._composerTarget()), providerId: offered?.providerId, sessionTypeId: offered?.sessionType.id }, { newComposer: true });
 		return this._chatPart.getComposerWidget();
 	}
 

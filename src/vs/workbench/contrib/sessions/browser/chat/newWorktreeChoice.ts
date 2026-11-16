@@ -68,6 +68,19 @@ export class NewWorktreeChoice implements IWorkspacePickerNewWorktreeOption {
 		return !!this._draftIsolation();
 	}
 
+	/** Whether {@link isAvailable} is settled for the current draft: its agent's configuration of it is known. */
+	isResolved(): boolean {
+		const session = this._session.get();
+		if (!this._enabled.get() || !session || isSessionCreated(session) || session.isQuickChat?.get()) {
+			return true;
+		}
+		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
+		if (!provider || !isAgentHostProvider(provider)) {
+			return true;
+		}
+		return !!provider.getCreateSessionConfig(session.sessionId) && !!provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+	}
+
 	isSelected(): boolean {
 		const draft = this._draftIsolation();
 		return !!draft && this._isolationOf(draft) === 'worktree';
