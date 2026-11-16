@@ -241,8 +241,15 @@ export class SessionsWorktreeOpener extends Disposable {
 		const sessions = this._sessions();
 		const pick = getWorktreeSessionToOpen(worktree, shown && getWorktreeFilterSession(shown), sessions.map(session => getWorktreeFilterSession(session)), this._lastSessions.get(worktree));
 		const session = pick && sessions.find(candidate => candidate.sessionId === pick.id);
-		if (session && await this._canOpen(session) && generation === this._generation) {
-			this._open(session);
+		if (!session || !await this._canOpen(session) || generation !== this._generation || this._store.isDisposed) {
+			return;
+		}
+		// Asked for that session only: where it no longer is one of the folder's to open, such as archived, removed or moved
+		// meanwhile, it opens nothing rather than another that was not asked for
+		const current = this._sessions().find(candidate => candidate.sessionId === session.sessionId);
+		const now = current && getWorktreeFilterSession(current);
+		if (now && now.worktree === worktree && !now.isArchived) {
+			this._open(current);
 		}
 	}
 }

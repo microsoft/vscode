@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -111,6 +113,49 @@ suite('SessionsListFilters', () => {
 			alreadyShown: [],
 			fallback: ['newer', 'newer'],
 		});
+	});
+
+	test('opens nothing where the session it asked for is archived, removed or moved meanwhile, or it was disposed, rather than another not asked for', async () => {
+		const workspaceOf = (path: string): ISessionWorkspace => {
+			const root = URI.file(path);
+			return { uri: root, label: 'w', icon: Codicon.folder, requiresWorkspaceTrust: false, isVirtualWorkspace: false, folders: [{ root, workingDirectory: root, name: 'w', description: undefined, gitRepository: undefined }] };
+		};
+		const run = async (change: 'archive' | 'remove' | 'move' | 'dispose' | 'none') => {
+			const archived = observableValue('archived', false);
+			const workspace = observableValue<ISessionWorkspace | undefined>('workspace', workspaceOf('/work/vscode.worktrees/first'));
+			const remembered: ISession = { ...buildTestSession({ id: 'remembered', title: 'remembered', minutesAgo: 30 }).session, workspace, isArchived: archived };
+			const other = { ...buildTestSession({ id: 'other', title: 'other', minutesAgo: 10 }).session, workspace: constObservable(workspaceOf('/work/vscode.worktrees/first')) };
+			const elsewhere = { ...buildTestSession({ id: 'elsewhere', title: 'elsewhere', minutesAgo: 5 }).session, workspace: constObservable(workspaceOf('/work/vscode.worktrees/second')) };
+			let sessions: ISession[] = [remembered, other, elsewhere];
+			const shown = observableValue<ISession | undefined>('shown', remembered);
+			const allowed = new DeferredPromise<boolean>();
+			const opened: string[] = [];
+			const disposables = new DisposableStore();
+			const opener = disposables.add(new SessionsWorktreeOpener(shown, () => sessions, () => allowed.p, session => opened.push(session.sessionId), Event.None));
+			shown.set(elsewhere, undefined);
+			const opening = opener.open(getSessionFilterOptions(sessions, [], listAll).find(option => option.filter.kind === 'worktree' && option.label === 'first')!.filter.id);
+			if (change === 'archive') {
+				archived.set(true, undefined);
+			} else if (change === 'remove') {
+				sessions = [other, elsewhere];
+			} else if (change === 'move') {
+				workspace.set(workspaceOf('/work/vscode.worktrees/second'), undefined);
+			} else if (change === 'dispose') {
+				disposables.dispose();
+			}
+			allowed.complete(true);
+			await opening;
+			disposables.dispose();
+			return opened;
+		};
+
+		assert.deepStrictEqual({
+			unchanged: await run('none'),
+			archived: await run('archive'),
+			removed: await run('remove'),
+			moved: await run('move'),
+			disposed: await run('dispose'),
+		}, { unchanged: ['remembered'], archived: [], removed: [], moved: [], disposed: [] });
 	});
 
 	test('remembers the session shown of a worktree folder also once its workspace becomes known after it shows', async () => {
