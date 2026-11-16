@@ -1125,17 +1125,22 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		if (!workingDirectory) {
 			return { items: [] };
 		}
-		const [branches, currentBranch, defaultBranch] = await Promise.all([
-			this._gitService.getBranches(workingDirectory, { pattern: ['refs/heads'], sort: 'committerdate' }),
-			this._gitService.getCurrentBranch(workingDirectory),
-			this._gitService.getDefaultBranch(workingDirectory),
-		]);
-		const branchCompletions = getBranchCompletions(branches.map(branch => branch.name), {
-			currentBranch,
-			defaultBranch: defaultBranch?.name,
-		});
+		try {
+			const [branches, currentBranch, defaultBranch] = await Promise.all([
+				this._gitService.getBranches(workingDirectory, { pattern: ['refs/heads'], sort: 'committerdate' }),
+				this._gitService.getCurrentBranch(workingDirectory),
+				this._gitService.getDefaultBranch(workingDirectory),
+			]);
+			const branchCompletions = getBranchCompletions(branches.map(branch => branch.name), {
+				currentBranch,
+				defaultBranch: defaultBranch?.name,
+			});
 
-		return { items: branchCompletions.map(branch => ({ value: branch, label: branch })) };
+			return { items: branchCompletions.map(branch => ({ value: branch, label: branch })) };
+		} catch (error) {
+			this._logService.warn(`[${this._logLabel}] Failed to get branch completions for '${workingDirectory.fsPath}': ${errorMessage(error)}`);
+			return { items: [] };
+		}
 	}
 
 	/**
@@ -2092,23 +2097,31 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	}
 
 	private async _readGitInfo(workingDirectory: URI): Promise<IIsolationGitInfo | undefined> {
-		const repositoryRoot = await this._gitService.getRepositoryRoot(workingDirectory, { refreshIfNone: true });
-		if (!repositoryRoot) {
-			return undefined;
+		try {
+			const repositoryRoot = await this._gitService.getRepositoryRoot(workingDirectory, { refreshIfNone: true });
+			if (!repositoryRoot) {
+				return undefined;
+			}
+
+			const [headRef, defaultBranch] = await Promise.all([
+				this._gitService.getHEAD(repositoryRoot),
+				this._gitService.getDefaultBranch2(repositoryRoot),
+			]);
+
+			if (!headRef) {
+				// Unborn branches use a working-tree snapshot when creating the isolated worktree.
+				const headName = await this._gitService.getCurrentBranch(repositoryRoot);
+				return headName ? { headName, defaultBranch: undefined } : undefined;
+			}
+
+			return { headName: headRef.name, defaultBranch };
+		} catch (error) {
+			if (isDisallowedUncHostError(error)) {
+				this._logService.warn(`[${this._logLabel}] Skipping git info for disallowed UNC host at '${workingDirectory.fsPath}': ${errorMessage(error)}`);
+				return undefined;
+			}
+			throw error;
 		}
-
-		const [headRef, defaultBranch] = await Promise.all([
-			this._gitService.getHEAD(repositoryRoot),
-			this._gitService.getDefaultBranch2(repositoryRoot),
-		]);
-
-		if (!headRef) {
-			// Unborn branches use a working-tree snapshot when creating the isolated worktree.
-			const headName = await this._gitService.getCurrentBranch(repositoryRoot);
-			return headName ? { headName, defaultBranch: undefined } : undefined;
-		}
-
-		return { headName: headRef.name, defaultBranch };
 	}
 
 	/**
@@ -2309,6 +2322,15 @@ export function worktreeProjectFromRepositoryRoot(repositoryRootRaw: string | un
 
 function errorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
+}
+
+function isDisallowedUncHostError(error: unknown): boolean {
+	if ((error as NodeJS.ErrnoException | undefined)?.code === 'ERR_UNC_HOST_NOT_ALLOWED') {
+		return true;
+	}
+	const message = errorMessage(error);
+	return message.includes('ERR_UNC_HOST_NOT_ALLOWED')
+		|| (message.includes('UNC host') && (message.includes('access is not allowed') || message.includes('security.allowedUNCHosts')));
 }
 
 function readStringArray(value: unknown): readonly string[] | undefined {

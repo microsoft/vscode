@@ -1990,22 +1990,26 @@ export class AgentService extends Disposable implements IAgentService {
 				const isDefaultChat = this._chatOwnership.isDefaultChat(params.session, source);
 				const persistedBase = await this._sessionStateStore.readBaseBranchWithoutImport(session, isDefaultChat ? undefined : source);
 				if (!persistedBase && (!isDefaultChat || resolveGitHubStateFolder(this._stateManager, source).isSessionFolder)) {
-					const repositoryRoot = await this._gitService.getRepositoryRoot(resolved);
-					if (repositoryRoot) {
-						const defaultBranch = await this._gitService.getDefaultBranch2(repositoryRoot);
-						const configuredBranch = config[SessionConfigKey.Branch];
-						const fallbackBranch = typeof configuredBranch === 'string'
-							? configuredBranch
-							: await this._gitService.getCurrentBranch(repositoryRoot);
-						const baseBranch = resolveDefaultBaseBranchName(defaultBranch, fallbackBranch);
-						if (baseBranch) {
-							await this._sessionStateStore.writeMetadata(session, isDefaultChat ? session : URI.parse(source), {
-								[META_DIFF_BASE_BRANCH]: baseBranch,
-							}, SessionStateMirrorFlush.Immediate);
-							for (const chat of this._stateManager.getSessionState(params.session)?.chats ?? []) {
-								this._changesets.refreshChangesetCatalog(chat.resource);
+					try {
+						const repositoryRoot = await this._gitService.getRepositoryRoot(resolved);
+						if (repositoryRoot) {
+							const defaultBranch = await this._gitService.getDefaultBranch2(repositoryRoot);
+							const configuredBranch = config[SessionConfigKey.Branch];
+							const fallbackBranch = typeof configuredBranch === 'string'
+								? configuredBranch
+								: await this._gitService.getCurrentBranch(repositoryRoot);
+							const baseBranch = resolveDefaultBaseBranchName(defaultBranch, fallbackBranch);
+							if (baseBranch) {
+								await this._sessionStateStore.writeMetadata(session, isDefaultChat ? session : URI.parse(source), {
+									[META_DIFF_BASE_BRANCH]: baseBranch,
+								}, SessionStateMirrorFlush.Immediate);
+								for (const chat of this._stateManager.getSessionState(params.session)?.chats ?? []) {
+									this._changesets.refreshChangesetCatalog(chat.resource);
+								}
 							}
 						}
+					} catch (error) {
+						this._logService.warn(`[AgentService] Failed to read git base branch for ${resolved.fsPath}: ${toErrorMessage(error)}`);
 					}
 				}
 			}

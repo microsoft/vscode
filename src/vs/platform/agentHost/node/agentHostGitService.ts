@@ -1096,15 +1096,21 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// Callers only get `undefined`, which surfaces as "git blob not found"
 		// whatever actually went wrong, so log the real reason.
 		return new Promise((resolve) => {
-			cp.execFile('git', args, { cwd: workingDirectory.fsPath, timeout: SHOW_BLOB_TIMEOUT_MS, encoding: 'buffer', maxBuffer: 32 * 1024 * 1024 }, (error, stdout, stderr) => {
-				if (error) {
-					// The timeout above is the only thing that kills this process.
-					this._logService.warn(`[agentHostGitService] > git ${args.join(' ')} failed: ${formatGitError(args, SHOW_BLOB_TIMEOUT_MS, error.killed === true, error, (stderr as Buffer).toString())}`);
-					resolve(undefined);
-					return;
-				}
-				resolve(VSBuffer.wrap(stdout as Buffer));
-			});
+			try {
+				cp.execFile('git', args, { cwd: workingDirectory.fsPath, timeout: SHOW_BLOB_TIMEOUT_MS, encoding: 'buffer', maxBuffer: 32 * 1024 * 1024 }, (error, stdout, stderr) => {
+					if (error) {
+						// The timeout above is the only thing that kills this process.
+						this._logService.warn(`[agentHostGitService] > git ${args.join(' ')} failed: ${formatGitError(args, SHOW_BLOB_TIMEOUT_MS, error.killed === true, error, (stderr as Buffer).toString())}`);
+						resolve(undefined);
+						return;
+					}
+					resolve(VSBuffer.wrap(stdout as Buffer));
+				});
+			} catch (error) {
+				const err = error as Error;
+				this._logService.warn(`[agentHostGitService] > git ${args.join(' ')} failed to spawn in ${workingDirectory.fsPath}: ${err.message}`);
+				resolve(undefined);
+			}
 		});
 	}
 
@@ -1499,33 +1505,45 @@ export class AgentHostGitService implements IAgentHostGitService {
 			// Default maxBuffer is 32MB — Node's default is ~1MB, which is
 			// easy to exceed for diff output in large repos. Exceeding it
 			// causes execFile to error and we'd silently drop the diff.
-			const child = cp.execFile('git', [...args], { cwd: workingDirectory.fsPath, env, maxBuffer: options?.maxBuffer ?? 32 * 1024 * 1024 }, (error, stdout, stderr) => {
-				if (error) {
-					// stderr is summarized in the thrown error message to keep
-					// it readable; log the full unmodified output here so the
-					// raw progress/diagnostic text is still available.
-					if (stderr) {
-						this._logService.warn(`[agentHostGitService] > git ${args.join(' ')} failed; full stderr:\n${stderr}`);
-					} else if (didTimeOut || error.killed) {
-						// A timed-out or signalled git writes nothing to stderr,
-						// so this is the only trace such a failure ever leaves.
-						// Callers that degrade quietly on `undefined` are then
-						// impossible to diagnose from logs alone.
-						this._logService.warn(`[agentHostGitService] > git ${args.join(' ')} failed: ${formatGitError(args, timeoutMs, didTimeOut, error, stderr)}`);
-					} else {
-						// A silent non-zero exit is how the `--quiet` probes
-						// report "not found", so this stays below `warn`.
-						this._logService.trace(`[agentHostGitService] > git ${args.join(' ')} failed: ${formatGitError(args, timeoutMs, didTimeOut, error, stderr)}`);
-					}
-					if (options?.throwOnError) {
-						reject(new GitCommandError(formatGitError(args, timeoutMs, didTimeOut, error, stderr), stderr, error));
+			let child: cp.ChildProcess;
+			try {
+				child = cp.execFile('git', [...args], { cwd: workingDirectory.fsPath, env, maxBuffer: options?.maxBuffer ?? 32 * 1024 * 1024 }, (error, stdout, stderr) => {
+					if (error) {
+						// stderr is summarized in the thrown error message to keep
+						// it readable; log the full unmodified output here so the
+						// raw progress/diagnostic text is still available.
+						if (stderr) {
+							this._logService.warn(`[agentHostGitService] > git ${args.join(' ')} failed; full stderr:\n${stderr}`);
+						} else if (didTimeOut || error.killed) {
+							// A timed-out or signalled git writes nothing to stderr,
+							// so this is the only trace such a failure ever leaves.
+							// Callers that degrade quietly on `undefined` are then
+							// impossible to diagnose from logs alone.
+							this._logService.warn(`[agentHostGitService] > git ${args.join(' ')} failed: ${formatGitError(args, timeoutMs, didTimeOut, error, stderr)}`);
+						} else {
+							// A silent non-zero exit is how the `--quiet` probes
+							// report "not found", so this stays below `warn`.
+							this._logService.trace(`[agentHostGitService] > git ${args.join(' ')} failed: ${formatGitError(args, timeoutMs, didTimeOut, error, stderr)}`);
+						}
+						if (options?.throwOnError) {
+							reject(new GitCommandError(formatGitError(args, timeoutMs, didTimeOut, error, stderr), stderr, error));
+							return;
+						}
+						resolve(undefined);
 						return;
 					}
-					resolve(undefined);
+					resolve(stdout);
+				});
+			} catch (error) {
+				const err = error as cp.ExecFileException;
+				this._logService.warn(`[agentHostGitService] > git ${args.join(' ')} failed to spawn in ${workingDirectory.fsPath}: ${err.message}`);
+				if (options?.throwOnError) {
+					reject(new GitCommandError(formatGitError(args, timeoutMs, false, err, ''), '', err));
 					return;
 				}
-				resolve(stdout);
-			});
+				resolve(undefined);
+				return;
+			}
 			// `execFile` keeps its own listener for the buffered result; an
 			// extra one just tees the same chunks for live progress.
 			const onStderr = options?.onStderr;

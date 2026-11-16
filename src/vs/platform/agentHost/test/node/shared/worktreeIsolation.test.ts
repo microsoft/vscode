@@ -761,6 +761,25 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('resolveIsolationConfig gracefully falls back to folder when encountering disallowed UNC hosts', async () => {
+		const gitService = createGitService();
+		const uncError = new Error('UNC host access is not allowed');
+		(uncError as unknown as { code: string }).code = 'ERR_UNC_HOST_NOT_ALLOWED';
+		gitService.getRepositoryRoot = async () => { throw uncError; };
+		gitService.getBranches = async () => { throw uncError; };
+		const isolation = createIsolation(disposables, { gitService });
+
+		const uncPath = URI.file('//server/share/project');
+		const result = await isolation.resolveIsolationConfig({ workingDirectory: uncPath, config: undefined });
+
+		assert.deepStrictEqual(result.isolationProperty.protocol.enum, ['folder']);
+		assert.strictEqual(result.isolationValue, 'folder');
+		assert.strictEqual(result.branchProperty, undefined);
+
+		const completions = await isolation.branchCompletions(uncPath);
+		assert.deepStrictEqual(completions, { items: [] });
+	});
+
 	test('defaults worktree isolation to the default branch start point', async () => {
 		const gitService = createGitService();
 		let defaultBranch = localBranch('main', 'origin/main');
