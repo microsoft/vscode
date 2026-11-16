@@ -9,14 +9,15 @@ import { localize } from '../../../../../nls.js';
 import { getConnectionDiagnosticError } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { GitHubEnvironmentSharingError } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionAccount, getAuthenticationDefaultScopes, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 
-/** The authentication provider and scopes used to register GitHub environments. */
-export function getGitHubEnvironmentAuthentication(product: IProductService): { readonly providerId: string; readonly scopes: readonly string[] } {
-	return {
-		providerId: product.defaultChatAgent?.provider?.default?.id ?? 'github',
-		scopes: product.defaultChatAgent?.providerScopes?.[0] ?? ['read:user', 'user:email', 'repo', 'workflow'],
-	};
+/**
+ * The authentication provider and scopes used to register GitHub environments. The scopes are the default scopes of
+ * the provider, or `undefined` when the product does not define any.
+ */
+export function getGitHubEnvironmentAuthentication(product: IProductService): { readonly providerId: string; readonly scopes: readonly string[] | undefined } {
+	const providerId = product.defaultChatAgent?.provider?.default?.id ?? 'github';
+	return { providerId, scopes: getAuthenticationDefaultScopes(product, providerId) };
 }
 
 /** Raised when no GitHub account can register GitHub environments, as opposed to a failure to look one up. */
@@ -33,6 +34,9 @@ export class GitHubEnvironmentAccountUnavailableError extends GitHubEnvironmentS
  */
 export async function getGitHubEnvironmentSessions(authentication: IAuthenticationService, product: IProductService, defaultAccount: IDefaultAccount | null, canPrompt: () => boolean): Promise<readonly AuthenticationSession[]> {
 	const { providerId, scopes } = getGitHubEnvironmentAuthentication(product);
+	if (!scopes) {
+		throw new GitHubEnvironmentSharingError(localize('missionControlSharing.unavailable', "GitHub environment sharing is unavailable."), 'unavailable', { cause: new Error(`Authentication provider '${providerId}' does not define default scopes.`) });
+	}
 	let account: AuthenticationSessionAccount | undefined;
 	if (defaultAccount) {
 		if (defaultAccount.authenticationProvider.id !== providerId) {

@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { URI } from '../../../../../base/common/uri.js';
 import { AuthenticationAccessService } from '../../browser/authenticationAccessService.js';
 import { AuthenticationService } from '../../browser/authenticationService.js';
-import { AuthenticationProviderInformation, AuthenticationSessionsChangeEvent, IAuthenticationProvider } from '../../common/authentication.js';
+import { AuthenticationProviderInformation, AuthenticationSessionsChangeEvent, getAuthenticationDefaultScopes, getAuthenticationSessionRequestKey, IAuthenticationProvider } from '../../common/authentication.js';
 import { TestEnvironmentService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestExtensionService, TestProductService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -521,5 +521,42 @@ suite('AuthenticationService - tryActivateProvider', () => {
 
 		const sessions = await authenticationService.getSessions(provider.id);
 		assert.strictEqual(sessions.length, 1);
+	});
+});
+
+suite('Authentication default scopes', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const defaultScopes = ['read:user', 'user:email', 'repo', 'workflow'];
+	const product = (providerScopes: string[][]) => ({ defaultChatAgent: { ...TestProductService.defaultChatAgent, providerScopes } });
+
+	test('only the GitHub providers of the default chat agent define default scopes', () => {
+		const configured = product([defaultScopes, ['user:email']]);
+		assert.deepStrictEqual({
+			github: getAuthenticationDefaultScopes(configured, 'github'),
+			enterprise: getAuthenticationDefaultScopes(configured, 'github-enterprise'),
+			otherProvider: getAuthenticationDefaultScopes(configured, 'microsoft'),
+			// The product fallback used when running without a product.json has no provider scopes.
+			emptyConfiguration: getAuthenticationDefaultScopes(product([]), 'github'),
+		}, {
+			github: defaultScopes,
+			enterprise: defaultScopes,
+			otherProvider: undefined,
+			emptyConfiguration: undefined,
+		});
+	});
+
+	test('request keys keep default scopes apart from scope lists', () => {
+		assert.deepStrictEqual({
+			emptyScopeList: getAuthenticationSessionRequestKey(undefined) === getAuthenticationSessionRequestKey([]),
+			defaultScopeList: getAuthenticationSessionRequestKey(undefined) === getAuthenticationSessionRequestKey(defaultScopes),
+			sameOptions: getAuthenticationSessionRequestKey(undefined, { silent: true }) === getAuthenticationSessionRequestKey(undefined, { silent: true }),
+			differentOptions: getAuthenticationSessionRequestKey(undefined, { silent: true }) === getAuthenticationSessionRequestKey(undefined),
+		}, {
+			emptyScopeList: false,
+			defaultScopeList: false,
+			sameOptions: true,
+			differentOptions: false,
+		});
 	});
 });

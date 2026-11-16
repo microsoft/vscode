@@ -7,12 +7,12 @@ import { authentication, AuthenticationGetSessionOptions, AuthenticationSession 
 import { mixin } from '../../../util/vs/base/common/objects';
 import { URI } from '../../../util/vs/base/common/uri';
 import { AuthPermissionMode, AuthProviderId, ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
-import { authProviderId, GITHUB_SCOPE_ALIGNED, GITHUB_SCOPE_READ_USER, GITHUB_SCOPE_USER_EMAIL, MinimalModeError } from '../common/authentication';
+import { authProviderId, GITHUB_SCOPE_READ_USER, GITHUB_SCOPE_USER_EMAIL, MinimalModeError } from '../common/authentication';
 import { resolveGitHubSessionUri } from '../common/enterprise';
 
 export const SESSION_LOGIN_MESSAGE = 'You are not signed in to GitHub. Please sign in to use Copilot.';
 
-async function getAuthSession(providerId: AuthProviderId, defaultScopes: string[], getSilentSession: () => Promise<AuthenticationSession | undefined>, options: AuthenticationGetSessionOptions = {}) {
+async function getAuthSession(providerId: AuthProviderId, defaultScopes: string[] | undefined, getSilentSession: () => Promise<AuthenticationSession | undefined>, options: AuthenticationGetSessionOptions = {}) {
 	const accounts = await authentication.getAccounts(providerId);
 	let session: AuthenticationSession | undefined;
 	if (!accounts.length) {
@@ -48,7 +48,13 @@ export function getAnyAuthSession(configurationService: IConfigurationService, o
 		async () => {
 			// Ask for aligned scopes first, since that's what we want to use going forward.
 			if (configurationService.getConfig(ConfigKey.Shared.AuthPermissions) !== AuthPermissionMode.Minimal) {
-				const permissive = await authentication.getSession(providerId, GITHUB_SCOPE_ALIGNED, silentOptions);
+				let permissive: AuthenticationSession | undefined;
+				try {
+					permissive = await authentication.getSession(providerId, undefined, silentOptions);
+				} catch {
+					// The default scopes are only preferred here, so a build that does not define them must still find a
+					// minimal session. Any other failure of the provider is reported by the lookups below.
+				}
 				if (permissive) {
 					return permissive;
 				}
@@ -85,8 +91,8 @@ export function getAlignedSession(configurationService: IConfigurationService, o
 	const providerId = authProviderId(configurationService);
 	return getAuthSession(
 		providerId,
-		GITHUB_SCOPE_ALIGNED,
-		async () => await authentication.getSession(providerId, GITHUB_SCOPE_ALIGNED, { silent: true, account: options.account, authorizationServer: options.authorizationServer }),
+		undefined,
+		async () => await authentication.getSession(providerId, undefined, { silent: true, account: options.account, authorizationServer: options.authorizationServer }),
 		options
 	);
 }
