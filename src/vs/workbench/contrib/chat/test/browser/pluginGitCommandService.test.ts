@@ -321,7 +321,7 @@ suite('BrowserPluginGitCommandService', () => {
 			queueTree(github, sha2, [{ path: 'a.txt', mode: GitTreeEntryMode.File, type: 'blob', sha: 'revoked' }]);
 			github.queue(/\/git\/blobs\/revoked$/, async cancellationToken => {
 				github.leases.at(-1)!.invalidate();
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				return jsonResponse(blob('revoked', VSBuffer.fromString('new')));
 			});
 			github.queue(/\/commits\/main$/, new GitHubRequestError('Unauthorized', 'authentication', 401));
@@ -495,13 +495,13 @@ class StubGitHubService extends mock<IWorkbenchGitHubService>() {
 		assert.ok(args.length === 3);
 		const [providerId, session, cancellationToken] = args;
 		const authorization = toGitHubAuthorizationContext(providerId, session);
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const { provider, lifetime, invalidated } = this.providers(authorization);
 		return this.store.add(new AccountClient(authorization, { rest: provider, graphql: provider, onDidInvalidate: invalidated.event }, lifetime));
 	}
 
 	override async acquireAnonymousApiClient(cancellationToken: CancellationToken): Promise<AnonymousClient> {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const { provider, lifetime } = this.providers(undefined);
 		return this.store.add(new AnonymousClient(provider, undefined, lifetime));
 	}

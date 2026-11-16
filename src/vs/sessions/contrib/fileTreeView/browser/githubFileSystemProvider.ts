@@ -167,13 +167,13 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 				caller: 'githubFileSystemProvider.fetchTree',
 			});
 		} catch (error) {
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			if (error instanceof GitHubRequestError && error.kind === 'notFound') {
 				this.notFoundCache.set(cacheKey, Date.now());
 			}
 			throw error;
 		}
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (data.truncated) {
 			throw createFileSystemProviderError(localize('githubFileSystem.truncatedTree', "The repository tree for {0}/{1}@{2} is incomplete and cannot be displayed.", owner, repo, ref), FileSystemProviderErrorCode.Unavailable);
 		}

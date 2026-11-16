@@ -107,10 +107,10 @@ export class GitHubCloudAutomationStore extends Disposable {
 			let repository: RepositoryRef | undefined;
 			try {
 				this.requireAccount();
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				const resolvedRepository = await this.resolveRepository(workspace);
 				repository = resolvedRepository;
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				const repositoryState = resolvedRepository
 					? await this.withClient(cancellationToken, async (client, cancellationToken) => {
 						const metadata = await client.repositories.get(resolvedRepository, cancellationToken);
@@ -120,7 +120,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 						return { isPrivate: metadata.private, configuration };
 					})
 					: undefined;
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				if (this.targetEligibility.get(key) !== result) {
 					return;
 				}
@@ -197,7 +197,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 					: undefined;
 				return { isPrivate: metadata.private, configuration };
 			});
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			this.setRepositoryPrivacy(key, isPrivate);
 			if (configuration) {
 				this.setRepositoryConfiguration(key, configuration);
@@ -206,7 +206,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 			this.repositoryManageabilityFailures.delete(key);
 			return isPrivate && configuration?.can_manage_automations === true;
 		} catch (error) {
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			if (isCancellationError(error)) {
 				throw error;
 			}
@@ -237,12 +237,12 @@ export class GitHubCloudAutomationStore extends Disposable {
 		try {
 			this.requireAccount();
 			const configuration = await this.withClient(cancellationToken, (client, cancellationToken) => client.automations.getConfiguration(repository, cancellationToken));
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			this.repositoryManageabilityFailures.delete(key);
 			this.setRepositoryConfiguration(key, configuration);
 			return configuration.can_manage_automations;
 		} catch (error) {
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			if (isCancellationError(error)) {
 				throw error;
 			}
@@ -270,7 +270,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 			try {
 				this.requireAccount();
 				const groups = await this.withClient(cancellationToken, (client, cancellationToken) => client.automations.listTools(cancellationToken));
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				this.cachedTools.set({ kind: 'ready', groups }, undefined);
 			} catch (error) {
 				if (cancellationToken.isCancellationRequested || this._store.isDisposed) {
@@ -295,7 +295,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 			try {
 				this.requireAccount();
 				const definitions = await this.withClient(cancellationToken, (client, cancellationToken) => client.automations.listTriggers(cancellationToken));
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				this.triggerCatalog.set({ kind: 'ready', definitions }, undefined);
 			} catch (error) {
 				if (cancellationToken.isCancellationRequested || this._store.isDisposed) {
@@ -332,7 +332,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		}
 		const refresh = this.operations.queue(async () => {
 			await this.withClient(cancellationToken, (client, cancellationToken) => this.refreshRepositories(account, cancellationToken, client, options?.background ? { priority: 'background' } : undefined));
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			this.uncertain.set(false, undefined);
 		});
 		this.refreshPromise = refresh;
@@ -363,7 +363,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 	}
 
 	private async withClient<T>(cancellationToken: CancellationToken, task: (client: IGitHubAccountClient, cancellationToken: CancellationToken) => Promise<T>): Promise<T> {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const pending = this.clientPromise ??= this.acquireClient(cancellationToken);
 		let client: IGitHubAccountClient;
 		try {
@@ -388,7 +388,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		const account = this.requireAccount();
 		const cancellationToken = this.lifetime.token;
 		const repository = await this.resolveRepository(workspace);
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (!repository) {
 			throw new Error(localize('cloudAutomations.repositoryRequired', "Select a GitHub.com repository for this cloud automation."));
 		}
@@ -474,7 +474,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 				try {
 					const history = await Promise.all(this.cachedEntries.get().map(entry => limiter.queue(async () => {
 						try {
-							CancellationToken.throwIfCancellationRequested(historyToken);
+							CancellationToken.throwIfCanceled(historyToken);
 							const tasks = await client.automations.listRuns(entry.definition.id, historyToken, { ...requestOptions, query: { per_page: 50, page: 1, sort: 'created_at', direction: 'desc', is_archived: false } }).catch(error => {
 								if (!(error instanceof ApiRequestError) || error.statusCode !== 404) {
 									throw error;
@@ -501,7 +501,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 							throw error;
 						}
 					})));
-					CancellationToken.throwIfCancellationRequested(operationToken);
+					CancellationToken.throwIfCanceled(operationToken);
 					this.cachedHistory.set(history.flat(), undefined);
 				} finally {
 					controller.cancel();
@@ -514,7 +514,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 	private mutate<T>(repository: RepositoryRef, operation: (client: IGitHubAccountClient, ref: RepositoryRef, cancellationToken: CancellationToken) => Promise<T>, token: CancellationToken = CancellationToken.None, lifetime: CancellationToken = this.lifetime.token): Promise<T> {
 		this.requireAccount();
 		return this.operations.queue(async () => {
-			CancellationToken.throwIfCancellationRequested(lifetime);
+			CancellationToken.throwIfCanceled(lifetime);
 			if (this.uncertain.get()) {
 				throw new AutomationMutationUncertainError(localize('cloudAutomations.mutationUncertain', "The automation request may have been accepted. Refresh automations before submitting again."));
 			}
@@ -523,7 +523,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 				const cancellationToken = CancellationToken.any([lifetime, token], resources);
 				return await this.withClient(cancellationToken, async (client, cancellationToken) => {
 					const configuration = await client.automations.getConfiguration(repository, cancellationToken);
-					CancellationToken.throwIfCancellationRequested(cancellationToken);
+					CancellationToken.throwIfCanceled(cancellationToken);
 					this.setRepositoryConfiguration(repositoryKey(repository), configuration);
 					if (!configuration.can_manage_automations) {
 						throw new AutomationUnavailableError(localize('cloudAutomations.manageabilityRequired', "Cloud automations cannot be managed for this repository."));
@@ -548,14 +548,14 @@ export class GitHubCloudAutomationStore extends Disposable {
 	}
 
 	private publish(repository: RepositoryRef, definition: AutomationDetail, cancellationToken: CancellationToken): ICloudAutomationEntry {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const entry = { repository, definition };
 		this.cachedEntries.set([...this.cachedEntries.get().filter(candidate => !sameEntry(candidate, entry)), entry], undefined);
 		return entry;
 	}
 
 	private removeEntry(entry: ICloudAutomationEntry, cancellationToken: CancellationToken): void {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		transaction(tx => {
 			this.cachedEntries.set(this.cachedEntries.get().filter(candidate => !sameEntry(candidate, entry)), tx);
 			this.cachedHistory.set(this.cachedHistory.get().filter(candidate => !sameEntry(candidate.entry, entry)), tx);
@@ -572,12 +572,12 @@ export class GitHubCloudAutomationStore extends Disposable {
 			const root = recent.workspace.folders[0]?.root;
 			try {
 				const repository = root && await this.resolveRepository(root);
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				if (repository) {
 					repositories.set(repositoryKey(repository), repository);
 				}
 			} catch (error) {
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				this.logService.warn('[CloudAutomations] Failed to resolve a recent repository', error);
 				errors.push(error);
 			}
@@ -594,9 +594,9 @@ export class GitHubCloudAutomationStore extends Disposable {
 			let configuration: AutomationRepositoryConfiguration;
 			try {
 				configuration = await client.automations.getConfiguration(repository, cancellationToken, options);
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 			} catch (error) {
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				if (isCancellationError(error)) {
 					throw error;
 				}
@@ -622,7 +622,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 				const definitions = await this.listDefinitions(client.automations, repository, cancellationToken, options);
 				snapshot.set(key, definitions.map(definition => ({ repository, definition })));
 			} catch (error) {
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				if (isCancellationError(error)) {
 					throw error;
 				}
@@ -654,7 +654,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 			const summaries = response.data.automations;
 			const definitions: AutomationDetail[] = [];
 			for (let offset = 0; offset < summaries.length; offset += 5) {
-				CancellationToken.throwIfCancellationRequested(operationToken);
+				CancellationToken.throwIfCanceled(operationToken);
 				definitions.push(...await Promise.all(summaries.slice(offset, offset + 5).map(summary => api.get(repository, summary.id, operationToken, options))));
 			}
 			return definitions;
@@ -780,7 +780,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 	}
 
 	private rememberRepositories(account: string, repositories: readonly RepositoryRef[], cancellationToken: CancellationToken, missing: readonly RepositoryRef[] = []): void {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const known = this.readRepositories(account);
 		for (const repository of missing) {
 			known.delete(repositoryKey(repository));

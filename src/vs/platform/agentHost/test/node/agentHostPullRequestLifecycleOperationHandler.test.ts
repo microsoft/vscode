@@ -141,13 +141,13 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 		const gitHubService = new class extends mock<IAgentHostGitHubService>() {
 			override captureSessionCredentialSource(_session: string, source?: IAgentHostCredentialSource) { return source; }
 			override acquireRepositoryClient(cancellationToken: CancellationToken, source?: IAgentHostCredentialSource) {
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				assert.strictEqual(source, options?.credentialSource);
 				recorded.legacyAcquisitions++;
 				return new ImmortalReference(legacyClient);
 			}
 			override acquireRepositoryApiClient(cancellationToken: CancellationToken, source?: IAgentHostCredentialSource) {
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				assert.strictEqual(source, options?.credentialSource);
 				recorded.apiAcquisitions++;
 				return upcastPartial<IGitHubAccountClient>({

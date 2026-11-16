@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationTokenSource, cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, autorun, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -135,7 +135,7 @@ class GitHubLinkPresentationProvider extends Disposable implements ILinkPresenta
 
 class GitHubLinkPresentationHydrator extends Disposable {
 
-	private readonly _controller = new CancellationTokenSource();
+	private readonly _disposeToken = cancelOnDispose(this._store);
 	private _pending: {
 		readonly client: IGitHubClient;
 		readonly resource: GitHubHydratableResourceRef;
@@ -148,7 +148,6 @@ class GitHubLinkPresentationHydrator extends Disposable {
 		private readonly _logService: ILogService,
 	) {
 		super();
-		this._register(toDisposable(() => this._controller.dispose(true)));
 	}
 
 	hydrate(target: GitHubLinkTarget, account: AccountHandle, client: IGitHubClient): Promise<void> {
@@ -191,7 +190,7 @@ class GitHubLinkPresentationHydrator extends Disposable {
 				item.resource,
 			])).values()];
 			try {
-				await group[0].client.query.hydrateResources(resources, this._controller.token);
+				await group[0].client.query.hydrateResources(resources, this._disposeToken);
 				this._logService.trace(`[GitHubLinkPresentation] Hydrated ${resources.length} resource(s) in one request`);
 				for (const item of group) {
 					item.resolve();

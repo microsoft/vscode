@@ -115,7 +115,7 @@ export abstract class BufferedApiRequestProvider implements IApiRequestProvider 
 	request<T>(request: ApiRequest & { readonly responseBody?: 'json' | 'text' }, cancellationToken: CancellationToken, parser: parse.Parser<T>): Promise<ApiResponse<T>>;
 	request<T>(request: ApiRequest, cancellationToken: CancellationToken, parser: parse.Parser<T> | undefined): Promise<ApiResponse<T | void>>;
 	async request<T>(request: ApiRequest, cancellationToken: CancellationToken, parser?: parse.Parser<T>): Promise<ApiResponse<T | void>> {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (this.clientToken.isCancellationRequested) {
 			throw this.clientError?.() ?? new CancellationError();
 		}
@@ -137,7 +137,7 @@ export abstract class BufferedApiRequestProvider implements IApiRequestProvider 
 		const lifetime = new DisposableStore();
 		let cancellationError: Error | undefined;
 		try {
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			if (this.clientToken.isCancellationRequested) {
 				throw this.clientError?.() ?? new CancellationError();
 			}
@@ -156,7 +156,7 @@ export abstract class BufferedApiRequestProvider implements IApiRequestProvider 
 	}
 
 	protected checkResponseCancellation(_request: Omit<ApiRequest, 'body'>, cancellationToken: CancellationToken): void {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 	}
 
 	protected abstract execute(request: Omit<ApiRequest, 'body'>, cancellationToken: CancellationToken, bodyText?: string): Promise<ApiResponse<string | undefined>>;

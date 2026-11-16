@@ -79,7 +79,7 @@ export class AgentMergeCIEvidenceStore extends Disposable {
 
 	/** Returns undefined when the log cannot fit without evicting evidence already advertised on this page. */
 	tryAdd(scope: string, runAttempt: number, job: WorkflowJob, log: GitHubWorkflowLog, cancellationToken: CancellationToken, retainedIds: ReadonlySet<string> = new Set()): AgentMergeCIEvidence | undefined {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (this._store.isDisposed || log.text.length > maximumEvidenceCharacters) {
 			throw new Error('CI evidence storage is unavailable or its memory limit was exceeded.');
 		}

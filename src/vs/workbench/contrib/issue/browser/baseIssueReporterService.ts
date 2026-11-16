@@ -76,7 +76,7 @@ export class BaseIssueReporterService extends Disposable {
 	private privateAction: Action;
 	private readonly similarIssueSearch = this._register(new MutableDisposable());
 	private similarIssueSearchGeneration = 0;
-	private readonly disposeToken = cancelOnDispose(this._store);
+	private readonly _disposeToken = cancelOnDispose(this._store);
 
 	constructor(
 		public disableExtensions: boolean,
@@ -1296,15 +1296,15 @@ export class BaseIssueReporterService extends Disposable {
 		const authorization = this.data.githubAuthorization;
 		let issueUrl: string;
 		try {
-			const sessions = await withGitHubCredentialDeadline(this.disposeToken, () => this.authenticationService.getSessions('github', [], { silent: true }, true));
+			const sessions = await withGitHubCredentialDeadline(this._disposeToken, () => this.authenticationService.getSessions('github', [], { silent: true }, true));
 			const session = authorization && sessions.find(session => isEqualAuthorization(authorization, toGitHubAuthorizationContext('github', session)));
 			if (!session) {
 				throw new GitHubRequestError(localize('issueReporter.githubSessionUnavailable', "The GitHub session selected for this issue report is no longer available. Sign in again or preview the report on GitHub."), 'authentication');
 			}
-			issueUrl = await this.issueFormService.createGitHubIssue('github', session, { owner: gitHubDetails.owner, repo: gitHubDetails.repositoryName }, { title: issueTitle, body: issueBody }, this.disposeToken);
-			CancellationToken.throwIfCancellationRequested(this.disposeToken);
+			issueUrl = await this.issueFormService.createGitHubIssue('github', session, { owner: gitHubDetails.owner, repo: gitHubDetails.repositoryName }, { title: issueTitle, body: issueBody }, this._disposeToken);
+			CancellationToken.throwIfCanceled(this._disposeToken);
 		} catch (error) {
-			CancellationToken.throwIfCancellationRequested(this.disposeToken);
+			CancellationToken.throwIfCanceled(this._disposeToken);
 			if (!isCancellationError(error)) {
 				this.logService.error('[IssueReporter] Failed to create GitHub issue', error);
 			}

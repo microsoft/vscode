@@ -208,7 +208,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 		const release = toDisposable(() => this._requestProviderScopes.deleteAndDispose(scope));
 		return {
 			acquireClient: options => {
-				CancellationToken.throwIfCancellationRequested(controller.token);
+				CancellationToken.throwIfCanceled(controller.token);
 				const lease = new DisposableStore();
 				const leaseController = new CancellationTokenSource();
 				lease.add(toDisposable(() => leaseController.dispose(true)));
@@ -497,7 +497,7 @@ class GitHubBootstrapClient extends Disposable implements IGitHubBootstrapClient
 	}
 
 	async get<T>(path: string, cancellationToken: CancellationToken, options: GitHubBootstrapReadOptions = {}): Promise<GitHubRestResponse<T>> {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const { url, apiBasePath } = resolveReadApiUrl(this.apiBaseUri, path);
 		return this._transport.bootstrapGet<T>(this._account, this._credential.token, apiBasePath, { ...options, url: url.href }, cancellationToken);
 	}

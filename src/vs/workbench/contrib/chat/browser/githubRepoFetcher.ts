@@ -57,13 +57,13 @@ export async function fetchAndExtractGitHubRepo(
 	const controller = resources.add(new CancellationTokenSource());
 	const operationToken = CancellationToken.any([cancellationToken, controller.token], resources);
 	try {
-		CancellationToken.throwIfCancellationRequested(operationToken);
+		CancellationToken.throwIfCanceled(operationToken);
 		await fileService.createFolder(stagingDir);
 		const blobsToFetch: { entry: GitTreeEntry; dest: URI }[] = [];
 		const createdDirs = new Set<string>([stagingDir.toString()]);
 
 		for (const entry of tree.tree) {
-			CancellationToken.throwIfCancellationRequested(operationToken);
+			CancellationToken.throwIfCanceled(operationToken);
 			if (entry.type === 'commit') {
 				logService.trace(`[GitHubRepoFetcher] Skipping submodule entry ${entry.path}`);
 				continue;
@@ -93,13 +93,13 @@ export async function fetchAndExtractGitHubRepo(
 		}
 
 		await Promise.all(blobsToFetch.map(({ entry, dest }) => limiter.queue(async () => {
-			CancellationToken.throwIfCancellationRequested(operationToken);
+			CancellationToken.throwIfCanceled(operationToken);
 			const blob = await content.getBlob(repo, entry.sha, operationToken, { caller: 'pluginGit.blob', noCache: true });
-			CancellationToken.throwIfCancellationRequested(operationToken);
+			CancellationToken.throwIfCanceled(operationToken);
 			await fileService.writeFile(dest, decodeBase64(blob.content.replace(/\s+/g, '')));
 		})));
 
-		CancellationToken.throwIfCancellationRequested(operationToken);
+		CancellationToken.throwIfCanceled(operationToken);
 		await fileService.move(stagingDir, targetDir, true);
 	} catch (error) {
 		controller.cancel();

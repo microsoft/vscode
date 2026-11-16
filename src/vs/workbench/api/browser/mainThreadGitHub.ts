@@ -97,7 +97,7 @@ export class MainThreadGitHub extends Disposable implements MainThreadGitHubShap
 	async $getClient(handle: number, extensionId: string, sessionId: string, token: CancellationToken): Promise<GitHubResultDto<void>> {
 		return this._acquire(handle, extensionId, sessionId, token, async (entry, cancellationToken) => {
 			const session = await this._resolveSession(extensionId, sessionId, cancellationToken);
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			entry.accountLabel = session.account.label;
 			return this._gitHubService.acquireAccountApiClient(gitHubProviderId, session, cancellationToken);
 		});
@@ -226,7 +226,7 @@ export class MainThreadGitHub extends Disposable implements MainThreadGitHubShap
 			if (!this._hasAccess(entry)) {
 				this._invalidate(entry);
 			}
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			return { kind: 'ok', value: undefined };
 		} catch (error) {
 			const failure: GitHubResultDto<void> = entry.invalidated ? { kind: 'error', error: sessionUnavailableError() } : this._toFailure(error, cancellationToken);

@@ -231,7 +231,7 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 		}
 		const chat = artifact.origin?.chat;
 		return this.withAuthentication(target, token, async () => {
-			CancellationToken.throwIfCancellationRequested(token);
+			CancellationToken.throwIfCanceled(token);
 			const source = chat ? this.github.captureSessionCredentialSource(chat, undefined, this.stateManager.getChatOwner(chat)) : undefined;
 			const client = this.github.acquireRepositoryClient(token, source, chat);
 			try {
@@ -262,7 +262,7 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 			throw new Error('The pull request credential context is unavailable');
 		}
 		return this.withAuthentication(target, token, async () => {
-			CancellationToken.throwIfCancellationRequested(token);
+			CancellationToken.throwIfCanceled(token);
 			const client = this.github.acquireRepositoryClient(token, context.source, context.chat);
 			try {
 				const credential = await client.object.credentials.getCredential(token);
@@ -998,7 +998,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 					kind: 'ready',
 					value: {
 						run: async ({ token, runId }) => {
-							CancellationToken.throwIfCancellationRequested(token);
+							CancellationToken.throwIfCanceled(token);
 							const current = await this.resource.refresh(token);
 							if (current.core.value?.headSha !== headSha || !this.applicable(id, current, context.run.source === 'automation')) {
 								return { kind: 'skipped', reason: localize('prArtifact.stateChanged', "The pull request changed before the action could run.") };

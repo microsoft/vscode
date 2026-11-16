@@ -70,7 +70,7 @@ suite('Native workbench GitHub API clients', () => {
 			configuration,
 			new class extends mock<ISharedProcessGitHubService>() {
 				override async acquireAnonymousClient(cancellationToken: CancellationToken) {
-					CancellationToken.throwIfCancellationRequested(cancellationToken);
+					CancellationToken.throwIfCanceled(cancellationToken);
 					anonymousSignals.push(cancellationToken);
 					return anonymousClient;
 				}

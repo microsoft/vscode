@@ -80,7 +80,7 @@ export async function withGitHubCredentialDeadline<T>(cancellationToken: Cancell
 		if (timeoutError) {
 			throw timeoutError;
 		}
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (deadline <= scheduler.now()) {
 			throw new GitHubRequestTimeoutError();
 		}
@@ -212,7 +212,7 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 	}
 
 	private _throwIfExpired(cancellationToken: CancellationToken, deadline: number): void {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (deadline <= this._scheduler.now()) {
 			throw new GitHubRequestTimeoutError();
 		}
@@ -306,7 +306,7 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 			};
 			this._current = current;
 		}
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		return raceCancellationError(this._current.promise, cancellationToken);
 	}
 

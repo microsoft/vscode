@@ -36,7 +36,7 @@ suite('GitHub link presentations', () => {
 			override readonly credentials = new class extends mock<IGitHubClient['credentials']>() {
 				override async getCredential(cancellationToken: CancellationToken): Promise<never> {
 					credentialCalls++;
-					CancellationToken.throwIfCancellationRequested(cancellationToken);
+					CancellationToken.throwIfCanceled(cancellationToken);
 					throw new Error('Unexpected credential lookup');
 				}
 			}();

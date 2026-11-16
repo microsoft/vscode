@@ -37,21 +37,21 @@ export class GitHubChannelClient implements ISharedProcessGitHubService {
 	}
 
 	async acquireClient(authorization: GitHubAuthorizationContext, cancellationToken: CancellationToken): Promise<IGitHubAccountClient> {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		return this.acquire(parseAuthorization(authorization), cancellationToken);
 	}
 
 	private acquire(authorization: undefined, cancellationToken: CancellationToken): Promise<IGitHubAnonymousClient>;
 	private acquire(authorization: GitHubAuthorizationContext, cancellationToken: CancellationToken): Promise<IGitHubAccountClient>;
 	private async acquire(authorization: GitHubAuthorizationContext | undefined, cancellationToken: CancellationToken): Promise<IGitHubAnonymousClient | IGitHubAccountClient> {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const clientId = generateUuid();
 		let acquired = false;
 		try {
 			const resolved = authorization
 				? parseClientResponse(await raceCancellationError(this.channel.call('acquireClient', { clientId, authorization }, cancellationToken), cancellationToken), parseAuthorization)
 				: await raceCancellationError(this.channel.call<void>('acquireAnonymousClient', { clientId }, cancellationToken), cancellationToken);
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 
 			const lease = new DisposableStore();
 			const clientToken = cancelOnDispose(lease);
@@ -86,7 +86,7 @@ export class GitHubChannelClient implements ISharedProcessGitHubService {
 
 /** Serves credentials only on the acquiring renderer's reverse channel. */
 export class GitHubCredentialsChannel extends Disposable implements IServerChannel<string> {
-	private readonly lifetimeToken = cancelOnDispose(this._store);
+	private readonly _disposeToken = cancelOnDispose(this._store);
 
 	constructor(private readonly broker: IGitHubCredentialBroker) {
 		super();
@@ -96,7 +96,7 @@ export class GitHubCredentialsChannel extends Disposable implements IServerChann
 		const lifetime = new DisposableStore();
 		try {
 			const authorization = parseAuthorization(arg);
-			const combinedToken = CancellationToken.any([cancellationToken, this.lifetimeToken], lifetime);
+			const combinedToken = CancellationToken.any([cancellationToken, this._disposeToken], lifetime);
 			const value = await withGitHubCredentialDeadline(combinedToken, async cancellationToken => {
 				switch (command) {
 					case 'resolveClient': return this.broker.resolveClient(authorization, cancellationToken);
@@ -139,7 +139,7 @@ export class RemoteApiRequestProvider extends BufferedApiRequestProvider {
 		if (cancellationToken.isCancellationRequested && this.tracksOutcome && missionControlRequestPolicy(request).mutation) {
 			throw new MutationUncertainError('unknown');
 		}
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 	}
 
 	private get tracksOutcome(): boolean {

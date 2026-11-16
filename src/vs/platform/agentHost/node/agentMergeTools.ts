@@ -49,7 +49,7 @@ export interface IAgentMergeTurnContext {
 export class AgentMergeTools extends Disposable implements IAgentMergeToolAccessor {
 
 	private readonly _evidence = this._register(new AgentMergeCIEvidenceStore());
-	private readonly _lifetimeToken = cancelOnDispose(this._store);
+	private readonly _disposeToken = cancelOnDispose(this._store);
 	private readonly _reads = this._register(new Queue<string>());
 
 	constructor(
@@ -90,7 +90,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 		const request = parseAgentMergeCIRequest(input);
 		const lifetime = new DisposableStore();
 		const timeout = lifetime.add(new CancellationTokenSource());
-		const context = { ...original, cancellationToken: CancellationToken.any([original.cancellationToken, this._lifetimeToken, timeout.token], lifetime) };
+		const context = { ...original, cancellationToken: CancellationToken.any([original.cancellationToken, this._disposeToken, timeout.token], lifetime) };
 		let timeoutError: Error | undefined;
 		lifetime.add(disposableTimeout(() => {
 			if (!context.cancellationToken.isCancellationRequested) {
@@ -99,10 +99,10 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 			}
 		}, 180_000));
 		try {
-			CancellationToken.throwIfCancellationRequested(context.cancellationToken);
+			CancellationToken.throwIfCanceled(context.cancellationToken);
 			return await raceCancellationError(this._reads.queue(() => this._readFailedCI(context, request)), context.cancellationToken);
 		} catch (error) {
-			const failure = timeoutError ?? (this._lifetimeToken.isCancellationRequested && !original.cancellationToken.isCancellationRequested
+			const failure = timeoutError ?? (this._disposeToken.isCancellationRequested && !original.cancellationToken.isCancellationRequested
 				? new Error('Agent Merge tools disposed.') : error);
 			this._logService.warn(`[AgentMergeTools] CI diagnostic read failed: session=${session}, turn=${original.turnId}`, failure);
 			throw failure;
@@ -129,7 +129,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 	private async _validateCIHead(context: IAgentMergeTurnContext): Promise<void> {
 		const lifetime = new DisposableStore();
 		try {
-			CancellationToken.throwIfCancellationRequested(context.cancellationToken);
+			CancellationToken.throwIfCanceled(context.cancellationToken);
 			const subscription = lifetime.add(context.client.pullRequests.subscribePullRequest(context.ref, { core: true, priority: 'interactive' }));
 			await subscription.refresh('core', context.cancellationToken, { authoritative: true });
 			const core = subscription.resource.snapshot.get().core;
@@ -143,7 +143,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 	}
 
 	private _assertCurrentCIContext(context: IAgentMergeTurnContext): void {
-		CancellationToken.throwIfCancellationRequested(context.cancellationToken);
+		CancellationToken.throwIfCanceled(context.cancellationToken);
 		const current = this._requireTurnAction(context.chat, 'fixCI');
 		if (ciScope(current) !== ciScope(context) || !current.configuration.fixCI) {
 			throw new Error('The CI diagnostic authorization changed during this read.');
@@ -274,7 +274,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 							break;
 						}
 					} catch (error) {
-						CancellationToken.throwIfCancellationRequested(context.cancellationToken);
+						CancellationToken.throwIfCanceled(context.cancellationToken);
 						if (!(error instanceof GitHubRequestError)) {
 							throw error;
 						}

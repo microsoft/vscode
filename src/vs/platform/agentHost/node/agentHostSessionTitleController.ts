@@ -757,7 +757,6 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			return undefined;
 		}
 
-		const lifetime = new DisposableStore();
 		try {
 			const titlePromptContent = prompt.gitHubReferenceSource === undefined
 				? prompt.content
@@ -770,7 +769,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 				maxTokens: MAX_TITLE_TOKENS,
 				telemetry: { source: 'title' },
 			}, {
-				signal: CancellationToken.toAbortSignal(token, lifetime),
+				cancellationToken: token,
 			});
 			return this._cleanTitle(rawTitle, titlePromptContent);
 		} catch (err) {
@@ -783,8 +782,6 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			}
 			this._logService.warn('[AgentHostSessionTitleController] Failed to generate session title', err);
 			return undefined;
-		} finally {
-			lifetime.dispose();
 		}
 	}
 

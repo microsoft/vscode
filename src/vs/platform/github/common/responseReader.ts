@@ -26,7 +26,7 @@ export async function readBoundedResponse(
 ): Promise<{ readonly bytes: Uint8Array; readonly truncated: boolean }> {
 	const limit = Math.max(0, maximumBytes);
 	if (!response.body) {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		return { bytes: new Uint8Array(), truncated: false };
 	}
 	const reader = response.body.getReader();
@@ -35,9 +35,9 @@ export async function readBoundedResponse(
 	let complete = false;
 	try {
 		while (true) {
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const result = await raceCancellationError(reader.read(), cancellationToken);
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			if (result.done) {
 				complete = true;
 				break;

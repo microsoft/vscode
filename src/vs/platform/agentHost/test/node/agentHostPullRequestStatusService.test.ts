@@ -283,7 +283,7 @@ suite('AgentHostPullRequestStatusService', () => {
 					override readonly credentials = new class extends mock<IGitHubCredentials>() {
 						override readonly onDidInvalidate = credentials.onDidInvalidate;
 						override async getCredential(cancellationToken: CancellationToken) {
-							CancellationToken.throwIfCancellationRequested(cancellationToken);
+							CancellationToken.throwIfCanceled(cancellationToken);
 							const result = await credentials.getCredential();
 							const scoped = source?.getCredential({ resource: GITHUB_REPO_PROTECTED_RESOURCE.resource, scopes: GITHUB_REPO_PROTECTED_RESOURCE.scopes_supported });
 							if (!scoped) {

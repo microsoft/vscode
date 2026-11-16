@@ -220,7 +220,7 @@ export class PullRequestMutationService extends Disposable implements PullReques
 				// new maintainer comments, and a comment that lands after this point bumps
 				// the resource generation, which invalidates the preparation.
 				await subscription.refresh('topLevelComments', cancellationToken, { authoritative: true });
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				const snapshot = subscription.resource.snapshot.get();
 				validateMergeGateSnapshot(snapshot, expectedHeadSha);
 				const token = generateUuid();
@@ -243,7 +243,7 @@ export class PullRequestMutationService extends Disposable implements PullReques
 				return value;
 			} catch (error) {
 				subscription.dispose();
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				throw error;
 			}
 		});

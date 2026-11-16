@@ -147,10 +147,10 @@ export class RequestQueue extends Disposable {
 				run: () => {
 					void Promise.resolve().then(() => {
 						checkDeadline();
-						CancellationToken.throwIfCancellationRequested(controller.token);
+						CancellationToken.throwIfCanceled(controller.token);
 						return task(controller.token, () => {
 							checkDeadline();
-							CancellationToken.throwIfCancellationRequested(controller.token);
+							CancellationToken.throwIfCanceled(controller.token);
 							dispatched = true;
 						});
 					}).then(

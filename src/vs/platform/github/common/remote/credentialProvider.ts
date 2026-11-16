@@ -81,12 +81,12 @@ export class RemoteGitHubCredentialProvider extends Disposable implements IGitHu
 
 	private async call<T>(command: string, authorization: GitHubAuthorizationContext, cancellationToken: CancellationToken, parser: parse.Parser<T>): Promise<T> {
 		try {
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const response = await this.channel.call(command, authorization, cancellationToken);
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			return parseClientResponse(response, parser);
 		} catch (error) {
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			throw error;
 		}
 	}

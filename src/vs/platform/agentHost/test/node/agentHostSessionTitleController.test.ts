@@ -79,11 +79,21 @@ class TestCopilotApiService implements ICopilotApiService {
 function createUtilityModelService(copilotApiService: TestCopilotApiService, getGitHubCopilotToken: () => string | undefined): IAgentHostUtilityModelService {
 	return {
 		_serviceBrand: undefined,
-		chatCompletion: (_context, request, options) => {
+		chatCompletion: async (_context, request, options) => {
 			const token = getGitHubCopilotToken();
-			return token
-				? copilotApiService.utilityChatCompletion(token, request, options)
-				: Promise.reject(new AgentHostUtilityModelUnavailableError(AgentHostUtilityModelUnavailableReason.CopilotSignInRequired));
+			if (!token) {
+				throw new AgentHostUtilityModelUnavailableError(AgentHostUtilityModelUnavailableReason.CopilotSignInRequired);
+			}
+			const lifetime = new DisposableStore();
+			try {
+				const { cancellationToken, ...requestOptions } = options ?? {};
+				return await copilotApiService.utilityChatCompletion(token, request, {
+					...requestOptions,
+					signal: cancellationToken && CancellationToken.toAbortSignal(cancellationToken, lifetime),
+				});
+			} finally {
+				lifetime.dispose();
+			}
 		},
 	};
 }
@@ -218,7 +228,7 @@ suite('AgentHostSessionTitleController', () => {
 			gitHubContextRequestTimeout,
 			gitHubService: new class extends mock<IAgentHostGitHubService>() {
 				override acquireRepositoryApiClient(cancellationToken: CancellationToken): IGitHubAccountClient {
-					CancellationToken.throwIfCancellationRequested(cancellationToken);
+					CancellationToken.throwIfCanceled(cancellationToken);
 					return new class extends mock<IGitHubAccountClient>() {
 						override readonly issues = query;
 						override dispose(): void { clientDisposals++; }

@@ -753,7 +753,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			const repository = toRepositoryRef(repo);
 			const commit = await client.content.resolveRef(repository, reference.ref ?? 'main', cancellationToken, { caller: 'pluginMarketplaceService.resolveRef', noCache: options?.refresh, priority: options?.priority });
 			plugins = await this._readPluginsFromDefinitions(reference, async defPath => {
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				try {
 					const text = await client.content.getRawFile(repository, commit, defPath, cancellationToken, { caller: 'pluginMarketplaceService.fetchPluginList', priority: options?.priority });
 					const json: IMarketplaceJson | null = JSON.parse(text);

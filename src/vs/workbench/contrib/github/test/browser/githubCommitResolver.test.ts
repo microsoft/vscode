@@ -31,7 +31,7 @@ suite('GitHubCommitResolver', () => {
 				credentials: upcastPartial<IGitHubClient['credentials']>({
 					getCredential: async cancellationToken => {
 						credentialCalls++;
-						CancellationToken.throwIfCancellationRequested(cancellationToken);
+						CancellationToken.throwIfCanceled(cancellationToken);
 						throw new Error('Unexpected credential lookup');
 					},
 				}),

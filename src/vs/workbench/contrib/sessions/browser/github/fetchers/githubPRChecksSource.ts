@@ -46,7 +46,7 @@ export class PullRequestChecksSource implements IPullRequestChecksSource {
 		try {
 			const client = reference.object;
 			const { account } = await client.credentials.getCredential(cancellationToken);
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const subscription = client.pullRequests.subscribePullRequest({ ...account, owner, repo, number: prNumber }, {
 				priority: 'background',
 				checks: { required: true, includeOptional: true },

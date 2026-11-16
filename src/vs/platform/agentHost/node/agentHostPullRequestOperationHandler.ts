@@ -375,14 +375,13 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		if (hasUncommitted && branchName === baseBranchName) {
 			const branchPrefix = sessionState.config?.values[SessionConfigKey.WorktreeBranchPrefix];
 
-			const lifetime = new DisposableStore();
 			try {
 				const generatedBranchName = await this._branchNameGenerator.generateBranchName({
 					sessionId: URI.parse(sessionUri).path.split('/').filter(Boolean).pop() ?? sessionUri,
 					agentSessionId: AgentSession.id(sessionUri),
 					message: conversationState.turns.find(turn => turn.message.text.trim())?.message.text,
 					githubToken: authToken,
-					signal: CancellationToken.toAbortSignal(token, lifetime),
+					cancellationToken: token,
 					branchPrefix: typeof branchPrefix === 'string' ? branchPrefix : undefined,
 					branchNameCollides: candidate => this._gitService.branchExists(workingDirectory, candidate).catch(() => true),
 				});
@@ -397,8 +396,6 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			} catch (err) {
 				this._throwIfCancelled(token);
 				throw new ProtocolError(JsonRpcErrorCodes.InternalError, `Failed to create a branch before creating a pull request: ${err instanceof Error ? err.message : String(err)}`);
-			} finally {
-				lifetime.dispose();
 			}
 		}
 
@@ -690,19 +687,16 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 
 		let raw: string;
-		const lifetime = new DisposableStore();
 		try {
 			raw = await this._utilityModelService.chatCompletion(modelContext, {
 				messages: this._buildTitleAndDescriptionPrompt(branchName, base, conversation, changeSummary),
 				telemetry: { source: 'githubPullRequestTitleAndDescriptionGenerator' },
-			}, { signal: CancellationToken.toAbortSignal(token, lifetime) });
+			}, { cancellationToken: token });
 		} catch (err) {
 			if (err instanceof AgentHostUtilityModelUnavailableError) {
 				throw new Error(this._utilityModelUnavailableMessage(err.reason));
 			}
 			throw err;
-		} finally {
-			lifetime.dispose();
 		}
 		this._throwIfCancelled(token);
 		const generated = this._parseTitleAndDescription(raw);

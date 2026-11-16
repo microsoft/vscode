@@ -545,7 +545,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				const lifetime = new DisposableStore();
 				try {
 					const cancellationToken = token;
-					CancellationToken.throwIfCancellationRequested(cancellationToken);
+					CancellationToken.throwIfCanceled(cancellationToken);
 					const client = lifetime.add(this._gitHubService.acquireAnonymousClient());
 					const repository = { owner: 'microsoft', repo: getDevContainerSampleFolder(sample) };
 					const commitSha = await client.content.resolveRef(repository, 'HEAD', cancellationToken);

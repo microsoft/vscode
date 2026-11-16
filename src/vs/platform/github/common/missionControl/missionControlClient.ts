@@ -90,7 +90,7 @@ export class MissionControlClient {
 		const { maxPages, pageLimitBehavior, ...options } = request.options ?? {};
 		if (maxPages === undefined) {
 			const data = await this.request({ ...request, options }, cancellationToken, parser);
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			return data;
 		}
 		let serverDate: string | undefined;
@@ -121,7 +121,7 @@ export class MissionControlClient {
 
 	/** Executes a Mission Control request and returns the result of the response parser. */
 	async request<T>(request: ApiRequest, cancellationToken: CancellationToken, parser: (response: ApiResponse<unknown>) => T): Promise<T> {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const provider = this._provider;
 		if (!provider) {
 			throw new GitHubRequestError('No approved Mission Control API endpoint is configured for this client', 'validation');
@@ -135,7 +135,7 @@ export class MissionControlClient {
 			? await provider.request({ ...operation, responseBody: 'none' }, cancellationToken)
 			: await provider.request({ ...operation, responseBody: 'text' }, cancellationToken, parse.string);
 		try {
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const data = request.responseBody === 'text' || typeof response.data !== 'string'
 				? response.data
 				: parseResponseJson<unknown>(response.data, () => new GitHubRequestError('API response was not valid JSON', 'malformedResponse', response.status));

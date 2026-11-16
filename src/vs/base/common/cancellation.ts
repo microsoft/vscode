@@ -57,7 +57,7 @@ export namespace CancellationToken {
 		onCancellationRequested: shortcutEvent
 	});
 
-	export function throwIfCancellationRequested(token: CancellationToken): void {
+	export function throwIfCanceled(token: CancellationToken): void {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}

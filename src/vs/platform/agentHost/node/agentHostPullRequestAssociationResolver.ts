@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { CancellationToken, cancelOnDispose } from '../../../base/common/cancellation.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { equals as objectEquals } from '../../../base/common/objects.js';
 import { URI } from '../../../base/common/uri.js';
 import { ApiRequestOptions } from '../../github/common/client/request.js';
@@ -99,7 +99,7 @@ function getPullRequestArtifactUrls(meta: SessionSummaryMeta | undefined): strin
 export class AgentHostPullRequestAssociationResolver extends Disposable {
 
 	private readonly _restrictedResolutions = new Map<string, IRestrictedPullRequestResolution>();
-	private readonly _cancellationSource = new CancellationTokenSource();
+	private readonly _disposeToken = cancelOnDispose(this._store);
 
 	constructor(
 		private readonly _gitService: IAgentHostGitService,
@@ -107,7 +107,6 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		private readonly _logService: ILogService,
 	) {
 		super();
-		this._register(toDisposable(() => this._cancellationSource.dispose(true)));
 	}
 
 	resetRestrictedState(): void {
@@ -138,7 +137,7 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		const upstreamBranch = githubHeadOwner ? parseUpstreamBranchName(gitState?.upstreamBranchName) : undefined;
 		const headBranch = upstreamBranch?.branch ?? branchName;
 		const headOwner = githubHeadOwner ?? owner;
-		const cancellationToken = this._cancellationSource.token;
+		const cancellationToken = this._disposeToken;
 		const store = new DisposableStore();
 		try {
 			const client = store.add(this._gitHubService.acquireRepositoryApiClient(cancellationToken, source, session));

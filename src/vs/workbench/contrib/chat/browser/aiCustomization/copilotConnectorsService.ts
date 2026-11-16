@@ -785,13 +785,13 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		lifetime.add(disposableTimeout(() => cancellation.cancel(), requestTimeout));
 		const cancellationToken = cancellation.token;
 		const run = async () => {
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			let client = this.apiClient.value?.object;
 			if (!client || !isEqualAuthorization(client.authorization, authorization)) {
 				const clientLifetime = new DisposableStore();
 				try {
 					const acquired = clientLifetime.add(await this.gitHubService.acquireAccountApiClient(authorization.providerId, selectedSession, cancellationToken));
-					CancellationToken.throwIfCancellationRequested(cancellationToken);
+					CancellationToken.throwIfCanceled(cancellationToken);
 					const existing = this.apiClient.value?.object;
 					if (existing && isEqualAuthorization(existing.authorization, authorization)) {
 						clientLifetime.dispose();
@@ -810,7 +810,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		};
 		try {
 			const result = await raceCancellationError(run(), cancellation.token);
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			return result;
 		} catch (error) {
 			if (token.isCancellationRequested) {

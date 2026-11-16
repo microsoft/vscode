@@ -82,7 +82,7 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 				Event.map(onDidChangeRepositoryAccount.event, () => ({ providerId: 'agent-host', sessionIds: [_endpointService.getRepoResource().resource] })),
 			),
 			getToken: (context, cancellationToken) => {
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				const request = { resource: context.sessionId, scopes: context.scopes };
 				const accountId = context.sessionId === _endpointService.getRepoResource().resource
 					? synchronizeRepositoryAccount()
@@ -153,7 +153,7 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 	}
 
 	acquireRepositoryClient(cancellationToken: CancellationToken, source?: IAgentHostCredentialSource, session?: string): IReference<IGitHubClient> {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		source ??= session ? this._authenticationService.getSessionCredentialSource(session) ?? this.captureSessionCredentialSource(session) : undefined;
 		if (source) {
 			return this._acquireIsolatedRepositoryClient(source, session, (entry, options) => entry.service.acquireClient(options));
@@ -178,7 +178,7 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 	}
 
 	acquireRepositoryApiClient(cancellationToken: CancellationToken, source?: IAgentHostCredentialSource, session?: string): IGitHubAccountClient {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		source ??= session ? this._authenticationService.getSessionCredentialSource(session) ?? this.captureSessionCredentialSource(session) : undefined;
 		if (source) {
 			const reference = this._acquireIsolatedRepositoryClient(source, session, (entry, options) => entry.apiScope.acquireClient(options));
@@ -215,13 +215,13 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 	}
 
 	private _repositoryClientOptions(cancellationToken: CancellationToken): GitHubClientOptions {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (this._store.isDisposed) {
 			throw new GitHubRequestError('GitHub service was disposed', 'unknown');
 		}
 		const resource = this._endpointService.getRepoResource();
 		const accountId = this._synchronizeRepositoryAccount();
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		return {
 			authorization: { providerId: 'agent-host', sessionId: resource.resource, scopes: resource.scopes_supported ?? [], ...(accountId !== undefined ? { accountId } : {}) },
 			apiBaseUri: this._endpointService.getApiBaseUri(),
@@ -250,7 +250,7 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 			const credentialProvider: IGitHubCredentialProvider = {
 				onDidChange: Event.map(this._endpointService.onDidChange, () => ({ providerId: 'agent-host-isolated' })),
 				getToken: (context, cancellationToken) => {
-					CancellationToken.throwIfCancellationRequested(cancellationToken);
+					CancellationToken.throwIfCanceled(cancellationToken);
 					if (!this._authenticationService.useLocalCredentials && source.principal && source.principal.apiOrigin !== new URL(this._endpointService.getApiBaseUri()).origin) {
 						return undefined;
 					}

@@ -30,7 +30,7 @@ export class ContentClient implements IContentClient {
 	}
 
 	async getRawFile(repository: RepositoryRef, commitSha: string, path: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<string> {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (!this.rawContent) {
 			throw new GitHubRequestError('GitHub raw-content endpoint is not configured for this host.', 'validation');
 		}

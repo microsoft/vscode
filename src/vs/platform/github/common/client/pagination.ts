@@ -40,9 +40,9 @@ export async function collectPages<T>(
 	const seen = new Set(initial === undefined ? [] : [initial]);
 	let continuation = initial;
 	while (true) {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const page = await fetchPage(continuation);
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		pages.push(page);
 		if (maxPages === undefined) {
 			break;

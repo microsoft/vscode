@@ -51,7 +51,7 @@ export function createTestGitHubClient(overrides: Partial<Pick<IGitHubClient, 'c
 		override readonly credentials = overrides.credentials ?? new class extends mock<IGitHubCredentials>() {
 			override readonly onDidInvalidate = Event.None;
 			override async getCredential(cancellationToken: CancellationToken) {
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				return { account: { host: 'api.github.com', accountId: '1' }, token: 'test-token', generation: 1, cancellationToken: CancellationToken.None };
 			}
 		}();

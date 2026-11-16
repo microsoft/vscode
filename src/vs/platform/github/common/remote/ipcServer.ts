@@ -107,7 +107,7 @@ class GitHubChannel extends Disposable implements IServerChannel<string> {
 				}
 			}));
 			const options = await withGitHubCredentialDeadline(combinedToken, cancellationToken => credentials.resolveClient(request.authorization, cancellationToken));
-			CancellationToken.throwIfCancellationRequested(combinedToken);
+			CancellationToken.throwIfCanceled(combinedToken);
 			const client = scope.acquireClient(options);
 			this.clients.set(request.clientId, client);
 			return [{ type: 'success', value: client.object.authorization }, undefined];

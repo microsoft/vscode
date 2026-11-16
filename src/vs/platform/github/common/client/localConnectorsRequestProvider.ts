@@ -63,7 +63,7 @@ export class LocalConnectorsRequestProvider extends BufferedApiRequestProvider {
 		const lifetime = new DisposableStore();
 		try {
 			const combinedToken = CancellationToken.any([cancellationToken, credential.cancellationToken], lifetime);
-			CancellationToken.throwIfCancellationRequested(combinedToken);
+			CancellationToken.throwIfCanceled(combinedToken);
 			const response = await this.transport.restText(connectorsAccount(url.host, credential.account), credential.token, {
 				domain: 'connectors',
 				method: metadata.method,
@@ -82,7 +82,7 @@ export class LocalConnectorsRequestProvider extends BufferedApiRequestProvider {
 				priority: metadata.options?.priority,
 			}, combinedToken);
 
-			CancellationToken.throwIfCancellationRequested(combinedToken);
+			CancellationToken.throwIfCanceled(combinedToken);
 
 			const status = response.revalidatedStatusCode ?? response.statusCode;
 			if (status !== (disconnect ? 204 : 200)) {
@@ -91,7 +91,7 @@ export class LocalConnectorsRequestProvider extends BufferedApiRequestProvider {
 
 			return { data: response.data, status };
 		} catch (error) {
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			if (isCancellationError(error)) {
 				error = credential.cancellationError ?? error;
 			}

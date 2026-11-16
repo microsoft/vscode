@@ -14,7 +14,7 @@ export class ConnectorsClient implements IConnectorsClient {
 	constructor(private readonly provider?: IApiRequestProvider) { }
 
 	async getCatalog(cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ConnectorCatalog> {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (!this.provider) {
 			throw new GitHubRequestError('No approved Copilot connectors endpoint is configured for this client', 'validation');
 		}
@@ -31,7 +31,7 @@ export class ConnectorsClient implements IConnectorsClient {
 	}
 
 	async connect(name: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<ConnectorConnectionResult> {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (!this.provider) {
 			throw new GitHubRequestError('No approved Copilot connectors endpoint is configured for this client', 'validation');
 		}
@@ -49,7 +49,7 @@ export class ConnectorsClient implements IConnectorsClient {
 	}
 
 	async disconnect(name: string, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void> {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (!this.provider) {
 			throw new GitHubRequestError('No approved Copilot connectors endpoint is configured for this client', 'validation');
 		}

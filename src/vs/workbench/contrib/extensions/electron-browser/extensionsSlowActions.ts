@@ -108,13 +108,13 @@ export async function createSlowExtensionAction(
 	let totalCount: number;
 	try {
 		const client = lifetime.add(await gitHubService.acquireAnonymousApiClient(cancellationToken));
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const data = await client.search.issues(`state:open in:title repo:${info.owner}/${info.repo} "Extension causes high cpu load"`, cancellationToken, {
 			caller: 'showExtensionSlowAction',
 			deadline,
 			query: { per_page: 1 },
 		});
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		totalCount = data.total_count;
 	} catch (error) {
 		logService.warn('[ExtensionsSlowActions] GitHub issue search failed', error);

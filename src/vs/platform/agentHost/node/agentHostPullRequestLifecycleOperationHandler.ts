@@ -63,7 +63,7 @@ export class AgentHostPullRequestLifecycleOperationHandler implements IChangeset
 		source = this.captureCredentialSource(params, source);
 		const store = new DisposableStore();
 		try {
-			CancellationToken.throwIfCancellationRequested(token);
+			CancellationToken.throwIfCanceled(token);
 			return await this._invoke(params, token, store, source);
 		} finally {
 			store.dispose();

@@ -84,7 +84,7 @@ function stubGitHubService(instantiationService: TestInstantiationService, store
 	const service = store.add(new GitHubService({ fetch }, new NullLogService(), NullTelemetryService));
 	instantiationService.stub(IWorkbenchGitHubService, {
 		acquireAnonymousApiClient: async cancellationToken => {
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			return service.acquireAnonymousClient();
 		},
 	});

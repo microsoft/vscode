@@ -41,7 +41,7 @@ export class CloudSandboxRepositoryPicker extends Disposable {
 		const pickToken = cancelOnDispose(store);
 		store.add(token.onCancellationRequested(() => store.dispose()));
 		try {
-			CancellationToken.throwIfCancellationRequested(token);
+			CancellationToken.throwIfCanceled(token);
 			const client = store.add(await raceCancellationError(this._gitHubService.acquireDefaultAccountApiClient(pickToken), pickToken));
 			// The viewer and their organizations scope every search, so resolve them once per pick.
 			let scope: Promise<string> | undefined;

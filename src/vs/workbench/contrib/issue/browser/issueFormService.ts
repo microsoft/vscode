@@ -105,7 +105,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 
 	/** Bounded cache of already-uploaded attachments to avoid re-uploading on retry within a session. Uses a content hash so large data URLs aren't retained as keys. */
 	private readonly uploadCache = new LRUCache<string, import('./githubUploadService.js').IGitHubUploadResult>(32);
-	private readonly disposeToken = cancelOnDispose(this._store);
+	private readonly _disposeToken = cancelOnDispose(this._store);
 
 	constructor(
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
@@ -128,8 +128,8 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 	async searchGitHubIssues(repo: string, title: string, cancellationToken: CancellationToken): Promise<readonly ISimilarIssue[]> {
 		const lifetime = new DisposableStore();
 		try {
-			cancellationToken = CancellationToken.any([cancellationToken, this.disposeToken], lifetime);
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			cancellationToken = CancellationToken.any([cancellationToken, this._disposeToken], lifetime);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const client = lifetime.add(await this.gitHubService.acquireAnonymousApiClient(cancellationToken));
 			const page = await client.search.issues(`repo:${repo} ${title}`, cancellationToken, {
 				caller: 'github.query',
@@ -149,12 +149,12 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 	async createGitHubIssue(providerId: string, session: AuthenticationSession, repository: RepositoryRef, request: CreateIssueRequest, cancellationToken: CancellationToken): Promise<string> {
 		const lifetime = new DisposableStore();
 		try {
-			cancellationToken = CancellationToken.any([cancellationToken, this.disposeToken], lifetime);
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			cancellationToken = CancellationToken.any([cancellationToken, this._disposeToken], lifetime);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const client = lifetime.add(await this.gitHubService.acquireAccountApiClient(providerId, session, cancellationToken));
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const issue = await client.issues.create(repository, request, cancellationToken, { caller: 'issueReporter', priority: 'mutation' });
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			return issue.html_url;
 		} finally {
 			lifetime.dispose();
@@ -175,22 +175,22 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 		return this.openAuxIssueReporterLegacy(data);
 	}
 
-	async submitIssue(host: IIssueSubmissionHost, data: IssueReporterData, title: string, body: string, cancellationToken: CancellationToken = this.disposeToken): Promise<boolean> {
+	async submitIssue(host: IIssueSubmissionHost, data: IssueReporterData, title: string, body: string, cancellationToken: CancellationToken = this._disposeToken): Promise<boolean> {
 		const lifetime = new DisposableStore();
 		try {
-			cancellationToken = CancellationToken.any([cancellationToken, this.disposeToken], lifetime);
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			cancellationToken = CancellationToken.any([cancellationToken, this._disposeToken], lifetime);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			host.setAttachmentUploadError(undefined);
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const issueTarget = resolveIssueReporterTarget(data, product);
 			if (!issueTarget?.url) {
 				this.logService.error('[IssueFormService] Invalid issue reporting destination.');
 				await this.dialogService.error(localize('invalidIssueDestination', "The selected issue destination is invalid. No issue data was sent."));
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				return false;
 			}
 			if (issueTarget.external) {
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				return this.openerService.open(issueTarget.url, { openExternal: true });
 			}
 
@@ -200,12 +200,12 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 			if (gitHubDetails && data.getGitHubAccessToken) {
 				host.setUploading(true);
 				try {
-					CancellationToken.throwIfCancellationRequested(cancellationToken);
+					CancellationToken.throwIfCanceled(cancellationToken);
 					const token = await data.getGitHubAccessToken();
-					CancellationToken.throwIfCancellationRequested(cancellationToken);
+					CancellationToken.throwIfCanceled(cancellationToken);
 					data.githubAccessToken = token;
 				} catch (error) {
-					CancellationToken.throwIfCancellationRequested(cancellationToken);
+					CancellationToken.throwIfCanceled(cancellationToken);
 					if (isCancellationError(error)) {
 						throw error;
 					}
@@ -219,16 +219,16 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 					host.setUploading(false);
 				}
 			}
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const githubAccessToken = data.githubAccessToken;
 			let repoId: string | undefined;
 			const resolveRepoId = async (): Promise<string | undefined> => {
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				if (!gitHubDetails) {
 					return undefined;
 				}
 				repoId ??= await this.githubUploadService.resolveRepositoryId(gitHubDetails.owner, gitHubDetails.repositoryName, githubAccessToken);
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				return repoId;
 			};
 
@@ -251,7 +251,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 					}
 					let screenshotNumber = 0;
 					for (const attachment of attachments) {
-						CancellationToken.throwIfCancellationRequested(cancellationToken);
+						CancellationToken.throwIfCanceled(cancellationToken);
 						if (attachment.kind === 'screenshot') {
 							if (!attachment.screenshot.name) {
 								screenshotNumber++;
@@ -267,9 +267,9 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 							const file = attachment.file;
 							attachmentName = file.name;
 							const fileContent = await this.fileService.readFile(URI.file(file.filePath));
-							CancellationToken.throwIfCancellationRequested(cancellationToken);
+							CancellationToken.throwIfCanceled(cancellationToken);
 							const contentHash = await hashAsync(fileContent.value);
-							CancellationToken.throwIfCancellationRequested(cancellationToken);
+							CancellationToken.throwIfCanceled(cancellationToken);
 							// GitHub's upload policy accepts bare MIME types, not recorder codec parameters.
 							const contentType = file.mimeType.split(';', 1)[0].trim().toLowerCase();
 							filesToProcess.push({ attachment, key: `file:${file.filePath}:${contentHash}`, name: file.name, bytes: fileContent.value.buffer, contentType });
@@ -279,7 +279,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 					if (filesToProcess.length > 0) {
 						const uploadResults: import('./githubUploadService.js').IGitHubUploadResult[] = [];
 						for (const file of filesToProcess) {
-							CancellationToken.throwIfCancellationRequested(cancellationToken);
+							CancellationToken.throwIfCanceled(cancellationToken);
 							attachmentName = file.name;
 							const cacheKey = `${gitHubDetails.owner.toLowerCase()}/${gitHubDetails.repositoryName.toLowerCase()}:${file.key}`;
 							const cached = this.uploadCache.get(cacheKey);
@@ -294,11 +294,11 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 								throw new Error('No GitHub repository resolved for attachment upload.');
 							}
 							host.setAttachmentUploadState(file.attachment, { destination: issueTarget.url, state: 'uploading' });
-							CancellationToken.throwIfCancellationRequested(cancellationToken);
+							CancellationToken.throwIfCanceled(cancellationToken);
 							const [result] = await this.githubUploadService.uploadViaMobileApi(
 								githubAccessToken, resolvedRepoId, [file]
 							);
-							CancellationToken.throwIfCancellationRequested(cancellationToken);
+							CancellationToken.throwIfCanceled(cancellationToken);
 							if (!result) {
 								throw new Error(`Upload returned no result for ${file.name}.`);
 							}
@@ -318,7 +318,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 						}
 					}
 				} catch (err) {
-					CancellationToken.throwIfCancellationRequested(cancellationToken);
+					CancellationToken.throwIfCanceled(cancellationToken);
 					if (isCancellationError(err)) {
 						throw err;
 					}
@@ -332,7 +332,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 				}
 			}
 
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const issueBody = body + mediaMarkdown;
 
 			const baseUrl = getIssueReporterUrlWithTitle(title, issueTarget.url);
@@ -341,7 +341,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 
 			if (url.length > MAX_URL_LENGTH && githubAccessToken && gitHubDetails) {
 				const shortenedBody = await this.tryCreateBodyWithIssueDataAttachment(host, issueBody, baseUrl, gitHubDetails, data.issueSource, githubAccessToken, resolveRepoId, cancellationToken);
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				if (shortenedBody) {
 					previewBody = shortenedBody;
 					url = this.createIssuePreviewUrl(baseUrl, previewBody, gitHubDetails, data.issueSource);
@@ -349,17 +349,17 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 			}
 
 			if (url.length > MAX_URL_LENGTH) {
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				const shouldWrite = await this.showClipboardDialog();
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				if (!shouldWrite) {
 					return false;
 				}
 				try {
 					await this.clipboardService.writeText(issueBody);
-					CancellationToken.throwIfCancellationRequested(cancellationToken);
+					CancellationToken.throwIfCanceled(cancellationToken);
 				} catch (error) {
-					CancellationToken.throwIfCancellationRequested(cancellationToken);
+					CancellationToken.throwIfCanceled(cancellationToken);
 					if (isCancellationError(error)) {
 						throw error;
 					}
@@ -381,7 +381,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 			// `%2523`, so GitHub renders `### Description` as literal `%23%23%23 Description`).
 			const uri = URI.parse(url);
 			const skipValidation = uri.scheme === 'https' && uri.authority === 'github.com';
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			return await this.openerService.open(url, { openExternal: true, skipValidation });
 		} finally {
 			lifetime.dispose();
@@ -398,7 +398,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 		resolveRepoId: () => Promise<string | undefined>,
 		cancellationToken: CancellationToken,
 	): Promise<string | undefined> {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const extracted = extractIssueData(issueBody);
 		if (!extracted) {
 			return undefined;
@@ -411,14 +411,14 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 				return undefined;
 			}
 			const result = await this.uploadIssueDataFile(githubAccessToken, repoId, extracted.fileContent, cancellationToken);
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const bodyWithLink = this.createBodyWithIssueDataLink(extracted.body, result.assetUrl);
 			if (this.createIssuePreviewUrl(baseUrl, bodyWithLink, gitHubDetails, issueSource).length > MAX_URL_LENGTH) {
 				return undefined;
 			}
 			return bodyWithLink;
 		} catch (error) {
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			if (isCancellationError(error)) {
 				throw error;
 			}
@@ -430,7 +430,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 	}
 
 	private async uploadIssueDataFile(githubAccessToken: string, repoId: string, fileContent: string, cancellationToken: CancellationToken): Promise<import('./githubUploadService.js').IGitHubUploadResult> {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const key = `${repoId}:${ISSUE_DATA_ATTACHMENT_NAME}:${hash(fileContent)}`;
 		const cached = this.uploadCache.get(key);
 		if (cached) {
@@ -444,7 +444,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 			contentType: 'text/plain',
 		};
 		const [result] = await this.githubUploadService.uploadViaMobileApi(githubAccessToken, repoId, [file]);
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (!result) {
 			throw new Error('Issue data upload did not return a result.');
 		}

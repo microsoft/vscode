@@ -67,7 +67,7 @@ export class WorkbenchGitHubCredentialProvider extends Disposable implements IGi
 	}
 
 	async getSessions(providerId: string, cancellationToken: CancellationToken): Promise<readonly AuthenticationSession[]> {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		let state = this._sessions.get(providerId);
 		if (!state) {
 			state = { version: 0, grants: new Map() };
@@ -76,7 +76,7 @@ export class WorkbenchGitHubCredentialProvider extends Disposable implements IGi
 		while (true) {
 			const version = state.version;
 			const sessions = await this._authenticationService.getSessions(providerId, [], { silent: true }, true);
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			if (state.version !== version) {
 				continue;
 			}

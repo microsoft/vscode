@@ -85,7 +85,7 @@ export class LocalMissionControlRequestProvider extends BufferedApiRequestProvid
 		if (cancellationToken.isCancellationRequested && missionControlRequestPolicy(request).mutation) {
 			throw new MutationUncertainError('unknown');
 		}
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 	}
 
 	protected async execute(request: Omit<ApiRequest, 'body'>, cancellationToken: CancellationToken, bodyText?: string): Promise<ApiResponse<string | undefined>> {
@@ -118,7 +118,7 @@ export class LocalMissionControlRequestProvider extends BufferedApiRequestProvid
 			let dispatched = false;
 			try {
 				const combinedToken = CancellationToken.any([cancellationToken, credential.cancellationToken], lifetime);
-				CancellationToken.throwIfCancellationRequested(combinedToken);
+				CancellationToken.throwIfCanceled(combinedToken);
 				const response = await this.transport.restText(missionControlAccount(endpoint, credential.account), credential.token, {
 					domain: metadata.domain,
 					method: metadata.method, url: url.href, bodyText, accept: metadata.accept ?? 'application/json',
@@ -129,7 +129,7 @@ export class LocalMissionControlRequestProvider extends BufferedApiRequestProvid
 					followRedirects: false, responseBody: metadata.responseBody,
 					onDidDispatch: mutation ? () => { dispatched = true; } : undefined,
 				}, combinedToken);
-				CancellationToken.throwIfCancellationRequested(combinedToken);
+				CancellationToken.throwIfCanceled(combinedToken);
 				const status = response.revalidatedStatusCode ?? response.statusCode;
 				if (!asArray(metadata.expectedStatus).includes(status) || response.redirectUrl) {
 					throw new GitHubRequestError('API returned an unexpected success status', 'malformedResponse', status);

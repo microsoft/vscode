@@ -5,7 +5,7 @@
 
 import type { IManagedHoverTooltipHTMLElement } from '../../../../base/browser/ui/hover/hover.js';
 import { DeferredPromise, Limiter, raceCancellationError } from '../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, derived, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -64,7 +64,7 @@ const PULL_REQUEST_MAX_AGE = 30_000;
 
 export class GitHubResourceDetailsResolver extends Disposable {
 
-	private readonly _lifetime = new CancellationTokenSource();
+	private readonly _disposeToken = cancelOnDispose(this._store);
 	private readonly _prefetchLimiter = this._register(new Limiter<void>(3));
 	private readonly _issues = new Map<string, ILazyGitHubResourceEntry<IGitHubIssueHoverModel>>();
 	private readonly _pullRequests = new Map<string, ILazyGitHubResourceEntry<IPullRequestHoverDetails>>();
@@ -254,7 +254,7 @@ export class GitHubResourceDetailsResolver extends Disposable {
 			}
 			const lifetime = new DisposableStore();
 			const controller = lifetime.add(new CancellationTokenSource());
-			const cancellationToken = CancellationToken.any([this._lifetime.token, controller.token], lifetime);
+			const cancellationToken = CancellationToken.any([this._disposeToken, controller.token], lifetime);
 			const request: IGitHubResourceRequest = {
 				cancellationToken, interactive: !prefetch, complete: requireComplete,
 				dispose: () => {
@@ -273,7 +273,7 @@ export class GitHubResourceDetailsResolver extends Disposable {
 				entry.promote = undefined;
 				request.complete = fullyResolve;
 				const run = async () => {
-					CancellationToken.throwIfCancellationRequested(cancellationToken);
+					CancellationToken.throwIfCanceled(cancellationToken);
 					return resolveTask(request);
 				};
 				return result.settleWith(run());
@@ -284,7 +284,7 @@ export class GitHubResourceDetailsResolver extends Disposable {
 					void execute();
 					return result.p;
 				}
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				void this._prefetchLimiter.queue(() => execute()).catch(error => result.error(error));
 				return await raceCancellationError(result.p, cancellationToken);
 			};
@@ -335,7 +335,7 @@ export class GitHubResourceDetailsResolver extends Disposable {
 			try {
 				request.promote = () => subscription.update({ priority: 'interactive' });
 				await subscription.refresh(cancellationToken);
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				const state = subscription.resource.state.get();
 				if (state.status !== 'ready') {
 					throw new Error(state.error?.message ?? 'GitHub issue details are unavailable.');
@@ -368,19 +368,19 @@ export class GitHubResourceDetailsResolver extends Disposable {
 			try {
 				request.promote = () => subscription.update({ priority: 'interactive', core: true });
 				await subscription.refresh('core', cancellationToken);
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				let checksUnavailable = false;
 				includeChecks ||= request.interactive;
 				request.complete = includeChecks;
 				if (includeChecks) {
 					subscription.update({ priority: 'interactive', core: true, checks: { required: true, includeOptional: true } });
 					await subscription.refresh('checks', cancellationToken).catch(error => {
-						CancellationToken.throwIfCancellationRequested(cancellationToken);
+						CancellationToken.throwIfCanceled(cancellationToken);
 						checksUnavailable = true;
 						this._logService.warn('[GitHubResourceDetailsResolver] Failed to resolve optional pull request checks', error);
 					});
 				}
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				const snapshot = subscription.resource.snapshot.get();
 				if (snapshot.core.status !== 'ready') {
 					throw new Error(snapshot.core.error?.message ?? 'GitHub pull request details are unavailable.');
@@ -401,9 +401,8 @@ export class GitHubResourceDetailsResolver extends Disposable {
 	}
 
 	override dispose(): void {
-		this._lifetime.dispose(true);
-		this.retain([]);
 		super.dispose();
+		this.retain([]);
 	}
 }
 

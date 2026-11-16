@@ -72,11 +72,11 @@ export class GitHubApiClient extends Disposable {
 		const lifetime = new DisposableStore();
 		const cancellationToken = CancellationToken.any([this._clientToken, token], lifetime);
 		try {
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const pending = this._client ??= this.acquireClient(this._clientToken);
 			const client = await raceCancellationError(pending, cancellationToken);
 			const result = await task(client, cancellationToken);
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			return result;
 		} catch (error) {
 			if (cancellationToken.isCancellationRequested) {

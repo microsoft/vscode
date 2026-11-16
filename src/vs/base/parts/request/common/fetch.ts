@@ -11,7 +11,7 @@ export type CancellableFetch = (input: RequestInfo | URL, init: Omit<RequestInit
 
 export function createCancellableFetch(fetcher: typeof globalThis.fetch): CancellableFetch {
 	return async (input, init, token, lifetime) => {
-		CancellationToken.throwIfCancellationRequested(token);
+		CancellationToken.throwIfCanceled(token);
 		return fetcher(input, {
 			...init,
 			signal: token === CancellationToken.None ? undefined : CancellationToken.toAbortSignal(token, lifetime),

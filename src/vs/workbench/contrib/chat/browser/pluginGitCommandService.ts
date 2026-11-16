@@ -215,10 +215,10 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 			} else {
 				content = lifetime.add(await this._gitHubService.acquireAnonymousApiClient(cancellationToken)).content;
 			}
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			return await operation(content, cancellationToken);
 		} catch (error) {
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			this._maybeLogTransientError(error, repo);
 			throw error;
 		} finally {

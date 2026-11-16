@@ -187,7 +187,7 @@ suite('CopilotConnectorsService', () => {
 				assert.ok(args.length === 3);
 				const [providerId, session, cancellationToken] = args;
 				const authorization = toGitHubAuthorizationContext(providerId, session);
-				CancellationToken.throwIfCancellationRequested(cancellationToken);
+				CancellationToken.throwIfCanceled(cancellationToken);
 				grants.push(authorization);
 				if (!sessions.some(session => session.id === authorization.sessionId && session.account.id === authorization.accountId)) {
 					throw new GitHubRequestError('The selected session is unavailable', 'authentication');

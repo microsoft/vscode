@@ -28,9 +28,9 @@ export class CoreClient {
 	async requestPages<T>(request: PaginatedApiRequest, cancellationToken: CancellationToken, parser: parse.Parser<T>, merge: (pages: readonly T[]) => T): Promise<T> {
 		const { maxPages, pageLimitBehavior, ...options } = request.options ?? {};
 		if (maxPages === undefined) {
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const response = await this._restProvider.request({ ...request, options }, cancellationToken, parser);
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			return response.data;
 		}
 		const response = await collectPages(
@@ -66,7 +66,7 @@ export class CoreClient {
 	async graphqlPages<T, TVariables extends CursorOptions>(domain: GitHubRequestDomain, query: string, variables: TVariables, cancellationToken: CancellationToken, parser: parse.Parser<Connection<T> | null>, options: ApiRequestOptions & PaginationOptions = {}): Promise<Connection<T> | null> {
 		const { maxPages, pageLimitBehavior, ...requestOptions } = options;
 		if (maxPages === undefined) {
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const page = await this.graphql(
 				domain,
 				query,
@@ -75,7 +75,7 @@ export class CoreClient {
 				parser,
 				requestOptions
 			);
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			return page;
 		}
 		return collectPages(

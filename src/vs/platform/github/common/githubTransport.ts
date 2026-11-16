@@ -246,7 +246,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 	}
 
 	private async _rest<T>(account: RequestAccount, token: string | undefined, request: GitHubRestRequest, cancellationToken: CancellationToken, anonymousApiBasePath?: string, onBlockedUntil?: (time: number) => void): Promise<GitHubRestResponse<T>> {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const deadline = this._deadline(request);
 		const { body, ...metadata } = request;
 		const response = await this._restText(account, token, {
@@ -263,7 +263,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 	}
 
 	private async _restText(account: RequestAccount, token: string | undefined, request: GitHubRestTextRequest, cancellationToken: CancellationToken, anonymousApiBasePath?: string, onBlockedUntil?: (time: number) => void): Promise<GitHubRestResponse<string>> {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (request.maximumResponseBytes !== undefined && (!Number.isSafeInteger(request.maximumResponseBytes) || request.maximumResponseBytes <= 0)) {
 			throw new GitHubRequestError('Invalid GitHub response byte limit', 'validation');
 		}
@@ -353,7 +353,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		options: GitHubRequestOptions = {},
 	): Promise<GitHubGraphQLResponse<T>> {
 		return this._trackRequest(cancellationToken, async () => {
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const deadline = this._deadline(options);
 			const result = await this._graphql(account, token, url, JSON.stringify({ query, variables }), cancellationToken, priority, { ...options, deadline });
 			return { data: result.data as T | undefined, errors: result.response.errors, observedAt: result.response.observedAt };
@@ -365,7 +365,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 	}
 
 	private async _graphql(account: AccountHandle, token: string, url: string, bodyText: string, cancellationToken: CancellationToken, priority: RequestPriority | undefined, options: GitHubRequestOptions): Promise<IGraphQLResult> {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const deadline = this._deadline(options);
 		let request: GraphQLRequest;
 		try {
@@ -411,7 +411,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		cancellationToken: CancellationToken,
 		anonymousBasePath?: string,
 	): Promise<GitHubDownloadResponse> {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const anonymous = account.kind === 'anonymous';
 		if (anonymous) {
 			const url = new URL(request.url);
@@ -433,7 +433,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			try {
 				for (let redirectCount = 0; redirectCount <= maximumRedirects; redirectCount++) {
 					lifetime.clear();
-					CancellationToken.throwIfCancellationRequested(combinedToken);
+					CancellationToken.throwIfCanceled(combinedToken);
 					const resource = anonymous ? 'raw' : getGitHubRestResource(url);
 					if ((authenticated || anonymous) && this._rateLimits.getRequestDelay(account, resource) > 0) {
 						throw new GitHubRequestError('GitHub download is rate limited', 'rateLimit');
@@ -644,7 +644,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				this._logService?.trace(`[GitHubTransport] GraphQL ${operation} returned HTTP ${response.status}`);
 				return { response, body: await this._readResponse(account, response, cancellationToken, 'graphql') };
 			});
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			if (!response.ok) {
 				throw this._httpError('GitHub GraphQL request failed', response, body, url);
 			}
@@ -793,7 +793,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			}, anonymousApiBasePath);
 			this._logService?.trace(`[GitHubTransport] REST ${operation} returned HTTP ${response.status}`);
 			const finalUrl = response.url || (request.followRedirects === false ? request.url : this._redirects.get(request.url) ?? request.url);
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const metadata = this._responseMetadata(response);
 			const noStore = /\bno-store\b/i.test(response.headers.get('cache-control') ?? '');
 			const finalCacheKey = this._restCacheKey(account, request, finalUrl);
@@ -979,7 +979,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 	private async _fetchWithRetry<T extends { body: string }>(account: RequestAccount, resource: string, url: string, init: GitHubFetchOptions, retry: boolean, caller: string | undefined, onDispatch: () => void, readResponse: (response: Response) => Promise<T>, validateResponse?: (response: Response) => void): Promise<T> {
 		let failure: unknown;
 		for (let attempt = 0; attempt < (retry ? 2 : 1); attempt++) {
-			CancellationToken.throwIfCancellationRequested(init.cancellationToken);
+			CancellationToken.throwIfCanceled(init.cancellationToken);
 			const cooldown = this._rateLimits.getRequestDelay(account, resource);
 			if (cooldown > 0) {
 				throw account.kind === 'bootstrap' ? new GitHubRequestRateLimitError(cooldown)
@@ -1065,7 +1065,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			}
 			throw error;
 		});
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const body = new TextDecoder().decode(result.bytes);
 		if (response.status === 403 && classifyHttpError(response, body) === 'rateLimit') {
 			this._telemetry?.record('rateLimitedResponses');

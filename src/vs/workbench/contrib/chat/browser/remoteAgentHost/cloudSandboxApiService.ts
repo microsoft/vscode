@@ -132,7 +132,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _identityTokenProvider: CloudSandboxIdentityTokenProvider;
-	private readonly _lifetimeToken = cancelOnDispose(this._store);
+	private readonly _disposeToken = cancelOnDispose(this._store);
 
 	private readonly _apiClient = this._register(new MutableDisposable<IReference<IGitHubAccountClient>>());
 	private readonly _repositoryNames = new Map<number, string>();
@@ -264,7 +264,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const lifetime = new DisposableStore();
 		try {
 			const acquired = lifetime.add(await this._githubService.acquireAccountApiClient(this._authenticationProviderId, session, cancellationToken));
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			if (generation !== this._accountGeneration || this._store.isDisposed) {
 				throw new CancellationError();
 			}
@@ -300,9 +300,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		try {
 			const cancellationToken = CancellationToken.any([
 				token,
-				this._lifetimeToken,
+				this._disposeToken,
 			], lifetime);
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const session = context?.authentication ?? await raceCancellationError(this._resolveDiscoveryAuthorization(), cancellationToken);
 			if (!session) {
 				throw new CloudSandboxAuthenticationRequiredError();
@@ -311,9 +311,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				throw new CancellationError();
 			}
 			const client = await this._getApiClient(session, cancellationToken);
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const result = await execute(client, cancellationToken, options, session);
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			return result;
 		} catch (error) {
 			if (token.isCancellationRequested || this._store.isDisposed || isCancellationError(error)) {
@@ -367,7 +367,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}
 		const store = new DisposableStore();
 		const source = store.add(new CancellationTokenSource(token));
-		store.add(this._lifetimeToken.onCancellationRequested(() => source.cancel()));
+		store.add(this._disposeToken.onCancellationRequested(() => source.cancel()));
 		try {
 			const sealed = await this._sealToken(request, source.token);
 			if (source.token.isCancellationRequested) {
@@ -411,7 +411,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		try {
 			const cancellationToken = CancellationToken.any([
 				token,
-				this._lifetimeToken,
+				this._disposeToken,
 			], store);
 			const client = store.add(await this._githubService.acquireAccountApiClient(this._authenticationProviderId, session, cancellationToken));
 			const result = await client.environments.mintIdentityToken(cancellationToken, { caller: 'mc.tokens.create' });
@@ -444,7 +444,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		try {
 			const cancellationToken = CancellationToken.any([
 				token,
-				this._lifetimeToken,
+				this._disposeToken,
 			], store);
 			const requestToken = cancellationToken;
 			const authentication = await raceCancellationError(this._resolveGitHubSession(), requestToken);
@@ -982,7 +982,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		let authentication: AuthenticationSession | undefined;
 		const authorizationLifetime = new DisposableStore();
 		try {
-			const source = authorizationLifetime.add(new CancellationTokenSource(this._lifetimeToken));
+			const source = authorizationLifetime.add(new CancellationTokenSource(this._disposeToken));
 			authorizationLifetime.add(token.onCancellationRequested(() => source.cancel()));
 			authentication = await raceCancellationError(this._resolveDiscoveryAuthorization(), source.token);
 		} finally {
@@ -1001,7 +1001,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		let resolution = this._sessionResolutions.get(taskId);
 		if (!resolution) {
 			const generation = this._accountGeneration;
-			const source = new CancellationTokenSource(this._lifetimeToken);
+			const source = new CancellationTokenSource(this._disposeToken);
 			this._sessionResolutionSources.set(taskId, source);
 			const pending = raceCancellationError((async () => {
 				const full = await this._withApiClient(source.token, { caller: 'mc.taskClient.get', priority: 'interactive' },
@@ -1187,7 +1187,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					const currentAccountKey = this._accountKeyForSession(authentication);
 					accountKey = currentAccountKey;
 					onRequest?.();
-					CancellationToken.throwIfCancellationRequested(cancellationToken);
+					CancellationToken.throwIfCanceled(cancellationToken);
 					submitted = true;
 					try {
 						const response = await client.tasks.create({

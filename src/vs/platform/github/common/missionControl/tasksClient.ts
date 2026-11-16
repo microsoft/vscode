@@ -38,7 +38,7 @@ export class TasksClient implements ITasksClient {
 	}
 
 	async list(cancellationToken: CancellationToken, options?: ListTasksOptions): Promise<PaginatedResponse<ListTasksResponse>> {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const { query, ...requestOptions } = options ?? {};
 		if (query?.cursor !== undefined && query.page !== undefined) {
 			throw new GitHubRequestError('Task pagination cannot combine cursor and page', 'validation');
@@ -71,7 +71,7 @@ export class TasksClient implements ITasksClient {
 	}
 
 	async getBatch(taskIds: readonly string[], cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<readonly Task[]> {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (taskIds.length === 0 || taskIds.length > MAX_TASK_BATCH_SIZE) {
 			throw new GitHubRequestError(`Task batches require between 1 and ${MAX_TASK_BATCH_SIZE} IDs`, 'validation');
 		}

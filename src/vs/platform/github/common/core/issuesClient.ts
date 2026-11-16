@@ -43,7 +43,7 @@ export class IssuesClient implements IIssuesClient {
 	}
 
 	async getClosingPullRequestCounts(repository: RepositoryRef, issueNumbers: readonly number[], cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Readonly<Record<number, number | null>> | null> {
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		const numbers = [...new Set(parse.arrayOf(parse.range(1, 2_147_483_647))(issueNumbers))];
 		const counts: Record<number, number | null> = {};
 		for (let offset = 0; offset < numbers.length; offset += maximumIssueBatchSize) {

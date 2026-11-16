@@ -93,7 +93,7 @@ export class LocalApiRequestProvider extends BufferedApiRequestProvider {
 				{ kind: 'anonymous', host: url.host, origin: url.origin }, apiBasePath,
 				{ ...operation, method: metadata.method }, cancellationToken,
 			);
-			CancellationToken.throwIfCancellationRequested(cancellationToken);
+			CancellationToken.throwIfCanceled(cancellationToken);
 			const nextPath = getNextPagePath(this.apiBaseUri, response.finalUrl, response.link);
 			return {
 				data: metadata.redirect === 'manual' ? response.redirectUrl : response.data,
@@ -104,7 +104,7 @@ export class LocalApiRequestProvider extends BufferedApiRequestProvider {
 		const { credential, deadline } = await withGitHubCredentialDeadline(cancellationToken, async (cancellationToken, deadline) => ({
 			credential: await credentials.getCredential(cancellationToken), deadline,
 		}), undefined, metadata.options?.deadline);
-		CancellationToken.throwIfCancellationRequested(cancellationToken);
+		CancellationToken.throwIfCanceled(cancellationToken);
 		if (credential.cancellationToken.isCancellationRequested) {
 			throw credential.cancellationError ?? new CancellationError();
 		}
@@ -114,19 +114,19 @@ export class LocalApiRequestProvider extends BufferedApiRequestProvider {
 		const lifetime = new DisposableStore();
 		try {
 			const operationToken = CancellationToken.any([cancellationToken, credential.cancellationToken], lifetime);
-			CancellationToken.throwIfCancellationRequested(operationToken);
+			CancellationToken.throwIfCanceled(operationToken);
 			if (graphQLBody !== undefined) {
 				const response = await this.transport.graphqlText(credential.account, credential.token, url.href, graphQLBody, operationToken, metadata.options?.priority, {
 					caller: metadata.options?.caller, domain: metadata.domain, deadline,
 				});
-				CancellationToken.throwIfCancellationRequested(operationToken);
+				CancellationToken.throwIfCanceled(operationToken);
 				throwGraphQLErrors(response.errors, response.statusCode, response.data, {
 					serverDate: response.serverDate, requestId: response.requestId, retryAfterSeconds: response.retryAfterSeconds,
 				});
 				return { data: response.data, status: response.statusCode };
 			}
 			const response = await this.transport.restText(credential.account, credential.token, { ...operation, deadline }, operationToken);
-			CancellationToken.throwIfCancellationRequested(operationToken);
+			CancellationToken.throwIfCanceled(operationToken);
 			const nextPath = getNextPagePath(this.apiBaseUri, response.finalUrl, response.link);
 			return {
 				data: metadata.redirect === 'manual' ? response.redirectUrl : response.data,
