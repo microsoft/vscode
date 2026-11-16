@@ -1580,18 +1580,19 @@ export class NewChatWidget extends Disposable {
 				return false;
 			}
 			// As the draft is once its agent settled the write, not as the write tells: an agent can take the write without
-			// New Worktree, or reject it after it showed New Worktree.
-			const applied = newWorktree.isAvailable() && await newWorktree.setSelected(true) && newWorktree.isSelected();
+			// New Worktree, or reject it after it showed New Worktree. Read as it is, also where it can no longer change.
+			const applied = newWorktree.isAvailable() && await newWorktree.setSelected(true) && newWorktree.getIsolation() === 'worktree';
 			if (applied || !isSourceDraft()) {
 				return false;
 			}
-			if (newWorktree.isSelected()) {
+			if (newWorktree.getIsolation() !== 'folder') {
 				await newWorktree.setSelected(false);
 			}
 			if (!isSourceDraft()) {
 				return false;
 			}
-			if (newWorktree.isSelected()) {
+			// Only in its folder, as its agent tells, is it sent there
+			if (newWorktree.getIsolation() !== 'folder') {
 				// Neither in a new worktree as chosen, nor in its folder: not sent, and the draft is kept for the user.
 				this.notificationService.error(localize('newChatWidget.worktreeSendChoiceFailed', "The request was not sent because the new chat could not be set up to work in a new worktree or in its folder. Your draft was kept."));
 				throw new CancellationError();

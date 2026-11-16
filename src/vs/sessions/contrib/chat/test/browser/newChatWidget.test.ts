@@ -5028,6 +5028,7 @@ suite('NewChatWidget', () => {
 						_newWorktree: {
 							isAvailable: () => available,
 							isSelected: () => selected,
+							getIsolation: () => selected ? 'worktree' : 'folder',
 							isUserChosen: () => !!options.userChosen,
 							setSelected: async (value: boolean) => {
 								calls.push(`New Worktree ${value}`);
@@ -5179,22 +5180,27 @@ suite('NewChatWidget', () => {
 					assert.deepStrictEqual({ taken: await send(), calls }, { taken: false, calls: ['ask /untitled-draft in /repo on its control', 'New Worktree true', 'warning'] });
 				});
 
-				test('as its agent settles New Worktree: taken, it is sent there; rejected after showing it, or settled without it, it is reported and sent in the folder, once back there; neither, it is not sent and the draft kept', async () => {
+				test('as its agent settles New Worktree: taken, it is sent there, also where it can no longer change; rejected after showing it, or settled without it, it is reported and sent in the folder, once back there; neither, or where it cannot be told, it is not sent and the draft kept', async () => {
 					const results: Record<string, unknown> = {};
 					const errors: unknown[] = [];
 					const previousHandler = errorHandler.getUnexpectedErrorHandler();
 					errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
 					try {
-						for (const agent of ['takes', 'rejects', 'ignores', 'stuck'] as const) {
+						for (const agent of ['takes', 'rejects', 'ignores', 'stuck', 'takesReadOnly', 'stuckReadOnly', 'stuckUnknown'] as const) {
 							const store = disposables.add(new DisposableStore());
 							const values: Record<string, unknown> = { isolation: 'folder' };
+							// Whether its isolation can change, and whether its configuration is known, as the agent tells
+							let readOnly = false;
+							let known = true;
 							const provider = upcastPartial<IAgentHostSessionsProvider>({
 								id: LOCAL_AGENT_HOST_PROVIDER_ID,
 								getCreateSessionConfig: () => values,
-								getSessionConfig: () => ({ schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'], default: 'folder' } } }, values }),
+								getSessionConfig: () => known ? { schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'], default: 'folder', readOnly } } }, values } : undefined,
 								setSessionConfigValue: async (_sessionId, _chat, property, value) => {
 									await timeout(0);
-									if (agent === 'takes') {
+									readOnly = agent === 'takesReadOnly' || agent === 'stuckReadOnly';
+									known = agent !== 'stuckUnknown';
+									if (agent === 'takes' || agent === 'takesReadOnly') {
 										values[property] = value;
 									} else if (value === 'worktree' && agent !== 'ignores') {
 										// It shows New Worktree, then rejects it, without undoing it
@@ -5244,8 +5250,11 @@ suite('NewChatWidget', () => {
 							rejects: { outcome: 'sent', isolation: 'folder', warnings: ['warning'] },
 							ignores: { outcome: 'sent', isolation: 'folder', warnings: ['warning'] },
 							stuck: { outcome: 'kept', isolation: 'worktree', warnings: ['error'] },
+							takesReadOnly: { outcome: 'sent', isolation: 'worktree', warnings: [] },
+							stuckReadOnly: { outcome: 'kept', isolation: 'worktree', warnings: ['error'] },
+							stuckUnknown: { outcome: 'kept', isolation: 'worktree', warnings: ['error'] },
 						},
-						reported: ['isolation rejected', 'isolation rejected'],
+						reported: ['isolation rejected', 'isolation rejected', 'isolation rejected', 'isolation rejected'],
 					});
 				});
 

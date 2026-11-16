@@ -92,6 +92,22 @@ export class NewWorktreeChoice implements IWorkspacePickerNewWorktreeOption {
 		return !!draft && this._isolationOf(draft) === 'worktree';
 	}
 
+	/**
+	 * Where the current draft works, as its agent last told, also where it cannot change, unlike {@link isSelected};
+	 * `undefined` where that is not known, such as before its configuration resolves.
+	 */
+	getIsolation(): 'folder' | 'worktree' | undefined {
+		const session = this._session.get();
+		const provider = session && this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
+		if (!session || !provider || !isAgentHostProvider(provider)) {
+			return undefined;
+		}
+		const values = provider.getCreateSessionConfig(session.sessionId);
+		const config = values && provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+		const property = config && getSessionIsolationProperty(config.schema);
+		return values && property ? readSessionIsolation(property, values[property.key] ?? property.schema.default) : undefined;
+	}
+
 	/** Resolves to whether the draft's agent took the choice, such as `false` where it rejects it, which undoes it. */
 	setSelected(selected: boolean): Promise<boolean> {
 		const draft = this._draftIsolation();
