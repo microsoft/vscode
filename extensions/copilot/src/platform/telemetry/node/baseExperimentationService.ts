@@ -271,6 +271,7 @@ export class BaseExperimentationService extends Disposable implements IExperimen
 	 */
 	protected recreateDelegate(): void {
 		this._delegate = this._createDelegate();
+		this._exposureTracker?.reset();
 	}
 
 	/**

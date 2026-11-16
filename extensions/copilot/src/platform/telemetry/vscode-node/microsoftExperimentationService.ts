@@ -361,7 +361,7 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 		this.enableExposureEvents(() => ({
 			dataVersion,
 			entryPoint: id,
-			trackingId: copilotTokenStore.copilotToken?.getTokenValue('tid'),
+			trackingId: copilotTokenStore.authenticationState === 'signedIn' ? copilotTokenStore.copilotToken?.getTokenValue('tid') : undefined,
 			deviceId: envService.devDeviceId,
 		}), exposure => sendExperimentExposureTelemetry(telemetryService, exposure));
 

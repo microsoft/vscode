@@ -12,6 +12,7 @@ import { IConfigurationService } from '../../../configuration/common/configurati
 import { IDomainService } from '../../../endpoint/common/domainService';
 import { IEnvService } from '../../../env/common/envService';
 import { createPlatformServices, ITestingServicesAccessor } from '../../../test/node/services';
+import { exposureTelemetryProperties } from '../../common/experimentExposure';
 import { BaseGHTelemetrySender } from '../../common/ghTelemetrySender';
 import { BaseMsftTelemetrySender, ITelemetryReporter } from '../../common/msftTelemetrySender';
 import { ITelemetryUserConfig, multiplexProperties, TelemetryTrustedValue } from '../../common/telemetry';
@@ -161,6 +162,17 @@ suite('Microsoft Telemetry Sender', function () {
 		expect(mockExternalReporter.sendRawTelemetryEvent).not.toHaveBeenCalled();
 	});
 
+	test('should keep the cached tid after sign-out unless the event omits it', () => {
+		mockTokenStore.copilotToken = undefined;
+		sender.sendTelemetryEvent('unrelated', { foo: 'bar' });
+		sender.sendTelemetryEvent('signedOut', { foo: 'bar', 'common.tid': '' });
+
+		expect(vi.mocked(mockExternalReporter.sendTelemetryEvent).mock.calls.map(([eventName, properties]) => [eventName, properties?.['common.tid']])).toEqual([
+			['unrelated', 'testTid'],
+			['signedOut', ''],
+		]);
+	});
+
 	test('should dispose reporters', () => {
 		sender.dispose();
 
@@ -286,6 +298,13 @@ suite('GitHub Telemetry Sender', function () {
 				}
 			}
 		);
+	});
+
+	test('should send an assigned empty-string exposure value as a trusted empty string', () => {
+		sender.sendTelemetryEvent('exp_exposure', exposureTelemetryProperties({ dataVersion: '', entryPoint: 'GitHub.copilot-chat', trackingId: 'tid', deviceId: 'device', flag: 'copilotchat.a', value: '', surface: 'vscode' }));
+		const properties = (mockLogger.logUsage as Mock).mock.lastCall![1].properties;
+
+		expect({ value: properties.value, data_version: properties.data_version }).toEqual({ value: new TelemetryTrustedValue(''), data_version: new TelemetryTrustedValue('') });
 	});
 
 	test('should send telemetry error event', () => {
