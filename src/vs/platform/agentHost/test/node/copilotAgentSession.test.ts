@@ -15435,7 +15435,7 @@ suite('CopilotAgentSession', () => {
 				grant: readToolCallMeta(signal.state)['vscode.sandboxPathGrant'],
 				rootLookups: getSessionPathRoots.callCount,
 			}, {
-				message: 'Allow read access to `files/notes.txt` in this session\'s storage.',
+				message: 'Allow reading `files/notes.txt` from this session.',
 				grant,
 				rootLookups: 0,
 			});
@@ -15462,9 +15462,9 @@ suite('CopilotAgentSession', () => {
 				copilotHome: home.fsPath, sessionUri: source, owner, getSessionPathRoots,
 			});
 			const cases = [
-				{ path: currentRoot.fsPath, owner: source, message: 'Allow read access to this session\'s storage.', rootLookups: 0 },
-				{ path: `${currentRoot.fsPath}${sep}files${sep}..${sep}notes.txt`, owner: destination, message: 'Allow read access to `notes.txt` in this session\'s storage.', rootLookups: 0 },
-				{ path: URI.joinPath(otherRoot, 'notes.txt').fsPath, owner: destination, message: 'Allow read access to `Session "Other" / notes.txt` and retry inside the sandbox.', rootLookups: 1 },
+				{ path: currentRoot.fsPath, owner: source, message: 'Allow reading files from this session.', rootLookups: 0 },
+				{ path: `${currentRoot.fsPath}${sep}files${sep}..${sep}notes.txt`, owner: destination, message: 'Allow reading `notes.txt` from this session.', rootLookups: 0 },
+				{ path: URI.joinPath(otherRoot, 'notes.txt').fsPath, owner: destination, message: 'Allow reading `notes.txt` from session "Other" and retry inside the sandbox.', rootLookups: 1 },
 				{ path: conflictingRoot.fsPath, owner: destination, message: `Allow read access to \`${conflictingRoot.fsPath}\` and retry inside the sandbox.`, rootLookups: 2 },
 			];
 			const snapshots = [];
@@ -15490,25 +15490,22 @@ suite('CopilotAgentSession', () => {
 			})));
 		});
 
-		test('sandbox session path labels follow peer ownership and requester moves without changing grants', async () => {
+		test('sandbox session path labels preserve peer identity across requester moves without changing grants', async () => {
 			const source = URI.parse('copilot:/source');
 			const destination = URI.parse('copilot:/destination');
 			const owner = disposables.add(new TestChatOwnerRef(source));
 			const home = URI.file('/custom-copilot-home');
 			const peerRoot = URI.joinPath(home, 'session-state', 'peer-sdk');
-			let peerOwner = source;
-			let peerTitle = 'Source';
+			const peer = URI.parse(buildChatUri(source, 'peer'));
+			let peerTitle = 'Peer';
 			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, {
 				copilotHome: home.fsPath, sessionUri: source, owner,
-				getSessionPathRoots: () => [{ root: peerRoot, session: peerOwner, title: peerTitle }],
+				getSessionPathRoots: () => [{ root: peerRoot, session: peer, title: peerTitle }],
 			});
 			const snapshots = [];
-			for (const stage of ['peer', 'target-moved', 'renamed', 'requester-moved'] as const) {
-				if (stage === 'target-moved') {
-					peerOwner = destination;
-					peerTitle = 'Destination';
-				} else if (stage === 'renamed') {
-					peerTitle = 'Renamed destination';
+			for (const stage of ['peer', 'renamed', 'requester-moved'] as const) {
+				if (stage === 'renamed') {
+					peerTitle = 'Renamed peer';
 				} else if (stage === 'requester-moved') {
 					owner.set(destination);
 				}
@@ -15526,8 +15523,8 @@ suite('CopilotAgentSession', () => {
 				session.respondToPermissionRequest(stage, false);
 				await pending;
 			}
-			assert.deepStrictEqual(snapshots, ['This session', 'Session "Destination"', 'Session "Renamed destination"', 'This session'].map(label => ({
-				message: label === 'This session' ? 'Allow read access to `notes.txt` in this session\'s storage.' : `Allow read access to \`${label} / notes.txt\` and retry inside the sandbox.`,
+			assert.deepStrictEqual(snapshots, ['Peer', 'Renamed peer', 'Renamed peer'].map(title => ({
+				message: `Allow reading \`notes.txt\` from session "${title}" and retry inside the sandbox.`,
 				grant: { path: URI.joinPath(peerRoot, 'notes.txt').fsPath, access: 'read' },
 			})));
 		});

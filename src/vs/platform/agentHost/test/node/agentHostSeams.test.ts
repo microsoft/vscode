@@ -502,6 +502,29 @@ suite('Agent Host provider seams', () => {
 
 	suite('AgentHostSessionTitleSignal', () => {
 
+		test('reads conversation titles and recorded parents independently of the session grouping', () => {
+			const signal = disposables.add(new AgentHostSessionTitleSignal(manager));
+			manager.createSession({ ...summary(), title: 'Parent' });
+			const parent = URI.parse(buildDefaultChatUri(sessionKey));
+			const child = URI.parse(buildChatUri(sessionKey, 'child'));
+			const peer = URI.parse(buildChatUri(sessionKey, 'peer'));
+			manager.addChat(sessionKey, child.toString(), child.toString(), {
+				title: 'Child', origin: { kind: ChatOriginKind.Tool, chat: parent.toString(), toolCallId: 'spawn' },
+			});
+			manager.addChat(sessionKey, peer.toString(), peer.toString(), { title: 'Peer' });
+			const owner = URI.parse(sessionKey);
+			const identity = (chat: URI) => {
+				const value = signal.getChatPathIdentity(chat, owner);
+				return { ...value, parentSession: value.parentSession?.toString() };
+			};
+			const before = [parent, child, peer].map(identity);
+			manager.dispatchServerAction(sessionKey, { type: ActionType.SessionChatUpdated, chat: parent.toString(), changes: { title: 'Renamed parent' } });
+			assert.deepStrictEqual({ before, renamed: identity(child) }, {
+				before: [{ title: 'Parent', parentSession: undefined }, { title: 'Child', parentSession: parent.toString(), parentTitle: 'Parent' }, { title: 'Peer', parentSession: undefined }],
+				renamed: { title: 'Child', parentSession: parent.toString(), parentTitle: 'Renamed parent' },
+			});
+		});
+
 		test('reads current titles and listed titles without restoring a session', () => {
 			const signal = disposables.add(new AgentHostSessionTitleSignal(manager));
 			const session = URI.parse(sessionKey);

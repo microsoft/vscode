@@ -4084,8 +4084,12 @@ suite('CopilotAgent', () => {
 			});
 		}
 		const chats = ['peer', 'descendant'].map(id => URI.parse(buildChatUri(source, id)));
+		const requester = URI.parse(buildChatUri(source, 'requester'));
 		for (const chat of chats) {
-			stateManager.addChat(source.toString(), chat.toString(), chat.toString());
+			stateManager.addChat(source.toString(), chat.toString(), chat.toString(), {
+				title: chat === chats[0] ? 'Peer' : 'Descendant',
+				origin: { kind: ChatOriginKind.Tool, chat: (chat === chats[0] ? requester : chats[0]).toString(), toolCallId: 'spawn' },
+			});
 			await agent.materializeChat(chat, {
 				sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false,
 				owner: createChatOwnerRef(stateManager, chat, source), resource: chat,
@@ -4095,8 +4099,14 @@ suite('CopilotAgent', () => {
 			sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false,
 			owner: fixedChatOwnerRef(source), resource: source,
 		}, JSON.stringify({ sdkSessionId: 'default-sdk' }));
-		const requester = URI.parse(buildChatUri(source, 'requester'));
-		stateManager.addChat(source.toString(), requester.toString(), requester.toString());
+		stateManager.addChat(source.toString(), requester.toString(), requester.toString(), {
+			title: 'Requester',
+			origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(source), toolCallId: 'spawn-requester' },
+		});
+		await agent.materializeChat(requester, {
+			sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false,
+			owner: createChatOwnerRef(stateManager, requester, source), resource: requester,
+		}, JSON.stringify({ sdkSessionId: 'test-session-1' }));
 		const mockSession = new MockCopilotSession();
 		const created = createAgentSessionThroughAgent(agent, instantiationService, {
 			owner: createChatOwnerRef(stateManager, requester, source), chatChannelUri: requester, mockSession,
@@ -4142,6 +4152,7 @@ suite('CopilotAgent', () => {
 		await request('peer-sdk');
 		await request('descendant-sdk');
 		stateManager.dispatchServerAction(destination.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });
+		stateManager.dispatchServerAction(destination.toString(), { type: ActionType.SessionChatUpdated, chat: chats[0].toString(), changes: { title: 'Renamed peer' } });
 		await request('peer-sdk');
 		stateManager.transferChats(source.toString(), destination.toString(), [requester.toString()], undefined);
 		await request('peer-sdk');
@@ -4157,8 +4168,8 @@ suite('CopilotAgent', () => {
 			messages: snapshots,
 			storage: chats.map(chat => stateManager.getChatStorageResource(chat.toString())),
 		}, {
-			messages: ['This session', 'This session', 'This session', 'This session', 'Session "Destination"', 'Session "Destination"', 'Session "Renamed"', 'This session', 'Session "Source"', 'Session "Promoted"', 'Session "Promoted"']
-				.map(label => label === 'This session' ? 'Allow read access to `notes.txt` in this session\'s storage.' : `Allow read access to \`${label} / notes.txt\` and retry inside the sandbox.`),
+			messages: ['This session', 'parent session "Source"', 'child session "Peer"', 'child session "Descendant" of session "Peer"', 'child session "Peer"', 'child session "Descendant" of session "Peer"', 'child session "Renamed peer"', 'child session "Renamed peer"', 'parent session "Source"', 'child session "Renamed peer"', 'child session "Descendant" of session "Renamed peer"']
+				.map(label => label === 'This session' ? 'Allow reading `notes.txt` from this session.' : `Allow reading \`notes.txt\` from ${label} and retry inside the sandbox.`),
 			storage: chats.map(chat => chat.toString()),
 		});
 	});
