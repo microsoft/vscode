@@ -10348,10 +10348,12 @@ suite('SessionsManagementService', () => {
 			});
 		}
 
-		function setup(sessions: ISession[]) {
+		function setup(sessions: ISession[], listed: (session: ISession) => boolean = () => true) {
 			const provider = new class extends TestSessionsProvider {
 				constructor() { super(sessions[0]); }
-				override getSessions(): ISession[] { return sessions; }
+				// Its listing scope may hide a session it still knows, such as one of another folder in an editor window
+				override getSessions(): ISession[] { return sessions.filter(listed); }
+				override getAllSessions(): ISession[] { return sessions; }
 			};
 			const { part, content } = createSessionsPartTestHarness(disposables);
 			const partService = new TestSessionsPartService(content.onDidFocusPane, content);
@@ -10390,6 +10392,20 @@ suite('SessionsManagementService', () => {
 				open: ['mainA', 'b'],
 				canReopenAgain: false,
 			});
+		});
+
+		test('reopens a closed chat of a session that its provider no longer lists, but still knows', async () => {
+			const sessionA = multiChatSession('A', [chat('mainA'), chat('b')]);
+			let inScope = true;
+			const { view } = setup([sessionA], () => inScope);
+
+			await view.openSession(sessionA.resource);
+			const chatB = sessionA.chats.get().find(c => c.title.get() === 'b')!;
+			await view.closeChat(activeSessionOf(view)!, chatB);
+			inScope = false;
+			await view.reopenLastClosedItem();
+
+			assert.deepStrictEqual(view.activePane.get()!.tabs.openChats.get().map(c => c.title.get()), ['mainA', 'b']);
 		});
 
 		test('an explicitly closed session returns to its grid index', async () => {

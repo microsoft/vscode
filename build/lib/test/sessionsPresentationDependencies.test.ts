@@ -158,7 +158,7 @@ suite('Sessions presentation entry isolation', () => {
 			}, {
 				canvas: ['IWindowCanvasService', 'WindowCanvasService'],
 				pinnedCanvas: mobile ? undefined : ['IPinnedCanvasService', 'PinnedCanvasService'],
-				chatWindow: ['IChatWindowService', mobile ? 'MobileNullChatWindowService' : 'ChatWindowService'],
+				chatWindow: ['IChatWindowService', mobile ? 'NullChatWindowService' : 'ChatWindowService'],
 				presentation: mobile ? [] : desktopPresentation,
 			});
 		});
