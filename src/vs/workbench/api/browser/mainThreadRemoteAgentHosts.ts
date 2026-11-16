@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { IExtensionRemoteAgentHostsService } from '../../../platform/agentHost/common/extensionRemoteAgentHosts.js';
-import { parseRemoteAgentHostInput } from '../../../platform/agentHost/common/remoteAgentHostAddress.js';
+import { parseRemoteAgentHostAddress } from '../../../platform/agentHost/common/remoteAgentHostAddress.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { MainContext, MainThreadRemoteAgentHostsShape, RemoteAgentHostDto } from '../common/extHost.protocol.js';
 
@@ -22,13 +22,12 @@ export class MainThreadRemoteAgentHosts extends Disposable implements MainThread
 	}
 
 	$registerRemoteAgentHost(handle: number, host: RemoteAgentHostDto): void {
-		// The extension host canonicalized the address; validate again since the DTO crosses a process boundary.
-		const address = parseRemoteAgentHostInput(host.address).parsed?.address;
+		// The extension host sends a canonical address. Accept only that, unchanged, since the DTO crosses a process boundary.
 		const name = host.name.trim();
-		if (!address || !name) {
+		if (parseRemoteAgentHostAddress(host.address)?.address !== host.address || !name) {
 			throw new Error(`Invalid remote agent host from ${host.extensionId}.`);
 		}
-		this._registrations.set(handle, this._extensionRemoteAgentHostsService.registerHost({ ...host, name, address }));
+		this._registrations.set(handle, this._extensionRemoteAgentHostsService.registerHost({ ...host, name }));
 	}
 
 	$unregisterRemoteAgentHost(handle: number): void {

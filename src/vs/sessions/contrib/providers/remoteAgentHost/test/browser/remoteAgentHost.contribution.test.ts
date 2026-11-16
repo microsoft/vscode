@@ -43,7 +43,6 @@ import { CloudSandboxAgentHostService } from '../../../../../../workbench/contri
 import { createCloudSandboxConnectionCustomization } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxConnectionCustomization.js';
 import { SSHAgentHostContribution } from '../../browser/sshAgentHost.contribution.js';
 import { WebSocketAgentHostContribution } from '../../browser/webSocketAgentHost.contribution.js';
-import { ExtensionAgentHostContribution } from '../../browser/extensionAgentHost.contribution.js';
 import { IExtensionRemoteAgentHostsService } from '../../../../../../platform/agentHost/common/extensionRemoteAgentHosts.js';
 import { MissionControlAgentHostContribution } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/missionControlAgentHostContribution.js';
 import { IEntryDrivenProviderOptions } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/entryDrivenProviderContribution.js';
@@ -585,6 +584,7 @@ interface IProviderOwnerHarness {
 	_entryType: RemoteAgentHostEntryType;
 	_providerStores: Map<string, undefined> & { deleteAndDispose(address: string): void };
 	_providerInstances: Map<string, { readonly label: string; readonly defaultLabel: string }>;
+	_providerEntryTypes: Map<string, RemoteAgentHostEntryType>;
 	_createProvider(address: string): void;
 	_getProviderOptions(entry: IRemoteAgentHostEntry): object;
 	_reconcileProviders(): void;
@@ -631,6 +631,7 @@ suite('Remote agent host provider ownership', () => {
 			deleteAndDispose: (address: string) => { providerStores.delete(address); },
 		});
 		contribution._providerInstances = new Map();
+		contribution._providerEntryTypes = new Map();
 		return contribution;
 	}
 
@@ -679,7 +680,7 @@ suite('Remote agent host provider ownership', () => {
 	test('extension hosts cannot be removed, and disconnecting one keeps it from being dialed again', async () => {
 		const address = '127.0.0.1:8445';
 		const events: string[] = [];
-		const owner = Object.create(ExtensionAgentHostContribution.prototype) as IExtensionProviderOwnerHarness;
+		const owner = Object.create(WebSocketAgentHostContribution.prototype) as IExtensionProviderOwnerHarness;
 		owner._extensionRemoteAgentHostsService = { setDisconnected: (address, disconnected) => { events.push(`${disconnected ? 'disconnected' : 'connected'} ${address}`); } };
 		owner._remoteAgentHostService = { removeRemoteAgentHost: async address => { events.push(`closed ${address}`); } };
 		const options = owner._getProviderOptions({

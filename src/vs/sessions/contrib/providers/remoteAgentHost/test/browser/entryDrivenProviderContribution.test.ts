@@ -6,14 +6,18 @@
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IAgentHostAdvertisedAuthenticationResolver } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
+import { IExtensionRemoteAgentHostsService } from '../../../../../../platform/agentHost/common/extensionRemoteAgentHosts.js';
 import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IWSLRemoteAgentHostService } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -24,6 +28,7 @@ import { ISessionsProvidersService } from '../../../../../../workbench/contrib/s
 import { EntryDrivenProviderContribution, IEntryDrivenProviderOptions } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/entryDrivenProviderContribution.js';
 import { RemoteAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostSessionsProvider.js';
 import { SSHAgentHostContribution } from '../../browser/sshAgentHost.contribution.js';
+import { WebSocketAgentHostContribution } from '../../browser/webSocketAgentHost.contribution.js';
 import { WSLAgentHostContribution } from '../../browser/wslAgentHost.contribution.js';
 
 suite('Entry-driven remote provider lifecycle', () => {
@@ -55,6 +60,51 @@ suite('Entry-driven remote provider lifecycle', () => {
 		changes.fire();
 		await timeout(0);
 		assert.deepStrictEqual(reconciled, ['ssh', 'wsl']);
+	});
+
+	test('hands an already-configured host to an extension that registers its address and back, through configured entries alone', () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const changes = store.add(new Emitter<void>());
+		const address = '127.0.0.1:8445';
+		const configured: IRemoteAgentHostEntry = { name: 'Jobs', connection: { type: RemoteAgentHostEntryType.WebSocket, address } };
+		const registered: IRemoteAgentHostEntry = { name: 'Jobs', connection: { type: RemoteAgentHostEntryType.Extension, address, extensionId: 'publisher.jobs', extensionDisplayName: 'Job Runner' } };
+		let configuredEntries: readonly IRemoteAgentHostEntry[] = [configured];
+		instantiation.stub(IConfigurationService, configuration);
+		instantiation.stub(IRemoteAgentHostService, {
+			get configuredEntries() { return configuredEntries; },
+			onDidChangeConfiguredEntries: changes.event, onDidChangeConnections: Event.None, connections: [],
+			registerConnectionFactory: () => Disposable.None,
+		});
+		instantiation.stub(IExtensionRemoteAgentHostsService, { connectableEntries: constObservable([]) });
+		instantiation.stub(IEnvironmentService, {});
+		instantiation.stub(IAgentHostAdvertisedAuthenticationResolver, {});
+		instantiation.stub(ISessionsProvidersService, {});
+		instantiation.stub(INotificationService, new TestNotificationService());
+		const events: string[] = [];
+		class TestContribution extends WebSocketAgentHostContribution {
+			protected override _createProvider(address: string, name: string, options: IEntryDrivenProviderOptions) {
+				const owner = options.canRemove === false ? 'extension' : 'settings';
+				const provider = new class extends mock<RemoteAgentHostSessionsProvider>() {
+					override get defaultLabel() { return name; }
+					override dispose() { events.push(`dispose ${owner}`); }
+				}();
+				const resources = new DisposableStore();
+				resources.add(provider);
+				this._providerInstances.set(address, provider);
+				resources.add(toDisposable(() => this._providerInstances.delete(address)));
+				this._providerStores.set(address, resources);
+				events.push(`create ${owner}`);
+				return provider;
+			}
+		}
+		store.add(instantiation.createInstance(TestContribution));
+		configuredEntries = [registered];
+		changes.fire();
+		configuredEntries = [configured];
+		changes.fire();
+		assert.deepStrictEqual(events, ['create settings', 'dispose settings', 'create extension', 'dispose extension', 'create settings']);
 	});
 
 	for (const kind of [RemoteAgentHostEntryType.SSH, RemoteAgentHostEntryType.WSL]) {

@@ -165,7 +165,6 @@ import './contrib/providers/remoteAgentHost/browser/wslAgentHost.contribution.js
 
 // WebSocket agent host — reconciles configured WebSocket hosts into session providers
 import './contrib/providers/remoteAgentHost/browser/webSocketAgentHost.contribution.js';
-import './contrib/providers/remoteAgentHost/browser/extensionAgentHost.contribution.js';
 
 // Remote agent host terminal profiles — registers terminal profiles for connected agent hosts
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';

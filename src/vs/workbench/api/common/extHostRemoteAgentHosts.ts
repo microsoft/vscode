@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { parseRemoteAgentHostInput } from '../../../platform/agentHost/common/remoteAgentHostAddress.js';
+import { parseRemoteAgentHostAddress } from '../../../platform/agentHost/common/remoteAgentHostAddress.js';
 import { IMainContext, MainContext, MainThreadRemoteAgentHostsShape } from './extHost.protocol.js';
 import { Disposable } from './extHostTypes.js';
 
@@ -22,7 +22,7 @@ export class ExtHostRemoteAgentHosts {
 		if (typeof host?.name !== 'string' || !host.name.trim()) {
 			throw new Error('A remote agent host needs a name.');
 		}
-		const parsed = typeof host.address === 'string' ? parseRemoteAgentHostInput(host.address).parsed : undefined;
+		const parsed = typeof host.address === 'string' ? parseRemoteAgentHostAddress(host.address.trim()) : undefined;
 		if (!parsed) {
 			throw new Error(`Invalid remote agent host address: '${host.address}'. Expected host:port, or a ws:// or wss:// URL.`);
 		}

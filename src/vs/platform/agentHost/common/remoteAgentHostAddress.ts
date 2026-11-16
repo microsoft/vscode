@@ -20,6 +20,10 @@ export type RemoteAgentHostInputParseResult =
 	| { readonly parsed: IParsedRemoteAgentHostInput; readonly error?: undefined }
 	| { readonly parsed?: undefined; readonly error: RemoteAgentHostInputValidationError };
 
+/**
+ * Parses text the user pasted, such as a host's "Listening on ws://..." output, by extracting the
+ * first WebSocket or HTTP URL in it, or else taking the whole text as an address.
+ */
 export function parseRemoteAgentHostInput(input: string): RemoteAgentHostInputParseResult {
 	const trimmedInput = input.trim();
 	if (!trimmedInput) {
@@ -27,36 +31,39 @@ export function parseRemoteAgentHostInput(input: string): RemoteAgentHostInputPa
 	}
 
 	const candidate = extractRemoteAgentHostCandidate(trimmedInput);
-	if (!candidate) {
-		return { error: RemoteAgentHostInputValidationError.Invalid };
-	}
+	const parsed = candidate ? parseRemoteAgentHostAddress(candidate) : undefined;
+	return parsed ? { parsed } : { error: RemoteAgentHostInputValidationError.Invalid };
+}
 
-	const hasExplicitScheme = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(candidate);
+/**
+ * Parses a complete address, `host:port` or a WebSocket or HTTP URL, without extracting it from
+ * surrounding text. Parsing the returned address returns it unchanged.
+ */
+export function parseRemoteAgentHostAddress(address: string): IParsedRemoteAgentHostInput | undefined {
+	const hasExplicitScheme = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(address);
 	try {
-		const url = new URL(hasExplicitScheme ? candidate : `ws://${candidate}`);
+		const url = new URL(hasExplicitScheme ? address : `ws://${address}`);
 		const normalizedProtocol = normalizeRemoteAgentHostProtocol(url.protocol);
 		if (!normalizedProtocol || !url.host) {
-			return { error: RemoteAgentHostInputValidationError.Invalid };
+			return undefined;
 		}
 
 		const connectionToken = url.searchParams.get(connectionTokenQueryName) ?? undefined;
 		url.searchParams.delete(connectionTokenQueryName);
 
 		// Only preserve wss: in the address - the transport defaults to ws:
-		const address = formatRemoteAgentHostAddress(url, normalizedProtocol === 'wss:' ? normalizedProtocol : undefined);
-		if (!address) {
-			return { error: RemoteAgentHostInputValidationError.Invalid };
+		const formatted = formatRemoteAgentHostAddress(url, normalizedProtocol === 'wss:' ? normalizedProtocol : undefined);
+		if (!formatted) {
+			return undefined;
 		}
 
 		return {
-			parsed: {
-				address,
-				connectionToken,
-				suggestedName: url.host,
-			},
+			address: formatted,
+			connectionToken,
+			suggestedName: url.host,
 		};
 	} catch {
-		return { error: RemoteAgentHostInputValidationError.Invalid };
+		return undefined;
 	}
 }
 
