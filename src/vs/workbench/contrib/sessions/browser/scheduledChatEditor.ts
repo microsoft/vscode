@@ -76,6 +76,7 @@ export class ScheduledChatEditor extends Disposable implements IViewEditorView {
 		this.widget.render(this.element);
 		this.widget.setModel(model);
 		this.widget.setReadOnly(true);
+		this.widget.setVisible(true);
 		this._register(autorun(reader => {
 			const item = input.item.read(reader);
 			this.widget.viewModel?.setScheduledRequests(item ? [{ ...item, actions: item.actions.filter(action => action.id !== 'sessions.scheduled.preview') }] : []);

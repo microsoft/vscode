@@ -54,7 +54,6 @@ async function renderScheduledChatEditor({ container, disposableStore, theme }: 
 	const view = disposableStore.add(instantiationService.createInstance(ScheduledChatEditor, input));
 	container.appendChild(view.element);
 	view.layout(800, 450);
-	view.setVisible(true);
 	await waitForFixtureDomCondition(container, () => !!container.querySelector('.scheduled-request-text'), disposableStore);
 	if (completed) {
 		item.set(undefined, undefined);
