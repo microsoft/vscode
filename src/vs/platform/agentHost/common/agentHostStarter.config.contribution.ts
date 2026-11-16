@@ -295,7 +295,7 @@ configurationRegistry.registerConfiguration({
 		[AgentHostPrewarmSessionsSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.experimental.prewarmSessions', "When enabled, new Agent Host Copilot chats start their runtime and MCP servers before the first message is sent, so connectors are ready sooner. Changes apply to new chats."),
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
