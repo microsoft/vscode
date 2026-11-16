@@ -6457,9 +6457,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 			} else if (inbox && section.id === SessionInboxSection.Working) {
 				defaultCollapsed = this.hadInboxSessions ? ObjectTreeElementCollapseState.Expanded : ObjectTreeElementCollapseState.PreserveOrExpanded;
 			}
+			if (inboxBecamePopulated && section.id === SessionInboxSection.ReadyForYou) {
+				// Restore user intent rather than preserving the empty placeholder's forced expansion.
+				defaultCollapsed = savedCollapsed ?? false;
+			}
 			return {
 				element: section as SessionListItem,
-				collapsible: section.id !== SessionInboxSection.ReadyForYou && (!sessionInboxSections.some(id => id === section.id) || section.sessions.length > 0),
+				collapsible: !sessionInboxSections.some(id => id === section.id) || section.sessions.length > 0,
 				collapsed: resolveCollapsed(section, defaultCollapsed),
 				children: sectionChildren,
 			};
@@ -6608,10 +6612,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				if (section && (section.sessions.length > 0 || id === SessionInboxSection.ReadyForYou)) {
 					let rendered = renderWorkspaceSection(section);
 					if (id === SessionInboxSection.ReadyForYou) {
-						rendered = { ...rendered, collapsed: false };
 						if (section.sessions.length === 0) {
 							rendered = {
-								...rendered, children: [{
+								...rendered, collapsed: false, children: [{
 									element: {
 										placeholder: true as const, sectionId: id,
 										label: this.filters.hasInboxScope ? localize('inboxScopeEmpty', "No Inbox activity matches this scope.") : localize('inboxEmpty', "Your inbox is clear"),
