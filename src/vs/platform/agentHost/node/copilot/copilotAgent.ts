@@ -3647,6 +3647,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
+	/** Catches a runtime up right before a turn uses it, including a change saved while the caller resumed. */
+	private async _catchUpExtensionsUntilCurrent(entry: CopilotAgentSession, token: CancellationToken): Promise<void> {
+		do {
+			await this._catchUpExtensions(entry, true);
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+		} while (!this._isExtensionEnablementCurrent(entry));
+	}
+
 	private async _reconcileExtensionsTolerantly(session: CopilotAgentSession): Promise<void> {
 		const lifecycleError = await this._reconcileExtensions(session);
 		if (lifecycleError) {
@@ -3867,12 +3877,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private async _withSessionCanvasChat<T>(session: URI, chat: URI, operationContext: AgentChatOperationContext, operation: 'listSessionCanvases' | 'openSessionCanvas' | 'restoreCanvases', task: (liveSession: CopilotAgentSession) => Promise<T>): Promise<T> {
 		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
-		if (context.target && !context.target.hasReleasedCanvasProjection) {
-			const failure = this._extensionReconciliationFailure(context.target);
+		const target = context.target;
+		// Opening a canvas relaunches a runtime whose canvas enablement is stale, which replaces its failure too.
+		if (target && !target.hasReleasedCanvasProjection && !(operation === 'openSessionCanvas' && this._requiresCanvasRuntimeRefresh(target))) {
+			const failure = this._extensionReconciliationFailure(target);
 			if (failure) {
 				throw new Error(failure);
 			}
-			const pending = this._extensionCatchUpPendingError(context.target);
+			const pending = this._extensionCatchUpPendingError(target);
 			if (pending) {
 				throw pending;
 			}
@@ -7407,12 +7419,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (credential) {
 				entry.assertScopedCredential(credential);
 			}
-			do {
-				await this._catchUpExtensions(entry, true);
-				if (token.isCancellationRequested) {
-					throw new CancellationError();
-				}
-			} while (!this._isExtensionEnablementCurrent(entry));
+			await this._catchUpExtensionsUntilCurrent(entry, token);
 			await entry.resume(turnId, this._resolveSdkMode(current.ownerSession, current.chat), senderClientId, clientType, clientTelemetryContext, !URI.isUri(operationContext) && operationContext.agentMergeTurn === true, stageRecorder);
 			if (!token.isCancellationRequested) {
 				this._deliverPendingSteering(chat, entry);
@@ -9456,12 +9463,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 
 			await this._applyPendingModelSelection(current, entry, token);
-			do {
-				await this._catchUpExtensions(entry, true);
-				if (token.isCancellationRequested) {
-					throw new CancellationError();
-				}
-			} while (!this._isExtensionEnablementCurrent(entry));
+			await this._catchUpExtensionsUntilCurrent(entry, token);
 			if (turnId) {
 				entry.resetTurnState(turnId, senderClientId, clientType, clientTelemetryContext);
 				let claimed: CopilotAgentSession | undefined;
@@ -9479,6 +9481,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 					entry = claimed;
 					if (credential) {
 						entry.assertScopedCredential(credential);
+					}
+					try {
+						// Taking over launched a runtime that a change saved meanwhile may have left unconfirmed.
+						await this._catchUpExtensionsUntilCurrent(entry, token);
+					} catch (err) {
+						entry.discardActiveTurn();
+						throw err;
 					}
 				}
 			}

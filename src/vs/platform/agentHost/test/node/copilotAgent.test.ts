@@ -79,7 +79,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnable
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, AgentExtensionConsentOption, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentCanvasInfo, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
+import { AgentSession, AgentExtensionConsentOption, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
@@ -22152,7 +22152,7 @@ suite('CopilotAgent', () => {
 			const { agent, configurationService } = createTestAgentContext(disposables, {
 				copilotClient: client,
 				sessionDataService,
-				rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+				rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false, [AgentHostCanvasesEnabledConfigKey]: true },
 			});
 			afterTest(() => disposeAgent(agent));
 			await agent.authenticate('https://api.github.com', 'token');
@@ -22164,9 +22164,8 @@ suite('CopilotAgent', () => {
 
 			await agent.chats.prepareTurn!(chat, 'turn-1', [workingDirectory], context);
 			const live = agent['_findPluginOperationSession'](session, chat)!;
-			const canvasRuntime = stub(live, 'canvasRuntimeEnabled').get(() => true);
 			const subagent = stub(live, 'hasActiveSubagents').get(() => true);
-			disposables.add(toDisposable(() => { canvasRuntime.restore(); subagent.restore(); }));
+			disposables.add(toDisposable(() => subagent.restore()));
 			agent['_extensionPreferenceRevision']++;
 			configurationService.updateRootConfig({ [AgentHostMcpServersConfigKey]: { playwright: { type: 'stdio', command: 'node' } } });
 			await agent.chats.sendMessage(chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, context);
@@ -25182,7 +25181,7 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('MCP configuration preparation', () => {
-		async function createHarness(options: { cold?: boolean; failSync?: boolean; syncGate?: Promise<void>; telemetryService?: ITelemetryService; sdkSessionId?: string; workspaceless?: boolean } = {}) {
+		async function createHarness(options: { cold?: boolean; failSync?: boolean; syncGate?: Promise<void>; telemetryService?: ITelemetryService; sdkSessionId?: string; workspaceless?: boolean; canvases?: boolean } = {}) {
 			const fileService = createInMemoryFileService(disposables, Schemas.file);
 			const pluginDirectory = URI.file('/late-plugin');
 			const healthyDirectory = URI.file('/healthy-plugin');
@@ -25236,6 +25235,7 @@ suite('CopilotAgent', () => {
 			};
 			const { agent, stateManager, worktreeIsolation, configurationService } = createTestAgentContext(disposables, {
 				copilotClient: client, useRealResumePath: true, sessionDataService, fileService, pluginManager: new PluginManager(), telemetryService: options.telemetryService,
+				rootConfig: options.canvases ? { [AgentHostCanvasesEnabledConfigKey]: true } : undefined,
 			});
 			disposables.add(toDisposable(() => agent.dispose()));
 			await agent.authenticate('https://api.github.com', 'token');
@@ -25383,12 +25383,11 @@ suite('CopilotAgent', () => {
 
 		for (const ending of ['idle', 'stop', 'dispose'] as const) {
 			test(`defers refresh during an active turn and handles ${ending}`, async () => {
-				const h = await createHarness({ failSync: true });
+				const h = await createHarness({ failSync: true, canvases: true });
 				afterTest(() => disposeAgent(h.agent));
 				const live = h.live();
-				const canvasRuntime = stub(live, 'canvasRuntimeEnabled').get(() => true);
 				const reconcile = stub(live, 'reconcileExtensions').resolves();
-				disposables.add(toDisposable(() => { canvasRuntime.restore(); reconcile.restore(); }));
+				disposables.add(toDisposable(() => reconcile.restore()));
 				h.agent['_extensionPreferenceRevision']++;
 				live.resetTurnState('active-turn');
 				const waitStarted = new DeferredPromise<void>();
@@ -28269,11 +28268,12 @@ suite('CopilotAgent', () => {
 
 		for (const operation of ['send', 'resume'] as const) {
 			test(`rechecks extension enablement after the final ${operation} catch-up await`, async () => {
-				const agent = createTestAgent(disposables);
+				const agent = createTestAgent(disposables, { rootConfig: { [AgentHostCanvasesEnabledConfigKey]: true } });
 				afterTest(() => disposeAgent(agent));
 				const session = AgentSession.uri('copilotcli', `extension-admission-${operation}`);
 				const chat = URI.parse(buildChatUri(session, 'peer'));
 				const peer = makeFakeChatSession(session, 'extension-admission-peer');
+				Object.assign(peer.fake, { canvasRuntimeEnabled: true });
 				const admittedCurrent: boolean[] = [];
 				const recordAdmission = async () => { admittedCurrent.push(agent['_isExtensionEnablementCurrent'](peer.fake)); };
 				peer.fake.send = recordAdmission;
@@ -28298,6 +28298,83 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual(admittedCurrent, [true]);
 			});
 		}
+
+		test('catches up a runtime that takes over a session from another process before sending to it', async () => {
+			const client = new TestCopilotClient([]);
+			client.extensionInventory = {
+				mode: 'load_and_augment',
+				extensions: [{ id: 'user:preview', name: 'Preview', path: '/extensions/preview.mjs', source: 'user', enabled: true }],
+			};
+			const agent = createTestAgent(disposables, { copilotClient: client, rootConfig: { [AgentHostCanvasesEnabledConfigKey]: true } });
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'extension-takeover');
+			const chat = URI.parse(buildChatUri(session, 'peer'));
+			const held = makeFakeChatSession(session, 'extension-takeover-peer');
+			const takenOver = makeFakeChatSession(session, 'extension-takeover-peer');
+			const events: string[] = [];
+			Object.assign(held.fake, { canvasRuntimeEnabled: true, askToTakeOverSessionInUse: async () => true, releaseTurnForReplacement: () => { } });
+			Object.assign(takenOver.fake, {
+				canvasRuntimeEnabled: true,
+				// A change saved while the taken-over runtime starts, which its first reconcile fails to apply.
+				initializeSession: () => agent.setAgentExtensionEnabled('user:preview', false),
+				reconcileExtensions: async () => {
+					events.push('reconcile');
+					if (events.length === 1) {
+						throw Object.assign(new Error('extension_reconciliation_discovery_failed'), { data: { code: 'extension_reconciliation_discovery_failed' } });
+					}
+				},
+				send: async () => { events.push(`send current=${agent['_isExtensionEnablementCurrent'](takenOver.fake)}`); },
+			});
+			client.inUseSessionIds.add(held.fake.sessionId);
+			setPeerChatStub(agent, chat, held.fake);
+			agent['_ensureResolvedChatSession'] = async () => {
+				await agent['_initializeAndRegisterSession'](takenOver.fake, () => setPeerChatStub(agent, chat, takenOver.fake));
+				return takenOver.fake;
+			};
+
+			await agent.chats.sendMessage(chat, 'turn', undefined, undefined, 'turn-1', undefined, exactChatContext(session, chat));
+
+			assert.deepStrictEqual({ events, heldSends: held.rec.sends.length }, { events: ['reconcile', 'reconcile', 'send current=true'], heldSends: 0 });
+		});
+
+		test('relaunches a runtime launched without canvases to open a canvas, despite a change it couldn\'t apply', async () => {
+			const client = new TestCopilotClient([]);
+			client.extensionInventory = {
+				mode: 'load_and_augment',
+				extensions: [{ id: 'user:preview', name: 'Preview', path: '/extensions/preview.mjs', source: 'user', enabled: true }],
+			};
+			const agent = createTestAgent(disposables, { copilotClient: client, rootConfig: { [AgentHostCanvasesEnabledConfigKey]: true } });
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'extension-canvas-relaunch');
+			const chat = URI.parse(buildChatUri(session, 'peer'));
+			// Launched before canvases were enabled, so it has no extension controller to reconcile.
+			const stale = makeFakeChatSession(session, 'extension-canvas-relaunch-peer');
+			const relaunched = makeFakeChatSession(session, 'extension-canvas-relaunch-peer');
+			Object.assign(stale.fake, {
+				listExtensions: async () => [],
+				reconcileExtensions: async () => {
+					throw Object.assign(new Error('extension_reconciliation_unavailable'), { data: { code: 'extension_reconciliation_unavailable' } });
+				},
+			});
+			const opened: string[] = [];
+			Object.assign(relaunched.fake, {
+				canvasRuntimeEnabled: true,
+				openCanvas: async (request: IAgentCanvasOpenRequest): Promise<AgentCanvasOpenResult> => {
+					opened.push(request.canvasId);
+					return { kind: 'opened' };
+				},
+			});
+			setPeerChatStub(agent, chat, stale.fake);
+			agent['_ensureResolvedChatSession'] = async () => {
+				await agent['_initializeAndRegisterSession'](relaunched.fake, () => setPeerChatStub(agent, chat, relaunched.fake));
+				return relaunched.fake;
+			};
+			await assert.rejects(agent.setAgentExtensionEnabled('user:preview', false, session, chat), /extension_reconciliation_unavailable/);
+
+			const result = await agent.openSessionCanvas(session, { canvasId: 'preview', instanceId: 'preview' }, chat, exactChatContext(session, chat));
+
+			assert.deepStrictEqual({ result, opened, staleDisposed: stale.rec.disposed }, { result: { kind: 'opened' }, opened: ['preview'], staleDisposed: true });
+		});
 
 		test('sendMessage on an addressed chat resumes the addressed backing even when the parent session is provisional', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
