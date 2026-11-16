@@ -3859,8 +3859,10 @@ suite('Editor cloud sandbox discovery', () => {
 		const h = createHarness(store);
 		await h.refresh();
 		const storage = store.add(new InMemoryStorageService());
-		const cloud = store.add(new AgentSessionsFilter({ allowedProviders: [AgentSessionProviders.Cloud] }, h.chatSessionsService, storage, upcastPartial<IAgentSessionsService>({})));
-		const local = store.add(new AgentSessionsFilter({ allowedProviders: [AgentSessionProviders.Local] }, h.chatSessionsService, storage, upcastPartial<IAgentSessionsService>({})));
+		// No sessions, so no worktrees to filter by
+		const emptyAgentSessions = upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>({ sessions: [], onDidChangeSessions: Event.None }) });
+		const cloud = store.add(new AgentSessionsFilter({ allowedProviders: [AgentSessionProviders.Cloud] }, h.chatSessionsService, storage, emptyAgentSessions));
+		const local = store.add(new AgentSessionsFilter({ allowedProviders: [AgentSessionProviders.Local] }, h.chatSessionsService, storage, emptyAgentSessions));
 		const session = upcastPartial<IAgentSession>({ providerType: sessionType, status: ChatSessionStatus.NeedsInput });
 		assert.deepStrictEqual({ cloud: cloud.exclude(session), local: local.exclude(session), resource: h.items()[0].resource.toString() }, { cloud: false, local: true, resource: resource.toString() });
 	});
