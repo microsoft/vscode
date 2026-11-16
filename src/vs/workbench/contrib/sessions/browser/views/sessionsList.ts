@@ -9439,7 +9439,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private acknowledgeInboxSessions(sessions: readonly ISession[], actionId?: string): void {
-		if (this._store.isDisposed || !this.visible || !this.isInboxLayout() || actionId === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID || actionId === 'sessionsViewPane.inboxResume' || actionId === 'sessionsViewPane.inboxHold' || actionId === 'sessionsViewPane.inboxSnooze') {
+		if (this._store.isDisposed || !this.visible || !this.isInboxLayout() || actionId === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID || actionId === 'sessionsViewPane.inboxResume' || actionId === 'sessionsViewPane.inboxHold' || actionId === 'sessionsViewPane.inboxSnooze' || actionId === 'sessionsViewPane.pinSession' || actionId === 'sessionsViewPane.unpinSession') {
 			return;
 		}
 		const targets = sessions.filter(session => !session.isArchived.get() && this.getInboxSection(session) === SessionInboxSection.ReadyForYou);

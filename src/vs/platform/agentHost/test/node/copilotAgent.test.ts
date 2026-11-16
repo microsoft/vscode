@@ -22182,10 +22182,12 @@ suite('CopilotAgent', () => {
 			await agent.authenticate('https://api.github.com', 'token');
 
 			const session = AgentSession.uri('copilotcli', 'sync-customizations-test');
+			// PluginController.sync parses the agent files from disk before it publishes them, which takes longer on a loaded machine.
+			const parsedChildrenPublished = Event.toPromise(Event.filter(agent.onDidChatProgress, () => actions.some(a =>
+				a.type === ActionType.SessionCustomizationUpdated && (a.customization as PluginCustomization).children !== undefined
+			)), disposables.add(new DisposableStore()));
 			agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client-1' }).customizations = [{ type: CustomizationType.Plugin, id: customizationId(sourceRoot.toString()), uri: sourceRoot.toString(), name: 'Plugin A' }];
-
-			// Wait for the deferred resolution chain in PluginController.sync.
-			await new Promise(r => setTimeout(r, 50));
+			await parsedChildrenPublished;
 
 			const updatesWithChildren = actions
 				.filter((a): a is Extract<SessionAction, { type: ActionType.SessionCustomizationUpdated }> => a.type === ActionType.SessionCustomizationUpdated)

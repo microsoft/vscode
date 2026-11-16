@@ -49,7 +49,7 @@ suite('SharedChatInputComposer', () => {
 	const context = toPasteVariableEntry('Context', 'Pasted context', { id: 'context' });
 
 	/** A composer over a fake chat widget, recording what the host is asked to send and the commands it runs. */
-	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean | IObservable<boolean>; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void; inputSnapshot?: IComposerInputSnapshot; onSendRequest?: () => void; scheduleRequest?: INewChatComposerInputOptions['scheduleRequest']; tryHandle?: (input: string) => Promise<boolean> } = {}) {
+	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean | IObservable<boolean>; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void; inputSnapshot?: IComposerInputSnapshot; getSavedDraftId?: () => string | undefined; onSendRequest?: () => void; scheduleRequest?: INewChatComposerInputOptions['scheduleRequest']; tryHandle?: (input: string) => Promise<boolean> } = {}) {
 		let text = options.text ?? 'Build it';
 		let attachments: IChatRequestVariableEntry[] = options.attachments ?? [context];
 		let references = options.references ?? [];
@@ -132,6 +132,7 @@ suite('SharedChatInputComposer', () => {
 				confirmSend: options.confirmSend && (() => options.confirmSend!.p),
 				preserveInputFocusOnSend: options.preserveInputFocusOnSend,
 				inputSnapshot: options.inputSnapshot,
+				getSavedDraftId: options.getSavedDraftId,
 				sendRequest: async (request: INewChatInputSendRequest) => {
 					attemptIds.push(request.attemptId);
 					options.onSendRequest?.();
@@ -156,6 +157,22 @@ suite('SharedChatInputComposer', () => {
 		});
 		return { composer, widget, executeToolbarElement, readinessWait, inputTransitions, attemptIds, storageWrites: () => storageWrites, state: () => ({ requests, errors, warnings, commands, restoredReferences, input: { text, attachments: attachments.map(entry => entry.id), enabled: inputEnabled }, draftModelState, focusRestored }) };
 	}
+
+	test('backs up the saved identity with input and clears it for a new composition', () => {
+		const storageService = store.add(new InMemoryStorageService());
+		let savedDraftId: string | undefined = 'saved-draft';
+		const attachment = { kind: 'file' as const, id: 'file', name: 'file.ts', value: URI.file('/workspace/file.ts') };
+		const { composer } = createComposer({ storageService, text: 'saved input', attachments: [attachment], getSavedDraftId: () => savedDraftId });
+		composer.saveState();
+		const saved = readNewChatDraftState(storageService);
+		savedDraftId = undefined;
+		composer.setDraft({ inputText: 'new input', attachments: [] });
+		composer.saveState();
+		assert.deepStrictEqual({ saved, next: readNewChatDraftState(storageService) }, {
+			saved: { inputText: 'saved input', attachments: [attachment], references: undefined, savedDraftId: 'saved-draft' },
+			next: { inputText: 'new input', attachments: [], references: undefined },
+		});
+	});
 
 	test('scheduling supplies the send controls as the picker anchor and keeps input on cancel', async () => {
 		let anchor: HTMLElement | undefined;

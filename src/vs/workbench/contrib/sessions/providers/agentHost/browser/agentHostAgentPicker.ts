@@ -263,7 +263,7 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 				}
 				const widget = chat && chatWidgetService.getWidgetBySessionResource(chat.resource);
 				return widget?.visible ? [widget] : [];
-			}), productService));
+			}), productService, storageService));
 		}
 
 		const renderedPickers = new Set<{ readonly session: IObservable<ISession | undefined>; readonly item: AgentHostModePickerActionViewItem }>();

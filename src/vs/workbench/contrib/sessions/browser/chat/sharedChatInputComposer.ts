@@ -732,7 +732,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		const widget = this._widget;
 		// A host that keeps the input in a snapshot persists it itself.
 		if (widget && !this.options.inputSnapshot) {
-			writeNewChatDraftState(this.storageService, { inputText: this.getInputValue(), attachments: [...this.attachments], references: this._getDraftReferences(widget) });
+			writeNewChatDraftState(this.storageService, { inputText: this.getInputValue(), attachments: [...this.attachments], references: this._getDraftReferences(widget) }, this.options.getSavedDraftId?.());
 		}
 	}
 
