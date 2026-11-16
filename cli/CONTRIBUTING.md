@@ -6,14 +6,14 @@
 
 ## Rust toolchain
 
-Production CLI builds use the MSFT Rust toolchain `ms-prod-1.100.0`. Linux CLI checks and local OSS builds use upstream Rust `1.100.0`. To install the corresponding upstream toolchain locally without changing your default, select it explicitly when running Cargo from this directory:
+Production CLI builds use the MSFT Rust toolchain `ms-prod-1.97`. Linux CLI checks and local OSS builds use upstream Rust `1.97.0`. To install the corresponding upstream toolchain locally without changing your default, select it explicitly when running Cargo from this directory:
 
 ```shell
-rustup toolchain install 1.100.0 --profile minimal
-cargo +1.100.0 build --release --locked
+rustup toolchain install 1.97.0 --profile minimal
+cargo +1.97.0 build --release --locked
 ```
 
-On Windows, follow the native dependency setup below before building. Keep the toolchain version in the POSIX and Windows Rust installer templates under `build/azure-pipelines` and the Linux Rust test input in `.github/workflows/pr.yml` in sync.
+On Windows, follow the native dependency setup below before building. Keep the MSFT `channel` and upstream `rustupChannel` parameters in the POSIX and Windows Rust installer templates under `build/azure-pipelines` aligned with each other, and keep `rustupChannel` in sync with the Linux Rust test input in `.github/workflows/pr.yml`.
 
 ## Building the CLI on Windows
 

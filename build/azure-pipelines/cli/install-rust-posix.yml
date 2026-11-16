@@ -1,7 +1,10 @@
 parameters:
   - name: channel
     type: string
-    default: 'ms-prod-1.100.0'
+    default: 'ms-prod-1.97'
+  - name: rustupChannel
+    type: string
+    default: '1.97.0'
   - name: targets
     default: []
     type: object
@@ -25,7 +28,7 @@ steps:
       curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain $RUSTUP_TOOLCHAIN
       echo "##vso[task.setvariable variable=PATH;]$PATH:$HOME/.cargo/bin"
     env:
-      RUSTUP_TOOLCHAIN: ${{ replace(replace(parameters.channel, 'ms-prod-', ''), 'ms-', '') }}
+      RUSTUP_TOOLCHAIN: ${{ parameters.rustupChannel }}
     displayName: Install OSS Rust
     condition: and(succeeded(), eq(variables['CARGO_REGISTRY'], 'none'))
 
@@ -35,7 +38,7 @@ steps:
       rustup update $RUSTUP_TOOLCHAIN
       rustup component add clippy
     env:
-      RUSTUP_TOOLCHAIN: ${{ replace(replace(parameters.channel, 'ms-prod-', ''), 'ms-', '') }}
+      RUSTUP_TOOLCHAIN: ${{ parameters.rustupChannel }}
     displayName: "Set Rust version"
     condition: and(succeeded(), eq(variables['CARGO_REGISTRY'], 'none'))
 

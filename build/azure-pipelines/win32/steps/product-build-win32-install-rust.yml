@@ -1,7 +1,10 @@
 parameters:
   - name: channel
     type: string
-    default: 'ms-prod-1.100.0'
+    default: 'ms-prod-1.97'
+  - name: rustupChannel
+    type: string
+    default: '1.97.0'
   - name: targets
     default: []
     type: object
@@ -26,7 +29,7 @@ steps:
       exec { $(Build.ArtifactStagingDirectory)/rustup-init.exe -y --profile minimal --default-toolchain $env:RUSTUP_TOOLCHAIN --default-host x86_64-pc-windows-msvc }
       echo "##vso[task.prependpath]$env:USERPROFILE\.cargo\bin"
     env:
-      RUSTUP_TOOLCHAIN: ${{ replace(replace(parameters.channel, 'ms-prod-', ''), 'ms-', '') }}
+      RUSTUP_TOOLCHAIN: ${{ parameters.rustupChannel }}
     displayName: Install OSS Rust
     condition: and(succeeded(), eq(variables['CARGO_REGISTRY'], 'none'))
 
@@ -35,7 +38,7 @@ steps:
       exec { rustup default $RUSTUP_TOOLCHAIN }
       exec { rustup update $RUSTUP_TOOLCHAIN }
     env:
-      RUSTUP_TOOLCHAIN: ${{ replace(replace(parameters.channel, 'ms-prod-', ''), 'ms-', '') }}
+      RUSTUP_TOOLCHAIN: ${{ parameters.rustupChannel }}
     displayName: "Set Rust version"
     condition: and(succeeded(), eq(variables['CARGO_REGISTRY'], 'none'))
 
