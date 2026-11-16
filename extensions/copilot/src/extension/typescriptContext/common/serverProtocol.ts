@@ -55,6 +55,12 @@ export interface Region {
 	range: LineRange;
 }
 
+export namespace Region {
+	export function getSpan(region: Region): number {
+		return region.range.end - region.range.start;
+	}
+}
+
 export type PathInfo = {
 	smallest: number[];
 	largest?: number[];
@@ -245,6 +251,10 @@ export namespace ContextItem {
 		}
 	}
 }
+
+export type PriorityTag = {
+	priority: number;
+};
 
 export enum ContextRunnableState {
 	Created = 'created',

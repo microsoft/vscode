@@ -42,6 +42,43 @@ suite('LRURadixTrie', function () {
 			assert.deepStrictEqual(trie.findAll('d'), [{ remainingKey: '', value: 'fourth' }]);
 		});
 
+		test('merges a child edge when evicting its prefix', function () {
+			trie = new LRURadixTrie<string>(2);
+			trie.set('test', 'first');
+			trie.set('testing', 'second');
+			trie.set('x', 'third');
+
+			assert.deepStrictEqual({
+				test: trie.findAll('test'),
+				testing: trie.findAll('testing'),
+				x: trie.findAll('x'),
+			}, {
+				test: [],
+				testing: [{ remainingKey: '', value: 'second' }],
+				x: [{ remainingKey: '', value: 'third' }],
+			});
+		});
+
+		test('merges an empty parent after evicting one of its children', function () {
+			trie = new LRURadixTrie<string>(2);
+			trie.set('test', 'first');
+			trie.set('testing', 'second');
+			trie.set('testy', 'third');
+			trie.set('x', 'fourth');
+
+			assert.deepStrictEqual({
+				test: trie.findAll('test'),
+				testing: trie.findAll('testing'),
+				testy: trie.findAll('testy'),
+				x: trie.findAll('x'),
+			}, {
+				test: [],
+				testing: [],
+				testy: [{ remainingKey: '', value: 'third' }],
+				x: [{ remainingKey: '', value: 'fourth' }],
+			});
+		});
+
 		test('shorter key as prefix of longer key', function () {
 			const trie = new LRURadixTrie<string>(20);
 			trie.set('test', '1');
