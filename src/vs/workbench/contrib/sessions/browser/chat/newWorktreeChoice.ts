@@ -68,6 +68,12 @@ export class NewWorktreeChoice implements IWorkspacePickerNewWorktreeOption {
 		return !!this._draftIsolation();
 	}
 
+	/** Whether the user chose, for the current draft, whether it works in a new worktree: its default does not count. */
+	isUserChosen(): boolean {
+		const session = this._session.get();
+		return !!session && (draftChoices.get(session)?.latestChoice ?? 0) > 0;
+	}
+
 	/** Whether {@link isAvailable} is settled for the current draft: its agent's configuration of it is known. */
 	isResolved(): boolean {
 		const session = this._session.get();

@@ -32,6 +32,8 @@ import { SessionsManagementService } from '../../../../../workbench/contrib/sess
 import { ISessionsProvidersService, SessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../../../../workbench/contrib/sessions/browser/chat/sessionTypePicker.js';
 import { NewChatWidget, shouldShowNewSessionChatTip } from '../../../../../workbench/contrib/sessions/browser/chat/newChatWidget.js';
+import { registerNewSessionWorktreeSendChoice } from '../../../../../workbench/contrib/sessions/browser/chat/newSessionWorktreeSendChoice.js';
+import { IChatSubmitRequest } from '../../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { WelcomeName } from '../../../../../workbench/contrib/sessions/browser/chat/welcomeName.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -4977,6 +4979,159 @@ suite('NewChatWidget', () => {
 				});
 			});
 
+			suite('Work in Parallel, as its first request is sent in its folder', () => {
+
+				const handle = Reflect.get(NewChatWidget.prototype, '_handleWorktreeSendChoice') as (this: object, request: IChatSubmitRequest) => Promise<boolean>;
+				const getControl = Reflect.get(NewChatWidget.prototype, '_getWorktreeSendChoiceControl') as (this: object) => HTMLElement | undefined;
+				const draft = URI.parse('agent-host-copilotcli:/untitled-draft');
+				const folder = URI.file('/repo');
+
+				/** A composer of a draft of `/repo` that would work in it, whose provider answers with `answer` once asked. */
+				function harness(options: { aiOn?: boolean; quickChat?: boolean; available?: boolean; selected?: boolean; userChosen?: boolean; placement?: boolean; control?: boolean; provider?: boolean; availableOnAnswer?: boolean } = {}) {
+					const calls: string[] = [];
+					const answer = new DeferredPromise<'worktree' | 'folder' | undefined>();
+					let available = options.available ?? true;
+					const control = $('div.new-worktree-control');
+					const session = upcastPartial<ISession>({
+						sessionId: 'draft', resource: draft, status: constObservable(SessionStatus.Untitled), isQuickChat: constObservable(!!options.quickChat),
+						workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [upcastPartial<ISessionFolder>({ root: folder, workingDirectory: folder })] })),
+					});
+					const registration = disposables.add(new DisposableStore());
+					if (options.provider !== false) {
+						registration.add(registerNewSessionWorktreeSendChoice({
+							ask: (askedDraft, askedFolder, askedControl) => {
+								calls.push(`ask ${askedDraft.path} in ${askedFolder.path}${askedControl === control ? ' on its control' : ''}`);
+								return answer.p.then(choice => {
+									available = options.availableOnAnswer ?? available;
+									return choice;
+								});
+							},
+						}));
+					}
+					const harness = {
+						_session: constObservable(session),
+						_askingWorktreeOnSend: new Set<string>(),
+						_pendingWorktreePlacement: observableValue<object | undefined>('pendingWorktreePlacement', options.placement ? { folderUri: folder, sessionId: 'draft' } : undefined),
+						_newWorktree: {
+							isAvailable: () => available,
+							isSelected: () => !!options.selected,
+							isUserChosen: () => !!options.userChosen,
+							setSelected: (selected: boolean) => calls.push(`New Worktree ${selected}`),
+						},
+						contextKeyService: { contextMatchesRules: () => options.aiOn ?? true },
+						_getWorktreeSendChoiceControl: () => options.control === false ? undefined : control,
+						_warnNewWorktreeUnavailable: () => calls.push('warning'),
+					};
+					return {
+						calls, answer, unregister: () => registration.dispose(),
+						/** Sends the draft's first request as the composer does, through its submit handler; the result is whether the handler took it. */
+						send: (resource: URI = draft) => handle.call(harness, { sessionResource: resource, input: 'hello' }),
+					};
+				}
+
+				test('does not ask where the draft would not work in its folder, the user chose for it, or there is nothing to ask with', async () => {
+					const asked = async (options: Parameters<typeof harness>[0], resource?: URI) => {
+						const { calls, send, unregister } = harness(options);
+						const taken = await send(resource);
+						unregister();
+						return { taken, calls };
+					};
+					const none = { taken: false, calls: [] };
+
+					assert.deepStrictEqual({
+						noProvider: await asked({ provider: false }),
+						aiOff: await asked({ aiOn: false }),
+						quickChat: await asked({ quickChat: true }),
+						noNewWorktree: await asked({ available: false }),
+						newWorktree: await asked({ selected: true }),
+						userChose: await asked({ userChosen: true }),
+						requestedPlacement: await asked({ placement: true }),
+						noControl: await asked({ control: false }),
+						anotherChat: await asked({}, URI.parse('agent-host-copilotcli:/untitled-other')),
+					}, { noProvider: none, aiOff: none, quickChat: none, noNewWorktree: none, newWorktree: none, userChose: none, requestedPlacement: none, noControl: none, anotherChat: none });
+				});
+
+				test('holds the send while it asks on the New Worktree control; Use New Worktree makes it work in a new worktree, and it is then sent once', async () => {
+					const { calls, answer, send } = harness();
+					let sent = false;
+					const sending = send().then(taken => { sent = !taken; });
+					await timeout(0);
+					const held = { sent, calls: [...calls] };
+					answer.complete('worktree');
+					await sending;
+
+					assert.deepStrictEqual({ held, sent, calls }, {
+						held: { sent: false, calls: ['ask /untitled-draft in /repo on its control'] },
+						sent: true,
+						calls: ['ask /untitled-draft in /repo on its control', 'New Worktree true'],
+					});
+				});
+
+				test('Continue in Folder, closing the callout, or a remembered or no choice sends once in the folder', async () => {
+					const results = [];
+					for (const choice of ['folder', undefined] as const) {
+						const { calls, answer, send, unregister } = harness();
+						answer.complete(choice);
+						results.push({ taken: await send(), calls });
+						unregister();
+					}
+
+					assert.deepStrictEqual(results, [
+						{ taken: false, calls: ['ask /untitled-draft in /repo on its control'] },
+						{ taken: false, calls: ['ask /untitled-draft in /repo on its control'] },
+					]);
+				});
+
+				test('a request sent again while it asks is not sent: the held one is, once answered', async () => {
+					const { calls, answer, send } = harness();
+					const first = send();
+					await timeout(0);
+					const again = await send();
+					answer.complete('folder');
+
+					assert.deepStrictEqual({ again, first: await first, asked: calls.length }, { again: true, first: false, asked: 1 });
+				});
+
+				test('a new worktree the draft can no longer work in is reported and the request sent in the folder; a failing provider never costs the request', async () => {
+					const unavailable = harness({ availableOnAnswer: false });
+					unavailable.answer.complete('worktree');
+					const unavailableResult = { taken: await unavailable.send(), calls: unavailable.calls };
+					unavailable.unregister();
+					const failing = harness();
+					failing.answer.error(new Error('provider failed'));
+					const errors: unknown[] = [];
+					const previousHandler = errorHandler.getUnexpectedErrorHandler();
+					errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+					let failingTaken: boolean;
+					try {
+						failingTaken = await failing.send();
+					} finally {
+						errorHandler.setUnexpectedErrorHandler(previousHandler);
+					}
+
+					assert.deepStrictEqual({ unavailable: unavailableResult, failingTaken, reported: errors.map(error => (error as Error).message) }, {
+						unavailable: { taken: false, calls: ['ask /untitled-draft in /repo on its control', 'warning'] },
+						failingTaken: false,
+						reported: ['provider failed'],
+					});
+				});
+
+				test('asks on the New Worktree checkbox while shown, else on the workspace picker where it offers New Worktree, and only as shown', () => {
+					const container = mainWindow.document.body.appendChild($('div'));
+					disposables.add(toDisposable(() => container.remove()));
+					const row = container.appendChild($('div.picker-row'));
+					const checkbox = row.appendChild($('div.checkbox'));
+					const visible = observableValue('visible', true);
+					const composer = { _newWorktreeCheckboxVisible: visible, _newWorktreeCheckbox: { element: checkbox }, _workspacePickerRow: row };
+					const shown = getControl.call(composer);
+					visible.set(false, undefined);
+					const inPicker = getControl.call(composer);
+					row.remove();
+
+					assert.deepStrictEqual({ shown: shown === checkbox, inPicker: inPicker === row, detached: getControl.call(composer) }, { shown: true, inPicker: true, detached: undefined });
+				});
+			});
+
 			suite('in a new worktree', () => {
 
 				const applyRequestedWorktreePlacement = Reflect.get(NewChatWidget.prototype, '_applyRequestedWorktreePlacement') as (this: object) => void;
@@ -5039,6 +5194,7 @@ suite('NewChatWidget', () => {
 						_draftHost: { requestedTarget: observableValue<INewSessionTarget>('target', { folderUri: URI.file('/b'), placement: 'worktree' }), setRequestedTarget: (next: INewSessionTarget) => harness._draftHost.requestedTarget.set(next, undefined) },
 						_applyRequestedWorktreePlacement: () => applyRequestedWorktreePlacement.call(harness),
 						_bindWorktreePlacement: (placement: object, result: IOpenNewSessionResult | undefined) => bindWorktreePlacement.call(harness, placement, result),
+						_warnNewWorktreeUnavailable: () => (Reflect.get(NewChatWidget.prototype, '_warnNewWorktreeUnavailable') as (this: object) => void).call(harness),
 						_isDraftOfFolder: (session: ISession, folderUri: URI) => isDraftOfFolder.call(harness, session, folderUri),
 					};
 					// As the widget's autorun does on each draft change
