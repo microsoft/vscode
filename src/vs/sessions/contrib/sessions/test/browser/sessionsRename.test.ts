@@ -538,6 +538,69 @@ suite('Sessions rename', () => {
 			});
 		});
 
+		test('phone layout gives the space reserved for row actions to the rename input', () => {
+			const baseSession = createTestSession('Session').session;
+			const mainChat = baseSession.mainChat.get();
+			const peerChat = new class extends mock<IChat>() {
+				override readonly resource = URI.parse('test-chat:///phone-peer');
+				override readonly workspace = constObservable(undefined);
+				override readonly title = constObservable('Peer chat');
+				override readonly updatedAt = constObservable(new Date());
+				override readonly status = constObservable(SessionStatus.Completed);
+				override readonly description = constObservable(undefined);
+				override readonly interactivity = constObservable(ChatInteractivity.Full);
+				override readonly isArchived = constObservable(false);
+				override readonly isRead = constObservable(true);
+				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
+			}();
+			const session: ISession = {
+				...baseSession,
+				chats: constObservable([mainChat, peerChat]),
+				mainChat: constObservable(mainChat),
+			};
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			container.classList.add('agent-sessions-workbench', 'phone-layout');
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+				onChatOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const rowLayout = (itemSelector: string, reservedSelector: string) => {
+				const item = container.querySelector<HTMLElement>(itemSelector);
+				const reserved = item?.querySelector<HTMLElement>(reservedSelector);
+				const toolbar = item?.querySelector<HTMLElement>('.session-title-toolbar');
+				assert.ok(reserved && toolbar);
+				return {
+					toolbarDisplay: mainWindow.getComputedStyle(toolbar).display,
+					reservedPaddingRight: mainWindow.getComputedStyle(reserved).paddingRight,
+				};
+			};
+			const cancelRename = (inputSelector: string) => container.querySelector<HTMLInputElement>(inputSelector)?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+
+			const idle = {
+				session: rowLayout('.session-item', '.session-main'),
+				chat: rowLayout('.session-chat-item', '.session-chat-title-row'),
+			};
+			assert.strictEqual(list.beginRenameSession(session), true);
+			const renamingSession = rowLayout('.session-item.renaming', '.session-main');
+			cancelRename('.session-title-input input');
+			assert.strictEqual(list.beginRenameChat({ session, chat: peerChat }), true);
+			const renamingChat = rowLayout('.session-chat-item.renaming', '.session-chat-title-row');
+			cancelRename('.session-chat-title-input input');
+
+			assert.deepStrictEqual({ idle, renamingSession, renamingChat }, {
+				idle: {
+					session: { toolbarDisplay: 'block', reservedPaddingRight: '96px' },
+					chat: { toolbarDisplay: 'block', reservedPaddingRight: '44px' },
+				},
+				renamingSession: { toolbarDisplay: 'none', reservedPaddingRight: '0px' },
+				renamingChat: { toolbarDisplay: 'none', reservedPaddingRight: '0px' },
+			});
+		});
+
 		test('flat session lists do not request rename', () => {
 			const { session } = createTestSession('Flat');
 			const harness = createListHarness(disposables, [session]);
