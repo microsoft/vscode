@@ -18,6 +18,7 @@ import { unthemedCountStyles } from '../../../../base/browser/ui/countBadge/coun
 import { unthemedKeybindingLabelOptions } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { unthemedProgressBarOptions } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { QuickInputController } from '../../browser/quickInputController.js';
+import { QuickInputService } from '../../browser/quickInputService.js';
 import { TestThemeService } from '../../../theme/test/common/testThemeService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -40,6 +41,9 @@ import { IAccessibilityService } from '../../../accessibility/common/accessibili
 import { TestAccessibilityService } from '../../../accessibility/test/common/testAccessibilityService.js';
 import { IMarkdownRendererService } from '../../../markdown/browser/markdownRenderer.js';
 import { HoverService } from '../../../hover/browser/hoverService.js';
+import { IHoverService } from '../../../hover/browser/hover.js';
+import { NullHoverService } from '../../../hover/test/browser/nullHoverService.js';
+import { IOpenerService } from '../../../opener/common/opener.js';
 import { getListStyles } from '../../../theme/browser/defaultStyles.js';
 import { quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground } from '../../../theme/common/colorRegistry.js';
 
@@ -159,6 +163,78 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 
 	teardown(() => {
 		sinon.restore();
+	});
+
+	test('Quick Input service keeps selected tree rows in the picker palette while keyboard focus moves', () => {
+		instantiationService.stub(ILayoutService, {
+			activeContainer: fixture,
+			activeContainerDimension: { width: 600, height: 500 },
+			activeContainerOffset: { top: 0, quickPickTop: 0 },
+			onDidLayoutContainer: Event.None,
+			onDidLayoutActiveContainer: Event.None,
+			onDidChangeActiveContainer: Event.None,
+			getContainer: () => fixture,
+			focus() { },
+		});
+		instantiationService.stub(IHoverService, NullHoverService);
+		instantiationService.stub(IOpenerService, { open: async () => true });
+		for (const [id, value] of Object.entries({
+			'quickInput-background': '#f8f8f8',
+			'quickInput-foreground': '#3b3b3b',
+			'quickInputList-focusBackground': '#005fb8',
+			'quickInputList-focusForeground': '#ffffff',
+			'quickInputList-focusIconForeground': '#ffffff',
+			'quickInputList-focusHighlightForeground': '#ffffff',
+			'list-activeSelectionBackground': '#e8e8e8',
+			'list-activeSelectionForeground': '#000000',
+			'list-activeSelectionIconForeground': '#000000',
+			'charts-yellow': '#b69500',
+		})) {
+			fixture.style.setProperty(`--vscode-${id}`, value);
+		}
+		const service = store.add(instantiationService.createInstance(QuickInputService));
+		const picker = store.add(service.createQuickTree());
+		picker.setItemTree([
+			{ label: '$(check) First match', iconClass: 'codicon codicon-check', iconColor: { id: 'charts.yellow' } },
+			{ label: '$(check) Second match', iconClass: 'codicon codicon-check', iconColor: { id: 'charts.yellow' } },
+		]);
+		picker.show();
+		picker.value = 'match';
+		const list = fixture.querySelector<HTMLElement>('.quick-input-tree > .monaco-list')!;
+		const colors = () => {
+			const row = list.querySelector<HTMLElement>('.monaco-list-row.focused')!;
+			return {
+				keyboardFocus: mainWindow.document.activeElement === list,
+				selected: row.classList.contains('selected'),
+				background: mainWindow.getComputedStyle(row).backgroundColor,
+				label: mainWindow.getComputedStyle(row.querySelector<HTMLElement>('.label-name')!).color,
+				icons: Array.from(row.querySelectorAll<HTMLElement>('.codicon'), icon => mainWindow.getComputedStyle(icon).color),
+				match: mainWindow.getComputedStyle(row.querySelector<HTMLElement>('.highlight')!).color,
+			};
+		};
+		picker.focus(QuickPickFocus.First);
+		const first = colors();
+		picker.focus(QuickPickFocus.Last);
+		const last = colors();
+		list.querySelector('.monaco-list-row.focused')!.classList.add('hovered');
+		const hovered = colors();
+		picker.focusOnInput();
+		const inactive = colors();
+		const selectedColors = {
+			keyboardFocus: true,
+			selected: true,
+			background: 'rgb(0, 95, 184)',
+			label: 'rgb(255, 255, 255)',
+			icons: ['rgb(255, 255, 255)', 'rgb(255, 255, 255)'],
+			match: 'rgb(255, 255, 255)',
+		};
+
+		assert.deepStrictEqual({ first, last, hovered, inactive }, {
+			first: selectedColors,
+			last: selectedColors,
+			hovered: selectedColors,
+			inactive: { ...selectedColors, keyboardFocus: false },
+		});
 	});
 
 	for (const kind of ['list', 'tree'] as const) {
