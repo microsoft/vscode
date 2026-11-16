@@ -1406,6 +1406,71 @@ suite('ModelCard', () => {
 		});
 	}
 
+	test('replacing a model tier during selection motion immediately updates its selection target', async () => {
+		const standard = createModel({
+			configurationSchema: {
+				properties: {
+					context: { type: 'number', group: 'tokens', enum: [32000, 64000], default: 32000 },
+				},
+			},
+		});
+		const previous = { ...standard, identifier: 'copilot/previous-tier' };
+		const replacement = { ...standard, identifier: 'copilot/replacement-tier' };
+		const modelChoices = {
+			ariaLabel: 'Model tier',
+			choices: [{ label: 'Standard', model: standard }, { label: 'Max', model: previous }],
+		};
+		const result = await createAnimatedCard({ model: standard, modelChoices });
+		const context = element(result.card.element, '[role="radiogroup"][aria-label="Context"]');
+		element(context, '[role="radio"]:last-child').click();
+		const animations = element(context, '.monaco-radio-selection').getAnimations();
+		animations.forEach(animation => animation.pause());
+		result.card.refresh();
+		result.update({
+			modelChoices: { ...modelChoices, choices: [modelChoices.choices[0], { label: 'Max', model: replacement }] },
+		});
+		const rebuilt = !context.isConnected;
+		element(result.card.element, '[aria-label="Model tier"] [role="radio"]:last-child').click();
+		animations.forEach(animation => animation.finish());
+		await timeout(0);
+
+		assert.deepStrictEqual({ rebuilt, selections: result.selectedModels, values: result.values }, {
+			rebuilt: true,
+			selections: [replacement.identifier],
+			values: { context: 64000 },
+		});
+	});
+
+	test('removing a routing alternative during selection motion immediately removes its choice', async () => {
+		const auto = createAutoModel();
+		const alternative = createModel();
+		const result = await createAnimatedCard({
+			model: auto,
+			routingAlternatives: [{ model: alternative, label: 'Alternative', description: 'Another routing model.', selected: false }],
+		});
+		const group = element(result.card.element, '[role="radiogroup"]');
+		const options = group.querySelectorAll<HTMLElement>('[role="radio"]');
+		options[2].focus();
+		options[2].click();
+		const animations = element(group, '.monaco-radio-selection').getAnimations();
+		animations.forEach(animation => animation.pause());
+		result.card.refresh();
+		result.update({ routingAlternatives: [] });
+		const during = {
+			choices: Array.from(result.card.element.querySelectorAll('[role="radio"]'), option => option.textContent),
+			focused: document.activeElement?.textContent,
+		};
+		options[3].click();
+		animations.forEach(animation => animation.finish());
+		await timeout(0);
+
+		assert.deepStrictEqual({ during, selections: result.selectedModels, values: result.values }, {
+			during: { choices: ['Efficiency', 'Balance', 'Intelligence'], focused: 'Intelligence' },
+			selections: [auto.identifier],
+			values: { tier: 'intelligence' },
+		});
+	});
+
 	for (const change of ['adds', 'disables'] as const) {
 		test(`a refresh after the scope ${change} a choice during selection motion rebuilds the controls right away`, async () => {
 			let effort: IModelConfigPropertySchema = { type: 'string', group: 'navigation', enum: ['low', 'high'], enumItemLabels: ['Low', 'High'], default: 'low' };

@@ -160,12 +160,18 @@ function routingAlternativesEqual(a: readonly IModelCardRoutingAlternative[] | u
 			&& alternative.label === b[index].label && alternative.replacesTier === b[index].replacesTier && alternative.selectsTier === b[index].selectsTier);
 }
 
-/** The effort and context settings the card's controls save to, with each choice and whether it can be chosen, to tell when rendered controls no longer fit. */
-function getConfigurationBindings(options: IModelCardOptions): readonly (readonly unknown[])[] {
-	return [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT].map(group => {
+/** The settings, choices, and model targets that must still match before a refresh can wait for selection motion. */
+function getControlBindings(options: IModelCardOptions): readonly (readonly unknown[])[] {
+	const configurationBindings = [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT].map(group => {
 		const property = getModelConfigProperty(options.model, options.configurationAccess, group, options.useModelConfigurationSchema);
 		return property ? [property.key, ...getModelConfigChoices(property).flatMap(choice => [choice.value, choice.readOnly])] : [];
 	});
+	return [
+		...configurationBindings,
+		options.speedVariants ? [options.speedVariants.standard.identifier, options.speedVariants.fast.identifier] : [],
+		options.modelChoices?.choices.map(choice => choice.model.identifier) ?? [],
+		options.routingAlternatives?.flatMap(alternative => [alternative.model.identifier, alternative.replacesTier, alternative.selectsTier]) ?? [],
+	];
 }
 
 /**
@@ -297,8 +303,8 @@ export class ModelCard extends DisposableStore {
 	}
 
 	private _renderPreservingFocus(fallbackGroup?: string): void {
-		// Controls for other settings or choices could save a value the model no longer offers, so they don't wait for their motion.
-		const controlsFit = equals(this._renderedBindings, getConfigurationBindings(this._options), (a, b) => equals(a, b));
+		// Changed settings or model choices must stop accepting input before selection motion settles.
+		const controlsFit = equals(this._renderedBindings, getControlBindings(this._options), (a, b) => equals(a, b));
 		if (controlsFit && this._renderPending) {
 			return;
 		}
@@ -371,7 +377,7 @@ export class ModelCard extends DisposableStore {
 		this._routingBadge = undefined;
 		this._routingBadgeTier = undefined;
 		this._groupControls.clear();
-		this._renderedBindings = getConfigurationBindings(this._options);
+		this._renderedBindings = getControlBindings(this._options);
 
 		const { model, isUBB, openerService } = this._options;
 		const metadata = model.metadata;

@@ -344,6 +344,22 @@ suite('TabbedModelPicker', () => {
 		element(popup, '[role="button"][aria-label^="Back to Models"]').click();
 	}
 
+	async function enableSelectionMotion(popup: HTMLElement): Promise<void> {
+		const container = popup.closest<HTMLElement>('.monaco-workbench')!;
+		container.classList.remove('monaco-reduce-motion');
+		container.style.cssText += `
+			--vscode-spacing-sizeNone: 0px;
+			--vscode-spacing-size20: 2px;
+			--vscode-spacing-size240: 24px;
+			--vscode-strokeThickness: 1px;
+			--vscode-fontSize-label2: 11px;
+			--vscode-fontWeight-regular: 400;
+			--vscode-fontWeight-semiBold: 600;
+		`;
+		const targetWindow = dom.getWindow(popup);
+		await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => targetWindow.requestAnimationFrame(() => resolve())));
+	}
+
 	test('dialog-hosted details preserve the requested popup layer and below-anchor placement', () => {
 		const result = createPicker({ inDialog: true, contextViewLayer: 1, details: models[0].identifier });
 		const details = {
@@ -3067,17 +3083,7 @@ suite('TabbedModelPicker', () => {
 		const standard = model('example-2.5');
 		const fast = model('example-2.5-fast');
 		const result = createPicker({ models: [standard, fast], details: standard.identifier });
-		const container = result.popup.closest<HTMLElement>('.monaco-workbench')!;
-		container.classList.remove('monaco-reduce-motion');
-		container.style.cssText += `
-			--vscode-spacing-sizeNone: 0px;
-			--vscode-spacing-size20: 2px;
-			--vscode-spacing-size240: 24px;
-			--vscode-strokeThickness: 1px;
-			--vscode-fontSize-label2: 11px;
-			--vscode-fontWeight-regular: 400;
-			--vscode-fontWeight-semiBold: 600;
-		`;
+		await enableSelectionMotion(result.popup);
 		const targetWindow = dom.getWindow(result.popup);
 		const reducedMotion = targetWindow.matchMedia('(prefers-reduced-motion: reduce)').matches;
 		const selections = [];
@@ -3266,6 +3272,42 @@ suite('TabbedModelPicker', () => {
 			name: result.popup.querySelector('.chat-model-card-name')?.textContent,
 		}, { before: 1, sameCard: true, speed: 0, name: fast.metadata.name });
 	});
+
+	for (const removed of ['standard', 'fast'] as const) {
+		test(`removing the ${removed} speed variant during selection motion immediately removes its choice`, async () => {
+			const standard = model('test-model');
+			const fast = model('test-model-fast');
+			const retained = removed === 'fast' ? standard : fast;
+			const result = createPicker({ models: [standard, fast], details: retained.identifier, selectedModelId: retained.identifier });
+			await enableSelectionMotion(result.popup);
+			const card = element(result.popup, '.chat-model-card');
+			const unavailableChoice = card.querySelectorAll<HTMLElement>('[aria-label="Speed"] [role="radio"]')[removed === 'standard' ? 0 : 1];
+			const effort = element(card, '[role="radiogroup"][aria-label="Effort Level"]');
+			const high = element(effort, '[role="radio"]:last-child');
+			high.focus();
+			high.click();
+			const animations = element(effort, '.monaco-radio-selection').getAnimations();
+			animations.forEach(animation => animation.pause());
+			const motionStarted = dom.getWindow(card).matchMedia('(prefers-reduced-motion: reduce)').matches || animations.length > 0;
+
+			result.picker.refresh([retained]);
+			const during = {
+				motionStarted,
+				sameCard: result.popup.querySelector('.chat-model-card') === card,
+				speed: card.querySelectorAll('[aria-label="Speed"]').length,
+				focused: document.activeElement?.textContent,
+			};
+			unavailableChoice.click();
+			animations.forEach(animation => animation.finish());
+			await timeout(0);
+
+			assert.deepStrictEqual({ during, selections: result.selections, values: result.values.get(retained.identifier) }, {
+				during: { motionStarted: true, sameCard: true, speed: 0, focused: 'High' },
+				selections: [],
+				values: { effort: 'high' },
+			});
+		});
+	}
 
 	test('pending writes retain their originating scope when the picker is reopened for another scope', async () => {
 		const pending = new DeferredPromise<void>();
