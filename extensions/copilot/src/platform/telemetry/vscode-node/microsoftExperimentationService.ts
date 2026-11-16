@@ -69,6 +69,8 @@ const CopilotRelatedPluginVersionPrefix = 'X-Copilot-RelatedPluginVersion-';
 
 /** Posted by tas-client after each assignments endpoint response, with its `DataVersion`. */
 const ASSIGNMENTS_VALIDATION_EVENT = 'assignments-validation';
+/** The shared property vscode-tas-client sets to the assignment context of the snapshot in use. */
+const ASSIGNMENT_CONTEXT_PROPERTY = 'abexp.assignmentcontext';
 
 export enum RelatedExtensionsFilter {
 	CopilotRelatedPluginVersionCppTools = CopilotRelatedPluginVersionPrefix + 'msvscodecpptools',
@@ -394,6 +396,8 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
  * properties (notably `abexp.assignmentcontext`) after a newer delegate has replaced it.
  */
 class RevocableExpTelemetry implements IExperimentationTelemetry {
+	private _fetched: { readonly assignmentContext: string; readonly dataVersion: string } | undefined;
+
 	constructor(
 		private readonly _actual: IExperimentationTelemetry,
 		private readonly _gate: RevocationGate,
@@ -404,6 +408,13 @@ class RevocableExpTelemetry implements IExperimentationTelemetry {
 		if (this._gate.isRevoked) {
 			return;
 		}
+		// tas-client sets the assignment context only when it installs a snapshot as the one
+		// reads use. After the first read, polled responses are stored but not installed, so a
+		// fetched data version applies only once its snapshot is.
+		if (name === ASSIGNMENT_CONTEXT_PROPERTY) {
+			const fetched = this._fetched;
+			this._onDataVersion(fetched?.assignmentContext && value.includes(fetched.assignmentContext) ? fetched.dataVersion : '');
+		}
 		this._actual.setSharedProperty(name, value);
 	}
 
@@ -413,7 +424,10 @@ class RevocableExpTelemetry implements IExperimentationTelemetry {
 		}
 		if (eventName === ASSIGNMENTS_VALIDATION_EVENT) {
 			const dataVersion = props.get('DataVersion');
-			this._onDataVersion(dataVersion && dataVersion !== 'undefined' ? dataVersion : '');
+			this._fetched = {
+				assignmentContext: props.get('AssignmentContext') ?? '',
+				dataVersion: dataVersion && dataVersion !== 'undefined' ? dataVersion : '',
+			};
 		}
 		this._actual.postEvent(eventName, props);
 	}
