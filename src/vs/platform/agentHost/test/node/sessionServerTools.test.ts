@@ -3942,4 +3942,21 @@ suite('SessionServerTools', () => {
 			].filter(clause => !description.includes(clause)), []);
 		});
 	});
+
+	suite('top-level chat restrictions', () => {
+		test('rename_chat, set_workspace, and archive_chat are marked as topLevelChatOnly', () => {
+			const { definitions } = createSessionServerToolGroup();
+			const toolsByName = new Map(definitions.map(def => [def.name, def]));
+
+			// Verify that these tools are marked as topLevelChatOnly to prevent subagents from using them
+			assert.strictEqual(toolsByName.get(SessionServerToolName.RenameChat)?.topLevelChatOnly, true, 'rename_chat should be topLevelChatOnly');
+			assert.strictEqual(toolsByName.get(SessionServerToolName.SetWorkspace)?.topLevelChatOnly, true, 'set_workspace should be topLevelChatOnly');
+			assert.strictEqual(toolsByName.get(SessionServerToolName.ArchiveChat)?.topLevelChatOnly, true, 'archive_chat should be topLevelChatOnly');
+
+			// Verify that these tools are not marked as topLevelChatOnly (they're safe for subagents)
+			assert.strictEqual(toolsByName.get(SessionServerToolName.ListSessions)?.topLevelChatOnly, undefined, 'list_sessions should not be topLevelChatOnly');
+			assert.strictEqual(toolsByName.get(SessionServerToolName.GetCurrentSession)?.topLevelChatOnly, undefined, 'get_current_session should not be topLevelChatOnly');
+			assert.strictEqual(toolsByName.get(SessionServerToolName.SendMessage)?.topLevelChatOnly, undefined, 'send_message should not be topLevelChatOnly');
+		});
+	});
 });

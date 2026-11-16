@@ -305,6 +305,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 		description: 'Set the current chat\'s workspace while preserving its identity and history. If a workspace is already attached, use this tool only when the user explicitly asks to change this chat\'s workspace. Do not infer a workspace change from a file path, a request to inspect another repository, or ordinary work in the current workspace. If `isolation` is false and the requested folder is already this chat\'s effective working directory, skip this tool and the confirmation question; tell the user the chat already uses that workspace and continue normally. Compare against this chat\'s working directory, not its session\'s project root. Creating a new worktree from the same folder is a real change, not a no-op. For a workspace-less quick chat, attach a workspace only to modify its files or run commands requiring its project environment; not for self-contained scratch work on attachments, pasted/generated content, or throwaway/exportable artifacts. Other chats keep their workspaces. Set `isolation` to true for a new managed Git worktree or false to use the selected folder directly; files are not moved or copied to the selected folder. Immediately before every call, use the available user-input tool to ask one question confirming both workspace and isolation, even if already specified; tool approval is not confirmation. Make this the turn\'s final tool call and end the turn; the host changes the workspace and continues the original task automatically. Do not repeat the request.',
 		inputSchema: setWorkspaceInputSchema,
 		annotations: { readOnlyHint: false },
+		topLevelChatOnly: true,
 		deferLoading: true,
 	},
 	{
@@ -321,6 +322,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 		description: 'Rename one specific chat so it is easy to find later. Renaming the default chat also names its owning session, while peer-chat titles remain independent. Use a short, human-friendly chat name in sentence case (1-4 words). Pass an `agent-host-session://` session or chat link to target another chat, or omit `chat` to rename the chat in which this tool is running. Name a fresh chat once its scope is clear. Call this tool again whenever the user explicitly asks to rename the chat; every invocation replaces the current title.',
 		inputSchema: renameChatInputSchema,
 		annotations: { readOnlyHint: false },
+		topLevelChatOnly: true,
 		deferLoading: true,
 	},
 	{
@@ -329,6 +331,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 		description: 'Archive a chat, or a whole session, so it no longer appears among active sessions. Use it when the user asks to archive a chat or session or to mark it done. Archiving a nested session archives only that chat. Archiving a session\'s main session (`main: true` in `chats`, or a session link without a chat id) archives the whole session with all of its nested sessions, and removes its isolated worktree after committing the worktree\'s changes. Archived chats keep their history and can be unarchived. To remove a session permanently, use `delete_session` instead. Refuses the chat this tool runs in and the main session of its own session.',
 		inputSchema: archiveChatInputSchema,
 		annotations: { readOnlyHint: false },
+		topLevelChatOnly: true,
 		deferLoading: true,
 	},
 	{
