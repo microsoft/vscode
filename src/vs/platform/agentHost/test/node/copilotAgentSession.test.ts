@@ -4935,6 +4935,54 @@ suite('CopilotAgentSession', () => {
 		}
 	});
 
+	test('withholds a canvas listing when the extensions reload while its icons are read', async () => {
+		const reading = new DeferredPromise<void>();
+		const read = new DeferredPromise<string | undefined>();
+		const { session, mockSession } = await createAgentSession(disposables, {
+			readCanvasIcon: () => {
+				reading.complete();
+				return read.p;
+			},
+			configureMockSession: mock => {
+				mock.extensions.push({ id: 'user:board', name: 'board', source: 'user', status: 'dormant' });
+				mock.canvases.push({ canvasId: 'board', extensionId: 'user:board', displayName: 'Board', description: 'Shows a board.', icon: '/extensions/board/icon.png' });
+			},
+		});
+		const listing = session.listCanvases();
+		await reading.p;
+		mockSession.fire('session.canvas.registry_changed', { canvases: [] });
+		read.complete(undefined);
+		assert.deepStrictEqual({ stale: await listing, fresh: (await session.listCanvases())?.map(canvas => canvas.canvasId) }, { stale: undefined, fresh: ['board'] });
+		session.dispose();
+	});
+
+	test('settles the canvas registry without waiting for its icons', async () => {
+		const reads: DeferredPromise<string | undefined>[] = [];
+		const { session, mockSession, signals } = await createAgentSession(disposables, {
+			readCanvasIcon: () => {
+				const read = new DeferredPromise<string | undefined>();
+				reads.push(read);
+				return read.p;
+			},
+			configureMockSession: mock => {
+				mock.extensions.push({ id: 'user:board', name: 'board', source: 'user', status: 'dormant' });
+				mock.canvases.push({ canvasId: 'board', extensionId: 'user:board', displayName: 'Board', description: 'Shows a board.', icon: '/extensions/board/icon.png' });
+			},
+		});
+		const changes = () => getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged).length;
+		// A listing while the extension starts leaves the registry unsettled.
+		mockSession.extensions[0] = { ...mockSession.extensions[0], status: 'starting' };
+		const whileStarting = await session.listCanvases();
+		mockSession.extensions[0] = { ...mockSession.extensions[0], status: 'dormant' };
+		const before = changes();
+		const listing = session.listCanvases();
+		await retry(async () => assert.strictEqual(reads.length, 1), 10, 100);
+		const settledWhileReading = changes() > before;
+		reads[0].complete(undefined);
+		assert.deepStrictEqual({ whileStarting, settledWhileReading, listed: (await listing)?.map(canvas => canvas.canvasId) }, { whileStarting: undefined, settledWhileReading: true, listed: ['board'] });
+		session.dispose();
+	});
+
 	test('reports why the runtime declined a canvas open, and throws its other failures', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		const results: string[] = [];
