@@ -500,8 +500,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly _draftOnly = observableValue(this, false);
 
 	private _instructionFilesCheckPromise: Promise<boolean> | undefined;
-	/** The empty-chat content of the selected agent (its `welcome`), shown instead of the default one. */
-	private _agentWelcome: Omit<IChatViewWelcomeContent, 'additionalMessage'> | undefined;
 	/** The selected agent's `first-message`, shown as an agent message in the empty chat instead of any welcome. */
 	private _agentFirstMessage: HTMLElement | undefined;
 	private _instructionFilesExist: boolean | undefined;
@@ -1854,9 +1852,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined): IChatViewWelcomeContent {
-		if (this._agentWelcome) {
-			return { ...this._agentWelcome, additionalMessage };
-		}
 		if (this.isLockedToCodingAgent && !this._lockedAgent?.agentHostProviderId) {
 			// Check for provider-specific customizations from chat sessions service
 			const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
@@ -3604,12 +3599,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _updateInputPlaceholder(placeholder: string | undefined): void {
 		const base = this.viewOptions.inputPlaceholder ?? placeholder;
 		this.inputEditor?.updateOptions({ placeholder: base && getSandboxPlaceholder(base, this.input.sandboxToggleChecked.get()) });
-	}
-
-	setAgentWelcome(content: Omit<IChatViewWelcomeContent, 'additionalMessage'> | undefined): void {
-		this._agentWelcome = content;
-		this.welcomeMessageContainer?.classList.toggle('chat-agent-welcome', !!content);
-		this.renderWelcomeViewContentIfNeeded();
 	}
 
 	setAgentFirstMessage(element: HTMLElement | undefined): void {

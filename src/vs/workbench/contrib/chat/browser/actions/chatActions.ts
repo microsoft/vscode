@@ -958,7 +958,7 @@ export function registerChatActions() {
 		async run(accessor: ServicesAccessor, options?: INewChatWindowOptions) {
 			const widgetService = accessor.get(IChatWidgetService);
 			const input = getNewChatEditorInput(accessor);
-			const widget = await widgetService.openSession(input.resource, AUX_WINDOW_GROUP, { ...input.options, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } });
+			const widget = await widgetService.openSession(input.resource, AUX_WINDOW_GROUP, { ...input.options, auxiliary: { compact: true, compactAllowsSplit: true, bounds: { width: 640, height: 640 } } });
 			if (!widget) {
 				return;
 			}

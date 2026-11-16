@@ -41,7 +41,6 @@ import { ICodeBlockActionContext, ICodeBlockRenderOptions } from './widget/chatC
 import { AgentSessionTarget } from './agentSessions/agentSessions.js';
 import type { IResolvedResponseSelection } from './responseSelectionResolver.js';
 import type { IChatBackgroundShell } from '../../../common/chatBackgroundShell.js';
-import type { IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
 
 export { ChatOutline } from './chatOutline.js';
 
@@ -549,8 +548,6 @@ export interface IChatWidget {
 	getFocus(): ChatTreeItem | undefined;
 	setInput(query?: string): void;
 	getInput(): string;
-	/** Replaces the empty chat's welcome content, e.g. with the selected agent's own (`undefined` restores the default). */
-	setAgentWelcome?(content: Omit<IChatViewWelcomeContent, 'additionalMessage'> | undefined): void;
 	/** Shows an element as the selected agent's first message in the empty chat, instead of any welcome. */
 	setAgentFirstMessage?(element: HTMLElement | undefined): void;
 	refreshParsedInput(): void;

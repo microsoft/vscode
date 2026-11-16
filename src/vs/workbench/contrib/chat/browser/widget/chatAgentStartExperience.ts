@@ -8,39 +8,36 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
-import { MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatQuestion, IChatQuestionAnswerValue } from '../../common/chatService/chatService.js';
+import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { ChatPermissionLevel } from '../../common/constants.js';
 import { IValue, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 
 /**
- * What a custom agent shows before the model is involved, from its agent file:
+ * How a custom agent starts a new chat, from its agent file:
  *
  * ```yaml
- * commands:              # buttons in the chat input while the agent is selected
- *   - name: repro
- *     label: Add steps to reproduce
- *     icon: list-ordered
- *     prompt: "Steps to reproduce:\n1. "   # appended to the input (`send: true` sends it)
+ * commands:              # actions the first message's buttons run
  *   - name: screenshot
  *     label: Attach a screenshot
- *     command: workbench.action.chat.attachAppWindowScreenshot   # runs with { sessionResource }
- * start-form:            # shown in a new, empty chat; submitting it sends the answers
- *   message: Tell the agent about the bug
- *   questions:           # the format of the askQuestions tool
- *     - { id: what, type: text, title: What is wrong? }
+ *     icon: device-camera
+ *     command: workbench.action.chat.attachAppWindowScreenshot   # only the chat's attach actions; runs with { sessionResource }
+ *   - name: repro
+ *     label: Add steps to reproduce
+ *     prompt: "Steps to reproduce:\n1. "   # appended to the input (`send: true` sends it)
+ * first-message:         # shown as the agent's message in an empty chat
+ *   markdown: What went wrong?
+ *   buttons: [screenshot]   # the first one is the primary button
+ * permissions: assisted  # manual | assisted, selected in a new chat
  * ```
  */
 interface IAgentCommand {
@@ -52,27 +49,19 @@ interface IAgentCommand {
 	readonly command?: string;
 }
 
-interface IAgentStartForm {
-	readonly message?: string;
-	readonly questions: readonly IChatQuestion[];
-}
-
-interface IAgentStartExperience {
-	readonly agentName: string;
-	readonly commands: readonly IAgentCommand[];
-	readonly startForm: IAgentStartForm | undefined;
-	/** Markdown for the empty chat; `command:<name>` links run the agent's own commands. */
-	readonly welcome: string | undefined;
-	readonly firstMessage: IAgentFirstMessage | undefined;
-}
-
-/** An agent message shown in the empty chat, with buttons that run the agent's own commands (the first is primary). */
 interface IAgentFirstMessage {
 	readonly markdown: string;
 	readonly buttons: readonly string[];
 }
 
-/** The VS Code command behind an agent command: a valid command URI path, so welcome links can run it. */
+interface IAgentStartExperience {
+	readonly agentName: string;
+	readonly commands: readonly IAgentCommand[];
+	readonly firstMessage: IAgentFirstMessage | undefined;
+	readonly permissions: ChatPermissionLevel | undefined;
+}
+
+/** The VS Code command behind an agent command. */
 function agentCommandId(agentName: string, commandName: string): string {
 	const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9-]+/g, '-');
 	return `_chat.agentCommand.${slug(agentName)}.${slug(commandName)}`;
@@ -82,11 +71,11 @@ export class ChatAgentStartExperienceContribution extends Disposable implements 
 	static readonly ID = 'workbench.contrib.chatAgentStartExperience';
 
 	private readonly _widgets = this._register(new DisposableMap<IChatWidget>());
-	/** Menu items and commands per agent command, registered once and kept up to date. */
-	private readonly _commandRegistrations = new Map<string, { definition: IAgentCommand; readonly registration: IDisposable }>();
-	/** Widgets whose current (empty) chat already got the start form, by the chat's session. */
-	private readonly _formShown = new WeakMap<IChatWidget, string>();
 	private readonly _firstMessages = this._register(new DisposableMap<IChatWidget>());
+	/** Commands per agent command ID, registered once and kept up to date. */
+	private readonly _commands = new Map<string, { definition: IAgentCommand; readonly registration: DisposableStore }>();
+	/** The level each widget's new chat (by session) got from its agent, so another agent can undo it and the user's later choice sticks. */
+	private readonly _permissionsApplied = new WeakMap<IChatWidget, { readonly session: string; readonly level: ChatPermissionLevel }>();
 
 	constructor(
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
@@ -98,8 +87,11 @@ export class ChatAgentStartExperienceContribution extends Disposable implements 
 		super();
 		this._chatWidgetService.getAllWidgets().forEach(widget => this._attach(widget));
 		this._register(this._chatWidgetService.onDidAddWidget(widget => this._attach(widget)));
-		this._register(this._chatWidgetService.onDidRemoveWidget(widget => this._widgets.deleteAndDispose(widget)));
-		this._register({ dispose: () => this._commandRegistrations.forEach(entry => entry.registration.dispose()) });
+		this._register(this._chatWidgetService.onDidRemoveWidget(widget => {
+			this._widgets.deleteAndDispose(widget);
+			this._firstMessages.deleteAndDispose(widget);
+		}));
+		this._register({ dispose: () => this._commands.forEach(entry => entry.registration.dispose()) });
 	}
 
 	private _attach(widget: IChatWidget): void {
@@ -117,25 +109,53 @@ export class ChatAgentStartExperienceContribution extends Disposable implements 
 	private async _update(widget: IChatWidget): Promise<void> {
 		const mode = widget.input.currentModeObs.get();
 		const uri = mode.uri?.get();
-		if (!uri || mode.isBuiltin) {
-			widget.setAgentWelcome?.(undefined);
-			this._setFirstMessage(widget, undefined);
+		const experience = uri && !mode.isBuiltin ? await this._read(mode.name.get(), uri).catch(error => {
+			this._logService.error('[ChatAgentStartExperience]', error);
+			return undefined;
+		}) : undefined;
+		// The widget went away, or another agent was selected, while the agent file was read.
+		if (!this._widgets.has(widget) || widget.input.currentModeObs.get().id !== mode.id) {
 			return;
 		}
-		const experience = await this._read(mode.name.get(), uri);
-		if (!experience || widget.input.currentModeObs.get().id !== mode.id) {
+		experience?.commands.forEach(command => this._registerCommand(experience.agentName, command));
+		this._setFirstMessage(widget, experience?.firstMessage && this._renderFirstMessage(experience, experience.firstMessage, widget));
+		await this._applyPermissions(widget, experience?.permissions);
+	}
+
+	private async _read(agentName: string, uri: URI): Promise<IAgentStartExperience | undefined> {
+		const header = (await this._promptsService.parseNew(uri, CancellationToken.None)).header;
+		if (!header) {
+			return undefined;
+		}
+		const attribute = (name: string) => toJson(header.getAttribute(name)?.value);
+		const permissions = asString(attribute(PromptHeaderAttributes.permissions));
+		return {
+			agentName,
+			commands: toArray(attribute(PromptHeaderAttributes.commands)).map(asAgentCommand).filter((command): command is IAgentCommand => !!command),
+			firstMessage: asFirstMessage(attribute(PromptHeaderAttributes.firstMessage)),
+			permissions: permissions === 'manual' ? ChatPermissionLevel.Default : permissions === ChatPermissionLevel.Assisted ? ChatPermissionLevel.Assisted : undefined,
+		};
+	}
+
+	/**
+	 * In a new chat, selects the level the agent asks for, through the permissions picker (policy, and confirmation before
+	 * elevating, as when the user picks it). Selecting another agent in the same empty chat undoes it.
+	 */
+	private async _applyPermissions(widget: IChatWidget, level: ChatPermissionLevel | undefined): Promise<void> {
+		const viewModel = widget.viewModel;
+		if (!viewModel || viewModel.getItems().length > 0) {
 			return;
 		}
-		experience.commands.forEach(command => this._registerCommand(experience.agentName, command));
-		widget.setAgentWelcome?.(experience.welcome ? {
-			title: experience.agentName,
-			icon: Codicon.chatSparkle,
-			message: this._welcomeMarkdown(experience, widget.viewModel?.sessionResource),
-		} : undefined);
-		this._setFirstMessage(widget, experience.firstMessage && this._renderFirstMessage(experience, experience.firstMessage, widget));
-		if (experience.startForm) {
-			this._showStartForm(widget, experience.startForm);
+		const session = viewModel.sessionResource.toString();
+		const applied = this._permissionsApplied.get(widget);
+		const previous = applied?.session === session ? applied.level : undefined;
+		const target = level ?? (previous !== undefined ? ChatPermissionLevel.Default : undefined);
+		const picker = widget.input.getAgentHostPicker(SessionConfigKey.Mode) ?? widget.input.getAgentHostPicker(SessionConfigKey.AutoApprove);
+		if (target === undefined || target === previous || !picker) {
+			return;
 		}
+		this._permissionsApplied.set(widget, { session, level: target });
+		await picker.requestPermissionLevel(target);
 	}
 
 	private _setFirstMessage(widget: IChatWidget, rendered: { element: HTMLElement; store: DisposableStore } | undefined): void {
@@ -150,8 +170,7 @@ export class ChatAgentStartExperienceContribution extends Disposable implements 
 	private _renderFirstMessage(experience: IAgentStartExperience, message: IAgentFirstMessage, widget: IChatWidget): { element: HTMLElement; store: DisposableStore } {
 		const store = new DisposableStore();
 		const element = dom.$('.interactive-item-container.interactive-response.chat-agent-first-message-item');
-		const header = dom.append(element, dom.$('.header'));
-		const user = dom.append(header, dom.$('.user'));
+		const user = dom.append(dom.append(element, dom.$('.header')), dom.$('.user'));
 		dom.append(user, dom.$('.avatar-container', undefined, dom.$('.avatar.codicon-avatar', undefined, dom.$(ThemeIcon.asCSSSelector(Codicon.chatSparkle)))));
 		dom.append(user, dom.$('h3.username', undefined, experience.agentName));
 		const value = dom.append(element, dom.$('.value'));
@@ -171,51 +190,17 @@ export class ChatAgentStartExperienceContribution extends Disposable implements 
 		return { element, store };
 	}
 
-	/** Trusts exactly the agent's own commands, and passes them the chat they were clicked in. */
-	private _welcomeMarkdown(experience: IAgentStartExperience, sessionResource: URI | undefined): MarkdownString {
-		const ids: string[] = [];
-		const value = experience.welcome!.replace(/\]\(command:([\w-]+)\)/g, (link, name: string) => {
-			if (!experience.commands.some(command => command.name === name)) {
-				return link;
-			}
-			const id = agentCommandId(experience.agentName, name);
-			ids.push(id);
-			const args = encodeURIComponent(JSON.stringify([{ sessionResource: sessionResource?.toString() }]));
-			return `](command:${id}?${args})`;
-		});
-		return new MarkdownString(value, { isTrusted: { enabledCommands: ids }, supportThemeIcons: true });
-	}
-
-	private async _read(agentName: string, uri: URI): Promise<IAgentStartExperience | undefined> {
-		const header = (await this._promptsService.parseNew(uri, CancellationToken.None)).header;
-		if (!header) {
-			return undefined;
-		}
-		const commands = toArray(toJson(header.getAttribute(PromptHeaderAttributes.commands)?.value)).map(asAgentCommand).filter((command): command is IAgentCommand => !!command);
-		const form = toJson(header.getAttribute(PromptHeaderAttributes.startForm)?.value);
-		return { agentName, commands, startForm: asStartForm(form), welcome: asString(toJson(header.getAttribute(PromptHeaderAttributes.welcome)?.value)), firstMessage: asFirstMessage(toJson(header.getAttribute(PromptHeaderAttributes.firstMessage)?.value)) };
-	}
-
 	private _registerCommand(agentName: string, definition: IAgentCommand): void {
 		const id = agentCommandId(agentName, definition.name);
-		const existing = this._commandRegistrations.get(id);
+		const existing = this._commands.get(id);
 		if (existing) {
 			existing.definition = definition;
 			return;
 		}
 		const entry = { definition, registration: new DisposableStore() };
-		// From the input toolbar: `{ widget }`; from a welcome link: `{ sessionResource }`.
-		entry.registration.add(CommandsRegistry.registerCommand(id, (_accessor, context?: { widget?: IChatWidget; sessionResource?: string }) => this._run(entry.definition,
-			context?.widget
-			?? (context?.sessionResource ? this._chatWidgetService.getWidgetBySessionResource(URI.parse(context.sessionResource)) : undefined)
-			?? this._chatWidgetService.lastFocusedWidget)));
-		entry.registration.add(MenuRegistry.appendMenuItem(MenuId.ChatInputStatus, {
-			command: { id, title: definition.label, icon: definition.icon ? ThemeIcon.fromId(definition.icon) : Codicon.play },
-			group: 'navigation',
-			order: this._commandRegistrations.size,
-			when: ContextKeyExpr.equals(ChatContextKeys.chatModeName.key, agentName),
-		}));
-		this._commandRegistrations.set(id, entry);
+		entry.registration.add(CommandsRegistry.registerCommand(id, (_accessor, context?: { widget?: IChatWidget }) =>
+			this._run(entry.definition, context?.widget ?? this._chatWidgetService.lastFocusedWidget)));
+		this._commands.set(id, entry);
 	}
 
 	private async _run(command: IAgentCommand, widget: IChatWidget | undefined): Promise<void> {
@@ -236,47 +221,6 @@ export class ChatAgentStartExperienceContribution extends Disposable implements 
 			await this._commandService.executeCommand(command.command, { sessionResource: widget.viewModel?.sessionResource });
 		}
 	}
-
-	private _showStartForm(widget: IChatWidget, form: IAgentStartForm): void {
-		const viewModel = widget.viewModel;
-		if (!viewModel || viewModel.getItems().length > 0) {
-			return;
-		}
-		const session = viewModel.sessionResource.toString();
-		if (this._formShown.get(widget) === session) {
-			return;
-		}
-		this._formShown.set(widget, session);
-		const resolveId = `chat.agentStartForm.${generateUuid()}`;
-		widget.input.renderQuestionCarousel({ kind: 'questionCarousel', resolveId, allowSkip: true, message: form.message, questions: [...form.questions] }, undefined, {
-			shouldAutoFocus: true,
-			sessionResource: viewModel.sessionResource,
-			onSubmit: answers => {
-				widget.input.clearQuestionCarousel(undefined, resolveId);
-				if (answers) {
-					void widget.acceptInput(formatAnswers(form.questions, answers));
-				} else {
-					widget.focusInput();
-				}
-			},
-		});
-	}
-}
-
-function formatAnswers(questions: readonly IChatQuestion[], answers: Map<string, IChatQuestionAnswerValue>): string {
-	const label = (question: IChatQuestion, value: string | undefined) => question.options?.find(option => option.value === value)?.label ?? value;
-	return questions.map(question => {
-		const answer = answers.get(question.id);
-		let text: string | undefined;
-		if (typeof answer === 'string') {
-			text = answer;
-		} else if (answer && 'selectedValues' in answer) {
-			text = [...answer.selectedValues.map(value => label(question, value)), answer.freeformValue].filter(Boolean).join(', ');
-		} else if (answer) {
-			text = answer.freeformValue || label(question, answer.selectedValue);
-		}
-		return text?.trim() ? `**${question.title}**\n${text.trim()}` : undefined;
-	}).filter(Boolean).join('\n\n');
 }
 
 function toJson(value: IValue | undefined): unknown {
@@ -305,8 +249,13 @@ function asAgentCommand(value: unknown): IAgentCommand | undefined {
 	const label = asString(raw.label) ?? name;
 	const prompt = typeof raw.prompt === 'string' ? raw.prompt : undefined;
 	const command = asString(raw.command);
-	return name && label && (prompt !== undefined || command) ? { name, label, icon: asString(raw.icon), prompt, send: raw.send === 'true', command } : undefined;
+	// Agent files can come from any workspace: their buttons may add context to the chat, nothing else.
+	const allowedCommand = command?.startsWith(allowedAgentCommandPrefix) ? command : undefined;
+	return name && label && (prompt !== undefined || allowedCommand) ? { name, label, icon: asString(raw.icon), prompt, send: raw.send === 'true', command: allowedCommand } : undefined;
 }
+
+/** The commands an agent's buttons may run: the chat's attach actions (e.g. `workbench.action.chat.attachAppWindowScreenshot`). */
+const allowedAgentCommandPrefix = 'workbench.action.chat.attach';
 
 function asFirstMessage(value: unknown): IAgentFirstMessage | undefined {
 	if (typeof value === 'string') {
@@ -318,36 +267,6 @@ function asFirstMessage(value: unknown): IAgentFirstMessage | undefined {
 	const raw = value as Record<string, unknown>;
 	const markdown = asString(raw.markdown);
 	return markdown ? { markdown, buttons: toArray(raw.buttons).map(asString).filter((name): name is string => !!name) } : undefined;
-}
-
-function asStartForm(value: unknown): IAgentStartForm | undefined {
-	if (!value || typeof value !== 'object') {
-		return undefined;
-	}
-	const raw = value as Record<string, unknown>;
-	const questions = toArray(raw.questions).map((item, index): IChatQuestion | undefined => {
-		if (!item || typeof item !== 'object') {
-			return undefined;
-		}
-		const q = item as Record<string, unknown>;
-		const title = asString(q.title);
-		const type = q.type === 'singleSelect' || q.type === 'multiSelect' ? q.type : 'text';
-		const options = toArray(q.options).map((option, optionIndex) => {
-			const o = (option && typeof option === 'object' ? option : { label: option }) as Record<string, unknown>;
-			const label = asString(o.label) ?? asString(o.value);
-			return label ? { id: asString(o.id) ?? `${optionIndex}`, label, value: asString(o.value) ?? label } : undefined;
-		}).filter((option): option is { id: string; label: string; value: string } => !!option);
-		return title ? {
-			id: asString(q.id) ?? `q${index}`,
-			type,
-			title,
-			message: asString(q.message),
-			...(options.length ? { options } : {}),
-			...(q.required === 'false' ? { required: false } : {}),
-			...(q.allowFreeformInput === 'true' ? { allowFreeformInput: true } : {}),
-		} : undefined;
-	}).filter((question): question is IChatQuestion => !!question);
-	return questions.length ? { message: asString(raw.message), questions } : undefined;
 }
 
 registerWorkbenchContribution2(ChatAgentStartExperienceContribution.ID, ChatAgentStartExperienceContribution, WorkbenchPhase.AfterRestored);

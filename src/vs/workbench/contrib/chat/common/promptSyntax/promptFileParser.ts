@@ -96,9 +96,8 @@ export namespace PromptHeaderAttributes {
 	export const strictToolsList = 'strict-tools-list';
 	export const includeCustomInstructions = 'include-custom-instructions';
 	export const commands = 'commands';
-	export const startForm = 'start-form';
-	export const welcome = 'welcome';
 	export const firstMessage = 'first-message';
+	export const permissions = 'permissions';
 }
 
 export class PromptHeader {
