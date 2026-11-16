@@ -20,6 +20,24 @@ import { gitHubJsonResponse, gitHubRestStep, ProgrammableGitHubServer } from '..
 suite('Shared process GitHub fetch', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('does not resolve proxy or certificates after cancellation during initialization', async () => {
+		const configuration = new TestConfigurationService({ 'http.systemCertificates': true });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const lookups: string[] = [];
+		const fetch = createFetch(new class extends mock<INativeHostService>() {
+			override async resolveProxy(): Promise<string> { lookups.push('proxy'); return 'DIRECT'; }
+			override async loadCertificates(): Promise<string[]> { lookups.push('certificates'); return []; }
+		}(), configuration, upcastPartial<INativeEnvironmentService>({ args: { _: [], 'force-disable-user-env': true } }), new NullLogService());
+		const source = store.add(new CancellationTokenSource());
+		const lifetime = store.add(new DisposableStore());
+		const pending = fetch('http://127.0.0.1:1', undefined, source.token, lifetime);
+
+		source.cancel();
+
+		await assert.rejects(pending, isCancellationError);
+		assert.deepStrictEqual(lookups, []);
+	});
+
 	test('cancels native requests after lazy initialization', async () => {
 		const server = store.add(await ProgrammableGitHubServer.start());
 		const configuration = new TestConfigurationService({ 'http.systemCertificates': false, 'http.noProxy': ['127.0.0.1'] });

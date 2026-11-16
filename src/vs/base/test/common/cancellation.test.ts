@@ -127,6 +127,24 @@ suite('CancellationToken', function () {
 		parent.dispose();
 	});
 
+	test('any delivers cancellation when a listener disposes its lifetime', () => {
+		const lifetime = store.add(new DisposableStore());
+		const first = store.add(new CancellationTokenSource());
+		const second = store.add(new CancellationTokenSource());
+		const token = CancellationToken.any([first.token, second.token], lifetime);
+		const notifications: string[] = [];
+		store.add(token.onCancellationRequested(() => {
+			notifications.push('cleanup');
+			lifetime.dispose();
+		}));
+		store.add(token.onCancellationRequested(() => notifications.push('observer')));
+
+		first.cancel();
+		second.cancel();
+
+		assert.deepStrictEqual(notifications, ['cleanup', 'observer']);
+	});
+
 	test('fromAbortSignal reflects current and future cancellation', () => {
 		const lifetime = store.add(new DisposableStore());
 		const controller = new AbortController();

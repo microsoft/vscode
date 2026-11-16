@@ -100,7 +100,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 		}, 180_000));
 		try {
 			CancellationToken.throwIfCanceled(context.cancellationToken);
-			return await raceCancellationError(this._reads.queue(() => this._readFailedCI(context, request)), context.cancellationToken);
+			return await raceCancellationError(this._reads.queue(() => this._readFailedCI(context, request, original.cancellationToken)), context.cancellationToken);
 		} catch (error) {
 			const failure = timeoutError ?? (this._disposeToken.isCancellationRequested && !original.cancellationToken.isCancellationRequested
 				? new Error('Agent Merge tools disposed.') : error);
@@ -111,13 +111,13 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 		}
 	}
 
-	private async _readFailedCI(context: IAgentMergeTurnContext, request: AgentMergeCIRequest): Promise<string> {
+	private async _readFailedCI(context: IAgentMergeTurnContext, request: AgentMergeCIRequest, retentionToken: CancellationToken): Promise<string> {
 		this._assertCurrentCIContext(context);
 		const scope = ciScope(context);
 		const page = request.cursor ? this._evidence.resolve(request.cursor, scope) : { request };
 		await this._validateCIHead(context);
 		const result = (page.request.mode ?? 'summary') === 'summary'
-			? await this._readCISummary(context, page.request.jobId, page.summaryOffset ?? 0, page.signature)
+			? await this._readCISummary(context, retentionToken, page.request.jobId, page.summaryOffset ?? 0, page.signature)
 			: await this._readCIEvidence(context, page.request);
 		this._assertCurrentCIContext(context);
 		if (ciJsonBytes(result) > agentMergeCIResponseBytes) {
@@ -199,7 +199,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 		};
 	}
 
-	private async _readCISummary(context: IAgentMergeTurnContext, jobId: string | undefined, offset: number, expectedSignature: string | undefined): Promise<object> {
+	private async _readCISummary(context: IAgentMergeTurnContext, retentionToken: CancellationToken, jobId: string | undefined, offset: number, expectedSignature: string | undefined): Promise<object> {
 		const scope = ciScope(context);
 		const authorizedChecks = failedRequiredChecks(context);
 		const checks = jobId ? [] : authorizedChecks;
@@ -269,7 +269,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 					try {
 						const log = await context.client.mutations.downloadWorkflowJobLog(context.ref, String(job.id), context.cancellationToken);
 						this._assertCurrentCIContext(context);
-						entry = this._evidence.tryAdd(scope, runAttempt, job, log, context.cancellationToken, retainedEvidence);
+						entry = this._evidence.tryAdd(scope, runAttempt, job, log, context.cancellationToken, retentionToken, retainedEvidence);
 						if (!entry) {
 							break;
 						}

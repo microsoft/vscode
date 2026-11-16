@@ -245,6 +245,7 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 		if (!this._current || this._current.token !== token) {
 			const previousCredential = this._lastCredential;
 			this._invalidateCurrent('replacement');
+			this._throwIfExpired(cancellationToken, deadline);
 			const generation = ++this._generation;
 			const controller = new CancellationTokenSource();
 			const apiBaseUri = this._endpointProvider.getApiBaseUri();

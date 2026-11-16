@@ -159,6 +159,39 @@ suite('GitHubCredentialService', () => {
 		});
 	});
 
+	for (const stop of ['cancel', 'dispose'] as const) {
+		test(`does not start identity resolution when replacement listeners ${stop}`, async () => {
+			let token = 'first';
+			let requests = 0;
+			const transport = disposables.add(new GitHubTransport(async () => {
+				requests++;
+				return Response.json({ id: 101 });
+			}));
+			const credentials = disposables.add(new GitHubCredentialService(undefined, undefined, transport, { getToken: () => token }, {
+				onDidChange: Event.None,
+				getApiBaseUri: () => 'https://api.github.com',
+				getGraphQlUri: () => 'https://api.github.com/graphql',
+			}));
+			await credentials.getCredential(CancellationToken.None);
+			const source = disposables.add(new CancellationTokenSource());
+			disposables.add(credentials.onDidInvalidate(event => {
+				if (event.reason === 'replacement') {
+					if (stop === 'cancel') {
+						source.cancel();
+					} else {
+						credentials.dispose();
+					}
+				}
+			}));
+			token = 'second';
+
+			await assert.rejects(credentials.getCredential(source.token), stop === 'cancel' ? isCancellationError : /disposed/);
+			await flush();
+
+			assert.strictEqual(requests, 1);
+		});
+	}
+
 	test('resolves a stable account once per accepted token generation', async () => {
 		await withServer(async server => {
 			server.enqueue(

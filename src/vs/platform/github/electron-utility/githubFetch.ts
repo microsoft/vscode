@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ProxyAgentParams } from '@vscode/proxy-agent';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { getErrorMessage } from '../../../base/common/errors.js';
 import { CancellableFetch, createCancellableFetch } from '../../../base/parts/request/common/fetch.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -21,10 +22,11 @@ export function createFetch(
 	logService: ILogService,
 ): CancellableFetch {
 	let fetchPromise: Promise<typeof globalThis.fetch> | undefined;
-	return createCancellableFetch(async (input, init) => {
+	return (input, init, token, lifetime) => createCancellableFetch(async (input, init) => {
 		const fetch = await (fetchPromise ??= createProxyFetch());
+		CancellationToken.throwIfCanceled(token);
 		return fetch(input, init);
-	});
+	})(input, init, token, lifetime);
 
 	async function createProxyFetch(): Promise<typeof globalThis.fetch> {
 		const [{ createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, LogLevel }, { getCACertificates }] = await Promise.all([

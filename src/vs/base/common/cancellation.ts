@@ -5,7 +5,7 @@
 
 import { CancellationError } from './errors.js';
 import { Emitter, Event } from './event.js';
-import { DisposableStore, IDisposable } from './lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from './lifecycle.js';
 
 export interface CancellationToken {
 
@@ -72,12 +72,18 @@ export namespace CancellationToken {
 		if (active.length < 2) {
 			return active[0] ?? None;
 		}
-		const source = lifetime.add(new CancellationTokenSource());
+		const source = new CancellationTokenSource();
+		lifetime.add(toDisposable(() => {
+			// Cancellation owns emitter disposal until every listener has been notified.
+			if (!source.token.isCancellationRequested) {
+				source.dispose();
+			}
+		}));
 		const listeners = lifetime.add(new DisposableStore());
 		for (const token of active) {
 			listeners.add(token.onCancellationRequested(() => {
-				source.cancel();
 				listeners.dispose();
+				source.cancel();
 			}));
 		}
 		return source.token;

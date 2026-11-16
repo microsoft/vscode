@@ -495,6 +495,18 @@ suite('Agent Merge CI diagnostics', () => {
 		assert.deepStrictEqual({ subscriptions: h.subscriptions, downloads: h.mutations.downloads }, { subscriptions: 0, downloads: 1 });
 	});
 
+	test('evicts completed-read evidence when its runtime is cancelled', async () => {
+		const h = store.add(new CIHarness());
+		const runtime = store.add(new CancellationTokenSource());
+		h.context = { ...h.context, cancellationToken: runtime.token };
+		const evidenceId = await h.evidenceId();
+
+		runtime.cancel();
+		h.context = { ...h.context, cancellationToken: CancellationToken.None };
+
+		await assert.rejects(h.read({ mode: 'tail', evidenceId }), /Invalid, expired, or unauthorized/);
+	});
+
 	test('expires evidence and cursors, and can reacquire just the selected job', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = store.add(new CIHarness(2));
 		h.mutations.log = { text: 'long line'.repeat(3_000), truncated: false };
@@ -545,7 +557,7 @@ suite('Agent Merge CI diagnostics', () => {
 	test('seeks search pages in a newline-dense 16 MiB log using bounded cached checkpoints', () => {
 		const evidence = store.add(new AgentMergeCIEvidenceStore());
 		const text = `${'\n'.repeat(16 * 1024 * 1024 - 5)}FAIL\n`;
-		const entry = evidence.tryAdd('scope', 1, createTestWorkflowJob(), { text, truncated: false }, CancellationToken.None)!;
+		const entry = evidence.tryAdd('scope', 1, createTestWorkflowJob(), { text, truncated: false }, CancellationToken.None, CancellationToken.None)!;
 		const checkpointReads: number[] = [];
 		const indexedEntry = {
 			...entry,
@@ -591,7 +603,7 @@ suite('Agent Merge CI diagnostics', () => {
 		const evidence = store.add(new AgentMergeCIEvidenceStore());
 		const prefix = `${'setup\r\n'.repeat(1_023)}\r\n`;
 		const text = `${prefix}FAIL: first\r\n\r\nFAIL: last`;
-		const entry = evidence.tryAdd('scope', 1, createTestWorkflowJob(), { text, truncated: false }, CancellationToken.None)!;
+		const entry = evidence.tryAdd('scope', 1, createTestWorkflowJob(), { text, truncated: false }, CancellationToken.None, CancellationToken.None)!;
 		const expected = [
 			{ line: 1_024, column: 1, text: '' },
 			{ line: 1_025, column: 1, text: 'FAIL: first' },
@@ -614,7 +626,7 @@ suite('Agent Merge CI diagnostics', () => {
 
 	test('empty evidence has no line-index entries or phantom lines', () => {
 		const evidence = store.add(new AgentMergeCIEvidenceStore());
-		const entry = evidence.tryAdd('scope', 1, createTestWorkflowJob(), { text: '', truncated: false }, CancellationToken.None)!;
+		const entry = evidence.tryAdd('scope', 1, createTestWorkflowJob(), { text: '', truncated: false }, CancellationToken.None, CancellationToken.None)!;
 		assert.deepStrictEqual({
 			lineCount: entry.lineCount, indexBytes: entry.lineStartOffsets.byteLength,
 			range: readCIRange(entry, {}).lines, tail: readCITail(entry).lines,
@@ -635,11 +647,11 @@ suite('Agent Merge CI diagnostics', () => {
 		const evidence = store.add(new AgentMergeCIEvidenceStore());
 		const abort = store.add(new CancellationTokenSource());
 		const job = createTestWorkflowJob();
-		const first = evidence.tryAdd('scope', 1, job, { text: 'redacted', truncated: false }, abort.token)!;
+		const first = evidence.tryAdd('scope', 1, job, { text: 'redacted', truncated: false }, abort.token, abort.token)!;
 		const cursor = evidence.continue('scope', { request: { mode: 'tail', evidenceId: first.id } });
 		assert.throws(() => evidence.resolve(cursor.cursor, 'other-scope'), /unauthorized/);
 		for (let i = 0; i < 8; i++) {
-			evidence.tryAdd('scope', 1, { ...job, id: 200 + i }, { text: '', truncated: false }, abort.token);
+			evidence.tryAdd('scope', 1, { ...job, id: 200 + i }, { text: '', truncated: false }, abort.token, abort.token);
 		}
 		assert.throws(() => evidence.get(first.id, 'scope'), /expired/);
 		const last = evidence.find('scope', 207, 1, 1)!;
@@ -651,7 +663,7 @@ suite('Agent Merge CI diagnostics', () => {
 
 	test('tail, range and search preserve line numbers for CRLF, empty and very long lines', () => {
 		const evidence = store.add(new AgentMergeCIEvidenceStore());
-		const entry = evidence.tryAdd('scope', 1, createTestWorkflowJob(), { text: `one\r\n\r\n${'x'.repeat(10_000)}FAIL`, truncated: false }, CancellationToken.None)!;
+		const entry = evidence.tryAdd('scope', 1, createTestWorkflowJob(), { text: `one\r\n\r\n${'x'.repeat(10_000)}FAIL`, truncated: false }, CancellationToken.None, CancellationToken.None)!;
 		const tail = readCITail(entry, 1);
 		assert.deepStrictEqual({
 			range: readCIRange(entry, { startLine: 1, endLine: 2 }).lines,

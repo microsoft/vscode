@@ -125,7 +125,7 @@ export function waitForDevContainerRelayConnection(
 		const onOpen = () => finish();
 		const onError = (error: Error) => finish(error);
 		const onWebSocketClose = (code: number) => finish(new Error(`Dev Container relay WebSocket closed before connecting (code ${code})`));
-		const onChildClose = (code: number | null, cancellationToken: NodeJS.Signals | null) => finish(new Error(`Dev Container relay process exited before connecting (exit code ${code ?? 'unknown'}${cancellationToken ? `, signal ${cancellationToken}` : ''})`));
+		const onChildClose = (code: number | null, signal: NodeJS.Signals | null) => finish(new Error(`Dev Container relay process exited before connecting (exit code ${code ?? 'unknown'}${signal ? `, signal ${signal}` : ''})`));
 		const timeoutHandle = setTimeout(() => finish(new Error(`Timed out waiting for Dev Container relay to connect after ${timeoutMs}ms`)), timeoutMs);
 		const cancellationListener = token.onCancellationRequested(() => finish(new CancellationError()));
 
