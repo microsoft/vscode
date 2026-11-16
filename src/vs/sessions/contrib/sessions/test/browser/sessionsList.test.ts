@@ -6134,7 +6134,98 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({ before, scopePreserved: list.filters.hasInboxScope }, { before: [], scopePreserved: true });
 		});
 
-		test('inbox keeps primary rows expanded and preserves secondary categories and triage across grouping changes and reloads', () => {
+		for (const compact of [false, true]) {
+			test(`Inbox headers distinguish categories and keep counts beside their labels (${compact ? 'compact' : 'default'})`, () => {
+				const sessions = [
+					createTestSession('ready').session,
+					createTestSession('working', { status: SessionStatus.InProgress }).session,
+				];
+				const harness = createListHarness(disposables, sessions);
+				harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+				const container = harness.createContainer();
+				container.style.setProperty('--vscode-spacing-size160', '16px');
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+					grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated,
+					compact: () => compact, onSessionOpen: () => { },
+				}));
+				const layouts = [240, 600].map(width => {
+					container.style.width = `${width}px`;
+					list.layout(600, width);
+					return [SessionInboxSection.ReadyForYou, SessionInboxSection.Working].map(section => {
+						const row = list.getItemRow({ section })!;
+						const label = row.querySelector<HTMLElement>('.session-section-label')!;
+						const count = row.querySelector<HTMLElement>('.session-section-count')!;
+						const chevron = row.querySelector<HTMLElement>('.session-section-chevron')!;
+						const gap = count.getBoundingClientRect().left - label.getBoundingClientRect().right;
+						return {
+							strongHeading: mainWindow.getComputedStyle(label).fontWeight === '600',
+							nearbyCount: gap >= 0 && gap <= 8,
+							disclosureVisible: chevron.getBoundingClientRect().width > 0,
+						};
+					});
+				});
+				const header = { strongHeading: true, nearbyCount: true, disclosureVisible: true };
+				assert.deepStrictEqual(layouts, [[header, header], [header, header]]);
+			});
+		}
+
+		test('Inbox collapse survives updates, grouping changes and reloads without hiding the empty state', () => {
+			const ready = createTestSession('ready').session;
+			const harness = createListHarness(disposables, [ready]);
+			harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+			harness.instantiationService.stub(IListService, disposables.add(new ListService()));
+			let grouping = SessionsGrouping.Inbox;
+			const create = () => {
+				const container = harness.createContainer();
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+					grouping: () => grouping, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+				}));
+				list.layout(600, 320);
+				return list;
+			};
+			const snapshot = (list: TestSessionsList) => ({
+				expanded: list.getItemRow({ section: SessionInboxSection.ReadyForYou })?.getAttribute('aria-expanded'),
+				sessions: list.getVisibleSessions().map(session => session.sessionId),
+			});
+			const list = create();
+			const initial = snapshot(list);
+			list.setFocusedItem({ section: SessionInboxSection.ReadyForYou });
+			list.focus();
+			if (!mainWindow.document.hasFocus()) {
+				list.element.querySelector('.monaco-list')?.dispatchEvent(new FocusEvent('focus'));
+			}
+			harness.instantiationService.invokeFunction(CommandsRegistry.getCommand('list.collapse')!.handler);
+			const keyboardCollapsed = snapshot(list);
+			list.update();
+			const updated = snapshot(list);
+			grouping = SessionsGrouping.Workspace;
+			list.update();
+			grouping = SessionsGrouping.Inbox;
+			list.update();
+			const returned = snapshot(list);
+			list.dispose();
+			const restoredList = create();
+			const restored = snapshot(restoredList);
+			clickRow(restoredList.getItemRow({ section: SessionInboxSection.ReadyForYou })!);
+			const clicked = snapshot(restoredList);
+			restoredList.setItemCollapsed({ section: SessionInboxSection.ReadyForYou }, true);
+			harness.managementService.sessions = [];
+			restoredList.refresh();
+			assert.deepStrictEqual({ initial, keyboardCollapsed, updated, returned, restored, clicked, empty: {
+				...snapshot(restoredList),
+				message: restoredList.element.querySelector('.session-placeholder')?.textContent,
+			} }, {
+				initial: { expanded: 'true', sessions: ['ready'] },
+				keyboardCollapsed: { expanded: 'false', sessions: [] },
+				updated: { expanded: 'false', sessions: [] },
+				returned: { expanded: 'false', sessions: [] },
+				restored: { expanded: 'false', sessions: [] },
+				clicked: { expanded: 'true', sessions: ['ready'] },
+				empty: { expanded: null, sessions: [], message: 'Your inbox is clear' },
+			});
+		});
+
+		test('inbox starts primary rows expanded and preserves secondary categories and triage across grouping changes and reloads', () => {
 			const pinned = createTestSession('pinned').session;
 			const ready = createTestSession('ready').session;
 			const working = createTestSession('working', { status: SessionStatus.InProgress }).session;
@@ -6313,7 +6404,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('inbox uses one scrolling tree and keeps its primary category expanded', () => {
+		test('inbox uses one scrolling tree and lets every populated category collapse', () => {
 			const ready = createTestSession('ready').session;
 			const working = Array.from({ length: 20 }, (_, i) => createTestSession(`working-${i}`, { status: SessionStatus.InProgress, createdAt: new Date(100 - i) }).session);
 			const harness = createListHarness(disposables, [ready, ...working]);
@@ -6338,7 +6429,7 @@ suite('Sessions - SessionsList', () => {
 				collapsibleInbox: list.setItemCollapsed({ section: SessionInboxSection.ReadyForYou }, true),
 			}, {
 				initial: ['ready'], expanded: 21, scrolled: true, resized: 800, trees: 1,
-				visible: ['ready'], collapsibleInbox: false,
+				visible: [], collapsibleInbox: true,
 			});
 		});
 

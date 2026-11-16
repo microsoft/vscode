@@ -318,6 +318,21 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		sessions: [],
 		view: { grouping: SessionsGrouping.Inbox, height: 360 },
 	}, { additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
+	SessionsList_Inbox_Collapsed: defineSessionsListFixture({
+		header: { navigationShortcuts: true },
+		sessions: [
+			{ id: 'ready', title: 'Review the navigation fix', workspace: 'vscode' },
+			{ id: 'working', title: 'Add regression tests', workspace: 'vscode', status: SessionStatus.InProgress },
+			{ id: 'held', title: 'Waiting for more context', workspace: 'vscode', inboxState: 'hold' },
+			{ id: 'acknowledged', title: 'Update the documentation', workspace: 'vscode', inboxState: 'done' },
+		],
+		view: {
+			grouping: SessionsGrouping.Inbox, width: 300, height: 420,
+			collapsed: [{ section: SessionInboxSection.ReadyForYou }],
+			expanded: [{ section: SessionInboxSection.OnHold }],
+		},
+		interaction: { focused: { section: SessionInboxSection.ReadyForYou } },
+	}, { additionalThemes: ['darkHighContrast', 'lightHighContrast'] }),
 	SessionsList_Inbox_Expanded: defineSessionsListFixture({
 		header: { automationsEnabled: true },
 		sessions: [
