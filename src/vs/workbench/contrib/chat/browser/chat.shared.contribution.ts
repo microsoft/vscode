@@ -1046,11 +1046,10 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ChatViewSessionsOrientation]: {
 			type: 'string',
-			enum: ['stacked', 'sideBySide', 'chatArea'],
+			enum: ['stacked', 'sideBySide'],
 			enumDescriptions: [
 				nls.localize('chat.viewSessions.orientation.stacked', "Display chat sessions vertically stacked above the chat input unless a chat session is visible."),
-				nls.localize('chat.viewSessions.orientation.sideBySide', "Display chat sessions side by side if space is sufficient, otherwise fallback to stacked above the chat input unless a chat session is visible."),
-				nls.localize('chat.viewSessions.orientation.chatArea', "Open chats in the chat area beside the Chat view, which then shows only its sessions. Not available where the chat area is not.")
+				nls.localize('chat.viewSessions.orientation.sideBySide', "Display chat sessions side by side if space is sufficient, otherwise fallback to stacked above the chat input unless a chat session is visible.")
 			],
 			default: 'sideBySide',
 			description: nls.localize('chat.viewSessions.orientation', "Controls the orientation of the chat agent sessions view when it is shown alongside the chat."),
