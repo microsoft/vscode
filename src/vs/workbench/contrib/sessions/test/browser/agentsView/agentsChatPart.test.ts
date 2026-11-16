@@ -19,7 +19,7 @@ import { parse } from '../../../../../../base/common/marshalling.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../../platform/storage/common/storage.js';
 import { EditorInputWithOptions, IEditorPane } from '../../../../../common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
-import { IContentPart, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
+import { IContentPart, ICreateEditorPartOptions, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { EditorWindowComposerFoldersService, IEditorWindowComposerFoldersService } from '../../../browser/editorWindow/editorWindowComposerFolders.js';
 import { IEditorService, PreferredGroup } from '../../../../../services/editor/common/editorService.js';
@@ -107,6 +107,8 @@ class FakeGroup {
 class FakePart {
 	readonly groups: FakeGroup[] = [];
 	activeGroup: FakeGroup;
+	/** The options the chat part created it with. */
+	createOptions: ICreateEditorPartOptions | undefined;
 	/** The options that the chat part enforces on it. */
 	options: unknown;
 	readonly element = document.createElement('div');
@@ -206,7 +208,7 @@ suite('AgentsChatPartService', () => {
 		// The frame has the chat part once it is created, as the real frame does
 		const content = observableValue<IAgentsChatPartService | undefined>('content', undefined);
 		instantiationService.stub(IAgentsChatPartFrame, upcastPartial<IAgentsChatPartFrame>({ part: upcastPartial<IAgentsChatPartFrame['part']>({ setContent: () => toDisposable(() => { }) }), content, contentCreated: derived(reader => !!content.read(reader)), didCreateContent: created => content.set(created, undefined) }));
-		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ createEditorPart: () => part as unknown as IContentPart, mainPart: undefined }));
+		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ createEditorPart: createOptions => { part.createOptions = createOptions; return part as unknown as IContentPart; }, mainPart: undefined }));
 		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
 			openEditor: (async (editor: EditorInput, editorOptions: IEditorOptions | undefined, group: FakeGroup) => {
 				group.open(editor, editorOptions?.inactive);
@@ -985,9 +987,10 @@ suite('AgentsChatPartService', () => {
 		setSetting('workbench.editor.showTabs', 'multiple');
 		shown.singleWithEditorTabsMultiple = showTabs();
 
-		assert.deepStrictEqual({ shown, options: part.options }, {
+		assert.deepStrictEqual({ shown, options: part.options, singleTabTitleProvidedByEditor: part.createOptions?.singleTabTitleProvidedByEditor }, {
 			shown: { default: 'single', multiple: 'multiple', multipleWithEditorTabsNone: 'multiple', single: 'single', singleWithEditorTabsMultiple: 'single' },
-			options: { doubleClickTabToToggleEditorGroupSizes: 'off', showTabs: 'single', singleTabTitleProvidedByEditor: true, tabSizing: 'fixed', tabSizingFixedMinWidth: 80, tabSizingFixedMaxWidth: 160 },
+			options: { doubleClickTabToToggleEditorGroupSizes: 'off', showTabs: 'single', tabSizing: 'fixed', tabSizingFixedMinWidth: 80, tabSizingFixedMaxWidth: 160 },
+			singleTabTitleProvidedByEditor: true,
 		});
 	});
 });
