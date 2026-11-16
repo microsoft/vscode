@@ -124,7 +124,8 @@ export class AgentHostSessionListStore extends Disposable {
 			readonly retainSession?: (session: URI) => boolean;
 			/**
 			 * Also lists a session whose project (repository root) is a folder of the window, such as one working in a
-			 * worktree of it, and a session without a workspace, such as a quick chat, while true.
+			 * worktree of it, while true. A session without a workspace, such as a quick chat, stays unlisted: only the
+			 * Sessions list shows those.
 			 */
 			readonly matchProjectRoot?: IObservable<boolean>;
 		} = {},
@@ -549,7 +550,7 @@ export class AgentHostSessionListStore extends Disposable {
 		if (this._options.filterToWorkspace === false) {
 			return true;
 		}
-		const inWorkspace = this._computeSessionInWorkspace(entry) || this._matchesProjectRoot(entry.summary) || this._matchesWorkspaceless(entry.summary);
+		const inWorkspace = this._computeSessionInWorkspace(entry) || this._matchesProjectRoot(entry.summary);
 		// A legacy session is matched by its repository root, which must be a local
 		// path; a remote project (e.g. an `https://` repo URL) silently matches
 		// nothing. Excluding one is legitimate, so only report the broken input, and
@@ -563,10 +564,11 @@ export class AgentHostSessionListStore extends Disposable {
 
 	/**
 	 * Whether the session's project is a folder of the window, while matching by project (`matchProjectRoot`). Not a session
-	 * of a multi-root workspace, which only the windows of its workspace file list.
+	 * of a multi-root workspace, which only the windows of its workspace file list, nor one without a workspace, which only
+	 * the Sessions list shows.
 	 */
 	private _matchesProjectRoot(summary: SessionSummary): boolean {
-		if (!summary.project?.uri || !this._options.matchProjectRoot?.get() || readSessionMultiRootMetadata(summary._meta)) {
+		if (!summary.project?.uri || !this._options.matchProjectRoot?.get() || readSessionMultiRootMetadata(summary._meta) || readSessionWorkspaceless(summary._meta)) {
 			return false;
 		}
 		const project = URI.parse(summary.project.uri);
@@ -587,11 +589,6 @@ export class AgentHostSessionListStore extends Disposable {
 		}
 		const first = summary.workingDirectories?.[0];
 		return first ? URI.parse(first) : undefined;
-	}
-
-	/** Whether the session has no workspace, which every window lists while matching by project (`matchProjectRoot`). */
-	private _matchesWorkspaceless(summary: SessionSummary): boolean {
-		return !!this._options.matchProjectRoot?.get() && readSessionWorkspaceless(summary._meta) && !readSessionMultiRootMetadata(summary._meta);
 	}
 
 	private _computeSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {
