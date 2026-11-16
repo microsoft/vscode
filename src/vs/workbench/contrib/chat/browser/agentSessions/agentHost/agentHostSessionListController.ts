@@ -273,6 +273,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	private _makeItemFromSummary(summary: SessionSummary, statusKnown: boolean): IChatSessionItem {
 		const resource = this._sessionListStore.getSessionResource(URI.parse(summary.resource));
 		const workingDir = typeof summary.workingDirectories?.[0] === 'string' ? URI.parse(summary.workingDirectories?.[0]) : summary.workingDirectories?.[0];
+		const folderGitState = summary.workingDirectories?.length ? readFolderScopeGitState(summary._meta, readWorkingDirectoryScopeId(summary._meta, summary.workingDirectories)) : undefined;
 		const base = {
 			title: summary.title,
 			status: summary.status,
@@ -285,9 +286,9 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			adoptable: readSessionEhcliAdoptable(summary._meta),
 			isAutomation: summary.origin?.kind === SessionOriginKind.Automation,
 			project: summary.project && URI.parse(summary.project.uri),
-			// As the summary has it, for the working directories of the session, else for the session
-			branchName: (summary.workingDirectories?.length ? readFolderScopeGitState(summary._meta, readWorkingDirectoryScopeId(summary._meta, summary.workingDirectories)) : undefined)?.branchName
-				?? readSessionGitState(summary._meta)?.branchName,
+			// The working directory's own git state, where the summary has one, even without a branch (a detached head);
+			// else the session's
+			branchName: (folderGitState ?? readSessionGitState(summary._meta))?.branchName,
 		};
 		if (!summary.chats?.length) {
 			return this._makeItem(resource, base);
