@@ -63,8 +63,10 @@ function getMessageText(content: unknown): string {
 }
 
 function isTextOnly(content: unknown): boolean {
-	return typeof content === 'string' || (Array.isArray(content) && content.every((part: unknown) =>
-		!!part && typeof part === 'object' && typeof (part as Record<string, unknown>).text === 'string'));
+	return typeof content === 'string' || (Array.isArray(content) && content.every((part: unknown) => {
+		const record = part && typeof part === 'object' ? part as Record<string, unknown> : undefined;
+		return (record?.type === 'input_text' || record?.type === 'text') && typeof record.text === 'string';
+	}));
 }
 
 /**
