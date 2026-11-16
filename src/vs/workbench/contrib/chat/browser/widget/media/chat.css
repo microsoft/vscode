@@ -2674,9 +2674,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
-/* A theme icon is centered in its box, so the box takes the height of the pill rather than the taller height of a list row. */
-.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-icon-label-iconpath.codicon {
+/*
+ * The icon of an icon path, a theme icon or an image, is centered in its box. The box takes the height of the pill
+ * rather than the taller height of a list row, and leaves the space before the label to the gap of the pill, as a
+ * file icon does.
+ */
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-icon-label-iconpath {
 	height: auto;
+	margin-right: 0;
 }
 
 .interactive-session .chat-input-container .chat-attached-context {

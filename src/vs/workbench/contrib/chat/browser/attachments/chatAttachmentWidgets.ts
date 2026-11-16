@@ -2116,6 +2116,10 @@ export class BrowserViewAttachmentWidget extends AbstractChatAttachmentWidget {
 		super(_attachment, _options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		this._resolveInput();
+		if (!this._input) {
+			// A page that is not open in this window resolves to nothing, and still shows its name, as unavailable.
+			this._updateLabel();
+		}
 		this._register(this._browserViewService.onDidChangeBrowserViews(() => this._resolveInput()));
 		this._register(this._browserViewService.onDidChangeSharingAvailable(() => this._updateLabel()));
 

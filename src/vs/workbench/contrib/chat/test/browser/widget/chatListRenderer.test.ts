@@ -35,7 +35,8 @@ import { IActionWidgetService } from '../../../../../../platform/actionWidget/br
 import { agentHostAuthority, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { ConfirmationOptionKind, McpServerStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type ToolCallCompletedState, type ToolCallRunningState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/vscode/browserViewAttachments.js';
+import { ConfirmationOptionKind, McpServerStatus, MessageAttachmentKind, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type ToolCallCompletedState, type ToolCallRunningState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IFileDialogService, ISaveDialogOptions } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -69,7 +70,7 @@ import { IChatResponseFileChangesService } from '../../../browser/chatResponseFi
 import { ChatTreeItem, IChatAccessibilityService, IChatListItemRendererOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { getCompactCodicon } from '../../../browser/chatIcons.js';
 import { IChatToolRiskAssessmentService } from '../../../browser/tools/chatToolRiskAssessmentService.js';
-import { completedToolCallToSerialized, finalizeToolInvocation, toolCallStateToInvocation, toolCallStateToPreparedInvocation, updateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { completedToolCallToSerialized, finalizeToolInvocation, messageAttachmentsToVariableData, toolCallStateToInvocation, toolCallStateToPreparedInvocation, updateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfirmationActionId } from '../../../browser/actions/chatToolActions.js';
 import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentActivityLabel, getPersistentBackgroundActivity, getPersistentProgressState, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
@@ -95,7 +96,7 @@ import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTim
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
-import { ChatModel, ChatResponseResource, ISerializedChatDataReference, isSerializableSessionData } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, ChatResponseResource, ISerializedChatDataReference, isSerializableSessionData } from '../../../common/model/chatModel.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { getGeneratedImageResources } from '../../../common/chatImageExtraction.js';
 import { ChatResponseResourceFileSystemProvider } from '../../../common/widget/chatResponseResourceFileSystemProvider.js';
@@ -134,6 +135,8 @@ import { IResourceMultiDiffEditorInput, isResourceMultiDiffEditorInput, IUntyped
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { GitHubResourceDetailsResolver } from '../../../../github/browser/githubResourceDetails.js';
+import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
+import { BrowserViewSharingState, IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
 import { ChatAccessibilityProvider } from '../../../browser/accessibility/chatAccessibilityProvider.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatSideChatService, IChatSideChatOrigin, IChatSideChatSelection, IChatSideChatService } from '../../../common/chatSideChatService.js';
@@ -3292,6 +3295,53 @@ suite('ChatListRenderer', () => {
 					inline: kinds('.rendered-markdown .chat-request-inline-attachment .chat-attached-context-attachment'),
 					links: template.value.querySelectorAll('.rendered-markdown a[data-href^="file:"]').length,
 				}, { above: ['image'], inline: ['image', 'file'], links: 0 });
+			});
+		}
+
+		for (const open of [false, true]) {
+			test(`shows the attachments of a queued request as pills in its text (page open=${open})`, () => {
+				const { instantiationService, configurationService, model, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+				configurationService.setUserConfiguration(ChatConfiguration.InlineAttachmentsEnabled, true);
+				instantiationService.stub(IWorkbenchGitHubService, upcastPartial<IWorkbenchGitHubService>({ onDidChangeDefaultClient: Event.None }));
+				instantiationService.stub(IChatAttachmentWidgetRegistry, new ChatAttachmentWidgetRegistry());
+				const page = upcastPartial<BrowserEditorInput>({
+					getName: () => 'Docs',
+					onWillDispose: Event.None,
+					model: upcastPartial<IBrowserViewModel>({ sharingState: BrowserViewSharingState.Shared, onDidChangeSharingState: Event.None }),
+				});
+				instantiationService.stub(IBrowserViewWorkbenchService, upcastPartial<IBrowserViewWorkbenchService>({
+					getKnownBrowserViews: () => new Map(open ? [['page', page]] : []),
+					onDidChangeBrowserViews: Event.None,
+					onDidChangeSharingAvailable: Event.None,
+				}));
+				// An agent host shows its queue from what each message says and attaches, rather than from the input that sent it.
+				const text = '#attachment:Docs #attachment:#1 Fix pills #attachment:shot.png Report';
+				const variableData = messageAttachmentsToVariableData([
+					{ type: MessageAttachmentKind.Simple, label: 'Docs', modelRepresentation: 'Browser page: Docs. The pageId is "page".', displayKind: BrowserViewAttachmentDisplayKind, _meta: { [BrowserViewAttachmentMetadataKey]: { browserId: 'page', browserUri: 'vscode-browser:/page' } } },
+					{ type: MessageAttachmentKind.Simple, label: '#1 Fix pills', modelRepresentation: 'The pills of a queued message are empty.' },
+					{ type: MessageAttachmentKind.EmbeddedResource, label: 'shot.png', displayKind: 'image', data: encodeBase64(VSBuffer.wrap(new Uint8Array([0x89, 0x50, 0x4E, 0x47]))), contentType: 'image/png' },
+				], 'local', text);
+				assert.ok(variableData);
+				model.addPendingRequest(new ChatRequestModel({
+					session: model,
+					message: { text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] },
+					variableData,
+				}), ChatRequestQueueKind.Queued, {});
+				const queued = viewModel.getItems().filter(isRequestVM).find(item => item.pendingKind === ChatRequestQueueKind.Queued);
+				assert.ok(queued);
+				renderer.renderElement({ ...node, element: queued }, 1, template);
+
+				const pills = Array.from(template.value.querySelectorAll<HTMLElement>('.rendered-markdown .chat-request-inline-attachment .chat-attached-context-attachment'));
+				assert.deepStrictEqual({
+					text: template.value.querySelector('.rendered-markdown')?.textContent,
+					pills: pills.map(pill => pill.textContent),
+					// A page that is not open is still named, as unavailable.
+					page: { name: pills[0]?.ariaLabel, icon: !!pills[0]?.querySelector('.codicon-globe'), unavailable: pills[0]?.classList.contains('warning') },
+				}, {
+					text: 'Docs #1 Fix pills shot.png Report',
+					pills: ['Docs', '#1 Fix pills', 'shot.png'],
+					page: { name: open ? 'Attached browser page, Docs' : 'Browser page unavailable, Docs', icon: true, unavailable: !open },
+				});
 			});
 		}
 

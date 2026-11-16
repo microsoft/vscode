@@ -37,7 +37,11 @@ import { ITextDiffEditorPane, IUntypedEditorInput, isResourceDiffEditorInput, is
 import { EditorInput } from '../../../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
+import { IWorkbenchGitHubService } from '../../../../../../services/github/common/githubService.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../../browser/labels.js';
+import { BrowserEditorInput } from '../../../../../browserView/common/browserEditorInput.js';
+import { BrowserViewSharingState, IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../../browserView/common/browserView.js';
 import { getSimpleEditorOptions } from '../../../../../codeEditor/browser/simpleEditorOptions.js';
 import { ChatLayoutService } from '../../../../browser/widget/chatLayoutService.js';
 import { ChatInputPart, getChatInputEditorMetrics, IChatInputPartOptions } from '../../../../browser/widget/input/chatInputPart.js';
@@ -57,7 +61,7 @@ import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry, IChatImageAttachmentEditor } from '../../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { ChatAttachmentModel } from '../../../../browser/attachments/chatAttachmentModel.js';
 import { ImageAttachmentWidget } from '../../../../browser/attachments/chatAttachmentWidgets.js';
-import { createChatReferenceVariableEntry, IImageVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
+import { createChatReferenceVariableEntry, IChatRequestVariableEntry, IImageVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { MockChatModel } from '../../../common/model/mockChatModel.js';
 import { ChatQuestionCarouselData } from '../../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../../../common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -1251,6 +1255,49 @@ suite('ChatInputPart', () => {
 			results.push({ hasMarkUp: !!options.markUp, edited });
 		}
 		assert.deepStrictEqual(results, [{ hasMarkUp: false, edited: false }, { hasMarkUp: true, edited: true }]);
+	});
+
+	test('centers the icon of an attachment in its pill and sets it apart from its label by the gap of the pill alone', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IWorkbenchGitHubService, upcastPartial<IWorkbenchGitHubService>({ onDidChangeDefaultClient: Event.None }));
+		const page = upcastPartial<BrowserEditorInput>({
+			getName: () => 'Docs',
+			onWillDispose: Event.None,
+			onDidChangeLabel: Event.None,
+			model: upcastPartial<IBrowserViewModel>({ sharingState: BrowserViewSharingState.Shared, onDidChangeSharingState: Event.None }),
+		});
+		instantiationService.stub(IBrowserViewWorkbenchService, upcastPartial<IBrowserViewWorkbenchService>({
+			getKnownBrowserViews: () => new Map([['page', page]]),
+			onDidChangeBrowserViews: Event.None,
+			onDidChangeSharingAvailable: Event.None,
+		}));
+		const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			_currentLanguageModel: constObservable(undefined),
+			_contextResourceLabels: store.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER)),
+			_chatAttachmentWidgetRegistry: new ChatAttachmentWidgetRegistry(),
+			instantiationService,
+		}) as ChatInputPart;
+		const session = dom.append(mainWindow.document.body, dom.$('.interactive-session'));
+		store.add(toDisposable(() => session.remove()));
+		const attachments = dom.append(session, dom.$('.chat-attached-context'));
+		const pageResource = URI.from({ scheme: 'vscode-browser', path: '/page' });
+		const geometry = ([
+			// A theme icon, as of a browser page, and an image, as an extension gives the context that it provides.
+			{ kind: 'browserView', id: pageResource.toString(), name: 'Docs', value: pageResource, browserId: 'page' },
+			{ kind: 'generic', id: 'context', name: 'Context', value: 'Context', iconPath: URI.parse('data:image/gif;base64,R0lGODlhAQABAAAAACw=') },
+		] satisfies IChatRequestVariableEntry[]).map(attachment => {
+			const pill = store.add(inputPart.createAttachmentWidget(attachment, attachments, { shouldFocusClearButton: false, supportsDeletion: true })).element;
+			const iconLabel = pill.querySelector('.monaco-icon-label');
+			const icon = pill.querySelector('.monaco-icon-label-iconpath')?.getBoundingClientRect();
+			const label = pill.querySelector('.monaco-icon-label-container')?.getBoundingClientRect();
+			assert.ok(iconLabel && icon && label);
+			const bounds = pill.getBoundingClientRect();
+			return {
+				centered: Math.abs((icon.top + icon.bottom) / 2 - (bounds.top + bounds.bottom) / 2) < 0.5,
+				spacedByGap: Math.round(label.left - icon.right) === Number.parseFloat(mainWindow.getComputedStyle(iconLabel).columnGap),
+			};
+		});
+		assert.deepStrictEqual(geometry, [{ centered: true, spacedByGap: true }, { centered: true, spacedByGap: true }]);
 	});
 
 	for (const { name, options, padding, minimumLines } of [
