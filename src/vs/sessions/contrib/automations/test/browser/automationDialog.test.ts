@@ -5307,8 +5307,16 @@ suite('Automation dialog end date', () => {
 		unitSelect.selectedIndex = 1;
 		unitSelect.dispatchEvent(new (DOM.getWindow(form).Event)('change'));
 		const press = async (key: string, keyCode: number) => {
+			const targetWindow = DOM.getWindow(form);
+			const previous = targetWindow.document.activeElement;
 			for (const type of ['keydown', 'keyup']) {
-				DOM.getWindow(form).document.activeElement?.dispatchEvent(new KeyboardEvent(type, { key, keyCode, bubbles: true, cancelable: true }));
+				targetWindow.document.activeElement?.dispatchEvent(new KeyboardEvent(type, { key, keyCode, bubbles: true, cancelable: true }));
+			}
+			const active = targetWindow.document.activeElement;
+			// Hidden Electron windows update activeElement without emitting native focus events.
+			if (!targetWindow.document.hasFocus() && previous !== active) {
+				previous?.dispatchEvent(new FocusEvent('blur', { relatedTarget: active }));
+				active?.dispatchEvent(new FocusEvent('focus', { relatedTarget: previous }));
 			}
 			await timeout(0);
 		};
