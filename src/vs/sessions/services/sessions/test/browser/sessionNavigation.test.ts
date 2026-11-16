@@ -175,6 +175,7 @@ class MockSessionStore implements ISessionsManagementService {
 	}
 
 	getSessions(): ISession[] { return [...this._sessions.values()]; }
+	getAllSessions(): ISession[] { return this.getSessions(); }
 	getInFlightNewSessionRequests(): readonly ISession[] { return []; }
 	getInFlightNewSessionRequest(): undefined { return undefined; }
 
