@@ -17,9 +17,8 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '.
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpression, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -45,6 +44,10 @@ import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { EditorWindowChatPartService, IEditorWindowChatPartOptions, IEditorWindowChatPartService } from '../../../browser/agentsView/agentsChatPartContribution.js';
+import { isIMenuItem, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { agentSessionsOrientationSubmenu, SetAgentSessionsOrientationSideBySideAction, SetAgentSessionsOrientationStackedAction } from '../../../../chat/browser/agentSessions/agentSessionsActions.js';
 import { ChatViewOpenInChatPartContribution } from '../../../browser/chatView/chatViewOpenInChatPart.contribution.js';
 import { IEditorWindowSessionsRuntime, IEditorWindowSessionsRuntimeOptions } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
 
@@ -345,6 +348,37 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			}
 
 			assert.deepStrictEqual({ cancelled, calls }, { cancelled: true, calls: [] });
+		});
+	});
+});
+
+suite('Sessions orientation submenu', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('lists Stacked, Side by Side and Chat Area, toggled by the configured value, and Chat Area writes its value', async () => {
+		const registrations = [registerAction2(SetAgentSessionsOrientationStackedAction), registerAction2(SetAgentSessionsOrientationSideBySideAction)];
+		const items = MenuRegistry.getMenuItems(agentSessionsOrientationSubmenu).filter(isIMenuItem);
+		registrations.forEach(registration => registration.dispose());
+		const toggledFor = (orientation: string) => {
+			const service = new ContextKeyService(new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOrientation]: orientation }));
+			const result = items.map(item => [typeof item.command.title === 'string' ? item.command.title : item.command.title.original, service.contextMatchesRules(item.command.toggled as ContextKeyExpression)]);
+			service.dispose();
+			return result.sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+		};
+
+		const updates: unknown[][] = [];
+		const configurationService = new TestConfigurationService();
+		configurationService.updateValue = async (...args: unknown[]) => { updates.push(args); };
+		const instantiationService = new TestInstantiationService();
+		instantiationService.stub(IConfigurationService, configurationService);
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.action.chat.setAgentSessionsOrientationChatArea')!.handler(accessor));
+
+		assert.deepStrictEqual({ stacked: toggledFor('stacked'), sideBySide: toggledFor('sideBySide'), chatArea: toggledFor('chatArea'), updates }, {
+			stacked: [['Chat Area', false], ['Side by Side', false], ['Stacked', true]],
+			sideBySide: [['Chat Area', false], ['Side by Side', true], ['Stacked', false]],
+			chatArea: [['Chat Area', true], ['Side by Side', false], ['Stacked', false]],
+			updates: [[ChatConfiguration.ChatViewSessionsOrientation, 'chatArea']]
 		});
 	});
 });
