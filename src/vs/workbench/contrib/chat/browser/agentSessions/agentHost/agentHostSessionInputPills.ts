@@ -1554,7 +1554,7 @@ export class AgentHostSessionWorkingSet extends Disposable {
 		// input that shows only the working set, whose Changes pill is the session's, shows the pill again once the working set
 		// shows no files, such as after Keep, also files the input kept itself, so the session's other changes stay reachable.
 		// The working set shows in the input: while the input hides, such as in a read-only chat, the pill shows the changes.
-		const changesPillHidden = this.changesPillHidden = derived(this, reader => workingSetPending.read(reader)
+		this.changesPillHidden = derived(this, reader => workingSetPending.read(reader)
 			|| (this._widget.inputVisible.read(reader) && workingSetEnabled.read(reader) && (!this._options.workingSetOnly || this._widget.inputPart.sessionWorkingSetDiffs.read(reader).length > 0)));
 		// Undo reverts a file's changes with the host's file-level Discard Changes operation, when the host offers it.
 		const workingSetDiscard = derived<ChangesetOperation | undefined>(this, reader => {
