@@ -19,7 +19,6 @@ import { ServiceCollection } from '../../../../instantiation/common/serviceColle
 import { ILogService, NullLogService } from '../../../../log/common/log.js';
 import type { AuthenticateParams, IAgent } from '../../../common/agent.js';
 import { copilotEntraDiscoveryResource, copilotEntraM365Audience, copilotEntraResources } from '../../../common/copilotEntraAuthentication.js';
-import { authenticationAccountMeta } from '../../../common/meta/agentAuthenticationAccount.js';
 import { waitForState } from '../../../../../base/common/observable.js';
 import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../../node/agentHostAuthenticationService.js';
@@ -124,14 +123,14 @@ suite('Copilot account context native SDK', () => {
 			}();
 			const discovery: AuthenticateParams = {
 				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'synthetic-identity-token',
-				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId }),
+				accountId,
 			};
 			const challenged = waitForState(accounts.authentication!.authenticationRequired, requirement => requirement?.resource.resource === copilotEntraResources.get(copilotEntraM365Audience));
 			const discovering = authentication.authenticate(discovery, [provider]);
 			await challenged;
 			assert.deepStrictEqual(await authentication.authenticate({
 				resource: copilotEntraResources.get(copilotEntraM365Audience)!, scopes: [`${copilotEntraM365Audience}/.default`], token: 'synthetic-m365-token',
-				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId }),
+				accountId,
 			}, [provider]), { authenticated: true });
 			assert.deepStrictEqual(await discovering, { authenticated: true });
 			const context = accounts.requireReady();

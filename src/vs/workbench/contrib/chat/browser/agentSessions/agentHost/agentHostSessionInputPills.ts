@@ -1002,12 +1002,17 @@ export class AgentHostSessionInputPills extends Disposable {
 			const currentMetadata = metadata.read(reader);
 			const currentResolution = resolution.read(reader);
 			const recordedById = new Map([...currentMetadata.artifacts, ...currentMetadata.references].map(artifact => [artifact.id, artifact]));
+			const contributedModes = contributedResources.read(reader)?.getModes(reader) ?? new Map();
 			return [...artifactSections.read(reader), ...referenceSections.read(reader)].flatMap(section => section.entries.flatMap((entry): IChatResource[] => {
 				const artifact = recordedById.get(entry.id);
 				// Recorded artifacts name the agent host's files; entries that no artifact backs, such as a chat tool's, are in this window's URI space.
 				const resource = artifact ? (currentResolution ? getRecordedFileResource(artifact, currentResolution) : undefined) : entry.resource;
+				// The agent asks per recording; an extension's contribution asks with its manifest, which never changes.
+				const requested = artifact?.mode ? { mode: artifact.mode, revision: artifact.modeRevision ?? 0 }
+					: !artifact && contributedModes.has(entry.id) ? { mode: contributedModes.get(entry.id)!, revision: 0 }
+						: undefined;
 				// The agent's label describes the resource for people; lists show files by their name.
-				return resource ? [{ id: entry.id, label: artifact?.label ?? entry.label, resource, ...(artifact?.mode ? { requested: { mode: artifact.mode, revision: artifact.modeRevision ?? 0 } } : {}) }] : [];
+				return resource ? [{ id: entry.id, label: artifact?.label ?? entry.label, resource, ...(requested ? { requested } : {}) }] : [];
 			}));
 		});
 		// A subagent chat shows no pills of its own, so it shows no chat resources either: without a session, the control shows nothing.
@@ -1018,13 +1023,14 @@ export class AgentHostSessionInputPills extends Disposable {
 			const current = pillSources.read(reader);
 			return !!current && (current.getPinned(SessionChatPillKind.Artifacts, reader).has(id) || current.getPinned(SessionChatPillKind.References, reader).has(id));
 		};
-		// Only recorded artifacts and references carry requests, in the pill of their kind.
+		// Requests come from recorded artifacts and references, in the pill of their kind, and from extensions' contributions, listed with the artifacts.
 		const pin = (resource: IChatResource) => {
 			const current = pillSources.get();
 			const currentMetadata = metadata.get();
 			const kind = currentMetadata.artifacts.some(artifact => artifact.id === resource.id) ? SessionChatPillKind.Artifacts
 				: currentMetadata.references.some(reference => reference.id === resource.id) ? SessionChatPillKind.References
-					: undefined;
+					: contributedResources.get()?.getModes(undefined).has(resource.id) ? SessionChatPillKind.Artifacts
+						: undefined;
 			if (!current || !kind) {
 				return false;
 			}

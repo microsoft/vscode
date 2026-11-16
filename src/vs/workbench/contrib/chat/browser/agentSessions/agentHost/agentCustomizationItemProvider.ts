@@ -140,7 +140,9 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				: undefined),
 			enabled: runtime && runtime.effectiveEnabled === undefined ? undefined : isCustomizationEnabled(customization),
 			disabledReason: getCustomizationDisabledReason(customization),
-			organizationControl: readCustomizationOrganizationMeta(customization),
+			// A plugin the runtime installed states what the organization requires with its activation.
+			organizationControl: readCustomizationOrganizationMeta(customization)
+				?? (runtime?.managedDesiredEnabled !== undefined ? { requiredEnabled: runtime.managedDesiredEnabled } : undefined),
 			extensionId: undefined,
 			pluginUri: uri,
 			userInvocable: undefined,

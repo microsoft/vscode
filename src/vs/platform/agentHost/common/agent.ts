@@ -402,6 +402,8 @@ export interface IAgentCanvasInfo {
 	readonly extensionName?: string;
 	readonly displayName: string;
 	readonly description: string;
+	/** The canvas's icon as a PNG data URI, which the host read from its extension; absent when it has none it can show. */
+	readonly icon?: string;
 	readonly requiresInput: boolean;
 	readonly actionCount: number;
 }
@@ -449,13 +451,25 @@ export type AgentCanvasOpenAnswer =
 	| { readonly kind: 'retry' };
 
 /**
+ * Why a canvas did not open, when the runtime said why:
+ * - `dismissed`: the canvas was closed while it opened or was restored, which needs no notice;
+ * - `reloaded`: its extensions were reloaded or reconfigured while its extension started, so opening it again can succeed;
+ * - `mismatchedDeclaration`: its extension registered the canvas differently from the declaration it started from, so the runtime withdrew the canvas;
+ * - `startFailed`: its extension did not start;
+ * - `unavailable`: the canvas or its extension is no longer available, for example because the extension was disabled or failed earlier.
+ */
+export type AgentCanvasOpenFailure = 'dismissed' | 'reloaded' | 'mismatchedDeclaration' | 'startFailed' | 'unavailable';
+
+/**
  * The outcome of opening a canvas. `consentRequired` leaves the open pending until it is answered;
  * `consentDenied` means the extension was not allowed to load, and `retryable` whether asking again can help.
+ * `failed` is an open the runtime declined for a known {@link AgentCanvasOpenFailure reason}; other failures throw.
  */
 export type AgentCanvasOpenResult =
 	| { readonly kind: 'opened' }
 	| { readonly kind: 'consentRequired'; readonly consent: IAgentExtensionConsentRequest }
-	| { readonly kind: 'consentDenied'; readonly consent: IAgentExtensionConsentRequest; readonly retryable: boolean };
+	| { readonly kind: 'consentDenied'; readonly consent: IAgentExtensionConsentRequest; readonly retryable: boolean }
+	| { readonly kind: 'failed'; readonly failure: AgentCanvasOpenFailure };
 
 /** Closes one canvas that a live provider chat presents, notifying its canvas provider. */
 export interface IAgentCanvasCloseRequest {
@@ -806,6 +820,8 @@ export interface AuthenticateParams {
 	readonly expiresIn?: number;
 	/** The single consumer this token is for; when absent, tokens match by resource and scopes. */
 	readonly target?: AuthenticateTarget;
+	/** Unverified client-local account selection, stable across token renewals. */
+	readonly accountId?: string;
 	/** Optional client metadata. Hosts must remain usable when it is absent. */
 	readonly _meta?: Record<string, unknown>;
 }

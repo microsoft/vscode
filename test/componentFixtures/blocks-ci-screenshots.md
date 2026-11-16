@@ -199,7 +199,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/72a8a6536056d6346030d6f6c7818ac7bf766efbe4bcbf5eb1ff98c1a5dcfc59)
 
 #### sessions/sessionsList/SessionsList_CompactSessionRename/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/eae654d7b4ff4c5fc8fb397d7e4439e26cf8db259f67a1c49acbb872b1f63200)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/55159b1e807948be4ca3754b80df31b39731aaf283837016e3b0c6a8966e333b)
 
 #### sessions/sessionsList/SessionsList_CompactUnreadStatusIcons/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/d9a2ae34e8d118e1006023600907f022d1ef272062c9df74206c5810b11f4152)
