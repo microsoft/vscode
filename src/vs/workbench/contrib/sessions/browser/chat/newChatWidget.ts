@@ -156,8 +156,10 @@ export function isSessionEnvironmentPickerEnabled(configurationService: IConfigu
 /** A requested new worktree ({@link INewSessionTarget.placement}) for the draft of {@link folderUri}, once created. */
 interface IPendingWorktreePlacement {
 	readonly folderUri: URI;
-	/** The draft that the creation of {@link folderUri}'s draft installed; unset while it runs. */
+	/** The draft that the creation of {@link folderUri}'s draft installed, or that replaced it since; unset while it runs. */
 	readonly sessionId: string | undefined;
+	/** The draft shown as it was requested, which never takes it. */
+	readonly previousSessionId: string | undefined;
 }
 
 /**
@@ -1500,7 +1502,7 @@ export class NewChatWidget extends Disposable {
 			}
 			// Not persisted: the main composer's last workspace stays its own.
 			this._workspacePicker.setSelectedWorkspace(target.folderUri, { fireEvent: false, providerId: target.providerId, ...(target.requireDevContainer ? { preferDevContainer: true } : {}), persist: false, origin: WorkspaceSelectionOrigin.RestoredDraft });
-			const placement: IPendingWorktreePlacement | undefined = target.placement === 'worktree' ? { folderUri: target.folderUri, sessionId: undefined } : undefined;
+			const placement: IPendingWorktreePlacement | undefined = target.placement === 'worktree' ? { folderUri: target.folderUri, sessionId: undefined, previousSessionId: this._session.get()?.sessionId } : undefined;
 			this._pendingWorktreePlacement.set(placement, undefined);
 			const creation = this._createNewSession(target.folderUri, pick);
 			if (placement) {
@@ -1510,6 +1512,11 @@ export class NewChatWidget extends Disposable {
 			this._pendingWorktreePlacement.set(undefined, undefined);
 			this._selectRequestedNoWorkspace(target);
 		}
+	}
+
+	/** Whether `session` works in `folderUri`. */
+	private _isDraftOfFolder(session: ISession, folderUri: URI): boolean {
+		return !!session.workspace.get()?.folders.some(folder => this.uriIdentityService.extUri.isEqual(folder.root, folderUri) || this.uriIdentityService.extUri.isEqual(folder.workingDirectory, folderUri));
 	}
 
 	/**
@@ -1529,14 +1536,23 @@ export class NewChatWidget extends Disposable {
 	/**
 	 * Makes the draft that the requested target's creation installed work in a new worktree, once and as the user's own
 	 * choice, as soon as its agent's configuration of it is known; it cannot be sent before. Another draft, such as the one
-	 * shown while the creation runs, takes nothing. An agent that cannot work in a new worktree is reported, and the draft
-	 * stays in its folder.
+	 * shown while the creation runs, takes nothing. A new draft of the same folder that replaces the installed one, such as
+	 * of an agent that connected since, takes it instead; any other draft cancels it. An agent that cannot work in a new
+	 * worktree is reported, and the draft stays in its folder.
 	 */
 	private _applyRequestedWorktreePlacement(): void {
-		const placement = this._pendingWorktreePlacement.get();
+		let placement = this._pendingWorktreePlacement.get();
 		const session = this._session.get();
-		if (!placement?.sessionId || !session || session.sessionId !== placement.sessionId || isSessionCreated(session)) {
+		if (!placement?.sessionId || !session || isSessionCreated(session)) {
 			return;
+		}
+		if (session.sessionId !== placement.sessionId) {
+			if (session.sessionId === placement.previousSessionId || !this._isDraftOfFolder(session, placement.folderUri)) {
+				this._pendingWorktreePlacement.set(undefined, undefined);
+				return;
+			}
+			placement = { ...placement, sessionId: session.sessionId };
+			this._pendingWorktreePlacement.set(placement, undefined);
 		}
 		if (this._newWorktree?.isAvailable()) {
 			this._pendingWorktreePlacement.set(undefined, undefined);
