@@ -326,13 +326,13 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		});
 	}
 
+	/** Whether the chat of `resource` is archived, which moves the folder nowhere. */
+	private _isArchived(resource: URI): boolean {
+		return this._agentSessionsService.getSession(resource)?.isArchived() === true;
+	}
+
 	/** Moves the folder to where the shown chat works: on the user's behalf, or on its own (`automatic`). */
 	private _follow(shown: IShownChat, automatic: boolean): void {
-		// An archived chat moves nothing: the folder does not go to a worktree only archived chats work in
-		if (this._agentSessionsService.getSession(shown.resource)?.isArchived()) {
-			this._trace(`not followed: ${shown.resource.toString()} is archived`);
-			return;
-		}
 		const folder = this._workspaceContextService.getWorkspace().folders[0];
 		const primary = this._workspaceContextService.getWorkspace().uri;
 		if (!folder || !primary || !this._folderLocationService.canSetLocation(folder)) {
@@ -348,6 +348,12 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 			// Not listed with its working directory yet, such as a session its first request just started: it follows as it is
 			this._watchWorkingDirectory(shown);
 			target = shown.workingDirectory;
+		}
+		// An archived chat moves nothing: the folder does not go to a worktree only archived chats work in. It is still watched,
+		// so that once unarchived it follows as where it works next changes; unarchiving alone moves nothing
+		if (this._isArchived(shown.resource)) {
+			this._trace(`not followed: ${shown.resource.toString()} is archived`);
+			return;
 		}
 		if (!target || target.scheme !== Schemas.file || !this._enabled) {
 			this._trace(`not followed: ${shown.resource.toString()} ${!this._isFollowable(shown.resource) ? 'is not followable' : !target ? 'has no working directory yet' : target.scheme !== Schemas.file ? `works in ${target.toString()}, not a local folder` : 'worktree support is off'}`);
@@ -423,8 +429,9 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 				}
 				return;
 			}
-			// Read again right before the move: it may have been turned off, disposed, or a later choice came, meanwhile
-			if (request !== this._request || !this._enabled || (automatic && foreground !== this._foreground)) {
+			// Read again right before the move: it may have been turned off, disposed, a later choice came, or the chat was
+			// archived, meanwhile
+			if (request !== this._request || !this._enabled || (automatic && foreground !== this._foreground) || this._isArchived(session)) {
 				this._log(direction, 'superseded', automatic);
 				return;
 			}

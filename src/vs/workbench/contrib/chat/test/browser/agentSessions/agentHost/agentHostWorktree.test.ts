@@ -234,6 +234,41 @@ suite('AgentHostWorktree', () => {
 		});
 	});
 
+	test('an archived chat the user keeps open follows as where it works changes once unarchived, but unarchiving alone moves nothing', async () => {
+		const feature = createWorktree({ enabled: true });
+		feature.workingDirectories.set(agentSession('done').toString(), worktree.fsPath);
+		feature.archived.add(agentSession('done').toString());
+		feature.show(agentSession('done'));
+		await settle();
+		feature.archived.delete(agentSession('done').toString());
+		feature.onDidChangeSessions.fire();
+		await settle();
+		const unarchived = [...feature.moves];
+		feature.workingDirectories.set(agentSession('done').toString(), created.fsPath);
+		feature.onDidChangeSessions.fire();
+		await settle();
+
+		assert.deepStrictEqual({ unarchived, changed: feature.moves }, {
+			unarchived: [],
+			changed: ['/work/vscode.worktrees/created (automatic)'],
+		});
+	});
+
+	test('a chat archived while the folder is about to follow it moves nothing', async () => {
+		const resolving = new DeferredPromise<void>();
+		const feature = createWorktree({ enabled: true, resolving: resolving.p });
+		feature.workingDirectories.set(agentSession('a').toString(), worktree.fsPath);
+		feature.show(agentSession('a'));
+		await settle();
+		feature.archived.add(agentSession('a').toString());
+		feature.onDidChangeSessions.fire();
+		resolving.complete();
+		await settle();
+		await settle();
+
+		assert.deepStrictEqual(feature.moves, []);
+	});
+
 	test('follows on its own once the shown session\'s working directory is known, or as it changes, such as to a worktree its agent created', async () => {
 		const feature = createWorktree({ enabled: true });
 		feature.show(agentSession('new'));
