@@ -153,6 +153,13 @@ export function isSessionEnvironmentPickerEnabled(configurationService: IConfigu
 		&& configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING) === true;
 }
 
+/** A requested new worktree ({@link INewSessionTarget.placement}) for the draft of {@link folderUri}, once created. */
+interface IPendingWorktreePlacement {
+	readonly folderUri: URI;
+	/** The draft that the creation of {@link folderUri}'s draft installed; unset while it runs. */
+	readonly sessionId: string | undefined;
+}
+
 /**
  * Whether focus is in an input, a textarea or an editor. A workspace selection the user didn't make, such as
  * the folder handoff of an Agents window that finishes during startup, must not move focus away from there, or
@@ -171,8 +178,11 @@ export class NewChatWidget extends Disposable {
 	private readonly _savedDraftComposer: SessionDraftComposer | undefined;
 	private readonly _restoringSavedDraft = observableValue(this, false);
 	private readonly _savedDraftTargetUnavailable = observableValue(this, false);
-	/** Whether the requested target's first draft is yet to work in a new worktree ({@link INewSessionTarget.placement}). */
-	private readonly _pendingWorktreePlacement = observableValue(this, false);
+	/**
+	 * The requested target's draft that is yet to work in a new worktree ({@link INewSessionTarget.placement}): the folder
+	 * whose draft is being created, then the draft that creation installed, which alone takes it.
+	 */
+	private readonly _pendingWorktreePlacement = observableValue<IPendingWorktreePlacement | undefined>(this, undefined);
 	private _savedDraftTargetSessionId: string | undefined;
 	private _inputContentElement: HTMLElement | undefined;
 	private readonly _preserveCustomView: boolean;
@@ -431,7 +441,7 @@ export class NewChatWidget extends Disposable {
 			onUserSelection: () => {
 				this._savedDraftTargetUnavailable.set(false, undefined);
 				// The user's own choice of workspace wins over the requested placement
-				this._pendingWorktreePlacement.set(false, undefined);
+				this._pendingWorktreePlacement.set(undefined, undefined);
 				newSessionComposerService.notifyUserWorkspaceSelection();
 			},
 			whenSelectionAccepted: async () => {
@@ -531,7 +541,7 @@ export class NewChatWidget extends Disposable {
 				return this._isComparisonPending(reader, comparisonConfigResolving);
 			})));
 		const canSendRequest = derived(reader => {
-			if (this._restoringSavedDraft.read(reader) || this._savedDraftTargetUnavailable.read(reader) || this._pendingWorktreePlacement.read(reader)) {
+			if (this._restoringSavedDraft.read(reader) || this._savedDraftTargetUnavailable.read(reader) || !!this._pendingWorktreePlacement.read(reader)) {
 				return false;
 			}
 			const session = this._session.read(reader);
@@ -1490,29 +1500,49 @@ export class NewChatWidget extends Disposable {
 			}
 			// Not persisted: the main composer's last workspace stays its own.
 			this._workspacePicker.setSelectedWorkspace(target.folderUri, { fireEvent: false, providerId: target.providerId, ...(target.requireDevContainer ? { preferDevContainer: true } : {}), persist: false, origin: WorkspaceSelectionOrigin.RestoredDraft });
-			this._pendingWorktreePlacement.set(target.placement === 'worktree', undefined);
-			void this._createNewSession(target.folderUri, pick).then(() => this._applyRequestedWorktreePlacement());
+			const placement: IPendingWorktreePlacement | undefined = target.placement === 'worktree' ? { folderUri: target.folderUri, sessionId: undefined } : undefined;
+			this._pendingWorktreePlacement.set(placement, undefined);
+			const creation = this._createNewSession(target.folderUri, pick);
+			if (placement) {
+				void creation.then(result => this._bindWorktreePlacement(placement, result), () => this._bindWorktreePlacement(placement, undefined));
+			}
 		} else {
-			this._pendingWorktreePlacement.set(false, undefined);
+			this._pendingWorktreePlacement.set(undefined, undefined);
 			this._selectRequestedNoWorkspace(target);
 		}
 	}
 
 	/**
-	 * Makes the requested target's first draft work in a new worktree, once and as the user's own choice, as soon as its
-	 * agent's configuration of the draft is known; it cannot be sent before. An agent that cannot work in a new worktree is
-	 * reported, and the draft stays in its folder.
+	 * Binds `placement` to the draft its creation installed, and applies it; drops it where the creation installed none, such
+	 * as one the user declined to trust the folder of, or one that a newer creation superseded, or once the composer is gone.
+	 */
+	private _bindWorktreePlacement(placement: IPendingWorktreePlacement, result: IOpenNewSessionResult | undefined): void {
+		if (this._pendingWorktreePlacement.get() !== placement) {
+			return;
+		}
+		const session = result?.session;
+		const installed = !!session && !this._store.isDisposed && this._session.get()?.sessionId === session.sessionId;
+		this._pendingWorktreePlacement.set(installed ? { ...placement, sessionId: session.sessionId } : undefined, undefined);
+		this._applyRequestedWorktreePlacement();
+	}
+
+	/**
+	 * Makes the draft that the requested target's creation installed work in a new worktree, once and as the user's own
+	 * choice, as soon as its agent's configuration of it is known; it cannot be sent before. Another draft, such as the one
+	 * shown while the creation runs, takes nothing. An agent that cannot work in a new worktree is reported, and the draft
+	 * stays in its folder.
 	 */
 	private _applyRequestedWorktreePlacement(): void {
+		const placement = this._pendingWorktreePlacement.get();
 		const session = this._session.get();
-		if (!this._pendingWorktreePlacement.get() || !session || isSessionCreated(session)) {
+		if (!placement?.sessionId || !session || session.sessionId !== placement.sessionId || isSessionCreated(session)) {
 			return;
 		}
 		if (this._newWorktree?.isAvailable()) {
-			this._pendingWorktreePlacement.set(false, undefined);
+			this._pendingWorktreePlacement.set(undefined, undefined);
 			this._newWorktree.setSelected(true);
 		} else if (!this._newWorktree || this._newWorktree.isResolved()) {
-			this._pendingWorktreePlacement.set(false, undefined);
+			this._pendingWorktreePlacement.set(undefined, undefined);
 			this.notificationService.warn(localize('newChatWidget.newWorktreeUnavailable', "This agent cannot start a session in a new worktree. The new chat works in the folder."));
 		}
 	}
