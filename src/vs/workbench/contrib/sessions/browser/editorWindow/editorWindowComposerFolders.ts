@@ -5,13 +5,20 @@
 
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IChatWindowComposerInit } from '../chatEditor/chatWindowComposer.js';
 
 /** The folders new-session composers create sessions in, besides the folder each aims at, and how they show them. */
-export type IEditorWindowComposerFolderOptions = Pick<IChatWindowComposerInit, 'allowedFolders' | 'getFolderPresentation'>;
+export type IEditorWindowComposerFolderOptions = Pick<IChatWindowComposerInit, 'allowedFolders' | 'getFolderPresentation'> & {
+	/**
+	 * Whether `uri` is the allowed folder `folder`, also by another form of it, such as the real path of a folder that is
+	 * offered by a link. Without it, they are the same only by their URIs.
+	 */
+	readonly isSameFolder?: (folder: URI, uri: URI) => boolean;
+};
 
 /** A new-session composer that follows its host to another folder (see `ChatWindowComposerModel.retargetFolder`). */
 export interface IEditorWindowRetargetableComposer {
@@ -33,6 +40,14 @@ export interface IEditorWindowComposerFoldersService {
 	 * them follows the provider set later and the window's folders again once no provider is set.
 	 */
 	getComposerFolderOptions(): IEditorWindowComposerFolderOptions;
+
+	/**
+	 * The allowed folder for a new session in `uri`, such as the folder of an existing session: the allowed folder that `uri`
+	 * is, by the equality of the options' provider (`isSameFolder`, which knows other forms of a folder, such as its real
+	 * path; without it, by URI only), else the allowed folder `uri` is inside, by path. `undefined` when it is none of them,
+	 * and `uri` itself while the composers may create sessions anywhere, without allowed folders.
+	 */
+	toAllowedFolder(uri: URI): URI | undefined;
 
 	/** Has the composers offer the folders `provider` gives until the returned disposable is disposed; the one set last applies. */
 	setComposerFolderOptions(provider: () => IEditorWindowComposerFolderOptions): IDisposable;
@@ -75,6 +90,15 @@ export class EditorWindowComposerFoldersService implements IEditorWindowComposer
 
 	getComposerFolderOptions(): IEditorWindowComposerFolderOptions {
 		return this._options;
+	}
+
+	toAllowedFolder(uri: URI): URI | undefined {
+		const allowed = this._options.allowedFolders?.get() ?? [];
+		if (allowed.length === 0) {
+			return uri;
+		}
+		const isSameFolder = this._providedOptions.get()?.isSameFolder ?? ((folder: URI, other: URI) => extUri.isEqual(folder, other));
+		return allowed.find(folder => isSameFolder(folder, uri)) ?? allowed.find(folder => extUri.isEqualOrParent(uri, folder));
 	}
 
 	registerComposer(composer: IEditorWindowRetargetableComposer): IDisposable {

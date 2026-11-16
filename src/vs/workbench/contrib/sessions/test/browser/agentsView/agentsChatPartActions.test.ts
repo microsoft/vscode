@@ -28,6 +28,9 @@ import { SessionIsCreatedContext, SessionSupportsRenameContext } from '../../../
 import { INewSessionTarget } from '../../../browser/parts/chatView.js';
 import { ISessionSection, SessionItemContextMenuId, SessionSectionToolbarMenuId } from '../../../browser/views/sessionsList.js';
 import { buildTestSession } from '../../common/testSessionBuilder.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
+import { EditorWindowComposerFoldersService, IEditorWindowComposerFolderOptions, IEditorWindowComposerFoldersService } from '../../../browser/editorWindow/editorWindowComposerFolders.js';
 import { ChatViewId } from '../../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 
@@ -44,9 +47,15 @@ suite('Agents chat part actions', () => {
 		return { ...buildTestSession({ id, title: id }).session, providerId: 'local-agent-host', sessionType: 'copilotcli', createdAt: new Date(createdAt), workspace: constObservable(workspace) };
 	}
 
-	function run(commandId: string, arg: unknown) {
+	function run(commandId: string, arg: unknown, folderOptions?: IEditorWindowComposerFolderOptions) {
 		const opened: { readonly target: INewSessionTarget | undefined; readonly newComposer: boolean | undefined }[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<IWorkspace>({ folders: [] }) }));
+		const composerFolders = instantiationService.createInstance(EditorWindowComposerFoldersService);
+		if (folderOptions) {
+			store.add(composerFolders.setComposerFolderOptions(() => folderOptions));
+		}
+		instantiationService.stub(IEditorWindowComposerFoldersService, composerFolders);
 		instantiationService.stub(IAgentsChatPartService, upcastPartial<IAgentsChatPartService>({
 			openComposer: async (target: INewSessionTarget | undefined, options?: IAgentsChatPartOpenOptions) => { opened.push({ target, newComposer: options?.newComposer }); },
 		}));
@@ -82,6 +91,33 @@ suite('Agents chat part actions', () => {
 				sectionContext: 'chatIsEnabled && sessionSection.type == \'worktree\'',
 				session: 'chatIsEnabled',
 			},
+		});
+	});
+
+	test('starts a new session in the allowed folder that the session\'s folder is, also by another form of it, or that it is inside, else in the window\'s folder', async () => {
+		store.add(registerAgentsViewNewSessionActions());
+		// The window offers a worktree by a link, whose real path its sessions report, and its repository's folder
+		const link = URI.file('/links/feature');
+		const worktree = URI.file('/work/repo.worktrees/feature');
+		const folderOptions: IEditorWindowComposerFolderOptions = {
+			allowedFolders: constObservable([link, URI.file('/work/repo')]),
+			isSameFolder: (folder, uri) => isEqual(folder, uri) || (isEqual(folder, link) && isEqual(uri, worktree)),
+		};
+		const aliased = createSession('aliased', '/work/repo', worktree.path, 1);
+		const inside = createSession('inside', '/work/repo', '/work/repo/packages/a', 1);
+		const outside = createSession('outside', '/elsewhere', '/elsewhere', 1);
+		const folderOf = async (commandId: string, arg: unknown) => (await run(commandId, arg, folderOptions)).map(({ folder }) => folder ?? 'the window\'s');
+
+		assert.deepStrictEqual({
+			worktreeSection: await folderOf('workbench.action.agentsView.newSessionInWorktree', upcastPartial<ISessionSection>({ id: `worktree:${worktree.toString()}`, label: 'feature', sessions: [aliased] })),
+			aliased: await folderOf('workbench.action.agentsView.newSessionInSameFolder', aliased),
+			inside: await folderOf('workbench.action.agentsView.newSessionInSameFolder', inside),
+			outside: await folderOf('workbench.action.agentsView.newSessionInSameFolder', outside),
+		}, {
+			worktreeSection: ['/links/feature'],
+			aliased: ['/links/feature'],
+			inside: ['/work/repo'],
+			outside: ['the window\'s'],
 		});
 	});
 

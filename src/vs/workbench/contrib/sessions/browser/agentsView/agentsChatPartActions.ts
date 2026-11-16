@@ -18,6 +18,7 @@ import { Menus, SessionHeaderMenus } from '../menus.js';
 import { InAgentsChatPartContext } from './agentsChatPartContext.js';
 import { IAgentsChatPartService } from './agentsChatPart.js';
 import { getEditorWindowComposerTarget } from '../editorWindow/editorWindowSessionsPresenter.js';
+import { IEditorWindowComposerFoldersService } from '../editorWindow/editorWindowComposerFolders.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getSessionPresentationWorkspace, IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { INewSessionTarget } from '../parts/chatView.js';
@@ -232,7 +233,7 @@ export function registerAgentsViewNewSessionActions(): IDisposable {
 			if (!folderUri) {
 				return;
 			}
-			await accessor.get(IAgentsChatPartService).openComposer(getNewSessionTarget(folderUri, latest), { newComposer: true });
+			await accessor.get(IAgentsChatPartService).openComposer(getNewSessionTarget(accessor.get(IEditorWindowComposerFoldersService), folderUri, latest), { newComposer: true });
 		}
 	}));
 
@@ -252,7 +253,7 @@ export function registerAgentsViewNewSessionActions(): IDisposable {
 			const session = Array.isArray(context) ? (context.length === 1 ? context[0] : undefined) : context;
 			const folderUri = session && getSessionFolder(session);
 			if (session && folderUri) {
-				await accessor.get(IAgentsChatPartService).openComposer(getNewSessionTarget(folderUri, session), { newComposer: true });
+				await accessor.get(IAgentsChatPartService).openComposer(getNewSessionTarget(accessor.get(IEditorWindowComposerFoldersService), folderUri, session), { newComposer: true });
 			}
 		}
 	}));
@@ -266,7 +267,11 @@ function getSessionFolder(session: ISession): URI | undefined {
 	return folder?.workingDirectory ?? folder?.root;
 }
 
-/** A new session in `folderUri`, with the agent of `like`, such as the session it starts from. */
-function getNewSessionTarget(folderUri: URI, like: ISession | undefined): INewSessionTarget {
+/**
+ * A new session in the allowed folder of `sessionFolder` (see {@link IEditorWindowComposerFoldersService.toAllowedFolder}),
+ * else in the window's, with the agent of `like`, such as the session it starts from.
+ */
+function getNewSessionTarget(composerFolders: IEditorWindowComposerFoldersService, sessionFolder: URI, like: ISession | undefined): INewSessionTarget {
+	const folderUri = composerFolders.toAllowedFolder(sessionFolder);
 	return like ? { folderUri, providerId: like.providerId, sessionTypeId: like.sessionType } : { folderUri };
 }
