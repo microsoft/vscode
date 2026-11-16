@@ -34,7 +34,7 @@ import { IAgentHostNewSessionFolderService } from '../../../../browser/agentSess
 import { registerWorktreeControl } from '../../../../browser/agentSessions/agentHost/agentHostNewWorktreeToggle.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostWorktreeFolderChoices, IAgentHostWorktreeLocationsCache } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeFolderChoices.js';
-import { AGENT_HOST_WORKTREE_SEND_CHOICE_ID, AgentHostWorktreeSendChoice, isRecentChatInFolder, IWorktreeSendChoiceSession, toWorktreeSendChoiceSessions, WORKTREE_SEND_CHOICE_RECENT_MS } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSendChoice.js';
+import { AGENT_HOST_WORKTREE_SEND_CHOICE_ID, AgentHostWorktreeSendChoice, IAgentHostWorktreeSendChoiceService, isRecentChatInFolder, IWorktreeSendChoiceSession, toWorktreeSendChoiceSessions, WORKTREE_SEND_CHOICE_RECENT_MS } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSendChoice.js';
 import { AgentHostWorktreeSessionSources, IAgentHostWorktreeSessionSources } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSessionSources.js';
 import { IAgentSession } from '../../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../browser/agentSessions/agentSessionsService.js';
@@ -61,7 +61,7 @@ suite('Agent host Work in Parallel choice on send', () => {
 	const NOW = Date.UTC(2026, 10, 16, 12);
 	const HOUR = 60 * 60 * 1000;
 
-	function createWindow(options: { readonly firstChatIn?: URI; readonly isolations?: readonly string[]; readonly ai?: boolean }) {
+	function createWindow(options: { readonly firstChatIn?: URI; readonly firstChatArchived?: boolean; readonly isolations?: readonly string[]; readonly ai?: boolean }) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({ [ChatConfiguration.EditorWindowEnableWorktree]: true });
@@ -112,7 +112,7 @@ suite('Agent host Work in Parallel choice on send', () => {
 		const earlier = options.firstChatIn && upcastPartial<IAgentSession>({
 			resource: URI.from({ scheme: SessionType.AgentHostCopilot, path: `/earlier-${draftCount}` }),
 			providerType: SessionType.AgentHostCopilot,
-			isArchived: () => false,
+			isArchived: () => options.firstChatArchived === true,
 			metadata: { workingDirectoryPath: options.firstChatIn.fsPath },
 			timing: { created: NOW - 3 * HOUR, lastRequestStarted: NOW - 2 * HOUR, lastRequestEnded: NOW - HOUR },
 		});
@@ -210,7 +210,7 @@ suite('Agent host Work in Parallel choice on send', () => {
 		};
 		// Its contributions are global, one window at a time
 		const isolationOf = (draft: URI) => isolations.get(draft.toString()) ?? 'folder';
-		return { newDraft, send, sent, kept, errorMessages, widgetOf, asked, askedOn, setAnswer, close, isolationOf, holdApply, failApply, pick, warnings, service, control, controlOf, dispose: () => disposables.dispose() };
+		return { newDraft, send, sent, kept, errorMessages, widgetOf, earlier: earlier?.resource, asked, askedOn, setAnswer, close, isolationOf, holdApply, failApply, pick, warnings, service, control, controlOf, dispose: () => disposables.dispose() };
 	}
 
 	test('asks of a new chat in the folder only after another chat of the agent host was active in the folder itself within the last day', () => {
@@ -525,6 +525,23 @@ suite('Agent host Work in Parallel choice on send', () => {
 		window.dispose();
 
 		assert.deepStrictEqual({ asked: window.asked.length, isolation }, { asked: 1, isolation: 'folder' });
+	});
+
+	test('tells another chat surface whether a chat was active in a folder within the last day, not counting its own new chat', () => {
+		const archived = createWindow({ firstChatIn: primary, firstChatArchived: true });
+		const archivedOnly = archived.service.isRecentChatInFolder(primary, archived.newDraft());
+		archived.dispose();
+		const window = createWindow({ firstChatIn: primary });
+		const service: IAgentHostWorktreeSendChoiceService = window.service;
+		const results = {
+			inFolder: service.isRecentChatInFolder(primary, window.newDraft()),
+			otherFolder: service.isRecentChatInFolder(worktree, window.newDraft()),
+			archivedOnly,
+			draftItself: service.isRecentChatInFolder(primary, window.earlier!),
+		};
+		window.dispose();
+
+		assert.deepStrictEqual(results, { inFolder: true, otherFolder: false, archivedOnly: false, draftItself: false });
 	});
 
 	test('its callout offers Use New Worktree and Continue in Folder', () => {

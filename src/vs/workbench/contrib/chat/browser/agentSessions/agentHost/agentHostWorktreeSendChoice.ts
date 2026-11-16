@@ -100,6 +100,12 @@ export interface IAgentHostWorktreeSendChoiceService {
 	 * ask, such as with {@link isRecentChatInFolder}, holds its send meanwhile, and applies the answer to its own new chat.
 	 */
 	askWorktreeOnSend(control: HTMLElement): Promise<WorktreeSendChoice>;
+
+	/**
+	 * Whether another chat of the agent host, not archived, worked in `folder` itself within the last day, as
+	 * {@link isRecentChatInFolder} decides over all sessions: when another chat surface asks of its new chat `draft`.
+	 */
+	isRecentChatInFolder(folder: URI, draft: URI): boolean;
 }
 
 /**
@@ -300,8 +306,12 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 
 	private _hasRecentChatInFolder(draft: URI): boolean {
 		const primary = this._primaryFolder();
+		return !!primary && this.isRecentChatInFolder(primary, draft);
+	}
+
+	isRecentChatInFolder(folder: URI, draft: URI): boolean {
 		const sessions = toWorktreeSendChoiceSessions(this._agentSessionsService.model.sessions, resource => this._sessionSources.getWorkingDirectory(resource));
-		return !!primary && isRecentChatInFolder(sessions, primary, draft, this._now());
+		return isRecentChatInFolder(sessions, folder, draft, this._now());
 	}
 
 	/** The window's own folder, rather than a worktree it may be at. */
