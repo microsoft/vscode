@@ -86,27 +86,10 @@ suite('Agents chat part actions', () => {
 		});
 	});
 
-	test('a new quick chat opens a composer of its own without a workspace, from the Chats section and the Command Palette, without a keybinding', async () => {
+	test('an editor window offers no New Quick Chat: it has no chat without a workspace', () => {
 		store.add(registerAgentsChatPartActions());
-		const id = 'workbench.action.agentsView.newQuickChat';
 
-		assert.deepStrictEqual({
-			opened: await run(id, undefined),
-			menus: {
-				sectionToolbar: menuWhen(SessionSectionToolbarMenuId, id),
-				sectionContext: menuWhen(Menus.SessionSectionContext, id),
-				commandPalette: menuWhen(MenuId.CommandPalette, id),
-			},
-			keybindings: KeybindingsRegistry.getDefaultKeybindings().filter(keybinding => keybinding.command === id).length,
-		}, {
-			opened: [{ folder: undefined, providerId: undefined, sessionTypeId: undefined, noWorkspace: true, newComposer: true }],
-			menus: {
-				sectionToolbar: 'agentHostEnabled && chatIsEnabled && sessionSection.type == \'quickchats\'',
-				sectionContext: 'agentHostEnabled && chatIsEnabled && sessionSection.type == \'quickchats\'',
-				commandPalette: 'agentHostEnabled && chatIsEnabled',
-			},
-			keybindings: 0,
-		});
+		assert.strictEqual(CommandsRegistry.getCommand('workbench.action.agentsView.newQuickChat'), undefined);
 	});
 
 	test('New Session shows in the header of the sessions list, but not in the Chat view\'s, whose title has New Chat already', () => {

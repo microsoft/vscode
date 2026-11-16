@@ -5824,6 +5824,42 @@ suite('NewChatWidget', () => {
 				});
 			});
 
+			test('in an editor window, a composer has no chat without a workspace: no No Workspace option, none selected, and what aims at none, or nothing, works in the window\'s folder; in an empty window, in the restored folder, else none', () => {
+				const agents = createAgents([new ModelProvider(LOCAL_AGENT_HOST_PROVIDER_ID, ['t'])]);
+				const target = observableValue<INewSessionTarget | undefined>('target', undefined);
+				const calls: string[] = [];
+				const composer = withWidgetMethods(Object.assign(hostedComposer(agents, target), {
+					_inEditorWindow: true,
+					_syncWorkspacePickerFromActiveSession: () => false,
+					_reconcileWorkspaceEnvironment: () => { },
+					_restoreNoWorkspaceDraft: async () => { calls.push('no workspace draft'); },
+					_createNewSession: async (folderUri: URI, pick: { sessionTypeId?: string } | undefined) => { calls.push(`draft of ${folderUri.path}${pick ? ` ${pick.sessionTypeId}` : ''}`); return undefined; },
+				}), ['_getNoWorkspaceOption', '_seedRequestedTarget', '_seedWorkspaceDraft', '_getEditorWindowFolder']);
+				Object.assign(composer._draftHost, { allowedFolders: constObservable([URI.file('/window')]) });
+				Object.assign(composer._workspacePicker, { setSelectedWorkspace: (folderUri: URI) => calls.push(`picked ${folderUri.path}`) });
+
+				const option = composer._getNoWorkspaceOption();
+				const selected = composer.selectNoWorkspace();
+				composer._seedRequestedTarget({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: 't' });
+				composer._seedWorkspaceDraft();
+
+				// An empty window: the folder the picker restored, such as a recent one, else none to send in until the user picks one
+				const windowFolders = calls.length;
+				Object.assign(composer._draftHost, { allowedFolders: constObservable([]) });
+				composer._workspacePicker.selectedFolderUri = URI.file('/recent');
+				composer._seedWorkspaceDraft();
+				composer._workspacePicker.selectedFolderUri = undefined;
+				composer._seedWorkspaceDraft();
+
+				assert.deepStrictEqual({ option, selected, draft: draftOf(agents.slot.newSession.get()), windowFolders: calls.slice(0, windowFolders), emptyWindow: calls.slice(windowFolders) }, {
+					option: undefined,
+					selected: undefined,
+					draft: undefined,
+					windowFolders: ['picked /window', 'draft of /window t', 'picked /window', 'draft of /window'],
+					emptyWindow: ['draft of /recent'],
+				});
+			});
+
 			test('the custom agent of the requested target is the chat\'s mode: it is selected on a draft of the requested agent once the agent offers it, never sent as the session mode of its creation, and the requested model stays; an agent that is not offered leaves the draft as it starts', () => {
 				const provider = new ModelProvider(LOCAL_AGENT_HOST_PROVIDER_ID, ['t']);
 				const agents = createAgents([provider]);

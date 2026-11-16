@@ -327,21 +327,19 @@ suite('AgentsChatViewHost', () => {
 		});
 	});
 
-	test('New Chat aims its composer at a new worktree of a folder, or at no workspace, and refuses a placement it cannot have', async () => {
+	test('New Chat aims its composer at a new worktree of a folder, and refuses one without a folder', async () => {
 		const folder = URI.file('/repo');
 		const targets: (INewSessionTarget | undefined)[] = [];
 		const { host } = createHost({ chatPart: { openComposer: async target => { targets.push(target); } } });
 
 		const results = [
 			await host.newChat({ folder, placement: 'worktree' }),
-			await host.newChat({ placement: 'noWorkspace' }),
 			await host.newChat({ placement: 'worktree' }),
-			await host.newChat({ folder, placement: 'noWorkspace' }),
 		];
 
 		assert.deepStrictEqual({ results, targets: targets.map(target => ({ folder: target?.folderUri?.path, placement: target?.placement })) }, {
-			results: [true, true, false, false],
-			targets: [{ folder: '/repo', placement: 'worktree' }, { folder: undefined, placement: undefined }],
+			results: [true, false],
+			targets: [{ folder: '/repo', placement: 'worktree' }],
 		});
 	});
 

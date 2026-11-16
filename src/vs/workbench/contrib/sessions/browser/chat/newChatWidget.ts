@@ -42,6 +42,7 @@ import { shouldShowGitHubWorkspaceGroupSignIn } from '../../../../services/sessi
 import { AGENTIC_SIGN_IN_COMMAND_ID, FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../common/sessionCommands.js';
 import { IAgentHostSessionsProvider, isAgentHostEnvironmentAvailable, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
 import { NewSessionComposerFocusContext, NewSessionCreationProviderIdContext } from '../../common/contextkeys.js';
+import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IAquariumService, IMountedToggleHandle } from '../aquarium.js';
 import { IWorkspacePickerNewWorktreeOption, IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { NewWorktreeChoice } from './newWorktreeChoice.js';
@@ -241,6 +242,8 @@ export class NewChatWidget extends Disposable {
 	private _newWorktreeCheckbox: NewWorktreeCheckbox | undefined;
 	/** The drafts whose first request waits while the user is asked where it works. */
 	private readonly _askingWorktreeOnSend = new Set<string>();
+	/** Whether the composer is in an editor window, which has no chat without a workspace, unlike the Agents window. */
+	private readonly _inEditorWindow: boolean;
 	private _workspaceRepositoryControlsHost: HTMLElement | undefined;
 	private _workspaceSessionOptionsHost: HTMLElement | undefined;
 	private readonly _sessionOptionsExpanded = observableValue(this, true);
@@ -323,6 +326,7 @@ export class NewChatWidget extends Disposable {
 		super();
 		this._preserveCustomView = options.preserveCustomView === true;
 		this._draftHost = options.newSessionDraft;
+		this._inEditorWindow = !this.contextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key);
 		this._detached = this._preserveCustomView || !!this._draftHost;
 		this._savedDraftComposer = this._detached ? undefined : sessionDraftsService.createComposer();
 		this._draftSlot = this._draftHost?.slot ?? this.sessionsManagementService.defaultNewSessionSlot;
@@ -475,7 +479,8 @@ export class NewChatWidget extends Disposable {
 				return undefined;
 			},
 			// A composer restricted to its folders, such as an editor window's, also offers No Workspace beside them
-			getNoWorkspaceOption: () => this._getNoWorkspaceOption(),
+			// An editor window has no chat without a workspace: none is offered, and one chosen elsewhere is not restored
+			getNoWorkspaceOption: this._inEditorWindow ? undefined : () => this._getNoWorkspaceOption(),
 			ownNoWorkspaceSelection: !!this._draftHost,
 			allowedFolders: this._draftHost?.allowedFolders,
 			getAllowedFolderPresentation: this._draftHost?.getFolderPresentation && (folderUri => this._draftHost?.getFolderPresentation?.(folderUri)),
@@ -1315,6 +1320,11 @@ export class NewChatWidget extends Disposable {
 		}
 		if (restoredFolderUri) {
 			void this._createNewSession(restoredFolderUri);
+		} else if (this._inEditorWindow) {
+			const folderUri = this._getEditorWindowFolder();
+			if (folderUri) {
+				this._seedRequestedTarget({ folderUri });
+			}
 		} else {
 			void this._restoreNoWorkspaceDraft();
 		}
@@ -1336,6 +1346,11 @@ export class NewChatWidget extends Disposable {
 				this._seedRequestedTarget(target);
 			} else if (folderUri) {
 				void this._createNewSession(folderUri);
+			} else if (this._inEditorWindow) {
+				const windowFolderUri = this._getEditorWindowFolder();
+				if (windowFolderUri) {
+					this._seedRequestedTarget({ folderUri: windowFolderUri });
+				}
 			} else {
 				this.selectNoWorkspace(undefined, { userSelection: false });
 			}
@@ -1519,10 +1534,23 @@ export class NewChatWidget extends Disposable {
 			if (placement) {
 				void creation.then(result => this._bindWorktreePlacement(placement, result), () => this._bindWorktreePlacement(placement, undefined));
 			}
+		} else if (this._inEditorWindow) {
+			// An editor window has no chat without a workspace: the draft works in the window's folder
+			const folderUri = this._getEditorWindowFolder();
+			if (folderUri) {
+				this._seedRequestedTarget({ ...target, folderUri });
+			} else {
+				this._pendingWorktreePlacement.set(undefined, undefined);
+			}
 		} else {
 			this._pendingWorktreePlacement.set(undefined, undefined);
 			this._selectRequestedNoWorkspace(target);
 		}
+	}
+
+	/** The folder of a draft in an editor window that nothing else aims at one: the picked folder, else the window's first. */
+	private _getEditorWindowFolder(): URI | undefined {
+		return this._workspacePicker.selectedFolderUri ?? this._draftHost?.allowedFolders?.get()[0];
 	}
 
 	/** The user picked a workspace: a saved draft's unavailable target and a requested new worktree no longer apply. */
@@ -1943,8 +1971,9 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private async _restoreNoWorkspaceDraft(): Promise<void> {
-		// A hosted composer creates the drafts of what its host requests, and waits for its agent itself.
-		if (this._draftHost?.requestedTarget?.get()) {
+		// A hosted composer creates the drafts of what its host requests, and waits for its agent itself; an editor window
+		// has no chat without a workspace.
+		if (this._draftHost?.requestedTarget?.get() || this._inEditorWindow) {
 			return;
 		}
 		if (this._workspaceSelectionCleared && !this._workspacePicker.isNoWorkspaceSelected()) {
@@ -2265,6 +2294,10 @@ export class NewChatWidget extends Disposable {
 	}
 
 	selectNoWorkspace(options?: ICreateNewSessionOptions, selectionOptions?: ISelectNoWorkspaceOptions): ISession | undefined {
+		// Only the Agents window has chats without a workspace
+		if (this._inEditorWindow) {
+			return undefined;
+		}
 		this._pendingPreferredUpgrade.clear();
 		this._newSessionCreation.clear();
 		const userSelection = selectionOptions?.userSelection !== false;
@@ -2345,6 +2378,9 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private _getNoWorkspaceOption(): IWorkspacePickerNoWorkspaceOption | undefined {
+		if (this._inEditorWindow) {
+			return undefined;
+		}
 		const isWorkspacePickerQuickChat = this._isWorkspacePickerQuickChat.get();
 		const environment = this._environment.get();
 		if (environment?.kind === 'container') {
@@ -2417,7 +2453,8 @@ export class NewChatWidget extends Disposable {
 			selectionChanged.read(reader);
 			return !!this._workspaceOptOutTarget.read(reader)
 				&& !!this._workspacePicker.selectedFolderUri
-				// A composer restricted to its folders, such as an editor window's, always creates its sessions in one
+				// A composer in an editor window, or restricted to its folders, always creates its sessions in one
+				&& !this._inEditorWindow
 				&& !this._draftHost?.allowedFolders?.read(reader).length;
 		});
 		const selectsRepository = isWeb && !!this.agentHostFilterService.selectedHost?.sessionCreationProviderId;
