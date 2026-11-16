@@ -119,8 +119,13 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
 			const worktreeOptions = this.getWorktreeOptions();
 			if (!equals(worktreeOptions, this.worktreeOptions)) {
+				const selected = this.getSelectedWorktree();
 				this.worktreeOptions = worktreeOptions;
 				this.updateFilterActions();
+				// The selected folder comes to apply, as its sessions arrive, or no longer does, as they go
+				if (this.getSelectedWorktree() !== selected) {
+					this._onDidChange.fire();
+				}
 			}
 		}));
 	}

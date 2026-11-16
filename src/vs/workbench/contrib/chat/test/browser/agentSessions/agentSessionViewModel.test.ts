@@ -1296,6 +1296,39 @@ suite('AgentSessions', () => {
 			});
 		});
 
+		test('tells its consumers as the selected worktree folder comes to apply or no longer does, as its sessions arrive or go', () => {
+			const filterMenuId = new MenuId('agentSessionsWorktreeFilterEffectiveTest');
+			const inFolder = (name: string, path: string) => createSession({ resource: URI.parse(`test://${name}`), metadata: { workingDirectoryPath: path } });
+			const main = inFolder('main', '/work/vscode');
+			const first = inFolder('first', '/work/vscode.worktrees/first');
+			const second = inFolder('second', '/work/vscode.worktrees/second');
+			// A folder selected before, whose sessions are not there yet, as at startup
+			instantiationService.get(IStorageService).store('agentSessions.filterExcludes.agentsessionsviewerfiltersubmenu', JSON.stringify({ worktree: getWorktreeFilterKey(URI.file('/work/vscode.worktrees/first')) }), StorageScope.PROFILE, StorageTarget.USER);
+			modelSessions = [main, second];
+			const filter = disposables.add(instantiationService.createInstance(AgentSessionsFilter, { filterMenuId }));
+			// As the Chat view's toolbar shows the list filtered
+			const filtered: boolean[] = [];
+			disposables.add(filter.onDidChange(() => filtered.push(!filter.isDefault())));
+			const initial = !filter.isDefault();
+
+			modelSessions = [main, first, second];
+			onDidChangeModelSessions.fire();
+			const arrived = [...filtered];
+			// Another session in a known folder changes nothing it shows
+			modelSessions = [main, first, second, inFolder('another', '/work/vscode')];
+			onDidChangeModelSessions.fire();
+			const unchanged = [...filtered];
+			modelSessions = [main, second];
+			onDidChangeModelSessions.fire();
+
+			assert.deepStrictEqual({ initial, arrived, unchanged, gone: filtered }, {
+				initial: false,
+				arrived: [true],
+				unchanged: [true],
+				gone: [true, false],
+			});
+		});
+
 		test('shows all worktree folders for the hidden folders that earlier builds stored', () => {
 			const filterMenuId = new MenuId('agentSessionsWorktreeFilterLegacyTest');
 			const inFolder = (name: string, path: string) => createSession({ resource: URI.parse(`test://${name}`), metadata: { workingDirectoryPath: path } });
