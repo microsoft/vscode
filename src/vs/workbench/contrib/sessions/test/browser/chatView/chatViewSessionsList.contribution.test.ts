@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
@@ -36,7 +36,7 @@ import { extUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
-import { EditorWindowMainSessionHost } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
+import { EditorWindowMainSessionHost, EditorWindowShownChatService, IEditorWindowShownChatService } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
 import { ChatConfiguration, observeChatViewSessionsListEnabled, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, surfacesAllLocalAgentHostAgents } from '../../../../chat/common/constants.js';
 import { ChatViewSessionsGate } from '../../../browser/chatView/chatViewSessionsList.contribution.js';
 import { ILocalChatAvailabilityService } from '../../../../chat/common/localChatAvailability.js';
@@ -58,6 +58,7 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { ResolvedKeybinding } from '../../../../../../base/common/keybindings.js';
 import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { IEditorWindowSessionsRuntime } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
+import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
 
 /** How many items the context menu of a session has: the actions of the sessions list add theirs. */
 function sessionItemMenuItems(): number {
@@ -148,6 +149,7 @@ suite('ChatViewSessionsGate', () => {
 		instantiationService.stub(IEditorWindowSessionsPresenterService, upcastPartial<IEditorWindowSessionsPresenterService>({ presenter: constObservable(upcastPartial<IEditorWindowSessionsPresenter>({ openChat: async session => { opened.push(session.sessionId); } })) }));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) }));
 		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({}));
+		instantiationService.stub(IEditorWindowShownChatService, new EditorWindowShownChatService());
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
 		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ onDidChangePartVisibility: Event.None, isVisible: () => false }));
@@ -398,21 +400,23 @@ suite('ChatViewSessionsGate', () => {
 		const sessionChanged = disposables.add(new Emitter<readonly ISessionChange[]>());
 		const shownSession = observableValue<IChatViewHostShownSession | undefined>('shownSession', undefined);
 		let mainHost: EditorWindowMainSessionHost | undefined;
+		const shownChatService = new EditorWindowShownChatService();
 		createGate(true, undefined, undefined, instantiationService => {
 			instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: viewVisibility.event, isViewVisible: id => id === ChatViewId }));
 			instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
-			instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ shownSession, replaced, chatViewHosts }));
+			instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ shownSession, replaced, chatViewHosts, sessionsOnly: derived(reader => replaced.read(reader) && !chatViewHosts.read(reader)), register: () => Disposable.None }));
 			instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 				onDidChangeSessions: Event.None,
 				onDidChangeSession: sessionChanged.event,
 				getSessionForChatResource: resource => [inView, inChatPart, ...(peerKnown ? [peer] : [])].map(session => ({ session, chat: session.mainChat.get() })).find(shown => extUri.isEqual(shown.chat.resource, resource)),
 				markRead: async session => { marked.push(session.sessionId); (session.mainChat.get().isRead as ISettableObservable<boolean>).set(true, undefined); return true; },
 			}));
+			instantiationService.stub(IEditorWindowShownChatService, shownChatService);
 			const host = mainHost = instantiationService.createInstance(EditorWindowMainSessionHost);
 			instantiationService.stub(ISessionHost, host);
 		});
 		// The chat part, as its service is created, such as for the folders of the composer, binds its active tab's chat
-		disposables.add(mainHost!.bindShownChat(constObservable({ session: inChatPart, chat: inChatPart.mainChat.get() })));
+		disposables.add(shownChatService.bind(constObservable({ session: inChatPart, chat: inChatPart.mainChat.get() })));
 		const steps: Record<string, string | undefined> = {};
 		shownSession.set({ resource: inView.mainChat.get().resource, reason: 'open' }, undefined);
 		steps.inView = mainHost!.session.get()?.sessionId;
@@ -458,6 +462,7 @@ suite('ChatViewSessionsGate', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ openSession: async resource => { calls.push(`chat view ${resource.path}`); return undefined; } }));
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({}));
+		instantiationService.stub(IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({ registerReleaseParticipant: () => Disposable.None }));
 		const presenterService = disposables.add(instantiationService.createInstance(EditorWindowSessionsPresenterService));
 		instantiationService.stub(IEditorWindowSessionsPresenterService, presenterService);
 		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({}));

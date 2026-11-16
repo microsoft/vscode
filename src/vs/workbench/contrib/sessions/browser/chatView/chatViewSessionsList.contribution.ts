@@ -19,7 +19,6 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../../chat/browser/agentSessions/agentSessions.js';
 import { HideAgentSessionsSidebar, ShowAgentSessionsSidebar } from '../../../chat/browser/agentSessions/agentSessionsActions.js';
@@ -31,7 +30,7 @@ import { ChatConfiguration, observeChatViewSessionsListEnabled } from '../../../
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { registerAgentsViewNewSessionActions } from '../agentsView/agentsChatPartActions.js';
 import { ChatViewSessionsListProvider } from '../agentsView/chatViewSessionsList.js';
-import { EditorWindowMainSessionHost } from '../agentsView/editorWindowMainSessionHost.js';
+import { IEditorWindowShownChatService } from '../agentsView/editorWindowMainSessionHost.js';
 import { registerEditorWindowSessionsList } from '../agentsView/editorWindowSessionsList.js';
 import { registerSessionsListAccessibilityHelp } from '../views/sessionsListActions.js';
 import { ChatViewSessionsListAccessibilityHelp } from './chatViewSessionsListAccessibilityHelp.js';
@@ -125,10 +124,11 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 	 * of the sessions list, are of it. It is marked read while the Chat view shows it.
 	 */
 	private showChatViewChat(accessor: ServicesAccessor, sessionsOnly: IObservable<boolean>, store: DisposableStore): void {
-		const sessionHost = accessor.get(ISessionHost);
-		if (!(sessionHost instanceof EditorWindowMainSessionHost)) {
+		// The Agents window shows the chats of its own session host
+		if (accessor.get(IWorkbenchEnvironmentService).isSessionsWindow) {
 			return;
 		}
+		const shownChatService = accessor.get(IEditorWindowShownChatService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const chatViewHostService = accessor.get(IChatViewHostService);
 		const viewsService = accessor.get(IViewsService);
@@ -144,7 +144,7 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 		});
 		store.add(autorun(reader => {
 			if (!sessionsOnly.read(reader)) {
-				reader.store.add(sessionHost.overrideShownChat(shown));
+				reader.store.add(shownChatService.bind(shown, { override: true }));
 			}
 		}));
 
