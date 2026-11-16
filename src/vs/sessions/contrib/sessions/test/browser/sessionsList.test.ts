@@ -6211,10 +6211,12 @@ suite('Sessions - SessionsList', () => {
 			restoredList.setItemCollapsed({ section: SessionInboxSection.ReadyForYou }, true);
 			harness.managementService.sessions = [];
 			restoredList.refresh();
-			assert.deepStrictEqual({ initial, keyboardCollapsed, updated, returned, restored, clicked, empty: {
-				...snapshot(restoredList),
-				message: restoredList.element.querySelector('.session-placeholder')?.textContent,
-			} }, {
+			assert.deepStrictEqual({
+				initial, keyboardCollapsed, updated, returned, restored, clicked, empty: {
+					...snapshot(restoredList),
+					message: restoredList.element.querySelector('.session-placeholder')?.textContent,
+				}
+			}, {
 				initial: { expanded: 'true', sessions: ['ready'] },
 				keyboardCollapsed: { expanded: 'false', sessions: [] },
 				updated: { expanded: 'false', sessions: [] },
