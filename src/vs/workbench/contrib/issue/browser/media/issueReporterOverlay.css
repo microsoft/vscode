@@ -50,12 +50,48 @@
 	gap: var(--vscode-spacing-size120);
 }
 
+/* The heading of the attachments, and how to capture and edit screenshots */
+.issue-reporter-wizard .wizard-attachments-header {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+}
+
 .issue-reporter-wizard .wizard-attachments > .monaco-button {
 	width: auto;
 }
 
-.issue-reporter-wizard .wizard-attachments > .wizard-heading {
-	font-size: var(--vscode-fontSize-heading3);
+/* The target and category, which the simple layout hides until they need attention. */
+.issue-reporter-wizard .wizard-classification {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+}
+
+.issue-reporter-wizard .wizard-classification[hidden] {
+	display: none;
+}
+
+.issue-reporter-wizard .wizard-simple-diagnostics {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.issue-reporter-wizard .wizard-simple-diagnostics .wizard-simple-diagnostics-checkbox {
+	margin: 0;
+	flex-shrink: 0;
+}
+
+.issue-reporter-wizard .wizard-simple-diagnostics-label {
+	font-size: var(--vscode-fontSize-body1);
+	color: var(--vscode-foreground);
+	cursor: pointer;
+}
+
+/* Outside the target field, the destination line takes its own place in the flow. */
+.issue-reporter-wizard .wizard-simple-destination .wizard-target-status {
+	position: static;
 }
 
 .issue-reporter-wizard .wizard-actions {
@@ -318,7 +354,6 @@
 }
 
 .issue-reporter-wizard .wizard-shortcut-hint {
-	margin-top: 4px;
 	display: inline-flex;
 	flex-wrap: wrap;
 	align-items: center;
@@ -330,6 +365,18 @@
 	vertical-align: middle;
 }
 
+/* The description's label, followed by its Write and Preview tabs */
+.issue-reporter-wizard .wizard-description-label-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.issue-reporter-wizard .wizard-description-label-row .wizard-field-label {
+	margin: 0;
+}
+
 .issue-reporter-wizard .wizard-description-tabs {
 	display: flex;
 	gap: var(--vscode-spacing-size40);
@@ -338,6 +385,9 @@
 .issue-reporter-wizard .wizard-description-tabs .monaco-button {
 	position: relative;
 	width: auto;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
+	font-size: var(--vscode-fontSize-label2);
+	line-height: 1.4;
 }
 
 .issue-reporter-wizard .wizard-description-tabs [aria-selected="true"] {
@@ -347,7 +397,7 @@
 .issue-reporter-wizard .wizard-description-tabs [aria-selected="true"]::after {
 	content: '';
 	position: absolute;
-	inset-inline: var(--vscode-spacing-size80);
+	inset-inline: var(--vscode-spacing-size60);
 	bottom: var(--vscode-spacing-size20);
 	height: var(--vscode-strokeThickness);
 	background-color: var(--vscode-panelTitle-activeBorder);
@@ -357,7 +407,6 @@
 .issue-reporter-wizard .wizard-description-editor,
 .issue-reporter-wizard .wizard-description-preview {
 	min-width: 0;
-	min-height: 160px;
 	background: var(--vscode-editor-background);
 	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-contrastBorder, transparent));
 	border-radius: var(--vscode-cornerRadius-small);
@@ -370,16 +419,19 @@
 .issue-reporter-wizard .wizard-description-input,
 .issue-reporter-wizard .wizard-description-preview {
 	box-sizing: border-box;
+	/* At least two lines, which fit the placeholder in a wide window */
+	min-height: calc(2lh + 2 * var(--vscode-spacing-size160));
 	padding: var(--vscode-spacing-size160);
 	font: inherit;
 	line-height: 1.5;
 	overflow-wrap: anywhere;
 }
 
+/* Fits its text, or its placeholder while it is empty, and scrolls beyond the maximum height. */
 .issue-reporter-wizard .wizard-description-input {
 	display: block;
 	width: 100%;
-	min-height: 160px;
+	field-sizing: content;
 	max-height: 400px;
 	resize: vertical;
 	border: 0;
@@ -390,6 +442,11 @@
 
 .issue-reporter-wizard .wizard-description-input:focus {
 	outline: none;
+}
+
+.issue-reporter-wizard .wizard-description-input::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+	opacity: 1;
 }
 
 .issue-reporter-wizard .wizard-description-preview pre {
@@ -706,6 +763,25 @@ label/control gap, so the buttons must not add their own margin. */
 	margin-top: 0;
 }
 
+/* A heading followed by a "?" that explains its section on hover. */
+.issue-reporter-wizard .wizard-field-label.wizard-field-label-with-help {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.issue-reporter-wizard .wizard-help-icon {
+	display: inline-flex;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+	font-weight: var(--vscode-fontWeight-regular);
+	cursor: default;
+}
+
+.issue-reporter-wizard .wizard-help-icon:hover {
+	color: var(--vscode-foreground);
+}
+
 .issue-reporter-wizard .wizard-field .monaco-inputbox.invalid-input,
 .issue-reporter-wizard .wizard-field .monaco-inputbox.invalid-input > .ibwrapper,
 .issue-reporter-wizard .wizard-field .monaco-inputbox.invalid-input > .ibwrapper > .input,
@@ -826,13 +902,10 @@ extension field is hidden (no fixed-width placeholder needed). */
 	cursor: default;
 }
 
-/* Description guidance text */
+/* A guide that the description's placeholder cannot link to */
 .issue-reporter-wizard .wizard-description-guidance {
 	margin-top: 0;
 	margin-bottom: 4px;
-	font-style: italic;
-	min-height: 1.4em;
-	white-space: pre-line;
 }
 
 .issue-reporter-wizard .wizard-md-hint {
@@ -1211,9 +1284,6 @@ extension field is hidden (no fixed-width placeholder needed). */
 	text-decoration: underline;
 }
 
-.issue-reporter-wizard .wizard-description-guidance.wizard-description-guidance-with-link {
-	white-space: normal;
-}
 .issue-reporter-wizard .wizard-description-guidance-link {
 	color: var(--vscode-textLink-foreground, #3794ff);
 	text-decoration: underline;

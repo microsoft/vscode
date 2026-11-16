@@ -43,7 +43,7 @@ import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { CODEX_SESSION_MODEL_META_KEY, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { toAgentPermissionResponseMeta } from '../../common/meta/agentPermissionResponseMeta.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
+import { CompletionItemKind, ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
 import { ChatInteractivity, ResourceChangeType, ResponsePartKind, SessionLifecycle } from '../../common/state/protocol/state.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
@@ -455,6 +455,38 @@ suite('AgentHostProtocolClient', () => {
 			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], _meta: meta },
 		});
 		await connectPromise;
+	}
+
+	for (const nativeHost of [true, false]) {
+		test(`normalizes legacy skill completions only for VS Code hosts (native=${nativeHost})`, async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, nativeHost ? { 'vscode.agentHost': true } : {});
+			const legacy = {
+				insertText: '/review ', rangeStart: 0, rangeEnd: 1,
+				attachment: {
+					type: MessageAttachmentKind.Simple, label: '/review',
+					_meta: { uri: 'file:///skills/review/SKILL.md', argumentHint: 'Files', description: 'Review changes' },
+				},
+			};
+			const resource = {
+				insertText: '/current ',
+				attachment: {
+					type: MessageAttachmentKind.Resource, label: '/current', displayKind: 'skill', uri: 'custom-skill:/current',
+					_meta: { uri: 'file:///not-the-resource/SKILL.md' },
+				},
+			};
+			const sent = Event.toPromise(Event.filter(transport.onDidSend, () => transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'completions')));
+			const completion = client.completions({ kind: CompletionItemKind.UserMessage, channel: 'custom-session:/session', text: '/', offset: 1 });
+			await sent;
+			const request = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { id: true, method: true }) && message.method === 'completions')!;
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { items: [legacy, resource] } });
+			assert.deepStrictEqual(await completion, {
+				items: [nativeHost ? {
+					...legacy,
+					attachment: { ...legacy.attachment, type: MessageAttachmentKind.Resource, displayKind: 'skill', uri: legacy.attachment._meta.uri },
+				} : legacy, resource],
+			});
+		});
 	}
 
 	test('artifact integration capability is independent of timing and session import', async () => {
@@ -1001,7 +1033,7 @@ suite('AgentHostProtocolClient', () => {
 		const channel = 'session-store://tenant/sessions/windowed?generation%3D2';
 		const flowControl = {
 			clientReceive: agentHostStateReceiveLimits,
-			hostReceive: { windowBytes: 64 * 1024, maximumFrameBytes: 1024 },
+			hostReceive: { windowBytes: 64 * 1024, maxFrameBytes: 1024 },
 		};
 		const state: SessionState = {
 			provider: 'other-agent', title: 'Initial', status: SessionStatus.Idle,
@@ -1037,6 +1069,23 @@ suite('AgentHostProtocolClient', () => {
 				],
 				snapshots: [{ resource: channel, state, fromSeq: 5 }, { resource: ROOT_STATE_URI, state: { agents: [] }, fromSeq: 6 }],
 				dispatch: { jsonrpc: '2.0', method: 'dispatchAction', params: { channel, clientSeq: 1, action: { type: ActionType.SessionTitleChanged, title: 'Ordinary' } } },
+			});
+		});
+
+		test('offers both frame-limit spellings to a pre-sync host and accepts its legacy-only limits', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const pending = client.subscribe(URI.parse(channel));
+			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireWireMessage({
+				jsonrpc: '2.0', id: request.id,
+				result: JSON.parse('{"flowControl":{"clientReceive":{"windowBytes":1048576,"maximumFrameBytes":16777216},"hostReceive":{"windowBytes":65536,"maximumFrameBytes":1024}}}'),
+			});
+			const snapshot = { resource: channel, state, fromSeq: 5 };
+			transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot } });
+			assert.deepStrictEqual({ offered: request.params, snapshot: await pending }, {
+				offered: { channel, flowControl: { receive: { windowBytes: 1048576, maxFrameBytes: 16777216, maximumFrameBytes: 16777216 } } },
+				snapshot,
 			});
 		});
 
@@ -1232,7 +1281,7 @@ suite('AgentHostProtocolClient', () => {
 			});
 		}
 
-		for (const limit of ['windowBytes', 'maximumFrameBytes'] as const) {
+		for (const limit of ['windowBytes', 'maxFrameBytes'] as const) {
 			test(`rejects a host that increases the offered ${limit}`, async () => {
 				const { client, transport } = createClient();
 				await connectClient(client, transport);
@@ -2083,12 +2132,13 @@ suite('AgentHostProtocolClient', () => {
 				const listing = client.listSessions();
 				const sent = transport.sentMessages[0] as JsonRpcRequest;
 				const directorySets = [undefined, [], ['file:///workspace'], ['file:///workspace', 'file:///second']];
+				const annotations = { resource: 'ahp-annotations://another-host/reviews?scope=one', annotationCount: 2, entryCount: 3 };
 				transport.fireMessage({
 					jsonrpc: '2.0', id: sent.id, result: {
 						items: directorySets.map((workingDirectories, index) => ({
 							resource: `session-store://tenant/session-${index}`, provider: 'other-agent', title: 'Session',
 							status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
-							workingDirectories, project: { uri: 'file:///workspace', displayName: 'Workspace' },
+							workingDirectories, project: { uri: 'file:///workspace', displayName: 'Workspace' }, annotations,
 						})),
 					}
 				});
@@ -2100,11 +2150,12 @@ suite('AgentHostProtocolClient', () => {
 					workingDirectory: session.workingDirectory?.toString(),
 					workingDirectories: session.workingDirectories?.map(uri => uri.toString()),
 					project: session.project?.uri.toString(),
+					annotations: session.annotations,
 				})), [
-					{ workingDirectory: undefined, workingDirectories: undefined, project: workspace },
-					{ workingDirectory: undefined, workingDirectories: [], project: workspace },
-					{ workingDirectory: workspace, workingDirectories: [workspace], project: workspace },
-					{ workingDirectory: workspace, workingDirectories: [workspace, secondDirectory], project: workspace },
+					{ workingDirectory: undefined, workingDirectories: undefined, project: workspace, annotations },
+					{ workingDirectory: undefined, workingDirectories: [], project: workspace, annotations },
+					{ workingDirectory: workspace, workingDirectories: [workspace], project: workspace, annotations },
+					{ workingDirectory: workspace, workingDirectories: [workspace, secondDirectory], project: workspace, annotations },
 				]);
 			});
 		}
@@ -3172,7 +3223,7 @@ suite('AgentHostProtocolClient', () => {
 				snapshot: {
 					resource: resource.toString(), state: {
 						instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview',
-						url: 'https://example.test/preview',
+						uri: 'https://example.test/preview',
 					}, fromSeq: 1
 				}
 			},
@@ -3180,7 +3231,7 @@ suite('AgentHostProtocolClient', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ params: request.params, state: reference.object.value }, {
 			params: { channel: resource.toString(), flowControl: { receive: agentHostStateReceiveLimits } },
-			state: { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', url: 'https://example.test/preview' },
+			state: { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', uri: 'https://example.test/preview' },
 		});
 	});
 
@@ -8736,7 +8787,7 @@ suite('AgentHostProtocolClient', () => {
 
 		suite('windowed state recovery', () => {
 			const channel = 'session-store://tenant/sessions/windowed?generation%3D2';
-			const flowControl = { clientReceive: agentHostStateReceiveLimits, hostReceive: { windowBytes: 64 * 1024, maximumFrameBytes: 1024 } };
+			const flowControl = { clientReceive: agentHostStateReceiveLimits, hostReceive: { windowBytes: 64 * 1024, maxFrameBytes: 1024 } };
 			const window = { channel, flowControl, recovery: 'snapshot' };
 			const offer = { channel, flowControl: { receive: agentHostStateReceiveLimits } };
 			const state: SessionState = {
@@ -8787,6 +8838,29 @@ suite('AgentHostProtocolClient', () => {
 					});
 				});
 			}
+
+			test('reconnect sends both frame limits and accepts legacy-only window recovery', async () => {
+				const { client, transports, subscription } = await fixture();
+				const { transport, request } = await beginRecovery(client, transports);
+				transport.fireWireMessage({
+					jsonrpc: '2.0', id: request.id,
+					result: {
+						type: ReconnectResultType.Replay, actions: [], missing: [],
+						windows: {
+							items: [{
+								channel, recovery: 'snapshot',
+								flowControl: JSON.parse('{"clientReceive":{"windowBytes":1048576,"maximumFrameBytes":16777216},"hostReceive":{"windowBytes":65536,"maximumFrameBytes":1024}}'),
+							}]
+						},
+					},
+				});
+				transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state: { ...state, title: 'Legacy recovery' }, fromSeq: 8 } } });
+				await waitForConnectedWithin(client);
+				assert.deepStrictEqual({ offered: (request.params as { windows?: unknown }).windows, title: subscription.object.verifiedValue?.title }, {
+					offered: { items: [{ channel, flowControl: { receive: { windowBytes: 1048576, maxFrameBytes: 16777216, maximumFrameBytes: 16777216 } } }] },
+					title: 'Legacy recovery',
+				});
+			});
 
 			test('does not resend an optimistic action whose echo was missed before windowed snapshot recovery', async () => {
 				const { client, transports, subscription } = await fixture();

@@ -3835,19 +3835,26 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Move focus to the search input so keyboard users can immediately
 		// filter without extra Tab traversal (parity with mouse-click flow).
 		if (!options?.preserveFocus) {
-			if (section === AICustomizationManagementSection.McpServers) {
-				this.mcpListWidget?.focusSearch();
-			} else if (section === AICustomizationManagementSection.Plugins) {
-				this.pluginListWidget?.focusSearch();
-			} else if (section === AICustomizationManagementSection.Models) {
-				this.modelsWidget?.focusSearch();
-			} else if (section === AICustomizationManagementSection.Tools) {
-				this.toolsListWidget?.focusSearch();
-			} else if (this.contributedSectionContainers.has(section)) {
-				this.ensureContributedSectionWidget(section)?.focus?.();
-			} else {
-				this.listWidget?.focusSearch();
-			}
+			this.focusSectionContent(section);
+		}
+	}
+
+	/**
+	 * Moves focus to the search input of the given section, or into its widget for contributed sections.
+	 */
+	private focusSectionContent(section: AICustomizationManagementSection): void {
+		if (section === AICustomizationManagementSection.McpServers) {
+			this.mcpListWidget?.focusSearch();
+		} else if (section === AICustomizationManagementSection.Plugins) {
+			this.pluginListWidget?.focusSearch();
+		} else if (section === AICustomizationManagementSection.Models) {
+			this.modelsWidget?.focusSearch();
+		} else if (section === AICustomizationManagementSection.Tools) {
+			this.toolsListWidget?.focusSearch();
+		} else if (this.contributedSectionContainers.has(section)) {
+			this.ensureContributedSectionWidget(section)?.focus?.();
+		} else {
+			this.listWidget?.focusSearch();
 		}
 	}
 
@@ -4299,19 +4306,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.welcomePage?.focus();
 			return;
 		}
-		if (this.selectedSection === AICustomizationManagementSection.McpServers) {
-			this.mcpListWidget?.focusSearch();
-		} else if (this.selectedSection === AICustomizationManagementSection.Plugins) {
-			this.pluginListWidget?.focusSearch();
-		} else if (this.selectedSection === AICustomizationManagementSection.Models) {
-			this.modelsWidget?.focusSearch();
-		} else if (this.selectedSection === AICustomizationManagementSection.Tools) {
-			this.toolsListWidget?.focusSearch();
-		} else if (this.selectedSection && this.contributedSectionContainers.has(this.selectedSection)) {
-			this.ensureContributedSectionWidget(this.selectedSection)?.focus?.();
-		} else {
-			this.listWidget?.focusSearch();
-		}
+		this.focusSectionContent(this.selectedSection);
 	}
 
 	/**
@@ -4385,22 +4380,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 			// to handle the case where the editor just opened with a persisted section that
 			// matches the requested one (content might not be loaded yet).
 			if (this.viewMode === 'marketplaceDetail') {
-				this.goBackFromMarketplaceDetail();
+				this.goBackFromMarketplaceDetail(options?.preserveFocus);
 			}
 			if (this.viewMode === 'editor') {
-				this.goBackToList();
+				this.goBackToList(options?.preserveFocus);
 			}
 			if (this.viewMode === 'migration') {
 				this.viewMode = 'list';
 			}
 			if (this.viewMode === 'mcpDetail') {
-				this.goBackFromMcpDetail();
+				this.goBackFromMcpDetail(options?.preserveFocus);
 			}
 			if (this.viewMode === 'connectorDetail') {
-				this.goBackFromConnectorDetail();
+				this.goBackFromConnectorDetail(options?.preserveFocus);
 			}
 			if (this.viewMode === 'pluginDetail') {
-				this.goBackFromPluginDetail();
+				this.goBackFromPluginDetail(options?.preserveFocus);
 			}
 			this.selectedSection = sectionId;
 			this.sectionContextKey.set(sectionId);
@@ -4421,6 +4416,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 				if (sectionId === AICustomizationManagementSection.Plugins) {
 					this.pluginListWidget?.showBrowseMarketplace();
 				}
+			}
+
+			// Showing the section hides whatever had focus before (such as the welcome
+			// page search), so move focus into the section to keep the modal's Escape
+			// handling, Tab order, and screen reader context.
+			if (!options?.preserveFocus) {
+				this.focusSectionContent(sectionId);
 			}
 			return true;
 		}

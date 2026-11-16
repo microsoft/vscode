@@ -25,11 +25,12 @@ import { ApiRequestError, MutationUncertainError } from '../../../github/common/
 import { isPullRequestFeedbackAuthor } from '../../../github/common/pullRequestFeedback.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { getCapturedCredentialSourceKey, IAgentHostCredentialSource, isAuthRequiredError } from '../../common/agentHostCredentials.js';
 import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
 import { getPullRequestRepairActivityLabel } from '../../common/systemTurnActivity.js';
 import { getPullRequestArtifactChecks, getPullRequestArtifactCheckState, getPullRequestArtifactFailedChecks, getPullRequestArtifactMissingRequiredChecks, getPullRequestArtifactThreads, GitHubPullRequestArtifactTarget, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactOptions, gitHubPullRequestArtifactWorkspaceSettingsKey, isArtifactDataObject, isCurrentPullRequestFragment, isPullRequestArtifactMergeable, isPullRequestArtifactReadyForReview, parseGitHubPullRequestArtifact, readGitHubPullRequestArtifactWorkspaceSettings } from '../../common/githubPullRequestArtifact.js';
-import { AuthRequiredReason } from '../../common/state/sessionActions.js';
+import { ActionType, AuthRequiredReason } from '../../common/state/sessionActions.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostGitHubService } from '../agentHostGitHubService.js';
@@ -43,6 +44,8 @@ const resolvedThreadReadLag = 30_000;
 const reviewThreadIcon: ArtifactIcon = { id: 'comment-discussion', colorId: 'editorWarning.foreground' };
 const checkStateOrder = { pending: 0, failed: 1, skipped: 2, passed: 3 };
 const automationPollInterval = 60_000;
+/** How long a checkout probe stands when no Git state refresh reports a change, for a chat whose folder nobody watches. */
+const workspaceProbeMaxAge = 30_000;
 const unchangedRepairCooldown = 10 * 60_000;
 const undispatchedRetryDelay = 30_000;
 
@@ -226,6 +229,7 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 		@IAgentHostArtifactEventService private readonly events: AgentHostArtifactEventService,
 		@ILogService private readonly logService: ILogService,
 		@IAgentHostGitHubEndpointService private readonly endpoint: IAgentHostGitHubEndpointService,
+		@IAgentHostGitStateService private readonly gitState: IAgentHostGitStateService,
 	) {
 		this.onDidChange = github.onDidChangeRepositoryClient;
 	}
@@ -330,7 +334,7 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 	}
 
 	createBinding(resource: GitHubPullRequestArtifactResource, context: IArtifactBindingContext): IArtifactIntegrationBinding {
-		return new GitHubPullRequestArtifactBinding(resource, context, resource.client, this.git, this.stateManager, this.configuration, this.events, this.logService);
+		return new GitHubPullRequestArtifactBinding(resource, context, resource.client, this.git, this.stateManager, this.configuration, this.events, this.logService, this.gitState);
 	}
 }
 
@@ -385,6 +389,12 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	readonly actions: readonly ArtifactAction[];
 	private readonly workspaces = observableValueOpts<Readonly<Record<string, WorkspaceState>>>({ owner: this, equalsFn: structuralEquals }, {});
 	private workspaceRevision = 0;
+	/** What the last conclusive checkout probe was based on and when; the same inputs give the same answer until the checkout changes, which a Git state refresh reports. */
+	private lastWorkspaceProbe: string | undefined;
+	private lastWorkspaceProbeAt = 0;
+	/** Counts the announced Git state refreshes and the turn ends of the session, so that a probe that started before one is not taken for current. */
+	private gitRefreshGeneration = 0;
+	private probingWorkspace: string | undefined;
 	private readonly automationError = observableValue<string | undefined>(this, undefined);
 	/** Threads resolved from their details row, by resolution time, hidden until GitHub's thread list reflects it. */
 	private readonly resolvedThreads = observableValue<ReadonlyMap<string, number>>(this, new Map());
@@ -404,14 +414,21 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		private readonly configuration: IAgentConfigurationService,
 		events: AgentHostArtifactEventService,
 		private readonly logService: ILogService,
+		gitState: IAgentHostGitStateService,
 	) {
 		super();
+		const sessionGitRefreshes = Event.filter(gitState.onDidRefreshSessionGitState, key => key === context.session || stateManager.getChatOwner(key) === context.session);
+		// An agent may have changed a checkout nobody watches during its turn.
+		const sessionTurnEnds = Event.filter(stateManager.onDidEmitEnvelope, envelope => envelope.action.type === ActionType.ChatTurnComplete && stateManager.getChatOwner(envelope.channel) === context.session);
 		this.hostChanges = observableSignalFromEvent(this, Event.any<unknown>(
 			Event.filter(events.onDidChange, event => event.channel === context.session || stateManager.getChatOwner(event.channel) === context.session),
+			sessionGitRefreshes,
+			sessionTurnEnds,
 			configuration.onDidRootConfigChange,
 			Event.filter(configuration.onDidSessionConfigChange, event => event.session === context.session),
 		));
 		const refreshWorkspace = this._register(new RunOnceScheduler(() => { void this.refreshWorkspaces(); }, 50));
+		this._register(Event.any<unknown>(sessionGitRefreshes, sessionTurnEnds)(() => { this.gitRefreshGeneration++; }));
 		this._register(autorun(reader => this.pruneResolvedThreads(resource.snapshot.read(reader).reviewThreads)));
 		this._register(autorun(reader => {
 			resource.snapshot.read(reader);
@@ -419,8 +436,8 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			refreshWorkspace.schedule();
 		}));
 		this.actions = [
-			this.promptAction('fixCI', 'github-action', localize('prArtifact.fixCI', "Fix Checks")),
-			this.promptAction('addressReviews', 'comment-discussion', localize('prArtifact.addressReviews', "Address Comments")),
+			this.promptAction('fixCI', 'lightbulb', localize('prArtifact.fixCI', "Fix Checks")),
+			this.promptAction('addressReviews', 'comment', localize('prArtifact.addressReviews', "Address Comments")),
 			this.promptAction('resolveConflicts', 'git-compare', localize('prArtifact.updateBranch', "Resolve Conflicts / Update Branch")),
 			this.codeAction('markReady', 'git-pull-request', localize('prArtifact.markReady', "Mark Ready")),
 			this.codeAction('merge', 'git-merge', localize('prArtifact.merge', "Merge")),
@@ -833,25 +850,45 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 
 	/** Verifies the recording chat's checkout, which merging only unchanged pull requests requires to stay clean. */
 	private async refreshWorkspaces(): Promise<void> {
-		const revision = ++this.workspaceRevision;
 		const core = this.resource.snapshot.get().core.value;
 		const chat = this.context.artifact.origin?.chat ?? this.stateManager.getSessionState(this.context.session)?.defaultChat;
 		if (!core || core.state !== 'open' || !chat) {
+			this.workspaceRevision++;
+			this.lastWorkspaceProbe = undefined;
+			// The pending probe is superseded and can no longer clear its own marker.
+			this.probingWorkspace = undefined;
 			this.workspaces.set({}, undefined);
 			return;
 		}
+		const directories = this.configuration.getEffectiveWorkingDirectories(chat);
+		const probe = JSON.stringify([chat, directories, core.headRef, core.headSha, core.repositoryNameWithOwner, core.headRepositoryNameWithOwner, this.gitRefreshGeneration]);
+		if ((probe === this.lastWorkspaceProbe && Date.now() - this.lastWorkspaceProbeAt < workspaceProbeMaxAge) || probe === this.probingWorkspace) {
+			return;
+		}
+		const revision = ++this.workspaceRevision;
+		this.lastWorkspaceProbe = undefined;
+		this.probingWorkspace = probe;
+		let conclusive = false;
 		const workspaces: Record<string, WorkspaceState> = {};
 		try {
 			const checkout = await this.checkout(chat, core);
 			workspaces[chat] = checkout ? { kind: 'ready', checkout } : { kind: 'missing' };
+			conclusive = true;
 		} catch (error) {
 			this.logService.warn('[GitHubPullRequestArtifact] Could not verify chat checkout', error);
 			workspaces[chat] = { kind: 'unavailable', reason: toErrorMessage(error) };
+		}
+		if (revision === this.workspaceRevision) {
+			this.probingWorkspace = undefined;
 		}
 		const currentCore = this.resource.snapshot.get().core.value;
 		if (!this._store.isDisposed && revision === this.workspaceRevision && currentCore?.state === 'open' && currentCore.headSha === core.headSha) {
 			this.workspaces.set(workspaces, undefined);
 			this.automationError.set(undefined, undefined);
+			if (conclusive) {
+				this.lastWorkspaceProbe = probe;
+				this.lastWorkspaceProbeAt = Date.now();
+			}
 		}
 	}
 
@@ -1261,7 +1298,7 @@ function checkIcon(state: ReturnType<typeof checkPresentationState>): ArtifactIc
 	return state === 'passed' ? { id: 'pass-filled-compact', colorId: 'charts.green' }
 		: state === 'failed' ? { id: 'error-compact', colorId: 'errorForeground' }
 			: state === 'skipped' ? { id: 'skip', colorId: 'descriptionForeground' }
-				: { id: 'sync-compact', colorId: 'editorWarning.foreground' };
+				: { id: 'circle-filled-compact', colorId: 'editorWarning.foreground' };
 }
 
 type PullRequestDisplayState = 'open' | 'draft' | 'merged' | 'closed';

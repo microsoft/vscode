@@ -12,6 +12,7 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { toAction } from '../../../../../../base/common/actions.js';
 import Severity from '../../../../../../base/common/severity.js';
 import { IRemoteAgentHostService, IRemoteAgentHostSSHConnection, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
@@ -514,6 +515,7 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 	const configurationService = accessor.get(IConfigurationService);
 	const sshService = accessor.get(ISSHRemoteAgentHostService);
 	const editorService = accessor.get(IEditorService);
+	const remoteSharing = accessor.get(IRemoteGitHubEnvironmentSharingService);
 	// IRemoteAgentHostLocationPreferenceService is only registered on
 	// desktop (see sessions.desktop.main.ts) - the web tunnel service does
 	// not honor a preference at all, so avoid resolving an unregistered
@@ -572,7 +574,9 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 			if (result.id === 'reconnect') {
 				await reconnectRemoteHost(provider, remoteAgentHostService);
 			} else if (result.id === 'disconnect') {
-				await provider.disconnect?.();
+				if (await remoteSharing.confirmDisconnect(address, provider.label)) {
+					await provider.disconnect?.();
+				}
 			} else {
 				await removeRemoteHost(provider, remoteAgentHostService, configurationService);
 			}

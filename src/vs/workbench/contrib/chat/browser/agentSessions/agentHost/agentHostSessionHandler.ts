@@ -27,7 +27,7 @@ import { AgentHostSteeringMessageHandoff } from './agentHostSteeringMessageHando
 import { MicrotaskDelay } from '../../../../../../base/common/symbols.js';
 import { Mutable } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { generateUuid, isUUID } from '../../../../../../base/common/uuid.js';
 import { getOlderHostSubagentChatUri } from '../../../../../../platform/agentHost/browser/agentHostOlderHostCompatibility.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
@@ -60,9 +60,10 @@ import { readToolCallMeta, readAgentToolOutputDelta } from '../../../../../../pl
 import { readMcpRoutingServers, readMcpServerConnectorName } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { filterSessionConfigValues } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { readAttachmentDetail, withAttachmentDetail } from '../../../../../../platform/agentHost/common/meta/attachmentMeta.js';
+import { withHumanChatInputResponse } from '../../../../../../platform/agentHost/common/meta/agentChatInputResponseMeta.js';
 import { AgentPermissionDecisionSource, readAgentPermissionResponseMeta, toAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
 import { readArtifactIntegrationRequest } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactIntegrationMeta.js';
-import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
+import { getCompletionDescription, readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
 import { readSlashCommandResource, type ISlashCommandResource } from '../../../../../../platform/agentHost/common/meta/agentSlashCommandOutputMeta.js';
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostClientConnectionKind, agentHostClientConnectionKindValidator } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
@@ -72,6 +73,7 @@ import { resolveAgentHostSessionTrustFolders } from '../../../../../../platform/
 import { CLIENT_SEMANTIC_SEARCH_TOOL_ID, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
 import { readAgentPlanReview, type IAgentPlanReview } from '../../../../../../platform/agentHost/common/meta/agentPlanReview.js';
+import { readShellAuthentication, type IShellAuthenticationPrompt } from '../../../../../../platform/agentHost/common/meta/agentShellAuthenticationMeta.js';
 import type { IComputerUseActivationCard } from '../../../../../../platform/agentHost/common/computerUse.js';
 import { getComputerUseActivationAnswers, isComputerUseActivationAccepted, readComputerUseActivationCard, readComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -79,7 +81,7 @@ import { ChatTruncatedAction } from '../../../../../../platform/agentHost/common
 import { CompletionItemKind as AhpCompletionItemKind, ContentEncoding, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { BackgroundWorkKind, ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, SessionLifecycle, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient, type SessionInputRequest, type SessionToolClientExecutionRequest, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { compareProtocolVersions } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
-import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, ChatTurnStartedAction, isChatAction, type ChatInputCompletedAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AuthenticateTargetKind, AhpErrorCodes, AHP_AUTH_REQUIRED, AHP_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChangesetStatus, ChatOriginKind, getSessionChatResource, getErrorResponsePart, getInlineToolInput, getTurnError, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, mergeSessionWithDefaultChat, readSessionScratchFolders, readSessionWorkspaceless, type ChatState, type ISessionFileDiff, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
@@ -175,7 +177,7 @@ import { ICopilotHomeService } from '../../../../../services/environment/common/
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, chatUsageToSessionCost, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getElicitationInputRequestPresentation, getTerminalContent, isEmptyFormInputRequest, isModelRouterPickSettled, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, reasoningPartToThinking, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, turnToResultMetadata, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, chatUsageToSessionCost, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, createInputRequestCarousel, createShellAuthenticationCarousel, getShellAuthenticationAnswer, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getElicitationInputRequestPresentation, getTerminalContent, isEmptyFormInputRequest, isModelRouterPickSettled, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, reasoningPartToThinking, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, turnToResultMetadata, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getFusionAutoModeTierLabel } from '../../../../../../platform/agentHost/common/autoModeTiers.js';
 import { getFusionTierLabel } from '../../widget/input/modelPicker/modelPickerPresentation.js';
@@ -299,6 +301,8 @@ interface IObserveTurnOptions {
 	/** Receives the final turn for structured result and error details, never markdown progress. */
 	readonly onTurnEnded?: (lastTurn: Turn | undefined) => void;
 	readonly onResponseText?: (text: string) => void;
+	/** Receives live reasoning deltas of this turn; never set for subagent or replaying observers. */
+	readonly onResponseReasoning?: (text: string) => void;
 	readonly onOpenResponseResource?: (resource: ISlashCommandResource) => void;
 	/**
 	 * When set, this turn is being observed as part of a subagent session.
@@ -1768,19 +1772,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						...(attachment._meta !== undefined && { _meta: attachment._meta }),
 					}, attachment.label !== raw.insertText ? attachment.label : undefined);
 				}
-				if (completionMeta?.kind === 'skill') {
-					return this._createCompletionItem(raw, text, {
-						kind: 'skill',
-						uri: this._config.connection.resourceUris.fromAgentHost(URI.parse(completionMeta.uri)),
-						...(completionMeta.displayName !== undefined ? { displayName: completionMeta.displayName } : {}),
-						...(completionMeta.description !== undefined ? { description: completionMeta.description } : {}),
-						...(attachment._meta !== undefined && { _meta: attachment._meta }),
-					});
-				}
 				return this._createCompletionItem(raw, text, { kind: 'text' }, attachment.label !== raw.insertText ? attachment.label : undefined);
 			}
 			case MessageAttachmentKind.Resource: {
-				const uri = this._config.connection.resourceUris.fromAgentHost(typeof attachment.uri === 'string' ? URI.parse(attachment.uri) : URI.from(attachment.uri));
+				const uri = this._config.connection.resourceUris.fromAgentHost(typeof attachment.uri === 'string' ? URI.parse(attachment.uri, attachment.displayKind === 'skill') : URI.from(attachment.uri));
+				if (attachment.displayKind === 'skill') {
+					return this._createCompletionItem(raw, text, {
+						kind: 'skill',
+						uri,
+						displayName: attachment.label.replace(/^\//, ''),
+						description: getCompletionDescription(attachment),
+						...(attachment._meta !== undefined && { _meta: attachment._meta }),
+					});
+				}
 				return this._createCompletionItem(raw, text, {
 					kind: 'resource',
 					uri,
@@ -1850,6 +1854,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let chatTitle: string | undefined;
 		let draftInputState: ISerializableChatModelInputState | undefined;
 		let draftModelId: string | undefined;
+		let draftModelConfiguration: ModelSelection['config'];
 		let sessionSubscription: IAgentSubscription<SessionState> | undefined;
 		let chatSubscription: IAgentSubscription<ChatState> | undefined;
 		const historySubagentObservations = new DisposableStore();
@@ -1899,6 +1904,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						const draft = sessionState.draft ?? emptyDraftFromLastTurn(sessionState);
 						draftInputState = this._draftToInputState(sessionResource, draft);
 						draftModelId = this._toLanguageModelId(sessionResource, draft?.model?.id);
+						draftModelConfiguration = draft?.model?.config;
 						if (!sessionState.draft && draft) {
 							this._config.connection.dispatch(chatURI, { type: ActionType.ChatDraftChanged, draft });
 						}
@@ -2072,7 +2078,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					});
 					return Promise.resolve();
 				},
-				draftInputState ? { editingSession: undefined, inputState: draftInputState, ...(draftModelId ? { selectedModelId: draftModelId } : {}) } : undefined,
+				draftInputState ? { editingSession: undefined, inputState: draftInputState, ...(draftModelId ? { selectedModelId: draftModelId, ...(draftModelConfiguration ? { selectedModelConfiguration: draftModelConfiguration } : {}) } : {}) } : undefined,
 				initialProgress?.filter(part => !isUnstartedSubagent(part)),
 				historySubagentObservations,
 				() => {
@@ -2396,7 +2402,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			};
 
 			failureStage = 'prepareTurn';
-			const completedTurn = await this._handleTurn(resolvedSession, request, measuredProgress, cancellationToken, stage => failureStage = stage, invocationKind === 'newTurn' ? text => firstResponse.observeText(text) : undefined);
+			const timesFirstResponse = invocationKind === 'newTurn';
+			const completedTurn = await this._handleTurn(resolvedSession, request, measuredProgress, cancellationToken, stage => failureStage = stage,
+				timesFirstResponse ? text => firstResponse.observeText(text) : undefined,
+				timesFirstResponse ? text => firstResponse.observeReasoning(text) : undefined);
 			this._localModels.noteCompletedTurn(request.sessionResource, completedTurn?.usage, this._isAutoModelFusion(request.sessionResource));
 			outcome = completedTurn?.state === TurnState.Error ? 'error'
 				: completedTurn?.state === TurnState.Cancelled || cancellationToken.isCancellationRequested ? 'cancelled'
@@ -3815,6 +3824,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		cancellationToken: CancellationToken,
 		onFailureStage: (stage: AgentHostInvocationFailureStage) => void,
 		onResponseText?: (text: string) => void,
+		onResponseReasoning?: (text: string) => void,
 	): Promise<Turn | undefined> {
 		if (this._isInvocationAbandoned(cancellationToken)) {
 			return;
@@ -3983,6 +3993,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					sink: progress,
 					cancellationToken,
 					onResponseText,
+					onResponseReasoning,
 					onOpenResponseResource: request.message.trimStart().startsWith('/')
 						? resource => {
 							resourceOpens.push(openResponseResource(resource).catch(error => {
@@ -4885,7 +4896,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let lastDuration = initial?.reasoningDurationMs;
 		store.add(autorun(reader => {
 			const part = part$.read(reader);
-			const progress = reasoningPartToThinking(part, part.content.substring(lastEmitted));
+			const delta = part.content.substring(lastEmitted);
+			const progress = reasoningPartToThinking(part, delta);
 			if (!part.content || (part.content.length <= lastEmitted
 				&& progress.reasoningStartedAt === lastStartedAt && progress.reasoningDurationMs === lastDuration)) {
 				return;
@@ -4893,6 +4905,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			lastEmitted = part.content.length;
 			lastStartedAt = progress.reasoningStartedAt;
 			lastDuration = progress.reasoningDurationMs;
+			opts.onResponseReasoning?.(delta);
 			opts.sink([progress]);
 		}));
 	}
@@ -5633,6 +5646,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return;
 		}
 
+		const shellAuthentication = readShellAuthentication(inputReq);
+		if (shellAuthentication) {
+			this._setupShellAuthenticationInputRequest(part$, shellAuthentication, store, opts);
+			return;
+		}
+
 		const computerUseSetup = this._config.supportsComputerUseSetup ? readComputerUseSetupCard(inputReq) : undefined;
 		if (computerUseSetup) {
 			this._setupComputerUseSetupCard(part$, computerUseSetup.setupId, store, opts);
@@ -5683,21 +5702,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (store.isDisposed || completedFromServer) {
 				return;
 			}
-			if (!result.answers) {
-				this._config.connection.dispatch(opts.chatURI, {
-					type: ActionType.ChatInputCompleted,
-					requestId: inputReq.id,
-					response: ChatInputResponseKind.Cancel,
-				});
-			} else {
-				const answers = convertCarouselAnswers(result.answers, inputReq.questions);
-				this._config.connection.dispatch(opts.chatURI, {
-					type: ActionType.ChatInputCompleted,
-					requestId: inputReq.id,
-					response: ChatInputResponseKind.Accept,
-					answers,
-				});
-			}
+			const completed: ChatInputCompletedAction = result.answers
+				? { type: ActionType.ChatInputCompleted, requestId: inputReq.id, response: ChatInputResponseKind.Accept, answers: convertCarouselAnswers(result.answers, inputReq.questions) }
+				: { type: ActionType.ChatInputCompleted, requestId: inputReq.id, response: ChatInputResponseKind.Cancel };
+			// The same completions follow cancellation, disposal, and answers submitted for the person.
+			this._config.connection.dispatch(opts.chatURI, carousel.submittedByUser ? withHumanChatInputResponse(completed) : completed);
 		});
 
 		if (opts.cancellationToken.isCancellationRequested) {
@@ -5721,6 +5730,78 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			carousel.completion.complete({ answers: undefined });
 			this._chatWidgetService.getWidgetBySessionResource(opts.sessionResource)?.input.clearQuestionCarousel(undefined, inputReq.id);
 		}));
+	}
+
+	/** Shows a shell authentication prompt from the request's `_meta` and sends the answer with `vscode/answerShellAuthentication`. */
+	private _setupShellAuthenticationInputRequest(
+		part$: IObservable<InputRequestResponsePart>,
+		prompt: IShellAuthenticationPrompt,
+		store: DisposableStore,
+		opts: IObserveTurnOptions,
+	): void {
+		const requestId = part$.get().request.id;
+		const connection = this._config.connection;
+		// Relays carry only sealed credentials, and these answers are not sealed.
+		const canAnswer = !!connection.answerShellAuthentication
+			&& connection.clientConnectionKind !== AgentHostClientConnectionKind.WebPubSub
+			&& connection.clientConnectionKind !== AgentHostClientConnectionKind.MissionControl;
+		const carousel = createShellAuthenticationCarousel(requestId, prompt, canAnswer);
+		opts.sink([carousel]);
+
+		const clearCarousel = () => this._chatWidgetService.getWidgetBySessionResource(opts.sessionResource)?.input.clearQuestionCarousel(undefined, requestId);
+		const close = (answeredExternally: boolean) => {
+			if (carousel.isUsed) {
+				return;
+			}
+			carousel.data = {};
+			carousel.isUsed = true;
+			carousel.answeredExternally = answeredExternally;
+			carousel.draftAnswers = undefined;
+			carousel.draftCurrentIndex = undefined;
+			carousel.draftCollapsed = undefined;
+			carousel.completion.complete({ answers: undefined });
+			clearCarousel();
+		};
+
+		// The host completes the request once it has the answer, or when the prompt is cancelled or ends.
+		let completedFromServer = false;
+		store.add(autorun(reader => {
+			const part = part$.read(reader);
+			if (part.response !== undefined) {
+				completedFromServer = true;
+				close(part.response === ChatInputResponseKind.Accept);
+			}
+		}));
+
+		const cancel = () => this._config.connection.dispatch(opts.chatURI, {
+			type: ActionType.ChatInputCompleted,
+			requestId,
+			response: ChatInputResponseKind.Cancel,
+		});
+		carousel.completion.p.then(async result => {
+			if (store.isDisposed || completedFromServer) {
+				return;
+			}
+			const answer = canAnswer ? getShellAuthenticationAnswer(prompt, result.answers) : undefined;
+			if (answer === undefined || !connection.answerShellAuthentication) {
+				cancel();
+				return;
+			}
+			try {
+				await connection.answerShellAuthentication(URI.parse(opts.chatURI), requestId, answer);
+			} catch (error) {
+				this._logService.warn(`[AgentHost] Failed to answer shell authentication request ${requestId}: ${error instanceof Error ? error.message : String(error)}`);
+				cancel();
+			}
+		});
+
+		if (opts.cancellationToken.isCancellationRequested) {
+			carousel.completion.complete({ answers: undefined });
+		} else {
+			const tokenListener = opts.cancellationToken.onCancellationRequested(() => carousel.completion.complete({ answers: undefined }));
+			carousel.completion.p.finally(() => tokenListener.dispose());
+		}
+		store.add(toDisposable(() => close(false)));
 	}
 
 	private _setupPlanReviewInputRequest(
@@ -5766,11 +5847,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const completion = result
 				? planReview.toInputCompletion(result)
 				: { response: ChatInputResponseKind.Cancel };
-			this._config.connection.dispatch(opts.chatURI, {
-				type: ActionType.ChatInputCompleted,
-				requestId: inputReq.id,
-				...completion,
-			});
+			const completed: ChatInputCompletedAction = { type: ActionType.ChatInputCompleted, requestId: inputReq.id, ...completion };
+			// A dismissal and a voice answer resolve the same promise without the person using the review.
+			this._config.connection.dispatch(opts.chatURI, result && review.submittedByUser ? withHumanChatInputResponse(completed) : completed);
 		});
 
 		if (opts.cancellationToken.isCancellationRequested) {
@@ -5944,18 +6023,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const url = inputReq.url;
 		let completionDispatched = false;
 		let completedFromServer = false;
-		const settle = (response: ChatInputResponseKind): ElicitationState => {
+		// `byUser` marks the person's own choice of a button; any other settlement stays unattributed.
+		const settle = (response: ChatInputResponseKind, byUser = false): ElicitationState => {
 			if (completionDispatched || completedFromServer) {
 				return part.state.get();
 			}
 			completionDispatched = true;
 			part.state.set(response === ChatInputResponseKind.Accept ? ElicitationState.Accepted : ElicitationState.Rejected, undefined);
-			this._config.connection.dispatch(opts.chatURI, {
+			const completed: ChatInputCompletedAction = {
 				type: ActionType.ChatInputCompleted,
 				requestId: inputReq.id,
 				response,
 				...(response === ChatInputResponseKind.Accept && !url ? { answers: {} } : {}),
-			});
+			};
+			this._config.connection.dispatch(opts.chatURI, byUser ? withHumanChatInputResponse(completed) : completed);
 			return part.state.get();
 		};
 
@@ -5972,11 +6053,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return part.state.get();
 				}
 				if (!url) {
-					return settle(ChatInputResponseKind.Accept);
+					return settle(ChatInputResponseKind.Accept, true);
 				}
 				try {
+					// A URL that did not open is declined for the person, who chose to open it.
 					const opened = await this._openerService.open(url, { allowCommands: false });
-					return settle(opened ? ChatInputResponseKind.Accept : ChatInputResponseKind.Decline);
+					return opened ? settle(ChatInputResponseKind.Accept, true) : settle(ChatInputResponseKind.Decline);
 				} catch {
 					return settle(ChatInputResponseKind.Decline);
 				}
@@ -5985,7 +6067,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				if (completionDispatched || completedFromServer || store.isDisposed) {
 					return part.state.get();
 				}
-				return settle(ChatInputResponseKind.Decline);
+				return settle(ChatInputResponseKind.Decline, true);
 			},
 		);
 
@@ -8457,7 +8539,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return this._toSimpleAttachment(v.name, undefined, v._meta, 'command', referenceRange);
 		}
 		if (agentHostCompletionKind === AgentHostCompletionReferenceKind.Skill) {
-			return this._toSimpleAttachment(v.name, undefined, v._meta, 'skill', referenceRange);
+			if (isUUID(v.id)) {
+				this._logService.warn('[AgentHost] Skipping a legacy skill reference without a resource URI');
+				return undefined;
+			}
+			return {
+				type: MessageAttachmentKind.Resource,
+				uri: this._config.connection.resourceUris.toAgentHost(URI.parse(v.id, true)).toString(),
+				label: v.name,
+				displayKind: 'skill',
+				...(referenceRange ? { range: referenceRange } : {}),
+				...(v._meta ? { _meta: v._meta } : {}),
+			};
 		}
 		if (isChatReferenceVariableEntry(v)) {
 			return this._toChatReferenceAttachment(v, referenceRange);

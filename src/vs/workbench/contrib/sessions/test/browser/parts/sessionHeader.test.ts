@@ -18,7 +18,7 @@ import { IAccessibilityService } from '../../../../../../platform/accessibility/
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { LocalSelectionTransfer } from '../../../../../../platform/dnd/browser/dnd.js';
-import { DraggedSessionIdentifier, getSessionChatDragData, SessionsDataTransfers } from '../../../browser/dnd.js';
+import { DraggedSessionIdentifier, getSessionChatDragData, registerSessionChatDragEndHandler, SessionsDataTransfers } from '../../../browser/dnd.js';
 import { DraggedEditorIdentifier } from '../../../../../browser/dnd.js';
 import { IEditorIdentifier } from '../../../../../common/editor.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -35,6 +35,7 @@ import { ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } 
 import { LegacyFakePaneState, testPaneContentOf } from '../sessionHostTestUtils.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { ISessionHost, isSessionHostCommandContext } from '../../../../../services/sessions/browser/sessionHost.js';
+import '../../../browser/parts/media/chatCompositeBar.css';
 
 function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: ISessionCapabilities = { supportsMultipleChats: false }, mainChatStatus = SessionStatus.Completed) {
 	const store = disposables.add(new DisposableStore());
@@ -116,6 +117,47 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 
 suite('Sessions - Headers', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shows high contrast hover only for editable read-mode titles', () => {
+		const editable = createHarness(disposables, { supportsMultipleChats: false, supportsRename: true });
+		const editing = createHarness(disposables, { supportsMultipleChats: false, supportsRename: true });
+		const readOnly = createHarness(disposables);
+		const root = mainWindow.document.createElement('div');
+		root.className = 'monaco-workbench hc-black';
+		root.style.setProperty('--vscode-contrastActiveBorder', '#f38518');
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		root.append(editable.header.element.parentElement!, editing.header.element.parentElement!, readOnly.header.element.parentElement!);
+		mainWindow.document.body.appendChild(root);
+		disposables.add(toDisposable(() => root.remove()));
+		const editableTitle = editable.header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title')!;
+		editing.header.startTitleEditing();
+		const editingTitle = editing.header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title')!;
+		const readOnlyTitle = readOnly.header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title')!;
+		editableTitle.classList.add('hovered');
+		editingTitle.classList.add('hovered');
+		readOnlyTitle.classList.add('hovered');
+		const describe = (element: HTMLElement) => {
+			const style = mainWindow.getComputedStyle(element);
+			return {
+				editable: element.classList.contains('editable'),
+				editing: element.classList.contains('editing'),
+				color: style.outlineStyle === 'none' ? 'none' : style.outlineColor,
+				offset: style.outlineOffset,
+				style: style.outlineStyle,
+				width: style.outlineStyle === 'none' ? '0px' : style.outlineWidth,
+			};
+		};
+
+		assert.deepStrictEqual({
+			editable: describe(editableTitle),
+			editing: describe(editingTitle),
+			readOnly: describe(readOnlyTitle),
+		}, {
+			editable: { editable: true, editing: false, color: 'rgb(243, 133, 24)', offset: '-1px', style: 'dashed', width: '1px' },
+			editing: { editable: true, editing: true, color: 'none', offset: '0px', style: 'none', width: '0px' },
+			readOnly: { editable: false, editing: false, color: 'none', offset: '0px', style: 'none', width: '0px' },
+		});
+	});
 
 	test('reports only actual integer border-box height changes, including hidden ancestors and disposal', () => {
 		const { instantiationService, session, mainChat } = createHarness(disposables);
@@ -213,6 +255,40 @@ suite('Sessions - Headers', () => {
 			session: session.sessionId,
 			chat: { sessionId: session.sessionId, resource: mainChat.resource.toString() },
 		});
+	});
+
+	test('a header that drags the editor of its chat carries the session and its chat from anywhere but its toolbar, which keeps the mouse', () => {
+		const { header, session, mainChat } = createHarness(disposables);
+		header.setDragsEditor(true);
+		const titleActions = header.element.querySelector<HTMLElement>('.chat-composite-bar-title-actions')!;
+
+		const fromToolbar = simulateDragFrom(header, titleActions);
+		const fromHeader = simulateDragFrom(header, header.element);
+
+		assert.deepStrictEqual({
+			toolbarPrevented: fromToolbar.defaultPrevented,
+			headerPrevented: fromHeader.defaultPrevented,
+			session: JSON.parse(fromHeader.dataTransfer!.getData(SessionsDataTransfers.SESSION) || '{}').sessionId,
+			chat: getSessionChatDragData(fromHeader),
+		}, {
+			toolbarPrevented: true,
+			headerPrevented: false,
+			session: session.sessionId,
+			chat: { sessionId: session.sessionId, resource: mainChat.resource.toString() },
+		});
+	});
+
+	test('the end of a drag of the header, that of the session or its chat, is handed to the session drag-out, and not when the header drags the editor of its chat', () => {
+		const ended: string[] = [];
+		disposables.add(registerSessionChatDragEndHandler(async (_e, _element, session) => { ended.push(session.sessionId); return true; }));
+		const { header, session } = createHarness(disposables);
+
+		header.element.dispatchEvent(new DragEvent(EventType.DRAG_END, { bubbles: true }));
+		const sessionDrag = [...ended];
+		header.setDragsEditor(true);
+		header.element.dispatchEvent(new DragEvent(EventType.DRAG_END, { bubbles: true }));
+
+		assert.deepStrictEqual({ sessionDrag, afterEditorDrag: ended }, { sessionDrag: [session.sessionId], afterEditorDrag: [session.sessionId] });
 	});
 
 	test('a small pointer move over the title actions toolbar does not start a session drag', () => {

@@ -6,7 +6,7 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { ClipboardImageContextValuePick } from '../../../../workbench/contrib/chat/browser/actions/chatContext.js';
+import { BrowserScreenshotContextContribution, ClipboardImageContextValuePick } from '../../../../workbench/contrib/chat/browser/actions/chatContext.js';
 import { IChatContextPickService } from '../../../../workbench/contrib/chat/browser/attachments/chatContextPickService.js';
 
 class MobileClipboardImageContextContribution extends Disposable {
@@ -20,3 +20,4 @@ class MobileClipboardImageContextContribution extends Disposable {
 }
 
 registerWorkbenchContribution2('chat.mobileClipboardImageContext', MobileClipboardImageContextContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2('chat.mobileScreenshotContext', BrowserScreenshotContextContribution, WorkbenchPhase.AfterRestored);

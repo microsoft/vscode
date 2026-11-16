@@ -293,8 +293,8 @@ export class IssueReporterController extends Disposable {
 		}));
 
 		// Wire AI title generation
-		this.inputDisposables.add(this.wizard.onDidRequestGenerateTitle(async (description) => {
-			const isCurrent = () => this.wizard === wizard && !mediaCancellation.token.isCancellationRequested;
+		this.inputDisposables.add(this.wizard.onDidRequestGenerateTitle(async ({ description, token }) => {
+			const isCurrent = () => this.wizard === wizard && !mediaCancellation.token.isCancellationRequested && !token.isCancellationRequested;
 			try {
 				// Wait for installed extensions to be registered so the Copilot Chat
 				// extension has had a chance to contribute its `copilot` language
@@ -331,7 +331,7 @@ export class IssueReporterController extends Disposable {
 							value: `Generate a concise issue title (max 10 words, no quotes, no prefix like "Bug:" or "Feature:") for this bug report description:\n\n${description}`,
 						}],
 					}],
-				}, mediaCancellation.token);
+				}, token);
 				if (!isCurrent()) {
 					return;
 				}

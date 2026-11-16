@@ -17,7 +17,6 @@ import { getArtifactDetailsDescription, getArtifactDetailsItemLabel, getArtifact
 import { ArtifactActionView, ArtifactAvailability, ArtifactContributionSnapshot, ArtifactDetails, ArtifactDetailsItem, ArtifactItemActionDescriptor, ArtifactItemActionInput, ArtifactRun, ArtifactSnapshot, artifactBindingId, getArtifactMainContribution, IArtifactDetailsModel, isArtifactRunSettled } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { getChatPillEntryToolbarActions } from '../../../../browser/chatPills.js';
 import { ArtifactActivitiesModel, artifactRunStateLabel } from './artifactActivitiesModel.js';
 import { ArtifactAutopilotModel } from './artifactAutopilotModel.js';
 import { artifactViewKey as key, IArtifactActionViewData, IArtifactDetailsViewData, IArtifactListViewData, IArtifactSectionTarget } from './artifactDetailsView.js';
@@ -208,12 +207,14 @@ export class ArtifactDetailsModel extends Disposable {
 				const authentication = this.presentation.authenticationButton(contribution);
 				return authentication ? [authentication] : this.actionButtons(snapshot, contribution, contribution.view.generalActions);
 			}),
-			...(entry ? getChatPillEntryToolbarActions(entry) : []).map(action => {
+			// The entry's promoted action, such as Remove Artifact, stays on its pill rather than in the details header.
+			...(entry?.toolbarActions ?? []).filter(action => action !== entry?.promotedAction).map(action => {
 				const glyphClass = action.class?.split(' ').find(value => value.startsWith('codicon-'));
+				const glyph = glyphClass?.slice('codicon-'.length);
 				return {
 					id: `shell:${action.id}`, label: action.hoverLabel ?? action.label, ariaLabel: action.label,
 					description: action.tooltip || action.label, enabled: action.enabled,
-					icon: glyphClass ? getArtifactThemeIcon({ id: glyphClass.slice('codicon-'.length) }) : undefined,
+					icon: glyph ? getArtifactThemeIcon({ id: glyph }) : undefined,
 					run: () => { void this.presentation.run(async () => { await action.run(); }); },
 				};
 			}),

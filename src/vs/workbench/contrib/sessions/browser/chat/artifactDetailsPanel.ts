@@ -18,7 +18,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { Link } from '../../../../../platform/opener/browser/link.js';
 import { ArtifactActivities } from './artifactActivities.js';
 import { ArtifactAutopilot } from './artifactAutopilot.js';
-import { ArtifactButtons } from './artifactButtons.js';
+import { ArtifactButtons, IArtifactButton } from './artifactButtons.js';
 import { ArtifactDetailsSelection, artifactViewKey, IArtifactDetailsViewData } from './artifactDetailsView.js';
 import { ArtifactStateLists } from './artifactStateLists.js';
 import './media/artifactIntegrations.css';
@@ -33,6 +33,7 @@ export class ArtifactDetailsPanel extends Disposable {
 	private readonly titleLink: Link;
 	private readonly titleLinkElement: HTMLElement;
 	private readonly headerActions: ArtifactButtons;
+	private readonly closeAction: IArtifactButton;
 	private readonly body = $('.artifact-details-body');
 	private readonly description = append(this.body, $('.artifact-details-description'));
 	private readonly descriptionText = append(this.description, $('.artifact-details-description-content'));
@@ -43,7 +44,6 @@ export class ArtifactDetailsPanel extends Disposable {
 	private readonly lowerScrollable: DomScrollableElement;
 	private readonly autopilot: ArtifactAutopilot;
 	private readonly activities: ArtifactActivities;
-	private readonly generalActions: ArtifactButtons;
 	private pendingSection: { readonly selection: ArtifactDetailsSelection; readonly target: Element | null } | undefined;
 
 	constructor(
@@ -61,8 +61,8 @@ export class ArtifactDetailsPanel extends Disposable {
 		this.titleLinkElement.classList.add('artifact-details-title-link');
 		this.titleLinkElement.removeAttribute('role');
 		this.titleLinkElement.setAttribute('aria-description', localize('artifactOpenResource', "Open Resource"));
-		this.headerActions = this._register(new ArtifactButtons(append(this.header, $('.artifact-controls.artifact-header-actions')), hoverService, 'quiet'));
-		this.headerActions.update([{ id: 'close', label: localize('artifactCloseDetails', "Close Artifact Details"), icon: Codicon.close, iconOnly: true, run: () => dismiss(true) }]);
+		this.headerActions = this._register(new ArtifactButtons(append(this.header, $('.artifact-controls.artifact-header-actions', { 'aria-label': localize('artifactHeaderActions', "Artifact Actions") })), hoverService, 'quiet'));
+		this.closeAction = { id: 'close', label: localize('artifactCloseDetails', "Close Artifact Details"), icon: Codicon.close, iconOnly: true, run: () => dismiss(true) };
 		this.bodyScrollable = this._register(new DomScrollableElement(this.body, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto }));
 		this.bodyScrollable.getDomNode().classList.add('artifact-details-scrollable');
 		append(this.element, this.bodyScrollable.getDomNode());
@@ -74,7 +74,6 @@ export class ArtifactDetailsPanel extends Disposable {
 		this.lowerScrollable = this._register(new DomScrollableElement(this.lowerContent, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto }));
 		this.lowerScrollable.getDomNode().classList.add('artifact-details-lower-scrollable');
 		append(this.element, this.lowerScrollable.getDomNode());
-		this.generalActions = this._register(new ArtifactButtons(append(this.element, $('.artifact-controls.artifact-general-actions', { 'aria-label': localize('artifactGeneralActions', "General Actions") })), hoverService, 'quiet'));
 		const observer = this._register(new DisposableResizeObserver('ArtifactDetailsPanel', requestLayout, targetWindow));
 		this._register(observer.observe(this.element));
 		this._register(observer.observe(this.body));
@@ -95,7 +94,8 @@ export class ArtifactDetailsPanel extends Disposable {
 		this.stateLists.update(data.lists, data.selectedList, data.stateActions, data.selectList);
 		this.autopilot.update(data.autopilot);
 		this.activities.update(data.activities);
-		this.generalActions.update(data.generalActions);
+		// General actions share the header toolbar with Close; actions without an icon keep their label.
+		this.headerActions.update([...data.generalActions.map(action => action.icon ? { ...action, iconOnly: true } : action), this.closeAction]);
 		this.lowerScrollable.getDomNode().hidden = !data.autopilot.length && !data.activities.items.length;
 		if (this.pendingSection) {
 			const pending = this.pendingSection;
@@ -123,7 +123,7 @@ export class ArtifactDetailsPanel extends Disposable {
 
 	get tabbableElements(): readonly HTMLElement[] {
 		return [this.titleLinkElement, ...this.headerActions.tabbableElements, ...this.stateLists.tabbableElements,
-		...this.autopilot.tabbableElements, ...this.activities.tabbableElements, ...this.generalActions.tabbableElements];
+		...this.autopilot.tabbableElements, ...this.activities.tabbableElements];
 	}
 
 	focusSection(selection: ArtifactDetailsSelection): void {
@@ -135,7 +135,7 @@ export class ArtifactDetailsPanel extends Disposable {
 		const section = this.model.get().sections.find(section => section.id === artifactViewKey(...selection));
 		if (section?.target?.kind === 'list') {
 			this.stateLists.focusList(section.target.id);
-		} else if (section?.target?.kind !== 'action' || (!this.stateLists.focusAction(section.target.id) && !this.generalActions.focus(section.target.id))) {
+		} else if (section?.target?.kind !== 'action' || (!this.stateLists.focusAction(section.target.id) && !this.headerActions.focus(section.target.id))) {
 			this.element.focus({ preventScroll: true });
 		}
 		if (section?.pending) {

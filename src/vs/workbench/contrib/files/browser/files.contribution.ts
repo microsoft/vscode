@@ -36,6 +36,8 @@ import { FileEditorInputSerializer, FileEditorWorkingCopyEditorHandler } from '.
 import { ModesRegistry } from '../../../../editor/common/languages/modesRegistry.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { TextFileEditor } from './editors/textFileEditor.js';
+import { IUntitledDocumentTelemetryService } from '../../../services/untitled/common/untitledDocumentTelemetry.js';
+import { UntitledDocumentTelemetry } from './untitledDocumentTelemetry.js';
 
 class FileUriLabelContribution implements IWorkbenchContribution {
 
@@ -105,6 +107,14 @@ registerWorkbenchContribution2(ExplorerViewletViewsContribution.ID, ExplorerView
 
 // Register Text File Editor Tracker
 registerWorkbenchContribution2(TextFileEditorTracker.ID, TextFileEditorTracker, WorkbenchPhase.BlockStartup);
+
+// Untitled document telemetry: created eagerly so that it sees the untitled documents restored on startup
+registerSingleton(IUntitledDocumentTelemetryService, UntitledDocumentTelemetry, InstantiationType.Eager);
+class UntitledDocumentTelemetryContribution implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.untitledDocumentTelemetry';
+	constructor(@IUntitledDocumentTelemetryService _untitledDocumentTelemetryService: IUntitledDocumentTelemetryService) { }
+}
+registerWorkbenchContribution2(UntitledDocumentTelemetryContribution.ID, UntitledDocumentTelemetryContribution, WorkbenchPhase.BlockStartup);
 
 // Register Text File Save Error Handler
 registerWorkbenchContribution2(TextFileSaveErrorHandler.ID, TextFileSaveErrorHandler, WorkbenchPhase.BlockStartup);

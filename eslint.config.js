@@ -213,6 +213,16 @@ export default [
 			'local/code-no-telemetry-common-property': 'warn',
 		}
 	},
+	// src compiles with useDefineForClassFields: false, but must keep working with JavaScript class field semantics,
+	// which src/tsconfig.defineClassFields.json checks (see define-class-fields-check in package.json)
+	{
+		files: [
+			'src/**/*.ts',
+		],
+		rules: {
+			'local/code-no-parameter-property-before-init': 'warn',
+		}
+	},
 	// Force all gulp imports under build/ to go through the gulp facade
 	{
 		files: [
@@ -1515,6 +1525,7 @@ export default [
 						'@vscode/spdlog',
 						'@vscode/windows-process-tree',
 						'assert',
+						'async_hooks',
 						'child_process',
 						'console',
 						'cookie',
@@ -2895,7 +2906,6 @@ export default [
 			'extensions/copilot/src/platform/parser/node/parserWorker.ts',
 			'extensions/copilot/src/platform/parser/node/treeSitterQueries.ts',
 			'extensions/copilot/src/platform/remoteCodeSearch/common/githubCodeSearchService.ts',
-			'extensions/copilot/src/platform/remoteSearch/node/codeOrDocsSearchClientImpl.ts',
 			'extensions/copilot/src/platform/review/vscode/reviewServiceImpl.ts',
 			'extensions/copilot/src/platform/scopeSelection/vscode-node/scopeSelectionImpl.ts',
 			'extensions/copilot/src/platform/snippy/common/snippyTypes.ts',

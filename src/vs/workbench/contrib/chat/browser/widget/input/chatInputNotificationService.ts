@@ -126,6 +126,8 @@ export interface IChatInputNotificationSetOptions {
 
 export interface IChatInputNotification {
 	readonly id: string;
+	/** Optional setup guidance appears once in the transcript, beside the first response, rather than in the composer. */
+	readonly placement?: 'transcript';
 	/** Targets one input instance, including when several inputs show the same session. */
 	readonly inputUri?: URI;
 	readonly telemetryId?: string;
