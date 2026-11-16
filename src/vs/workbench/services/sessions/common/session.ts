@@ -836,6 +836,11 @@ export interface IChat {
 
 	/** The effective workspace available to this chat. */
 	readonly workspace: IObservable<ISessionWorkspace | undefined>;
+	/**
+	 * The working directories the chat sets itself, in place of its session's: the folders of its {@link workspace} are then
+	 * its own. `undefined` or empty while it works in its session's folders. Providers that cannot tell omit the observable.
+	 */
+	readonly ownWorkingDirectories?: IObservable<readonly URI[] | undefined>;
 	/** Chat display title (changes when auto-titled or renamed). */
 	readonly title: IObservable<string>;
 	/** When the chat was last updated. `undefined` while the provider resolves the exact per-chat timestamp; consumers should omit it rather than fall back to aggregate session time. */

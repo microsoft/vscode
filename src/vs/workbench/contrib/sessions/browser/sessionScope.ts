@@ -8,7 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IReader, observableSignal } from '../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionFolder } from '../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionFolder } from '../../../services/sessions/common/session.js';
 import { ISessionChangeEvent, ISessionsListingScope } from '../common/sessionsProvider.js';
 
 /** Whether `uri` is on GitHub (`github-remote-file://github/<owner>/<repo>/<branch>/...`) in one of `repositories`. */
@@ -113,14 +113,18 @@ export class SessionsListingScopeFilter extends Disposable {
 	}
 
 	/**
-	 * The folders by which `session` is in a scope: the first folder of its main chat's workspace, which is the main chat's
-	 * primary when it sets folders of its own, else the session's primary, as the main chat then has the session's folders,
-	 * in their order, with those its other chats added after it. Every folder of the session counts while the main chat has
-	 * none. Deliberately the first folder only, also of a main chat that sets several of its own: the main chat's workspace
-	 * does not tell its own folders from the session's it has, so its other folders would bring in those other chats added.
+	 * The folders by which `session` is in a scope: every folder of its main chat's workspace while the main chat sets
+	 * folders of its own (see {@link IChat.ownWorkingDirectories}). Otherwise the first folder of the main chat's workspace,
+	 * the session's primary: the main chat then has the session's folders, in their order, with those its other chats added
+	 * after it, which do not place the session. Every folder of the session counts while the main chat has none.
 	 */
 	private _getScopingFolders(session: ISession, reader: IReader): readonly ISessionFolder[] {
-		const mainFolder = session.mainChat.read(reader).workspace.read(reader)?.folders[0];
+		const mainChat = session.mainChat.read(reader);
+		const mainChatWorkspace = mainChat.workspace.read(reader);
+		if (mainChatWorkspace && mainChat.ownWorkingDirectories?.read(reader)?.length) {
+			return mainChatWorkspace.folders;
+		}
+		const mainFolder = mainChatWorkspace?.folders[0];
 		return mainFolder ? [mainFolder] : session.workspace.read(reader)?.folders ?? [];
 	}
 

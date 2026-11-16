@@ -12632,11 +12632,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 				defaultChat: session.mainChat.get().workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
 				peerChat: session.chats.get().find(chat => chat.resource.fragment === 'peer-1')?.workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
 				inheritedPeerChat: session.chats.get().find(chat => chat.resource.fragment === 'peer-2')?.workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
+				// What each chat sets itself, rather than inherits from its session
+				own: session.chats.get().map(chat => chat.ownWorkingDirectories?.get()?.map(directory => directory.toString())),
 			}, {
 				session: [primaryDirectory.toString(), peerDirectory.toString()],
 				defaultChat: [primaryDirectory.toString()],
 				peerChat: [peerDirectory.toString()],
 				inheritedPeerChat: [primaryDirectory.toString(), peerDirectory.toString()],
+				own: [[primaryDirectory.toString()], [peerDirectory.toString()], undefined],
 			});
 		});
 

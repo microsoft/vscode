@@ -1191,11 +1191,16 @@ class AdditionalChat extends Disposable {
 		const capabilities = summary.origin?.kind === ProtocolChatOriginKind.Tool
 			? constObservable<IChatCapabilities>({ canRename: false, canArchive: false, canDelete: false })
 			: derived<IChatCapabilities>(reader => ({ ...DEFAULT_CHAT_CAPABILITIES, canArchive: canArchive.read(reader) }));
+		const ownWorkingDirectories = derived(this, reader => {
+			const workingDirectories = this._workingDirectories.read(reader);
+			return workingDirectories && withoutScratchFolders(workingDirectories.map(directory => mapWorkingDirectoryUri(URI.parse(directory))), output?.scratchFolders.read(reader));
+		});
 		this.chat = {
 			resource,
 			...(this.agentProvider ? { harness: toAgentHostChatHarness(this.agentProvider) } : {}),
 			createdAt: modifiedAt ?? createdAtFallback,
 			workspace: this._withDetails(workspace),
+			ownWorkingDirectories: this._withDetails(ownWorkingDirectories),
 			title: this._withDetails(this._title),
 			updatedAt: this._withDetails(this._updatedAt),
 			status: toPresentedSessionStatus(this, status, connectionStatus),
@@ -1858,6 +1863,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			harness: this.harness,
 			createdAt: this.createdAt,
 			workspace: defaultChatWorkspace,
+			ownWorkingDirectories: derived(this, reader => {
+				const workingDirectories = this._defaultChatWorkingDirectories.read(reader);
+				return workingDirectories && withoutScratchFolders(workingDirectories.map(directory => this._mapWorkingDirectory(URI.parse(directory))), this._scratchFolders.read(reader));
+			}),
 			title: this._options.useSessionTitleForDefaultChat ? this.title : derived(this, reader => this._defaultChatTitleOverride.read(reader) ?? this.title.read(reader)),
 			updatedAt: this._withChatDetails(this._defaultChatUpdatedAt),
 			status: toPresentedSessionStatus(this, defaultChatStatus, this._options.preserveStatusWhenDisconnected ? undefined : connectionStatus),
