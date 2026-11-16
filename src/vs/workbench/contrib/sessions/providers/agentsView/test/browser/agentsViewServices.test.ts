@@ -16,7 +16,7 @@ import { getEditorWindowSessionsSingletons, IEditorWindowSessionsSingleton } fro
 import { ISessionAttentionService } from '../../../../common/sessionAttentionService.js';
 import { IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
-import { EditorWindowMainSessionHost } from '../../../../browser/agentsView/editorWindowMainSessionHost.js';
+import { EditorWindowMainSessionHost, EditorWindowShownChatService } from '../../../../browser/agentsView/editorWindowMainSessionHost.js';
 import { AgentsChatViewHost } from '../../../../browser/agentsView/agentsChatViewHost.js';
 import { EditorWindowChatPartService } from '../../../../browser/agentsView/agentsChatPartContribution.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
@@ -202,25 +202,34 @@ suite('Editor window sessions services', () => {
 		// Records every use of its only service: it neither listens to it nor reads it until something reads the host
 		const used: string[] = [];
 		const contextKeyService = new Proxy({}, { get: (_target, property) => { used.push(String(property)); return undefined; } }) as IContextKeyService;
-		const host = new EditorWindowMainSessionHost(contextKeyService);
+		const host = new EditorWindowMainSessionHost(contextKeyService, new EditorWindowShownChatService());
 
 		assert.deepStrictEqual({ used, content: host.content.get(), session: host.session.get(), chat: host.chat.get() }, { used: [], content: { kind: 'empty' }, session: undefined, chat: undefined });
 	});
 
-	test('the session host of an editor window shows the chat an override names in place of the bound one, until the override ends', () => {
-		const contextKeyService = upcastPartial<IContextKeyService>({});
-		const host = new EditorWindowMainSessionHost(contextKeyService);
+	test('the session host of an editor window shows the chat of the binding that wins: an override over the others, else the one bound last; releasing one shows the one it was bound over again', () => {
+		const shownChatService = new EditorWindowShownChatService();
+		const host = new EditorWindowMainSessionHost(upcastPartial<IContextKeyService>({}), shownChatService);
 		const chat = (id: string) => ({ session: upcastPartial<ISession>({ sessionId: id, status: constObservable(SessionStatus.Completed), mainChat: constObservable(upcastPartial<IChat>({})) }), chat: upcastPartial<IChat>({}) });
 		const shownId = () => host.session.get()?.sessionId;
+		const steps: Record<string, string | undefined> = {};
 
-		const bound = host.bindShownChat(constObservable(chat('chat part')));
-		const beforeOverride = shownId();
-		const override = host.overrideShownChat(constObservable(chat('chat view')));
-		const overridden = shownId();
+		const first = shownChatService.bind(constObservable(chat('first')));
+		const second = shownChatService.bind(constObservable(chat('second')));
+		steps.latestOfTwo = shownId();
+		second.dispose();
+		steps.firstAgain = shownId();
+		const third = shownChatService.bind(constObservable(chat('third')));
+		const override = shownChatService.bind(constObservable(chat('override')), { override: true });
+		const afterOverride = shownChatService.bind(constObservable(chat('after override')));
+		steps.overrideWins = shownId();
 		override.dispose();
-		const afterOverride = shownId();
-		bound.dispose();
+		steps.latestAfterOverride = shownId();
+		afterOverride.dispose();
+		third.dispose();
+		first.dispose();
+		steps.none = shownId();
 
-		assert.deepStrictEqual({ beforeOverride, overridden, afterOverride, afterBound: shownId() }, { beforeOverride: 'chat part', overridden: 'chat view', afterOverride: 'chat part', afterBound: undefined });
+		assert.deepStrictEqual(steps, { latestOfTwo: 'second', firstAgain: 'first', overrideWins: 'override', latestAfterOverride: 'after override', none: undefined });
 	});
 });

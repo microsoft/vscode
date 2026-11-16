@@ -32,7 +32,7 @@ import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { AgentsChatPartService, IAgentsChatPartService, restoreAgentsChatPart } from '../../../browser/agentsView/agentsChatPart.js';
 import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
-import { EditorWindowMainSessionHost } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
+import { EditorWindowMainSessionHost, EditorWindowShownChatService, IEditorWindowShownChatService } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
 import { ChatEditorInput } from '../../../browser/chatEditor/chatEditor.js';
 import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY, isChatWindowComposerResource } from '../../../browser/chatEditor/chatWindowComposer.js';
 import { IChatViewFactory } from '../../../browser/chatViewFactory.js';
@@ -274,7 +274,9 @@ suite('AgentsChatPartService', () => {
 		instantiationService.stub(ISessionsListModelService, upcastPartial<ISessionsListModelService>({ getStatusIcon: () => Codicon.circle }));
 		instantiationService.stub(ISessionGroupsService, upcastPartial<ISessionGroupsService>({ setDraftSlotGroup: () => toDisposable(() => { }), getGroupOfSession: () => undefined }));
 
-		const host = new EditorWindowMainSessionHost(contextKeyService);
+		const shownChatService = new EditorWindowShownChatService();
+		instantiationService.stub(IEditorWindowShownChatService, shownChatService);
+		const host = new EditorWindowMainSessionHost(contextKeyService, shownChatService);
 		instantiationService.stub(ISessionHost, host);
 		// Delayed, as the editor window registers it: created as something first uses it, such as an open
 		const scoped = options?.delayed ? store.add(new TestInstantiationService(new ServiceCollection([IAgentsChatPartService, new SyncDescriptor(AgentsChatPartService, [], true)]), false, instantiationService, true)) : undefined;

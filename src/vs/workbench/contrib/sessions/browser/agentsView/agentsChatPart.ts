@@ -50,7 +50,7 @@ import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 import { AgentsChatPartAction, logAgentsChatPartAction } from './agentsChatPartTelemetry.js';
 import { AgentsViewAvailable, InAgentsChatPartContext } from './agentsChatPartContext.js';
-import { EditorWindowMainSessionHost } from './editorWindowMainSessionHost.js';
+import { IEditorWindowShownChatService } from './editorWindowMainSessionHost.js';
 
 /**
  * The chats of the chat part, which it shows again as the window restores. Its editor part's own state would restore bare
@@ -275,6 +275,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEditorWindowComposerFoldersService private readonly _composerFolders: IEditorWindowComposerFoldersService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IEditorWindowShownChatService shownChatService: IEditorWindowShownChatService,
 	) {
 		super();
 		this._chatTabsMode = observableConfigValue<string>(SESSIONS_CHAT_TABS_SETTING, SESSIONS_CHAT_TABS_DEFAULT, this._configurationService);
@@ -298,17 +299,15 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		// The window's host, as its service, shows the active tab's chat, or the draft of its composer until that sends, as an
 		// Agents window's host does: what acts on the session of the focused window, such as the composer's branch picker of a
 		// folder, which checks out in it, acts on the draft
-		if (this.mainWindowHost instanceof EditorWindowMainSessionHost) {
-			this._register(this.mainWindowHost.bindShownChat(derived(this, reader => {
-				const shown = this.activeChat.read(reader);
-				if (shown) {
-					return shown;
-				}
-				const input = this._activeInput.read(reader);
-				const draft = input && this._chats.get(input)?.composer.read(reader)?.session.read(reader);
-				return draft ? { session: draft, chat: draft.mainChat.read(reader) } : undefined;
-			})));
-		}
+		this._register(shownChatService.bind(derived(this, reader => {
+			const shown = this.activeChat.read(reader);
+			if (shown) {
+				return shown;
+			}
+			const input = this._activeInput.read(reader);
+			const draft = input && this._chats.get(input)?.composer.read(reader)?.session.read(reader);
+			return draft ? { session: draft, chat: draft.mainChat.read(reader) } : undefined;
+		})));
 
 		// The chats show beside the editor area, whose editors their Session Activity Bars read
 		this._window = {
