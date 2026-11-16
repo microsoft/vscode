@@ -49,7 +49,8 @@ export class OpenAgentHostFolderPickerAction extends Action2 {
 			f1: false,
 			// The working directory is an argument to session creation and is
 			// fixed once the session has started (its first request), so the
-			// chip stays visible afterwards but is disabled.
+			// chip stays visible afterwards, when it offers a real choice, but
+			// is disabled.
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.chatSessionIsEmpty),
 			menu: [{
 				id: MenuId.ChatInputSecondary,
