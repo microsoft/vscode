@@ -2419,6 +2419,21 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('adoptExistingWorktreeMetadata keeps the default base for a branch tracking another remote', async () => {
+		const worktreeCheckout = URI.joinPath(worktreesRoot, 'adopted');
+		const gitService = createGitService();
+		gitService.getRepositoryRoot = async () => worktreeCheckout;
+		gitService.getWorktreeRoots = async () => [repoRoot, worktreeCheckout];
+		gitService.getCurrentBranch = async () => 'feat/test';
+		gitService.getHEAD = async () => localBranch('feat/test', 'upstream/release');
+		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
+		const isolation = createIsolation(disposables, { gitService });
+
+		await isolation.adoptExistingWorktreeMetadata(sessionUri, worktreeCheckout);
+
+		assert.strictEqual(await db.getMetadata('agentHost.diffBaseBranch'), 'main');
+	});
+
 	test('adoptExistingWorktreeMetadata is a no-op for a primary checkout', async () => {
 		const gitService = createGitService();
 		gitService.getRepositoryRoot = async () => repoRoot;
