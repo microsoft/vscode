@@ -658,7 +658,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 		// Reflect both provider session replacement (e.g. a draft graduating)
 		// and pre-send draft replacement onto the same visible grid slot.
-		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => this._onDidReplaceSession(from, to)));
+		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to, chats }) => this._onDidReplaceSession(from, to, chats)));
 		this._register(this.sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => this._onDidReplaceSession(from, to)));
 
 		// A chat that moved to another session keeps being shown there.
@@ -722,10 +722,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}));
 	}
 
-	private _onDidReplaceSession(from: ISession, to: ISession): void {
+	private _onDidReplaceSession(from: ISession, to: ISession, chats?: ResourceMap<URI>): void {
 		const sessionView = this.sessionsPartService.getSessionView(from.sessionId);
 		const preserveFocus = !sessionView || this.sessionsPartService.getFocusedSessionView() !== sessionView;
-		this._visibility.updateSession(from, to, preserveFocus);
+		this._visibility.updateSession(from, to, preserveFocus, chats);
 	}
 
 	/**
@@ -2814,7 +2814,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const target = targets[idx];
 			let session: ISession | null | undefined;
 			if (!target.resource) {
-				session = null; // empty new-session slot
+				const draft = this.sessionsManagementService.newSession.get();
+				// Workspace restoration can populate the composer before the persisted grid is applied.
+				session = draft && this._slotSessions.get().some(visible => visible?.sessionId === draft.sessionId) ? draft : null;
 			} else if (idx === activeIdx) {
 				session = activeSession;
 			} else {

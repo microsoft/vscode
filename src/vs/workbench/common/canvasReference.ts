@@ -15,12 +15,20 @@ export interface ICanvas {
 	readonly extensionId?: string;
 	/** Provider-local canvas type identifier, when the host reports it. */
 	readonly canvasId?: string;
+	/** The canvas's icon, a PNG data URI, when the host sends one. */
+	readonly icon?: URI;
 }
 
 export interface ICanvasOwner {
 	readonly providerId: string;
 	readonly session: URI;
 	readonly chat: URI;
+}
+
+/** Options for opening a new canvas of a registered canvas type. */
+export interface ICanvasOpenOptions {
+	/** Asks the user again about the canvas's extension after they declined it, which starts a new runtime for the chat. */
+	readonly retryDeniedConsent?: boolean;
 }
 
 export interface ICanvasReference extends ICanvasOwner {

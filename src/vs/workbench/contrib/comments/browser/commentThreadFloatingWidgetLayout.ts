@@ -328,8 +328,9 @@ export interface IFloatingWidgetPlacement {
  * Places a widget at the right edge of the editor, vertically centered on the commented code. When requested and there
  * is room, the widget goes right after the end of the code, level with its top, or right after the end of the lines
  * next to the code instead. When the code leaves no room for the widget at the right edge, the widget goes below the
- * code, so that it doesn't cover it. When the widget would cover the code or one of the obstacles, it moves to the
- * closest position above or below them that is free, within the area that the editor can scroll through.
+ * code, still at the right edge, so that it covers neither the code nor the start of the lines below it. When the
+ * widget would cover the code or one of the obstacles, it moves to the closest position above or below them that is
+ * free, within the area that the editor can scroll through.
  *
  * Widgets stay in the order of their code: a widget that moves out of the way of another one goes to the side of it
  * that its code is on. It only goes to the other side when there's no room on its own side.
@@ -346,7 +347,6 @@ export function computeFloatingWidgetPlacement(request: IFloatingWidgetPlacement
 		preferredTop = code.top;
 		centered = false;
 	} else if (code && codeRight + CODE_GAP > maxLeft) {
-		left = clamp(code.left, minLeft, maxLeft);
 		preferredTop = code.top + code.height + EDGE_MARGIN;
 		centered = false;
 	} else if (code && request.linesRight !== undefined) {

@@ -35,7 +35,7 @@ import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
-import { getSessionFilterOptions, ISessionFilterOption, sessionFilterKey } from './sessionsListFilters.js';
+import { getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, sessionFilterKey } from './sessionsListFilters.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, IMenuService, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -60,7 +60,7 @@ import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../common
 import { ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { logSessionsListCompactViewState } from '../../common/sessionsTelemetry.js';
-import { SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../common/sessionConfig.js';
+import { SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../common/sessionConfig.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CustomizationsNavigationState } from '../customizationsNavigationState.js';
@@ -82,11 +82,11 @@ const SESSIONS_SECTION_MIN_HEIGHT = 120;
 const SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH = 8;
 export type CustomizationsPresentation = 'hidden' | 'control' | 'treatment';
 
-export function getCustomizationsPresentation(phoneLayout: boolean, aiEnabled: boolean, aiHidden: boolean, treatment: boolean, location: ChatCustomizationsLocation = 'auto'): CustomizationsPresentation {
+export function getCustomizationsPresentation(phoneLayout: boolean, aiEnabled: boolean, aiHidden: boolean, navigationIncludesCustomizations: boolean, location: ChatCustomizationsLocation = 'auto'): CustomizationsPresentation {
 	if (phoneLayout || !aiEnabled || aiHidden) {
 		return 'hidden';
 	}
-	const resolved = resolveChatCustomizationsLocation(location, true, treatment);
+	const resolved = resolveChatCustomizationsLocation(location, true, navigationIncludesCustomizations);
 	return resolved === 'sidebar' ? 'control' : resolved === 'sessionsHeader' ? 'treatment' : 'hidden';
 }
 
@@ -170,6 +170,7 @@ export class SessionsView extends ViewPane {
 	listNotification: SessionsListNotification | undefined;
 	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
 	private readonly separateNavigation: IObservable<boolean>;
+	private readonly customizationsAtBottom: IObservable<boolean>;
 	private readonly sessionsListRearrangeContext: IContextKey<boolean>;
 	private readonly customizationsNavigationVisible = observableValue(this, false);
 	private readonly customizationsNavigationState: CustomizationsNavigationState;
@@ -177,6 +178,7 @@ export class SessionsView extends ViewPane {
 	private navigationShortcutsVisible = false;
 	private readonly customizationsLocation: IObservable<ChatCustomizationsLocation>;
 	private currentGrouping: SessionsGrouping | undefined;
+	private readonly allowWorktreeGrouping: boolean;
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
 	private currentCompact = false;
 	private groupingContextKey: IContextKey | undefined;
@@ -222,15 +224,15 @@ export class SessionsView extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this._mainWindowHost = getMainWindowHost(sessionHostService);
 		this.separateNavigation = observableConfigValue(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, false, configurationService);
+		this.customizationsAtBottom = observableConfigValue(SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, false, configurationService);
 		this.customizationsLocation = observableConfigValue<ChatCustomizationsLocation>(ChatConfiguration.ChatCustomizationsLocation, 'auto', configurationService);
 		this.customizationsNavigationState = this._register(instantiationService.createInstance(CustomizationsNavigationState, this.customizationsNavigationVisible));
 		this.sessionsListRearrangeContext = SessionsListRearrangeContext.bindTo(this.scopedContextKeyService);
 
 		// Restore persisted grouping
-		const storedGrouping = this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE);
-		if (storedGrouping && Object.values(SessionsGrouping).includes(storedGrouping as SessionsGrouping)) {
-			this.currentGrouping = storedGrouping as SessionsGrouping;
-		}
+		// The Agents window, which shares the stored grouping, does not offer Worktree grouping: it keeps its default instead
+		this.allowWorktreeGrouping = contextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key) !== true;
+		this.currentGrouping = this.readStoredGrouping();
 
 		// Restore persisted sorting
 		const storedSorting = this.storageService.get(SORTING_STORAGE_KEY, StorageScope.PROFILE);
@@ -397,9 +399,11 @@ export class SessionsView extends ViewPane {
 		});
 		const scopeEnvironments = derived(this, reader => {
 			scopeChanged.read(reader);
-			return this.sessionsProvidersService.getProviders().map(provider => provider.environment);
+			return getSessionFilterEnvironments(this.sessionsProvidersService.getProviders(), reader);
 		});
-		const inboxScope = this._register(this.instantiationService.createInstance(SessionsInboxScope, inboxScopeContainer, sessionsControl.filters, scopeSessions, scopeEnvironments));
+		const inboxScope = this._register(this.instantiationService.createInstance(SessionsInboxScope, inboxScopeContainer, sessionsControl.filters, scopeSessions,
+			derived(reader => scopeEnvironments.read(reader).environments),
+			derived(reader => scopeEnvironments.read(reader).localEnvironmentIds)));
 		this._register(autorun(reader => {
 			scopeChanged.read(reader);
 			const hidden = this.chatEntitlementService.sentimentObs.read(reader).hidden;
@@ -589,8 +593,9 @@ export class SessionsView extends ViewPane {
 		const enabled = this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled);
 		const hidden = this.chatEntitlementService.sentimentObs.read(reader).hidden === true;
 		const navigation = this.separateNavigation.read(reader);
+		const navigationIncludesCustomizations = navigation && !this.customizationsAtBottom.read(reader);
 		this.updateCustomizationsPresentation(
-			getCustomizationsPresentation(phone, enabled, hidden, navigation, this.customizationsLocation.read(reader)),
+			getCustomizationsPresentation(phone, enabled, hidden, navigationIncludesCustomizations, this.customizationsLocation.read(reader)),
 			navigation && !phone && enabled && !hidden,
 		);
 	}
@@ -789,7 +794,7 @@ export class SessionsView extends ViewPane {
 			readonly emptySourcesTitle: string | undefined;
 		}>({ owner: this, equalsFn: structuralEquals }, reader => {
 			changed.read(reader);
-			const environments = this.sessionsProvidersService.getProviders().map(provider => provider.environment);
+			const { environments } = getSessionFilterEnvironments(this.sessionsProvidersService.getProviders(), reader);
 			const options = getSessionFilterOptions(
 				this.sessionsManagementService.getSessions(),
 				environments,
@@ -1144,8 +1149,14 @@ export class SessionsView extends ViewPane {
 		return this.currentCompact;
 	}
 
+	/** The stored grouping, unless this build does not know it or this view does not offer it, such as Worktree in the Agents window. */
+	private readStoredGrouping(): SessionsGrouping | undefined {
+		const grouping = Object.values(SessionsGrouping).find(value => value === this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE));
+		return grouping === SessionsGrouping.Worktree && !this.allowWorktreeGrouping ? undefined : grouping;
+	}
+
 	setGrouping(grouping: SessionsGrouping): void {
-		if (this.currentGrouping === grouping) {
+		if (this.currentGrouping === grouping || (grouping === SessionsGrouping.Worktree && !this.allowWorktreeGrouping)) {
 			return;
 		}
 

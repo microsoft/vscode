@@ -122,8 +122,8 @@ export interface SandboxSeatbeltPolicy {
  * Optional toggles are forwarded only when supplied; absent values use runtime defaults.
  * Credential authentication defaults to enabled and uses the effective Copilot-only preferences.
  *
- * `extraReadonlyPaths` grants read access to session attachments, generated shell
- * init scripts and applied plugin resources, unless a managed read-only list is present.
+ * `extraReadonlyPaths` grants read access to application contents, session attachments,
+ * generated shell init scripts and applied plugin resources, unless a managed read-only list is present.
  *
  * `attachedPaths` grants read-only access to the exact files and folders the
  * user attached to the chat; see {@link resolveAttachedPathGrants}.

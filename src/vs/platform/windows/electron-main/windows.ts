@@ -143,6 +143,8 @@ export interface IDefaultBrowserWindowOptionsOverrides {
 	notResizable?: boolean;
 	noBackgroundThrottling?: boolean;
 	backgroundColor?: string;
+	panel?: boolean;
+	opacity?: number;
 }
 
 /**
@@ -205,8 +207,6 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 			// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
 			// Refs https://github.com/microsoft/vscode/issues/140098
 			enableBlinkFeatures: 'HighlightAPI',
-			// Workbench UI relies on non-standardized zoom for bounding boxes (https://github.com/microsoft/vscode/issues/232750#issuecomment-2459495394)
-			disableBlinkFeatures: 'StandardizedBrowserZoom',
 			sandbox: true,
 			// TODO(deepak1556): Should be removed once migration is complete
 			// https://github.com/microsoft/vscode/issues/239228
@@ -286,6 +286,19 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 	if (overrides?.alwaysOnTop ?? windowState.alwaysOnTop) {
 		options.alwaysOnTop = true;
+	}
+
+	if (overrides?.panel) {
+		options.fullscreenable = false;
+		if (isMacintosh) {
+			options.type = 'panel';
+		} else {
+			options.skipTaskbar = true;
+		}
+	}
+
+	if (typeof overrides?.opacity === 'number') {
+		options.opacity = overrides.opacity;
 	}
 
 	if (overrides?.frameless) {

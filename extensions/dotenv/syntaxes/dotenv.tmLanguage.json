@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotenv-org/dotenv-vscode/commit/e7e41baa5b23e01c1ff0567a4e596c24860e7def",
+	"version": "https://github.com/dotenv-org/dotenv-vscode/commit/3b4caf3398b3958b5fef8ef723c332eb1f30dfbb",
 	"scopeName": "source.dotenv",
 	"patterns": [
 		{
@@ -17,6 +17,28 @@
 							"include": "#line-comment"
 						}
 					]
+				}
+			}
+		},
+		{
+			"comment": "Whole unquoted numeric value, excluding IP addresses and mixed text",
+			"match": "^([ \\t]*(?:export[ \\t]+)?[\\w.-]+[ \\t]*)(=)[ \\t]*([+-]?[0-9](?:[0-9_]*[0-9])?(?:\\.[0-9](?:[0-9_]*[0-9])?)?)[ \\t]*(#.*)?$",
+			"captures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#key"
+						}
+					]
+				},
+				"2": {
+					"name": "keyword.operator.assignment.dotenv"
+				},
+				"3": {
+					"name": "constant.numeric.dotenv"
+				},
+				"4": {
+					"name": "comment.line.dotenv"
 				}
 			}
 		},

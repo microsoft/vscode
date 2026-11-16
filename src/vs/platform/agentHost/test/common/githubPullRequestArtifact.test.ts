@@ -16,7 +16,7 @@ suite('GitHub pull request artifact rules', () => {
 		const option = gitHubPullRequestArtifactOptions.find(option => option.id === 'merge');
 		assert.deepStrictEqual(option?.kind === 'enum' ? {
 			label: option.label, defaultValue: option.defaultValue, disabledValue: option.disabledValue, choices: option.choices, actionIds: option.actionIds,
-			separateFromNativeAutoMerge: option.description?.includes('the integration\'s own merge automation, separate from GitHub\'s native auto-merge'),
+			separateFromNativeAutoMerge: option.description?.includes('separate from GitHub\'s native auto-merge'),
 		} : undefined, {
 			label: 'Merge Automatically When Ready', defaultValue: 'never', disabledValue: 'never', separateFromNativeAutoMerge: true,
 			choices: [{ value: 'never', label: 'Off' }, { value: 'always', label: 'Always' }, { value: 'ifUnchanged', label: 'When No Changes Were Made' }],

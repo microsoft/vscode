@@ -1,0 +1,26 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* High contrast uses a dashed boundary for transient pointer hover. */
+.monaco-workbench:is(.hc-black, .hc-light) .sessions-disclosure:not(summary):is(:hover, .hovered):not([aria-expanded='true'], :focus-visible, .focus-visible),
+.monaco-workbench:is(.hc-black, .hc-light) details:not([open]) > summary.sessions-disclosure:is(:hover, .hovered):not(:focus-visible, .focus-visible),
+.monaco-workbench:is(.hc-black, .hc-light) .monaco-list-row.sessions-disclosure-row:not(.focused):is(:hover, .hovered) > .monaco-tl-row,
+.monaco-workbench:is(.hc-black, .hc-light) .session-section-focus-from-pointer .monaco-list-row.sessions-disclosure-row.focused:is(:hover, .hovered) > .monaco-tl-row {
+	outline: var(--vscode-strokeThickness, 1px) dashed var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
+}
+
+/* Expanded direct disclosures keep a solid persistent-state boundary. Keyboard-focused
+ * tree rows are deliberately omitted so the production list owns their focus ring. */
+.monaco-workbench:is(.hc-black, .hc-light) .sessions-disclosure[aria-expanded='true']:not(:focus-visible, .focus-visible),
+.monaco-workbench:is(.hc-black, .hc-light) details[open] > summary.sessions-disclosure:not(:focus-visible, .focus-visible) {
+	outline: var(--vscode-strokeThickness, 1px) solid var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
+}
+
+.monaco-workbench:is(.hc-black, .hc-light) :is(.sessions-list-control, .agent-sessions-navigation-container):not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.session-list-inset-row.sessions-disclosure-row.focused > .monaco-tl-row {
+	outline: var(--vscode-strokeThickness, 1px) solid var(--vscode-list-focusOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
+}

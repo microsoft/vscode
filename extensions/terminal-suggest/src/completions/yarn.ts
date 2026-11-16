@@ -141,7 +141,7 @@ export const dependenciesGenerator: Fig.Generator = {
 	script: [
 		'bash',
 		'-c',
-		'until [[ -f package.json ]] || [[ $PWD = \' / \' ]]; do cd ..; done; cat package.json',
+		'until [[ -f package.json ]] || [[ $PWD = \'/\' ]]; do cd ..; done; cat package.json',
 	],
 	postProcess: function (out, context = []) {
 		if (out.trim() === '') {

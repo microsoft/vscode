@@ -13,6 +13,7 @@ import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
+import { disposableTimeout } from '../../../../../base/common/async.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -33,7 +34,7 @@ import { IChatSubmitRequestHandlerService } from '../../../chat/browser/chatSubm
 import { combineVoiceInput } from '../../../chat/browser/voiceClient/voiceInputUtils.js';
 import { ChatDynamicVariableModel } from '../../../chat/browser/attachments/chatDynamicVariables.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../../chat/browser/attachments/chatVariables.js';
-import { IChatExecuteActionContext } from '../../../chat/browser/actions/chatExecuteActions.js';
+import { createChatInputToolbarContext } from '../../../chat/browser/actions/chatExecuteActions.js';
 import { IChatWidget } from '../../../chat/browser/chat.js';
 import { compactCodiconsIn } from '../../../chat/browser/chatIcons.js';
 import { ChatWidget } from '../../../chat/browser/widget/chatWidget.js';
@@ -79,6 +80,7 @@ import { markOnboardingTarget } from '../../../onboarding/browser/spotlight/onbo
 import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
 import { installMobileChipLaneScroll } from '../mobile/mobileChipLaneScroll.js';
 import { shownChatOf } from '../../../../services/sessions/common/sessionPane.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 
 /** Body height the composer lays its chat widget out with; the transcript is hidden, so it only bounds the input. */
 const COMPOSER_LAYOUT_HEIGHT = 200;
@@ -86,6 +88,8 @@ const COMPOSER_LAYOUT_HEIGHT = 200;
 const COMPOSER_INPUT_MAX_HEIGHT = COMPOSER_LAYOUT_HEIGHT + 50 + 72;
 /** Progress stays hidden for operations that finish faster than this, so quick changes do not flicker. */
 const BUSY_INDICATOR_DELAY_MS = 500;
+/** How long a send waits for the session to get ready to send, such as while its provider starts. */
+const SEND_READINESS_TIMEOUT_MS = 15_000;
 
 export type ComposerBusyState = '' | 'initializing' | 'sending';
 
@@ -203,6 +207,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	private readonly _confirmingSend = observableValue(this, false);
 	/** Releases the in-flight send's visibility tracking, also when the composer is disposed mid-send. */
 	private readonly _userInteractionSource = this._register(new MutableDisposable());
+	/** A send's wait for the session to be ready to send, which settles as the composer is disposed. */
+	private readonly _readinessWait = this._register(new MutableDisposable<DisposableStore>());
 
 	private readonly _onDidChangeInput = this._register(new Emitter<void>());
 	readonly onDidChangeInput = this._onDidChangeInput.event;
@@ -212,6 +218,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	readonly onDidFocus = this._onDidFocus.event;
 	/** Fires with the model the user selects for the session, once applied: not as the session's model changes otherwise. */
 	get onDidSelectModel(): Event<string> { return this._modelSelection.onDidSelectModel; }
+
+	/** The chat widget of its input, whose submits it sends; undefined until it renders. */
+	get widget(): IChatWidget | undefined { return this._widget; }
 
 	private _widgetContextKeyService: IContextKeyService | undefined;
 
@@ -230,6 +239,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ISessionHost parentHost: ISessionHost,
 		@ISessionHostService sessionHostService: ISessionHostService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		this.host = parentHost;
@@ -347,7 +357,12 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			},
 		));
 		widget.render(widgetContainer, root, this.options.petHostPreferred, this.options.setChatPetPlatformOccupation);
-		widget.setVisible(true);
+		if (this.options.hideChatWidgetWhileHidden) {
+			// The widget is a foreground chat only while its composer is visible, rather than for as long as it is rendered.
+			this._register(autorun(reader => widget.setVisible((this.options.hostVisible?.read(reader) ?? true) && (this.options.inputVisible?.read(reader) ?? true))));
+		} else {
+			widget.setVisible(true);
+		}
 		widget.setInputPartMaxHeightOverride(COMPOSER_INPUT_MAX_HEIGHT);
 
 		this._register(widget.onDidFocus(() => this._onDidFocus.fire()));
@@ -503,7 +518,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				? this._scopedInstantiationService.createInstance(ComposerStatusActionViewItem, action, options)
 				: undefined,
 		}));
-		statusToolbar.context = { widget: this._widget } satisfies IChatExecuteActionContext;
+		if (this._widget) {
+			statusToolbar.context = createChatInputToolbarContext(this._widget);
+		}
 
 		const updateVisibility = () => {
 			const repositoryControlCount = repositoryControlsContainer.parentElement === secondaryControlsContainer
@@ -1040,6 +1057,27 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		return this.submit();
 	}
 
+	/** Whether the session gets ready to send in time, such as once its draft and model are set up, or the composer goes first. */
+	private async _whenCanSendRequest(): Promise<'ready' | 'timeout' | 'disposed'> {
+		const store = new DisposableStore();
+		this._readinessWait.value = store;
+		try {
+			return await new Promise<'ready' | 'timeout' | 'disposed'>(resolve => {
+				store.add(toDisposable(() => resolve('disposed')));
+				store.add(disposableTimeout(() => resolve('timeout'), SEND_READINESS_TIMEOUT_MS));
+				store.add(autorun(reader => {
+					if (this._canSendRequest.read(reader)) {
+						resolve('ready');
+					}
+				}));
+			});
+		} finally {
+			if (this._readinessWait.value === store) {
+				this._readinessWait.clear();
+			}
+		}
+	}
+
 	private async _send(rawQuery: string, attachments: readonly IChatRequestVariableEntry[], background: boolean): Promise<boolean> {
 		const widget = this._widget;
 		const query = rawQuery.trim();
@@ -1056,9 +1094,6 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		if (slashCommand) {
 			return this._runClientSlashCommand(slashCommand, attachments);
 		}
-		if (!this._canSendRequest.get()) {
-			return false;
-		}
 		const targetWindow = dom.getWindow(widget.domNode);
 		const hadFocus = widget.input.hasFocus();
 		let disabledInputFocus = targetWindow.document.activeElement;
@@ -1067,6 +1102,36 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			return this.options.inputVisible?.get() !== false && this.options.hostVisible?.get() !== false
 				&& (activeElement === targetWindow.document.body || activeElement === disabledInputFocus || widget.input.hasFocus());
 		};
+		// The request is captured before it waits for its session or the host's confirmation, during which the input is read-only.
+		// It can still be replaced programmatically, such as by Run Prompt, and sending would then clear the newer draft.
+		const draftBeforeWait = this.getDraft();
+		const isDraftReplaced = () => !equals(draftBeforeWait, this.getDraft());
+		if (!this._canSendRequest.get()) {
+			// A request sent as the composer opens, such as by Run Prompt, can come before its session is set up to send.
+			// The request is already captured, so edits made while it waits would be lost.
+			this._sending.set(true, undefined);
+			widget.input.setInputEnabled(false, this.options.preserveInputFocusOnSend);
+			disabledInputFocus = targetWindow.document.activeElement;
+			let readiness: 'ready' | 'timeout' | 'disposed';
+			try {
+				readiness = await this._whenCanSendRequest();
+			} finally {
+				this._sending.set(false, undefined);
+				if (this._widget === widget && widget.input) {
+					widget.input.setInputEnabled(true);
+				}
+			}
+			if (readiness === 'disposed' || this._widget !== widget || !widget.input) {
+				return false;
+			}
+			if (readiness === 'timeout') {
+				if (hadFocus && canRestoreInputFocus()) {
+					widget.input.focus();
+				}
+				this.notificationService.error(localize('sharedChatInputComposer.notReady', "The request could not be sent because the new session is not ready. Try sending it again."));
+				return false;
+			}
+		}
 		if (this.options.confirmSend) {
 			transaction(tx => {
 				this._sending.set(true, tx);
@@ -1093,6 +1158,14 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			if (!confirmed || this._widget !== widget) {
 				return false;
 			}
+		}
+		if (isDraftReplaced()) {
+			// Keep the newer draft for the user to send, and say why the request did not go out.
+			if (hadFocus && canRestoreInputFocus()) {
+				widget.input.focus();
+			}
+			this._notifyInputReplaced();
+			return false;
 		}
 
 		const userInteraction = background ? undefined : this.instantiationService.createInstance(NewChatUserInteraction, {
@@ -1131,8 +1204,17 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				input: query,
 			})) {
 				userInteraction?.cancel('notDispatched');
-				this.setInputValue('');
+				// The handler has acted on the request; an input replaced while it ran is newer, so it is kept.
+				if (!isInputAlive() || !isDraftReplaced()) {
+					this.setInputValue('');
+				}
 				return true;
+			}
+			// The handler can wait, during which the input can be replaced as before.
+			if (isInputAlive() && isDraftReplaced()) {
+				userInteraction?.cancel('notDispatched');
+				this._notifyInputReplaced();
+				return false;
 			}
 
 			// The input is about to be cleared: until the send ends, the host restores what is sent.
@@ -1181,6 +1263,10 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			}
 			this._sending.set(false, undefined);
 		}
+	}
+
+	private _notifyInputReplaced(): void {
+		this.notificationService.warn(localize('sharedChatInputComposer.inputReplaced', "The request was not sent because the input was replaced while it waited. The new input was kept."));
 	}
 
 	/** The client-side command `rawQuery` runs, if any. Provider commands are references, so they never parse as one. */
