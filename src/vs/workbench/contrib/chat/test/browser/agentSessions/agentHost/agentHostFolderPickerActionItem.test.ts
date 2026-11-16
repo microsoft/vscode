@@ -18,7 +18,7 @@ import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ToolBar } from '../../../../../../../base/browser/ui/toolbar/toolbar.js';
 import { Action } from '../../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
-import { observableValue } from '../../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -28,7 +28,8 @@ import { TestConfigurationService } from '../../../../../../../platform/configur
 import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../../../../platform/workspace/common/workspace.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
-import { ISCMService } from '../../../../../scm/common/scm.js';
+import { ISCMRepository, ISCMService } from '../../../../../scm/common/scm.js';
+import { ISCMHistoryItemRef, ISCMHistoryProvider } from '../../../../../scm/common/history.js';
 import type { IChatWidget } from '../../../../browser/chat.js';
 import { IAgentHostCustomizationService } from '../../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentHostFolderPickerActionItem, FOLDER_PICKER_LIST_CLASS } from '../../../../browser/agentSessions/agentHost/agentHostFolderPickerActionItem.js';
@@ -381,6 +382,76 @@ suite('AgentHostFolderPickerActionItem', () => {
 			inFolder: { label: 'fix', ariaLabel: 'Folder: fix', noWorkspaceIcon: false },
 		});
 	});
+	test('a session started in a new worktree shows that worktree by name, path and branch, also once the host reports it late, and New Worktree until then', () => {
+		const primary = URI.file('/work/vscode');
+		const worktree = URI.file('/work/vscode.worktrees/copilot-hello');
+		const session = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-1' });
+		const onDidChangeCustomizations = store.add(new Emitter<void>());
+		/** Where the host says the session works: none yet, the window's folder before it starts, the worktree made for it after */
+		let workingDirectories: URI[] = [];
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.EditorWindowEnableWorktree]: true }));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
+			getWorkspace: () => upcastPartial<IWorkspace>({ uri: primary, folders: [upcastPartial<IWorkspaceFolder>({ uri: primary, name: 'vscode' })] }),
+			getWorkbenchState: () => WorkbenchState.FOLDER,
+			onDidChangeWorkspaceFolders: Event.None,
+		}));
+		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({
+			onDidChangeProviders: Event.None,
+			onDidChangeLocation: Event.None,
+			canSetLocation: () => true,
+			getLocations: async () => [] as IFolderLocation[],
+			getLocation: () => undefined,
+			resolveLocation: async () => undefined,
+		}));
+		// The folder chosen for the session stays its folder, the one the new worktree is made of, also after it started
+		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({ onDidChangeFolder: Event.None, getFolder: () => primary, isNoWorkspace: () => false, getDefaultFolder: () => undefined }));
+		// The session's configuration keeps its isolation in a new worktree after it started
+		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({
+			onDidChange: Event.None,
+			getResolvedConfig: () => ({ schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } }, values: { isolation: 'worktree' } }),
+			getPreparedSessionConfig: () => undefined,
+		}));
+		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>({ onDidChangeSessions: Event.None }) }));
+		instantiationService.stub(IAgentHostWorktreeSessionSources, store.add(new AgentHostWorktreeSessionSources()));
+		instantiationService.stub(IAgentHostWorktreeLocationsCache, store.add(instantiationService.createInstance(AgentHostWorktreeLocationsCache)));
+		instantiationService.stub(IAgentHostCustomizationService, upcastPartial<IAgentHostCustomizationService>({
+			onDidChangeCustomizations: onDidChangeCustomizations.event,
+			getClientWorkingDirectoryUris: () => workingDirectories,
+			isWorkspaceless: () => false,
+		}));
+		// Each checkout on its own branch
+		const branches = new Map([[primary.path, 'main'], [worktree.path, 'copilot/hello']]);
+		instantiationService.stub(ISCMService, upcastPartial<ISCMService>({
+			getRepository: ((uri: URI | string) => typeof uri !== 'string' && branches.has(uri.path) ? upcastPartial<ISCMRepository>({ provider: upcastPartial<ISCMRepository['provider']>({ historyProvider: constObservable(upcastPartial<ISCMHistoryProvider>({ historyItemRef: constObservable(upcastPartial<ISCMHistoryItemRef>({ name: branches.get(uri.path)! })) })) }) }) : undefined) as ISCMService['getRepository'],
+		}));
+		const widget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: session }), onDidChangeViewModel: Event.None });
+		// The hover it shows, as the hover service would ask it
+		class ChipWithHover extends AgentHostFolderPickerActionItem {
+			hoverLines(): string[] | undefined {
+				return this._buildHoverContent()?.markdownNotSupportedFallback?.split('\n');
+			}
+		}
+		const chip = store.add(instantiationService.createInstance(ChipWithHover, upcastPartial<MenuItemAction>(store.add(new Action('workbench.action.chat.openAgentHostFolderPicker', 'Folder'))), widget, { compact: observableValue('compact', false) }));
+		chip.render(root);
+		const shown = () => ({ label: chip.element?.textContent, ariaLabel: chip.element?.ariaLabel, worktreeIcon: !!chip.element?.querySelector('.codicon-worktree'), hover: chip.hoverLines() });
+
+		const unknown = shown();
+		workingDirectories = [primary];
+		onDidChangeCustomizations.fire();
+		const inFolder = shown();
+		// It started: the host reports the worktree made for it, after the chip rendered
+		workingDirectories = [worktree];
+		onDidChangeCustomizations.fire();
+
+		const newWorktree = { label: 'New Worktree', ariaLabel: 'New worktree of vscode', worktreeIcon: true, hover: ['New worktree of vscode', primary.fsPath, 'main'] };
+		assert.deepStrictEqual({ unknown, inFolder, started: shown() }, {
+			unknown: newWorktree,
+			inFolder: newWorktree,
+			started: { label: 'copilot-hello', ariaLabel: 'Worktree: copilot-hello', worktreeIcon: true, hover: ['Worktree: copilot-hello', worktree.fsPath, 'copilot/hello'] },
+		});
+	});
+
 	test('its list keeps the detail of a row with a description, such as the folder with Current, inside the row, as it does a row without one', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.set(IKeybindingService, new MockKeybindingService());

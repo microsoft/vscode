@@ -1220,7 +1220,7 @@ suite('AgentSessions', () => {
 			disposables.clear();
 		});
 
-		test('offers the worktrees of archived sessions too, as the list can show those, and keeps the selected folder whose last session is archived', () => {
+		test('offers no worktree folder whose sessions are all archived, shows all while the selected one\'s are, and the selected one again as one is unarchived', () => {
 			const filterMenuId = new MenuId('agentSessionsWorktreeFilterArchivedTest');
 			let archived = new Set<string>();
 			const inFolder = (name: string, path: string) => createSession({ resource: URI.parse(`test://${name}`), metadata: { workingDirectoryPath: path }, isArchived: () => archived.has(name) });
@@ -1229,20 +1229,27 @@ suite('AgentSessions', () => {
 			const second = inFolder('second', '/work/vscode.worktrees/second');
 			archived = new Set(['main', 'first', 'second']);
 			modelSessions = [main, first, second];
-			disposables.add(instantiationService.createInstance(AgentSessionsFilter, { filterMenuId }));
+			const filter = disposables.add(instantiationService.createInstance(AgentSessionsFilter, { filterMenuId }));
 			const worktreesMenuId = MenuId.for(`${filterMenuId.id}.worktrees`);
 			const options = () => MenuRegistry.getMenuItems(worktreesMenuId).filter(isIMenuItem).map(item => `${item.command.title}${(item.command.toggled as ContextKeyExpression).serialize() === 'true' ? ' (checked)' : ''}`);
+			const shown = () => [main, first, second].filter(session => !filter.exclude(session)).map(session => session.resource.authority);
 			const allArchived = options();
 			archived = new Set();
 			onDidChangeModelSessions.fire();
 			const item = MenuRegistry.getMenuItems(worktreesMenuId).filter(isIMenuItem).find(candidate => candidate.command.title === 'first')!;
 			instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(item.command.id)!.handler(accessor));
+			const selected = { options: options(), shown: shown() };
 			archived = new Set(['first']);
 			onDidChangeModelSessions.fire();
+			const lastArchived = { options: options(), shown: shown(), isDefault: filter.isDefault() };
+			archived = new Set();
+			onDidChangeModelSessions.fire();
 
-			assert.deepStrictEqual({ allArchived, lastArchived: options() }, {
-				allArchived: ['All Worktrees (checked)', 'vscode', 'first', 'second'],
-				lastArchived: ['All Worktrees', 'vscode', 'first (checked)', 'second'],
+			assert.deepStrictEqual({ allArchived, selected, lastArchived, unarchived: { options: options(), shown: shown() } }, {
+				allArchived: [],
+				selected: { options: ['All Worktrees', 'vscode', 'first (checked)', 'second'], shown: ['first'] },
+				lastArchived: { options: ['All Worktrees (checked)', 'vscode', 'second'], shown: ['main', 'first', 'second'], isDefault: true },
+				unarchived: { options: ['All Worktrees', 'vscode', 'first (checked)', 'second'], shown: ['first'] },
 			});
 		});
 

@@ -93,6 +93,8 @@ suite('AgentHostWorktree', () => {
 		// Where the chats of the editor window's session layer work, which the Chat view's sessions list does not list
 		const sessionLayerDirectories = new Map<string, string>();
 		const onDidChangeSessionLayer = store.add(new Emitter<void>());
+		/** The sessions of the Chat view's list that are archived, by their resource. */
+		const archived = new Set<string>();
 		const sessionSources = store.add(new AgentHostWorktreeSessionSources());
 		store.add(sessionSources.registerSource({
 			getWorkingDirectory: (chat: URI) => { const path = sessionLayerDirectories.get(chat.toString()); return path ? URI.file(path) : undefined; },
@@ -103,7 +105,8 @@ suite('AgentHostWorktree', () => {
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({
 			getSession: (resource: URI) => {
 				const path = workingDirectories.get(resource.toString());
-				return path ? upcastPartial<IAgentSession>({ metadata: { workingDirectoryPath: path } }) : undefined;
+				const isArchived = archived.has(resource.toString());
+				return path || isArchived ? upcastPartial<IAgentSession>({ metadata: path ? { workingDirectoryPath: path } : undefined, isArchived: () => isArchived }) : undefined;
 			},
 			model: upcastPartial<IAgentSessionsService['model']>({ onDidChangeSessions: onDidChangeSessions.event, onDidResolve: Event.None }),
 		}));
@@ -182,7 +185,7 @@ suite('AgentHostWorktree', () => {
 		/** The user moves the folder in the window's title, which the workspace makes like any other move. */
 		const userStartsMoveTo = (location: URI) => setFolderLocation(location, { reason: 'user' });
 		const commit = (original: URI, committed: URI) => onDidCommitSession.fire({ original, committed });
-		return { show, workingDirectories, onDidChangeSessions, sessionLayerDirectories, onDidChangeSessionLayer, moves, applied, opened, providers, triggers: telemetryService.triggers, setEnabled, userMovesTo, userStartsMoveTo, commit, contribution, marks, notices };
+		return { show, archived, workingDirectories, onDidChangeSessions, sessionLayerDirectories, onDidChangeSessionLayer, moves, applied, opened, providers, triggers: telemetryService.triggers, setEnabled, userMovesTo, userStartsMoveTo, commit, contribution, marks, notices };
 	}
 
 	const settle = () => new Promise<void>(resolve => setTimeout(resolve, 0));
@@ -206,6 +209,64 @@ suite('AgentHostWorktree', () => {
 			providers: ['registered'],
 			triggers: [`config.${ChatConfiguration.EditorWindowEnableWorktree}`],
 		});
+	});
+
+	test('an archived chat the user opens, or one that works in a worktree only later, moves nothing, and follows again once unarchived', async () => {
+		const feature = createWorktree({ enabled: true });
+		feature.workingDirectories.set(agentSession('done').toString(), worktree.fsPath);
+		feature.archived.add(agentSession('done').toString());
+		feature.archived.add(localChat.toString());
+		feature.show(agentSession('done'));
+		await settle();
+		feature.workingDirectories.set(agentSession('done').toString(), created.fsPath);
+		feature.onDidChangeSessions.fire();
+		await settle();
+		feature.show(localChat);
+		await settle();
+		const whileArchived = [...feature.moves];
+		feature.archived.delete(agentSession('done').toString());
+		feature.show(agentSession('done'));
+		await settle();
+
+		assert.deepStrictEqual({ whileArchived, unarchived: feature.moves }, {
+			whileArchived: [],
+			unarchived: ['/work/vscode.worktrees/created'],
+		});
+	});
+
+	test('an archived chat the user keeps open follows as where it works changes once unarchived, but unarchiving alone moves nothing', async () => {
+		const feature = createWorktree({ enabled: true });
+		feature.workingDirectories.set(agentSession('done').toString(), worktree.fsPath);
+		feature.archived.add(agentSession('done').toString());
+		feature.show(agentSession('done'));
+		await settle();
+		feature.archived.delete(agentSession('done').toString());
+		feature.onDidChangeSessions.fire();
+		await settle();
+		const unarchived = [...feature.moves];
+		feature.workingDirectories.set(agentSession('done').toString(), created.fsPath);
+		feature.onDidChangeSessions.fire();
+		await settle();
+
+		assert.deepStrictEqual({ unarchived, changed: feature.moves }, {
+			unarchived: [],
+			changed: ['/work/vscode.worktrees/created (automatic)'],
+		});
+	});
+
+	test('a chat archived while the folder is about to follow it moves nothing', async () => {
+		const resolving = new DeferredPromise<void>();
+		const feature = createWorktree({ enabled: true, resolving: resolving.p });
+		feature.workingDirectories.set(agentSession('a').toString(), worktree.fsPath);
+		feature.show(agentSession('a'));
+		await settle();
+		feature.archived.add(agentSession('a').toString());
+		feature.onDidChangeSessions.fire();
+		resolving.complete();
+		await settle();
+		await settle();
+
+		assert.deepStrictEqual(feature.moves, []);
 	});
 
 	test('follows on its own once the shown session\'s working directory is known, or as it changes, such as to a worktree its agent created', async () => {
@@ -256,6 +317,28 @@ suite('AgentHostWorktree', () => {
 		assert.deepStrictEqual({ moves: feature.moves, opened: feature.opened }, {
 			moves: ['/work/vscode.worktrees/feature', '/work/vscode'],
 			opened: ['/a (restore)'],
+		});
+	});
+
+	test('does not reopen the last chat of a location the user moves the folder to once it is archived, and does again once unarchived', async () => {
+		const feature = createWorktree({ enabled: true });
+		feature.workingDirectories.set(agentSession('a').toString(), worktree.fsPath);
+		feature.show(agentSession('a'));
+		await settle();
+		feature.show(localChat);
+		await settle();
+		feature.archived.add(agentSession('a').toString());
+		feature.userMovesTo(worktree);
+		// The chats it reopens at the worktree, not the local chat it reopens back at the folder
+		const reopened = () => feature.opened.filter(opened => opened.startsWith('/a '));
+		const whileArchived = reopened();
+		feature.userMovesTo(URI.file('/work/vscode'));
+		feature.archived.delete(agentSession('a').toString());
+		feature.userMovesTo(worktree);
+
+		assert.deepStrictEqual({ whileArchived, unarchived: reopened() }, {
+			whileArchived: [],
+			unarchived: ['/a (restore)'],
 		});
 	});
 

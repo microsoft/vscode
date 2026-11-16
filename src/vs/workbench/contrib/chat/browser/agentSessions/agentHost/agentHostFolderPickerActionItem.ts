@@ -11,7 +11,7 @@ import { IManagedHoverTooltipMarkdownString } from '../../../../../../base/brows
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { basename } from '../../../../../../base/common/resources.js';
+import { basename, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
@@ -210,7 +210,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		const selected = this._selectedFolder();
+		const selected = this._displayedFolder();
 		const folder = selected && this._workspaceContextService.getWorkspace().folders.find(f => f.uri.toString() === selected.toString());
 		const chip = this._chip(selected);
 		const label = chip ? chip.description : folder ? folder.name : (selected ? basename(selected) : localize('agentHost.selectFolder', "Folder"));
@@ -265,7 +265,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	 * compact.
 	 */
 	getMinimumWidth(): number | undefined {
-		const chip = this._chip(this._selectedFolder());
+		const chip = this._chip(this._displayedFolder());
 		if (!chip) {
 			return undefined;
 		}
@@ -289,7 +289,29 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		if (this._isNoWorkspace()) {
 			return this._worktree.getNoWorkspaceChip();
 		}
-		return selected && this._worktree.getChip(selected);
+		return selected && this._worktree.getChip(selected, this._startedWorktree());
+	}
+
+	/**
+	 * The folder the chip stands for, by its name, hover path and branch: the worktree made for a session that started in a
+	 * new worktree, else the selected folder, which stays the one the new worktree was made of.
+	 */
+	private _displayedFolder(): URI | undefined {
+		const started = this._worktree.isActive() && !this._isNoWorkspace() && this._worktree.isNewWorktreeSelected() ? this._startedWorktree() : undefined;
+		return started ?? this._selectedFolder();
+	}
+
+	/**
+	 * Where the session works as its host says, where that is not the folder a new worktree of it is made of (the one chosen
+	 * for it, else the window's): once it started in a new worktree, the worktree made for it.
+	 */
+	private _startedWorktree(): URI | undefined {
+		const sessionResource = this._sessionResource();
+		const workingDirectory = sessionResource && this._customizationService.getClientWorkingDirectoryUris(sessionResource)[0];
+		const base = (sessionResource && this._newSessionFolderService.getFolder(sessionResource))
+			?? this._newSessionFolderService.getDefaultFolder()
+			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
+		return workingDirectory && !(base && extUriBiasedIgnorePathCase.isEqual(workingDirectory, base)) ? workingDirectory : undefined;
 	}
 
 	/**
@@ -340,12 +362,12 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	 * when the folder maps to a git repository, the current branch name.
 	 * Returns `undefined` when no folder is selected so no hover is shown.
 	 */
-	private _buildHoverContent(): IManagedHoverTooltipMarkdownString | undefined {
+	protected _buildHoverContent(): IManagedHoverTooltipMarkdownString | undefined {
 		if (this._worktree.isActive() && this._isNoWorkspace()) {
 			const { description } = this._worktree.getNoWorkspaceChip();
 			return { markdown: new MarkdownString().appendText(description), markdownNotSupportedFallback: description };
 		}
-		const selected = this._selectedFolder();
+		const selected = this._displayedFolder();
 		if (!selected) {
 			return undefined;
 		}
@@ -354,7 +376,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		const fallbackLines: string[] = [];
 
 		// What the chip shows by its icon only, by name
-		const chip = this._worktree.isActive() ? this._worktree.getChip(selected) : undefined;
+		const chip = this._worktree.isActive() ? this._worktree.getChip(selected, this._startedWorktree()) : undefined;
 		if (chip) {
 			md.appendText(chip.description);
 			md.appendMarkdown('\n\n');
