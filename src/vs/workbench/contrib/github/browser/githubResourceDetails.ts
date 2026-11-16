@@ -6,7 +6,7 @@
 import type { IManagedHoverTooltipHTMLElement } from '../../../../base/browser/ui/hover/hover.js';
 import { DeferredPromise, Limiter, raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, derived, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -42,7 +42,7 @@ export type LazyGitHubResourceState<T> =
 	| { readonly status: 'idle' | 'loading' | 'failed' }
 	| { readonly status: 'resolved'; readonly value: T; readonly stale?: boolean };
 
-interface IGitHubResourceRequest {
+interface IGitHubResourceRequest extends IDisposable {
 	readonly cancellationToken: CancellationToken;
 	interactive: boolean;
 	complete: boolean;
@@ -52,7 +52,6 @@ interface IGitHubResourceRequest {
 interface ILazyGitHubResourceEntry<T> {
 	readonly state: ReturnType<typeof observableValue<LazyGitHubResourceState<T>>>;
 	promise: Promise<T | undefined> | undefined;
-	controller: CancellationTokenSource | undefined;
 	promote?: (resolve: (request: IGitHubResourceRequest) => Promise<T | undefined>, requireComplete: boolean) => void;
 	request?: IGitHubResourceRequest;
 	complete: boolean;
@@ -86,7 +85,7 @@ export class GitHubResourceDetailsResolver extends Disposable {
 			this._issues.clear();
 			this._pullRequests.clear();
 			for (const entry of entries) {
-				entry.controller?.dispose(true);
+				entry.request?.dispose();
 				entry.state.set({ status: 'idle' }, undefined);
 			}
 		}));
@@ -178,7 +177,7 @@ export class GitHubResourceDetailsResolver extends Disposable {
 		for (const [cache, keys] of [[this._issues, issues], [this._pullRequests, pullRequests]] as const) {
 			for (const key of cache.keys()) {
 				if (!keys.has(key)) {
-					cache.get(key)?.controller?.dispose(true);
+					cache.get(key)?.request?.dispose();
 					cache.delete(key);
 				}
 			}
@@ -219,7 +218,7 @@ export class GitHubResourceDetailsResolver extends Disposable {
 		const key = githubTargetKey(target);
 		let entry = cache.get(key);
 		if (!entry) {
-			entry = { state: observableValue(this, { status: 'idle' }), promise: undefined, controller: undefined, complete: false, resolvedAt: undefined };
+			entry = { state: observableValue(this, { status: 'idle' }), promise: undefined, complete: false, resolvedAt: undefined };
 			cache.set(key, entry);
 		}
 		return entry;
@@ -253,12 +252,16 @@ export class GitHubResourceDetailsResolver extends Disposable {
 			if (state.status !== 'resolved') {
 				entry.state.set({ status: 'loading' }, undefined);
 			}
-			const controller = new CancellationTokenSource();
-			entry.controller = controller;
 			const lifetime = new DisposableStore();
-			lifetime.add(controller);
+			const controller = lifetime.add(new CancellationTokenSource());
 			const cancellationToken = CancellationToken.any([this._lifetime.token, controller.token], lifetime);
-			const request: IGitHubResourceRequest = { cancellationToken, interactive: !prefetch, complete: requireComplete };
+			const request: IGitHubResourceRequest = {
+				cancellationToken, interactive: !prefetch, complete: requireComplete,
+				dispose: () => {
+					controller.cancel();
+					lifetime.dispose();
+				},
+			};
 			entry.request = request;
 			const result = new DeferredPromise<T | undefined>();
 			let started = false;
@@ -307,8 +310,7 @@ export class GitHubResourceDetailsResolver extends Disposable {
 				return undefined;
 			}).finally(() => {
 				lifetime.dispose();
-				if (entry.controller === controller) {
-					entry.controller = undefined;
+				if (entry.request === request) {
 					entry.promise = undefined;
 					entry.promote = undefined;
 					entry.request = undefined;
