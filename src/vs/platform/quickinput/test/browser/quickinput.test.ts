@@ -807,6 +807,38 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		});
 	});
 
+	test('a custom picker keeps its position when a rerender removes its anchor, including between pickers', () => {
+		fixture.style.cssText = 'position: fixed; top: 0; left: 0; width: 600px; height: 600px';
+		controller.layout({ width: 600, height: 600 }, 0);
+		const anchor = document.createElement('button');
+		anchor.style.cssText = 'position: absolute; left: 80px; top: 220px; width: 300px; height: 26px';
+		fixture.appendChild(anchor);
+		const preset = store.add(controller.createQuickPick());
+		preset.anchor = anchor;
+		preset.show();
+		anchor.remove();
+		preset.hide();
+
+		const picker = store.add(controller.createQuickWidget());
+		picker.anchor = anchor;
+		const content = document.createElement('div');
+		content.style.height = '100px';
+		picker.widget = content;
+		picker.show();
+		const container = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
+		const detachedRect = container.getBoundingClientRect();
+		fixture.appendChild(anchor);
+		controller.layout({ width: 600, height: 600 }, 0);
+		const attachedRect = container.getBoundingClientRect();
+		anchor.remove();
+		controller.layout({ width: 600, height: 600 }, 0);
+		const rerenderedRect = container.getBoundingClientRect();
+		assert.deepStrictEqual(
+			[detachedRect, rerenderedRect].map(rect => ({ top: rect.top, left: rect.left })),
+			[attachedRect, attachedRect].map(rect => ({ top: rect.top, left: rect.left })),
+		);
+	});
+
 	test('scoped anchors apply only to the next unanchored quick pick', async () => {
 		const anchor = document.createElement('div');
 		const explicitAnchor = document.createElement('div');

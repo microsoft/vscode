@@ -91,6 +91,15 @@ suite('Sessions presentation entry isolation', () => {
 			assert.deepStrictEqual(services.filter(file => dependencies.has(file)), services);
 		});
 
+		test(`${entry} registers the workspace-folder location service required by extension-host customers`, () => {
+			const module = 'src/vs/workbench/services/workspaces/common/workspaceFolderLocationService.ts';
+			const dependencies = collectSourceDependencies(entry);
+			const registrations = dependencies.has(module) ? getSingletonRegistrations(module) : [];
+			assert.deepStrictEqual(registrations.filter(([id]) => id === 'IWorkspaceFolderLocationService'), [
+				['IWorkspaceFolderLocationService', 'WorkspaceFolderLocationService'],
+			]);
+		});
+
 		test(`${entry} registers shared session and host services without relying on implementation side effects`, () => {
 			const dependencies = collectSourceDependencies(entry);
 			const registrations = dependencies.has(coreSessionsRegistrations) ? getSingletonRegistrations(coreSessionsRegistrations) : [];

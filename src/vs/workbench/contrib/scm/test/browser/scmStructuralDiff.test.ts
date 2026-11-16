@@ -37,6 +37,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../browser/labels.js';
 import { DEFAULT_EDITOR_ASSOCIATION, ITextDiffEditorPane, IUntypedEditorInput } from '../../../../common/editor.js';
 import { DecorationsService } from '../../../../services/decorations/browser/decorationsService.js';
@@ -303,20 +304,27 @@ suite('SCM structural diff tree', () => {
 		assert.deepStrictEqual({ withoutProvider, enabled, disabled }, { withoutProvider: false, enabled: true, disabled: false });
 	});
 
-	test('the menu command toggles the active Source Control view', async () => {
+	test('the menu command toggles the active Source Control view and reports the new state', async () => {
 		const view = new class extends mock<SCMViewPane>() {
 			private show = true;
 			override get showStructuralDiff(): boolean { return this.show; }
 			override set showStructuralDiff(value: boolean) { this.show = value; }
 		};
+		const events: Record<string, unknown>[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IViewsService, {}, 'getActiveViewWithId', () => view);
+		instantiationService.set(ITelemetryService, new class extends mock<ITelemetryService>() {
+			override publicLog2(eventName: string, data?: Record<string, unknown>): void { events.push({ eventName, ...data }); }
+		});
 		const command = CommandsRegistry.getCommand('workbench.scm.action.toggleShowStructuralDiff');
 		assert.ok(command);
 		await instantiationService.invokeFunction(command.handler);
 		const unchecked = view.showStructuralDiff;
 		await instantiationService.invokeFunction(command.handler);
-		assert.deepStrictEqual([unchecked, view.showStructuralDiff], [false, true]);
+		assert.deepStrictEqual({ states: [unchecked, view.showStructuralDiff], events }, {
+			states: [false, true],
+			events: [{ eventName: 'scmStructuralDiffToggled', enabled: 0 }, { eventName: 'scmStructuralDiffToggled', enabled: 1 }],
+		});
 	});
 
 	test('supports symbol-name keyboard navigation and meaningful screen-reader labels', () => {
