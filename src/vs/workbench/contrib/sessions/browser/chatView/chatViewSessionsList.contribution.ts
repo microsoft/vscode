@@ -192,4 +192,4 @@ function registerSessionsSidebarToggle(): IDisposable {
 	return store;
 }
 
-registerWorkbenchContribution2(ChatViewSessionsGate.ID, ChatViewSessionsGate, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(ChatViewSessionsGate.ID, ChatViewSessionsGate, WorkbenchPhase.AfterRestored);
