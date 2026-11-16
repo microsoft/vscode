@@ -1545,6 +1545,61 @@ suite('AgentHostCatalogReconciliationService', () => {
 		assert.deepStrictEqual(marked, ['agenthost:empty']);
 	});
 
+	test('re-parking a session that is already provisional does not announce it again (#345377)', async () => {
+		// Each announcement refreshes the published session list, whose listing re-dirties and wakes the session.
+		const harness = await createHarness(['empty']);
+		const session = 'agenthost:empty';
+		const announcements: string[][] = [];
+		const service = harness.createService(async () => ({ status: 'sourceUnresolvable' }), { onDidMarkSessionsProvisional: sessions => announcements.push([...sessions]) });
+
+		await service.runPass();
+		await harness.central.markSessionV2PayloadDirty(session);
+		service.wakeParkedSessions(session);
+		const reparked = await service.runPass();
+
+		assert.deepStrictEqual({
+			announcements,
+			reparked: reparked.outcomes,
+			provisional: await harness.central.listProvisionalSessions(),
+		}, {
+			announcements: [[session]],
+			reparked: [{ session, status: 'retry', reason: 'sourceUnresolvable' }],
+			provisional: [session],
+		});
+	});
+
+	test('a source that cannot resolve re-projects the stored catalog it offers, and an empty one is still marked provisional', async () => {
+		const harness = await createHarness(['local-less', 'stored'], new Set(['agenthost:local-less']));
+		const marked: string[] = [];
+		const service = harness.createService(async session => ({
+			status: 'sourceUnresolvable',
+			storedRequest: { data: catalogData(session.session.path), legacyMetadata: {} },
+		}), { onDidMarkSessionsProvisional: sessions => marked.push(...sessions) });
+
+		const first = await service.runPass();
+		const second = await service.runPass();
+		const rows = await Promise.all(['agenthost:local-less', 'agenthost:stored'].map(session => harness.central.getSessionV2(session)));
+
+		assert.deepStrictEqual({
+			first: first.outcomes,
+			second: second.outcomes,
+			marked: marked.sort(),
+			summaries: rows.map(row => row && summaryOf(row.payload)),
+			dirty: rows.map(row => row?.payloadDirty),
+			parked: ['agenthost:local-less', 'agenthost:stored'].filter(session => service.isParked(session)),
+		}, {
+			first: [
+				{ session: 'agenthost:local-less', status: 'succeeded', reason: 'synchronized', sourceRevision: 0 },
+				{ session: 'agenthost:stored', status: 'succeeded', reason: 'synchronized', sourceRevision: 0 },
+			],
+			second: [],
+			marked: ['agenthost:local-less', 'agenthost:stored'],
+			summaries: ['local-less', 'stored'],
+			dirty: [0, 0],
+			parked: [],
+		});
+	});
+
 	test('a mutation arriving during source resolution is not parked away', async () => {
 		const harness = await createHarness(['one']);
 		const session = 'agenthost:one';

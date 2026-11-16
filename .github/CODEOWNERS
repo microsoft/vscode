@@ -3,7 +3,7 @@
 .github/workflows/pr-darwin-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
 .github/workflows/pr-linux-cli-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
 .github/workflows/pr-linux-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
-.github/workflows/pr-node-modules.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
+.github/workflows/pr-pnpm-store.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
 .github/workflows/pr-win32-test.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
 .github/workflows/pr.yml @lszomoru @alexdima @sandy081 @TylerLeonhardt @rzhao271 @Yoyokrazy @lramos15
 .github/workflows/telemetry.yml @lramos15 @lszomoru @alexdima
@@ -13,6 +13,8 @@
 # this is only about the final API, not about proposed API changes
 src/vscode-dts/vscode.d.ts @TylerLeonhardt @alexr00
 src/vs/workbench/services/extensions/common/extensionPoints.json @TylerLeonhardt @alexr00
+# Extensions that may use any proposed API in every build
+src/vs/workbench/services/extensions/common/extensionsProposedApiExceptions.ts @alexr00 @TylerLeonhardt
 
 # Quick Input API
 src/vs/platform/quickinput/common/quickInput.ts @TylerLeonhardt

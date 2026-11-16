@@ -8,7 +8,7 @@ import { sandboxCertificateInstallationCapability, sandboxCertificateRefreshCapa
 import { InstallSandboxCertificateExtensionMethod, RefreshSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from '../common/sandboxCertificateProtocol.js';
 import { LoadClientCertificatesExtensionMethod, loadClientCertificatesResultValidator } from '../common/clientCertificatesProtocol.js';
 import { supportsAgentHostClientCertificates } from '../common/meta/agentHostClientCertificatesMeta.js';
-import { ClientProxyChangedExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyResultValidator } from '../common/clientProxyProtocol.js';
+import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, lookupClientProxyBasicAuthorizationResultValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyResultValidator } from '../common/clientProxyProtocol.js';
 import { AgentHostClientProxyCapabilityMetaKey, supportsAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
 import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { disposableTimeout, raceCancellationError, raceTimeout, SequencerByKey } from '../../../base/common/async.js';
@@ -17,12 +17,15 @@ import { lstat, realpath, stat } from 'fs/promises';
 import { parseSessionDbUri } from '../common/sessionDbUri.js';
 import { parsePendingEditContentUri } from '../common/pendingEditContentUri.js';
 import { parseGitBlobUri } from './gitDiffContent.js';
+import { resolveBranchChangesetScopeForOwner } from './agentHostBranchChangesetScope.js';
 import { basename, dirname, relative, isAbsolute, resolve, sep } from '../../../base/common/path.js';
 import { Schemas } from '../../../base/common/network.js';
 import { deepClone, equals, mixin } from '../../../base/common/objects.js';
 import { encodeBase64 } from '../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { isJsonRpcResponse } from '../../../base/common/jsonRpcProtocol.js';
+import type { ILoadEstimator } from '../../../base/parts/ipc/common/ipc.net.js';
+import { ProtocolLivenessMonitor } from '../common/protocolLivenessMonitor.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { hasKey, isDefined } from '../../../base/common/types.js';
@@ -36,9 +39,13 @@ import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js'
 import { AgentHostClientType, getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostChatUris, supportsAgentHostSessionUris } from '../common/meta/agentHostSessionUrisMeta.js';
 import { withSessionInitiator } from '../common/meta/agentSessionInitiatorMeta.js';
+import { readSideChatWithoutContext } from '../common/meta/agentHostSideChatMeta.js';
 import { withoutAgentPermissionFeedback } from '../common/meta/agentPermissionResponseMeta.js';
 import { readChatWorkspaceValue, readCreateChatWorkspaceMeta } from '../common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { AGENT_HOST_CREATE_SESSION_IMPORT_CHUNK_CHARS, AGENT_HOST_CREATE_SESSION_IMPORT_MAX_STAGED_CHARS, readCreateSessionImportMeta, StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, withoutCreateSessionImportMeta } from '../common/meta/agentHostCreateSessionImportMeta.js';
+import { AgentHostScheduledChatExistingConversationCapabilityMetaKey } from '../common/meta/agentHostAutomationsMeta.js';
+import { requestsAgentHostMultipleChatProviders } from '../common/meta/agentHostMultipleChatProvidersMeta.js';
+import { ChatProvidersConfigKey } from '../common/agentHostChatProviders.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentModelInfo, type IAgentSessionMetadata, type IMcpNotification } from '../common/agent.js';
 import type { IAgentHostAuthenticationScope, IAgentHostCredentialPrincipal, IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
@@ -47,9 +54,9 @@ import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { AcknowledgeAutomationDeletionExtensionMethod, acknowledgeAutomationDeletionParamsValidator, CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, SetChatWorkspaceExtensionMethod, setChatWorkspaceParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ListAgentExtensionsExtensionMethod, listAgentExtensionsParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, setAgentExtensionEnabledParamsValidator, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, DeleteAutomationExtensionMethod, deleteAutomationParamsValidator } from '../common/agentHostExtensionProtocol.js';
-import { CleanupManagedWorktreeExtensionMethod, cleanupManagedWorktreeParamsValidator, ListManagedWorktreesExtensionMethod, listManagedWorktreesParamsValidator, SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupParamsValidator } from '../common/agentHostWorktreeCleanup.js';
-import { AgentHostWorktreeCleanupCapabilityMetaKey, ForceWorktreeCleanupCapabilityMetaKey, ManagedWorktreesCapabilityMetaKey } from '../common/meta/agentHostWorktreeCleanupMeta.js';
+import { AgentHostChatStateFileCapabilityMetaKey, AcknowledgeAutomationDeletionExtensionMethod, acknowledgeAutomationDeletionParamsValidator, CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, SetChatWorkspaceExtensionMethod, setChatWorkspaceParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ListAgentExtensionsExtensionMethod, listAgentExtensionsParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, setAgentExtensionEnabledParamsValidator, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, AnswerShellAuthenticationExtensionMethod, answerShellAuthenticationParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, DeleteAutomationExtensionMethod, deleteAutomationParamsValidator, RegisterGitHubEnvironmentExtensionMethod, registerGitHubEnvironmentParamsValidator, UnregisterGitHubEnvironmentExtensionMethod, unregisterGitHubEnvironmentParamsValidator, type IAgentHostGitHubEnvironmentRegistration, GitHubEnvironmentChangedNotification, type IAgentHostExtensionInitializeResultMeta } from '../common/agentHostExtensionProtocol.js';
+import { CleanupManagedWorktreeExtensionMethod, cleanupManagedWorktreeParamsValidator, ListManagedWorktreesExtensionMethod, listManagedWorktreesParamsValidator, PrepareSessionWorktreeCleanupExtensionMethod, prepareSessionWorktreeCleanupParamsValidator, SessionWorktreeCleanupExtensionMethod, sessionWorktreeCleanupParamsValidator } from '../common/agentHostWorktreeCleanup.js';
+import { AgentHostWorktreeCleanupCapabilityMetaKey, ForceWorktreeCleanupCapabilityMetaKey, ManagedWorktreesCapabilityMetaKey, PrepareSessionWorktreeCleanupCapabilityMetaKey } from '../common/meta/agentHostWorktreeCleanupMeta.js';
 import { savedChatToDto } from '../common/agentHostSavedChat.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
@@ -101,6 +108,7 @@ import type { IProtocolServer, IProtocolTransport } from '../common/state/sessio
 import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from '../common/meta/agentHostWorktreeDiskUsageMeta.js';
+import { AgentHostGitHubEnvironmentCapabilityMetaKey, type IAgentHostGitHubEnvironmentStatus } from '../common/meta/agentHostGitHubEnvironmentMeta.js';
 import {
 	buildOtlpLogsChannelUri,
 	extractLevelFromOtlpLogsUri,
@@ -114,7 +122,7 @@ import {
 } from '../common/otlp/otlpLogEmitter.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import { getAgentHostAhpLogDirectoryMeta } from '../common/meta/agentHostDebugLogsMeta.js';
-import type { Implementation, SubscribeParams } from '../common/state/protocol/common/commands.js';
+import type { HostEnvironment, Implementation, SubscribeParams } from '../common/state/protocol/common/commands.js';
 import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, IAgentHostClientConnectionService, type IAgentHostClientConnectionSource } from './agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
@@ -133,6 +141,9 @@ import { ClientArtifactIntegrationEndpoint } from './artifactIntegrations/client
 const REPLAY_BUFFER_CAPACITY = 1000;
 
 const CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT = 30_000;
+
+const CLIENT_PING_INTERVAL = 10_000;
+const CLIENT_LIVENESS_TIMEOUT = 20_000;
 
 const CLIENT_ACTION_ACKNOWLEDGEMENT_TIMEOUT = 30_000;
 
@@ -162,6 +173,7 @@ export function toListedSessionSummary(s: IAgentSessionMetadata): ListSessionsRe
 		...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
 		workingDirectories: s.workingDirectories?.map(d => d.toString()),
 		changes: s.changes,
+		...(s.annotations !== undefined ? { annotations: s.annotations } : {}),
 		chats: s.chats?.map(chat => ({
 			resource: chat.chat.toString(),
 			title: chat.summary ?? '',
@@ -624,14 +636,17 @@ export interface IProtocolServerExtension {
  * Configuration for protocol-level concerns outside of IAgentService.
  */
 export interface IProtocolServerConfig {
+	readonly loadEstimator?: ILoadEstimator;
 	readonly scopedRelayCredentials?: boolean;
-	/** Trusted listener-owned delegation, applied only after validating the relay credential. */
-	readonly resolveRelayCredentials?: (principal: IAgentHostCredentialPrincipal, resource: string) => Promise<IAgentHostCredentialSource | undefined>;
+	/** Trusted listener-owned delegation, available only to an authorized relay caller. */
+	readonly resolveRelayCredentials?: (principal: IAgentHostCredentialPrincipal, resource: string) => IAgentHostCredentialSource | undefined;
 	/** Process launcher that owns this agent host. */
 	readonly hostLaunchKind?: AgentHostLaunchKind;
 
 	/** Default directory advertised to clients and used for relay sessions when no working directory is supplied. */
 	readonly defaultDirectory?: string;
+	/** Default execution environment advertised to clients. */
+	readonly environment?: HostEnvironment;
 	/**
 	 * Whether to expose VS Code host-control methods outside the Agent Host
 	 * Protocol. Defaults to `true` for existing remote listeners. Session-data
@@ -674,6 +689,20 @@ export interface IProtocolServerConfig {
 	 * rejected.
 	 */
 	readonly otlpLogEmitter?: OtlpLogEmitter;
+	/**
+	 * Registers this host as a GitHub environment owned by a directly
+	 * connected client's GitHub account. Never offered to relay clients.
+	 */
+	readonly githubEnvironment?: IProtocolServerGitHubEnvironment;
+}
+
+export interface IProtocolServerGitHubEnvironment {
+	/** The current status, advertised in the initialize and reconnect results of clients that may register. */
+	readonly status: IAgentHostGitHubEnvironmentStatus;
+	/** Fires when {@link status} changes; sent to those clients as a {@link GitHubEnvironmentChangedNotification}. */
+	readonly onDidChangeStatus: Event<IAgentHostGitHubEnvironmentStatus>;
+	register(accountId: string, credential: string): Promise<IAgentHostGitHubEnvironmentRegistration>;
+	unregister(accountId: string): Promise<void>;
 }
 
 /**
@@ -712,6 +741,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
 	private readonly _managedSettingsOwnerId = generateUuid();
 	private readonly _connectionDisposables = this._register(new DisposableMap<IProtocolTransport, DisposableStore>());
+	private readonly _onDidChangeQueuedCredentials = this._register(new Emitter<void>());
 	private readonly _connectionChannels = new Map<IProtocolTransport, AgentHostConnectionChannels>();
 	private readonly _tcpBudget: AgentHostTcpBudget;
 
@@ -787,6 +817,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (this._config.otlpLogEmitter) {
 			this._register(this._config.otlpLogEmitter.onDidLog(record => this._broadcastOtlpLog(record)));
 		}
+
+		if (this._config.githubEnvironment) {
+			this._register(this._config.githubEnvironment.onDidChangeStatus(status => this._broadcastGitHubEnvironmentStatus(status)));
+		}
 	}
 
 	// ---- Connection handling -------------------------------------------------
@@ -798,6 +832,23 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		this._connectionChannels.set(transport, channels);
 		disposables.add(toDisposable(() => this._connectionChannels.delete(transport)));
 		let client: IConnectedClient | undefined;
+		const liveness = disposables.add(new ProtocolLivenessMonitor({
+			pingIntervalMs: CLIENT_PING_INTERVAL,
+			timeoutMs: CLIENT_LIVENESS_TIMEOUT,
+			loadEstimator: this._config.loadEstimator,
+			canCheck: () => !!client && transport.transportKind !== AgentHostTransportKind.MessagePort,
+			onPing: () => transport.send({
+				jsonrpc: '2.0', id: ++this._reverseRequestId, method: 'ping', params: { channel: ROOT_STATE_URI },
+			}),
+			onTimeout: silence => {
+				this._logService.info(`[ProtocolServer] Client liveness: no data from ${client?.clientId} for ${silence}ms; closing transport.`);
+				closeConnection();
+			},
+			onDeferred: duration => this._logService.trace(`[ProtocolServer] Client liveness: deferring close for ${duration}ms due to host load.`),
+		}));
+		if (transport.onDidReceiveData) {
+			disposables.add(transport.onDidReceiveData(() => liveness.recordInboundTraffic()));
+		}
 
 		if (transport.onDidRelayAuthenticationExpire) {
 			disposables.add(transport.onDidRelayAuthenticationExpire(() => {
@@ -812,6 +863,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 
 		disposables.add(transport.onMessage(msg => {
+			liveness.recordInboundTraffic();
 			if (isJsonRpcRequest(msg)) {
 				this._logService.trace(`[ProtocolServer] request: method=${msg.method} id=${msg.id}`);
 
@@ -828,9 +880,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					try {
 						const result = this._handleInitialize(msg.params, transport, disposables);
 						client = result.client;
+						liveness.reset();
 						const sendInitializeResult = (response: IAgentHostExtensionInitializeResult) => {
 							if (!disposables.isDisposed) {
 								transport.send(jsonRpcSuccess(msg.id, { ...response, snapshots: this._projectRelaySnapshots(result.client, response.snapshots) }));
+								this._onDidChangeQueuedCredentials.fire();
 							}
 						};
 						if (result.response instanceof Promise) {
@@ -859,12 +913,14 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					try {
 						const result = this._handleReconnect(msg.params, transport, disposables);
 						client = result.client;
+						liveness.reset();
 						reconnectingClient = result.client;
 						responsePromise = this._trackRequest(result.responsePromise);
 						responsePromise.then(
 							response => {
 								if (!disposables.isDisposed) {
 									channels.respond(jsonRpcSuccess(msg.id, this._projectRelayReconnectResult(reconnectingClient, response, msg.params.subscriptions)), response.windows?.items);
+									this._onDidChangeQueuedCredentials.fire();
 								}
 							},
 							err => {
@@ -943,7 +999,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 		}));
 
-		disposables.add(transport.onClose(() => {
+		const closeConnection = () => {
 			const record = client ? this._clients.get(client.clientId) : undefined;
 			if (client && record?.state === 'active') {
 				const connectionIndex = record.connections.indexOf(client);
@@ -972,7 +1028,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}
 			}
 			this._connectionDisposables.deleteAndDispose(transport);
-		}));
+		};
+		disposables.add(transport.onClose(closeConnection));
 
 		disposables.add(transport);
 	}
@@ -988,6 +1045,36 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		return !this._config.relayRoots
 			&& this._agentService.multipleChatProvidersEnabled === true
 			&& compareProtocolVersions(protocolVersion, MULTIPLE_CHAT_PROVIDERS_PROTOCOL_VERSION) >= 0;
+	}
+
+	/**
+	 * Whether this connection's `initialize` may turn the host's `multipleChatProviders.enabled` on: under the same
+	 * rules as a client `RootConfigChanged` setting it (an authenticated, non-passive relay client, and only while
+	 * the property isn't read-only or owned by the extension's root config overlay).
+	 */
+	private _mayClientEnableMultipleChatProviders(transport: IProtocolTransport): boolean {
+		if (this._config.relayRoots || transport.relayPassive || transport.relayAuthentication?.authenticated === false) {
+			return false;
+		}
+		if (this._config.extension && Object.hasOwn(this._config.extension.rootConfig.values, ChatProvidersConfigKey.Enabled)) {
+			return false;
+		}
+		if (transport.relayClientId !== undefined) {
+			return transport.relayAuthentication?.authenticated === true
+				&& this._stateManager.rootState.config?.schema.properties[ChatProvidersConfigKey.Enabled]?.readOnly !== true;
+		}
+		return true;
+	}
+
+	private _servesGitHubEnvironment(transport: IProtocolTransport): boolean {
+		return !!this._config.githubEnvironment && this._config.allowExtensionMethods !== false
+			&& !this._config.relayRoots && !this._config.relayRootMeta
+			&& transport.relayClientId === undefined && !transport.relayPassive;
+	}
+
+	private _getGitHubEnvironmentMeta(transport: IProtocolTransport): Pick<IAgentHostExtensionInitializeResultMeta, typeof AgentHostGitHubEnvironmentCapabilityMetaKey> {
+		const githubEnvironment = this._config.githubEnvironment;
+		return githubEnvironment && this._servesGitHubEnvironment(transport) ? { [AgentHostGitHubEnvironmentCapabilityMetaKey]: githubEnvironment.status } : {};
 	}
 
 	private _supportsTcpConnections(transport: IProtocolTransport): boolean {
@@ -1029,6 +1116,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				`Client offered protocol versions [${offered.join(', ')}], none of which are compatible with this server's version ${PROTOCOL_VERSION} (server accepts ${supportedVersions.join(', ')}).`,
 				data,
 			);
+		}
+
+		// Turning the gate on before answering spares a client with the setting on a re-initialize after mirroring it.
+		if (requestsAgentHostMultipleChatProviders(params) && this._mayClientEnableMultipleChatProviders(transport)) {
+			this._agentService.enableMultipleChatProviders?.();
 		}
 
 		const previousRecord = this._clients.get(params.clientId);
@@ -1105,6 +1197,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						[AgentHostNativeImplementationMetaKey]: true,
 						[AgentHostSessionUrisCapabilityMetaKey]: true,
 						[AgentHostChatUrisCapabilityMetaKey]: true,
+						...(this._config.allowExtensionMethods !== false && this._agentService.getSessionStateFile && !transport.relayPassive
+							? { [AgentHostChatStateFileCapabilityMetaKey]: true } : {}),
 						...transport.relayHandshakeMeta,
 					} : {
 						...getAgentHostExtensionInitializeResultMeta(
@@ -1123,10 +1217,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							&& !transport.relayPassive,
 							!!this._agentService.deleteAutomation,
 						),
+						...(!this._config.relayRoots && !this._config.scopedRelayCredentials && this._agentService.automationsSupportExistingConversation
+							? { [AgentHostScheduledChatExistingConversationCapabilityMetaKey]: true } : {}),
 						...(transport.relayClientId === undefined && !transport.relayPassive ? { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } : {}),
 						...(servesClientProxy ? { [AgentHostClientProxyCapabilityMetaKey]: true } : {}),
 						...(transport.relayClientId === undefined && !transport.relayPassive && this._agentService.sessionWorktreeCleanup ? { [AgentHostWorktreeCleanupCapabilityMetaKey]: true } : {}),
 						...(transport.relayClientId === undefined && !transport.relayPassive && this._agentService.sessionWorktreeCleanup ? { [ForceWorktreeCleanupCapabilityMetaKey]: true } : {}),
+						...(!this._config.relayRoots && !this._config.relayRootMeta && transport.relayClientId === undefined && !transport.relayPassive && this._agentService.prepareSessionWorktreeCleanup ? { [PrepareSessionWorktreeCleanupCapabilityMetaKey]: true } : {}),
 						...(!this._config.relayRoots && !this._config.relayRootMeta && transport.relayClientId === undefined && !transport.relayPassive && this._agentService.listManagedWorktrees && this._agentService.cleanupManagedWorktree ? { [ManagedWorktreesCapabilityMetaKey]: true } : {}),
 						...(this._config.allowExtensionMethods !== false && this._agentService.installSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
 							? { [sandboxCertificateInstallationCapability]: true } : {}),
@@ -1136,11 +1233,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							? { [sandboxCertificateRemovalCapability]: true } : {}),
 						...(this._agentService.refreshSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
 							? { [sandboxCertificateRefreshCapability]: true } : {}),
+						...this._getGitHubEnvironmentMeta(transport),
 						...transport.relayHandshakeMeta,
 					}),
 					...getAgentHostAhpLogDirectoryMeta(this._config.ahpLogDirectory),
 				},
 				snapshots: snapshots.map(snapshot => this._projectRelayRootSnapshot(client, snapshot)),
+				environment: this._config.environment,
 				defaultDirectory: this._config.defaultDirectory,
 				completionTriggerCharacters: this._config.completionTriggerCharacters ? [...this._config.completionTriggerCharacters] : undefined,
 				terminalCommandPrefix: this._config.terminalCommandPrefix,
@@ -1153,6 +1252,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				client,
 				response: pendingSnapshots.length === 0 ? response : Promise.all(pendingSnapshots).then(() => ({
 					...response,
+					// A status change while snapshots load was broadcast before this response, so report the latest.
+					_meta: { ...response._meta, ...this._getGitHubEnvironmentMeta(transport) },
 					serverSeq: this._stateManager.serverSeq,
 					snapshots: snapshots.map(snapshot => this._projectRelayRootSnapshot(client, this._getSnapshot(snapshot.resource) ?? snapshot)),
 				})).catch(error => {
@@ -1414,11 +1515,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			// channel still owes a baseline.
 			const canReplay = params.lastSeenServerSeq >= oldestBuffered
 				&& !this._hasBaselineDebt(params.clientId, params.subscriptions);
-			const responsePromise = this._restoreReconnectSubscriptions(client, params, canReplay).then(result => (
-				transport.relayHandshakeMeta && typeof result === 'object' && result !== null
-					? { ...result, _meta: transport.relayHandshakeMeta }
-					: result
-			)).catch(error => {
+			const responsePromise = this._restoreReconnectSubscriptions(client, params, canReplay).then(result => {
+				// Notifications are not replayed, so a reconnecting client also needs the current GitHub environment status.
+				const githubEnvironmentMeta = this._getGitHubEnvironmentMeta(transport);
+				return (transport.relayHandshakeMeta || Object.keys(githubEnvironmentMeta).length > 0) && typeof result === 'object' && result !== null
+					? { ...result, _meta: { ...githubEnvironmentMeta, ...transport.relayHandshakeMeta } }
+					: result;
+			}).catch(error => {
 				this._rollbackFailedInitialization(client, existingRecord);
 				throw error;
 			});
@@ -1471,6 +1574,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			lookupKerberosAuthorization: async proxyUrl => {
 				const response = await this._sendReverseRequestToConnection<unknown>(client, LookupClientProxyKerberosAuthorizationExtensionMethod, { proxyUrl }, 30_000);
 				return lookupClientProxyKerberosAuthorizationResultValidator.validateOrThrow(response).authorization;
+			},
+			lookupBasicAuthorization: async (proxyUrl, realm, attempt) => {
+				// Long enough for the user to answer the client's proxy login dialog.
+				const response = await this._sendReverseRequestToConnection<unknown>(client, LookupClientProxyBasicAuthorizationExtensionMethod, { proxyUrl, realm, attempt }, 5 * 60_000);
+				const { username, password } = lookupClientProxyBasicAuthorizationResultValidator.validateOrThrow(response);
+				return username ? { username, password: password ?? '' } : undefined;
 			},
 		}));
 		return true;
@@ -2318,6 +2427,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (!state) {
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${params.channel}`);
 			}
+			const withoutSourceContext = readSideChatWithoutContext(params);
+			if (withoutSourceContext === 'invalid' || (withoutSourceContext !== undefined && params.source?.kind !== ChatSourceKind.SideChat)) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid createChat side-chat context metadata');
+			}
 			const workspace = readCreateChatWorkspaceMeta(params._meta);
 			if (workspace === 'invalid') {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid createChat workspace metadata');
@@ -2371,6 +2484,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 								source: URI.parse(source.chat),
 								turnId: source.turnId,
 								...(source.selection ? { selection: source.selection } : {}),
+								...(withoutSourceContext ? { includeSourceContext: false } : {}),
 							},
 						};
 						break;
@@ -2836,6 +2950,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			client.channels.respond(jsonRpcSuccess(id, projected ?? null),
 				method === 'subscribe' && isParamsObject(params) && typeof params.channel === 'string'
 					? [{ channel: params.channel, flowControl: (result as SubscribeResult).flowControl }] : undefined);
+			if (method === 'authenticate' || method === 'subscribe') {
+				this._onDidChangeQueuedCredentials.fire();
+			}
 		}).catch(error => {
 			if (client.disposables.isDisposed) {
 				return;
@@ -3092,7 +3209,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (!content) {
 				return false;
 			}
-			const session = this._ownerOfStorage(content.sessionUri);
+			const contentOwner = gitContent
+				? resolveBranchChangesetScopeForOwner(this._stateManager, content.sessionUri)?.sessionUri ?? content.sessionUri
+				: content.sessionUri;
+			const session = this._ownerOfStorage(contentOwner);
 			if (!session) {
 				return false;
 			}
@@ -3264,8 +3384,36 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			() => this._captureRelayAuthorization(client)(),
 			principal,
 			resolveCredentials ? resource => resolveCredentials(principal, resource) : undefined,
+			chat => ({
+				onDidChange: this._onDidChangeQueuedCredentials.event,
+				resolve: () => this._resolveQueuedCredentials(client, chat),
+			}),
 		));
 		return client.authenticationScope;
+	}
+
+	private _resolveQueuedCredentials(original: IConnectedClient, chat: string): IAgentHostCredentialSource | undefined {
+		const principal = original.authenticationScope?.principal;
+		if (!principal || this._store.isDisposed) {
+			return undefined;
+		}
+		const record = this._clients.get(original.clientId);
+		const candidates = !original.disposables.isDisposed ? [original] : record?.state === 'active' ? record.connections : [];
+		for (const candidate of candidates) {
+			const identity = candidate.transport.relayAuthentication;
+			const subscription = candidate.subscriptions.get(chat);
+			if (candidate.disposables.isDisposed || candidate.transport.relayPassive !== false
+				|| candidate.transport.relayClientId !== original.clientId
+				|| identity?.authenticated !== true || identity.owner !== principal.userId || identity.resource !== principal.apiOrigin
+				|| (candidate !== original && (subscription?.kind !== ChannelKind.State || !subscription.active))) {
+				continue;
+			}
+			const source = this._getScopedAuthentication(candidate);
+			if (source.principal?.userId === principal.userId && source.principal.apiOrigin === principal.apiOrigin) {
+				return source;
+			}
+		}
+		return undefined;
 	}
 
 	private _clearScopedModels(client: IConnectedClient): void {
@@ -3503,6 +3651,34 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be an Agent Host chat URI'));
 		}
 		return this._agentService.stopBackgroundWork(chat, id).then(stopped => ({ stopped }));
+	}
+
+	/**
+	 * Handle the `vscode/answerShellAuthentication` session-data method. Returns a
+	 * Promise when the underlying service supports shell authentication, undefined otherwise.
+	 */
+	private _handleAnswerShellAuthenticationRequest(client: IConnectedClient, params: unknown): Promise<unknown> | undefined {
+		if (!this._agentService.answerShellAuthentication) {
+			return undefined;
+		}
+		const validated = answerShellAuthenticationParamsValidator.validate(params);
+		if (validated.error) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+		}
+		const { chat: chatParam, requestId, answer } = validated.content;
+		if (!requestId.trim()) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'requestId must be a non-empty string'));
+		}
+		let chat: URI;
+		try {
+			chat = URI.parse(chatParam, true);
+		} catch {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be a valid URI string'));
+		}
+		if (!isAhpChatChannel(chat.toString()) || !this._isChannelVisible(client, chat.toString())) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be an Agent Host chat URI'));
+		}
+		return this._agentService.answerShellAuthentication(chat, requestId, answer).then(delivered => ({ delivered }));
 	}
 
 	private _handleReadSavedChatRequest(client: IConnectedClient, params: unknown): Promise<unknown> | undefined {
@@ -3825,6 +4001,17 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				return this._agentService.cleanupManagedWorktree(URI.parse(validated.content.repository), URI.parse(validated.content.worktree), validated.content.branch, validated.content.force);
 			}
 		}
+		if (method === PrepareSessionWorktreeCleanupExtensionMethod && !this._config.relayRoots && !this._config.relayRootMeta
+			&& client.transport.relayClientId === undefined && !client.transport.relayPassive && this._agentService.prepareSessionWorktreeCleanup) {
+			const validated = prepareSessionWorktreeCleanupParamsValidator.validate(params);
+			if (validated.error) {
+				return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+			}
+			if (!this._isChannelVisible(client, validated.content.session)) {
+				return Promise.reject(new ProtocolError(AhpErrorCodes.PermissionDenied, 'Session is outside the host workspace grants'));
+			}
+			return this._agentService.prepareSessionWorktreeCleanup(URI.parse(validated.content.session));
+		}
 		if (method === SessionWorktreeCleanupExtensionMethod && !this._config.relayRoots && !this._config.relayRootMeta
 			&& client.transport.relayClientId === undefined && !client.transport.relayPassive && this._agentService.sessionWorktreeCleanup) {
 			const validated = sessionWorktreeCleanupParamsValidator.validate(params);
@@ -3847,6 +4034,24 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 			this._worktreeMeasurements.get(client)?.get(validated.content.requestId)?.cancel();
 			return Promise.resolve();
+		}
+		if (method === RegisterGitHubEnvironmentExtensionMethod || method === UnregisterGitHubEnvironmentExtensionMethod) {
+			const githubEnvironment = this._config.githubEnvironment;
+			if (!githubEnvironment || !this._servesGitHubEnvironment(client.transport)) {
+				return Promise.reject(new ProtocolError(AhpErrorCodes.PermissionDenied, 'GitHub environment registration is not available on this connection'));
+			}
+			if (method === RegisterGitHubEnvironmentExtensionMethod) {
+				const validated = registerGitHubEnvironmentParamsValidator.validate(params);
+				if (validated.error || !validated.content.accountId || !validated.content.credential) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error?.message ?? 'accountId and credential are required'));
+				}
+				return githubEnvironment.register(validated.content.accountId, validated.content.credential);
+			}
+			const validated = unregisterGitHubEnvironmentParamsValidator.validate(params);
+			if (validated.error || !validated.content.accountId) {
+				return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error?.message ?? 'accountId is required'));
+			}
+			return githubEnvironment.unregister(validated.content.accountId);
 		}
 		if (client.transport.relayClientId !== undefined) {
 			const request = this._config.extension?.requests.get(method);
@@ -3924,6 +4129,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 		if (method === StopBackgroundWorkExtensionMethod) {
 			return this._handleStopBackgroundWorkRequest(params);
+		}
+		if (method === AnswerShellAuthenticationExtensionMethod) {
+			return this._handleAnswerShellAuthenticationRequest(client, params);
 		}
 		if (method === ReadSavedChatExtensionMethod) {
 			return this._handleReadSavedChatRequest(client, params);
@@ -4618,6 +4826,15 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					params: { channel: sub.uri, payload },
 				};
 				client.channels.send(msg);
+			}
+		}
+	}
+
+	private _broadcastGitHubEnvironmentStatus(status: IAgentHostGitHubEnvironmentStatus): void {
+		for (const record of this._clients.values()) {
+			const client = this._getActiveClientFromRecord(record);
+			if (client && this._servesGitHubEnvironment(client.transport)) {
+				client.channels.send({ jsonrpc: '2.0', method: GitHubEnvironmentChangedNotification, params: status });
 			}
 		}
 	}

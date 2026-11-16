@@ -45,7 +45,7 @@ import { FolderRepositoryInfo, FolderRepositoryMRUEntry, IChatFolderMruService, 
 import { isUntitledSessionId } from '../common/utils';
 import { emptyWorkspaceInfo, getWorkingDirectory, isIsolationEnabled, IWorkspaceInfo } from '../common/workspaceInfo';
 import { ICustomSessionTitleService } from '../copilotcli/common/customSessionTitleService';
-import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
+import { IChatDelegationSummaryService } from '../common/delegationSummaryService';
 import { getCopilotCLISessionDir } from '../copilotcli/node/cliHelpers';
 import { COPILOT_CLI_CONTEXT_SIZE_PROPERTY, COPILOT_CLI_REASONING_EFFORT_PROPERTY, ICopilotCLIAgents, ICopilotCLIModels, ICopilotCLISDK, isWelcomeView, resolveContextTier } from '../copilotcli/node/copilotCli';
 import { CopilotCLIPromptResolver } from '../copilotcli/node/copilotcliPromptResolver';

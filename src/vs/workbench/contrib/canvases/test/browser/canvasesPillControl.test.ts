@@ -19,7 +19,8 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { getChatPillEntries } from '../../../../browser/chatPills.js';
 import { CanvasesPillControl } from '../../browser/canvasesPillControl.js';
-import { ICanvas, ICanvasContext, ICanvasOwner } from '../../common/canvas.js';
+import { ICanvasContext } from '../../common/canvas.js';
+import { ICanvas, ICanvasOwner } from '../../../../common/canvasReference.js';
 
 suite('CanvasesPillControl', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

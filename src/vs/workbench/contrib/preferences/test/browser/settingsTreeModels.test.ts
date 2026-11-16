@@ -913,10 +913,11 @@ suite('SettingsTree', () => {
 		});
 	});
 
-	test('settingKeyToDisplayFormat - sandbox credential authentication', () => {
+	test('settingKeyToDisplayFormat - sandbox credentials', () => {
 		for (const [key, label] of [
 			[AgentSandboxSettingId.AgentSandboxAuthenticateGit, 'Authenticate git'],
 			[AgentSandboxSettingId.AgentSandboxAuthenticateGh, 'Authenticate gh'],
+			[AgentSandboxSettingId.AgentSandboxCredentialEnvVars, 'Masked environment variables'],
 		] as const) {
 			assert.deepStrictEqual(
 				['', 'chat.agent.sandbox', 'chat.agent.sandbox.credentials'].map(group => settingKeyToDisplayFormat(key, group)),

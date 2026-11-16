@@ -26,6 +26,7 @@ import { LocalModelEnabledSettingId } from '../../../../../../../platform/agentH
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { getManagedSupportUrl, IManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, isCopilotHydraFusionModelId } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
@@ -43,6 +44,7 @@ import { IUpdateService } from '../../../../../../../platform/update/common/upda
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
+import { getOrganizationSupportActionTooltip, openOrganizationSupport } from '../../../../../../services/policies/common/organizationSupport.js';
 import { getCompactCodicon } from '../../../chatIcons.js';
 import { renderChatInputPickerSplit } from '../chatInputPickerActionItem.js';
 import { createManageModelsAction, getModelPickerControlModels, shouldShowManageModelsAction } from './modelPickerItems.js';
@@ -55,7 +57,7 @@ import { getModelConfigProperty, MODEL_CONFIG_GROUP_EFFORT, whenModelConfigValue
 import { IModelPickerProviderPlaceholder } from './modelPickerTabs.js';
 import { getOrganizationDefaultDescription, getOrganizationDefaultModel } from './modelPickerBadges.js';
 import { formatLocalModelOnDeviceName, ILocalModelPickerActionEvent, isLocalModelDirectRow, ModelPickerLocalModels } from './modelPickerLocalModelItems.js';
-import { getFusionTierLabel, getHydraFusionTierLabel, getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
+import { getFusionTierLabel, getHydraFusionTierLabel, getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, isPendingLegacyAutoModel, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
 
 /** Trusted caller options for opening a searchable picker without toggling it closed. */
 export interface IModelPickerOpenOptions {
@@ -148,6 +150,8 @@ export class ModelPickerWidget extends Disposable {
 	private _minimumWidth = MODEL_PICKER_MINIMUM_NAME_WIDTH;
 	private readonly _tabbedPicker = this._register(new MutableDisposable<TabbedModelPicker>());
 	private readonly _tabbedPickerHideListener = this._register(new MutableDisposable());
+	/** The organization support URL the open picker's Contact Admin links use. */
+	private _shownSupportUrl: string | undefined;
 	/** The on-device rows of this picker, bound to the chat's Agent Host connection, with their refresh listener. */
 	private readonly _localModels = this._register(new MutableDisposable<DisposableStore>());
 	private _localModelsController: ModelPickerLocalModels | undefined;
@@ -205,6 +209,7 @@ export class ModelPickerWidget extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IManagedSettingsService private readonly _managedSettingsService: IManagedSettingsService,
 	) {
 		super();
 		if (this._delegate.comparison) {
@@ -227,6 +232,12 @@ export class ModelPickerWidget extends Disposable {
 			// only takes on new models once they can be used.
 			if (this._tabbedPicker.value?.isVisible && this._unavailableReason(models) === undefined) {
 				this._tabbedPicker.value.refresh(models, this._delegate.getComparisonModels?.());
+			}
+		}));
+		// Contact Admin links are resolved when the picker opens, so it closes rather than going stale.
+		this._register(this._managedSettingsService.onDidChangeManagedSettings(() => {
+			if (this._tabbedPicker.value?.isVisible && getManagedSupportUrl(this._managedSettingsService) !== this._shownSupportUrl) {
+				this._tabbedPicker.value.hide();
 			}
 		}));
 
@@ -372,6 +383,16 @@ export class ModelPickerWidget extends Disposable {
 		}
 		scopedConfiguration.presentModelConfiguration(fusion.identifier, { [tier.key]: model.metadata.id });
 		return fusion;
+	}
+
+	/** The name of the Auto model the picker offers as Copilot Fusion, which then stands for Auto while no model is selected. */
+	private _getFusionAutoName(models: readonly ILanguageModelChatMetadataAndIdentifier[]): string | undefined {
+		const fusionModels = models.filter(candidate => candidate.metadata.autoModelFusion);
+		if (!fusionModels.length) {
+			return undefined;
+		}
+		const runnable = this._getRunnablePredicate(models);
+		return fusionModels.find(runnable)?.metadata.name;
 	}
 
 	/**
@@ -774,9 +795,16 @@ export class ModelPickerWidget extends Disposable {
 			this._telemetryService.publicLog2<ChatModelPickerInteractionEvent, ChatModelPickerInteractionClassification>('chat.modelPickerInteraction', { interaction });
 		};
 		const manageSettingsUrl = this._defaultAccountService.resolveGitHubUrl(GitHubPaths.copilotSettings);
+		const supportUrl = getManagedSupportUrl(this._managedSettingsService);
+		this._shownSupportUrl = supportUrl;
+		const organizationSupport = supportUrl ? { url: supportUrl, tooltip: getOrganizationSupportActionTooltip(supportUrl) } : undefined;
 		const onLinkClick = (uri: URI) => {
 			if (uri.scheme === 'command' && uri.path === 'workbench.action.chat.upgradePlan') {
 				logModelPickerInteraction('premiumModelUpgradePlanClicked');
+			} else if (supportUrl && this._uriIdentityService.extUri.isEqual(uri, URI.parse(supportUrl))) {
+				logModelPickerInteraction('disabledModelContactAdminClicked');
+				void openOrganizationSupport(this._openerService, supportUrl);
+				return;
 			} else if (manageSettingsUrl && this._uriIdentityService.extUri.isEqual(uri, URI.parse(manageSettingsUrl))) {
 				logModelPickerInteraction('disabledModelContactAdminClicked');
 			}
@@ -808,7 +836,6 @@ export class ModelPickerWidget extends Disposable {
 			models,
 			comparisonModels,
 			selectedModelId: this._selectedModel?.identifier,
-			recentModelIds: this._languageModelsService.getRecentlyUsedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
 			pinnedModelIds: this._languageModelsService.getPinnedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
 			controlModels: controlModelsForTier,
 			configurationAccess: this._delegate.modelConfiguration ?? this._languageModelsService,
@@ -820,6 +847,7 @@ export class ModelPickerWidget extends Disposable {
 				show: presentation.showUnavailableFeatured,
 				currentVSCodeVersion: this._productService.version,
 				manageSettingsUrl,
+				organizationSupport,
 				updateStateType: this._updateService.state.type,
 			},
 			onUnavailableLinkClick: onLinkClick,
@@ -874,10 +902,13 @@ export class ModelPickerWidget extends Disposable {
 		const comparisonBusy = !!comparisonSummary && (this._delegate.comparisonBusy?.get() ?? false);
 		const routingTier = !comparisonSummary && this._selectedModel ? this._getRoutingTier(this._selectedModel, models) : undefined;
 		const shownModel = routingTier?.shownModel ?? this._selectedModel;
-		const displayName = shownModel ? getLanguageModelDisplayNameWithSubscriptionSource(shownModel) : undefined;
+		const pendingAutoModel = isPendingLegacyAutoModel(shownModel, this._languageModelsService);
+		const displayName = shownModel && !pendingAutoModel ? getLanguageModelDisplayNameWithSubscriptionSource(shownModel) : undefined;
 		const configurationAccess = this._delegate.modelConfiguration ?? this._languageModelsService;
 		// A HydraFusion model shown as one of Fusion's tiers is named by that tier, even where the label shows only Fusion.
-		this._fusionDisplayName = !comparisonSummary && routingTier && shownModel?.metadata.autoModelFusion ? localize('chat.modelPicker.fusionTier', "Copilot Fusion {0}", routingTier.label) : undefined;
+		this._fusionDisplayName = !comparisonSummary && routingTier && shownModel?.metadata.autoModelFusion
+			? localize('chat.modelPicker.fusionTier', "Copilot Fusion {0}", routingTier.label)
+			: !comparisonSummary && pendingAutoModel ? (this._getFusionAutoName(models) ?? localize('chat.modelPicker.fusion', "Copilot Fusion")) : undefined;
 		// A directly selected on-device model reads "<model> · On-device", like the Copilot CLI and app.
 		const name = comparisonSummary ?? (shownModel && displayName !== undefined && isLocalModelDirectRow(shownModel) ? formatLocalModelOnDeviceName(displayName) : displayName);
 
@@ -904,13 +935,14 @@ export class ModelPickerWidget extends Disposable {
 		// dropdown carry the Restricted Mode explanation and the Trust Workspace / Sign In action.
 		// "Activating..." is transient while models load after a Trust grant; "No models available"
 		// is the genuinely empty state (e.g. an agent-host session with no Auto fallback).
+		// Before the catalog arrives, name the Copilot fallback without inventing an effort level.
 		const modelLabel = unavailable
 			? localize('chat.modelPicker.modelsLabel', "Models")
 			: activating
 				? localize('chat.modelPicker.activating', "Activating...")
 				: genericNoModels
 					? localize('chat.modelPicker.noModels', "No models available")
-					: (name ?? localize('chat.modelPicker.auto', "Auto"));
+					: (name ?? this._getFusionAutoName(models) ?? localize('chat.modelPicker.fusion', "Copilot Fusion"));
 		const showModelLabel = (!comparisonSummary || noModelsAvailable) && (!compact || !modelIcon || noModelsAvailable);
 		if (showModelLabel) {
 			nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
@@ -926,7 +958,7 @@ export class ModelPickerWidget extends Disposable {
 			const localModelReadout = this._selectedModel && isLocalModelDirectRow(this._selectedModel)
 				? this._getLocalModels()?.getPresentation()?.getDirectModel(this._selectedModel, configurationAccess)?.readout
 				: undefined;
-			renderModelConfigurationButton(this._configButton, shownModel, configurationAccess, !!comparisonSummary || minimal || compact || noModelsAvailable, routingTier?.label, localModelReadout);
+			renderModelConfigurationButton(this._configButton, shownModel, configurationAccess, !!comparisonSummary || minimal || compact || noModelsAvailable || pendingAutoModel, routingTier?.label, localModelReadout);
 		}
 		const configVisible = !!this._configButton && this._configButton.style.display !== 'none';
 		this._domNode.classList.toggle('has-config', configVisible);

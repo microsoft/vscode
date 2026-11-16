@@ -32,18 +32,21 @@ import { IEditorGroupsService } from '../../../../workbench/services/editor/comm
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
-import { Menus } from '../../../browser/menus.js';
-import { CustomViewVisibleContext, SessionIsCreatedContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
-import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
-import { resolveSessionActionTarget } from '../../../services/sessions/browser/sessionActionTarget.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
-import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
-import { getChangesOfSession, IChangesViewService } from '../common/changesViewService.js';
-import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsDiffViewModeContext, SessionsWordWrap } from '../../editor/common/diffEditorOptionsService.js';
-import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
-import { SessionChangesEditor } from './sessionChangesEditor.js';
-import { isChangesFileResource } from './changesViewRenderer.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
+import { SessionArtifactIntegrationsEnabledContext, SessionIsCreatedContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { CustomViewVisibleContext } from '../../../common/agentsWindowContextKeys.js';
+import { logChangesViewViewModeChange } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
+import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { getMainWindowHost, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { OPEN_PULL_REQUEST_ACTION_ID } from '../../../../workbench/contrib/sessions/common/github/types.js';
+import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../../../../workbench/contrib/sessions/common/changes.js';
+import { getChangesOfSession, IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsDiffViewModeContext, SessionsWordWrap } from '../../../../workbench/services/editor/common/diffEditorOptionsService.js';
+import { CHANGES_HEADER_ACTIONS_ID } from '../../../../workbench/contrib/sessionChanges/browser/changesView.js';
+import { SessionChangesEditor } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
+import { isChangesFileResource } from '../../../../workbench/contrib/sessionChanges/browser/changesViewRenderer.js';
+import { mainWindowChangesOwner } from '../../../../workbench/contrib/sessionChanges/browser/changesViewService.js';
 
 const openChangesViewActionOptions: IAction2Options = {
 	id: 'workbench.action.agentSessions.openChangesView',
@@ -74,20 +77,17 @@ class ChangesViewActionsContribution extends Disposable implements IWorkbenchCon
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ISessionsService sessionsService: ISessionsService,
+		@ISessionHostService sessionHostService: ISessionHostService,
 		@IChangesViewService changesViewService: IChangesViewService,
 		@IEditorService editorService: IEditorService,
 	) {
 		super();
 
-		// Bind context key: true when the active chat has changes
+		// Bind context key: true when the chat the main window shows has changes
+		const mainWindowHost = getMainWindowHost(sessionHostService);
 		this._register(bindContextKey(ActiveSessionContextKeys.HasChanges, contextKeyService, reader => {
-			const activeSession = sessionsService.mainWindowActiveSession.read(reader);
-			if (!activeSession) {
-				return false;
-			}
-			const changes = activeSession.activeChat.read(reader).changes.read(reader);
-			return changes.length > 0;
+			const changes = mainWindowHost.chat.read(reader)?.changes.read(reader);
+			return !!changes && changes.length > 0;
 		}));
 
 		this._register(bindContextKey(ChangesContextKeys.ViewMode, contextKeyService, reader => {
@@ -116,14 +116,16 @@ class OpenPullRequestAction extends Action2 {
 				order: 9,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
-					ActiveSessionContextKeys.HasPullRequest)
+					ActiveSessionContextKeys.HasPullRequest,
+					// The pull request artifact opens the pull request.
+					SessionArtifactIntegrationsEnabledContext.negate())
 			}
 		});
 	}
 
 	async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
 		const commandService = accessor.get(ICommandService);
-		const session = resolveSessionActionTarget(accessor, sessionArg);
+		const session = resolveSessionCommandTarget(accessor, [sessionArg])?.session;
 		if (!session) {
 			return;
 		}
@@ -369,7 +371,7 @@ class ChangesHeaderActionsAction extends Action2 {
 			title: localize2('changesView.headerActions', "Changes Actions"),
 			f1: false,
 			menu: {
-				id: Menus.TitleBarSessionMenu,
+				id: AgentsWindowMenus.TitleBarSessionMenu,
 				group: 'navigation',
 				order: 5,
 				// Read in each window's own context: for the session it shows, which an editor window's title bar has none of.
@@ -658,11 +660,12 @@ class OpenChangesAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const changesViewService = accessor.get(IChangesViewService);
 
-		const session = resolveSessionActionTarget(accessor, sessionResource);
+		const target = resolveSessionCommandTarget(accessor, [sessionResource]);
+		const session = target?.session;
 		if (!session) {
 			return;
 		}
-		const sessionChanges = getChangesOfSession(changesViewService, accessor.get(ISessionsService).mainWindowActiveSession.get(), session).changesObs.get();
+		const sessionChanges = getChangesOfSession(changesViewService, mainWindowChangesOwner(accessor), session, target.chat).changesObs.get();
 
 		const changes = sessionChanges?.filter(change =>
 			resources.some(resource => isChangesFileResource(change, resource))

@@ -25,21 +25,25 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { SessionView } from '../../../../browser/parts/sessionView.js';
-import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { ISessionsListPresentation, SessionNameKind } from '../../../../services/presentation/browser/sessionsListPresentation.js';
-import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
+import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
+import { ISessionsListPresentation, SessionNameKind } from '../../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
+import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
+import { ISessionHost, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { SessionsChatAccessibilityHelp } from '../../../chat/browser/sessionsChatAccessibilityHelp.js';
-import { SessionsFlatList, SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { SessionsFlatList, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { createListHarness, createTestSession, TestCommandService, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
 import '../../browser/views/sessionsViewActions.js';
+import { ITestSessionWithChat, stubMissingSessionHostsFromSessionsService, stubPaneHost, testGridPane, stubSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 class TestQuickInputService extends mock<IQuickInputService>() {
 	result: string | undefined;
@@ -115,16 +119,22 @@ suite('Sessions rename', () => {
 				inputBoxHeight: inputBoxStyle.height,
 			};
 			const compactDescription = row.querySelector<HTMLElement>('.session-compact-hover-description');
+			const toolbar = row.querySelector<HTMLElement>('.session-title-toolbar');
 			assert.ok(compactDescription);
+			assert.ok(toolbar);
+			row.classList.add('hovered');
 			assert.deepStrictEqual({
 				titleRowHeight: mainWindow.getComputedStyle(titleRow).height,
 				inputAlignedWithIcon: centerInRow(inputBox) === iconCenter,
 				compactDescriptionDisplay: mainWindow.getComputedStyle(compactDescription).display,
+				hoveredToolbarDisplay: mainWindow.getComputedStyle(toolbar).display,
 			}, {
 				titleRowHeight: '16px',
 				inputAlignedWithIcon: true,
 				compactDescriptionDisplay: 'none',
+				hoveredToolbarDisplay: 'none',
 			});
+			row.classList.remove('hovered');
 			input.value = ' Renamed ';
 			input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
 
@@ -502,11 +512,18 @@ suite('Sessions rename', () => {
 				inputHeight: inputStyle.height,
 				inputBoxHeight: inputBoxStyle.height,
 			};
+			const row = input.closest<HTMLElement>('.monaco-list-row');
+			const toolbar = row?.querySelector<HTMLElement>('.session-title-toolbar');
+			assert.ok(row && toolbar);
+			row.classList.add('hovered');
+			const hoveredToolbarDisplay = mainWindow.getComputedStyle(toolbar).display;
+			row.classList.remove('hovered');
 			input.value = ' Renamed peer ';
 			input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
 
 			assert.deepStrictEqual({
 				inputGeometry,
+				hoveredToolbarDisplay,
 				renamedChats: harness.managementService.renamedChats,
 				inputClosed: container.querySelector('.session-chat-title-input input') === null,
 			}, {
@@ -515,8 +532,72 @@ suite('Sessions rename', () => {
 					inputHeight: '20px',
 					inputBoxHeight: '22px',
 				},
+				hoveredToolbarDisplay: 'none',
 				renamedChats: [{ session, chatResource: peerChat.resource, title: 'Renamed peer' }],
 				inputClosed: true,
+			});
+		});
+
+		test('phone layout gives the space reserved for row actions to the rename input', () => {
+			const baseSession = createTestSession('Session').session;
+			const mainChat = baseSession.mainChat.get();
+			const peerChat = new class extends mock<IChat>() {
+				override readonly resource = URI.parse('test-chat:///phone-peer');
+				override readonly workspace = constObservable(undefined);
+				override readonly title = constObservable('Peer chat');
+				override readonly updatedAt = constObservable(new Date());
+				override readonly status = constObservable(SessionStatus.Completed);
+				override readonly description = constObservable(undefined);
+				override readonly interactivity = constObservable(ChatInteractivity.Full);
+				override readonly isArchived = constObservable(false);
+				override readonly isRead = constObservable(true);
+				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
+			}();
+			const session: ISession = {
+				...baseSession,
+				chats: constObservable([mainChat, peerChat]),
+				mainChat: constObservable(mainChat),
+			};
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			container.classList.add('agent-sessions-workbench', 'phone-layout');
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+				onChatOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const rowLayout = (itemSelector: string, reservedSelector: string) => {
+				const item = container.querySelector<HTMLElement>(itemSelector);
+				const reserved = item?.querySelector<HTMLElement>(reservedSelector);
+				const toolbar = item?.querySelector<HTMLElement>('.session-title-toolbar');
+				assert.ok(reserved && toolbar);
+				return {
+					toolbarDisplay: mainWindow.getComputedStyle(toolbar).display,
+					reservedPaddingRight: mainWindow.getComputedStyle(reserved).paddingRight,
+				};
+			};
+			const cancelRename = (inputSelector: string) => container.querySelector<HTMLInputElement>(inputSelector)?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+
+			const idle = {
+				session: rowLayout('.session-item', '.session-main'),
+				chat: rowLayout('.session-chat-item', '.session-chat-title-row'),
+			};
+			assert.strictEqual(list.beginRenameSession(session), true);
+			const renamingSession = rowLayout('.session-item.renaming', '.session-main');
+			cancelRename('.session-title-input input');
+			assert.strictEqual(list.beginRenameChat({ session, chat: peerChat }), true);
+			const renamingChat = rowLayout('.session-chat-item.renaming', '.session-chat-title-row');
+			cancelRename('.session-chat-title-input input');
+
+			assert.deepStrictEqual({ idle, renamingSession, renamingChat }, {
+				idle: {
+					session: { toolbarDisplay: 'block', reservedPaddingRight: '96px' },
+					chat: { toolbarDisplay: 'block', reservedPaddingRight: '44px' },
+				},
+				renamingSession: { toolbarDisplay: 'none', reservedPaddingRight: '0px' },
+				renamingChat: { toolbarDisplay: 'none', reservedPaddingRight: '0px' },
 			});
 		});
 
@@ -769,16 +850,16 @@ suite('Sessions rename', () => {
 			};
 			const activeChat = observableValue<IChat>('renameActiveChat', peerChat);
 			const focusedChat = observableValue<IChat | undefined>('renameFocusedChat', peerChat);
-			const activeSession = upcastPartial<IActiveSession>({
+			const activeSession = upcastPartial<ITestSessionWithChat>({
 				...session,
 				activeChat,
 			});
 			instantiationService.stub(IQuickInputService, quickInputService);
 			instantiationService.stub(ISessionsManagementService, managementService);
-			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
-				override readonly mainWindowActiveSession = this.activeSession;
+			stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
+				readonly activeSession = constObservable<ITestSessionWithChat | undefined>(activeSession);
 			}());
+			stubMissingSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 				override getFocusedSessionView(): SessionView {
 					return upcastPartial<SessionView>({ getSession: () => activeSession, getFocusedChat: () => focusedChat.get() });
@@ -916,42 +997,46 @@ suite('Sessions rename', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			const commandService = new TestCommandService();
 			const sessionData = createTestSession('Existing');
-			const session = upcastPartial<IActiveSession>({ ...sessionData.session });
+			const session = upcastPartial<ITestSessionWithChat>({ ...sessionData.session });
 			let inlineRenameCalls = 0;
 			instantiationService.stub(ICommandService, commandService);
-			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(session);
-				override readonly mainWindowActiveSession = this.activeSession;
+			// The view of the pane that shows the session: the grid's active pane.
+			const viewHost = upcastPartial<ISessionHost>({ kind: SessionHostKind.Pane });
+			stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
+				readonly activeSession = constObservable<ITestSessionWithChat | undefined>(session);
+				override getPaneOfHost(host: ISessionHost) { return host === viewHost ? testGridPane(session) : undefined; }
+			});
+			stubMissingSessionHostsFromSessionsService(instantiationService);
+			const view = upcastPartial<SessionView>({
+				host: viewHost,
+				getSession: () => session,
+				startTitleEditing: () => {
+					inlineRenameCalls++;
+					return inlineRename ?? false;
+				},
 			});
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
-				override getSessionView() {
-					if (inlineRename === undefined) {
-						return undefined;
-					}
-					return new class extends mock<SessionView>() {
-						override startTitleEditing(): boolean {
-							inlineRenameCalls++;
-							return inlineRename;
-						}
-					};
-				}
+				override getActiveSessionView() { return view; }
 			});
+			// The arguments of the header's menu: of a pane of the grid, or, for a session no pane of the grid shows, of a header
+			// elsewhere, such as a chat editor's.
+			const menuArgs = stubPaneHost(instantiationService, inlineRename === undefined ? { grid: false, session } : { grid: true, session, view });
 			const handler = CommandsRegistry.getCommand('sessions.sessionHeader.rename')?.handler;
 			assert.ok(handler);
-			return { handler, instantiationService, commandService, session, inlineRenameCalls: () => inlineRenameCalls };
+			return { handler, instantiationService, commandService, session, menuArgs, inlineRenameCalls: () => inlineRenameCalls };
 		}
 
 		test('renames inline in the header and only prompts when that is not possible', async () => {
 			const inline = createHeaderHarness(true);
-			await inline.handler(inline.instantiationService, inline.session);
+			await inline.handler(inline.instantiationService, ...inline.menuArgs);
 
 			// The header cannot show the title (e.g. the chat tabs row replaced it).
 			const headerUnavailable = createHeaderHarness(false);
-			await headerUnavailable.handler(headerUnavailable.instantiationService, headerUnavailable.session);
+			await headerUnavailable.handler(headerUnavailable.instantiationService, ...headerUnavailable.menuArgs);
 
 			// The session is not shown in the sessions part at all.
 			const noView = createHeaderHarness(undefined);
-			await noView.handler(noView.instantiationService, noView.session);
+			await noView.handler(noView.instantiationService, ...noView.menuArgs);
 
 			const withoutSession = createHeaderHarness(true);
 			await withoutSession.handler(withoutSession.instantiationService, undefined);
@@ -976,21 +1061,23 @@ suite('Sessions rename', () => {
 			instantiationService.stub(IEnvironmentService, { isBuilt: true, isExtensionDevelopment: false });
 			instantiationService.stub(IChatEntitlementService, { sentiment: { hidden: false } });
 			instantiationService.stub(ITelemetryService, NullTelemetryService);
+			instantiationService.stub(IChatViewFactory, { newSessionInput: undefined });
 			instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
 			let fallbackFocusCount = 0;
 			const fallbackView = new class extends mock<SessionView>() {
 				override focus(): void { fallbackFocusCount++; }
 			};
-			const activeSession = new class extends mock<IActiveSession>() {
+			const activeSession = new class extends mock<ITestSessionWithChat>() {
 				override readonly sessionId = 'active';
 			};
 			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
 				override getSessionView() { return fallbackView; }
+				override getActiveSessionView() { return fallbackView; }
 			});
-			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
-				override readonly mainWindowActiveSession = this.activeSession;
+			stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
+				readonly activeSession = constObservable<ITestSessionWithChat | undefined>(activeSession);
 			});
+			stubMissingSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			const configurationService = new TestConfigurationService();
 			instantiationService.stub(IConfigurationService, configurationService);
@@ -998,6 +1085,7 @@ suite('Sessions rename', () => {
 			const mainContainer = mainWindow.document.createElement('div');
 			mainContainer.classList.toggle('phone-layout', phoneLayout);
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer });
+			instantiationService.stub(ISessionsHostLayoutService, {});
 
 			mainWindow.document.body.appendChild(origin);
 			disposables.add({ dispose: () => origin.remove() });

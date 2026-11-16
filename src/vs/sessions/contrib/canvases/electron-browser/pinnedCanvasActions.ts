@@ -15,14 +15,16 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, ResourceContextKey } from '../../../../workbench/common/contextkeys.js';
 import { resolveCommandsContext } from '../../../../workbench/browser/parts/editor/editorCommandsContext.js';
-import { CANVAS_INPUT_SCHEME, CanvasInput, getCanvasInstanceLabels, ICanvasContextService, ICanvasReference } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { CANVAS_INPUT_SCHEME, CanvasInput, getCanvasInstanceLabels, ICanvasContextService } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { Menus } from '../../../browser/menus.js';
-import { SessionsCategories } from '../../../common/categories.js';
-import { ICustomViewService } from '../../../services/customView/browser/customViewService.js';
-import { CanvasesPinnedToSidebarContext, IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext } from '../browser/pinnedCanvases.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
+import { SessionsCategories } from '../../../../workbench/contrib/sessions/common/categories.js';
+import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
+import { CanvasesPinnedToSidebarContext, IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasConnectedContext } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
+import { ICanvasReference } from '../../../../workbench/common/canvasReference.js';
 
 export const TOGGLE_CANVAS_PINNED_TO_SIDEBAR_COMMAND_ID = 'workbench.action.agentSessions.toggleCanvasPinnedToSidebar';
 export const ADD_CANVAS_TO_SIDEBAR_COMMAND_ID = 'workbench.action.agentSessions.addCanvasToSidebar';
@@ -171,7 +173,7 @@ class RemoveCanvasFromSidebarAction extends Action2 {
 				order: 10,
 				when: pinnedCanvasesAvailable,
 			}, {
-				id: Menus.CustomViewCanvas,
+				id: AgentsWindowMenus.CustomViewCanvas,
 				group: '2_organize',
 				order: 10,
 				when: pinnedCanvasesAvailable,
@@ -208,7 +210,7 @@ class GoToPinnedCanvasChatAction extends Action2 {
 				order: 10,
 				when: pinnedCanvasesAvailable,
 			}, {
-				id: Menus.CustomViewCanvas,
+				id: AgentsWindowMenus.CustomViewCanvas,
 				group: 'navigation',
 				order: 10,
 				when: pinnedCanvasesAvailable,
@@ -237,7 +239,7 @@ class ClosePinnedCanvasAction extends Action2 {
 				order: 10,
 				when: pinnedCanvasesAvailable,
 			}, {
-				id: Menus.CustomViewCanvas,
+				id: AgentsWindowMenus.CustomViewCanvas,
 				group: '4_manage',
 				order: 10,
 				when: pinnedCanvasesAvailable,

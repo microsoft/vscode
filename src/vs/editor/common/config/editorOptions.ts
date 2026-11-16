@@ -2823,6 +2823,20 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		return { typicalViewportLineCount, extraLinesBeforeFirstLine, extraLinesBeyondLastLine, desiredRatio, minimapLineCount };
 	}
 
+	/**
+	 * Computes the minimap scale in device pixels from the configured `editor.minimap.scale`.
+	 * The configured scale is doubled on high DPI screens. Between a pixel ratio of 1 and 2,
+	 * the scale grows with the pixel ratio. The tolerance keeps a pixel ratio slightly below
+	 * a whole step (e.g. a slightly negative zoom level on a high DPI screen) at that step,
+	 * instead of shrinking the minimap abruptly.
+	 */
+	private static _computeMinimapScale(configuredScale: number, pixelRatio: number): number {
+		if (pixelRatio >= 2) {
+			return Math.round(configuredScale * 2);
+		}
+		return Math.max(configuredScale, Math.floor(configuredScale * pixelRatio + 0.125));
+	}
+
 	private static _computeMinimapLayout(input: IMinimapLayoutInput, memory: ComputeOptionsMemory): EditorMinimapLayoutInfo {
 		const outerWidth = input.outerWidth;
 		const outerHeight = input.outerHeight;
@@ -2873,7 +2887,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const typicalHalfwidthCharacterWidth = input.typicalHalfwidthCharacterWidth;
 		const scrollBeyondLastLine = input.scrollBeyondLastLine;
 		const minimapRenderCharacters = input.minimap.renderCharacters;
-		let minimapScale = (pixelRatio >= 2 ? Math.round(input.minimap.scale * 2) : input.minimap.scale);
+		let minimapScale = EditorLayoutInfoComputer._computeMinimapScale(input.minimap.scale, pixelRatio);
 		const minimapMaxColumn = input.minimap.maxColumn;
 		const minimapSize = input.minimap.size;
 		const minimapSide = input.minimap.side;
@@ -4778,6 +4792,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				'editor.inlineSuggest.fontFamily': {
 					type: 'string',
 					default: defaults.fontFamily,
+					restricted: true,
 					description: nls.localize('inlineSuggest.fontFamily', "Controls the font family of the inline suggestions.")
 				},
 				'editor.inlineSuggest.edits.allowCodeShifting': {

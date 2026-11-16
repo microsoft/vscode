@@ -98,8 +98,8 @@ declare module 'vscode' {
 		/**
 		 * Gives this artifact a pill of its own, shared with every other artifact assigned the same ID, including those of
 		 * other providers, and named by {@link ChatArtifactIntegrationProvider.groupLabel}. Without one, the artifact is listed
-		 * in the pill for its kind, such as Artifacts, with the other artifacts. Only consulted when this provider presents
-		 * the artifact's main part.
+		 * in the pill for its kind, such as Artifacts, with the other artifacts. References are always listed in the
+		 * References pill with the other references. Only consulted when this provider presents the artifact's main part.
 		 */
 		readonly groupId?: string;
 		/**

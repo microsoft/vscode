@@ -18,8 +18,8 @@ import { getNewWindowBoundsAtDragEnd, isWindowDraggedOver } from '../../../../wo
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
-import { registerSessionChatDragEndHandler } from '../../../browser/dnd.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { registerSessionChatDragEndHandler } from '../../../../workbench/contrib/sessions/browser/dnd.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
 import { ChatWindowsEnabledContext, openChatInWindow } from './openChatInWindow.js';
 
 /**

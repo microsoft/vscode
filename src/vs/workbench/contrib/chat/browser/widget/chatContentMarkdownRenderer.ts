@@ -18,7 +18,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import product from '../../../../../platform/product/common/product.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, getLocalAgentHostWindowSchemes } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../../../../platform/agentHost/common/openSessionLink.js';
 
 const trustedChatImageSources = new Map([
@@ -166,7 +166,7 @@ export function getChatMarkdownRenderOptions(options?: MarkdownRenderOptions): M
 				override: allowedChatMarkdownHtmlTags,
 			},
 			...options?.sanitizerConfig,
-			allowedLinkSchemes: { augment: [product.urlProtocol, 'copilot-skill', Schemas.vscodeBrowser, AGENT_HOST_SCHEME, AGENT_HOST_SESSION_LINK_SCHEME] },
+			allowedLinkSchemes: { augment: [product.urlProtocol, 'copilot-skill', Schemas.vscodeBrowser, AGENT_HOST_SCHEME, AGENT_HOST_SESSION_LINK_SCHEME, ...getLocalAgentHostWindowSchemes()] },
 			remoteImageIsAllowed: uri => isRemoteImageAllowed(uri)
 				|| (uri.scheme === AGENT_HOST_SCHEME && options?.sanitizerConfig?.remoteImageIsAllowed?.(uri) === true),
 		}
@@ -224,7 +224,7 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 
 	private attachCustomHover(result: IRenderedMarkdown): IRenderedMarkdown {
 		const store = new DisposableStore();
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		result.element.querySelectorAll('a').forEach((element) => {
 			if (element.title) {
 				let title = element.title;

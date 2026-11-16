@@ -11,7 +11,7 @@ import { TestInstantiationService } from '../../../instantiation/test/common/ins
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IAgentHostChatContributions, type ITurnEnd } from '../../common/agentHostChatContributionsService.js';
 import { chatTurnStarted } from '../common/chatActionBuilders.js';
-import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus } from '../../common/state/sessionState.js';
 import { IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
@@ -53,7 +53,7 @@ suite('AgentHostLocalCommands', () => {
 		instantiationService.stub(IAgentHostPeerChatPersistenceService, new class extends mock<IAgentHostPeerChatPersistenceService>() { }());
 		const commands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
 
-		const handled = commands.tryHandle({ turnChannel: chat, turnId: 'turn-1', text: '/hold' });
+		const handled = commands.tryHandle({ turnChannel: chat, turnId: 'turn-1', origin: { kind: MessageKind.User }, text: '/hold' });
 		stateManager.removeChat(session, chat);
 		await release.complete();
 		await timeout(0);

@@ -12,9 +12,11 @@ import { autorun, constObservable, observableValue } from '../../../../../../bas
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { identityAgentHostResourceUriMapper, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { ISessionFileDiff, ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { createFileSystemProviderError, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -96,10 +98,14 @@ function makeMockFileService(contentMap: Map<string, string>): IFileService {
 	};
 }
 
-function createController(store: DisposableStore, contentMap: Map<string, string>, turnEdits: ConstructorParameters<typeof AgentHostSnapshotController>[2] = undefined): AgentHostSnapshotController {
+/** The local agent host's connection, whose files are this window's files. */
+const localConnection = { resourceUris: identityAgentHostResourceUriMapper };
+
+function createController(store: DisposableStore, contentMap: Map<string, string>, turnEdits: ConstructorParameters<typeof AgentHostSnapshotController>[3] = undefined, connection: Pick<IAgentConnection, 'resourceUris'> = localConnection): AgentHostSnapshotController {
 	const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/test-session' });
 	const controller = new AgentHostSnapshotController(
 		sessionResource,
+		connection,
 		'local',
 		turnEdits,
 		new NullLogService(),
@@ -157,7 +163,7 @@ suite('AgentHostSnapshotController', () => {
 			{ before: { uri: destination, content: { uri: beforeDestination } }, after: { uri: destination, content: { uri: afterDestination } } },
 			{ after: { uri: created, content: { uri: afterCreated } } },
 		];
-		const changes = constObservable(edits.map(edit => agentHostChangesetFileToEntryDiff({ id: (edit.after ?? edit.before)!.uri, edit }, 'local')!));
+		const changes = constObservable(edits.map(edit => agentHostChangesetFileToEntryDiff({ id: (edit.after ?? edit.before)!.uri, edit }, { resourceUris: identityAgentHostResourceUriMapper }, 'local')!));
 		let turnRemoved = false;
 		const controller = createController(store, contentMap, {
 			getChanges: () => changes,
@@ -554,6 +560,29 @@ suite('AgentHostSnapshotController', () => {
 			});
 		});
 
+		for (const kind of agentHostConnectionKinds) {
+			test(`Start Over restores and suppresses files through the ${kind.name} connection`, async () => {
+				const hostFile = URI.file('/repo/file.ts');
+				const file = kind.toClient(hostFile);
+				const before = URI.file('/snapshots/before.ts');
+				const after = URI.file('/snapshots/after.ts');
+				const content = new Map([[before.toString(), 'before'], [after.toString(), 'after'], [file.toString(), 'after']]);
+				const controller = createController(store, content, undefined, { resourceUris: kind.resourceUris });
+				controller.addToolCallEdits('request', makeToolCall({ toolCallId: 'edit', filePath: hostFile.path, beforeURI: before.toString(), afterURI: after.toString() }));
+				// The working set shows the file as the same connection maps it.
+				const source = constObservable({ channel: URI.parse('changeset:/working-set'), ready: true, files: [{ diff: { ...emptySessionEntryDiff(before, file), modifiedSnapshotURI: after }, nonce: 'first' }] });
+				store.add(controller.checkpointReview.registerSource(source));
+				await controller.restoreSnapshot('request', undefined);
+				assert.deepStrictEqual({
+					restored: [...content].filter(([, value]) => value === 'before').map(([resource]) => resource),
+					visible: controller.checkpointReview.project(source.get().channel, source.get().files).length,
+				}, {
+					restored: [before.toString(), file.toString()],
+					visible: 0,
+				});
+			});
+		}
+
 		test('partial checkpoint restoration keeps earlier same-file edits and unrelated peer files visible', async () => {
 			const file = URI.file('/file.ts');
 			const peer = URI.file('/peer.ts');
@@ -592,7 +621,7 @@ suite('AgentHostSnapshotController', () => {
 			const content = new Map([[before.toString(), 'before'], [after.toString(), 'after']]);
 			const files = makeMockFileService(content);
 			files.writeFile = async () => { throw new Error('write failed'); };
-			const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/failure'), 'local', undefined, new NullLogService(), files, store.add(new WorkingCopyService())));
+			const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/failure'), localConnection, 'local', undefined, new NullLogService(), files, store.add(new WorkingCopyService())));
 			controller.addToolCallEdits('request', makeToolCall({ toolCallId: 'edit', filePath: file.fsPath, beforeURI: before.toString(), afterURI: after.toString() }));
 			const source = constObservable({ channel: URI.parse('changeset:/working-set'), ready: true, files: [{ diff: { ...emptySessionEntryDiff(before, file), modifiedSnapshotURI: after }, nonce: 'first' }] });
 			store.add(controller.checkpointReview.registerSource(source));
@@ -615,7 +644,7 @@ suite('AgentHostSnapshotController', () => {
 					}
 					return write(resource, value);
 				};
-				const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/successive-undo'), 'local', undefined, new NullLogService(), files, store.add(new WorkingCopyService())));
+				const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/successive-undo'), localConnection, 'local', undefined, new NullLogService(), files, store.add(new WorkingCopyService())));
 				for (const file of [first, second]) {
 					controller.addToolCallEdits(file.path, makeToolCall({ toolCallId: file.path, filePath: file.fsPath, beforeURI: before.toString(), afterURI: after.toString() }));
 				}
@@ -663,7 +692,7 @@ suite('AgentHostSnapshotController', () => {
 				}
 				return write(resource, value);
 			};
-			const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/partial'), 'local', undefined, new NullLogService(), files, store.add(new WorkingCopyService())));
+			const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/partial'), localConnection, 'local', undefined, new NullLogService(), files, store.add(new WorkingCopyService())));
 			controller.addToolCallEdits('request', {
 				...makeToolCall({ toolCallId: 'create', filePath: created.fsPath, beforeURI: before.toString(), afterURI: after.toString() }),
 				content: [{ type: ToolResultContentType.FileEdit, after: { uri: created.toString(), content: { uri: after.toString() } } }],
@@ -712,7 +741,7 @@ suite('AgentHostSnapshotController', () => {
 				store.add(files.registerProvider(Schemas.file, provider));
 				await files.writeFile(after, VSBuffer.fromString('created'));
 				await files.writeFile(file, VSBuffer.fromString('created'));
-				const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/delete-stat'), 'local', undefined, new NullLogService(), files, store.add(new WorkingCopyService())));
+				const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/delete-stat'), localConnection, 'local', undefined, new NullLogService(), files, store.add(new WorkingCopyService())));
 				controller.addToolCallEdits('request', {
 					...makeToolCall({ toolCallId: 'create', filePath: file.fsPath, beforeURI: after.toString(), afterURI: after.toString() }),
 					content: [{ type: ToolResultContentType.FileEdit, after: { uri: file.toString(), content: { uri: after.toString() } } }],
@@ -798,7 +827,7 @@ suite('AgentHostSnapshotController', () => {
 			const after = URI.file('/snapshots/after.ts');
 			const content = new Map([[before.toString(), 'before'], [after.toString(), 'after'], [first.toString(), 'after'], [second.toString(), 'after']]);
 			const files = makeMockFileService(content);
-			const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/redo-failure'), 'local', undefined, new NullLogService(), files, store.add(new WorkingCopyService())));
+			const controller = store.add(new AgentHostSnapshotController(URI.parse('agent-host-copilot:/redo-failure'), localConnection, 'local', undefined, new NullLogService(), files, store.add(new WorkingCopyService())));
 			for (const file of [first, second]) {
 				controller.addToolCallEdits('request', makeToolCall({ toolCallId: file.path, filePath: file.fsPath, beforeURI: before.toString(), afterURI: after.toString() }));
 			}

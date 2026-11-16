@@ -181,6 +181,55 @@ flakySuite('PFS', function () {
 		assert.ok(!fs.existsSync(parentDir));
 	});
 
+	test('atomic rename replaces an existing file', async () => {
+		const source = join(testDir, 'source');
+		const target = join(testDir, 'target');
+		await fs.promises.writeFile(source, 'new');
+		await fs.promises.writeFile(target, 'old');
+		await Promises.renameAtomic(source, target);
+		assert.deepStrictEqual({
+			sourceExists: fs.existsSync(source),
+			target: await fs.promises.readFile(target, 'utf8'),
+		}, { sourceExists: false, target: 'new' });
+	});
+
+	for (const { code, suffix } of [{ code: 'EXDEV', suffix: '' }, { code: 'EINVAL', suffix: '.' }]) {
+		test(`atomic rename never copies on ${code} (${suffix || 'regular filename'})`, async () => {
+			const source = join(testDir, `source${suffix}`);
+			const target = join(testDir, 'target');
+			await fs.promises.writeFile(source, 'new');
+			await fs.promises.writeFile(target, 'old');
+			const failure = Object.assign(new Error(code), { code });
+			let attempts = 0;
+			await assert.rejects(Promises.renameAtomic(source, target, undefined, async () => {
+				attempts++;
+				throw failure;
+			}), error => error === failure);
+			assert.deepStrictEqual({
+				attempts,
+				source: await fs.promises.readFile(source, 'utf8'),
+				target: await fs.promises.readFile(target, 'utf8'),
+			}, { attempts: 1, source: 'new', target: 'old' });
+		});
+	}
+
+	(isWindows ? test : test.skip)('atomic rename retains Windows retries for transient errors', async () => {
+		const source = join(testDir, 'source');
+		const target = join(testDir, 'target');
+		await fs.promises.writeFile(source, 'new');
+		await fs.promises.writeFile(target, 'old');
+		let attempts = 0;
+		await Promises.renameAtomic(source, target, 1000, async (from, to) => {
+			if (++attempts === 1) {
+				throw Object.assign(new Error('busy'), { code: 'EBUSY' });
+			}
+			await fs.promises.rename(from, to);
+		});
+		assert.deepStrictEqual({
+			attempts, target: await fs.promises.readFile(target, 'utf8'),
+		}, { attempts: 2, target: 'new' });
+	});
+
 	test('rename without retry', async () => {
 		const sourceDir = FileAccess.asFileUri('vs/base/test/node/pfs/fixtures').fsPath;
 		const parentDir = join(tmpdir(), 'vsctests', 'pfs');

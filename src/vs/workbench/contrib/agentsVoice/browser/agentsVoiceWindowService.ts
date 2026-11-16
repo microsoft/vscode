@@ -207,9 +207,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 					this.commandService.executeCommand('_chat.voice.switchToSession', resource.toString()).catch(() => { /* ignore */ });
 				}
 			},
-			newSessionAsTarget: () => {
-				this.voiceSessionController.newSessionAsTarget();
-			},
+			newSessionAsTarget: () => this.voiceSessionController.newSessionAsTarget(),
 			getAnalyserNode: () => {
 				const state = this.voiceSessionController.voiceState.get();
 				return this.ttsPlaybackService.analyserNode
@@ -328,7 +326,7 @@ export class AgentsVoiceWindowService extends Disposable implements IAgentsVoice
 	}
 
 	private _doResizeWindow(auxiliaryWindow: IAuxiliaryWindow): void {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const pill = auxiliaryWindow.container.querySelector('div') as HTMLElement | null;
 		if (!pill) { return; }
 		void pill.offsetWidth;

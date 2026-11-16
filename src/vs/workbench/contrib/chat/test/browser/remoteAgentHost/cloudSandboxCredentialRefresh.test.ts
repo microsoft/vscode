@@ -458,6 +458,50 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 		return { refresher, credentials, creds, telemetry };
 	}
 
+	test('sleep pauses a pending credential retry and does not exhaust its request budget', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		let attempts = 0;
+		const state = new CloudSandboxCredentialRefreshState();
+		const { refresher, credentials, telemetry } = createRefresher(tokenExpiringIn(0, START_TIME), () => {
+			if (++attempts === 1) {
+				throw new CloudSandboxRequestError(503, 'temporarily unavailable', 30);
+			}
+			return { kind: 'token', token: tokenExpiringIn(40, Date.now()) };
+		}, state);
+		await assert.rejects(refresher.refreshConnectionCredentials());
+		const recovering = refresher.refreshConnectionCredentials();
+		refresher.suspend();
+		await timeout(600_000);
+		const whileAsleep = credentials.callCount;
+		refresher.resume();
+		await recovering;
+		assert.deepStrictEqual({ whileAsleep, calls: credentials.callCount, stopped: state.stopped, stops: telemetry.stops }, {
+			whileAsleep: 1, calls: 2, stopped: false, stops: [],
+		});
+	}));
+
+	test('a network request interrupted by sleep does not consume the credential failure budget', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const response = new DeferredPromise<CloudSandboxConnectResult>();
+		const state = new CloudSandboxCredentialRefreshState();
+		const { refresher, telemetry } = createRefresher(tokenExpiringIn(0, START_TIME), () => response.p, state);
+		const rejected = assert.rejects(refresher.refreshConnectionCredentials());
+		refresher.suspend();
+		await response.error(new CloudSandboxRequestError(503, 'network interrupted'));
+		await rejected;
+		refresher.resume();
+		assert.deepStrictEqual({ failures: state.unhealthyCycles, requestFailures: state.requestFailures, stopped: state.stopped, stops: telemetry.stops }, {
+			failures: 0, requestFailures: 0, stopped: false, stops: [],
+		});
+	}));
+
+	test('disposal cancels credential acquisition waiting for wake', async () => {
+		const { refresher, credentials } = createRefresher(tokenExpiringIn(0, START_TIME), () => assert.fail('request while suspended'));
+		refresher.suspend();
+		const rejected = assert.rejects(refresher.refreshConnectionCredentials(), isCancellationError);
+		refresher.dispose();
+		await rejected;
+		assert.strictEqual(credentials.callCount, 0);
+	});
+
 	for (const scenario of ['authentication', 'retry', 'permanentError', 'wakingLimit', 'invalidExpiry', 'cancelledWait'] as const) {
 		test(`user-local ${scenario} preserves credential behavior and stop aggregates without lifecycle events`, () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
 			const observations = [];

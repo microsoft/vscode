@@ -5,7 +5,6 @@
 
 import * as pathLib from 'path';
 import { AgentTaskGetResponse, AgentTaskSession, AgentTaskSessionEvent, AgentTaskState } from '@vscode/copilot-api';
-import type { SessionEvent } from '@github/copilot/sdk';
 import * as vscode from 'vscode';
 import { ChatRequestTurn, ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseProgressPart, ChatResponseThinkingProgressPart, ChatResponseTurn2, ChatToolInvocationPart, MarkdownString, Uri } from 'vscode';
 import { IGitService } from '../../../platform/git/common/gitService';
@@ -13,7 +12,7 @@ import { PullRequestSearchItem } from '../../../platform/github/common/githubAPI
 import { ILogService } from '../../../platform/log/common/logService';
 import { findLast } from '../../../util/vs/base/common/arraysFind';
 import { appendResponsePartsForEvent, createResponseEventRenderContext, flushPendingAssistantMessage, ResponseEventRenderContext } from '../common/sessionEventRenderer';
-import { CLI_TOOL_EVENT_HANDLERS } from '../copilotcli/common/copilotCLITools';
+import { CLI_TOOL_EVENT_HANDLERS } from '../common/copilotCLIToolInvocations';
 import { getAuthorDisplayName, isFailedTaskState } from '../vscode/copilotCodingAgentUtils';
 
 export interface ToolCall {
@@ -264,7 +263,7 @@ export class ChatSessionContentBuilder {
 				}
 			}
 
-			appendResponsePartsForEvent(remapCustomAgentEventType(event) as unknown as SessionEvent, ctx);
+			appendResponsePartsForEvent(remapCustomAgentEventType(event), ctx);
 		}
 		flushPendingAssistantMessage(ctx);
 
@@ -318,7 +317,7 @@ export class ChatSessionContentBuilder {
 		if (event.dismissed) {
 			return;
 		}
-		appendResponsePartsForEvent(remapCustomAgentEventType(event) as unknown as SessionEvent, ctx);
+		appendResponsePartsForEvent(remapCustomAgentEventType(event), ctx);
 	}
 
 	private createToolInvocationPart(toolCall: ToolCall, deltaContent: string = ''): ChatToolInvocationPart | ChatResponseThinkingProgressPart | undefined {

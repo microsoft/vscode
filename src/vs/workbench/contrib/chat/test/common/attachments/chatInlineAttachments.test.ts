@@ -76,6 +76,17 @@ suite('Chat inline attachments', () => {
 		});
 	});
 
+	test('says verbatim pills exactly where they are, while separating adjacent pills', () => {
+		const project = (input: string, anchors: Parameters<typeof projectInlineAttachments>[1]) => projectInlineAttachments(input, anchors, [])?.text;
+		assert.deepStrictEqual([
+			project(`see (${A}), "${A}"`, [{ offset: 5, text: 'link-a', verbatim: true }, { offset: 10, text: 'link-b', verbatim: true }]),
+			project(`${A}${A}${A}.`, [{ offset: 0, text: 'link-a', verbatim: true }, { offset: 1, text: '#x' }, { offset: 2, text: 'link-b', verbatim: true }]),
+		], [
+			'see (link-a), "link-b"',
+			'link-a #x link-b.',
+		]);
+	});
+
 	test('maps positions across lines', () => {
 		const input = `first\r\n${A} second ${A}`;
 		const projection = projectInlineAttachments(input, [

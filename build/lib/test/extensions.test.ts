@@ -4,8 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import es from 'event-stream';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { suite, test } from 'node:test';
-import { isPackagedTypeScriptFile } from '../extensions.ts';
+import type VinylFile from 'vinyl';
+import { getSharedExtensionDependencyStream, isPackagedTypeScriptFile } from '../extensions.ts';
+import { cleanNodeModules } from '../util.ts';
 
 suite('isPackagedTypeScriptFile', () => {
 	test('keeps package.json and lib, without the compiler, typescriptServices and most declarations', () => {
@@ -47,5 +53,25 @@ suite('isPackagedTypeScriptFile', () => {
 			'lib/cs',
 			'lib/cs/diagnosticMessages.generated.json',
 		]);
+	});
+});
+
+suite('getSharedExtensionDependencyStream', () => {
+	test('places the files of a package in pnpm\'s virtual store at their destination, for the module filters', async t => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-extensions-'));
+		t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+		const folder = path.join(root, 'node_modules', '.pnpm', 'x@1.0.0', 'node_modules', 'x');
+		for (const file of ['index.js', 'README.md', 'test/index.js']) {
+			fs.mkdirSync(path.dirname(path.join(folder, file)), { recursive: true });
+			fs.writeFileSync(path.join(folder, file), file);
+		}
+		const moduleIgnore = path.join(root, '.moduleignore');
+		fs.writeFileSync(moduleIgnore, 'x/README.md\n');
+
+		const packaged = await new Promise<VinylFile[]>((resolve, reject) => getSharedExtensionDependencyStream(folder, 'extensions/node_modules/x')
+			.pipe(cleanNodeModules(moduleIgnore))
+			.pipe(es.writeArray((err: Error | undefined, result: VinylFile[]) => err ? reject(err) : resolve(result))));
+
+		assert.deepStrictEqual(packaged.filter(file => !file.isDirectory()).map(file => file.relative.split(path.sep).join('/')), ['extensions/node_modules/x/index.js']);
 	});
 });

@@ -50,7 +50,7 @@ import { ITerminalProfileResolverService } from '../../terminal/common/terminal.
 import { CommandString, ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, InstancePolicy, ITaskConfig, ITaskEvent, ITaskIdentifier, ITaskInactiveEvent, ITaskProcessEndedEvent, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RerunAllRunningTasksCommandId, RuntimeType, Task, TASK_RUNNING_STATE, TaskDefinition, TaskEventKind, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, USER_TASKS_GROUP_KEY } from '../common/tasks.js';
 import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
 import { CustomExecutionSupportedContext, ICustomizationProperties, IProblemMatcherRunOptions, ITaskFilter, ITaskProvider, ITaskService, IWorkspaceFolderTaskResult, ProcessExecutionSupportedContext, ServerlessWebContext, ShellExecutionSupportedContext, TaskCommandsRegistered, TaskExecutionSupportedContext, TasksAvailableContext } from '../common/taskService.js';
-import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers, VerifiedTask } from '../common/taskSystem.js';
+import { assertTaskWorkspaceTrust, ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers, VerifiedTask } from '../common/taskSystem.js';
 import { getTemplates as getTaskTemplates } from '../common/taskTemplates.js';
 
 import * as TaskConfig from '../common/taskConfiguration.js';
@@ -2087,6 +2087,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				? await this.getTask(taskFolder, taskIdentifier, false, taskType) : task) ?? task;
 		}
 		await ProblemMatcherRegistry.onReady();
+		assertTaskWorkspaceTrust(this._workspaceTrustManagementService);
 		const executeResult = runSource === TaskRunSource.Reconnect ? this._getTaskSystem().reconnect(taskToRun, resolver) : this._getTaskSystem().run(taskToRun, resolver);
 		if (executeResult) {
 			return this._handleExecuteResult(executeResult, runSource);
@@ -2289,7 +2290,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					}
 				}
 				return undefined;
-			}
+			},
+			this._workspaceTrustManagementService
 		);
 	}
 
@@ -2314,15 +2316,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const contributedTaskSets = await new Promise<ITaskSet[]>(resolve => {
 			const result: ITaskSet[] = [];
 			let counter: number = 0;
-			const done = (value: ITaskSet | undefined) => {
-				if (value) {
-					result.push(value);
-				}
-				if (--counter === 0) {
-					resolve(result);
-				}
-			};
-			const error = (error: unknown) => {
+			const error = (error: unknown, done: () => void) => {
 				try {
 					if (!isCancellationError(error)) {
 						if (error && Types.isString((error as { message?: string }).message)) {
@@ -2334,9 +2328,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						}
 					}
 				} finally {
-					if (--counter === 0) {
-						resolve(result);
-					}
+					done();
 				}
 			};
 			if (this._isProvideTasksEnabled() && (this.schemaVersion === JsonSchemaVersion.V2_0_0) && (this._providers.size > 0)) {
@@ -2349,6 +2341,19 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						}
 						foundAnyProviders = true;
 						counter++;
+						let completed = false;
+						const done = (value: ITaskSet | undefined) => {
+							if (value) {
+								result.push(value);
+							}
+							// A provider can settle after its timeout, but must only finish its own accounting once.
+							if (!completed) {
+								completed = true;
+								if (--counter === 0) {
+									resolve(result);
+								}
+							}
+						};
 						raceTimeout(provider.provideTasks(validTypes).then((taskSet: ITaskSet) => {
 							// Check that the tasks provided are of the correct type
 							for (const task of taskSet.tasks) {
@@ -2361,7 +2366,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								}
 							}
 							return done(taskSet);
-						}, error), 5000, () => {
+						}, err => error(err, () => done(undefined))), 5000, () => {
 							// onTimeout
 							done(undefined);
 						});

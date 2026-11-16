@@ -12,7 +12,7 @@ import { IContextKeyService } from '../../../platform/contextkey/common/contextk
 import { IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { EmptyEditorGroupAddTab } from '../../browser/parts/emptyEditorGroupAddTab.js';
+import { EmptyEditorGroupAddTab } from '../../../workbench/browser/parts/sessions/emptyEditorGroupAddTab.js';
 import { FixtureContextViewService, FixtureKeybindingService, FixtureMenuService, fixtureBrowser, fixtureCanvas, fixtureCanvasWithDiscover, fixtureCanvasWithTitledGroups, fixtureChanges, fixtureFiles, IFixtureEntry } from './addTabFixtureUtils.js';
 
 const addTabMenu = MenuId.for('sessions.fixture.emptyEditorGroupAddTab');
@@ -105,6 +105,7 @@ async function renderEmptyGroup({ container, disposableStore, theme, focus }: Co
 	menuService.commandService = instantiationService.get(ICommandService);
 
 	disposableStore.add(instantiationService.createInstance(EmptyEditorGroupAddTab, {
+		id: 1,
 		element: groupElement,
 		scopedContextKeyService: instantiationService.get(IContextKeyService),
 		isEmpty: true,

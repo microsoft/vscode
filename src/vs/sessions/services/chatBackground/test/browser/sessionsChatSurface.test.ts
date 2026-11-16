@@ -15,8 +15,8 @@ import { TestAccessibilityService } from '../../../../../platform/accessibility/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../browser/chatBackgroundService.js';
-import { SESSIONS_CHAT_SURFACE_CLASS, SessionsChatSurface } from '../../browser/sessionsChatSurface.js';
+import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
+import { SESSIONS_CHAT_SURFACE_CLASS, SessionsChatSurface } from '../../../../../workbench/contrib/sessions/browser/sessionsChatSurface.js';
 
 interface ICodiconActivationTestHarness {
 	readonly accessibilityService: {

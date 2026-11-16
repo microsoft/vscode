@@ -20,8 +20,9 @@ import { ITelemetryData, ITelemetryService } from '../../../../../platform/telem
 import { IBrowserViewModel } from '../../../browserView/common/browserView.js';
 import { WebContentsViewHost } from '../../../browserView/electron-browser/webContentsViewHost.js';
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { CanvasInput, ICanvas, ICanvasService } from '../../common/canvas.js';
+import { CanvasInput, ICanvasService } from '../../common/canvas.js';
 import { CanvasEditor } from '../../electron-browser/canvasEditor.js';
+import { ICanvas } from '../../../../common/canvasReference.js';
 
 suite('CanvasEditor telemetry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

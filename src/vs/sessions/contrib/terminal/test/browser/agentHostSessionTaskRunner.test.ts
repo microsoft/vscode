@@ -18,10 +18,10 @@ import { NullLogService, ILogService } from '../../../../../platform/log/common/
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentHostTerminalCreateOptions, IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
-import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../common/agentHostSessionsProvider.js';
-import { IChat, ISession, ISessionFolder, ISessionWorkspace, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { IChat, ISession, ISessionFolder, ISessionWorkspace, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IConfigurationResolverService } from '../../../../../workbench/services/configurationResolver/common/configurationResolver.js';
 import { IWorkspaceFolderData } from '../../../../../platform/workspace/common/workspace.js';
 import { ITaskEntry, ISessionsTasksService, ISessionTaskWithTarget } from '../../../chat/browser/sessionsTasksService.js';
@@ -207,6 +207,9 @@ suite('AgentHostSessionTaskRunner', () => {
 				shownInChatWindow.push({ sessionId: session.sessionId, instanceId, focus });
 				return true;
 			}
+			override holdsSessionTerminal(session: ISession, instanceId: number) {
+				return session.sessionId === chatWindowSessionId && shownInChatWindow.some(shown => shown.instanceId === instanceId);
+			}
 		});
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationResolverService, new class extends mock<IConfigurationResolverService>() {
@@ -336,6 +339,24 @@ suite('AgentHostSessionTaskRunner', () => {
 		handles.forEach(handle => handle?.dispose());
 
 		assert.strictEqual(createdTerminals.length, 2);
+	});
+
+	test('reuses the terminal of a task that a chat window of its session holds while its terminals hide, showing it there again, rather than creating another one', async () => {
+		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.parse('file:///x') });
+		chatWindowSessionId = session.sessionId;
+		commandExecuting = false;
+
+		const handles = [await runner.runTask(shellTask(), session)];
+		// The window's terminals hide: they go to the background of the panel
+		backgroundedTerminals.push(createdTerminals[0].instance);
+		handles.push(await runner.runTask(shellTask(), session));
+		handles.forEach(handle => handle?.dispose());
+
+		const instanceId = createdTerminals[0].instance.instanceId;
+		assert.deepStrictEqual({ created: createdTerminals.length, shownInChatWindow }, {
+			created: 1,
+			shownInChatWindow: [{ sessionId: session.sessionId, instanceId, focus: false }, { sessionId: session.sessionId, instanceId, focus: false }],
+		});
 	});
 
 	test('creates a new terminal once the reused terminal is disposed', async () => {

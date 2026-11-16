@@ -25,18 +25,19 @@ import { ActiveEditorContext } from '../../../../../workbench/common/contextkeys
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/services/sessions/common/session.js';
 import { bindChangesetOperations, ChangesHeaderChangesetOperationsActionContribution } from '../../browser/changesActions.js';
-import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
-import { ISessionChangesService } from '../../browser/sessionChangesService.js';
-import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../common/changesViewService.js';
+import { SessionChangesEditor } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
+import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { ITestSessionWithChat, stubSessionHostsFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Changes Actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -58,10 +59,11 @@ suite('Changes Actions', () => {
 			}]);
 		});
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ sessionId: 'active', resource: URI.parse('agent-host:active') }));
-			override readonly mainWindowActiveSession = this.activeSession;
-			override readonly visibleSessions = constObservable<readonly (IActiveSession | undefined)[]>([]);
+			readonly activeSession = constObservable<ITestSessionWithChat | undefined>(upcastPartial<ITestSessionWithChat>({ sessionId: 'active', resource: URI.parse('agent-host:active') }));
+			readonly gridShown = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
+			override readonly slotPanes = testGridPanes(this.gridShown);
 		});
+		stubSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 			override async openEditor(...args: unknown[]): Promise<undefined> {
 				const input = args[0] as { readonly resource: URI };
@@ -91,6 +93,7 @@ suite('Changes Actions', () => {
 		instantiationService.stub(IActionViewItemService, actionViewItemService);
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() { }());
 		instantiationService.stub(IAgentWorkbenchLayoutService, {});
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() { }());
 		const editor = disposables.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
 		const invokedCommands: string[] = [];
@@ -193,7 +196,8 @@ suite('Changes Actions', () => {
 		}();
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IChangesViewService, changesViewService);
-		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { override readonly mainWindowActiveSession = constObservable(undefined); }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { readonly mainWindowActiveSession = constObservable(undefined); }());
+		stubSessionHostsFromSessionsService(instantiationService);
 		// The main window's context, bound for its session.
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		disposables.add(bindChangesetOperations({ session: constObservable(undefined), changes: { changesetObs: constObservable(changeset), changesetOperationsObs: operations } }, contextKeyService));
@@ -254,7 +258,8 @@ suite('Changes Actions', () => {
 				invokeOperation: async operationId => { invoked.push(`${name}:${operationId}`); },
 			});
 			return upcastPartial<IChangesSessionScope>({
-				session: constObservable<IActiveSession | undefined>(upcastPartial<IActiveSession>({ resource: URI.parse(`test-session:${name}`), status: constObservable(SessionStatus.Completed) })),
+				session: constObservable<ITestSessionWithChat | undefined>(upcastPartial<ITestSessionWithChat>({ resource: URI.parse(`test-session:${name}`), status: constObservable(SessionStatus.Completed) })),
+				chat: constObservable(undefined),
 				changes: upcastPartial<IChangesSessionObservables>({ changesetObs: constObservable<ISessionChangeset | undefined>(changeset), changesetOperationsObs: operations }),
 			});
 		};
@@ -337,7 +342,7 @@ suite('Changes Actions', () => {
 		const chat = upcastPartial<IChat>({
 			changesets: constObservable([changeset]),
 		});
-		const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', upcastPartial<IActiveSession>({
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('test.activeSession', upcastPartial<ITestSessionWithChat>({
 			resource: URI.parse('test-session:draft'),
 			status,
 			workspace,
@@ -348,7 +353,8 @@ suite('Changes Actions', () => {
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		disposables.add(bindChangesetOperations({ session: activeSession, changes }, contextKeyService));
 		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { override readonly mainWindowActiveSession = activeSession; }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { readonly mainWindowActiveSession = activeSession; }());
+		stubSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
 			override readonly activeSessionChangesetObs = changes.changesetObs;
 			override readonly activeSessionChangesetOperationsObs = operations;

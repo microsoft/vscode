@@ -1,0 +1,49 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * The "where it runs" chip on the phone's new-session screen: a row of its own
+ * above the workspace and agent chips. The chip itself is one of the row's
+ * pills (`.sessions-chat-picker-slot .action-label`, see `chatWidget.css`);
+ * this file only lays out the row. No accent color and no status: the place
+ * is a fact, not a call to action, and connection state belongs to the sheet.
+ */
+
+.sessions-new-session-place-row {
+	display: flex;
+	justify-content: center;
+	width: 100%;
+	box-sizing: border-box;
+	padding: 0 var(--vscode-spacing-size160);
+	margin-bottom: var(--vscode-spacing-size80);
+}
+
+.sessions-new-session-place-row[hidden] {
+	display: none;
+}
+
+.sessions-new-session-place-row .monaco-toolbar,
+.sessions-new-session-place-row .monaco-action-bar,
+.sessions-new-session-place-row .actions-container {
+	display: flex;
+	justify-content: center;
+	max-width: 100%;
+}
+
+.sessions-new-session-place-row .action-item.sessions-new-session-place {
+	display: block;
+	max-width: 100%;
+}
+
+.sessions-new-session-place-row .sessions-new-session-place-trigger {
+	max-width: 100%;
+}
+
+.sessions-new-session-place-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+}

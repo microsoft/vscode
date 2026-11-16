@@ -144,6 +144,8 @@ export interface IActionListItem<T> {
 	readonly kind: ActionListItemKind;
 	readonly group?: { kind?: unknown; icon?: ThemeIcon; title: string };
 	readonly disabled?: boolean;
+	/** Let users navigate to an unavailable action to hear why it is disabled. */
+	readonly focusableWhenDisabled?: boolean;
 	readonly label?: string;
 	/** Icon beside the label, separate from the selection indicator. */
 	readonly labelIcon?: ThemeIcon;
@@ -408,6 +410,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 		const icon = document.createElement('div');
 		icon.className = 'icon';
+		icon.ariaHidden = 'true';
 		container.append(icon);
 
 		const labelIcon = dom.append(container, dom.$('span.action-list-label-icon', { 'aria-hidden': 'true' }));
@@ -442,6 +445,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 		const submenuIndicator = document.createElement('div');
 		submenuIndicator.className = 'action-list-submenu-indicator';
+		submenuIndicator.ariaHidden = 'true';
 		container.append(submenuIndicator);
 
 		const inlineToggleContainer = document.createElement('div');
@@ -472,7 +476,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			return;
 		}
 
-		dom.setVisibility(!element.hideIcon, data.icon);
+		data.icon.style.display = element.hideIcon ? 'none' : '';
 		data.labelIcon.className = element.labelIcon
 			? `action-list-label-icon ${ThemeIcon.asClassName(element.labelIcon)}`
 			: 'action-list-label-icon';
@@ -618,6 +622,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		const actionTitle = this._keybindingService.lookupKeybinding(acceptSelectedActionCommand)?.getLabel();
 		const previewTitle = this._keybindingService.lookupKeybinding(previewSelectedActionCommand)?.getLabel();
 		data.container.classList.toggle('option-disabled', !!element.disabled);
+		data.container.ariaDisabled = element.disabled || element.standaloneToggle?.disabled ? 'true' : null;
 		if (element.hover !== undefined) {
 			// Don't show tooltip when hover content is configured - the rich hover will show instead
 			data.container.title = '';
@@ -646,7 +651,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			toolbarActions.push(toAction({
 				id: removeToolbarActionId,
 				label: localize('actionList.remove', "Remove"),
-				class: ThemeIcon.asClassName(Codicon.close),
+				class: ThemeIcon.asClassName(Codicon.closeSmall),
 				run: async () => {
 					await element.onRemove!();
 					this._onRemoveItem?.(element);
@@ -1209,8 +1214,8 @@ export class ActionListWidget<T> extends Disposable {
 									? localize('actionList.inlineToggle.on', "{0}, on", toggleConfig.label)
 									: localize('actionList.inlineToggle.off', "{0}, off", toggleConfig.label));
 						}
-						if (element.disabled) {
-							label = localize({ key: 'customQuickFixWidget.labels', comment: [`Action widget labels for accessibility.`] }, "{0}, Disabled Reason: {1}", label, element.disabled);
+						if (element.standaloneToggle?.disabled && element.standaloneToggle.title) {
+							label = localize('actionList.standaloneToggle.disabledReason', "{0}, {1}", label, stripNewlines(element.standaloneToggle.title));
 						}
 						if (element.submenuActions?.length) {
 							label = localize('actionList.submenuHint', "{0}, use right arrow to access options", label);
@@ -1247,7 +1252,8 @@ export class ActionListWidget<T> extends Disposable {
 
 		this._register(this._list.onKeyDown(() => this._setKeyboardNavigation(true)));
 		this._register(dom.addDisposableListener(this._list.getHTMLElement(), dom.EventType.MOUSE_MOVE, (e: MouseEvent) => {
-			if (e.movementX !== 0 || e.movementY !== 0) {
+			const target = dom.isHTMLElement(e.target) ? e.target.closest('.monaco-list-row.action:not(.option-disabled)') : null;
+			if ((e.movementX !== 0 || e.movementY !== 0) && target && this._list.getHTMLElement().contains(target)) {
 				this._setKeyboardNavigation(false);
 			}
 		}));
@@ -1267,10 +1273,12 @@ export class ActionListWidget<T> extends Disposable {
 				this.onListHover(e);
 			}
 		});
-		this._register(this._list.onMouseDown(() => {
+		this._register(this._list.onMouseDown(e => {
 			initialMouseMove.clear();
 			this._ignoreInitialHover = false;
-			this._setKeyboardNavigation(false);
+			if (e.element?.item && this.focusCondition(e.element)) {
+				this._setKeyboardNavigation(false);
+			}
 		}));
 		this._register(this._list.onDidChangeFocus(() => {
 			this._updateToolbarFocusability();
@@ -1337,7 +1345,6 @@ export class ActionListWidget<T> extends Disposable {
 						e.stopPropagation();
 					}
 				}));
-				this._register(dom.addDisposableListener(this._filterInput, dom.EventType.MOUSE_DOWN, () => this._setKeyboardNavigation(false)));
 				if (this._options.tabThroughItemActions) {
 					this._register(dom.addDisposableListener(this._filterInput, 'keydown', e => this._handleTabThroughPanelKeyDown(e), true));
 				}
@@ -1882,7 +1889,7 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private focusCondition(element: IActionListItem<unknown>): boolean {
-		return !element.disabled && element.kind === ActionListItemKind.Action;
+		return element.kind === ActionListItemKind.Action && (!element.disabled || element.focusableWhenDisabled === true);
 	}
 
 	private _setKeyboardNavigation(keyboardNavigation: boolean | undefined): void {
@@ -2553,7 +2560,7 @@ export class ActionListWidget<T> extends Disposable {
 
 		const focusIndex = focused[0];
 		const element = this._list.element(focusIndex);
-		if (!this.focusCondition(element)) {
+		if (element.disabled || element.kind !== ActionListItemKind.Action) {
 			return;
 		}
 
@@ -2571,6 +2578,10 @@ export class ActionListWidget<T> extends Disposable {
 		}
 
 		const element = e.elements[0];
+		if (element.disabled) {
+			this._list.setSelection([]);
+			return;
+		}
 		if (element.standaloneToggle) {
 			this._list.setSelection([]);
 			const toggle = this._standaloneToggles.get(element);
@@ -2608,7 +2619,7 @@ export class ActionListWidget<T> extends Disposable {
 			}
 			return;
 		}
-		if (element.item && this.focusCondition(element)) {
+		if (element.item && element.kind === ActionListItemKind.Action) {
 			const isPreviewEvent = e.browserEvent instanceof PreviewSelectedEvent;
 			this._delegate.onSelect(element.item, isPreviewEvent && this._supportsPreview);
 		} else {
@@ -2698,7 +2709,7 @@ export class ActionListWidget<T> extends Disposable {
 		if (index < 0) {
 			return null;
 		}
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		return this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
 	}
 
@@ -3430,10 +3441,10 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private async onListHover(e: IListMouseEvent<IActionListItem<T>>) {
-		this._setKeyboardNavigation(false);
 		const element = e.element;
 
 		if (element && element.item && this.focusCondition(element)) {
+			this._setKeyboardNavigation(false);
 			const focus = typeof e.index === 'number' ? [e.index] : [];
 			this._restoreListFocusBeforeHidingToolbar(e.index);
 			// Check if the hover target is inside a toolbar - if so, skip the splice
@@ -3767,7 +3778,9 @@ export class ActionList<T> extends Disposable {
 		const viewportMaxHeight = this._useFullHeight ? targetWindow.innerHeight : Math.floor(targetWindow.innerHeight * 0.6);
 		const actionLineHeight = this._widget.lineHeight;
 		if (this._anchorPosition !== undefined || this._preferredAnchorPosition !== undefined) {
-			const maxHeight = Math.min(availableHeight, viewportMaxHeight);
+			// ContextView measures integer offsetHeight. Rounding up a fractional fit
+			// would make it overflow the anchor's space and fall back to its side.
+			const maxHeight = Math.floor(Math.min(availableHeight, viewportMaxHeight));
 			const height = Math.min(listHeight + chromeHeight, Math.max(0, maxHeight));
 			return Math.max(0, height - chromeHeight);
 		}

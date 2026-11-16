@@ -19,23 +19,28 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { CLOSE_EDITOR_COMMAND_ID } from '../../../../workbench/browser/parts/editor/editorCommands.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-import { ActiveEditorCannotCloseContext, ActiveEditorContext, EditorPartMultipleEditorGroupsContext, LayoutModeContext } from '../../../../workbench/common/contextkeys.js';
+import { ActiveEditorCannotCloseContext, ActiveEditorContext, EditorAreaFocusContext, EditorPartMultipleEditorGroupsContext, LayoutModeContext } from '../../../../workbench/common/contextkeys.js';
 import { EditorsOrder } from '../../../../workbench/common/editor.js';
 import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { IChatWindow } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { ChatShownContext, ChatWindowCategory, ChatWindowLayoutCommandsContext, chatWindowLayoutModeChoices, EditorShownContext, resolveChatWindow, showChatWindowLayout, StackedContext, TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
+import { IChatWindow, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { ChatShownContext, ChatWindowCategory, ChatWindowLayoutCommandsContext, EditorShownContext, resolveChatWindow, showChatWindowLayout, StackedContext, TOGGLE_CHAT_WINDOW_ARRANGEMENT_COMMAND_ID, TOGGLE_CHAT_WINDOW_CHAT_COMMAND_ID, TOGGLE_CHAT_WINDOW_EDITOR_COMMAND_ID } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { ChatWindowLayoutMode } from '../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
-import { IsQuickChatSessionContext, SessionActivityBarLayoutActionsContext, SessionHasWorkspaceContext } from '../../../common/contextkeys.js';
-import { getChatWindowSession } from '../../../services/sessions/browser/sessionScope.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
-import { ISessionChangesService } from '../../changes/common/sessionChangesService.js';
-import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
+import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
+import { SessionInChatEditorContext, SessionsWelcomeVisibleContext, SessionWithWorkspaceContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SessionActivityBarLayoutActionsContext, SessionsTitleBarNewSessionEnabledContext } from '../../../common/agentsWindowContextKeys.js';
+import { NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ISessionHostService, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
+import { ISessionChangesService } from '../../../../workbench/services/sessions/common/sessionChangesService.js';
+import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
+import { ChatWindowsEnabledContext } from './openChatInWindow.js';
 
 //#region Close
 
@@ -68,6 +73,51 @@ registerAction2(class CloseChatWindowAction extends Action2 {
 		}
 		// Another editor that cannot close, such as a docked one: as the key does elsewhere
 		await accessor.get(ICommandService).executeCommand(CLOSE_EDITOR_COMMAND_ID);
+	}
+});
+
+//#endregion
+
+//#region New Session
+
+// A new session in a chat window opens in that window, as a tab of its active chat, starting from that chat's session.
+// Its key is that of New Session in the main window, while the window's chat or its title bar has focus; not in its other
+// editors, where it creates a new file, nor in the search picker of an empty file editor, which does the same. Its button
+// shows at the left of the window's title bar, where the main window's New Session shows: a chat window has no sessions
+// list, so it always shows, in every layout mode.
+registerAction2(class NewSessionInChatWindowAction extends Action2 {
+	constructor() {
+		super({
+			id: NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID,
+			title: localize2('chatWindowNewSession', "New Session"),
+			category: ChatWindowCategory,
+			icon: Codicon.plus,
+			f1: true,
+			precondition: ContextKeyExpr.and(ChatWindowsEnabledContext, ChatWindowLayoutCommandsContext),
+			menu: {
+				id: AgentsWindowMenus.TitleBarLeftLayout,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(ChatWindowsEnabledContext, ChatWindowLayoutCommandsContext, SessionsWelcomeVisibleContext.toNegated(), SessionsTitleBarNewSessionEnabledContext),
+			},
+			keybinding: {
+				primary: KeyMod.CtrlCmd | KeyCode.KeyN,
+				weight: KeybindingWeight.SessionsContrib + 1,
+				// Also only where the precondition holds, which the key's rule includes
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.or(SessionInChatEditorContext, EditorAreaFocusContext.negate()),
+					// The search picker of an empty file editor (`EmptyFileEditorSearchPickerFocusedContext`), whose module it does not load
+					ContextKeyExpr.not('emptyFileEditorSearchPickerFocused'),
+				),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const window = resolveChatWindow(accessor, args);
+		if (window) {
+			await accessor.get(IChatWindowService).openNewChat(window);
+		}
 	}
 });
 
@@ -125,14 +175,14 @@ export const chatWindowLayoutButtonIcons: Readonly<Record<ChatWindowLayoutButton
 	},
 };
 
-/** The groups of {@link Menus.WindowLayout}: the chat and the editor parts as toggles, then how both show together. */
+/** The groups of {@link AgentsWindowMenus.WindowLayout}: the chat and the editor parts as toggles, then how both show together. */
 const WindowLayoutMenuGroup = {
 	panes: '1_panes',
 	arrangement: '2_arrangement',
 } as const;
 
 for (const [button, group, order] of [[ChatWindowLayoutButton.Chat, WindowLayoutMenuGroup.panes, 1], [ChatWindowLayoutButton.Editor, WindowLayoutMenuGroup.panes, 2], [ChatWindowLayoutButton.Arrangement, WindowLayoutMenuGroup.arrangement, 1]] as const) {
-	MenuRegistry.appendMenuItem(Menus.WindowLayout, {
+	MenuRegistry.appendMenuItem(AgentsWindowMenus.WindowLayout, {
 		command: {
 			id: chatWindowLayoutButtonCommands[button],
 			title: chatWindowLayoutButtonTitles[button],
@@ -158,7 +208,7 @@ interface IChatWindowLayoutButtonsMenu {
 // One entry point to the Layout menu of a window: its title bar, or its Session Activity Bar while the strip shows the
 // layout actions, as the main window's does. The Layout menu ends the layout actions, after the buttons the user shows.
 export const chatWindowLayoutButtonsMenus: readonly IChatWindowLayoutButtonsMenu[] = [
-	{ menu: Menus.TitleBarWindowLayout, group: 'navigation', order: 0, when: SessionActivityBarLayoutActionsContext.negate() },
+	{ menu: AgentsWindowMenus.TitleBarWindowLayout, group: 'navigation', order: 0, when: SessionActivityBarLayoutActionsContext.negate() },
 	{ menu: Menus.SessionActivityBar, group: SessionActivityBarGroup.WindowLayout, order: 100, when: SessionActivityBarLayoutActionsContext },
 ];
 
@@ -192,24 +242,19 @@ for (const target of chatWindowLayoutButtonsMenus) {
 			}
 		}
 	});
-	for (const choice of chatWindowLayoutModeChoices) {
-		MenuRegistry.appendMenuItem(target.menu, {
-			submenu: Menus.WindowLayout,
-			title: localize('chatWindowLayoutMenu', "Layout: {0}", choice.shortTitle),
-			icon: Codicon.layout,
-			group: target.group,
-			order: target.order + chatWindowLayoutButtons.length,
-			when: ContextKeyExpr.and(shownIn, LayoutModeContext.isEqualTo(choice.mode)),
-		});
-	}
+	MenuRegistry.appendMenuItem(target.menu, {
+		submenu: AgentsWindowMenus.WindowLayout,
+		title: localize('chatWindowConfigureLayout', "Configure Layout"),
+		icon: Codicon.layout,
+		group: target.group,
+		order: target.order + chatWindowLayoutButtons.length,
+		when: shownIn,
+	});
 }
 
 //#endregion
 
 //#region Tabs of the main part
-
-/** Whether the session of the window has a workspace: the Changes and Files tabs need one. */
-const SessionWithWorkspaceContext = ContextKeyExpr.and(SessionHasWorkspaceContext, IsQuickChatSessionContext.negate())!;
 
 /** An entry that opens a tab of the main part of a chat window, checked while the main part shows the tab. */
 interface IChatWindowTabEntry {
@@ -219,49 +264,52 @@ interface IChatWindowTabEntry {
 	readonly editorId: string;
 	readonly order: number;
 	readonly when?: ContextKeyExpression;
-	open(accessor: ServicesAccessor, session: IActiveSession | undefined, group: IEditorGroup): Promise<void>;
+	/** Opens the tab for the session and chat the window shows, if it shows one. */
+	open(accessor: ServicesAccessor, shown: { readonly session: ISession; readonly chat: IChat | undefined } | undefined, group: IEditorGroup): Promise<void>;
 }
 
 export const chatWindowTabEntries: readonly IChatWindowTabEntry[] = [{
-	id: 'sessions.chatWindow.openChanges',
+	id: CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID,
 	title: localize2('chatWindowChanges', "Changes"),
 	icon: Codicon.diffMultiple,
 	editorId: SessionChangesEditorInput.EDITOR_ID,
 	order: 1,
 	when: SessionWithWorkspaceContext,
-	async open(accessor, session, group) {
-		if (session) {
+	async open(accessor, shown, group) {
+		if (shown) {
+			const { session, chat } = shown;
 			const sessionChangesService = accessor.get(ISessionChangesService);
-			// An existing Changes tab of the session is activated in place, such as one that moved in with the chat or was
-			// restored, which may show the changes of the session rather than of the chat.
-			const existing = group.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.resource && isEqual(sessionChangesService.getSessionResource(editor.resource), session.resource));
+			// The Changes tab of the chat the window shows is activated in place, such as one that moved in with the chat or
+			// was restored; not one of another chat, nor one of the session, whose changes need not be of this chat.
+			const resource = sessionChangesService.getChangesEditorResource(session.resource, chat?.resource);
+			const existing = group.getEditors(EditorsOrder.SEQUENTIAL).find(editor => isEqual(editor.resource, resource));
 			if (existing) {
 				await group.openEditor(existing);
 				return;
 			}
-			// Otherwise the window's own Changes editor, of the chat it shows, at the end.
-			await sessionChangesService.openChangesEditor(session.resource, { index: group.count, chatResource: session.scopedChatResource }, group);
+			// Otherwise a Changes editor of the chat it shows, at the end.
+			await sessionChangesService.openChangesEditor(session.resource, { index: group.count, chatResource: chat?.resource }, group);
 		}
 	},
 }, {
-	id: 'sessions.chatWindow.openFiles',
+	id: CHAT_WINDOW_OPEN_FILES_COMMAND_ID,
 	title: localize2('chatWindowFiles', "Files"),
 	icon: EmptyFileEditorInput.ICON,
 	editorId: EmptyFileEditorInput.EDITOR_ID,
 	order: 2,
 	when: SessionWithWorkspaceContext,
-	async open(accessor, session, group) {
-		const workspace = session?.activeChat.get().workspace.get();
+	async open(accessor, shown, group) {
+		const workspace = (shown?.chat ?? shown?.session.mainChat.get())?.workspace.get();
 		const index = group.editors.some(editor => editor instanceof EmptyFileEditorInput) ? undefined : group.count;
 		await accessor.get(IEditorService).openEditor(accessor.get(IInstantiationService).createInstance(EmptyFileEditorInput, workspace), { pinned: true, index }, group);
 	},
 }, {
-	id: 'sessions.chatWindow.openBrowser',
+	id: CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID,
 	title: localize2('chatWindowBrowser', "Browser"),
 	icon: Codicon.globe,
 	editorId: BrowserEditorInput.EDITOR_ID,
 	order: 3,
-	async open(accessor, _session, group) {
+	async open(accessor, _shown, group) {
 		// Services are read before the first await, after which the accessor is no longer valid.
 		const editorService = accessor.get(IEditorService);
 		const commandService = accessor.get(ICommandService);
@@ -277,9 +325,12 @@ export const chatWindowTabEntries: readonly IChatWindowTabEntry[] = [{
 
 /** Opens `entry` in the main part of `window`, which shows, for the session of the window. */
 async function openTabEntry(accessor: ServicesAccessor, entry: IChatWindowTabEntry, window: IChatWindow): Promise<void> {
-	const session = getChatWindowSession(accessor, window);
+	// Only the window's own host: an unbound chat window falls back to the main window's.
+	const windowHost = accessor.get(ISessionHostService).getHostOfWindow(window.windowId);
+	const host = windowHost?.kind === SessionHostKind.ChatWindow ? windowHost : undefined;
+	const session = host?.session.get();
 	window.showEditor();
-	await entry.open(accessor, session, window.mainPart.activeGroup);
+	await entry.open(accessor, session && { session, chat: host?.chat.get() }, window.mainPart.activeGroup);
 }
 
 for (const entry of chatWindowTabEntries) {
@@ -287,7 +338,7 @@ for (const entry of chatWindowTabEntries) {
 	// Checked while the main part shows its tab, as the main window's entries are.
 	const shown = ContextKeyExpr.and(ActiveEditorContext.isEqualTo(entry.editorId), EditorShownContext);
 	// The same entries as the Add Tab actions of the main window, for the main part of a chat window.
-	for (const menu of [Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEmptyEditorGroupAddTab]) {
+	for (const menu of [AgentsWindowMenus.SessionsEditorTabsBarAddTab, AgentsWindowMenus.SessionsEmptyEditorGroupAddTab]) {
 		MenuRegistry.appendMenuItem(menu, {
 			command: { id: entry.id, title: entry.title, icon: entry.icon },
 			group: 'navigation',

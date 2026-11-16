@@ -20,9 +20,9 @@ import { TextDiffEditor } from '../../../../workbench/browser/parts/editor/textD
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
-import { SessionChangesEditor } from '../../changes/browser/sessionChangesEditor.js';
-import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESSIONS_EDITOR_WORD_WRAP_SETTING } from '../common/diffEditorOptionsService.js';
-import { DiffEditorOptionsService } from './diffEditorOptionsService.js';
+import { SessionChangesEditor } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
+import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESSIONS_EDITOR_WORD_WRAP_SETTING } from '../../../../workbench/services/editor/common/diffEditorOptionsService.js';
+import { DiffEditorOptionsService } from '../../../../workbench/services/editor/browser/diffEditorOptionsService.js';
 
 /** Drives the shared preferred diff layout for supported editors in the Agents window. */
 export class SessionsDiffEditorCommandsService extends DiffEditorCommandsService {

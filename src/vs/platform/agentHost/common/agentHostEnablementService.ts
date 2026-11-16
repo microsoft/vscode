@@ -71,9 +71,7 @@ configurationRegistry.registerConfiguration({
 		'chat.editor.preferCopilotHarness': {
 			type: 'boolean',
 			description: nls.localize('chat.editor.preferCopilotHarness', "When enabled, uses the Agent Host Copilot SDK whenever the local harness would otherwise be selected for a new editor chat session. Claude and Codex selections are unaffected."),
-			default: false,
-			tags: ['experimental'],
-			experiment: { mode: 'startup' },
+			default: true,
 			policy: {
 				name: 'ChatEditorPreferCopilotHarness',
 				category: PolicyCategory.InteractiveSession,

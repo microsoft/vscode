@@ -18,8 +18,10 @@ import { localize } from '../../../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IModePickerDelegate } from './modePickerActionItem.js';
+import { ILanguageModelsService, isAutoLanguageModel } from '../../../common/languageModels.js';
 import { IModelPickerDelegate } from './modelPicker/modelPickerActionItem.js';
 import { getModelProviderIcon } from './modelPicker/modelProviderIcons.js';
+import { isPendingLegacyAutoModel } from './modelPicker/modelPickerPresentation.js';
 
 export interface IChatPhoneInputSessionContext {
 	readonly providerId: string;
@@ -201,6 +203,7 @@ export class MobileChatInputCombinedPickerActionItem extends BaseActionViewItem 
 		private readonly _modeDelegate: IModePickerDelegate,
 		private readonly _modelDelegate: IModelPickerDelegate,
 		@IChatPhoneInputPresenter private readonly _presenter: IChatPhoneInputPresenter,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 	) {
 		super(undefined, action);
 	}
@@ -260,8 +263,10 @@ export class MobileChatInputCombinedPickerActionItem extends BaseActionViewItem 
 		if (currentModel && this._modelDelegate.getPresentationOptions().showModelIcon) {
 			dom.append(trigger, renderIcon(getModelProviderIcon(currentModel)));
 		}
-		const labelText = currentModel?.metadata.name
-			?? localize('chatPhoneInput.autoLabel', "Auto");
+		// An Auto offered as Copilot Fusion stands for Auto under its own name.
+		const labelText = (isPendingLegacyAutoModel(currentModel, this._languageModelsService) ? undefined : currentModel?.metadata.name)
+			?? this._modelDelegate.getModels().find(model => isAutoLanguageModel(model) && model.metadata.autoModelFusion)?.metadata.name
+			?? localize('chatPhoneInput.fusionLabel', "Copilot Fusion");
 		const labelSpan = dom.append(trigger, dom.$('span.chat-input-picker-label'));
 		labelSpan.textContent = labelText;
 

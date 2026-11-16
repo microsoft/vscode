@@ -33,14 +33,14 @@ function state(overrides: Partial<IChatWindowLayoutState>): IChatWindowLayoutSta
 /** The rule table, written out by hand: terminals and column visible, one row per mode and position. */
 const expected: { [mode: string]: { [position: string]: { topology: string; column: ChatWindowColumnPlacement } } } = {
 	[ChatWindowLayoutMode.ChatOnly]: {
-		[ChatWindowTerminalPosition.FullWidth]: { topology: 'col[chat,terminals]', column: ChatWindowColumnPlacement.None },
-		[ChatWindowTerminalPosition.UnderEditor]: { topology: 'col[chat,terminals]', column: ChatWindowColumnPlacement.None },
-		[ChatWindowTerminalPosition.UnderChat]: { topology: 'col[chat,terminals]', column: ChatWindowColumnPlacement.None },
+		[ChatWindowTerminalPosition.FullWidth]: { topology: 'row[col[chat,terminals],column]', column: ChatWindowColumnPlacement.Full },
+		[ChatWindowTerminalPosition.UnderEditor]: { topology: 'row[col[chat,terminals],column]', column: ChatWindowColumnPlacement.Full },
+		[ChatWindowTerminalPosition.UnderChat]: { topology: 'row[col[chat,terminals],column]', column: ChatWindowColumnPlacement.Full },
 	},
 	[ChatWindowLayoutMode.SideBySide]: {
-		[ChatWindowTerminalPosition.FullWidth]: { topology: 'col[row[chat,sidePane],terminals]', column: ChatWindowColumnPlacement.None },
-		[ChatWindowTerminalPosition.UnderEditor]: { topology: 'row[chat,col[sidePane,terminals]]', column: ChatWindowColumnPlacement.None },
-		[ChatWindowTerminalPosition.UnderChat]: { topology: 'row[col[chat,terminals],sidePane]', column: ChatWindowColumnPlacement.None },
+		[ChatWindowTerminalPosition.FullWidth]: { topology: 'row[col[row[chat,sidePane],terminals],column]', column: ChatWindowColumnPlacement.Full },
+		[ChatWindowTerminalPosition.UnderEditor]: { topology: 'row[chat,col[sidePane,terminals],column]', column: ChatWindowColumnPlacement.Full },
+		[ChatWindowTerminalPosition.UnderChat]: { topology: 'row[col[chat,terminals],sidePane,column]', column: ChatWindowColumnPlacement.Full },
 	},
 	[ChatWindowLayoutMode.Stacked]: {
 		[ChatWindowTerminalPosition.FullWidth]: { topology: 'row[col[sidePane,chat,terminals],column]', column: ChatWindowColumnPlacement.Full },
@@ -48,9 +48,9 @@ const expected: { [mode: string]: { [position: string]: { topology: string; colu
 		[ChatWindowTerminalPosition.UnderChat]: { topology: 'row[col[sidePane,chat,terminals],column]', column: ChatWindowColumnPlacement.Full },
 	},
 	[ChatWindowLayoutMode.EditorOnly]: {
-		[ChatWindowTerminalPosition.FullWidth]: { topology: 'col[row[sidePane,column],terminals]', column: ChatWindowColumnPlacement.BesideEditor },
-		[ChatWindowTerminalPosition.UnderEditor]: { topology: 'col[row[sidePane,column],terminals]', column: ChatWindowColumnPlacement.BesideEditor },
-		[ChatWindowTerminalPosition.UnderChat]: { topology: 'col[row[sidePane,column],terminals]', column: ChatWindowColumnPlacement.BesideEditor },
+		[ChatWindowTerminalPosition.FullWidth]: { topology: 'row[col[sidePane,terminals],column]', column: ChatWindowColumnPlacement.Full },
+		[ChatWindowTerminalPosition.UnderEditor]: { topology: 'row[col[sidePane,terminals],column]', column: ChatWindowColumnPlacement.Full },
+		[ChatWindowTerminalPosition.UnderChat]: { topology: 'row[col[sidePane,terminals],column]', column: ChatWindowColumnPlacement.Full },
 	},
 };
 
@@ -88,12 +88,14 @@ suite('Chat window layout', () => {
 		assert.deepStrictEqual(actual, modes.map(mode => [ChatWindowLayoutMode.ChatOnly, mode]));
 	});
 
-	test('L-10 Side by Side and Chat only: the strip is inside the chat, no column cell', () => {
+	test('L-10 Side by Side and Chat only: the strip is a column cell of its own at the right, past the terminals, never inside the chat', () => {
 		eachState(s => {
 			if (s.mode === ChatWindowLayoutMode.ChatOnly || s.mode === ChatWindowLayoutMode.SideBySide) {
 				const layout = computeChatWindowLayout(s);
-				assert.strictEqual(layout.column, ChatWindowColumnPlacement.None, JSON.stringify(s));
-				assert.ok(!layout.tabOrder.includes(ChatWindowLayoutCell.Column), JSON.stringify(s));
+				assert.deepStrictEqual(
+					[layout.column, layout.topology.orientation, layout.topology.children.at(-1), layout.tabOrder.at(-1) === ChatWindowLayoutCell.Column],
+					[s.activityBar ? ChatWindowColumnPlacement.Full : ChatWindowColumnPlacement.None, 'row', { cell: ChatWindowLayoutCell.Column, visible: s.activityBar }, s.activityBar],
+					JSON.stringify(s));
 			}
 		});
 	});
@@ -107,17 +109,16 @@ suite('Chat window layout', () => {
 		}
 	});
 
-	test('L-12 Editor only: the column is beside the editor above the terminals, whatever the terminal position', () => {
+	test('L-12 Editor only: the column is at the right of the editor and the terminals below it, past them, whatever the terminal position', () => {
 		const actual = positions.map(position => render(computeChatWindowLayout(state({ mode: ChatWindowLayoutMode.EditorOnly, terminalPosition: position })).topology));
-		assert.deepStrictEqual(actual, ['col[row[sidePane,column],terminals]', 'col[row[sidePane,column],terminals]', 'col[row[sidePane,column],terminals]']);
+		assert.deepStrictEqual(actual, ['row[col[sidePane,terminals],column]', 'row[col[sidePane,terminals],column]', 'row[col[sidePane,terminals],column]']);
 	});
 
 	test('L-10..L-12 no activity bar: no column placement, the column cell stays hidden', () => {
 		for (const mode of modes) {
 			const layout = computeChatWindowLayout(state({ mode, activityBar: false }));
 			assert.strictEqual(layout.column, ChatWindowColumnPlacement.None);
-			const hidden = render(layout.topology).includes('column!');
-			assert.strictEqual(hidden, mode === ChatWindowLayoutMode.Stacked || mode === ChatWindowLayoutMode.EditorOnly, mode);
+			assert.ok(render(layout.topology).includes('column!'), mode);
 			assert.ok(!layout.tabOrder.includes(ChatWindowLayoutCell.Column), mode);
 		}
 	});

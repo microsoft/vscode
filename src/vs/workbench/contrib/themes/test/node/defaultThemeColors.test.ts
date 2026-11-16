@@ -10,7 +10,7 @@ import { FileAccess } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { editorRuler } from '../../../../../editor/common/core/editorColorRegistry.js';
+import { editorRuler, ghostTextForeground } from '../../../../../editor/common/core/editorColorRegistry.js';
 import { IExtensionResourceLoaderService } from '../../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 import { editorFindMatchHighlightBorder, minimapFindMatch, overviewRulerFindMatchForeground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { BANNER_BACKGROUND, BANNER_FOREGROUND, BANNER_ICON_FOREGROUND, STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_ERROR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ERROR_ITEM_HOVER_FOREGROUND, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND } from '../../../../common/theme.js';
@@ -34,6 +34,24 @@ suite('Default theme colors', () => {
 		{ name: 'Dark 2026', file: '2026-dark.json', selector: 'vs-dark' },
 		{ name: 'Light 2026', file: '2026-light.json', selector: 'vs' },
 	] as const) {
+		test(`${name} editor placeholders are readable and quieter than entered text`, async () => {
+			const theme = await loadDefaultTheme(file, selector);
+			// The browser contribution registers the placeholder color with this fallback.
+			const placeholder = theme.getColor('editor.placeholder.foreground') ?? theme.getColor(ghostTextForeground)!;
+			const foreground = theme.getColor('editor.foreground')!;
+			const surfaces = ['input.background', 'sideBar.background', 'editor.background', 'editorWidget.background', 'agentsChatInput.background'];
+
+			assert.deepStrictEqual(surfaces.map(surface => {
+				const background = theme.getColor(surface)!;
+				const contrast = placeholder.makeOpaque(background).getContrastRatio(background);
+				return {
+					surface,
+					readable: contrast > 4.5,
+					quieterThanEnteredText: contrast < foreground.getContrastRatio(background),
+				};
+			}), surfaces.map(surface => ({ surface, readable: true, quieterThanEnteredText: true })));
+		});
+
 		test(`${name} defines a distinct confetti palette visible on workbench surfaces`, async () => {
 			const theme = await loadDefaultTheme(file, selector);
 			const surfaces = ['editor.background', 'sideBar.background', 'agents.background', 'agentsChatInput.background', 'editorWidget.background'];

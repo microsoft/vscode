@@ -72,6 +72,10 @@ pub struct GithubEnvironmentConfig {
 	pub account_id: String,
 	pub credential: String,
 	pub roots: Vec<String>,
+	#[serde(skip_serializing_if = "Vec::is_empty")]
+	pub optional_roots: Vec<String>,
+	pub projects: Vec<String>,
+	pub default_directory: String,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub name: Option<String>,
 	pub live: bool,
@@ -2426,6 +2430,9 @@ mod tests {
 			account_id: "123".into(),
 			credential: "test-credential".into(),
 			roots: vec![dir.path().to_string_lossy().into_owned()],
+			optional_roots: vec![],
+			projects: vec![dir.path().to_string_lossy().into_owned()],
+			default_directory: dir.path().to_string_lossy().into_owned(),
 			name: Some("build-machine".into()),
 			live: true,
 		};
@@ -2484,6 +2491,9 @@ mod tests {
 			account_id: "123".into(),
 			credential: "test-credential".into(),
 			roots: vec![dir.path().to_string_lossy().into_owned()],
+			optional_roots: vec![],
+			projects: vec![dir.path().to_string_lossy().into_owned()],
+			default_directory: dir.path().to_string_lossy().into_owned(),
 			name: None,
 			live: true,
 		});
@@ -2521,6 +2531,9 @@ mod tests {
 			account_id: "123".into(),
 			credential: "test-credential".into(),
 			roots: vec![dir.to_string_lossy().into_owned()],
+			optional_roots: vec![],
+			projects: vec![dir.to_string_lossy().into_owned()],
+			default_directory: dir.to_string_lossy().into_owned(),
 			name: None,
 			live: true,
 		});

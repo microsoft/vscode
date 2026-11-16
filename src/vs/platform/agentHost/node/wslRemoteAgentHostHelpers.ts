@@ -14,7 +14,6 @@ import {
 	buildCleanupOldCLIsCommand,
 	extractAgentHostWebSocketURL,
 	getRemoteCLIBin,
-	getRemoteCLIDataDir,
 	getRemoteCLIInstallRoot,
 	shellEscape,
 	validateAgentHostTelemetryLevel,
@@ -281,9 +280,8 @@ export function composeAgentHostBootstrapScript(args: IComposeAgentHostBootstrap
 	}
 	const installRoot = getRemoteCLIInstallRoot(args.serverDataFolderName);
 	const cliBin = getRemoteCLIBin(args.serverDataFolderName, args.quality, args.commit);
-	const cliDataDir = getRemoteCLIDataDir(args.serverDataFolderName);
 	const url = buildCLIDownloadUrl(args.os, args.arch, args.quality, args.commit);
-	const agentHostCommand = buildAgentHostBaseCommand(cliBin, cliDataDir, telemetryLevel);
+	const agentHostCommand = buildAgentHostBaseCommand(cliBin, args.serverDataFolderName, telemetryLevel);
 	const launch = buildWslAgentHostLaunch(agentHostCommand);
 
 	if (args.commit) {

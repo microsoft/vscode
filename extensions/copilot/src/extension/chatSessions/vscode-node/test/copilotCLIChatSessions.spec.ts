@@ -25,7 +25,7 @@ import { IChatSessionWorkspaceFolderService } from '../../common/chatSessionWork
 import { ChatSessionWorktreeProperties, IChatSessionWorktreeService } from '../../common/chatSessionWorktreeService';
 import { IFolderRepositoryManager, IsolationMode } from '../../common/folderRepositoryManager';
 import { emptyWorkspaceInfo } from '../../common/workspaceInfo';
-import { IChatDelegationSummaryService } from '../../copilotcli/common/delegationSummaryService';
+import { IChatDelegationSummaryService } from '../../common/delegationSummaryService';
 import { SessionIdForCLI } from '../../copilotcli/common/utils';
 import { ICopilotCLIModels, ICopilotCLISDK } from '../../copilotcli/node/copilotCli';
 import { CopilotCLIPromptResolver } from '../../copilotcli/node/copilotcliPromptResolver';

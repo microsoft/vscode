@@ -3,21 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { addDisposableListener, EventType, getClientArea, isAncestorOfActiveElement, trackFocus } from '../../../base/browser/dom.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { getClientArea } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
-import { SessionsPart } from './sessionsPart.js';
+import { SessionsPart } from '../../../workbench/browser/parts/sessions/sessionsPart.js';
+import { SessionsGridContent } from '../../../workbench/contrib/sessions/browser/parts/sessionsGridContent.js';
 import { MobileSessionsPart } from './mobile/mobileSessionsPart.js';
-import { SessionView } from './sessionView.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { ISession } from '../../services/sessions/common/session.js';
+import { SessionView } from '../../../workbench/contrib/sessions/browser/parts/sessionView.js';
+import { assertReturnsDefined } from '../../../base/common/types.js';
+import { ISession } from '../../../workbench/services/sessions/common/session.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { ISessionGridSlot, ISessionsPartService, IToggleMaximizeSessionEvent, IWindowSessionViewHost, SessionGridRequest } from '../../services/sessions/browser/sessionsPartService.js';
+import { ISessionGridSlot, ISessionsPartService, IToggleMaximizeSessionEvent, SessionGridRequest } from '../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { Direction } from '../../../base/browser/ui/grid/grid.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
+import { createMainWindowInstantiationService, ISessionHost } from '../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionGridPane } from '../../../workbench/services/sessions/browser/sessionGridPane.js';
 
 /**
  * Owns the lifecycle of the {@link SessionsPart}. Selects the mobile vs. desktop
@@ -26,29 +29,26 @@ import { IAgentWorkbenchLayoutService } from '../workbench.js';
  * before the workbench starts laying out parts.
  *
  * The part is a passive renderer: the {@link ISessionsService} drives the
- * grid via {@link updateVisibleSessions}/{@link focusSession} and listens to
- * {@link onDidFocusSession}. The part observes neither the model nor the view.
+ * grid via {@link updatePanes}/{@link focusPane} and listens to
+ * {@link onDidFocusPane}. The part observes neither the model nor the view.
  */
 export class SessionsParts extends Disposable implements ISessionsPartService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _mainPart: SessionsPart;
-
-	private readonly _windowViews = new Map<SessionView, IWindowSessionViewHost>();
-
-	private readonly _onDidFocusWindowSession = this._register(new Emitter<IActiveSession>());
-	readonly onDidFocusWindowSession: Event<IActiveSession> = this._onDidFocusWindowSession.event;
+	/** The session grid the main part shows. */
+	private readonly _mainContent: SessionsGridContent;
 
 	private readonly _onDidToggleMaximizeSession = this._register(new Emitter<IToggleMaximizeSessionEvent>());
 	readonly onDidToggleMaximizeSession: Event<IToggleMaximizeSessionEvent> = this._onDidToggleMaximizeSession.event;
 
-	get onDidFocusSession(): Event<string | undefined> {
-		return this._mainPart.onDidFocusSession;
+	get onDidFocusPane(): Event<string> {
+		return this._mainContent.onDidFocusPane;
 	}
 
 	get shownChatCount() {
-		return this._mainPart.shownChatCount;
+		return this._mainContent.shownChatCount;
 	}
 
 	constructor(
@@ -61,86 +61,68 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 			? layoutService.initialViewportClass === 'phone'
 			: getClientArea(mainWindow.document.body).width < 640;
 
-		this._mainPart = this._register(instantiationService.createInstance(isPhoneLayout ? MobileSessionsPart : SessionsPart));
+		const mainWindowInstantiationService = this._register(createMainWindowInstantiationService(instantiationService));
+		this._mainPart = this._register(mainWindowInstantiationService.createInstance(isPhoneLayout ? MobileSessionsPart : SessionsPart, SessionsGridContent.ID));
+		this._mainContent = assertReturnsDefined(this._mainPart.getContent(SessionsGridContent));
 	}
 
-	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined, slots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void {
-		this._mainPart.updateVisibleSessions(visible, active, slots, request);
+	updatePanes(panes: readonly ISessionGridPane[], activePane: ISessionGridPane | undefined, slots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void {
+		this._mainContent.updatePanes(panes, activePane, slots, request);
 	}
 
-	getGridLayout() { return this._mainPart.getGridLayout(); }
-	getSessionAtPosition(index: number) { return this._mainPart.getSessionAtPosition(index); }
-	getNeighborSession(sessionId: string | undefined, direction: Direction) { return this._mainPart.getNeighborSession(sessionId, direction); }
-	getSessionPlacement(sessionId: string) { return this._mainPart.getSessionPlacement(sessionId); }
-	resizeSession(sessionId: string | undefined, direction: Direction, amount: number): void { this._mainPart.resizeSession(sessionId, direction, amount); }
-	get onDidInteractWithGrid(): Event<void> { return this._mainPart.onDidInteractWithGrid; }
+
+	getGridLayout() { return this._mainContent.getGridLayout(); }
+	getPaneAtPosition(index: number) { return this._mainContent.getPaneAtPosition(index); }
+	getNeighborPane(pane: ISessionGridPane, direction: Direction) { return this._mainContent.getNeighborPane(pane, direction); }
+	getViewOfPane(pane: ISessionGridPane) { return this._mainContent.getViewOfPane(pane); }
+	getSessionPlacement(sessionId: string) { return this._mainContent.getSessionPlacement(sessionId); }
+	resizeSession(sessionId: string | undefined, direction: Direction, amount: number): void { this._mainContent.resizeSession(sessionId, direction, amount); }
+	resizePane(pane: ISessionGridPane, direction: Direction, amount: number): void { this._mainContent.resizePane(pane, direction, amount); }
+	get onDidInteractWithGrid(): Event<void> { return this._mainContent.onDidInteractWithGrid; }
 
 	setContentVisible(visible: boolean): void {
 		this._mainPart.setContentVisible(visible);
 	}
 
-	toggleMaximizeSession(session: IActiveSession | undefined): void {
-		if (!session) {
-			this._mainPart.toggleMaximizeSession(undefined);
-			return;
-		}
-		const maximized = this._mainPart.toggleMaximizeSession(session.sessionId);
-		if (maximized !== undefined) {
+	toggleMaximizePane(pane: ISessionGridPane): void {
+		const maximized = this._mainContent.toggleMaximizePane(pane);
+		const session = pane.session.get();
+		if (maximized !== undefined && session) {
 			this._onDidToggleMaximizeSession.fire({ session, maximized });
 		}
 	}
 
-	registerWindowSessionView(view: SessionView, host: IWindowSessionViewHost): IDisposable {
-		const store = new DisposableStore();
-		this._windowViews.set(view, host);
-		store.add(toDisposable(() => this._windowViews.delete(view)));
-		const fireFocus = () => {
-			const session = view.getSession();
-			if (session) {
-				this._onDidFocusWindowSession.fire(session);
-			}
-		};
-		store.add(trackFocus(view.element)).onDidFocus(fireFocus, undefined, store);
-		store.add(addDisposableListener(view.element, EventType.POINTER_DOWN, fireFocus, true));
-		return store;
+	focusNewSessionSlot(): void {
+		this._mainContent.focusNewSessionSlot();
 	}
 
-	private _getWindowView(predicate: (session: IActiveSession) => boolean): SessionView | undefined {
-		for (const view of this._windowViews.keys()) {
-			const session = view.getSession();
-			if (session && predicate(session)) {
-				return view;
-			}
-		}
-		return undefined;
-	}
-
-	focusSession(session: IActiveSession | undefined): void {
-		const windowView = session && this._getWindowView(candidate => candidate === session);
-		if (windowView) {
-			this._windowViews.get(windowView)?.focus();
-			return;
-		}
-		this._mainPart.focusSession(session?.sessionId, session?.scopedChatResource);
+	focusPane(pane: ISessionGridPane): void {
+		this._mainContent.focusPane(pane.id);
 	}
 
 	getSessionView(session: string | ISession | undefined): SessionView | undefined {
-		if (typeof session === 'object') {
-			// A session shown in a window of its own: the view of that window, not the main window's view of another chat
-			// of its session.
-			const windowView = this._getWindowView(candidate => candidate === session);
-			if (windowView) {
-				return windowView;
-			}
-		}
 		const sessionId = typeof session === 'object' ? session.sessionId : session;
-		return this._mainPart.getSessionView(sessionId)
-			?? (sessionId !== undefined ? this._getWindowView(candidate => candidate.sessionId === sessionId) : undefined);
+		return this._mainContent.getSessionView(sessionId);
 	}
 
 	getFocusedSessionView(): SessionView | undefined {
-		return this._mainPart.getFocusedSessionView()
-			?? [...this._windowViews.keys()].find(view => isAncestorOfActiveElement(view.element));
+		return this._mainContent.getFocusedSessionView();
+	}
+
+	focusViewOfHost(host: ISessionHost): void {
+		this._mainContent.focusViewOfHost(host);
+	}
+
+	getActiveSessionView(): SessionView | undefined {
+		return this._mainContent.getActiveSessionView();
+	}
+
+	getSessionViewOfHost(host: ISessionHost): SessionView | undefined {
+		return this._mainContent.getSessionViewOfHost(host);
+	}
+
+	getPaneIdOfHost(host: ISessionHost): string | undefined {
+		return this._mainContent.getPaneIdOfHost(host);
 	}
 
 	getProgressIndicator(): IProgressIndicator {

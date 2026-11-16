@@ -14,7 +14,8 @@ import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
 import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
-import { AgentHostProxyConfigKey, AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel } from '../common/agentHostSchema.js';
+import { AgentHostProxyConfigKey, AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema } from '../common/agentHostSchema.js';
+import { MissionControlUseLocalCredentialsConfigKey } from '../common/missionControlEnvironment.js';
 import type { IAgentServiceCallbacks, IAgentServiceCallbackBinder } from './agentService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationController, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
@@ -64,6 +65,7 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor = {
 		isEnabled: () => this.value.artifactServerToolAccessor.isEnabled(),
+		isChatResourcesEnabled: () => this.value.artifactServerToolAccessor.isChatResourcesEnabled?.() === true,
 		persist: (session, artifacts) => this.value.artifactServerToolAccessor.persist(session, artifacts),
 		associatePullRequest: (chat, url) => this.value.artifactServerToolAccessor.associatePullRequest?.(chat, url) ?? Promise.resolve(false),
 		associatePullRequests: (chat, urls) => this.value.artifactServerToolAccessor.associatePullRequests?.(chat, urls) ?? Promise.resolve({ pending: [], unmatched: [...urls] }),
@@ -134,11 +136,16 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 			Object.values(AgentHostProxyConfigKey).map(key => [key, undefined])
 		));
 	}
+	configurationService.publishRootTransientValues({ [MissionControlUseLocalCredentialsConfigKey]: undefined });
 	const gitHubEndpointService = options.owned.add(new AgentHostGitHubEndpointService(configurationService, options.logService));
 	const proxyResolver = options.proxyResolver ?? options.owned.add(new AgentHostProxyResolver(configurationService, options.logService));
 	const requestService = options.owned.add(new AgentHostRequestService(options.logService, proxyResolver));
 	const fetchFn = options.fetchFn ?? proxyResolver.fetch.bind(proxyResolver);
-	const authenticationService = options.owned.add(new AgentHostAuthenticationService(options.logService, fetchFn));
+	const authenticationService = options.owned.add(new AgentHostAuthenticationService(options.logService, fetchFn, {
+		isEnabled: () => configurationService.getRootValue(platformRootSchema, MissionControlUseLocalCredentialsConfigKey) === true,
+		getResources: () => [gitHubEndpointService.getCopilotResource(), gitHubEndpointService.getRepoResource()],
+		onDidChange: configurationService.onDidRootConfigChange,
+	}));
 
 	options.services.set(IAgentHostStateManager, stateManager);
 	options.services.set(IAgentConfigurationService, configurationService);

@@ -2160,6 +2160,9 @@ export class SearchView extends ViewPane {
 		// Reuse pending aiSearch if available
 		let aiSearchPromise = this._pendingSemanticSearchPromise;
 		if (!aiSearchPromise) {
+			if (this.viewModel.hasAIResults) {
+				return;
+			}
 			this.viewModel.searchResult.setAIQueryUsingTextQuery();
 			aiSearchPromise = this._pendingSemanticSearchPromise = this.viewModel.aiSearch(result => {
 				if (result && isAIKeyword(result)) {

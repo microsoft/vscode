@@ -107,21 +107,51 @@ suite('GitHubCredentialService', () => {
 		});
 	});
 
-	test('invalidates a reauthorized token even when its value and account are unchanged', async () => {
+	test('keeps a reauthorized generation and asks consumers to refresh when its token is unchanged', async () => {
 		await withServer(async server => {
-			server.enqueue(...resolvedUserSteps(2));
+			server.enqueue(...resolvedUserSteps(1));
 			const tokenProvider = disposables.add(new TestTokenProvider());
 			tokenProvider.setToken('same-token');
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const credentials = disposables.add(new GitHubCredentialService(undefined, undefined, transport, tokenProvider, server.createEndpointService()));
 			const first = await credentials.getCredential(signal());
+			const invalidations: { reason: string; generation: number | undefined }[] = [];
+			disposables.add(credentials.onDidInvalidate(event => invalidations.push({ reason: event.reason, generation: event.credential?.generation })));
+			tokenProvider.setToken('same-token');
 			tokenProvider.setToken('same-token');
 			const second = await credentials.getCredential(signal());
 
 			assert.deepStrictEqual({
-				aborted: first.signal.aborted, sameAccount: first.account.accountId === second.account.accountId,
-				generation: second.generation, requestCount: server.requests.length,
-			}, { aborted: true, sameAccount: true, generation: 2, requestCount: 2 });
+				aborted: first.signal.aborted, same: first === second, invalidations, requestCount: server.requests.length,
+			}, {
+				aborted: false, same: true,
+				invalidations: [{ reason: 'reauthorization', generation: 1 }, { reason: 'reauthorization', generation: 1 }],
+				requestCount: 1,
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('resolves the replacement instead of failing a caller whose generation was replaced while resolving', async () => {
+		await withServer(async server => {
+			const firstArrived = new DeferredPromise<void>();
+			const releaseFirst = new DeferredPromise<void>();
+			server.enqueue(
+				gitHubRestStep({ method: 'GET', path: '/user', assert: () => firstArrived.complete(), waitFor: releaseFirst.p, response: gitHubJsonResponse({ id: 101 }) }),
+				...resolvedUserSteps(1),
+			);
+			const tokenProvider = disposables.add(new TestTokenProvider());
+			tokenProvider.setToken('one');
+			const transport = disposables.add(new GitHubTransport(nodeFetch));
+			const credentials = disposables.add(new GitHubCredentialService(undefined, undefined, transport, tokenProvider, server.createEndpointService()));
+			const pending = credentials.getCredential(signal());
+			await firstArrived.p;
+			tokenProvider.setToken('two');
+			const credential = await pending;
+			releaseFirst.complete();
+
+			assert.deepStrictEqual({ token: credential.token, generation: credential.generation, requestCount: server.requests.length },
+				{ token: 'two', generation: 2, requestCount: 2 });
 			server.assertSatisfied();
 		});
 	});
@@ -538,22 +568,21 @@ suite('GitHubCredentialService', () => {
 			await assert.rejects(() => credentials.getCredential(signal()));
 			await assert.rejects(() => credentials.getCredential(signal()));
 			// Parks on the delay the two failures established, and must abandon
-			// it rather than resolve the credential that has since been replaced.
-			const abandoned = assert.rejects(
-				() => credentials.getCredential(signal()),
-				error => error instanceof GitHubRequestError && error.kind === 'authentication',
-			);
+			// it for the replacement rather than resolve the superseded credential.
+			const abandoned = credentials.getCredential(signal());
 			await flush();
 			tokenProvider.setToken('two');
 			const recovered = await credentials.getCredential(signal());
-			await abandoned;
+			const parked = await abandoned;
 
 			assert.deepStrictEqual({
 				account: recovered.account,
+				parkedToken: parked.token,
 				requestCount: server.requests.length,
 				pendingDelays: scheduler.pendingCount,
 			}, {
 				account: { host: new URL(server.apiBaseUrl).host, accountId: '202' },
+				parkedToken: 'two',
 				requestCount: 5,
 				pendingDelays: 0,
 			});

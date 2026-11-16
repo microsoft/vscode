@@ -12,7 +12,7 @@ import * as task from './lib/gulp/task.ts';
 import { inlineMeta } from './lib/inlineMeta.ts';
 import { computeNLSMetadataHash } from './lib/nlsMetadata.ts';
 import product from '../product.json' with { type: 'json' };
-import { getProductionDependencies } from './lib/dependencies.ts';
+import { getProductionDependencies, toPackagedLayout } from './lib/dependencies.ts';
 import { readISODate, writeISODate } from './lib/date.ts';
 import vfs from 'vinyl-fs';
 import packageJson from '../package.json' with { type: 'json' };
@@ -347,8 +347,9 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 
 		const productionDependencies = getProductionDependencies(REMOTE_FOLDER);
-		const dependenciesSrc = productionDependencies.map(d => path.relative(REPO_ROOT, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]).flat();
+		const dependenciesSrc = productionDependencies.map(d => path.relative(REPO_ROOT, d.source)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]).flat();
 		const cleanedDeps = gulp.src(dependenciesSrc, { base: 'remote', dot: true })
+			.pipe(toPackagedLayout(productionDependencies))
 			// filter out unnecessary files, no source maps in server build
 			.pipe(filter(['**', '!**/package-lock.json', '!**/*.{js,css}.map']))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))

@@ -7,8 +7,9 @@ import { registerSingleton, InstantiationType } from '../../../../platform/insta
 import { IBrowserViewWorkbenchService, IBrowserViewCDPService, IBrowserViewModel, IBrowserViewContextualFilter, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewNetworkProxyProvider, IBrowserViewNetworkResolver, IBrowserViewNetworkStatus } from '../common/browserView.js';
 import type { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import { Event } from '../../../../base/common/event.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { Disposable, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
-import { IBrowserViewEditorOpenOptions, IBrowserViewNetwork } from '../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewEditorOpenOptions, IBrowserViewNetwork, IBrowserViewNetworkFileSystem } from '../../../../platform/browserView/common/browserView.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
 import { BrowserEditorInput, IBrowserEditorInputData } from '../common/browserEditorInput.js';
 
@@ -17,6 +18,10 @@ class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 
 	resolveNetwork(): undefined {
 		return undefined;
+	}
+
+	getNetworkFileSystem(): IBrowserViewNetworkFileSystem {
+		return { scheme: Schemas.vscodeRemote, caseSensitive: true };
 	}
 
 	async acquireNetwork(): Promise<IReference<undefined>> {

@@ -8,46 +8,53 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { EditorGroupView } from '../../../../../workbench/browser/parts/editor/editorGroupView.js';
 import { ViewEditorInput } from '../../../../../workbench/browser/parts/editor/viewEditorInput.js';
-import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { createEditorParts, registerTestEditor, TestFileEditorInput, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../../workbench/common/editor.js';
-import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
-import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
-import { AgentFeedbackEditorOverlay, getAgentFeedbackOverlayResourceCandidates } from '../../browser/agentFeedbackEditorOverlay.js';
-import { IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
-import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { ICodeReviewService } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
+import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
+import { AgentFeedbackEditorOverlay, getAgentFeedbackOverlayResourceCandidates, getDiffEditorResource, getNavigationAnchorForResource } from '../../browser/agentFeedbackEditorOverlay.js';
+import { ISessionEditorComment } from '../../browser/sessionEditorComments.js';
+import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ISessionScope } from '../../../../services/sessions/browser/sessionScope.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISessionHostService, SessionHost, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('AgentFeedbackEditorOverlay', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	/** The main window's session, the main window's session scope (its default), and the session active in any window. */
-	function stubSessions(instantiationService: TestInstantiationService, main: IActiveSession | undefined, active: IActiveSession | undefined): void {
-		const mainWindowActiveSession = observableValue<IActiveSession | undefined>('mainWindowActiveSession', main);
-		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly mainWindowActiveSession = mainWindowActiveSession;
-			override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', active);
-		}());
-		instantiationService.stub(ISessionScope, { _serviceBrand: undefined, session: mainWindowActiveSession });
+	/**
+	 * The host of the main window, showing `main`, and that of a chat window, showing `inWindow`, which the groups of
+	 * `windowParts` are in.
+	 */
+	function stubHosts(instantiationService: TestInstantiationService, main: ITestSessionWithChat | undefined, inWindow?: ITestSessionWithChat, windowParts: readonly IEditorPart[] = []): void {
+		const contextKeyService = upcastPartial<IContextKeyService>({});
+		const mainHost = new SessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: constObservable(main), chat: constObservable(main?.activeChat?.get()), contextKeyService });
+		const chatWindowHost = new SessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable(inWindow), chat: constObservable(inWindow?.activeChat?.get()), contextKeyService });
+		instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({
+			getHostOfGroup: group => windowParts.some(part => part.groups.includes(group as IEditorGroup)) ? chatWindowHost : mainHost,
+		}));
 	}
 
-	function session(id: string): IActiveSession {
-		return new class extends mock<IActiveSession>() {
+	function session(id: string): ITestSessionWithChat {
+		return new class extends mock<ITestSessionWithChat>() {
 			override readonly sessionId = id;
 			override readonly resource = URI.parse(`local-agent-host:/${id}`);
+			override readonly isCreated = constObservable(true);
+			override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
+			override readonly activeChat = constObservable(upcastPartial<IChat>({ resource: URI.parse(`local-agent-host:/${id}/chat`) }));
 		}();
 	}
 
@@ -64,7 +71,7 @@ suite('AgentFeedbackEditorOverlay', () => {
 			override readonly onDidChangeFeedbackScope = Event.None;
 		});
 		instantiationService.stub(ICodeReviewService, new class extends mock<ICodeReviewService>() { });
-		stubSessions(instantiationService, undefined, undefined);
+		stubHosts(instantiationService, undefined);
 
 		const group = editorPart.activeGroup;
 		assert.ok(group instanceof EditorGroupView);
@@ -106,12 +113,12 @@ suite('AgentFeedbackEditorOverlay', () => {
 			}
 		});
 		instantiationService.stub(ICodeReviewService, new class extends mock<ICodeReviewService>() { });
-		// The chat window of session B has focus, so B is active; the main window shows session A.
-		const windowSession = session('b');
-		stubSessions(instantiationService, session('a'), windowSession);
+		// A chat window shows session B; the main window shows session A.
+		const windowParts: IEditorPart[] = [];
+		stubHosts(instantiationService, session('a'), session('b'), windowParts);
 
-		const windowScope: ISessionScope = { _serviceBrand: undefined, session: constObservable<IActiveSession | undefined>(windowSession) as IObservable<IActiveSession | undefined> };
-		const windowPart = editorParts.createEditorPart({ container: document.createElement('div'), services: new ServiceCollection([ISessionScope, windowScope]) });
+		const windowPart = editorParts.createEditorPart({ container: document.createElement('div') });
+		windowParts.push(windowPart);
 		disposables.add({ dispose: () => windowPart.close() });
 		windowPart.layout(800, 600, 0, 0);
 
@@ -121,7 +128,8 @@ suite('AgentFeedbackEditorOverlay', () => {
 		const windowFile = disposables.add(new TestFileEditorInput(URI.file('/window.ts'), 'agentFeedbackOverlayInput'));
 		groupNames.set('/main.ts', 'main window').set('/window.ts', 'chat window');
 		// The chat of the window, a view shown as an editor, in a part of its own: its resource is the chat's, not a file.
-		const chatPart = editorParts.createEditorPart({ container: document.createElement('div'), services: new ServiceCollection([ISessionScope, windowScope]) });
+		const chatPart = editorParts.createEditorPart({ container: document.createElement('div') });
+		windowParts.push(chatPart);
 		disposables.add({ dispose: () => chatPart.close() });
 		chatPart.layout(400, 600, 0, 0);
 		const chatView = disposables.add(new ViewEditorInput('sessions.chat', URI.parse('test-chat:/b')));
@@ -162,6 +170,45 @@ suite('AgentFeedbackEditorOverlay', () => {
 		}, {
 			file: [workspaceFolder],
 			emptyFiles: [],
+		});
+	});
+
+	test('anchors the navigation at the first comment of a file that is shown, unless it already is at one of its comments', () => {
+		const a = URI.file('/repo/a.ts');
+		const b = URI.file('/repo/b.ts');
+		const c = URI.file('/repo/c.ts');
+		const comments = [
+			upcastPartial<ISessionEditorComment>({ id: 'a1', resourceUri: a }),
+			upcastPartial<ISessionEditorComment>({ id: 'b1', resourceUri: b }),
+			upcastPartial<ISessionEditorComment>({ id: 'b2', resourceUri: b }),
+		];
+
+		assert.deepStrictEqual({
+			anchorInOtherFile: getNavigationAnchorForResource(comments, 'a1', b),
+			noAnchor: getNavigationAnchorForResource(comments, undefined, b),
+			anchorInFile: getNavigationAnchorForResource(comments, 'b2', b),
+			fileWithoutComments: getNavigationAnchorForResource(comments, 'a1', c),
+		}, {
+			anchorInOtherFile: 'b1',
+			noAnchor: 'b1',
+			anchorInFile: undefined,
+			fileWithoutComments: undefined,
+		});
+	});
+
+	test('uses the original file of a diff whose modified side is the empty document of a deleted file', () => {
+		const file = URI.file('/repo/a.ts');
+		const synthetic = (id: string) => URI.from({ scheme: Schemas.inMemory, path: `/synthetic/${id}` });
+		const diff = (original: URI, modified: URI) => getDiffEditorResource({ original: { uri: original }, modified: { uri: modified } }).toString();
+
+		assert.deepStrictEqual({
+			modified: diff(URI.file('/repo/.git/a.ts'), file),
+			added: diff(synthetic('1'), file),
+			deleted: diff(file, synthetic('2')),
+		}, {
+			modified: file.toString(),
+			added: file.toString(),
+			deleted: file.toString(),
 		});
 	});
 });

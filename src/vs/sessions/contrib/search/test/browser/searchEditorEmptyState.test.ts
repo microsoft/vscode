@@ -37,7 +37,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import '../../../../browser/parts/media/editorPart.css';
 import { SearchEditorScheme } from '../../../../../workbench/contrib/searchEditor/browser/constants.js';
 import { RUN_EMPTY_SEARCH_COMMAND_ID, SearchEditorEmptyStateContribution } from '../../browser/searchEditorEmptyState.contribution.js';
-import { NEW_FILE_TAB_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { NEW_FILE_TAB_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 
 suite('Sessions - Search editor empty state', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

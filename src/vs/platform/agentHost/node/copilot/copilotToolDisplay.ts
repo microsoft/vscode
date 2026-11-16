@@ -13,12 +13,13 @@ import { escapeIcons } from '../../../../base/common/iconLabels.js';
 import { isAbsolute } from '../../../../base/common/path.js';
 import { localize } from '../../../../nls.js';
 import { AgentPermissionKind } from '../../common/agent.js';
-import { copilotCliToolInputContract, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
+import { copilotCliToolInputContract, type ToolKind, type ViewedResourceType } from '../../common/meta/agentToolCallMeta.js';
 import { parseImageGenerationToolMetadata, type IImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { parsePartialToolInput } from '../../common/partialToolInput.js';
 import { ConfirmationOptionKind, StringOrMarkdown, type ToolCallPendingConfirmationState } from '../../common/state/protocol/state.js';
-import { SAVE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
+import { SAVE_SANDBOX_PATH, SAVE_SESSION_SANDBOX_PATH, SAVE_WORKSPACE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
+import type { ISessionPathDisplay } from '../../common/sessionPathDisplay.js';
 import { basename, dirname, extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { getMcpSkillName } from '../../common/agentHostCustomizationUri.js';
 import { getStreamingCreateMessage, getStreamingInsertMessage, getStreamingPatchMessage, getStreamingReplaceMessage, streamingToolTextLineCount, type ToolPathResolver } from '../../common/streamingToolCallDisplay.js';
@@ -88,6 +89,7 @@ export const enum CopilotToolName {
 	ProposeWork = 'propose_work',
 	TaskComplete = 'task_complete',
 	Skill = 'skill',
+	ReadResource = 'read_resource',
 	Task = 'task',
 	ListAgents = 'list_agents',
 	ReadAgent = 'read_agent',
@@ -114,6 +116,28 @@ export function getToolSummaryInputContract(toolName: string): typeof copilotCli
 		case CopilotToolName.Rg:
 		case CopilotToolName.Glob:
 			return copilotCliToolInputContract;
+		default:
+			return undefined;
+	}
+}
+
+/**
+ * What the path of a completed `view` call named, from the kind the runtime records for the
+ * call: the tool also lists directories, and its input does not say which it did. An image
+ * is a file. It is unknown for a kind this does not recognize, such as that of a failed call,
+ * and for a runtime that records none.
+ */
+export function getViewedResourceType(toolName: string, toolTelemetry: unknown): ViewedResourceType | undefined {
+	if (toolName !== CopilotToolName.View) {
+		return undefined;
+	}
+	const properties = isObject(toolTelemetry) ? (toolTelemetry as Record<string, unknown>).properties : undefined;
+	switch (isObject(properties) ? (properties as Record<string, unknown>).viewType : undefined) {
+		case 'file':
+		case 'image':
+			return 'file';
+		case 'directory':
+			return 'directory';
 		default:
 			return undefined;
 	}
@@ -243,6 +267,12 @@ interface ICopilotSqlToolArgs {
 /** Parameters for the `web_fetch` tool. */
 interface ICopilotWebFetchToolArgs {
 	url: string;
+}
+
+/** Parameters for the `read_resource` tool. */
+interface ICopilotReadResourceToolArgs {
+	server: string;
+	uri: string;
 }
 
 /** Parameters for the network and subagent search tools. */
@@ -637,8 +667,8 @@ export function isCopilotSdkToolOutputFile(filePath: string): boolean {
  * Formats a file path as a markdown link `[](file-uri)` so it renders
  * as a clickable file widget in the chat UI.
  */
-function formatPathAsMarkdownLink(path: string): string {
-	const uri = URI.file(path);
+function formatPathAsMarkdownLink(path: string | URI): string {
+	const uri = typeof path === 'string' ? URI.file(path) : path;
 	return `[${escapeMarkdownLinkLabel(basename(uri))}](${uri})`;
 }
 
@@ -707,6 +737,7 @@ export function getToolDisplayName(toolName: string, metadata?: Pick<AssistantMe
 		case CopilotToolName.TaskComplete: return localize('toolName.taskComplete', "Task Complete");
 		case CopilotToolName.AskUser: return localize('toolName.askUser', "Ask User");
 		case CopilotToolName.Skill: return localize('toolName.invokeSkill', "Invoke Skill");
+		case CopilotToolName.ReadResource: return localize('toolName.readResource', "Read MCP Resource");
 		case CopilotToolName.Task: return localize('toolName.task', "Delegate Task");
 		case CopilotToolName.ListAgents: return localize('toolName.listAgents', "List Agents");
 		case CopilotToolName.ReadAgent: return localize('toolName.readAgent', "Read Agent");
@@ -856,6 +887,13 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 				return md(localize('toolInvoke.webFetch', "Fetching {0}", formatUrlAsMarkdownLink(args.url)));
 			}
 			return localize('toolInvoke.webFetchGeneric', "Fetching URL");
+		}
+		case CopilotToolName.ReadResource: {
+			const args = parameters as ICopilotReadResourceToolArgs | undefined;
+			if (typeof args?.uri === 'string' && args.uri) {
+				return md(localize('toolInvoke.readResource', "Reading MCP resource {0}", appendEscapedMarkdownInlineCode(truncate(args.uri, 80))));
+			}
+			return localize('toolInvoke.readResourceGeneric', "Reading MCP resource");
 		}
 		case CopilotToolName.WebSearch: {
 			const args = parameters as ICopilotLongRunningSearchToolArgs | undefined;
@@ -1010,6 +1048,13 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 			}
 			return localize('toolComplete.webFetchGeneric', "Fetched URL");
 		}
+		case CopilotToolName.ReadResource: {
+			const args = parameters as ICopilotReadResourceToolArgs | undefined;
+			if (typeof args?.uri === 'string' && args.uri) {
+				return md(localize('toolComplete.readResource', "Read MCP resource {0}", appendEscapedMarkdownInlineCode(truncate(args.uri, 80))));
+			}
+			return localize('toolComplete.readResourceGeneric', "Read MCP resource");
+		}
 		case CopilotToolName.WebSearch: {
 			const args = parameters as ICopilotLongRunningSearchToolArgs | undefined;
 			if (args?.query) {
@@ -1093,7 +1138,7 @@ export function synthesizeSkillToolCall(
 	const name = skill?.name ?? (mcpOrigin && originUri
 		? getMcpSkillName(mcpOrigin.serverName, basename(dirname(originUri)) || originUri.authority)
 		: isMcpSkill ? undefined : data.name);
-	const fileUri = !isMcpSkill && data.path?.trim() ? URI.file(data.path) : undefined;
+	const fileUri = !isMcpSkill && data.source !== 'sdk' && data.path?.trim() ? URI.file(data.path) : undefined;
 	const uri = skill?.uri ?? (fileUri?.path !== '/' ? fileUri?.toString() : undefined);
 	const skillLabel = name ? (uri ? `[${escapeMarkdownLinkLabel(name)}](${uri})` : escapeMarkdownSyntaxTokens(name)) : undefined;
 	const invocationMessage = md(skillLabel ? localize('toolInvoke.skill', "Read skill {0}", skillLabel) : localize('toolInvoke.skillGeneric', "Read skill"));
@@ -1220,29 +1265,46 @@ function isUnauthorizedPathGateRequest(request: PermissionRequest): boolean {
 	return isObject(request) && Array.isArray((request as { paths?: unknown }).paths);
 }
 
-/** Describes the actual grant scope saved to user settings. */
-export function getSandboxPathGrantConfirmation(grant: ISandboxPathGrant): Pick<ToolCallPendingConfirmationState, 'confirmationTitle' | 'invocationMessage' | 'options'> {
-	const path = appendEscapedMarkdownInlineCode(grant.path);
-	const description = grant.removedReadonlyPaths?.length
-		? localize('copilot.permission.grant.upgrade', "Change access to {0} from read-only to read/write and retry inside the sandbox.", path)
-		: grant.access === 'read'
-			? localize('copilot.permission.grant.read', "Allow read access to {0} and retry inside the sandbox.", path)
-			: localize('copilot.permission.grant.write', "Allow read/write access to {0} and retry inside the sandbox.", path);
+/** Offers Session access by default, with eligible Workspace and User scopes in the dropdown. */
+export function getSandboxPathGrantConfirmation(grant: ISandboxPathGrant, display?: { readonly path: ISessionPathDisplay; readonly deniedPath?: ISessionPathDisplay }, workspaceScopeAvailable = false): Pick<ToolCallPendingConfirmationState, 'confirmationTitle' | 'invocationMessage' | 'options'> {
+	const path = sandboxGrantPathLabel(grant.path, display?.path);
+	const description = display?.path.isCurrentSession
+		? grant.removedReadonlyPaths?.length
+			? localize('copilot.permission.grant.session.upgrade', "Change access to {0} from read-only to read/write.", path)
+			: grant.access === 'read'
+				? localize('copilot.permission.grant.session.read', "Allow read access to {0}.", path)
+				: localize('copilot.permission.grant.session.write', "Allow read/write access to {0}.", path)
+		: grant.removedReadonlyPaths?.length
+			? localize('copilot.permission.grant.upgrade', "Change access to {0} from read-only to read/write and retry inside the sandbox.", path)
+			: grant.access === 'read'
+				? localize('copilot.permission.grant.read', "Allow read access to {0} and retry inside the sandbox.", path)
+				: localize('copilot.permission.grant.write', "Allow read/write access to {0} and retry inside the sandbox.", path);
 	const denied = grant.deniedPath
-		? localize('copilot.permission.grant.denied', "The blocked path was {0}. Access will cover the granted path above, including its contents if it is a folder.", appendEscapedMarkdownInlineCode(grant.deniedPath))
+		? localize('copilot.permission.grant.denied', "The blocked path was {0}. Access will cover {1}, including its contents if it is a folder.", sandboxGrantPathLabel(grant.deniedPath, display?.deniedPath), appendEscapedMarkdownInlineCode(grant.path))
 		: '';
 	return {
-		confirmationTitle: localize('copilot.permission.grant.title', "Add to user sandbox settings and retry?"),
-		invocationMessage: md([description, denied, localize('copilot.permission.grant.scope', "Access will be saved to your user sandbox settings and shared with connected agent hosts across workspaces and sessions.")].filter(Boolean).join('\n\n')),
+		confirmationTitle: localize('copilot.permission.grant.title', "Allow sandbox path access and retry?"),
+		invocationMessage: md([description, denied].filter(Boolean).join('\n\n')),
 		options: [
-			{ id: SAVE_SANDBOX_PATH, label: localize('copilot.permission.grant.save', "Allow"), kind: ConfirmationOptionKind.Approve, group: 1 },
+			{ id: SAVE_SESSION_SANDBOX_PATH, label: localize('copilot.permission.grant.session', "Allow for This Session"), kind: ConfirmationOptionKind.Approve, group: 1 },
+			...(workspaceScopeAvailable ? [{ id: SAVE_WORKSPACE_SANDBOX_PATH, label: localize('copilot.permission.grant.workspace', "Allow for This Workspace"), kind: ConfirmationOptionKind.Approve, group: 1 }] : []),
+			{ id: SAVE_SANDBOX_PATH, label: localize('copilot.permission.grant.save', "Allow for This User"), kind: ConfirmationOptionKind.Approve, group: 1 },
 			{ id: 'skip', label: localize('copilot.permission.grant.skip', "Skip"), kind: ConfirmationOptionKind.Deny, group: 2 },
 		],
 	};
 }
 
+function sandboxGrantPathLabel(path: string, display: ISessionPathDisplay | undefined): string {
+	if (display?.isCurrentSession) {
+		return display.relativePath
+			? localize('copilot.permission.grant.session.path', "{0} in this session's storage", appendEscapedMarkdownInlineCode(display.relativePath))
+			: localize('copilot.permission.grant.session.root', "this session's storage");
+	}
+	return appendEscapedMarkdownInlineCode(display?.label ?? path);
+}
+
 /** Claims an outside-workspace location only when the permission gate or known roots establish it. */
-function readConfirmationTitle(request: PermissionRequest, path: string | undefined, workspaceRoots: readonly URI[], requestSandboxBypass: boolean | undefined): string {
+function readConfirmationTitle(request: PermissionRequest, path: string | undefined, workspaceRoots: readonly URI[], requestSandboxBypass: boolean | undefined, resolvePath: (path: string) => URI): string {
 	if (requestSandboxBypass) {
 		return localize('copilot.permission.read.bypass.title', "Read file outside the sandbox?");
 	}
@@ -1250,7 +1312,7 @@ function readConfirmationTitle(request: PermissionRequest, path: string | undefi
 		|| (path !== undefined
 			&& isAbsolute(path)
 			&& workspaceRoots.length > 0
-			&& !workspaceRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(URI.file(path), root)));
+			&& !workspaceRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(resolvePath(path), root)));
 	return outsideWorkspace
 		? localize('copilot.permission.read.title', "Allow reading file outside of workspace?")
 		: localize('copilot.permission.read.generic.title', "Allow reading file?");
@@ -1300,7 +1362,7 @@ function getShellIntentionConfirmationTitle(intention: string | undefined, reque
  * read under any root is recognized as inside the workspace.
  * Hook requests show the hook's reason and gated tool input while retaining their permission kind.
  */
-export function getPermissionDisplay(request: PermissionRequest, workingDirectory?: URI, isNewFile?: boolean, additionalDirectories?: readonly URI[], shellToolParameters?: Record<string, unknown>): {
+export function getPermissionDisplay(request: PermissionRequest, workingDirectory?: URI, isNewFile?: boolean, additionalDirectories?: readonly URI[], shellToolParameters?: Record<string, unknown>, resolvePath: (path: string) => URI = URI.file): {
 	confirmationTitle: StringOrMarkdown;
 	invocationMessage: StringOrMarkdown;
 	toolInput?: string;
@@ -1310,6 +1372,8 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 	permissionPath?: string;
 	/** Normalized URL extracted from the request. */
 	permissionUrl?: string;
+	/** Raw MCP server name extracted from the request. */
+	mcpServerName?: string;
 	shellCommand?: string;
 } {
 	const path = request.kind === 'read' ? str(request.path) : request.kind === 'write' ? str(request.fileName) : undefined;
@@ -1402,7 +1466,7 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 				confirmationTitle: isNewFile
 					? localize('copilot.permission.create.title', "Create file?")
 					: localize('copilot.permission.write.title', "Write file?"),
-				invocationMessage: getInvocationMessage(toolName, getToolDisplayName(toolName), path ? { path } : undefined),
+				invocationMessage: getInvocationMessage(toolName, getToolDisplayName(toolName), path ? { path } : undefined, resolvePath),
 				toolInput: tryStringify(path ? { path } : request) ?? undefined,
 				permissionKind: AgentPermissionKind.Write,
 				permissionPath: path,
@@ -1418,12 +1482,13 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 				toolInput: tryStringify({ serverName, toolName }) ?? undefined,
 				permissionKind: AgentPermissionKind.Mcp,
 				permissionPath: path,
+				mcpServerName: serverName,
 			};
 		}
 		case 'read':
 			return {
-				confirmationTitle: readConfirmationTitle(request, path, workingDirectory ? [workingDirectory, ...(additionalDirectories ?? [])] : [], requestSandboxBypass),
-				invocationMessage: getInvocationMessage(CopilotToolName.View, getToolDisplayName(CopilotToolName.View), path ? { path } : undefined),
+				confirmationTitle: readConfirmationTitle(request, path, workingDirectory ? [workingDirectory, ...(additionalDirectories ?? [])] : [], requestSandboxBypass, resolvePath),
+				invocationMessage: getInvocationMessage(CopilotToolName.View, getToolDisplayName(CopilotToolName.View), path ? { path } : undefined, resolvePath),
 				permissionKind: AgentPermissionKind.Read,
 				permissionPath: path,
 			};
