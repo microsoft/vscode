@@ -5711,7 +5711,6 @@ suite('Sessions - SessionsList', () => {
 				['pinned', 'Pinned', ['pinned']],
 				['inbox:readyForYou', 'Inbox', ['failing', 'waiting', 'finished', 'idle']],
 				['inbox:working', 'Working', ['working']],
-				['inbox:readyToMerge', 'Ready to merge', []],
 				['inbox:onHold', 'On hold', ['snoozed']],
 				['inbox:acknowledged', 'Acknowledged', ['done']],
 				['archived', 'Done', ['archived']],
@@ -5876,9 +5875,9 @@ suite('Sessions - SessionsList', () => {
 			const initial = snapshot();
 			const initialTracking = tracking;
 			grouped.isRead.set(false, undefined);
-			await retry(async () => assert.deepStrictEqual(snapshot().find(section => section.id === SessionInboxSection.ReadyForYou)?.sessions, ['grouped']), 10, 100);
+			await retry(async () => assert.deepStrictEqual(snapshot().find(section => section.id === SessionInboxSection.ReadyForYou)?.sessions, ['ready', 'grouped']), 10, 100);
 			grouped.isRead.set(true, undefined);
-			await retry(async () => assert.deepStrictEqual(snapshot().find(section => section.id === SessionInboxSection.ReadyForYou)?.sessions, ['grouped']), 10, 100);
+			await retry(async () => assert.deepStrictEqual(snapshot().find(section => section.id === SessionInboxSection.ReadyForYou)?.sessions, ['ready', 'grouped']), 10, 100);
 			model.setInboxState([grouped.session], 'done');
 			await retry(async () => assert.deepStrictEqual(snapshot(), [...initial, { id: SessionInboxSection.Acknowledged, sessions: ['grouped'] }]), 10, 100);
 			running.status.set(SessionStatus.NeedsInput, undefined);
@@ -5899,9 +5898,8 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({ initial, readyForYou, restored, archived: grouped.isArchived.get(), tracking: [initialTracking, hiddenTracking, shownTracking, ordinaryTracking, tracking] }, {
 				initial: [
 					{ id: 'pinned', sessions: ['pinned'] },
-					{ id: SessionInboxSection.ReadyForYou, sessions: [] },
+					{ id: SessionInboxSection.ReadyForYou, sessions: ['ready'] },
 					{ id: SessionInboxSection.Working, sessions: ['running'] },
-					{ id: SessionInboxSection.ReadyToMerge, sessions: ['ready'] },
 				],
 				readyForYou: ['ready', 'running'], restored: ['grouped'], archived: false, tracking: [1, 0, 1, 0, 0],
 			});
@@ -6089,17 +6087,16 @@ suite('Sessions - SessionsList', () => {
 			}, {
 				groups: [
 					['pinned', ['pinned']],
-					[SessionInboxSection.ReadyForYou, ['ready']],
+					[SessionInboxSection.ReadyForYou, ['merge', 'ready']],
 					[SessionInboxSection.Working, ['working']],
-					[SessionInboxSection.ReadyToMerge, ['merge']],
 					[SessionInboxSection.OnHold, ['held']],
 					[SessionInboxSection.Acknowledged, ['done']],
 				],
 				tabElements: 0,
 				revealed: true,
-				revealedVisible: ['ready', 'held'],
-				afterGroupingChange: { workingCollapsed: true, sessions: ['ready'] },
-				restored: { workingCollapsed: true, sessions: ['ready'] },
+				revealedVisible: ['merge', 'ready', 'held'],
+				afterGroupingChange: { workingCollapsed: true, sessions: ['merge', 'ready'] },
+				restored: { workingCollapsed: true, sessions: ['merge', 'ready'] },
 				triage: ['hold', 'done'],
 			});
 		});
@@ -10108,7 +10105,7 @@ suite('Sessions - SessionsList', () => {
 				list.layout(800, 400);
 				const refresh = () => {
 					list.refresh();
-					for (const section of ['pinned', 'archived', SessionInboxSection.OnHold, SessionInboxSection.Working, SessionInboxSection.ReadyToMerge]) {
+					for (const section of ['pinned', 'archived', SessionInboxSection.OnHold, SessionInboxSection.Working]) {
 						list.setItemCollapsed({ section }, false);
 					}
 				};
@@ -10207,18 +10204,18 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 
-			test('resumes into Ready to merge only when attention places every dragged session there', async () => {
+			test('resumes merge-ready sessions into Inbox only when every dragged session belongs there', async () => {
 				const held = createTestSession('Held').session;
 				const merge = createTestSession('Merge').session;
-				const other = createTestSession('Other').session;
+				const other = createTestSession('Other', { status: SessionStatus.InProgress }).session;
 				const attention: IInboxSessionAttention = { tab: InboxTab.ReadyToMerge, priority: InboxNotificationPriority.Next, notificationIds: ['passingCI'], isHistoricalCompletion: false };
 				const h = renderInbox([held, merge, other], {}, new Map([['Held', attention], ['Merge', attention]]));
 				h.model.setInboxState([held, other], 'hold');
 				h.refresh();
 				h.list.setSelectedItems([{ session: held.resource }, { session: other.resource }]);
-				const mixed = drag(sessionRow(h.container, 'Held'), sectionRow(h.container, 'Ready to merge'), h.container);
+				const mixed = drag(sessionRow(h.container, 'Held'), sectionRow(h.container, 'Inbox'), h.container);
 				h.list.setSelectedItems([{ session: held.resource }]);
-				const valid = drag(sessionRow(h.container, 'Held'), sectionRow(h.container, 'Ready to merge'), h.container);
+				const valid = drag(sessionRow(h.container, 'Held'), sectionRow(h.container, 'Inbox'), h.container);
 				await timeout(0);
 				h.refresh();
 				assert.deepStrictEqual({
@@ -10226,7 +10223,7 @@ suite('Sessions - SessionsList', () => {
 					otherState: h.model.getInboxState(other)?.kind,
 					section: h.sections().find(section => section.sessions.includes('Held'))?.id,
 				}, {
-					mixed: [], valid: ['Ready to merge'], heldState: undefined, otherState: 'hold', section: SessionInboxSection.ReadyToMerge,
+					mixed: [], valid: ['Inbox'], heldState: undefined, otherState: 'hold', section: SessionInboxSection.ReadyForYou,
 				});
 			});
 
@@ -10253,7 +10250,7 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 
-			test('restores archived sessions into their prospective Ready to merge category using live attention', async () => {
+			test('restores archived merge-ready sessions into Inbox using live attention', async () => {
 				const archived = createTestSession('Archived', { isArchived: true });
 				const archivedSession: ISession = {
 					...archived.session,
@@ -10274,7 +10271,8 @@ suite('Sessions - SessionsList', () => {
 					polling++;
 					return toDisposable(() => polling--);
 				};
-				const h = renderInbox([archivedSession, merge], {}, new Map(), harness => {
+				const working = createTestSession('Working', { status: SessionStatus.InProgress }).session;
+				const h = renderInbox([archivedSession, merge, working], {}, new Map(), harness => {
 					const github = upcastPartial<IGitHubService>({
 						createPullRequestModelReference: () => ({
 							object: upcastPartial<GitHubPullRequestModel>({
@@ -10301,12 +10299,12 @@ suite('Sessions - SessionsList', () => {
 					disposables.add(service.acquireSessionAttention());
 				});
 				sinon.stub(h.managementService, 'unarchiveSession').callsFake(async () => archived.isArchived.set(false, undefined));
-				const rejected = drag(sessionRow(h.container, 'Archived'), sectionRow(h.container, 'Inbox'), h.container);
+				const rejected = drag(sessionRow(h.container, 'Archived'), sectionRow(h.container, 'Working'), h.container);
 				const before = { archived: archived.isArchived.get(), polling };
 				const attention = h.instantiationService.get(ISessionAttentionService);
 				const prospective = attention.getSessionAttentionAfterUnarchive([archivedSession]).get('Archived')?.tab;
 				const unchanged = { archived: archived.isArchived.get(), polling };
-				const accepted = drag(sessionRow(h.container, 'Archived'), sectionRow(h.container, 'Ready to merge'), h.container);
+				const accepted = drag(sessionRow(h.container, 'Archived'), sectionRow(h.container, 'Inbox'), h.container);
 				await timeout(0);
 				h.refresh();
 				assert.deepStrictEqual({
@@ -10314,8 +10312,8 @@ suite('Sessions - SessionsList', () => {
 					section: h.sections().find(section => section.sessions.includes('Archived'))?.id,
 				}, {
 					rejected: [], before: { archived: true, polling: 3 }, prospective: InboxTab.ReadyToMerge,
-					unchanged: { archived: true, polling: 3 }, accepted: ['Ready to merge'], restored: true,
-					section: SessionInboxSection.ReadyToMerge,
+					unchanged: { archived: true, polling: 3 }, accepted: ['Inbox'], restored: true,
+					section: SessionInboxSection.ReadyForYou,
 				});
 			});
 
