@@ -69,7 +69,8 @@ export class AgentHostSessionTitleSignal extends Disposable implements IAgentHos
 	}
 
 	getChatPathIdentity(chat: URI, owner: URI): Pick<ISessionPathRoot, 'title' | 'parentSession' | 'parentTitle'> {
-		const summary = this.stateManager.getSessionSummary(owner.toString()) ?? this.stateManager.getSurfacedSessionSummary(owner.toString());
+		// Public summaries omit tool-origin chats; their retained titles are in the resident catalog.
+		const summary = this.stateManager.getSessionState(owner.toString()) ?? this.stateManager.getSessionSummary(owner.toString()) ?? this.stateManager.getSurfacedSessionSummary(owner.toString());
 		const state = this.stateManager.getChatState(chat.toString()) ?? summary?.chats?.find(candidate => candidate.resource === chat.toString());
 		const title = state?.title.trim() ? state.title : this.stateManager.isDefaultChat(owner.toString(), chat.toString()) ? summary?.title : undefined;
 		const origin = this.stateManager.getChatOrigin(chat.toString()) ?? state?.origin;
@@ -78,7 +79,7 @@ export class AgentHostSessionTitleSignal extends Disposable implements IAgentHos
 			return { title };
 		}
 		const parentOwner = this.stateManager.getChatOwner(parent) ?? this.stateManager.findRetainedChatOwner(parent);
-		const parentSummary = parentOwner ? this.stateManager.getSessionSummary(parentOwner) ?? this.stateManager.getSurfacedSessionSummary(parentOwner) : undefined;
+		const parentSummary = parentOwner ? this.stateManager.getSessionState(parentOwner) ?? this.stateManager.getSessionSummary(parentOwner) ?? this.stateManager.getSurfacedSessionSummary(parentOwner) : undefined;
 		const parentState = this.stateManager.getChatState(parent) ?? parentSummary?.chats?.find(candidate => candidate.resource === parent);
 		const parentTitle = parentState?.title.trim() ? parentState.title : parentOwner && this.stateManager.isDefaultChat(parentOwner, parent) ? parentSummary?.title : undefined;
 		return { title, parentSession: URI.parse(parent), parentTitle };
