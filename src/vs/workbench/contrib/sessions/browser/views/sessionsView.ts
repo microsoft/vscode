@@ -524,6 +524,8 @@ export class SessionsView extends ViewPane {
 			},
 			canOpenSession: session => this.sessionsService.canOpenSession(session),
 			offersWorktreeFilter: this.contextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key) !== true,
+			// An editor window shows no chats without a workspace
+			listsQuickChats: this.contextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key) === true,
 			onChatOpen: (session, chat, preserveFocus, sideBySide) => {
 				const onOpened = () => {
 					if (isWeb && isPhoneLayout(this.layoutService)) {

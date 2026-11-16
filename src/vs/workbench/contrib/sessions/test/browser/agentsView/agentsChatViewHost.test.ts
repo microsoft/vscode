@@ -32,7 +32,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { SessionConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
-import { NewChatInWorktreeAction, NewChatWithoutWorkspaceAction } from '../../../../chat/browser/agentSessions/agentHost/agentHostNewChatActions.js';
+import { NewChatInWorktreeAction } from '../../../../chat/browser/agentSessions/agentHost/agentHostNewChatActions.js';
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../../chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { AgentHostUntitledProvisionalSessionService, IAgentHostUntitledProvisionalSessionService } from '../../../../chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from '../../../../chat/browser/agentSessions/agentHost/agentHostImportConversationStore.js';
@@ -386,9 +386,9 @@ suite('AgentsChatViewHost', () => {
 		});
 	});
 
-	test('New Chat in Worktree and New Chat (No Workspace) of the Chat view start a composer here aimed at their placement: a new worktree of the prepared folder, or no workspace', async () => {
+	test('New Chat in Worktree of the Chat view starts a composer here aimed at a new worktree of the prepared folder, and starts nothing without a folder', async () => {
 		const folder = URI.file('/repo');
-		const run = async (action: NewChatInWorktreeAction | NewChatWithoutWorkspaceAction, preparedFolder: URI | undefined) => {
+		const run = async (action: NewChatInWorktreeAction, preparedFolder: URI | undefined) => {
 			const targets: (INewSessionTarget | undefined)[] = [];
 			const { host, calls } = createHost({ chatPart: { openComposer: async target => { targets.push(target); } } });
 			const steps: string[] = [];
@@ -426,17 +426,15 @@ suite('AgentsChatViewHost', () => {
 
 		assert.deepStrictEqual({
 			worktree: await run(new NewChatInWorktreeAction(), folder),
-			noWorkspace: await run(new NewChatWithoutWorkspaceAction(), undefined),
 			worktreeWithoutFolder: await run(new NewChatInWorktreeAction(), undefined),
 		}, {
 			worktree: { opened: true, targets: [{ folder: '/repo', placement: 'worktree' }], errors: 0, cleanup: [] },
-			noWorkspace: { opened: true, targets: [{ folder: undefined, placement: undefined }], errors: 0, cleanup: [] },
 			// No folder to make a worktree of: it starts nothing, and forgets the new chat
 			worktreeWithoutFolder: { opened: false, targets: [], errors: 1, cleanup: ['clear', 'release'] },
 		});
 	});
 
-	test('with the chat area on, New Chat in Worktree and New Chat (No Workspace) start through the real folder and provisional services, and the chat they prepared is forgotten once the host releases its model', async () => {
+	test('with the chat area on, New Chat in Worktree starts through the real folder and provisional services, and the chat it prepared is forgotten once the host releases its model', async () => {
 		const folder = URI.file('/repo');
 		const onDidDisposeSession = store.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' | 'disposed' }>());
 		// As the chat service does: the session goes once the last reference to its model goes
@@ -512,21 +510,19 @@ suite('AgentsChatViewHost', () => {
 		instantiationService.stub(IEditorService, {});
 		instantiationService.stub(ICustomizationHarnessService, {});
 		instantiationService.stub(ILanguageModelToolsService, {});
-		const run = async (action: NewChatInWorktreeAction | NewChatWithoutWorkspaceAction) => {
+		const run = async (action: NewChatInWorktreeAction) => {
 			const opened = await instantiationService.invokeFunction(accessor => action.run(accessor));
 			return { opened: !!opened, afterRelease: retained(started!) };
 		};
 
-		const results = { worktree: await run(new NewChatInWorktreeAction()), noWorkspace: await run(new NewChatWithoutWorkspaceAction()) };
+		const results = { worktree: await run(new NewChatInWorktreeAction()) };
 
 		assert.deepStrictEqual({ results, composers, errors: calls.filter(call => call.startsWith('error')).length }, {
 			results: {
 				worktree: { opened: true, afterRelease: { seeded: false, maps: [] } },
-				noWorkspace: { opened: true, afterRelease: { seeded: false, maps: [] } },
 			},
 			composers: [
 				{ folder: '/repo', placement: 'worktree', seeded: true, maps: ['_preparedConfigs', '_resolvedConfigConnections'] },
-				{ folder: undefined, placement: undefined, seeded: true, maps: [] },
 			],
 			errors: 0,
 		});

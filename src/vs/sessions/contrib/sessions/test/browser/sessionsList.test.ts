@@ -3935,6 +3935,48 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('lists quick chats, which have no workspace, only where it is asked to, as the Agents window does and an editor window does not', () => {
+			const visible = (listsQuickChats: boolean | undefined, revealed?: 'active' | 'onboarding') => {
+				const quick = createTestSession('quick', { isQuickChat: true }).session;
+				const activeSession = revealed === 'active' ? constObservable<ITestSessionWithChat>({ ...quick, activeChat: quick.mainChat }) : undefined;
+				const harness = createListHarness(disposables, [...worktreeSessions(), quick], { activeSession });
+				harness.instantiationService.get(IStorageService).store('sessionsListControl.sectionCollapseState', JSON.stringify({ [QUICK_CHATS_SECTION_ID]: false }), StorageScope.PROFILE, StorageTarget.USER);
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(400, 1400), {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Updated,
+					listsQuickChats,
+					onSessionOpen: () => { },
+				}));
+				list.layout(1400, 400);
+				let revealFailed = false;
+				if (revealed === 'onboarding') {
+					try {
+						harness.store.add(list.revealSessionForOnboarding(quick));
+					} catch {
+						revealFailed = true;
+					}
+				}
+				const listed = list.getVisibleSessions().some(session => session.sessionId === 'quick');
+				return revealed === 'onboarding' ? { listed, revealFailed } : listed;
+			};
+
+			assert.deepStrictEqual({
+				byDefault: visible(undefined),
+				agentsWindow: visible(true),
+				editorWindow: visible(false),
+				// Shown in the chat or revealed for onboarding, still not one the editor window lists
+				editorWindowActive: visible(false, 'active'),
+				editorWindowOnboarding: visible(false, 'onboarding'),
+				agentsWindowActive: visible(true, 'active'),
+				agentsWindowOnboarding: visible(true, 'onboarding'),
+			}, {
+				byDefault: true, agentsWindow: true, editorWindow: false, editorWindowActive: false, agentsWindowActive: true,
+				// Its reveal fails, as for any session the list cannot show
+				editorWindowOnboarding: { listed: false, revealFailed: true },
+				agentsWindowOnboarding: { listed: true, revealFailed: false },
+			});
+		});
+
 		test('shows the list by worktree, with the full path in a section\'s label for screen readers, and searches within it', async () => {
 			const harness = createListHarness(disposables, worktreeSessions());
 			const container = harness.createContainer(400, 1400);

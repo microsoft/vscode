@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -29,6 +29,24 @@ export const ChatAgentHostNewWorktreeToggleVisible = new RawContextKey<boolean>(
 export const ChatAgentHostFolderChipVisible = new RawContextKey<boolean>('chatAgentHostFolderChipVisible', false, { type: 'boolean', description: localize('chatAgentHostFolderChipVisible', "Whether the chat input shows the folder chip, as it offers more than the folder the session works in already.") });
 /** Whether the session of the chat input is to work in a new worktree of its folder. */
 export const ChatAgentHostNewWorktreeSelected = new RawContextKey<boolean>('chatAgentHostNewWorktreeSelected', false, { type: 'boolean', description: localize('chatAgentHostNewWorktreeSelected', "Whether the session of the chat input is to work in a new worktree of its folder.") });
+
+/** The rendered worktree controls of chat inputs: New Worktree checkboxes and folder chips. */
+const worktreeControls = new Set<HTMLElement>();
+
+/** Makes `element`, a rendered worktree control of a chat input, known as one, until disposed. */
+export function registerWorktreeControl(element: HTMLElement): IDisposable {
+	worktreeControls.add(element);
+	return toDisposable(() => worktreeControls.delete(element));
+}
+
+/**
+ * The visible worktree control in `container`, such as a chat widget's: its New Worktree checkbox, else its folder chip. Not
+ * one that is hidden or no longer in the document, which a callout could not point at.
+ */
+export function getWorktreeControl(container: HTMLElement): HTMLElement | undefined {
+	const controls = [...worktreeControls].filter(control => container.contains(control) && control.isConnected && control.getClientRects().length > 0);
+	return controls.find(control => control.classList.contains('chat-input-checkbox-item')) ?? controls[0];
+}
 
 /**
  * Where the chat input offers worktrees, by the folder chip or the New Worktree checkbox: a local agent host chat in a
@@ -71,7 +89,7 @@ export class AgentHostNewWorktreeToggle extends Disposable {
 		this._register(widget.onDidChangeViewModel(update));
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			// The worktrees follow by themselves, read once for the window
-			if (e.affectsConfiguration(ChatConfiguration.EditorWindowEnableWorktree) || e.affectsConfiguration('chat.viewSessions.sessionsList.enabled')) {
+			if (e.affectsConfiguration(ChatConfiguration.EditorWindowEnableWorktree)) {
 				update();
 			}
 		}));
@@ -163,6 +181,7 @@ class ChatInputCheckboxActionViewItem extends CheckboxActionViewItem {
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('chat-input-checkbox-item');
+		this._register(registerWorktreeControl(container));
 	}
 }
 

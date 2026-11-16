@@ -4597,6 +4597,8 @@ interface ISessionsListControlBaseOptions {
 	canOpenSession?(session: ISession): Promise<boolean>;
 	/** Whether the Worktrees filter applies, as it does outside the Agents window. Defaults to `true`. */
 	readonly offersWorktreeFilter?: boolean;
+	/** Whether it lists quick chats, which have no workspace, as the Agents window does and an editor window does not. Defaults to `true`. */
+	readonly listsQuickChats?: boolean;
 	onChatOpen?(session: ISession, chat: IChat, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
 
 	/**
@@ -5998,7 +6000,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		// Scope to the selected host's providers; an empty set (a declared
 		// group with no members yet) matches nothing rather than everything.
-		let filtered = this.sessions.filter(session => this.isSessionListed(session));
+		// Which sessions it can list at all, which no other filter and no active session overrides
+		const isEligible = (session: ISession) => this.isSessionListed(session) && (this.options.listsQuickChats !== false || !isQuickChatSession(session));
+		let filtered = this.sessions.filter(isEligible);
 		// The Worktrees filter is of an editor window: in the Agents window, a folder selected there selects nothing
 		const availableWorktrees = this.options.offersWorktreeFilter === false ? new Set<string>() : getWorktreeFilterKeys(filtered, () => true);
 		const scopedProviderIds = this._agentHostFilterService.selectedHost?.providerIds;
@@ -6022,7 +6026,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// Keep the active user-facing session visible even when another filter excludes it.
 		for (const revealedSession of [activeSession, onboardingSession]) {
 			if (revealedSession && !filtered.some(s => s.sessionId === revealedSession.sessionId)) {
-				const match = this.sessions.find(s => s.sessionId === revealedSession.sessionId && this.isSessionListed(s));
+				const match = this.sessions.find(s => s.sessionId === revealedSession.sessionId && isEligible(s));
 				if (match) {
 					filtered = [...filtered, match];
 				}

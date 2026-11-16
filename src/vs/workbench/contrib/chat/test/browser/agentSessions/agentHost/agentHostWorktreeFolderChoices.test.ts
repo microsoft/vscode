@@ -70,6 +70,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 			setFolder: (_resource: URI, folder: URI) => { changes.push(`folder ${folder.path}`); configReset = true; noWorkspace = false; },
 			isNoWorkspace: () => noWorkspace,
 			setNoWorkspace: () => { changes.push('no workspace'); configReset = true; noWorkspace = true; },
+			setIsolationChosen: () => { },
 		}));
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({
 			onDidChange: onDidChangeProvisional.event,
@@ -149,45 +150,12 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		});
 	});
 
-	test('offers No Workspace first, before the folder, while the Chat view lists sessions, which the chip then shows by name, and picking a folder again works in it', async () => {
-		const withoutSessionsList = await createChoices({ enabled: true, at: primary });
-		const { choices, actions, items, changes } = await createChoices({ enabled: true, at: primary, sessionsList: true });
-		const chip = () => { const { icon, label, description } = choices.getChip(primary); return { icon: icon.id, label, description }; };
-		await actions(primary).find(action => action.label === 'New Worktree')!.run();
-		await actions(primary).find(action => action.label === 'No Workspace')!.run();
-		const noWorkspace = { items: items(primary), chip: chip(), icon: actions(primary)[0]?.icon?.id, detail: actions(primary)[0]?.detail, groups: actions(primary).map(action => action.category?.order) };
-		await actions(primary).find(action => action.label === 'vscode')!.run();
+	test('never offers No Workspace, also while the Chat view lists sessions', async () => {
+		const items = async (sessionsList: boolean) => (await createChoices({ enabled: true, at: primary, sessionsList })).items(primary);
 
-		assert.deepStrictEqual({ withoutSessionsList: withoutSessionsList.items(primary), noWorkspace, folderAgain: { items: items(primary), chip: chip() }, changes }, {
+		assert.deepStrictEqual({ withoutSessionsList: await items(false), withSessionsList: await items(true) }, {
 			withoutSessionsList: ['vscode (Current) *', 'New Worktree', '[Worktrees] feature', '[Worktrees] other'],
-			noWorkspace: {
-				// Without a folder, no new worktree of it
-				items: ['No Workspace *', 'vscode (Current)', '[Worktrees] feature', '[Worktrees] other'],
-				chip: { icon: 'comment', label: 'No Workspace', description: 'No workspace: start the session in a temporary directory' },
-				icon: 'comment',
-				// No Workspace and the folder, then the worktrees
-				detail: 'Start without a backing workspace',
-				groups: [0, 0, 1, 1],
-			},
-			folderAgain: { items: ['No Workspace', 'vscode (Current) *', '[Worktrees] feature', '[Worktrees] other'], chip: { icon: 'folder', label: 'vscode', description: 'Folder: vscode' } },
-			// No longer in a new worktree of the folder it no longer has
-			changes: ['isolation worktree', 'no workspace', 'isolation folder', 'folder /work/vscode'],
-		});
-	});
-
-	test('No Workspace from New Worktree applies at once, without a folder, so a send right after it starts the session without one', async () => {
-		const { choices, actions, changes, configDirectories } = await createChoices({ enabled: true, at: primary, sessionsList: true });
-		await actions(primary).find(action => action.label === 'New Worktree')!.run();
-		// Not awaited, as the picker does not: a send can follow before anything it starts settles
-		const picked = actions(primary).find(action => action.label === 'No Workspace')!.run();
-		const atOnce = { noWorkspace: choices.isNoWorkspaceSelected(), changes: [...changes], configDirectories: [...configDirectories] };
-		await picked;
-		await new Promise<void>(resolve => setTimeout(resolve, 0));
-
-		assert.deepStrictEqual({ atOnce, settled: { changes, configDirectories } }, {
-			atOnce: { noWorkspace: true, changes: ['isolation worktree', 'no workspace', 'isolation folder'], configDirectories: ['/work/vscode', 'none'] },
-			// Nothing more once it settles, such as on a draft closed meanwhile
-			settled: { changes: ['isolation worktree', 'no workspace', 'isolation folder'], configDirectories: ['/work/vscode', 'none'] },
+			withSessionsList: ['vscode (Current) *', 'New Worktree', '[Worktrees] feature', '[Worktrees] other'],
 		});
 	});
 
@@ -304,15 +272,15 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		list.onDidChangeSessions.fire();
 		await new Promise<void>(resolve => setTimeout(resolve, 1000));
 		const withWorktree = list.shown();
-		// No Workspace, which only the chip offers, keeps the chip while the Chat view lists sessions
-		const withNoWorkspace = (await shownIn({ sessionsList: true })).shown();
+		// Also while the Chat view lists sessions
+		const withSessionsList = (await shownIn({ sessionsList: true })).shown();
 
-		assert.deepStrictEqual({ withoutWorktrees, checked, unchecked, withWorktree, withNoWorkspace }, {
+		assert.deepStrictEqual({ withoutWorktrees, checked, unchecked, withWorktree, withSessionsList }, {
 			withoutWorktrees: ['New Worktree [ ]'],
 			checked: ['New Worktree [x]'],
 			unchecked: { shown: ['New Worktree [ ]'], changes: ['isolation worktree', 'isolation folder'] },
 			withWorktree: ['Folder'],
-			withNoWorkspace: ['Folder'],
+			withSessionsList: ['New Worktree [ ]'],
 		});
 	}));
 
@@ -344,7 +312,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 			whileUnresolved,
 			onceResolved,
 			worktreeSupport: (await shownIn({ isolations: ['folder', 'worktree'] })).shown(),
-			// No Workspace makes it a choice, also without worktree support
+			// The Sessions list makes no choice of its own
 			sessionsList: (await shownIn({ isolations: ['folder'], sessionsList: true })).shown(),
 			// A worktree to pick makes it a choice, also without support for new ones
 			noWorktreeSupportWithWorktree: (await shownIn({ isolations: ['folder'], listed: [feature] })).shown(),
@@ -353,12 +321,12 @@ suite('AgentHostWorktreeFolderChoices', () => {
 			whileUnresolved: [],
 			onceResolved: ['New Worktree'],
 			worktreeSupport: ['New Worktree'],
-			sessionsList: ['Folder'],
+			sessionsList: [],
 			noWorktreeSupportWithWorktree: ['Folder'],
 		});
 	}));
 
-	test('reads the worktrees once for all chat inputs and once per change, never for a chat input that would not offer the checkbox, and not to toggle', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('reads the worktrees once for all chat inputs and once per change, with or without the Sessions list, and not to toggle', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const reads = async (options: { readonly sessionsList: boolean }) => {
 			const { listed, onDidChangeSessions, instantiationService } = await createChoices({ enabled: true, at: primary, listed: [], sessionsList: options.sessionsList, read: false });
 			const widgets = [0, 1, 2].map(() => upcastPartial<IChatWidget>({
@@ -381,7 +349,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 
 		assert.deepStrictEqual({ oldList: await reads({ sessionsList: false }), sessionsList: await reads({ sessionsList: true }) }, {
 			oldList: { shown: 1, changed: 2, toggled: 2 },
-			sessionsList: { shown: 0, changed: 0, toggled: 0 },
+			sessionsList: { shown: 1, changed: 2, toggled: 2 },
 		});
 	}));
 });

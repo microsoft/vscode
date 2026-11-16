@@ -17,17 +17,27 @@ export interface IChatSubmitRequest {
 	readonly input: string;
 }
 
+/**
+ * A handler's answer to a submission: `true` where it handled it, so it is not sent and the input is cleared; `false` where
+ * the normal send goes on; {@link ChatSubmitRequestCancelled} where it is neither sent nor cleared, the input kept as it is.
+ * A caller that reads only truthiness treats a cancelled submission as handled.
+ */
+export type ChatSubmitRequestResult = boolean | typeof ChatSubmitRequestCancelled;
+
+/** A submission that a handler stopped: it is not sent, and the input keeps it. */
+export const ChatSubmitRequestCancelled = 'cancelled';
+
 /** Handler offered a chat input submission before the normal send path. */
 export interface IChatSubmitRequestHandler {
 	readonly id: string;
-	tryHandle(request: IChatSubmitRequest): Promise<boolean>;
+	tryHandle(request: IChatSubmitRequest): Promise<ChatSubmitRequestResult>;
 }
 
 /** Registry for provider-specific pre-submit chat handlers. */
 export interface IChatSubmitRequestHandlerService {
 	readonly _serviceBrand: undefined;
 	register(handler: IChatSubmitRequestHandler): IDisposable;
-	tryHandle(request: IChatSubmitRequest): Promise<boolean>;
+	tryHandle(request: IChatSubmitRequest): Promise<ChatSubmitRequestResult>;
 }
 
 /** Default sequential first-match implementation of the submit handler registry. */
@@ -47,10 +57,11 @@ export class ChatSubmitRequestHandlerService implements IChatSubmitRequestHandle
 		});
 	}
 
-	async tryHandle(request: IChatSubmitRequest): Promise<boolean> {
+	async tryHandle(request: IChatSubmitRequest): Promise<ChatSubmitRequestResult> {
 		for (const handler of this._handlers) {
-			if (await handler.tryHandle(request)) {
-				return true;
+			const result = await handler.tryHandle(request);
+			if (result) {
+				return result;
 			}
 		}
 		return false;

@@ -37,7 +37,6 @@ const WORKTREE_ICON = Codicon.worktree;
 /** As the Agents window shows a session without a workspace. */
 const NO_WORKSPACE_ICON = Codicon.comment;
 /** The setting that shows the Agents window's sessions, with their workspace-less chats, in the Chat view. */
-const SESSIONS_LIST_ENABLED_SETTING = 'chat.viewSessions.sessionsList.enabled';
 
 function getNoWorkspaceLabel(): string {
 	return localize('agentHost.folderPicker.noWorkspace', "No Workspace");
@@ -174,7 +173,6 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 
 	constructor(
 		private readonly _sessionResource: () => URI | undefined,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceFolderLocationService private readonly _folderLocationService: IWorkspaceFolderLocationService,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
@@ -200,18 +198,7 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 		this._locations.refresh();
 	}
 
-	/** Whether the chip offers No Workspace: while the Chat view lists sessions with their workspace-less chats. */
-	isNoWorkspaceAvailable(): boolean {
-		return this._configurationService.getValue<boolean>(SESSIONS_LIST_ENABLED_SETTING) === true;
-	}
-
-	/** Whether the session is to start without a working directory. */
-	isNoWorkspaceSelected(): boolean {
-		const sessionResource = this._sessionResource();
-		return !!sessionResource && this._newSessionFolderService.isNoWorkspace(sessionResource);
-	}
-
-	/** The chip while the session is to start without a working directory: by its icon and name. */
+	/** The chip of a session without a working directory, such as a restored one: by its icon and name. */
 	getNoWorkspaceChip(): { readonly icon: ThemeIcon; readonly label: string; readonly description: string } {
 		return { icon: NO_WORKSPACE_ICON, label: getNoWorkspaceLabel(), description: localize('agentHost.folderPicker.noWorkspaceChipDescription', "No workspace: start the session in a temporary directory") };
 	}
@@ -223,47 +210,34 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 	}
 
 	/**
-	 * Whether the chip would offer only the folder and New Worktree: the folder has no worktrees, and No Workspace is neither
-	 * offered nor chosen. A New Worktree checkbox then stands in for the chip.
+	 * Whether the session is known to work in its folder itself: its configuration has an isolation, and it is the in-place
+	 * one. Not while its configuration or isolation is unknown, which {@link isNewWorktreeSelected} does not tell apart.
+	 */
+	isFolderSelected(): boolean {
+		const isolation = this._isolation();
+		return !!isolation?.inPlace && isolation.values[isolation.key] === isolation.inPlace;
+	}
+
+	/**
+	 * Whether the chip would offer only the folder and New Worktree: the folder has no worktrees. A New Worktree checkbox then
+	 * stands in for the chip.
 	 */
 	offersOnlyNewWorktree(): boolean {
 		// The worktrees last, which reading costs: never for a chat input that would not offer the checkbox anyway
 		return this.isActive()
-			&& !this.isNoWorkspaceAvailable()
-			&& !this.isNoWorkspaceSelected()
 			&& this.canWorkInNewWorktree()
 			&& !this._choices().some(choice => choice.kind === 'worktree');
 	}
 
 	/**
-	 * Whether the chip offers more than the folder the session works in already: No Workspace, a worktree or the folder at
-	 * its own location, or New Worktree where no checkbox stands in for it. Not while the session's configuration, which
-	 * says whether it can work in a new worktree, is still unknown, so that a chip with only the folder never shows.
+	 * Whether the chip offers more than the folder the session works in already: a worktree or the folder at its own
+	 * location, or New Worktree where no checkbox stands in for it. Not while the session's configuration, which says
+	 * whether it can work in a new worktree, is still unknown, so that a chip with only the folder never shows.
 	 */
 	offersChoices(): boolean {
-		// The worktrees last, which reading costs: never where No Workspace already makes it a choice
 		return this.isActive()
-			&& (this.isNoWorkspaceAvailable()
-				|| this.isNoWorkspaceSelected()
-				|| this._choices().length > 1
+			&& (this._choices().length > 1
 				|| (this.canWorkInNewWorktree() && !this.offersOnlyNewWorktree()));
-	}
-
-	/** Has the session start without a working directory, as No Workspace does. */
-	setNoWorkspace(): void {
-		const sessionResource = this._sessionResource();
-		const provider = sessionResource && getLocalAgentHostSessionProvider(sessionResource);
-		if (!sessionResource) {
-			return;
-		}
-		// Read before the folder changes, which resets the session's configuration
-		const isolation = this._isolation();
-		// All at once, as a send right after it graduates the session with what it then has: without a folder, and not in a
-		// new worktree of a folder it no longer has
-		this._newSessionFolderService.setNoWorkspace(sessionResource);
-		if (provider && isolation?.inPlace && isolation.values[isolation.key] !== isolation.inPlace) {
-			this._provisional.applyConfigChange(sessionResource, provider, undefined, { [isolation.key]: isolation.inPlace }).catch(onUnexpectedError);
-		}
 	}
 
 	/** Whether the session can work in a new worktree of its folder: once its configuration, which says so, is known. */
@@ -283,9 +257,6 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 	 * than New Worktree.
 	 */
 	getChip(folder: URI, startedWorktree?: URI): { readonly icon: ThemeIcon; readonly label: string; readonly description: string } {
-		if (this.isNoWorkspaceSelected()) {
-			return this.getNoWorkspaceChip();
-		}
 		const choices = this._choices();
 		const primary = choices.find(candidate => candidate.kind === 'folder');
 		if (this.isNewWorktreeSelected()) {
@@ -305,14 +276,12 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 
 	/** The chip's choices, `selected` checked, unless the session is to work in a new worktree. */
 	getActions(action: MenuItemAction, selected: URI | undefined, onDidPick: () => void): IActionWidgetDropdownAction[] {
-		const noWorkspaceSelected = this.isNoWorkspaceSelected();
-		const newWorktreeSelected = !noWorkspaceSelected && this.isNewWorktreeSelected();
-		// What has no folder, the folder and a new worktree of it first, each with what it does below its name; then the worktrees
+		const newWorktreeSelected = this.isNewWorktreeSelected();
+		// The folder and a new worktree of it first, each with what it does below its name; then the worktrees
 		const workspaceGroup = { label: '', order: 0 };
 		const worktreesGroup = { label: localize('agentHost.folderPicker.worktrees', "Worktrees"), order: 1, showHeader: true };
 		let newWorktree: IActionWidgetDropdownAction | undefined;
-		// A new worktree is of the selected folder, which No Workspace does not have
-		if (!noWorkspaceSelected && this._isolation()?.worktree) {
+		if (this._isolation()?.worktree) {
 			newWorktree = {
 				...action,
 				id: 'agentHostFolder.newWorktree',
@@ -339,7 +308,7 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 					label: choice.label,
 					detail: section.kind === 'worktree' ? undefined : getFolderLocationDetail(),
 					description: choice.current ? getCurrentFolderLocationDescription() : undefined,
-					checked: !noWorkspaceSelected && !newWorktreeSelected && !!selected && extUriBiasedIgnorePathCase.isEqual(selected, choice.uri),
+					checked: !newWorktreeSelected && !!selected && extUriBiasedIgnorePathCase.isEqual(selected, choice.uri),
 					icon: choice.kind === 'worktree' ? WORKTREE_ICON : Codicon.folder,
 					enabled: true,
 					tooltip: choice.uri.fsPath,
@@ -357,26 +326,7 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 				});
 			}
 		}
-		let noWorkspace: IActionWidgetDropdownAction | undefined;
-		if (this.isNoWorkspaceAvailable() || noWorkspaceSelected) {
-			noWorkspace = {
-				...action,
-				id: 'agentHostFolder.noWorkspace',
-				label: getNoWorkspaceLabel(),
-				detail: localize('agentHost.folderPicker.noWorkspaceDescription', "Start without a backing workspace"),
-				tooltip: localize('agentHost.folderPicker.noWorkspaceDescription', "Start without a backing workspace"),
-				checked: noWorkspaceSelected,
-				icon: NO_WORKSPACE_ICON,
-				enabled: true,
-				category: workspaceGroup,
-				run: () => {
-					this.setNoWorkspace();
-					onDidPick();
-				},
-			};
-		}
-		const actions = [...(noWorkspace ? [noWorkspace] : []), ...folders, ...(newWorktree ? [newWorktree] : []), ...worktrees];
-		return actions;
+		return [...folders, ...(newWorktree ? [newWorktree] : []), ...worktrees];
 	}
 
 	/** The window's folder at its own location, and its worktrees, with where the folder is now. */
@@ -449,6 +399,9 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 	/** Has the session work in a new worktree of its folder, or in the folder itself. */
 	private async _setIsolation(worktree: boolean, isolation = this._isolation(), folder?: URI): Promise<void> {
 		const sessionResource = this._sessionResource();
+		if (sessionResource) {
+			this._newSessionFolderService.setIsolationChosen(sessionResource);
+		}
 		const provider = sessionResource && getLocalAgentHostSessionProvider(sessionResource);
 		const value = worktree ? (isolation?.worktree ? 'worktree' : undefined) : isolation?.inPlace;
 		if (!sessionResource || !provider || !isolation || !value || isolation.values[isolation.key] === value) {
