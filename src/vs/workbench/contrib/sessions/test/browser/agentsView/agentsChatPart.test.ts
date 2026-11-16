@@ -495,7 +495,7 @@ suite('AgentsChatPartService', () => {
 		instantiationService.stub(IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({}));
 		const hosts = store.add(instantiationService.createInstance(ChatViewHostService));
 		// As the editor window registers its host, before the chat part exists
-		store.add(hosts.registerHost(scoped!.createInstance(AgentsChatViewHost, constObservable(true))));
+		store.add(hosts.register({ host: scoped!.createInstance(AgentsChatViewHost, constObservable(true)) }));
 		const reports: string[] = [];
 		store.add(autorun(reader => {
 			const value = hosts.shownSession.read(reader);

@@ -66,6 +66,16 @@ The [credential broker](../../workbench/services/github/browser/githubCredential
 
 Anonymous clients expose only content reads, `gist.get`, and `search.issues`. They omit authorization, cookies, and referrers, and cannot perform mutations or GraphQL operations. Internal bootstrap clients are reserved for trusted host authentication flows; checking a supplied credential does not make it an accepted host credential.
 
+### Agent Host account-selection hints
+
+The Agent Host accepts the optional AHP `authenticate.accountId` as an opaque, unverified client-local selection hint. The protocol boundary scopes it to the originating client, protected resource, and optional target; the GitHub credential service still resolves the token's identity with `GET /user`. Stable hints preserve renewal cooldowns, while a changed selection can be verified without inheriting another selection's bootstrap wait. Neither a changed hint nor token rotation clears a verified account's cooldown or establishes authorization or cross-client credential equivalence.
+
+Hint appearance or disappearance during renewal retains the same comparison context and bootstrap cooldown. Comparison history is retained per client/resource/target for the host lifetime, independently of token pruning, invalidation, scope changes, or replacement by another client. Each stored token keeps its own comparison snapshot, while replay preserves the currently supplied optional field rather than fabricating one.
+
+VS Code sends its provider/account/authorization-server tuple only in the standard field. Older hosts ignore the standard hint, and GitHub token authentication and renewal still work without it; mixed-version connections may keep the conservative bootstrap cooldown until token validation establishes an account switch. General `_meta` support, including unrelated authentication metadata, is unaffected.
+
+The Microsoft credential bridge is the one place that compares the identifier across clients. One Microsoft account serves every unscoped client of a host, so the bridge binds to the identifier of the first accepted credential and requires the same value, undecoded, on every later Microsoft credential from any client and for any Microsoft resource. A client must therefore send the same identifier for the same account from every connection, as VS Code's tuple does; a client that sends none or a different one is refused. This keeps the host on one account and is not an isolation boundary: unscoped clients already share the host's credentials and can replace them, and credentials from scoped clients stay in their own scope, which the bridge does not read. No display label is sent.
+
 ## Typed domains
 
 The [account interface](common/account/account.ts) is the authoritative list of available domains.

@@ -155,7 +155,7 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 			// Its actions, such as to close it, only while chats open in it
 			reader.store.add(registerAgentsChatPartActions());
 			const host = this._instantiationService.createInstance(AgentsChatViewHost, this._ownsNewChat);
-			reader.store.add(this._chatViewHostService.registerHost(host));
+			reader.store.add(this._chatViewHostService.register({ host }));
 			// Unregistered, what the host is still doing does not open the chat part
 			reader.store.add(toDisposable(() => host.deactivate()));
 			reader.store.add(this._presenterService.registerPresenter(this._createPresenter()));

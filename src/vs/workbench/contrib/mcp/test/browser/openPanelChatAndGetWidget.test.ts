@@ -46,9 +46,11 @@ suite('openPanelChatAndGetWidget', () => {
 
 	test('returns what a host that replaces the Chat view shows, also none, asking it to wait for its widget', async () => {
 		const { service, calls } = createService(upcastPartial<ChatWidget>({}));
-		const registration = service.registerHost(upcastPartial<IChatViewHost>({
-			reveal: async (preserveFocus, options) => { calls.push(`reveal preserveFocus=${preserveFocus} waitForWidget=${options?.waitForWidget}`); return undefined; },
-		}));
+		const registration = service.register({
+			host: upcastPartial<IChatViewHost>({
+				reveal: async (preserveFocus, options) => { calls.push(`reveal preserveFocus=${preserveFocus} waitForWidget=${options?.waitForWidget}`); return undefined; },
+			})
+		});
 		const widget = await openPanelChatAndGetWidget(service);
 		registration.dispose();
 		assert.deepStrictEqual({ widget, calls }, { widget: undefined, calls: ['reveal preserveFocus=false waitForWidget=true'] });
