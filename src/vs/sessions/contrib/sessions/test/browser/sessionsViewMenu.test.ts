@@ -8,7 +8,7 @@ import { SubmenuAction } from '../../../../../base/common/actions.js';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { $, getActiveElement } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { retry } from '../../../../../base/common/async.js';
+import { retry, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -612,7 +612,7 @@ suite('Sessions - View Menu', () => {
 	});
 
 	for (const mixedSelection of [false, true]) {
-		test(`inbox can acknowledge pinned historical completions${mixedSelection ? ' alongside acknowledged sessions' : ''} and return them to Inbox`, async () => {
+		test(`inbox can acknowledge pinned historical completions${mixedSelection ? ' alongside acknowledged sessions' : ''} and return them to Inbox after unpinning`, async () => {
 			const sessions = ['historical', 'acknowledged'].map(id => buildTestSession({ id, title: id, isRead: true }).session);
 			const [historical, acknowledged] = sessions;
 			const harness = createListHarness(store, sessions);
@@ -643,6 +643,7 @@ suite('Sessions - View Menu', () => {
 				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
 			}));
 			list.layout(600, 400);
+			await timeout(100);
 			const showMenu = (selection: ISession[]) => {
 				assert.ok(list.setSelectedItems(selection.map(session => ({ session: session.resource }))));
 				list.getItemRow({ session: historical.resource })!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
@@ -680,7 +681,7 @@ suite('Sessions - View Menu', () => {
 				inboxSessions: sectionSessions(SessionInboxSection.ReadyForYou),
 				otherState: model.getInboxState(acknowledged)?.kind,
 			}, {
-				initial: { actions: [{ label: 'Acknowledge', enabled: true }, { label: 'Return to Inbox', enabled: true }], toolbarCanResume: true, toolbarCanAcknowledge: true },
+				initial: { actions: [{ label: 'Acknowledge', enabled: true }], toolbarCanResume: false, toolbarCanAcknowledge: true },
 				acknowledgedSections: ['historical'], afterAcknowledgement: [{ label: 'Return to Inbox', enabled: true }],
 				resumed: undefined, inboxSessions: ['historical'], otherState: 'done',
 			});
