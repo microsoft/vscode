@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -16,7 +16,9 @@ import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../..
 import { getSessionApplication } from '../../../../../services/sessions/common/sessionApplication.js';
 import { ISession, ISessionEnvironment, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { buildTestSession, buildTestWorkspace } from '../../common/testSessionBuilder.js';
-import { getInboxWorkspaceFilter, getInboxWorkspaceOptions, getSessionFilterOptions, getWorktreeFilterKeys, sessionFilterKey, SessionsListFilters, SessionsWorktreeOpener } from '../../../browser/views/sessionsListFilters.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { getInboxWorkspaceFilter, getInboxWorkspaceOptions, getSessionFilterOptions, getWorktreeFilterKeys, listsQuickChatsIn, sessionFilterKey, SessionsListFilters, SessionsWorktreeOpener } from '../../../browser/views/sessionsListFilters.js';
 
 suite('SessionsListFilters', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -622,5 +624,29 @@ suite('SessionsListFilters', () => {
 			{ id: 'third-party-client', label: 'Third Party' },
 			{ id: 'custom_client', label: 'Custom Client Brand' },
 		]);
+	});
+
+	test('lists quick chats in the Agents window, and in an editor window only while it has no folder, following its folders', () => {
+		const folders: URI[] = [];
+		const onDidChangeWorkspaceFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const workspace = upcastPartial<IWorkspaceContextService>({
+			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) }),
+		});
+		const changeFolders = (change: () => void) => { change(); onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] }); };
+		const editorWindow = listsQuickChatsIn(false, workspace);
+		const agentsWindow = listsQuickChatsIn(true, workspace);
+		const seen: boolean[] = [];
+		store.add(autorun(reader => { seen.push(editorWindow.read(reader)); }));
+
+		changeFolders(() => folders.push(URI.file('/work/vscode')));
+		const withFolder = { editorWindow: editorWindow.get(), agentsWindow: agentsWindow.get() };
+		changeFolders(() => folders.pop());
+
+		assert.deepStrictEqual({ seen, withFolder }, {
+			// Empty, a folder added, the last folder removed
+			seen: [true, false, true],
+			withFolder: { editorWindow: false, agentsWindow: true },
+		});
 	});
 });

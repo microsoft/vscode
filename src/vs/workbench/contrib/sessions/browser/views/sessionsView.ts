@@ -38,7 +38,7 @@ import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
-import { getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, sessionFilterKey, SessionsWorktreeOpener } from './sessionsListFilters.js';
+import { getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, listsQuickChatsIn, sessionFilterKey, SessionsWorktreeOpener } from './sessionsListFilters.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, IMenuService, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -57,6 +57,7 @@ import { ISessionsService } from '../sessionsService.js';
 import { ISessionDraftsService } from '../sessionDraftsService.js';
 import { IScheduledChatsService } from '../scheduledChatsService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { Menus } from '../menus.js';
 import { MobileSessionFilterChips } from '../mobile/mobileSessionFilterChips.js';
 import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../mobile/mobileSortGroupSheet.js';
@@ -357,6 +358,7 @@ export class SessionsView extends ViewPane {
 		@ISessionsListPresentation private readonly presentation: ISessionsListPresentation,
 		@ISessionDraftsService private readonly sessionDraftsService: ISessionDraftsService,
 		@IScheduledChatsService private readonly scheduledChatsService: IScheduledChatsService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ISessionsViewLocator sessionsViewLocator: ISessionsViewLocator,
 	) {
 		super(options.headerInTitle ? { ...options, titleMenuId: Menus.SidebarSessionsHeader } : options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -524,8 +526,8 @@ export class SessionsView extends ViewPane {
 			},
 			canOpenSession: session => this.sessionsService.canOpenSession(session),
 			offersWorktreeFilter: this.contextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key) !== true,
-			// An editor window shows no chats without a workspace
-			listsQuickChats: this.contextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key) === true,
+			// An editor window shows no chats without a workspace while it has a folder
+			listsQuickChats: listsQuickChatsIn(this.contextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key) === true, this.workspaceContextService),
 			onChatOpen: (session, chat, preserveFocus, sideBySide) => {
 				const onOpened = () => {
 					if (isWeb && isPhoneLayout(this.layoutService)) {

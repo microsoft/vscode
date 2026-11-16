@@ -5,12 +5,13 @@
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, IObservable, IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { getComparisonKey } from '../../../../../base/common/resources.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { getSessionWorktreeFolder, getWorktreeFilterKey, getWorktreeFilterOptions, getWorktreeSessionToOpen, ISessionWorktreeFolder, IWorktreeFilterSession, WorktreeLastSessions } from '../../../../../platform/agentHost/common/sessionWorktreeFolders.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { getSessionApplication, UNKNOWN_SESSION_APPLICATION_ID } from '../../../../services/sessions/common/sessionApplication.js';
 import { ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
@@ -93,6 +94,18 @@ export function getSessionWorktreeFilterFolder(session: Pick<ISession, 'workspac
 	}
 	const folder = session.workspace.read(reader)?.folders[0];
 	return folder && getSessionWorktreeFolder(folder.gitRepository?.workTreeUri ?? folder.workingDirectory, folder.gitRepository?.uri);
+}
+
+/**
+ * Whether a window's Sessions list lists quick chats, which have no workspace: always in the Agents window, and in an editor
+ * window only while it has no folder, following its folders as they are added and removed.
+ */
+export function listsQuickChatsIn(isSessionsWindow: boolean, workspaceContextService: IWorkspaceContextService): IObservable<boolean> {
+	const foldersChanged = observableSignalFromEvent('workspaceFolders', workspaceContextService.onDidChangeWorkspaceFolders);
+	return derived(reader => {
+		foldersChanged.read(reader);
+		return isSessionsWindow || workspaceContextService.getWorkspace().folders.length === 0;
+	});
 }
 
 /** Orders environments as the Environment filter lists them: this computer, the cloud, then remote hosts by name. */
