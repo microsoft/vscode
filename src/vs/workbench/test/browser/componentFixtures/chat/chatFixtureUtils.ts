@@ -118,6 +118,7 @@ import { IChatSlashCommandService } from '../../../../contrib/chat/common/partic
 import { IChatGoalSummaryService } from '../../../../contrib/chat/browser/chatGoalSummaryService.js';
 import { IChatDebugService } from '../../../../contrib/chat/common/chatDebugService.js';
 import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { ILocalChatAvailabilityService, LocalChatAvailabilityService } from '../../../../contrib/chat/common/localChatAvailability.js';
 
 export function registerSubagentFixtureServices(reg: ServiceRegistration): void {
 	reg.define(ISessionSummaryHoverService, SessionSummaryHoverService);
@@ -546,6 +547,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override readonly managedSandboxEnforced = constObservable(false);
 		override readonly managedSandboxAllowsBypass = constObservable(true);
 	}());
+	reg.define(ILocalChatAvailabilityService, LocalChatAvailabilityService);
 
 	const artifactGroups = options.artifactGroups ?? observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', []);
 	reg.defineInstance(IChatArtifactsService, new class extends mock<IChatArtifactsService>() {

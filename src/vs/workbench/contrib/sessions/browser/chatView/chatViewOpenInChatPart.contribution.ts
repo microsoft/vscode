@@ -21,6 +21,7 @@ import { ChatViewId } from '../../../chat/browser/chat.js';
 import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
+import { ILocalChatAvailabilityService } from '../../../chat/common/localChatAvailability.js';
 import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessionsRuntime.js';
 import { AgentsViewAvailable } from '../agentsView/agentsChatPartContext.js';
 import { IEditorWindowChatPartService } from '../agentsView/agentsChatPartContribution.js';
@@ -59,6 +60,7 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		@IEditorWindowSessionsRuntime sessionsRuntime: IEditorWindowSessionsRuntime,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatViewHostService private readonly _chatViewHostService: IChatViewHostService,
+		@ILocalChatAvailabilityService localChatAvailabilityService: ILocalChatAvailabilityService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
@@ -83,6 +85,8 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 				// The chats show in the chat part, so the Chat view shows only its sessions, except while it hosts a chat that the chat
 				// part leaves to it, such as a local chat: the seam owns that rule.
 				reader.store.add(this._chatViewHostService.register({ sessionsOnly: true }));
+				// No local chats, which the chat part does not show: as with the sessions list of the Chat view, whose chats are those of sessions
+				reader.store.add(localChatAvailabilityService.hide());
 			}
 		}));
 		this._hideMaximizeWhileSessionsOnly();

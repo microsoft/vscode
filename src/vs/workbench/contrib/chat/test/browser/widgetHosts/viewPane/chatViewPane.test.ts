@@ -1032,6 +1032,7 @@ suite('ChatViewPane managed permission rules', () => {
 					storageService: store.add(new TestStorageService()),
 					chatSessionsService: new MockChatSessionsService(),
 					agentHostEnablementService: { enabled: constObservable(false), managedSandboxEnforced: constObservable(false) },
+					localChatAvailabilityService: { hidden: constObservable(false) },
 					logService: new NullLogService(),
 					notificationService: { error: (message: string) => errors.push(message) },
 					chatService: {
@@ -1168,6 +1169,7 @@ suite('ChatViewPane restored chat with a harness disabled by policy', () => {
 			storageService: store.add(new TestStorageService()),
 			chatSessionsService: new MockChatSessionsService(),
 			agentHostEnablementService: { enabled: constObservable(true), managedSandboxEnforced: constObservable(false) },
+			localChatAvailabilityService: { hidden: constObservable(false) },
 			chatService: {
 				transferredSessionResource: undefined,
 				acquireOrLoadSession: async (resource: URI): Promise<IChatModelReference> => ({ object: upcastPartial<IChatModel>({ sessionResource: resource, hasRequests }), dispose: () => { disposed = true; } }),
