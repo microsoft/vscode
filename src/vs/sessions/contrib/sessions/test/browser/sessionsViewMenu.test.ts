@@ -41,6 +41,7 @@ import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
+import { ChatEntitlementContextKeys } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentHostSessionsProvider, LocalAgentHostRegistration } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -570,6 +571,22 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
+	test('Inbox toggle is hidden on both toolbars and in the command palette while an activated chat participant remains enabled', async () => {
+		const { snapshot, configurationService, contextKeyService } = createMenu();
+		IsSessionsWindowContext.bindTo(contextKeyService).set(true);
+		await configurationService.updateValue(SESSIONS_LIST_INBOX_ENABLED_SETTING, true);
+		const hidden = ChatEntitlementContextKeys.Setup.hidden.bindTo(contextKeyService);
+		const offered = () => [Menus.SidebarSessionsHeader, Menus.MobileSessionsListActions, MenuId.CommandPalette]
+			.map(menu => snapshot(menu).some(item => item.title === 'Toggle Inbox'));
+		const visible = offered();
+		hidden.set(true);
+		const hiddenAI = offered();
+		hidden.set(false);
+		assert.deepStrictEqual({ visible, hiddenAI, visibleAgain: offered(), participantEnabled: contextKeyService.getContextKeyValue(ChatContextKeys.enabled.key) }, {
+			visible: [true, true, true], hiddenAI: [false, false, false], visibleAgain: [true, true, true], participantEnabled: true,
+		});
+	});
+
 	test('the Grouping menu offers the groupings of its view: Time, Environment and Worktree in the editor window', () => {
 		const { snapshot, contextKeyService } = createMenu();
 		const sessionsWindow = IsSessionsWindowContext.bindTo(contextKeyService);
@@ -607,6 +624,7 @@ suite('Sessions - View Menu', () => {
 				currentGrouping: SessionsGrouping.Repository,
 				get grouping(): SessionsGrouping { return this.currentGrouping; },
 				get nonInboxGrouping(): SessionsGrouping { return Reflect.get(SessionsView.prototype, 'nonInboxGrouping', this); },
+				get inboxAvailable(): boolean { return Reflect.get(SessionsView.prototype, 'inboxAvailable', this); },
 				offeredGroupings: DEFAULT_SESSIONS_GROUPINGS,
 				configurationService,
 				storageService: store.add(new InMemoryStorageService()),

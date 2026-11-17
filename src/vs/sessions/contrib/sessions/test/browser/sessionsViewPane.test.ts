@@ -16,12 +16,13 @@ import { ISessionGridPane } from '../../../../../workbench/services/sessions/bro
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { Workbench } from '../../../../browser/workbench.js';
 import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { AICustomizationShortcutsWidget } from '../../../../../workbench/contrib/sessions/browser/aiCustomizationShortcutsWidget.js';
-import { DEFAULT_SESSIONS_GROUPINGS, getCustomizationsPresentation, getStoredSessionsGrouping, SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { DEFAULT_SESSIONS_GROUPINGS, getCustomizationsPresentation, getStoredSessionsGrouping, SessionsView, SessionsViewGroupingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../../../../workbench/contrib/sessions/browser/agentsView/editorWindowSessionsList.js';
 import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
@@ -189,23 +190,31 @@ suite('Sessions - SessionsViewPane', () => {
 		configurationService: TestConfigurationService,
 		storageService = disposables.add(new InMemoryStorageService()),
 		groupings?: { readonly offered: readonly SessionsGrouping[]; readonly default: SessionsGrouping },
+		hidden = false,
 	) {
+		const sentimentChanged = disposables.add(new Emitter<void>());
+		const contextKeyService = disposables.add(new ContextKeyService(configurationService));
 		const host = {
 			currentGrouping: undefined as SessionsGrouping | undefined,
 			groupings,
 			configurationService,
 			storageService,
-			chatEntitlementService: { sentiment: { hidden: false } },
+			chatEntitlementService: { sentiment: { hidden }, onDidChangeSentiment: sentimentChanged.event },
+			sentimentChanged,
+			groupingContextKey: SessionsViewGroupingContext.bindTo(contextKeyService),
+			_register: <T extends IDisposable>(disposable: T): T => disposables.add(disposable),
 			get grouping(): SessionsGrouping { return Reflect.get(SessionsView.prototype, 'grouping', this); },
 			get offeredGroupings(): readonly SessionsGrouping[] { return Reflect.get(SessionsView.prototype, 'offeredGroupings', this); },
 			get nonInboxGrouping(): SessionsGrouping { return Reflect.get(SessionsView.prototype, 'nonInboxGrouping', this); },
-			restoreGrouping: Reflect.get(SessionsView.prototype, 'restoreGrouping') as () => void,
+			get inboxAvailable(): boolean { return Reflect.get(SessionsView.prototype, 'inboxAvailable', this); },
+			initializeGrouping: Reflect.get(SessionsView.prototype, 'initializeGrouping') as () => void,
 			updateInboxAvailability: Reflect.get(SessionsView.prototype, 'updateInboxAvailability') as () => void,
 			setGrouping: SessionsView.prototype.setGrouping,
 			toggleInbox: SessionsView.prototype.toggleInbox,
 			updateHeaderLayout: () => { },
 		};
-		host.restoreGrouping();
+		host.initializeGrouping();
+		host.groupingContextKey.set(host.grouping);
 		return host;
 	}
 
@@ -295,6 +304,62 @@ suite('Sessions - SessionsViewPane', () => {
 		assert.throws(() => host.setGrouping(SessionsGrouping.Inbox), /Enable sessions\.list\.inboxEnabled and AI features/);
 		assert.strictEqual(host.grouping, SessionsGrouping.Workspace);
 	});
+
+	for (const source of ['configuration', 'sentiment']) {
+		test(`restoring Inbox while AI is hidden by ${source} preserves the previous ordinary grouping`, () => {
+			const configurationService = new TestConfigurationService({
+				[SESSIONS_LIST_INBOX_ENABLED_SETTING]: true,
+				'chat.disableAIFeatures': source === 'configuration',
+			});
+			disposables.add(configurationService.onDidChangeConfigurationEmitter);
+			const storageService = disposables.add(new InMemoryStorageService());
+			storageService.store('sessionsViewPane.grouping', SessionsGrouping.Inbox, StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store('sessionsViewPane.nonInboxGrouping', SessionsGrouping.Environment, StorageScope.PROFILE, StorageTarget.USER);
+			const host = createGroupingHost(configurationService, storageService, undefined, source === 'sentiment');
+			assert.deepStrictEqual({
+				grouping: host.grouping,
+				context: host.groupingContextKey.get(),
+				saved: storageService.get('sessionsViewPane.grouping', StorageScope.PROFILE),
+			}, { grouping: SessionsGrouping.Environment, context: SessionsGrouping.Environment, saved: SessionsGrouping.Environment });
+		});
+
+		test(`hiding AI through ${source} leaves Inbox and showing AI again does not reopen it`, async () => {
+			const configurationService = new TestConfigurationService({ [SESSIONS_LIST_INBOX_ENABLED_SETTING]: true });
+			disposables.add(configurationService.onDidChangeConfigurationEmitter);
+			const host = createGroupingHost(configurationService);
+			host.setGrouping(SessionsGrouping.Repository);
+			host.toggleInbox();
+			let updates = 0;
+			Object.assign(host, { sessionsControl: { update: () => updates++ } });
+			const setHidden = async (hidden: boolean) => {
+				if (source === 'configuration') {
+					const key = 'chat.disableAIFeatures';
+					await configurationService.setUserConfiguration(key, hidden);
+					configurationService.onDidChangeConfigurationEmitter.fire({
+						affectsConfiguration: section => section === key,
+						affectedKeys: new Set([key]),
+						change: { keys: [key], overrides: [] },
+						source: ConfigurationTarget.USER,
+					});
+				} else {
+					host.chatEntitlementService.sentiment.hidden = hidden;
+					host.sentimentChanged.fire();
+				}
+			};
+			await setHidden(true);
+			const hidden = {
+				grouping: host.grouping,
+				context: host.groupingContextKey.get(),
+				saved: host.storageService.get('sessionsViewPane.grouping', StorageScope.PROFILE),
+				updates,
+			};
+			await setHidden(false);
+			assert.deepStrictEqual({ hidden, visibleAgain: host.grouping, reloaded: createGroupingHost(configurationService, host.storageService).grouping, updates }, {
+				hidden: { grouping: SessionsGrouping.Repository, context: SessionsGrouping.Repository, saved: SessionsGrouping.Repository, updates: 1 },
+				visibleAgain: SessionsGrouping.Repository, reloaded: SessionsGrouping.Repository, updates: 1,
+			});
+		});
+	}
 
 	test('a view offers only its groupings: the editor window shows Time until one of its groupings is chosen, also for a stored grouping that only the Agents window offers, which it leaves stored', () => {
 		const configurationService = new TestConfigurationService();

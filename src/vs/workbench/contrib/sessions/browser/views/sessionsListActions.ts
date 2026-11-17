@@ -25,6 +25,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { WorkbenchListFocusContextKey } from '../../../../../platform/list/browser/listService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { SessionsCategories } from '../../common/categories.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../common/sessionConfig.js';
@@ -1028,7 +1029,7 @@ function createSessionsListActions(): DisposableStore {
 
 	store.add(registerAction2(class InboxModeAction extends Action2 {
 		constructor() {
-			const available = ContextKeyExpr.and(ChatContextKeys.enabled, sessionsViewOffersGrouping(SessionsGrouping.Inbox),
+			const available = ContextKeyExpr.and(ChatContextKeys.enabled, ChatEntitlementContextKeys.Setup.hidden.negate(), sessionsViewOffersGrouping(SessionsGrouping.Inbox),
 				ContextKeyExpr.equals(`config.${SESSIONS_LIST_INBOX_ENABLED_SETTING}`, true));
 			super({
 				id: 'sessionsViewPane.inboxMode',

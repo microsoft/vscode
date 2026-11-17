@@ -377,7 +377,7 @@ export class SessionsView extends ViewPane {
 		// Restore persisted grouping
 		this.groupings = options.groupings;
 		this.quickChatsInTimeGrouping = !!options.quickChatsInTimeGrouping;
-		this.restoreGrouping();
+		this.initializeGrouping();
 
 		// Restore persisted sorting
 		const storedSorting = this.storageService.get(SORTING_STORAGE_KEY, StorageScope.PROFILE);
@@ -391,11 +391,6 @@ export class SessionsView extends ViewPane {
 		bindSessionsViewGroupings(contextKeyService, this.offeredGroupings);
 		this.groupingContextKey = SessionsViewGroupingContext.bindTo(contextKeyService);
 		this.groupingContextKey.set(this.grouping);
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING)) {
-				this.updateInboxAvailability();
-			}
-		}));
 		this.sortingContextKey = SessionsViewSortingContext.bindTo(contextKeyService);
 		this.sortingContextKey.set(this.currentSorting);
 		this.compactContextKey = SessionsViewCompactContext.bindTo(contextKeyService);
@@ -1324,13 +1319,25 @@ export class SessionsView extends ViewPane {
 			this.offeredGroupings.filter(grouping => grouping !== SessionsGrouping.Inbox)) ?? this.groupings?.default ?? SessionsGrouping.Workspace;
 	}
 
-	private restoreGrouping(): void {
+	private get inboxAvailable(): boolean {
+		return !!this.configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING)
+			&& !this.configurationService.getValue<boolean>('chat.disableAIFeatures')
+			&& !this.chatEntitlementService.sentiment.hidden;
+	}
+
+	private initializeGrouping(): void {
 		this.currentGrouping = getStoredSessionsGrouping(this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE), this.offeredGroupings);
 		this.updateInboxAvailability();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING) || e.affectsConfiguration('chat.disableAIFeatures')) {
+				this.updateInboxAvailability();
+			}
+		}));
+		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.updateInboxAvailability()));
 	}
 
 	private updateInboxAvailability(): void {
-		if (this.configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING)) {
+		if (this.inboxAvailable) {
 			return;
 		}
 		const activeElement = DOM.getActiveElement();
@@ -1359,8 +1366,7 @@ export class SessionsView extends ViewPane {
 		if (!this.offeredGroupings.includes(grouping)) {
 			return;
 		}
-		if (grouping === SessionsGrouping.Inbox && (!this.configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING)
-			|| this.configurationService.getValue<boolean>('chat.disableAIFeatures') || this.chatEntitlementService.sentiment.hidden)) {
+		if (grouping === SessionsGrouping.Inbox && !this.inboxAvailable) {
 			throw new Error(localize('inboxUnavailable', "Enable {0} and AI features to use Inbox Mode.", SESSIONS_LIST_INBOX_ENABLED_SETTING));
 		}
 		if (this.currentGrouping === grouping) {
