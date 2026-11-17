@@ -26,7 +26,7 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
-import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyValue, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextMenuHandler } from '../../../../../platform/contextview/browser/contextMenuHandler.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -56,7 +56,7 @@ import { getSessionArchiveOnboardingTargetId, SessionItemCanAcknowledgeContext, 
 import { getInboxPullRequestMergeOperation, SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { getSessionFilterEnvironments, SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
+import { getSessionFilterEnvironments, ScheduledSessionsFilter, SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { SessionsInboxScope } from '../../../../../workbench/contrib/sessions/browser/views/sessionsInboxScope.js';
 import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
 import { IsWorkspaceGroupCappedContext, ISessionsViewLocator, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext, DEFAULT_SESSIONS_GROUPINGS, bindSessionsViewGroupings } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
@@ -129,7 +129,7 @@ suite('Sessions - View Menu', () => {
 			scopedContextKeyService: contextKeyService,
 			configurationService,
 			workspaceGroupCappedContextKey: capped,
-			filterContextKeys: new Map<string, { key: IContextKey<boolean>; read: () => boolean }>(),
+			filterContextKeys: new Map<string, { key: IContextKey; read: () => ContextKeyValue }>(),
 			archivedFilterRegistration: store.add(new DisposableStore()),
 			listNotification: upcastPartial<SessionsListNotification>({ show: notice => { notices.push(notice); } }),
 			sessionsManagementService: {
@@ -1367,8 +1367,8 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('Show lists Show Automations, Scheduled Only and Show Done below Recent and All, and Show Automations chooses the setting', async () => {
-		const { snapshot, run, grouping, contextKeyService, configurationService } = createMenu();
+	test('Show lists Show Automations, Show Scheduled and Show Done below Recent and All, and their submenus choose', async () => {
+		const { snapshot, run, grouping, contextKeyService, configurationService, filters } = createMenu();
 		const disabled = snapshot(Menus.SessionsViewShow);
 		ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
 		await configurationService.updateValue(SESSIONS_SEND_LATER_ENABLED_SETTING, true);
@@ -1376,8 +1376,10 @@ suite('Sessions - View Menu', () => {
 		grouping.set(SessionsGrouping.Date);
 		const time = snapshot(Menus.SessionsViewShow);
 		const defaults = snapshot(Menus.SessionsViewAutomations);
+		const scheduledDefaults = snapshot(Menus.SessionsViewScheduled);
 		configurationService.updates.length = 0;
 		await run(`sessionsViewPane.showAutomations.${AutomationSessionsListMode.Always}`);
+		await run(`sessionsViewPane.showScheduled.${ScheduledSessionsFilter.Never}`);
 
 		const capping = [
 			{ title: 'Recent', group: '1_show', checked: true },
@@ -1385,7 +1387,7 @@ suite('Sessions - View Menu', () => {
 		];
 		const visibility = [
 			{ title: 'Show Automations', group: '2_visibility', submenu: Menus.SessionsViewAutomations.id },
-			{ title: 'Scheduled Only', group: '2_visibility', checked: false, enabled: true },
+			{ title: 'Show Scheduled', group: '2_visibility', submenu: Menus.SessionsViewScheduled.id },
 			{ title: 'Show Done', group: '2_visibility', checked: false },
 		];
 		assert.deepStrictEqual({
@@ -1395,6 +1397,9 @@ suite('Sessions - View Menu', () => {
 			defaults,
 			checked: snapshot(Menus.SessionsViewAutomations).filter(item => item.checked).map(item => item.title),
 			updates: configurationService.updates,
+			scheduledDefaults,
+			scheduledChecked: snapshot(Menus.SessionsViewScheduled).filter(item => item.checked).map(item => item.title),
+			scheduled: filters.getScheduledFilter(),
 		}, {
 			disabled: [...capping, { title: 'Show Done', group: '2_visibility', checked: false }],
 			enabled: [...capping, ...visibility],
@@ -1406,6 +1411,13 @@ suite('Sessions - View Menu', () => {
 			],
 			checked: ['Always'],
 			updates: [[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, AutomationSessionsListMode.Always]],
+			scheduledDefaults: [
+				{ title: 'With Others', group: '1_modes', checked: true, enabled: true },
+				{ title: 'Only', group: '1_modes', checked: false, enabled: true },
+				{ title: 'Never', group: '1_modes', checked: false, enabled: true },
+			],
+			scheduledChecked: ['Never'],
+			scheduled: ScheduledSessionsFilter.Never,
 		});
 	});
 

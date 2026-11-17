@@ -14,7 +14,7 @@ import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../..
 import { getSessionApplication } from '../../../../../services/sessions/common/sessionApplication.js';
 import { ISession, ISessionEnvironment, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { buildTestSession, buildTestWorkspace } from '../../common/testSessionBuilder.js';
-import { getInboxWorkspaceFilter, getInboxWorkspaceOptions, getSessionFilterOptions, sessionFilterKey, SessionsListFilters } from '../../../browser/views/sessionsListFilters.js';
+import { getInboxWorkspaceFilter, getInboxWorkspaceOptions, getSessionFilterOptions, ScheduledSessionsFilter, sessionFilterKey, SessionsListFilters } from '../../../browser/views/sessionsListFilters.js';
 import { AutomationSessionsListMode, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../common/sessionConfig.js';
 
 suite('SessionsListFilters', () => {
@@ -25,17 +25,27 @@ suite('SessionsListFilters', () => {
 		return store.add(new SessionsListFilters(storage, store.add(new NullLogService()), configurationService));
 	}
 
-	test('scheduled-only filtering persists and participates in reset and undo', () => {
+	test('the scheduled sessions choice persists, keeps an earlier Scheduled Only choice, and participates in reset and undo', () => {
 		const storage = store.add(new InMemoryStorageService());
+		storage.store('sessionsListControl.filters', JSON.stringify([['scheduledOnly', true]]), StorageScope.PROFILE, StorageTarget.USER);
+		const earlier = createFilters(storage).getScheduledFilter();
 		const filters = createFilters(storage);
-		filters.setScheduledOnly(true);
+		filters.setScheduledFilter(ScheduledSessionsFilter.Never);
 		const restored = createFilters(storage);
-		const persisted = restored.isScheduledOnly();
+		const persisted = restored.getScheduledFilter();
 		const undo = restored.capture();
 		restored.reset();
-		const reset = restored.isScheduledOnly();
+		const reset = restored.getScheduledFilter();
 		undo();
-		assert.deepStrictEqual({ persisted, reset, undone: restored.isScheduledOnly() }, { persisted: true, reset: false, undone: true });
+		const undone = restored.getScheduledFilter();
+		restored.setScheduledFilter(ScheduledSessionsFilter.WithOthers);
+		assert.deepStrictEqual({ earlier, persisted, reset, undone, withOthersStored: storage.get('sessionsListControl.filters', StorageScope.PROFILE) }, {
+			earlier: ScheduledSessionsFilter.Only,
+			persisted: ScheduledSessionsFilter.Never,
+			reset: ScheduledSessionsFilter.WithOthers,
+			undone: ScheduledSessionsFilter.Never,
+			withOthersStored: undefined,
+		});
 	});
 
 	test('Inbox scope distinguishes exact workspaces and environments without separating harnesses', () => {
@@ -312,7 +322,7 @@ suite('SessionsListFilters', () => {
 			}
 			const filters = createFilters(storage, configurationService);
 			await timeout(0);
-			return { scheduledOnly: filters.isScheduledOnly(), stored: storage.get('sessionsListControl.filters', StorageScope.PROFILE) };
+			return { scheduled: filters.getScheduledFilter(), stored: storage.get('sessionsListControl.filters', StorageScope.PROFILE) };
 		};
 
 		const enabled = await load([['showAutomationRuns', true], ['scheduledOnly', true]]);
@@ -320,9 +330,9 @@ suite('SessionsListFilters', () => {
 		const disabled = await load([['showAutomationRuns', false]]);
 
 		assert.deepStrictEqual({ enabled, reloaded, disabled, setting: configurationService.getValue(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING), updates: configurationService.updates }, {
-			enabled: { scheduledOnly: true, stored: JSON.stringify([['scheduledOnly', true]]) },
+			enabled: { scheduled: ScheduledSessionsFilter.Only, stored: JSON.stringify([['scheduledOnly', true]]) },
 			reloaded: enabled,
-			disabled: { scheduledOnly: false, stored: undefined },
+			disabled: { scheduled: ScheduledSessionsFilter.WithOthers, stored: undefined },
 			setting: AutomationSessionsListMode.Always,
 			updates: [[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, AutomationSessionsListMode.Always]],
 		});

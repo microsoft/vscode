@@ -16,7 +16,7 @@ import { getComparisonKey } from '../../../../../base/common/resources.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../../base/common/color.js';
-import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { FocusedViewContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { createDecorator, IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -38,7 +38,7 @@ import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
-import { getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, sessionFilterKey } from './sessionsListFilters.js';
+import { getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, ScheduledSessionsFilter, sessionFilterKey } from './sessionsListFilters.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, IMenuService, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -318,7 +318,7 @@ export class SessionsView extends ViewPane {
 	private compactContextKey: IContextKey<boolean> | undefined;
 	private workspaceGroupCappedContextKey: IContextKey<boolean> | undefined;
 	/** Context keys of filter menu toggles, each with a reader of the list state it mirrors. */
-	private readonly filterContextKeys = new Map<string, { key: IContextKey<boolean>; read: () => boolean }>();
+	private readonly filterContextKeys = new Map<string, { key: IContextKey; read: () => ContextKeyValue }>();
 	private currentBodyHeight = 0;
 	private currentBodyWidth = 0;
 	private didInitializePaneSizes = false;
@@ -907,30 +907,38 @@ export class SessionsView extends ViewPane {
 	private readonly archivedFilterRegistration = this._register(new DisposableStore());
 
 	private registerScheduledFilter(sessionsControl: SessionsList): void {
-		const contextKey = new RawContextKey<boolean>('sessionsViewPane.filter.scheduledOnly', sessionsControl.filters.isScheduledOnly());
+		const contextKey = new RawContextKey<string>('sessionsViewPane.filter.scheduled', sessionsControl.filters.getScheduledFilter());
 		const contextKeyInstance = contextKey.bindTo(this.scopedContextKeyService);
-		this.filterContextKeys.set(contextKey.key, { key: contextKeyInstance, read: () => sessionsControl.filters.isScheduledOnly() });
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'sessionsViewPane.filterScheduled',
-					title: localize('scheduledOnly', "Scheduled Only"),
-					toggled: ContextKeyExpr.equals(contextKey.key, true),
-					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${SESSIONS_SEND_LATER_ENABLED_SETTING}`, true)),
-					menu: [{
-						id: Menus.SessionsViewShow,
-						group: SessionsViewShowGroup.Visibility,
-						order: 1,
-						when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${SESSIONS_SEND_LATER_ENABLED_SETTING}`, true)),
-					}],
-				});
-			}
-			override run() {
-				const scheduledOnly = !sessionsControl.filters.isScheduledOnly();
-				sessionsControl.filters.setScheduledOnly(scheduledOnly);
-				contextKeyInstance.set(scheduledOnly);
-			}
+		this.filterContextKeys.set(contextKey.key, { key: contextKeyInstance, read: () => sessionsControl.filters.getScheduledFilter() });
+		const schedulingAvailable = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${SESSIONS_SEND_LATER_ENABLED_SETTING}`, true));
+		this._register(MenuRegistry.appendMenuItem(Menus.SessionsViewShow, {
+			submenu: Menus.SessionsViewScheduled,
+			title: localize('showScheduled', "Show Scheduled"),
+			group: SessionsViewShowGroup.Visibility,
+			order: 1,
+			when: schedulingAvailable,
 		}));
+		for (const [index, { filter, title }] of [
+			{ filter: ScheduledSessionsFilter.WithOthers, title: localize('showScheduled.withOthers', "With Others") },
+			{ filter: ScheduledSessionsFilter.Only, title: localize('showScheduled.only', "Only") },
+			{ filter: ScheduledSessionsFilter.Never, title: localize('showScheduled.never', "Never") },
+		].entries()) {
+			this._register(registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: `sessionsViewPane.showScheduled.${filter}`,
+						title,
+						toggled: ContextKeyExpr.equals(contextKey.key, filter),
+						precondition: schedulingAvailable,
+						menu: [{ id: Menus.SessionsViewScheduled, group: '1_modes', order: index }],
+					});
+				}
+				override run() {
+					sessionsControl.filters.setScheduledFilter(filter);
+					contextKeyInstance.set(filter);
+				}
+			}));
+		}
 	}
 
 	private registerSessionFilters(sessionsControl: SessionsList): void {

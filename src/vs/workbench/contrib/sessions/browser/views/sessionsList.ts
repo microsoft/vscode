@@ -116,7 +116,7 @@ import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../common/sessionComparis
 // eslint-disable-next-line no-restricted-imports
 import { IAgentSessionsService } from '../../../chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
-import { compareSessionEnvironments, getSessionEnvironments, ISessionsListResettableState, SessionsListFilters } from './sessionsListFilters.js';
+import { compareSessionEnvironments, getSessionEnvironments, ISessionsListResettableState, ScheduledSessionsFilter, SessionsListFilters } from './sessionsListFilters.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { clearChatReferenceDragData, LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
@@ -6099,9 +6099,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 			filtered = filtered.filter(s => scoped.has(s.providerId));
 		}
 		filtered = filtered.filter(session => this.filters.matches(session, inbox));
-		const scheduledOnly = this.options.schedulingEnabled?.get() && this.filters.isScheduledOnly();
-		if (scheduledOnly) {
-			filtered = filtered.filter(session => this.options.scheduledSessionResources?.get().has(session.resource.toString()));
+		const scheduledFilter = this.options.schedulingEnabled?.get() ? this.filters.getScheduledFilter() : ScheduledSessionsFilter.WithOthers;
+		if (scheduledFilter !== ScheduledSessionsFilter.WithOthers) {
+			const scheduledResources = this.options.scheduledSessionResources?.get();
+			filtered = filtered.filter(session => (scheduledResources?.has(session.resource.toString()) ?? false) === (scheduledFilter === ScheduledSessionsFilter.Only));
 		}
 		// The default only changes what the list shows for archived content that the other filters keep.
 		if (this._excludeArchivedIsDefault && filtered.some(session => hasArchivedListContent(session))) {
@@ -6677,8 +6678,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const draftsSection = this.options.pendingSections?.get().find(section => section.id === 'drafts');
 		const pendingItems = [
-			...(this.options.scheduledSessions?.get() ?? []),
-			...(scheduledOnly ? [] : draftsSection?.items ?? []),
+			...(scheduledFilter === ScheduledSessionsFilter.Never ? [] : this.options.scheduledSessions?.get() ?? []),
+			...(scheduledFilter === ScheduledSessionsFilter.Only ? [] : draftsSection?.items ?? []),
 		].filter(item => matchesPendingSession(item, this.filters, inbox, scopedProviderIds));
 		if (pendingItems.length > 0) {
 			const element: ISessionSection = { id: 'drafts', label: draftsSection?.label ?? localize('drafts', "Drafts"), sessions: [], pendingItems };

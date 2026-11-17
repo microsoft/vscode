@@ -168,6 +168,16 @@ export function getSessionFilterOptions(sessions: readonly ISession[], environme
 	return options;
 }
 
+/** Whether the sessions list includes sessions with scheduled messages, and the new-session schedules in Drafts. */
+export const enum ScheduledSessionsFilter {
+	/** They are listed with the other sessions. */
+	WithOthers = 'withOthers',
+	/** Only they are listed, and Drafts lists only schedules. */
+	Only = 'only',
+	/** They are not listed, and Drafts lists only ordinary drafts. */
+	Never = 'never',
+}
+
 export class SessionsListFilters extends Disposable implements ISessionsListResettableState {
 	private static readonly STORAGE_KEY = 'sessionsListControl.filters';
 	private static readonly INBOX_SCOPE_STORAGE_KEY = 'sessionsListControl.inboxScope';
@@ -176,6 +186,7 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 	/** The setting's value when moving the retired filter to it last failed; a different value later is the user's choice. */
 	private static readonly SHOW_AUTOMATION_RUNS_MIGRATION_FAILED_AT_KEY = 'sessionsListControl.showAutomationRunsMigrationFailedAt';
 	private static readonly SCHEDULED_ONLY_KEY = 'scheduledOnly';
+	private static readonly SCHEDULED_NEVER_KEY = 'scheduledNever';
 	private readonly excluded: Map<string, boolean>;
 	private readonly showAutomationRunsMigration = this._register(new MutableDisposable());
 	private _inboxScope: IInboxScope = {};
@@ -277,12 +288,21 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 		this.save();
 	}
 
-	isScheduledOnly(): boolean {
-		return this.excluded.get(SessionsListFilters.SCHEDULED_ONLY_KEY) ?? false;
+	getScheduledFilter(): ScheduledSessionsFilter {
+		return this.excluded.get(SessionsListFilters.SCHEDULED_ONLY_KEY) ? ScheduledSessionsFilter.Only
+			: this.excluded.get(SessionsListFilters.SCHEDULED_NEVER_KEY) ? ScheduledSessionsFilter.Never
+				: ScheduledSessionsFilter.WithOthers;
 	}
 
-	setScheduledOnly(scheduledOnly: boolean): void {
-		this.excluded.set(SessionsListFilters.SCHEDULED_ONLY_KEY, scheduledOnly);
+	setScheduledFilter(filter: ScheduledSessionsFilter): void {
+		// Only keeps its original key so that an earlier Scheduled Only choice is restored as Only
+		for (const [key, value] of [[SessionsListFilters.SCHEDULED_ONLY_KEY, ScheduledSessionsFilter.Only], [SessionsListFilters.SCHEDULED_NEVER_KEY, ScheduledSessionsFilter.Never]] as const) {
+			if (filter === value) {
+				this.excluded.set(key, true);
+			} else {
+				this.excluded.delete(key);
+			}
+		}
 		this.save();
 	}
 
