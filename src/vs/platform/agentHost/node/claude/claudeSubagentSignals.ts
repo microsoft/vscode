@@ -6,6 +6,7 @@
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { URI } from '../../../../base/common/uri.js';
 import type { Mutable } from '../../../../base/common/types.js';
+import type { ILogService } from '../../../log/common/log.js';
 import { toToolCallMeta, type IToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import type { AgentSignal, IAgentSubagentStartedSignal } from '../../common/agent.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -97,11 +98,17 @@ export function tagWithParent(
  * All other system subtypes (`compact_boundary`, `task_progress`,
  * `task_updated`, hooks, etc.) fall through with `[]`; non-subagent
  * system handling stays in the mapper proper.
+ *
+ * Does not need a turn id: the router also calls it while the parent
+ * is idle, which is when most background subagents finish. A terminal
+ * `task_notification` that cannot be mapped to an open spawn is logged,
+ * because the subagent chat it was meant to close stays active.
  */
 export function mapSubagentSystemMessage(
 	message: Extract<SDKMessage, { type: 'system' }>,
 	chat: URI,
 	registry: SubagentRegistry,
+	logService?: ILogService,
 ): AgentSignal[] {
 	const sub = (message as { subtype?: string }).subtype;
 	if (sub === 'task_started') {
@@ -113,16 +120,22 @@ export function mapSubagentSystemMessage(
 		return [];
 	}
 	if (sub === 'task_notification') {
-		const m = message as { tool_use_id?: string; status?: string };
-		if (!m.tool_use_id) {
-			return [];
-		}
+		const m = message as { task_id?: string; tool_use_id?: string; status?: string };
 		const status = m.status;
 		if (status !== 'completed' && status !== 'failed' && status !== 'stopped') {
 			return [];
 		}
+		if (!m.tool_use_id) {
+			logService?.debug(`[claudeSubagentSignals] task_notification status=${status} task_id=${m.task_id ?? '<none>'} has no tool_use_id; no subagent chat closed`);
+			return [];
+		}
 		const spawn = registry.getSpawn(m.tool_use_id);
-		if (!spawn || !spawn.markCompleted()) {
+		if (!spawn) {
+			logService?.info(`[claudeSubagentSignals] task_notification status=${status} for tool_use_id=${m.tool_use_id} matches no open subagent spawn; no subagent chat closed`);
+			return [];
+		}
+		if (!spawn.markCompleted()) {
+			logService?.debug(`[claudeSubagentSignals] task_notification status=${status} for tool_use_id=${m.tool_use_id} ignored; spawn already completed`);
 			return [];
 		}
 		const toolUseId = m.tool_use_id;

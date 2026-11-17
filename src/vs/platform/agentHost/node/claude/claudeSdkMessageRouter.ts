@@ -16,6 +16,7 @@ import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { ClaudeFileEditObserver } from './claudeFileEditObserver.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
+import { mapSubagentSystemMessage } from './claudeSubagentSignals.js';
 import { ClaudeTerminalOutputs } from './claudeTerminalOutput.js';
 import type { SessionClientToolsModel } from './clientTools/claudeSessionClientToolsModel.js';
 
@@ -80,6 +81,13 @@ export class ClaudeSdkMessageRouter extends Disposable {
 			}
 		}
 		if (turnId === undefined) {
+			// A background subagent usually finishes after the parent's turn
+			// has ended, so its `task_started` / `task_notification` arrive
+			// while no turn is queued. Those signals close the subagent chat
+			// and need no turn id; dropping them leaves it running forever.
+			if (message.type === 'system') {
+				this._fireSystemSignals(message);
+			}
 			return;
 		}
 		try {
@@ -98,6 +106,16 @@ export class ClaudeSdkMessageRouter extends Disposable {
 			}
 		} catch (mapperErr) {
 			this._logService.warn(`[ClaudeSdkMessageRouter] mapper threw, skipping message: ${mapperErr}`);
+		}
+	}
+
+	private _fireSystemSignals(message: Extract<SDKMessage, { type: 'system' }>): void {
+		try {
+			for (const signal of mapSubagentSystemMessage(message, this._chatChannelUri, this._subagents, this._logService)) {
+				this._onDidProduceSignal.fire(signal);
+			}
+		} catch (mapperErr) {
+			this._logService.warn(`[ClaudeSdkMessageRouter] turn-less system message mapper threw, skipping: ${mapperErr}`);
 		}
 	}
 
