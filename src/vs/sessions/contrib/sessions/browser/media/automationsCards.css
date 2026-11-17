@@ -69,7 +69,6 @@
 .automations-cards-state,
 .automations-cards-partial-state,
 .automations-templates,
-.automations-disabled-section,
 .automations-history-state,
 .automations-history {
 	width: 100%;
@@ -133,13 +132,33 @@
 .automations-ownership-summary {
 	display: flex;
 	align-items: center;
-	gap: var(--vscode-spacing-size60);
+	gap: var(--vscode-spacing-size120);
 	width: fit-content;
 	margin-bottom: var(--vscode-spacing-size80);
-	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-foreground);
 	cursor: pointer;
 	list-style: none;
+}
+
+.automations-ownership-summary:focus {
+	outline: 0;
+}
+
+.automations-ownership-heading {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.monaco-workbench:is(.hc-black, .hc-light) .automations-ownership-section[open] > .automations-ownership-summary:not(:focus-visible, .focus-visible) > .automations-ownership-heading {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.automations-ownership-section > .automations-ownership-summary:is(:focus-visible, .focus-visible) > .automations-ownership-heading.agent-sessions-interactive.agent-sessions-interactive-list {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-list-focusOutline, var(--vscode-focusBorder));
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .automations-ownership-summary::-webkit-details-marker {
@@ -161,14 +180,30 @@
 	transform-origin: center;
 }
 
-.automations-ownership-section[open] .automations-ownership-chevron,
-.automations-disabled-section[open] .automations-ownership-chevron {
+.automations-ownership-section[open] .automations-ownership-chevron {
 	transform: rotate(90deg);
 }
 
 .automations-ownership-title {
 	font-size: var(--vscode-fontSize-heading3);
 	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.automations-show-disabled {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
+}
+
+.automations-show-disabled > .monaco-checkbox {
+	margin-right: 0;
+	flex-shrink: 0;
+}
+
+.automations-show-disabled > .monaco-checkbox:focus:not(:focus-visible) {
+	outline: 0;
 }
 
 .automations-ownership-summary .codicon.automations-ownership-info {
@@ -582,11 +617,6 @@
 .automations-cards-partial-state-icon {
 	flex-shrink: 0;
 	font-size: var(--vscode-codiconFontSize);
-}
-
-/* Disabled automations */
-.automations-disabled-section {
-	margin-top: var(--vscode-spacing-size240);
 }
 
 /* Starter templates */

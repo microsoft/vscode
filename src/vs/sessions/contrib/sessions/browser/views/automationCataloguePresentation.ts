@@ -30,7 +30,8 @@ export function getAutomationOwnershipGroups(automations: readonly IAutomationDe
 			description: localize('automations.repositoryOwnedDescription', "These automations are visible to anyone with repository access, and can be edited by anyone with write access."),
 			automations: automations.filter(automation => automation.ownership === 'repository'),
 		},
-	].filter(group => group.automations.length > 0 || group.ownership === 'user' && automations.some(automation => automation.ownership === 'repository'));
+	].filter(group => group.automations.length > 0 || group.ownership === 'user' && automations.some(automation => automation.ownership === 'repository'))
+		.map(group => ({ ...group, automations: group.automations.sort((a, b) => Number(b.enabled) - Number(a.enabled)) }));
 }
 
 export function getVisibleAutomations(automations: readonly IAutomationDescriptor[], sendLaterEnabled: boolean): readonly IAutomationDescriptor[] {
@@ -39,7 +40,7 @@ export function getVisibleAutomations(automations: readonly IAutomationDescripto
 }
 
 export function hasEmptyAutomationSection(automations: readonly IAutomationDescriptor[]): boolean {
-	return automations.length === 0 || getAutomationOwnershipGroups(automations.filter(automation => automation.enabled))
+	return automations.length === 0 || getAutomationOwnershipGroups(automations)
 		.some(group => group.automations.length === 0);
 }
 

@@ -10,6 +10,7 @@ import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js
 import { Menu, unthemedMenuStyles } from '../../../../../base/browser/ui/menu/menu.js';
 import { Action } from '../../../../../base/common/actions.js';
 import '../../../../../base/browser/ui/codicons/codicon/codicon-modifiers.css';
+import '../../../../browser/media/style.css';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
@@ -78,7 +79,7 @@ import { ExternalSessionApplicationBadgeMode, SESSIONS_AUTOMATIONS_SHOW_SHARED_B
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
 import { automationRunWithLocalProgress } from '../../browser/views/automationRunProgress.js';
 import { AUTOMATION_TEMPLATES } from '../../browser/views/automationTemplates.js';
-import { AutomationsCardsWidget, AutomationsCustomViewContribution, DISABLED_AUTOMATIONS_EXPANDED_STORAGE_KEY, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY } from '../../browser/views/automationsView.js';
+import { AutomationsCardsWidget, AutomationsCustomViewContribution, SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY } from '../../browser/views/automationsView.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -944,94 +945,215 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('disabled cards are grouped under the warning area and above templates', () => {
+	test('disabled cards stay in their ownership sections, sort last, and only personal cards are filtered', () => {
 		const { widget, automationService } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
-		const items = [automation({ id: 'disabled', enabled: false }), automation({ id: 'enabled' })];
+		const items = [
+			automation({ id: 'local-disabled', name: 'Local disabled', enabled: false }),
+			automation({ id: 'shared-disabled', name: 'Shared disabled', ownership: 'repository', enabled: false }),
+			automation({ id: 'cloud-disabled', name: 'Cloud disabled', ownership: 'user', target: { ...workspaceTarget(), providerId: 'cloud' }, enabled: false }),
+			automation({ id: 'local', name: 'Local enabled' }),
+			automation({ id: 'shared', name: 'Shared enabled', ownership: 'repository' }),
+			automation({ id: 'cloud', name: 'Cloud enabled', ownership: 'user', target: { ...workspaceTarget(), providerId: 'cloud' } }),
+		];
 		automationService.setAutomations(items);
 		automationService.setRuns([run({ status: 'running' })]);
 		const history = widget.element.querySelector('.automations-history');
-		const section = widget.element.querySelector<HTMLDetailsElement>('.automations-disabled-section')!;
-		const order = (selector: string) => [...widget.element.querySelectorAll('.automations-cards-partial-state, .automations-disabled-section, .automations-templates')].findIndex(element => element.matches(selector));
+		const checkbox = widget.element.querySelector<HTMLElement>('.automations-show-disabled [role="checkbox"]')!;
+		const sections = [...widget.element.querySelectorAll<HTMLDetailsElement>('.automations-ownership-section')];
+		const cards = () => sections.map(section => [...section.querySelectorAll<HTMLElement>('.automations-card-wrapper')]
+			.filter(card => card.style.display !== 'none').map(card => card.querySelector('.automations-card-name-text')?.textContent));
+		const initially = cards();
+		checkbox.click();
 		for (const state of ['ready', 'loading', 'error', 'unavailable'] as const) {
 			automationService.setCatalogueState(state);
 			assert.deepStrictEqual({
-				enabled: [...widget.element.querySelectorAll('.automations-cards-grid .automations-card-wrapper')].length,
-				disabled: section.querySelectorAll('.automations-card-wrapper').length,
-				title: section.querySelector('.automations-ownership-title')?.textContent,
-				open: section.open, history: widget.element.querySelector('.automations-history'),
-				order: [order('.automations-cards-partial-state'), order('.automations-disabled-section'), order('.automations-templates')],
-			}, { enabled: 1, disabled: 1, title: 'Disabled automations', open: false, history, order: [0, 1, 2] });
+				initially, shown: cards(), checked: checkbox.getAttribute('aria-checked'),
+				open: sections[0].open, history: widget.element.querySelector('.automations-history'),
+				legacySection: widget.element.querySelector('.automations-disabled-section'),
+			}, {
+				initially: [['Local enabled', 'Cloud enabled'], ['Shared enabled', 'Shared disabled']],
+				shown: [['Local enabled', 'Cloud enabled', 'Local disabled', 'Cloud disabled'], ['Shared enabled', 'Shared disabled']],
+				checked: 'true', open: true, history, legacySection: null,
+			});
 		}
+		checkbox.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, keyCode: 32 }));
+		assert.deepStrictEqual({ cards: cards(), checked: checkbox.getAttribute('aria-checked'), open: sections[0].open }, {
+			cards: initially, checked: 'false', open: true,
+		});
+		widget.element.querySelector<HTMLElement>('.automations-show-disabled > span')!.click();
+		assert.deepStrictEqual({ checked: checkbox.getAttribute('aria-checked'), open: sections[0].open }, { checked: 'true', open: true });
 		automationService.setAutomations([items[0]]);
 		assert.deepStrictEqual({
-			empty: widget.element.querySelector<HTMLElement>('.automations-cards-empty')!.style.display,
 			templatesOpen: widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates')!.open,
-			groupVisible: section.style.display,
-		}, { empty: 'none', templatesOpen: false, groupVisible: '' });
-		automationService.setAutomations([items[1]]);
-		assert.strictEqual(section.style.display, 'none');
+			filterVisible: widget.element.querySelector<HTMLElement>('.automations-show-disabled')!.style.display,
+		}, { templatesOpen: false, filterVisible: '' });
+		automationService.setAutomations([items[3], items[1]]);
+		assert.strictEqual(widget.element.querySelector<HTMLElement>('.automations-show-disabled')!.style.display, 'none');
 	});
 
-	test('template onboarding opens templates without expanding disabled automations', async () => {
+	test('every click on the disabled filter or its label toggles once, including rapid clicks', () => {
+		const { widget, automationService } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
+		automationService.setAutomations([automation({ enabled: false })]);
+		const checkbox = widget.element.querySelector<HTMLElement>('.automations-show-disabled [role="checkbox"]')!;
+		const label = widget.element.querySelector<HTMLElement>('.automations-show-disabled > span')!;
+		const section = widget.element.querySelector<HTMLDetailsElement>('.automations-ownership-section')!;
+		const states: (string | null)[] = [];
+		for (const target of [checkbox, label]) {
+			for (const detail of [1, 2, 3, 1]) {
+				target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail }));
+				states.push(checkbox.getAttribute('aria-checked'));
+			}
+		}
+		checkbox.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, keyCode: 32 }));
+		states.push(checkbox.getAttribute('aria-checked'));
+		assert.deepStrictEqual({ states, open: section.open }, {
+			states: ['true', 'false', 'true', 'false', 'true', 'false', 'true', 'false', 'true'],
+			open: true,
+		});
+	});
+
+	test('clicking the disabled filter label focuses the checkbox for subsequent keyboard toggles', () => {
+		const { widget, automationService } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
+		automationService.setAutomations([automation({ enabled: false })]);
+		const checkbox = widget.element.querySelector<HTMLElement>('.automations-show-disabled [role="checkbox"]')!;
+		const label = widget.element.querySelector<HTMLElement>('.automations-show-disabled > span')!;
+		const summary = widget.element.querySelector<HTMLElement>('.automations-ownership-summary')!;
+		const section = widget.element.querySelector<HTMLDetailsElement>('.automations-ownership-section')!;
+		summary.focus();
+		const mouseDown = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+		label.dispatchEvent(mouseDown);
+		label.click();
+		const afterClick = { focused: document.activeElement === checkbox, checked: checkbox.getAttribute('aria-checked') };
+		document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, keyCode: 32 }));
+		assert.deepStrictEqual({
+			defaultPrevented: mouseDown.defaultPrevented, afterClick,
+			afterSpace: checkbox.getAttribute('aria-checked'), open: section.open,
+		}, {
+			defaultPrevented: true, afterClick: { focused: true, checked: 'true' },
+			afterSpace: 'false', open: true,
+		});
+	});
+
+	test('ownership hover is confined to the heading and excludes the disabled filter', () => {
+		const { widget, automationService } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
+		automationService.setAutomations([automation({ enabled: false })]);
+		widget.element.style.setProperty('--vscode-list-hoverBackground', 'rgb(20, 40, 60)');
+		const summary = widget.element.querySelector<HTMLElement>('.automations-ownership-summary')!;
+		const heading = widget.element.querySelector<HTMLElement>('.automations-ownership-heading')!;
+		const filter = widget.element.querySelector<HTMLElement>('.automations-show-disabled')!;
+		const backgrounds = () => [summary, heading, filter].map(element => getWindow(element).getComputedStyle(element).backgroundColor);
+		summary.classList.add('hovered');
+		filter.classList.add('hovered');
+		const filterHover = backgrounds();
+		filter.classList.remove('hovered');
+		heading.classList.add('hovered');
+		assert.deepStrictEqual({ filterHover, headingHover: backgrounds() }, {
+			filterHover: ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'],
+			headingHover: ['rgba(0, 0, 0, 0)', 'rgb(20, 40, 60)', 'rgba(0, 0, 0, 0)'],
+		});
+	});
+
+	test('delayed storage echoes do not reverse the current disabled filter or subsequent clicks', () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const { widget, automationService } = setup('archive', NullHoverService, undefined, storage);
+		automationService.setAutomations([automation({ enabled: false })]);
+		const checkbox = widget.element.querySelector<HTMLElement>('.automations-show-disabled [role="checkbox"]')!;
+		const card = widget.element.querySelector<HTMLElement>('.automations-card-wrapper')!;
+		const state = () => ({ checked: checkbox.getAttribute('aria-checked'), display: card.style.display });
+		checkbox.click();
+		storage.store(SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, false, StorageScope.PROFILE, StorageTarget.MACHINE, true);
+		automationService.setCatalogueState('loading');
+		const afterStaleEcho = state();
+		checkbox.click();
+		const afterNextClick = state();
+		checkbox.click();
+		assert.deepStrictEqual({ afterStaleEcho, afterNextClick, afterFinalClick: state(), stored: storage.getBoolean(SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, StorageScope.PROFILE) }, {
+			afterStaleEcho: { checked: 'true', display: '' },
+			afterNextClick: { checked: 'false', display: 'none' },
+			afterFinalClick: { checked: 'true', display: '' },
+			stored: true,
+		});
+	});
+
+	test('filtering disabled personal automations does not expose empty-state template onboarding', () => {
 		const { widget, automationService } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
 		automationService.setAutomations([automation({ enabled: false }), automation({ id: 'shared', ownership: 'repository' })]);
 		const templates = widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates')!;
-		const disabled = widget.element.querySelector<HTMLDetailsElement>('.automations-disabled-section')!;
+		const disabled = widget.element.querySelector<HTMLElement>('.automations-card-wrapper')!;
+		assert.deepStrictEqual({
+			templatesVisible: templates.checkVisibility(), disabledDisplay: disabled.style.display,
+			onboardingAvailable: !!resolveOnboardingTarget(getWindow(widget.element), 'sessions.automations.templates'),
+		}, { templatesVisible: false, disabledDisplay: 'none', onboardingAvailable: false });
+	});
+
+	test('template onboarding opens templates alongside disabled shared automations', async () => {
+		const { widget, automationService } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
+		automationService.setAutomations([automation({ ownership: 'repository', enabled: false })]);
+		const templates = widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates')!;
+		const disabled = widget.element.querySelector<HTMLElement>('.automations-card-wrapper')!;
 		templates.open = false;
-		const before = [templates.open, disabled.open];
+		const before = [templates.open, disabled.style.display];
 
 		const target = resolveOnboardingTarget(getWindow(widget.element), 'sessions.automations.templates');
 		assert.ok(target);
 		await target.open?.();
 
-		assert.deepStrictEqual({ before, after: [templates.open, disabled.open] }, { before: [false, false], after: [true, false] });
+		assert.deepStrictEqual({ before, after: [templates.open, disabled.style.display] }, { before: [false, ''], after: [true, ''] });
 	});
 
-	test('disabled section remembers expansion through recreation and empty/refill', async () => {
+	test('show disabled remembers its choice through recreation and empty/refill', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		const first = setup('archive', NullHoverService, undefined, storage);
 		first.automationService.setAutomations([automation({ enabled: false })]);
-		const section = first.widget.element.querySelector<HTMLDetailsElement>('.automations-disabled-section')!;
-		const toggled = new Promise(resolve => section.addEventListener('toggle', resolve, { once: true }));
-		section.open = true;
-		await toggled;
-		assert.strictEqual(storage.getBoolean(DISABLED_AUTOMATIONS_EXPANDED_STORAGE_KEY, StorageScope.PROFILE), true);
+		first.widget.element.querySelector<HTMLElement>('.automations-show-disabled [role="checkbox"]')!.click();
+		assert.strictEqual(storage.getBoolean(SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, StorageScope.PROFILE), true);
 		first.widget.dispose();
 		const { widget, automationService } = setup('archive', NullHoverService, undefined, storage);
-		for (const items of [[], [automation({ enabled: false })]]) {
-			automationService.setAutomations(items);
-			const restored = widget.element.querySelector<HTMLDetailsElement>('.automations-disabled-section')!;
-			assert.deepStrictEqual([restored.open, restored.style.display !== 'none'], [true, items.length > 0]);
+		const state = () => ({
+			checked: widget.element.querySelector('.automations-show-disabled [role="checkbox"]')?.getAttribute('aria-checked'),
+			display: widget.element.querySelector<HTMLElement>('.automations-card-wrapper')!.style.display,
+		});
+		automationService.setAutomations([automation({ enabled: false })]);
+		assert.deepStrictEqual(state(), { checked: 'true', display: '' });
+		for (const checked of [true, false]) {
+			automationService.setAutomations([]);
+			automationService.setAutomations([automation({ enabled: false })]);
+			assert.deepStrictEqual(state(), { checked: String(checked), display: checked ? '' : 'none' });
+			if (checked) {
+				widget.element.querySelector<HTMLElement>('.automations-show-disabled [role="checkbox"]')!.click();
+			}
 		}
 	});
 
-	for (const expanded of [false, true]) {
-		test(`disabled card transitions preserve visible focus (expanded=${expanded})`, () => {
+	for (const showDisabled of [false, true]) {
+		test(`disabled card transitions preserve visible focus (showDisabled=${showDisabled})`, () => {
 			const storage = disposables.add(new InMemoryStorageService());
+			storage.store(SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, showDisabled, StorageScope.PROFILE, StorageTarget.MACHINE);
 			const { widget, automationService } = setup('archive', NullHoverService, undefined, storage);
-			storage.store(DISABLED_AUTOMATIONS_EXPANDED_STORAGE_KEY, expanded, StorageScope.PROFILE, StorageTarget.MACHINE);
 			automationService.setAutomations([automation()]);
 			const main = widget.element.querySelector<HTMLButtonElement>('.automations-card-main')!;
 			main.focus();
 			automationService.setAutomations([automation({ enabled: false })]);
-			const summary = widget.element.querySelector('.automations-disabled-section > summary')!;
-			assert.strictEqual(document.activeElement, expanded ? main : summary);
-			storage.store(DISABLED_AUTOMATIONS_EXPANDED_STORAGE_KEY, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+			const checkbox = widget.element.querySelector<HTMLElement>('.automations-show-disabled [role="checkbox"]')!;
+			assert.strictEqual(document.activeElement, showDisabled ? main : checkbox);
+			if (!showDisabled) {
+				checkbox.click();
+			}
 			main.focus();
 			automationService.setAutomations([automation()]);
 			assert.strictEqual(document.activeElement, main);
 		});
 	}
 
-	test('removing the disabled group moves focus to the first displayed card', () => {
+	test('removing the last disabled automation moves checkbox focus to its section heading', () => {
 		const { widget, automationService } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
 		automationService.setAutomations([automation({ id: 'a', name: 'A' }), automation({ id: 'b', name: 'B', enabled: false })]);
-		widget.element.querySelector<HTMLElement>('.automations-disabled-section > summary')!.focus();
+		widget.element.querySelector<HTMLElement>('.automations-show-disabled [role="checkbox"]')!.focus();
 		automationService.setAutomations([automation({ id: 'b', name: 'B' }), automation({ id: 'a', name: 'A' })]);
-		assert.strictEqual(document.activeElement, widget.element.querySelector('.automations-card-main'));
+		assert.strictEqual(document.activeElement, widget.element.querySelector('.automations-ownership-summary'));
 	});
 
-	test('editing a card into a collapsed group repairs failed dialog focus restoration', async () => {
+	test('editing a card out of the filter repairs failed dialog focus restoration', async () => {
 		const { widget, automationService, automationDialogService } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
 		const item = automation();
 		automationService.setAutomations([item]);
@@ -1041,7 +1163,7 @@ suite('AutomationsCardsWidget', () => {
 		main.focus();
 		main.click();
 		await timeout(0);
-		assert.strictEqual(document.activeElement, widget.element.querySelector('.automations-disabled-section > summary'));
+		assert.strictEqual(document.activeElement, widget.element.querySelector('.automations-show-disabled [role="checkbox"]'));
 	});
 	test('native cloud actions retain GitHub opening and remote Stop while Mark as Done is local', async () => {
 		const { widget, automationService, sessionsManagementService, opened, contextMenuService } = setup('done');
@@ -2205,7 +2327,9 @@ suite('AutomationsCardsWidget', () => {
 	}
 
 	test('renders card metadata below the prompt and updates enabled and workspace states', async () => {
-		const { automationService, automationDialogService, widget } = setup();
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+		const { automationService, automationDialogService, widget } = setup('archive', NullHoverService, undefined, storage);
 		const prompt = 'Review the workspace and summarize changes. '.repeat(5);
 		const manual = { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 } satisfies IAutomationSchedule;
 		const states = [
@@ -2483,7 +2607,9 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('card metadata shows the end date without recreating the card', () => {
-		const { automationService, widget } = setup();
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+		const { automationService, widget } = setup('archive', NullHoverService, undefined, storage);
 		const dateCondition = { kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T15:00:00Z' };
 		const endDate = new Date(dateCondition.date);
 		const formattedDate = endDate.toLocaleString(undefined, {
@@ -2504,13 +2630,12 @@ suite('AutomationsCardsWidget', () => {
 		editButton.focus();
 		const metadata = states.map(state => {
 			automationService.setAutomations([automation(state)]);
-			const focusTarget = state.enabled === false ? widget.element.querySelector('.automations-disabled-section > summary') : editButton;
 			return {
 				schedule: widget.element.querySelector('.automations-card-schedule')?.textContent,
 				folder: widget.element.querySelector('.automations-card-folder')?.textContent,
 				description: editButton.getAttribute('aria-description'),
 				sameCard: widget.element.querySelector('.automations-card') === card,
-				focusPreserved: document.activeElement === focusTarget,
+				focusPreserved: document.activeElement === editButton,
 			};
 		});
 		assert.deepStrictEqual(metadata, [
@@ -2631,7 +2756,9 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('host disablement hides saved limits and re-enabling restores them without changing the definition', () => {
-		const { automationService, widget } = setup();
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store(SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+		const { automationService, widget } = setup('archive', NullHoverService, undefined, storage);
 		const capped = automation({
 			disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T00:00:00Z' }],
 		});
@@ -2648,14 +2775,13 @@ suite('AutomationsCardsWidget', () => {
 				automationService.setAutomations([updated]);
 				const schedule = main.querySelector<HTMLElement>('.automations-card-schedule')!;
 				const prompt = main.querySelector<HTMLElement>('.automations-card-prompt')!;
-				const focusTarget = enabled ? main : widget.element.querySelector('.automations-disabled-section > summary');
 				return {
 					scheduleHasEndDate: schedule.textContent?.includes('until') === true,
 					hasDescription: main.hasAttribute('aria-description'),
 					promptLines: getWindow(prompt).getComputedStyle(prompt).webkitLineClamp,
 					savedConditions: automationService.getAutomation(item.id)?.disableConditions,
 					sameCard: widget.element.querySelector('.automations-card') === card,
-					focusPreserved: document.activeElement === focusTarget,
+					focusPreserved: document.activeElement === main,
 				};
 			});
 			assert.deepStrictEqual(states, [true, false, true].map(enabled => ({
@@ -2868,12 +2994,12 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([automation()]);
 
 		assert.deepStrictEqual({
-			ownershipSummary: widget.element.querySelector('.automations-ownership-summary')?.className,
+			ownershipHeading: widget.element.querySelector('.automations-ownership-heading')?.className,
 			card: widget.element.querySelector('.automations-card')?.className,
 			templateSummary: widget.element.querySelector('.automations-template-section-summary')?.className,
 			templateCard: widget.element.querySelector('.automations-template-card')?.className,
 		}, {
-			ownershipSummary: 'automations-ownership-summary agent-sessions-interactive agent-sessions-interactive-list sessions-disclosure',
+			ownershipHeading: 'automations-ownership-heading agent-sessions-interactive agent-sessions-interactive-list',
 			card: 'automations-card agent-sessions-interactive agent-sessions-interactive-list agent-sessions-interactive-bordered',
 			templateSummary: 'automations-template-section-summary agent-sessions-interactive agent-sessions-interactive-list sessions-disclosure',
 			templateCard: 'automations-template-card agent-sessions-interactive agent-sessions-interactive-list agent-sessions-interactive-bordered',
@@ -3884,17 +4010,17 @@ suite('AutomationsCardsWidget', () => {
 			{ visible: true, expanded: true, accessible: true },
 			{ visible: false, expanded: false, accessible: false },
 			{ visible: true, expanded: true, accessible: true },
+			{ visible: false, expanded: false, accessible: false },
+			{ visible: false, expanded: false, accessible: false },
 			{ visible: true, expanded: true, accessible: true },
-			{ visible: false, expanded: false, accessible: false },
-			{ visible: false, expanded: false, accessible: false },
 			{ visible: true, expanded: true, accessible: true },
 		]);
 	});
 
-	test('places built-in templates before shared automations and preserves focus across updates', () => {
+	test('places built-in templates before disabled shared automations and preserves focus across updates', () => {
 		const { automationService, agentPluginService, widget } = setup();
 		automationService.setCatalogueState('ready');
-		const shared = automation({ id: 'shared', ownership: 'repository' });
+		const shared = automation({ id: 'shared', ownership: 'repository', enabled: false });
 		automationService.setAutomations([shared]);
 		const builtIn = widget.element.querySelector<HTMLDetailsElement>('.automations-built-in-templates')!;
 		const summary = builtIn.querySelector('summary')!;
@@ -4091,7 +4217,7 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('disabled template creation focuses its collapsed disclosure', async () => {
+	test('disabled template creation focuses the show disabled filter', async () => {
 		const { widget, automationService, automationDialogService } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
 		automationService.setCatalogueState('ready');
 		automationDialogService.result = { kind: 'create', value: { ...automation(), enabled: false } };
@@ -4099,7 +4225,7 @@ suite('AutomationsCardsWidget', () => {
 		template.focus();
 		template.click();
 		await timeout(0);
-		assert.strictEqual(document.activeElement, widget.element.querySelector('.automations-disabled-section > summary'));
+		assert.strictEqual(document.activeElement, widget.element.querySelector('.automations-show-disabled [role="checkbox"]'));
 	});
 
 	for (const catalogueState of ['loading', 'unavailable', 'error'] as const) {
