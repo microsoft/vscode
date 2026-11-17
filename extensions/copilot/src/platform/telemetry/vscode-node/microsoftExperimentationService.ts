@@ -69,6 +69,8 @@ const CopilotRelatedPluginVersionPrefix = 'X-Copilot-RelatedPluginVersion-';
 
 /** Posted by tas-client after each assignments endpoint response, with its `DataVersion`. */
 const ASSIGNMENTS_VALIDATION_EVENT = 'assignments-validation';
+/** Posted by tas-client when an assignments endpoint request fails. */
+const ASSIGNMENTS_ERROR_EVENT = 'call-assignments-error';
 /** The shared property vscode-tas-client sets to the assignment context of the snapshot in use. */
 const ASSIGNMENT_CONTEXT_PROPERTY = 'abexp.assignmentcontext';
 
@@ -321,7 +323,9 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 		let dataVersion = '';
 		const delegateFn = (memento: vscode.Memento, userInfoStore: UserInfoStore, gate: RevocationGate) => {
 			dataVersion = '';
-			const wrappedMemento = new ExpMementoWrapper(memento, envService);
+			const state = copilotTokenStore.authenticationState;
+			const identity = state === 'signedOut' ? 'signedOut' : state === 'signedIn' ? copilotTokenStore.copilotToken?.getTokenValue('tid') : undefined;
+			const wrappedMemento = new ExpMementoWrapper(memento, identity, envService);
 			const snapshot = assignments;
 			// Route both the legacy (GET) and assignments (POST) requests through the extension's
 			// fetcher service so they get proxy handling, retries/fallback, and the standard user-agent.
@@ -360,12 +364,15 @@ export class MicrosoftExperimentationService extends BaseExperimentationService 
 
 		self = this; // This is now fully initialized.
 
-		this.enableExposureEvents(() => ({
-			dataVersion,
-			entryPoint: id,
-			trackingId: copilotTokenStore.authenticationState === 'signedIn' ? copilotTokenStore.copilotToken?.getTokenValue('tid') : undefined,
-			deviceId: envService.devDeviceId,
-		}), exposure => sendExperimentExposureTelemetry(telemetryService, exposure));
+		this.enableExposureEvents(() => {
+			const state = copilotTokenStore.authenticationState;
+			const trackingId = state === 'signedIn' ? copilotTokenStore.copilotToken?.getTokenValue('tid') : undefined;
+			// Until sign-in settles, a read can't be attributed to the right unit.
+			if (state === 'unknown' || (state === 'signedIn' && !trackingId)) {
+				return undefined;
+			}
+			return { dataVersion, entryPoint: id, trackingId, deviceId: envService.devDeviceId };
+		}, exposure => sendExperimentExposureTelemetry(telemetryService, exposure));
 
 		const legacyAccountFilterProvider = new GitHubAccountFilterProvider(this._userInfoStore, logService);
 		let legacyAccountFilters = legacyAccountFilterProvider.getFilters();
@@ -410,10 +417,12 @@ class RevocableExpTelemetry implements IExperimentationTelemetry {
 		}
 		// tas-client sets the assignment context only when it installs a snapshot as the one
 		// reads use. After the first read, polled responses are stored but not installed, so a
-		// fetched data version applies only once its snapshot is.
+		// fetched data version applies only once its snapshot is. The assignments provider's
+		// context is appended last, after a `;`.
 		if (name === ASSIGNMENT_CONTEXT_PROPERTY) {
-			const fetched = this._fetched;
-			this._onDataVersion(fetched?.assignmentContext && value.includes(fetched.assignmentContext) ? fetched.dataVersion : '');
+			const fetched = this._fetched?.assignmentContext;
+			const installed = !!fetched && (value === fetched || value.endsWith(`;${fetched}`));
+			this._onDataVersion(installed ? this._fetched!.dataVersion : '');
 		}
 		this._actual.setSharedProperty(name, value);
 	}
@@ -428,6 +437,9 @@ class RevocableExpTelemetry implements IExperimentationTelemetry {
 				assignmentContext: props.get('AssignmentContext') ?? '',
 				dataVersion: dataVersion && dataVersion !== 'undefined' ? dataVersion : '',
 			};
+		} else if (eventName === ASSIGNMENTS_ERROR_EVENT) {
+			// A snapshot installed without this fetch's assignments has no data version.
+			this._fetched = undefined;
 		}
 		this._actual.postEvent(eventName, props);
 	}
@@ -435,8 +447,13 @@ class RevocableExpTelemetry implements IExperimentationTelemetry {
 
 class ExpMementoWrapper implements vscode.Memento {
 
+	/**
+	 * @param _identity Who this delegate fetches for: the tracking ID, `signedOut`, or undefined
+	 * before sign-in settles. Assignments cached for someone else aren't loaded.
+	 */
 	constructor(
 		private readonly _actual: vscode.Memento,
+		private readonly _identity: string | undefined,
 		@IEnvService private readonly _envService: IEnvService
 	) {
 	}
@@ -456,6 +473,9 @@ class ExpMementoWrapper implements vscode.Memento {
 			// The extension has been updated since this value was stored, so ignore it.
 			return defaultValue;
 		}
+		if (this._identity && value.identity && value.identity !== this._identity) {
+			return defaultValue;
+		}
 		const age = (new Date()).getTime() - (new Date(value.savedDateTime)).getTime();
 		const maxAge = 1000 * 60 * 60 * 24 * 3; // 3 days
 		if (age > maxAge) {
@@ -471,6 +491,7 @@ class ExpMementoWrapper implements vscode.Memento {
 			$$$isWrappedExpValue: true,
 			savedDateTime: (new Date()).toISOString(),
 			extensionVersion: this._envService.getVersion(),
+			identity: this._identity,
 			value
 		};
 		return this._actual.update(key, wrapped);
@@ -485,6 +506,8 @@ interface IWrappedExpValue {
 	$$$isWrappedExpValue: true;
 	savedDateTime: string;
 	extensionVersion: string;
+	/** Who the value was fetched for (see `ExpMementoWrapper`); unset when unknown. */
+	identity?: string;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	value: any;
 }

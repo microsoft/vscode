@@ -696,6 +696,12 @@ export class SimpleExperimentationService extends Disposable implements IExperim
 		return value as T | undefined;
 	}
 
+	peekTreatmentVariable<T extends boolean | number | string>(name: string): T | undefined {
+		return this.variables[name] as T | undefined;
+	}
+
+	recordTreatmentExposure(_name: string, _value: boolean | number | string): void { }
+
 	async setCompletionsFilters(_filters: Map<string, string>): Promise<void> { }
 
 	updateTreatmentVariables(variables: Record<string, boolean | number | string>): void {

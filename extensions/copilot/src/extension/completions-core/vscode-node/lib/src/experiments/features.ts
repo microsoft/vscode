@@ -105,7 +105,7 @@ export class Features implements ICompletionsFeaturesService {
 
 		const exp2: Partial<Record<ExpTreatmentVariables, ExpTreatmentVariableValue>> = {};
 		for (const varName of Object.values<ExpTreatmentVariables>(ExpTreatmentVariables)) {
-			const value = this.experimentationService.getTreatmentVariable(varName);
+			const value = this.experimentationService.peekTreatmentVariable<ExpTreatmentVariableValue>(varName);
 			if (value !== undefined) {
 				exp2[varName] = value;
 			}
@@ -115,7 +115,7 @@ export class Features implements ICompletionsFeaturesService {
 			// Based on what tas-client does in https://github.com/microsoft/tas-client/blob/2bd24c976273b671892aad99139af2c7c7dc3b26/tas-client/src/tas-client/FeatureProvider/TasApiFeatureProvider.ts#L59
 			return name + (value ? '' : 'cf');
 		});
-		const exp = new ExpConfig(exp2, features.join(';'));
+		const exp = new ExpConfig(exp2, features.join(';'), (name, value) => this.experimentationService.recordTreatmentExposure(name, value));
 		const filterMap = this.instantiationService.invokeFunction(createCompletionsFilters, token);
 		const filterRecord: Partial<Record<Filter, string>> = {};
 		for (const [key, value] of filterMap.entries()) {
