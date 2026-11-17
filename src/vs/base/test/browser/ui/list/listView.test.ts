@@ -1210,7 +1210,7 @@ suite('ListView', function () {
 			renderTemplate(container) { return container; },
 			renderElement(value, _index, container) {
 				container.textContent = String(value);
-				// Layout changes inside a transaction can report scroll synchronously, which renders again and re-enters the row cache transaction (#205597).
+				// Layout changes while a render transaction runs can report scroll synchronously (see #205597).
 				if (setScrollTopOnRender) {
 					setScrollTopOnRender = false;
 					listView.setScrollTop(0);
@@ -1229,7 +1229,17 @@ suite('ListView', function () {
 		// Scroll far enough to recycle rows while the renderer reports a scroll synchronously inside the render transaction.
 		setScrollTopOnRender = true;
 		assert.doesNotThrow(() => listView.setScrollTop(400));
-		assert.strictEqual(listView.contentHeight, 50 * 20);
+
+		// The reported scroll event must render the viewport it belongs to: rendered rows, their content and the
+		// container offset have to match the latest scroll position, not the viewport of the interrupted render.
 		assert.strictEqual(listView.scrollTop, 0);
+		assert.strictEqual(listView.domElement(0)?.textContent, '0');
+		assert.strictEqual(listView.domElement(5)?.textContent, '5');
+		assert.strictEqual(listView.domElement(9)?.textContent, '9');
+		assert.strictEqual(listView.domElement(20), null);
+		assert.strictEqual(listView.domElement(45), null);
+		const rowsContainer = element.querySelector('.monaco-list-rows') as HTMLElement;
+		assert.strictEqual(rowsContainer.style.top, '0px');
+		assert.strictEqual(listView.contentHeight, 50 * 20);
 	});
 });
