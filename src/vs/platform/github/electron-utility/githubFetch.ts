@@ -91,6 +91,11 @@ export function createFetch(
 			env: { ...process.env, ...shellEnv },
 		};
 
-		return createFetchPatch(params, globalThis.fetch, createProxyResolver(params).resolveProxyURL);
+		let fetch: typeof globalThis.fetch | undefined;
+		return (input, init) => {
+			// Proxy construction can load certificates, so wait for the caller's cancellation check.
+			fetch ??= createFetchPatch(params, globalThis.fetch, createProxyResolver(params).resolveProxyURL);
+			return fetch(input, init);
+		};
 	}
 }

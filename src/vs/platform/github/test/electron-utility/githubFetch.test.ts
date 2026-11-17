@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
@@ -15,7 +15,7 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { NullLogService } from '../../../log/common/log.js';
 import { INativeHostService } from '../../../native/common/native.js';
 import { createFetch } from '../../electron-utility/githubFetch.js';
-import { gitHubJsonResponse, gitHubRestStep, ProgrammableGitHubServer } from '../node/programmableGitHubServer.js';
+import { gitHubJsonResponse, gitHubRestStep, gitHubTextResponse, ProgrammableGitHubServer } from '../node/programmableGitHubServer.js';
 
 suite('Shared process GitHub fetch', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -37,6 +37,45 @@ suite('Shared process GitHub fetch', () => {
 		await assert.rejects(pending, isCancellationError);
 		assert.deepStrictEqual(lookups, []);
 	});
+
+	for (const concurrent of [false, true]) {
+		test(`reuses initialization for a ${concurrent ? 'concurrent' : 'later'} caller after cancellation`, async () => {
+			const server = store.add(await ProgrammableGitHubServer.start());
+			const configuration = new TestConfigurationService({ 'http.systemCertificates': false, 'http.noProxy': ['127.0.0.1'] });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			const source = store.add(new CancellationTokenSource());
+			let initializations = 0;
+			const fetch = createFetch(new class extends mock<INativeHostService>() {
+				override async resolveProxy(): Promise<string> { return 'DIRECT'; }
+				override async loadCertificates(): Promise<string[]> { return []; }
+			}(), configuration, upcastPartial<INativeEnvironmentService>({
+				get args() {
+					initializations++;
+					source.cancel();
+					return { _: [], 'force-disable-user-env': true };
+				},
+			}), new NullLogService());
+			try {
+				for (const body of ['first', 'cached']) {
+					server.enqueue(gitHubRestStep({
+						path: '/request',
+						response: gitHubTextResponse(body, { headers: { 'Access-Control-Allow-Origin': '*' } }),
+					}));
+				}
+				const cancelled = assert.rejects(fetch(`${server.apiBaseUrl}/cancelled`, undefined, source.token, store.add(new DisposableStore())), isCancellationError);
+				const request = () => fetch(`${server.apiBaseUrl}/request`, undefined, CancellationToken.None, store.add(new DisposableStore()));
+				const pending = concurrent ? request() : undefined;
+				await cancelled;
+				const first = await (pending ?? request());
+				const firstBody = await first.text();
+				const cached = await request();
+				assert.deepStrictEqual({ bodies: [firstBody, await cached.text()], initializations }, { bodies: ['first', 'cached'], initializations: 1 });
+				server.assertSatisfied();
+			} finally {
+				await server.disposeAsync();
+			}
+		});
+	}
 
 	test('cancels native requests after lazy initialization', async () => {
 		const server = store.add(await ProgrammableGitHubServer.start());
