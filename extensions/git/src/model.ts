@@ -21,6 +21,7 @@ import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
 import { IBranchProtectionProviderRegistry } from './branchProtection';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 import { RepositoryCache } from './repositoryCache';
+import { WorkspaceFolderRepositories } from './workspaceFolderRepositories';
 
 class RepositoryPick implements QuickPickItem {
 	@memoize get label(): string {
@@ -201,6 +202,8 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	get repositories(): Repository[] { return this.openRepositories.map(r => r.repository); }
 
 	private possibleGitRepositoryPaths = new Set<string>();
+
+	private readonly workspaceFolderRepositories = new WorkspaceFolderRepositories<OpenRepository>(r => r.repository.root);
 
 	private _onDidChangeState = new EventEmitter<State>();
 	readonly onDidChangeState = this._onDidChangeState.event;
@@ -469,21 +472,17 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 	private async onDidChangeWorkspaceFolders({ added, removed }: WorkspaceFoldersChangeEvent): Promise<void> {
 		try {
-			const possibleRepositoryFolders = added
-				.filter(folder => !this.getOpenRepository(folder.uri));
-
-			const activeRepositoriesList = window.visibleTextEditors
-				.map(editor => this.getRepository(editor.document.uri))
-				.filter(repository => !!repository) as Repository[];
-
-			const activeRepositories = new Set<Repository>(activeRepositoriesList);
-			const openRepositoriesToDispose = removed
-				.map(folder => this.getOpenRepository(folder.uri))
-				.filter(r => !!r)
-				.filter(r => !activeRepositories.has(r!.repository))
-				.filter(r => !(workspace.workspaceFolders || []).some(f => isDescendant(f.uri.fsPath, r!.repository.root))) as OpenRepository[];
+			const activeRepositories = this.getVisibleEditorRepositories();
+			const openRepositoriesToDispose = this.workspaceFolderRepositories.onDidChangeWorkspaceFolders(
+				{ added, removed },
+				workspace.workspaceFolders || [],
+				uri => this.getOpenRepository(uri),
+				r => activeRepositories.has(r.repository));
 
 			openRepositoriesToDispose.forEach(r => r.dispose());
+
+			// Decided once the repositories of the removed folders are closed, as an added folder can be a repository nested in one of them
+			const possibleRepositoryFolders = this.workspaceFolderRepositories.getAddedFoldersToOpen(added, this.openRepositories.flatMap(r => [r.repository.root, r.repository.rootRealPath ?? r.repository.root]));
 			this.logger.trace(`[Model][onDidChangeWorkspaceFolders] Workspace folders: [${possibleRepositoryFolders.map(p => p.uri.fsPath).join(', ')}]`);
 			await Promise.all(possibleRepositoryFolders.map(p => this.openRepository(p.uri.fsPath)));
 		}
@@ -528,8 +527,19 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		openRepositoriesToDispose.forEach(r => r.dispose());
 	}
 
+	private getVisibleEditorRepositories(): Set<Repository> {
+		return new Set(window.visibleTextEditors
+			.map(editor => this.getRepository(editor.document.uri))
+			.filter(repository => !!repository) as Repository[]);
+	}
+
 	private async onDidChangeVisibleTextEditors(editors: readonly TextEditor[]): Promise<void> {
 		try {
+			// Close the repositories of removed workspace folders that were kept open for their visible editors
+			const activeRepositories = this.getVisibleEditorRepositories();
+			this.workspaceFolderRepositories.onDidChangeVisibleEditors(workspace.workspaceFolders || [], r => activeRepositories.has(r.repository))
+				.forEach(r => r.dispose());
+
 			if (!workspace.isTrusted) {
 				this.logger.trace('[Model][onDidChangeVisibleTextEditors] Workspace is not trusted.');
 				return;
@@ -872,6 +882,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			operationListener.dispose();
 			repository.dispose();
 
+			this.workspaceFolderRepositories.delete(openRepository);
 			this.openRepositories = this.openRepositories.filter(e => e !== openRepository);
 			this._onDidCloseRepository.fire(repository);
 		};
