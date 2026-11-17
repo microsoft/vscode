@@ -927,8 +927,11 @@ export interface IAgentHostAdapterOptions {
 	 * (cloud sandbox: provider `copilot`, sessions `ahp-session:/<id>`). Defaults to the provider.
 	 */
 	readonly backendSessionScheme?: string;
-	/** Maps a backend session URI to the client resource used by this host. */
-	readonly mapBackendSessionResource: (resource: URI) => URI;
+	/**
+	 * Maps a backend session URI to the client resource used by this host; `undefined` for a session whose provider this
+	 * client does not know, such as the creator of a session on another client.
+	 */
+	readonly mapBackendSessionResource: (resource: URI) => URI | undefined;
 	/**
 	 * The advertised default chat of a backend session of this host, from the
 	 * session state or listing this client holds; `undefined` when neither is known.
@@ -1725,8 +1728,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			if (!creationReference) {
 				return undefined;
 			}
-			const session = this._options.mapBackendSessionResource(URI.parse(creationReference.session));
+			// Read first: it re-evaluates this as the host advertises sessions, such as a creator not known yet
 			const sourceDefaultChat = this._options.getBackendDefaultChat(URI.parse(creationReference.session), reader);
+			const session = this._options.mapBackendSessionResource(URI.parse(creationReference.session));
+			if (!session) {
+				return undefined;
+			}
 			const chat = creationReference.chat === undefined
 				? undefined
 				: creationReference.chat === sourceDefaultChat ? session : session.with({ fragment: getAgentHostChatId(creationReference.chat) });
@@ -5148,20 +5155,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _backendDefaultChat(backendSession: URI, reader: IReader | undefined): string | undefined {
 		this._backendSessionsChanged.read(reader);
 		const cached = this._sessionCache.get(backendSession.toString());
-		return this._lastSessionStates.get(toSessionId(this.id, this._mapBackendSessionResource(backendSession)))?.defaultChat
+		const resource = this._mapBackendSessionResource(backendSession);
+		return (resource && this._lastSessionStates.get(toSessionId(this.id, resource))?.defaultChat)
 			?? cached?.defaultChatBackendUri.read(reader)?.toString();
 	}
 
-	protected _mapBackendSessionResource(resource: URI): URI {
+	/** The client resource of a backend session, or `undefined` when this client does not know the session's provider. */
+	protected _mapBackendSessionResource(resource: URI): URI | undefined {
 		const known = this._sessionCache.get(resource.toString());
 		if (known) {
 			return known.resource;
 		}
 		const sessionType = this._metadataBySession.get(resource.toString())?.provider ?? AgentSession.provider(resource);
-		if (!sessionType) {
-			throw new Error(`Cannot project session without its advertised provider: ${resource.toString()}`);
-		}
-		return resource.with({ scheme: this.resourceSchemeForProvider(sessionType) });
+		return sessionType ? resource.with({ scheme: this.resourceSchemeForProvider(sessionType) }) : undefined;
 	}
 
 	protected sessionResource(backendSession: URI, scheme: string): URI {

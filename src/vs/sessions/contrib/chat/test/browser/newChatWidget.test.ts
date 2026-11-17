@@ -46,7 +46,8 @@ import { INotificationService, Severity } from '../../../../../platform/notifica
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
-import type { ISessionOptionsIconOnlyPickers } from '../../../../../workbench/contrib/sessions/browser/chat/iconOnlySessionPickers.js';
+import { DefaultNewSessionPresentation } from '../../../../../workbench/contrib/sessions/browser/chat/defaultNewSessionPresentation.js';
+import { INewSessionPresentationController } from '../../../../../workbench/contrib/sessions/browser/newSessionPresentation.js';
 import { getNewSessionWelcomePhrases } from '../../../../../workbench/contrib/sessions/common/welcomePhrases.js';
 import { SessionInputPickerVisibility } from '../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -71,7 +72,7 @@ import { createSessionViewTestServices, createTestActiveSession, testPaneOf } fr
 import { getDefaultSessionCreationEnvironment, getSessionCreationEnvironments, ISessionCreationEnvironment } from '../../../../../workbench/contrib/sessions/browser/chat/sessionEnvironmentPicker.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
@@ -85,6 +86,11 @@ import { ISessionHost, ISessionHostService } from '../../../../../workbench/serv
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
 import { ITestSessionWithChat, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISavedSessionDraft, ISavedSessionDraftTarget } from '../../../../../workbench/contrib/sessions/common/savedSessionDrafts.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import '../../../../../base/browser/ui/codicons/codiconStyles.js';
 import '../../../../../workbench/browser/media/style.css';
 import '../../../../../workbench/contrib/chat/browser/widget/media/chat.css';
@@ -232,8 +238,8 @@ const syncWorkspacePickerFromSessionWorkspace = Reflect.get(NewChatWidget.protot
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
 const prepareChatTipSession = Reflect.get(NewChatWidget.prototype, '_prepareChatTipSession') as (this: IChatTipSessionHarness) => void;
 const updateChatTip = Reflect.get(NewChatWidget.prototype, '_updateChatTip') as (this: { _renderChatTip(): void; focusInput(): void }, isShowing: boolean, container: HTMLElement) => void;
-const restoreSessionOptionsExpanded = Reflect.get(NewChatWidget.prototype, '_restoreSessionOptionsExpanded') as (this: ISessionOptionsPersistenceHarness) => void;
-const setSessionOptionsExpandedFromUser = Reflect.get(NewChatWidget.prototype, '_setSessionOptionsExpandedFromUser') as (this: ISessionOptionsPersistenceHarness, expanded: boolean) => void;
+const restoreSessionOptionsExpanded = Reflect.get(DefaultNewSessionPresentation.prototype, '_restoreSessionOptionsExpanded') as (this: ISessionOptionsPersistenceHarness) => void;
+const setSessionOptionsExpandedFromUser = Reflect.get(DefaultNewSessionPresentation.prototype, '_setSessionOptionsExpandedFromUser') as (this: ISessionOptionsPersistenceHarness, expanded: boolean) => void;
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
 const seedRequestedTarget = Reflect.get(NewChatWidget.prototype, '_seedRequestedTarget') as (this: object, target: INewSessionTarget) => void;
 const seedWorkspaceDraft = Reflect.get(NewChatWidget.prototype, '_seedWorkspaceDraft') as (this: object) => void;
@@ -431,23 +437,23 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 		readonly pickerHoverDelegate?: ReturnType<typeof getDefaultHoverDelegate>;
 		readonly pickerVisibility: SessionInputPickerVisibility;
 		placeRepositoryControls(container?: HTMLElement): void;
+		getRepositoryControlId(element: HTMLElement): string | undefined;
 	};
 	readonly _workspacePicker: {
 		readonly selectedFolderUri: URI | undefined;
 		readonly onDidChangeSelection: Event<void>;
-		renderCategoryTriggers(container: HTMLElement, triggers: readonly { readonly label?: string; readonly tooltip?: string; readonly icon?: { readonly id: string }; readonly attachesContext?: boolean; readonly clearable?: IObservable<boolean> }[]): HTMLElement;
+		getSelectedLocationDescription?(): string | undefined;
+		renderCategoryTriggers(container: HTMLElement, triggers: readonly { readonly label?: string; readonly tooltip?: string | (() => string); readonly icon?: { readonly id: string }; readonly attachesContext?: boolean; readonly clearable?: IObservable<boolean> }[]): HTMLElement;
 	};
 	_renderSessionTypePicker(container: HTMLElement, isQuickChat: boolean): void;
-	_renderPlaceRow(container: HTMLElement, chipRow: HTMLElement): IDisposable;
 	_workspacePickerRow: HTMLElement | undefined;
 	_workspaceSessionOptionsHost: HTMLElement | undefined;
 	readonly _sessionOptionsExpanded: ReturnType<typeof observableValue<boolean>>;
-	_setSessionOptionsExpandedFromUser(expanded: boolean): void;
+	readonly _presentation: INewSessionPresentationController;
 	readonly _workspaceOptOutTarget: IObservable<ICreateNewSessionOptions | undefined>;
 	readonly _workspaceOptOutEnabled: ReturnType<typeof observableValue<boolean>>;
 	readonly _screenReaderOptimized: ReturnType<typeof observableValue<boolean>>;
 	readonly _collapsedSessionOptionsShowIcons: ReturnType<typeof observableValue<boolean>>;
-	readonly _iconOnlyPickers: ISessionOptionsIconOnlyPickers;
 	readonly _onDidChangeChatPetPlatform: Emitter<void>;
 	readonly telemetryService: ITelemetryService;
 }
@@ -535,12 +541,34 @@ interface IClearWorkspaceHarness {
 }
 
 const renderWorkspacePicker = Reflect.get(NewChatWidget.prototype, '_renderWorkspacePicker') as (this: IRenderWorkspacePickerHarness, container: HTMLElement) => IDisposable;
-const noIconOnlyPickers: IRenderWorkspacePickerHarness['_iconOnlyPickers'] = {
-	iconOnlyPickerIds: constObservable(new Set<string>()),
-	showOptionsToggle: constObservable(true),
-	getPickerId: () => undefined,
-	showContextMenu: () => { },
-};
+function createDefaultPresentationHarness(store: Pick<DisposableStore, 'add'>, telemetryService: ITelemetryService, expanded: boolean) {
+	const screenReader = observableValue('screenReader', false);
+	const collapsedIcons = observableValue('collapsedIcons', false);
+	const storageService = store.add(new InMemoryStorageService());
+	storageService.store('agentSessions.newSession.sessionOptionsExpanded2', expanded, StorageScope.PROFILE, StorageTarget.USER);
+	const instantiationService = store.add(new TestInstantiationService());
+	instantiationService.stub(IStorageService, storageService);
+	instantiationService.stub(ITelemetryService, telemetryService);
+	instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+		override onDidChangeScreenReaderOptimized = Event.fromObservableLight(screenReader);
+		override isScreenReaderOptimized() { return screenReader.get(); }
+	}());
+	instantiationService.stub(IConfigurationService, new class extends mock<IConfigurationService>() {
+		override readonly onDidChangeConfiguration = Event.map(Event.fromObservableLight(collapsedIcons),
+			() => upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING }));
+		override getValue<T>() { return collapsedIcons.get() as T; }
+	}());
+	instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() { }());
+	instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { }());
+	instantiationService.stub(IKeybindingService, new class extends mock<IKeybindingService>() { }());
+	const presentation = store.add(instantiationService.createInstance(DefaultNewSessionPresentation, false));
+	return {
+		_presentation: presentation,
+		_sessionOptionsExpanded: Reflect.get(presentation, '_sessionOptionsExpanded') as ISettableObservable<boolean>,
+		_screenReaderOptimized: screenReader,
+		_collapsedSessionOptionsShowIcons: collapsedIcons,
+	};
+}
 const renderSessionTypePicker = Reflect.get(NewChatWidget.prototype, '_renderSessionTypePicker') as (this: IRenderSessionTypePickerHarness, container: HTMLElement, isQuickChat: boolean) => void;
 const selectNoWorkspace = NewChatWidget.prototype.selectNoWorkspace as (this: ISelectNoWorkspaceHarness, options?: ICreateNewSessionOptions, selectionOptions?: ISelectNoWorkspaceOptions) => void;
 const openQuickChat = Reflect.get(NewChatWidget.prototype, '_openQuickChat') as ISelectNoWorkspaceHarness['_openQuickChat'];
@@ -2005,6 +2033,7 @@ suite('NewChatWidget', () => {
 			let clearable: IObservable<boolean> | undefined;
 			const telemetryService = new TestExperimentTriggerTelemetryService();
 			const harness: IRenderWorkspacePickerHarness = {
+				...createDefaultPresentationHarness(disposables, telemetryService, true),
 				_environment: observableValue('environment', undefined),
 				_environmentPicker: { isVisible: constObservable(false), render: () => assert.fail('No environment picker expected') },
 				agentHostFilterService: { selectedHost: { sessionCreationProviderId: 'creation' } },
@@ -2019,19 +2048,14 @@ suite('NewChatWidget', () => {
 				_newChatInput: {
 					pickerVisibility: disposables.add(new SessionInputPickerVisibility()),
 					placeRepositoryControls: () => { },
+					getRepositoryControlId: () => undefined,
 					sessionTypePicker: { render: () => { } },
 				},
 				_renderSessionTypePicker: () => { },
-				_renderPlaceRow: () => toDisposable(() => { }),
 				_workspacePickerRow: undefined,
 				_workspaceSessionOptionsHost: undefined,
-				_sessionOptionsExpanded: observableValue('expanded', true),
-				_setSessionOptionsExpandedFromUser: () => { },
 				_workspaceOptOutTarget: target,
 				_workspaceOptOutEnabled: observableValue('optOut', enabled),
-				_screenReaderOptimized: observableValue('screenReader', false),
-				_collapsedSessionOptionsShowIcons: observableValue('icons', false),
-				_iconOnlyPickers: noIconOnlyPickers,
 				_onDidChangeChatPetPlatform: disposables.add(new Emitter<void>()),
 				telemetryService,
 			};
@@ -2074,6 +2098,7 @@ suite('NewChatWidget', () => {
 		const telemetryService = new TestExperimentTriggerTelemetryService();
 		let environmentRenderCount = 0;
 		const harness: IRenderWorkspacePickerHarness = {
+			...createDefaultPresentationHarness(disposables, telemetryService, false),
 			_environment: observableValue<ISessionCreationEnvironment | undefined>('environment', undefined),
 			_environmentPicker: {
 				isVisible: constObservable(true),
@@ -2093,6 +2118,7 @@ suite('NewChatWidget', () => {
 			_workspacePicker: {
 				selectedFolderUri: undefined,
 				onDidChangeSelection: Event.None,
+				getSelectedLocationDescription: () => undefined,
 				renderCategoryTriggers: (target, triggers) => {
 					workspaceVisibility.push(pickerVisibility.visibility.get().workspace);
 					const row = document.createElement('div');
@@ -2103,7 +2129,7 @@ suite('NewChatWidget', () => {
 						item.tabIndex = 0;
 						item.textContent = trigger.label ?? 'More';
 						row.appendChild(item);
-						workspaceTriggers.push({ tooltip: trigger.tooltip, icon: trigger.icon?.id, attachesContext: trigger.attachesContext });
+						workspaceTriggers.push({ tooltip: typeof trigger.tooltip === 'function' ? trigger.tooltip() : trigger.tooltip, icon: trigger.icon?.id, attachesContext: trigger.attachesContext });
 					}
 					return row;
 				},
@@ -2111,6 +2137,7 @@ suite('NewChatWidget', () => {
 			_newChatInput: {
 				pickerVisibility,
 				pickerHoverDelegate: getDefaultHoverDelegate('element'),
+				getRepositoryControlId: () => undefined,
 				placeRepositoryControls: target => {
 					if (target) {
 						for (const label of ['Worktree', 'Branch']) {
@@ -2137,23 +2164,10 @@ suite('NewChatWidget', () => {
 				},
 			},
 			_renderSessionTypePicker: (target, isQuickChat) => renderSessionTypePicker.call(harness, target, isQuickChat),
-			_renderPlaceRow: (target, chipRow) => {
-				const placeRow = document.createElement('div');
-				placeRow.className = 'sessions-new-session-place-row';
-				placeRow.textContent = 'Cloud';
-				target.insertBefore(placeRow, chipRow);
-				return toDisposable(() => placeRow.remove());
-			},
 			_workspacePickerRow: undefined,
 			_workspaceSessionOptionsHost: undefined,
-			_sessionOptionsExpanded: observableValue('sessionOptionsExpanded', false),
-			_setSessionOptionsExpandedFromUser: expanded => harness._sessionOptionsExpanded.set(expanded, undefined),
 			_workspaceOptOutTarget: constObservable(undefined),
 			_workspaceOptOutEnabled: observableValue('workspaceOptOutEnabled', false),
-			_screenReaderOptimized: observableValue('screenReaderOptimized', false),
-			// Keep this test focused on the fully-hidden collapse; the icon rail has its own test.
-			_collapsedSessionOptionsShowIcons: observableValue('collapsedSessionOptionsShowIcons', false),
-			_iconOnlyPickers: noIconOnlyPickers,
 			_onDidChangeChatPetPlatform: disposables.add(new Emitter<void>()),
 			telemetryService,
 		};
@@ -2177,7 +2191,6 @@ suite('NewChatWidget', () => {
 		const collapsedAgain = snapshot();
 
 		assert.deepStrictEqual({
-			placeRow: container.firstElementChild?.className,
 			workspace: harness._workspacePickerRow?.firstElementChild?.textContent,
 			items: Array.from(details.children, element => ({
 				label: element.textContent,
@@ -2191,7 +2204,6 @@ suite('NewChatWidget', () => {
 			controlsTarget: toggle.getAttribute('aria-controls') === details.id,
 			sameDetails: details === harness._workspaceSessionOptionsHost,
 		}, {
-			placeRow: 'sessions-new-session-place-row',
 			workspace: isWeb ? 'Select Repository' : 'Workspace',
 			items: [
 				{ label: 'WorktreeBranch', className: 'new-chat-repository-controls-host' },
@@ -2321,7 +2333,7 @@ suite('NewChatWidget', () => {
 		const expanded = observableValue('sessionOptionsExpanded', false);
 		let expandedWhenOpened = false;
 		const harness = {
-			_sessionOptionsExpanded: expanded,
+			_presentation: { revealOptions: () => expanded.set(true, undefined) },
 			_newChatInput: { sessionTypePicker: { showPicker: () => expandedWhenOpened = expanded.get() } },
 		};
 		const focusHarnessPicker = NewChatWidget.prototype.focusHarnessPicker as (this: typeof harness) => void;

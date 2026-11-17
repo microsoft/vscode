@@ -6,14 +6,15 @@ import { $, isHTMLInputElement, isHTMLTextAreaElement, reset } from '../../../..
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { Button, ButtonWithDropdown, unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Action } from '../../../../base/common/actions.js';
 import { Delayer, RunOnceScheduler } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { abortOnDispose } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { debounce } from '../../../../base/common/decorators.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isLinuxSnap, isMacintosh } from '../../../../base/common/platform.js';
 import { IProductConfiguration } from '../../../../base/common/product.js';
@@ -21,8 +22,9 @@ import { joinPath } from '../../../../base/common/resources.js';
 import { escape } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Action } from '../../../../base/common/actions.js';
+import { createCancellableFetch } from '../../../../base/parts/request/common/fetch.js';
 import { localize } from '../../../../nls.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { withGitHubCredentialDeadline } from '../../../../platform/github/common/githubCredentialService.js';
@@ -31,12 +33,11 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { toGitHubAuthorizationContext } from '../../../services/github/common/githubService.js';
 import { IIssueFormService, ISimilarIssue, IssueReporterData, IssueReporterExtensionData, IssueType } from '../common/issue.js';
 import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from './issueReporterModel.js';
-import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
-import { toGitHubAuthorizationContext } from '../../../services/github/common/githubService.js';
 
 const MAX_URL_LENGTH = 7500;
 
@@ -75,7 +76,7 @@ export class BaseIssueReporterService extends Disposable {
 	private privateAction: Action;
 	private readonly similarIssueSearch = this._register(new MutableDisposable());
 	private similarIssueSearchGeneration = 0;
-	private readonly disposeSignal = abortOnDispose(this._store);
+	private readonly _disposeToken = cancelOnDispose(this._store);
 
 	constructor(
 		public disableExtensions: boolean,
@@ -935,18 +936,18 @@ export class BaseIssueReporterService extends Disposable {
 		if (this._store.isDisposed || generation !== this.similarIssueSearchGeneration) {
 			return;
 		}
-		const controller = new AbortController();
-		this.similarIssueSearch.value = toDisposable(() => controller.abort());
+		const controller = new CancellationTokenSource();
+		this.similarIssueSearch.value = toDisposable(() => controller.dispose(true));
 		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const similarIssues = this.getElementById('similar-issues')!;
 
-		void this.issueFormService.searchGitHubIssues(repo, title, controller.signal).then(results => {
-			if (!controller.signal.aborted) {
+		void this.issueFormService.searchGitHubIssues(repo, title, controller.token).then(results => {
+			if (!controller.token.isCancellationRequested) {
 				similarIssues.innerText = '';
 				this.displaySearchResults(results);
 			}
 		}).catch(error => {
-			if (!controller.signal.aborted) {
+			if (!controller.token.isCancellationRequested) {
 				this.logService.warn('[IssueReporter] Error fetching GitHub issues', error);
 			}
 		});
@@ -957,8 +958,13 @@ export class BaseIssueReporterService extends Disposable {
 		if (this._store.isDisposed || generation !== this.similarIssueSearchGeneration) {
 			return;
 		}
-		const controller = new AbortController();
-		this.similarIssueSearch.value = toDisposable(() => controller.abort());
+		const lifetime = new DisposableStore();
+		const source = new CancellationTokenSource();
+		this.similarIssueSearch.value = toDisposable(() => {
+			source.dispose(true);
+			lifetime.dispose();
+		});
+		const token = source.token;
 		const url = 'https://vscode-probot.westus.cloudapp.azure.com:7890/duplicate_candidates';
 		const init = {
 			method: 'POST',
@@ -969,12 +975,11 @@ export class BaseIssueReporterService extends Disposable {
 			headers: new Headers({
 				'Content-Type': 'application/json'
 			}),
-			signal: controller.signal,
 		};
 
-		void this.fetcher(url, init).then(async response => {
+		void createCancellableFetch(this.fetcher)(url, init, token, lifetime).then(async response => {
 			const result: { candidates?: readonly ISimilarIssue[] } | null = await response.json();
-			if (controller.signal.aborted) {
+			if (token.isCancellationRequested) {
 				return;
 			}
 			if (!result || !Array.isArray(result.candidates)) {
@@ -982,9 +987,12 @@ export class BaseIssueReporterService extends Disposable {
 			}
 			this.displaySearchResults(result.candidates);
 		}).catch(error => {
-			if (!controller.signal.aborted) {
+			if (!token.isCancellationRequested) {
 				this.logService.warn('[IssueReporter] Error fetching duplicate issues', error);
 			}
+		}).finally(() => {
+			lifetime.dispose();
+			source.dispose();
 		});
 	}
 
@@ -1288,15 +1296,15 @@ export class BaseIssueReporterService extends Disposable {
 		const authorization = this.data.githubAuthorization;
 		let issueUrl: string;
 		try {
-			const sessions = await withGitHubCredentialDeadline(this.disposeSignal, () => this.authenticationService.getSessions('github', [], { silent: true }, true));
+			const sessions = await withGitHubCredentialDeadline(this._disposeToken, () => this.authenticationService.getSessions('github', [], { silent: true }, true));
 			const session = authorization && sessions.find(session => isEqualAuthorization(authorization, toGitHubAuthorizationContext('github', session)));
 			if (!session) {
 				throw new GitHubRequestError(localize('issueReporter.githubSessionUnavailable', "The GitHub session selected for this issue report is no longer available. Sign in again or preview the report on GitHub."), 'authentication');
 			}
-			issueUrl = await this.issueFormService.createGitHubIssue('github', session, { owner: gitHubDetails.owner, repo: gitHubDetails.repositoryName }, { title: issueTitle, body: issueBody }, this.disposeSignal);
-			this.disposeSignal.throwIfAborted();
+			issueUrl = await this.issueFormService.createGitHubIssue('github', session, { owner: gitHubDetails.owner, repo: gitHubDetails.repositoryName }, { title: issueTitle, body: issueBody }, this._disposeToken);
+			CancellationToken.throwIfCanceled(this._disposeToken);
 		} catch (error) {
-			this.disposeSignal.throwIfAborted();
+			CancellationToken.throwIfCanceled(this._disposeToken);
 			if (!isCancellationError(error)) {
 				this.logService.error('[IssueReporter] Failed to create GitHub issue', error);
 			}

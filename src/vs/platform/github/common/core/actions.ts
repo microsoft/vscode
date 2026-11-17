@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
 import { PageOptions, RepositoryRef } from '../client/types.js';
 import { CheckConclusion, CheckStatus, DownloadRedirect } from './core.js';
@@ -162,35 +163,35 @@ export interface RerunOptions extends ApiRequestOptions {
 export interface IActionsClient {
 
 	/** GET /repos/{owner}/{repo}/actions/runs: list one page of workflow runs. */
-	listRuns(repository: RepositoryRef, signal: AbortSignal, options?: ListWorkflowRunsOptions): Promise<WorkflowRunsPage>;
+	listRuns(repository: RepositoryRef, cancellationToken: CancellationToken, options?: ListWorkflowRunsOptions): Promise<WorkflowRunsPage>;
 
 	/** GET /repos/{owner}/{repo}/actions/runs/{id}: read a run, optionally selecting a specific attempt. */
-	getRun(repository: RepositoryRef, runId: number, signal: AbortSignal, options?: GetWorkflowRunOptions): Promise<WorkflowRun>;
+	getRun(repository: RepositoryRef, runId: number, cancellationToken: CancellationToken, options?: GetWorkflowRunOptions): Promise<WorkflowRun>;
 
 	/** GET /repos/{owner}/{repo}/actions/runs/{id}/jobs: list one page of jobs from the latest or all attempts. */
-	listJobs(repository: RepositoryRef, runId: number, signal: AbortSignal, options?: ListWorkflowJobsOptions): Promise<WorkflowJobsPage>;
+	listJobs(repository: RepositoryRef, runId: number, cancellationToken: CancellationToken, options?: ListWorkflowJobsOptions): Promise<WorkflowJobsPage>;
 
 	/** GET /repos/{owner}/{repo}/actions/runs/{id}/attempts/{attempt}/jobs: list one page of jobs for a specific attempt. */
-	listJobsForAttempt(repository: RepositoryRef, runId: number, attempt: number, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<WorkflowJobsPage>;
+	listJobsForAttempt(repository: RepositoryRef, runId: number, attempt: number, cancellationToken: CancellationToken, options?: ApiPaginationOptions<PageOptions>): Promise<WorkflowJobsPage>;
 
 	/** GET /repos/{owner}/{repo}/actions/jobs/{id}: read one job. */
-	getJob(repository: RepositoryRef, jobId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<WorkflowJob>;
+	getJob(repository: RepositoryRef, jobId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<WorkflowJob>;
 
 	/** GET /repos/{owner}/{repo}/actions/jobs/{id}/logs: get a temporary download URL for a job's log. Unsupported by browser Fetch. */
-	getJobLogRedirect(repository: RepositoryRef, jobId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<DownloadRedirect>;
+	getJobLogRedirect(repository: RepositoryRef, jobId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<DownloadRedirect>;
 
 	/** GET /repos/{owner}/{repo}/actions/runs/{id}/logs: get a temporary download URL for a run's log archive. Unsupported by browser Fetch. */
-	getRunLogRedirect(repository: RepositoryRef, runId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<DownloadRedirect>;
+	getRunLogRedirect(repository: RepositoryRef, runId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<DownloadRedirect>;
 
 	/** POST /repos/{owner}/{repo}/actions/runs/{id}/rerun: request a new attempt of the workflow run. */
-	rerun(repository: RepositoryRef, runId: number, signal: AbortSignal, options?: RerunOptions): Promise<void>;
+	rerun(repository: RepositoryRef, runId: number, cancellationToken: CancellationToken, options?: RerunOptions): Promise<void>;
 
 	/** POST /repos/{owner}/{repo}/actions/runs/{id}/rerun-failed-jobs: request a rerun of the failed jobs. */
-	rerunFailedJobs(repository: RepositoryRef, runId: number, signal: AbortSignal, options?: RerunOptions): Promise<void>;
+	rerunFailedJobs(repository: RepositoryRef, runId: number, cancellationToken: CancellationToken, options?: RerunOptions): Promise<void>;
 
 	/** POST /repos/{owner}/{repo}/actions/jobs/{id}/rerun: request a rerun of one job and its dependents. */
-	rerunJob(repository: RepositoryRef, jobId: number, signal: AbortSignal, options?: RerunOptions): Promise<void>;
+	rerunJob(repository: RepositoryRef, jobId: number, cancellationToken: CancellationToken, options?: RerunOptions): Promise<void>;
 
 	/** POST /repos/{owner}/{repo}/actions/runs/{id}/cancel: request cancellation; HTTP 202 acknowledges acceptance, not termination. */
-	cancel(repository: RepositoryRef, runId: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<void>;
+	cancel(repository: RepositoryRef, runId: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<void>;
 }
