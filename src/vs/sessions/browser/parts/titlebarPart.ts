@@ -312,7 +312,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 		// Application menu, the first entry before the left toolbar
 		if (this.showsApplicationMenu) {
-			this._register(this.instantiationService.createInstance(ApplicationMenu, this.leftContent, this.leftToolbarContainer));
+			this._register(this.instantiationService.createInstance(ApplicationMenu, this.leftContent, this.leftToolbarContainer, () => this.titleBarToolBarOverflowScheduler.schedule()));
 		}
 
 		// Center section: [nav toolbar] [command center box] [actions toolbar]

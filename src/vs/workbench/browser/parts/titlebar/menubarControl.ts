@@ -214,7 +214,7 @@ export abstract class MenubarControl extends Disposable {
 		}
 	}
 
-	private get menubarHidden(): boolean {
+	protected get menubarHidden(): boolean {
 		return isMacintosh && isNative ? false : getMenuBarVisibility(this.configurationService) === 'hidden';
 	}
 
@@ -428,6 +428,10 @@ export class CustomMenubarControl extends MenubarControl {
 
 	protected get currentMenubarVisibility(): MenuBarVisibility {
 		return getMenuBarVisibility(this.configurationService);
+	}
+
+	protected override get menubarHidden(): boolean {
+		return this.currentMenubarVisibility === 'hidden';
 	}
 
 	private get currentDisableMenuBarAltFocus(): boolean {
