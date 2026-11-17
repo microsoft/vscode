@@ -185,6 +185,46 @@ suite('pluginListWidget', () => {
 		});
 	});
 
+	test('shows installed and host plugins as from a GitHub Team unless the organization manages them', () => {
+		const createItem = (name: string, teamProvided?: boolean, policyEnablement?: boolean): IInstalledPluginItem => {
+			const plugin = new class extends mock<IAgentPlugin>() {
+				override readonly uri = URI.file(`/plugins/${name}`);
+				override readonly label = name;
+				override readonly policyEnablement = constObservable(policyEnablement);
+				override readonly teamProvided = teamProvided === undefined ? undefined : constObservable(teamProvided);
+				override readonly copilotCliInstallation = { name, marketplace: 'team' };
+			}();
+			return { kind: AgentPluginItemKind.Installed, name, description: '', plugin };
+		};
+		const createSessionPlugin = (name: string, overrides: Partial<ICustomizationItem>): ICustomizationItem => ({
+			uri: URI.file(`/plugins/${name}`), type: 'plugin', name, source: AICustomizationSources.plugin, extensionId: undefined, pluginUri: undefined,
+			actions: [{ id: 'toggle', label: 'Disable Globally', checked: true, scope: 'global', run: () => { } }],
+			...overrides,
+		});
+		const widget = Object.assign(Object.create(PluginListWidget.prototype), {
+			sessionPluginItems: [
+				createSessionPlugin('session-assigned', { teamProvided: true }),
+				createSessionPlugin('session-required', { teamProvided: true, organizationControl: { requiredEnabled: true } }),
+			],
+		});
+		const hostPlugin = createSessionPlugin('host-plugin', { teamProvided: true });
+		assert.deepStrictEqual({
+			assigned: widget.isInstalledPluginTeamProvided(createItem('assigned', true)),
+			// Team assignment follows the signed-in account, so the plugin's session plugin may be the one reporting it.
+			sessionAssigned: widget.isInstalledPluginTeamProvided(createItem('session-assigned')),
+			own: widget.isInstalledPluginTeamProvided(createItem('own', false)),
+			blocked: widget.isInstalledPluginTeamProvided(createItem('blocked', true, false)),
+			sessionRequired: widget.isInstalledPluginTeamProvided(createItem('session-required', true)),
+			hostLabels: [hostPlugin, { ...hostPlugin, organizationControl: {} }].map(item => widget.getPluginEntryAriaLabel({ type: 'remote-item', item })),
+		}, {
+			assigned: true, sessionAssigned: true, own: false, blocked: false, sessionRequired: false,
+			hostLabels: [
+				'host-plugin. Agent host. Assigned by your GitHub Team. You can still enable or disable it.',
+				'host-plugin. Agent host. Managed by your organization.',
+			],
+		});
+	});
+
 	test('This Workspace badge opens the existing scope action without changing scope until confirmed', async () => {
 		let menu: IContextMenuDelegate | undefined;
 		let calls = 0;

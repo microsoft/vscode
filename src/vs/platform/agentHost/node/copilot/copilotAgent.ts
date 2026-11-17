@@ -28,6 +28,7 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { CopilotForkTiming } from './copilotForkTiming.js';
 import { readCopilotRepositoryPluginEnablement, setCopilotRepositoryPluginEnabled } from './copilotRepositoryPluginSettings.js';
 import { readRuntimePluginEnablement, withRuntimePluginEnablement } from '../../common/meta/pluginEnablementMeta.js';
+import { withCustomizationTeamProvided } from '../../common/meta/customizationTeamMeta.js';
 import { toCopilotAccountModelCatalog } from './copilotAccountModelCatalog.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { Promises as FsPromises } from '../../../../base/node/pfs.js';
@@ -3287,6 +3288,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				effectiveEnabled: effectivePlugin ? effectivePlugin.enabled : effective !== undefined && matches.length === 0 && !ambiguous ? false : undefined,
 				// The runtime resolves managed settings per session, so the chat's inventory states what the organization requires.
 				managedDesiredEnabled: effectivePlugin?.managed ? effectivePlugin.managedDesiredEnabled : plugin.managedDesiredEnabled,
+				// Team assignment follows the signed-in account, so the chat's inventory is authoritative when it lists the plugin.
+				...((effectivePlugin?.team ?? plugin.team) === true ? { team: true } : {}),
 				...(plugin.marketplace && repositoryEnablement ? { repositoryEnabled: repositoryEnablement.get(`${plugin.name}@${plugin.marketplace}`) ?? null } : {}),
 				resource: plugin.rootPath && isAbsolute(plugin.rootPath) ? URI.file(plugin.rootPath) : undefined,
 				contentRevision: this._plugins.runtimePluginContentRevision,
@@ -3757,6 +3760,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			isDefault: marketplace.isDefault === true,
 			managed: marketplace.managed === true,
 			available: marketplace.available !== false,
+			...(marketplace.team === true ? { team: true } : {}),
 		}));
 	}
 
@@ -12609,7 +12613,7 @@ class SessionPluginController extends Disposable {
 					...child,
 					_meta: withCustomizationDiscoveryMeta(child._meta, { ...readCustomizationDiscoveryMeta(child), source: 'plugin' }),
 				})) : [],
-				_meta: withRuntimePluginEnablement(undefined, {
+				_meta: withCustomizationTeamProvided(withRuntimePluginEnablement(undefined, {
 					provider: COPILOT_CLI_AGENT_PROVIDER_ID,
 					plugin: installation.directSourceId ?? `${installation.name}@${installation.marketplace}`,
 					globalEnabled: installation.enabled,
@@ -12618,7 +12622,7 @@ class SessionPluginController extends Disposable {
 					repositorySupported: !!installation.marketplace,
 					managedDesiredEnabled: installation.managedDesiredEnabled,
 					contentRevision: contents.contentRevision,
-				}),
+				}), installation.team),
 				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: installation.effectiveEnabled ?? false }],
 			} satisfies PluginCustomization;
 		}));

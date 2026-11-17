@@ -276,6 +276,8 @@ interface IFixtureAgentHostPlugin {
 	readonly organization?: string;
 	readonly enabled?: boolean;
 	readonly organizationControl?: ICustomizationOrganizationControl;
+	/** Set when the user's GitHub Team assigns the plugin. */
+	readonly teamProvided?: boolean;
 	/** Enablement actions, which pair the plugin with a runtime-installed plugin of the same name. */
 	readonly actions?: ICustomizationItem['actions'];
 }
@@ -297,6 +299,7 @@ function createFixtureAgentHostItemProvider(files: readonly IFixtureFile[], remo
 				statusMessage: plugin.statusMessage,
 				enabled: plugin.enabled,
 				organizationControl: plugin.organizationControl,
+				teamProvided: plugin.teamProvided,
 				actions: plugin.actions,
 				extensionId: undefined,
 				pluginUri: undefined,
@@ -4551,6 +4554,23 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				{ name: 'unapproved-deploy', description: 'Deploys to unapproved environments', scope: 'user', enabled: false, organizationControl: { requiredEnabled: false } },
 				{ name: 'contoso-security', description: 'Security scanning required by your organization', scope: 'user', status: 'error', statusMessage: 'Your organization requires this plugin, but it isn\'t installed.', organizationControl: { requiredEnabled: true } },
 				{ name: 'github', description: 'GitHub workflows built into Copilot', scope: 'application', status: 'loaded' },
+			],
+			height: 1180,
+		}),
+	}),
+
+	// Plugins a GitHub Team assigns. This is provenance only, so the organization tag wins when both apply.
+	TeamProvidedAgentHostPlugins: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The contoso-onboarding row shows a Managed by your GitHub Team tag with a shield icon next to its name. The contoso-compliance row, which the Team assigns and the organization requires, shows only the Managed by your organization tag. The azure row has no tag.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.Plugins,
+			marketplaceVisibilityEnabled: true,
+			agentHostPlugins: [
+				{ name: 'azure', description: 'Deploy and diagnose Azure resources', scope: 'user', status: 'loaded' },
+				{ name: 'contoso-onboarding', description: 'Onboarding workflows for the Contoso platform team', scope: 'user', status: 'loaded', teamProvided: true },
+				{ name: 'contoso-compliance', description: 'Compliance checks for Contoso repositories', scope: 'user', status: 'loaded', teamProvided: true, organizationControl: { requiredEnabled: true } },
 			],
 			height: 1180,
 		}),

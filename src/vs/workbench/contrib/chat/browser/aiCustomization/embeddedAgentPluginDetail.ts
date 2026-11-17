@@ -43,6 +43,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import type { IContextMenuProvider } from '../../../../../base/browser/contextmenu.js';
 import { AnchorAlignment } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
+import { getTeamProvidedPluginTooltip, isTeamProvidedVisible, TeamProvidedTag } from './customizationTeamProvenance.js';
 import { autorun, waitForState } from '../../../../../base/common/observable.js';
 import { detectPluginFormat, getPluginManifestComponent, parsePlugin, readMarkdownComponents, readPluginManifest, resolvePluginComponentDirs } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
@@ -175,6 +176,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 	private readonly nameRowEl: HTMLElement;
 	private readonly nameEl: HTMLElement;
 	private readonly statusBadgeEl: HTMLElement;
+	private readonly teamTag: TeamProvidedTag;
 	private readonly titleActionsEl: HTMLElement;
 	private readonly descriptionEl: HTMLElement;
 	private readonly sourceFactsEl: HTMLElement;
@@ -249,6 +251,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		this.nameEl = DOM.append(this.nameRowEl, $('h2.embedded-detail-name'));
 		this.nameEl.setAttribute('role', 'heading');
 		this.statusBadgeEl = DOM.append(this.nameRowEl, $('.inline-badge.embedded-detail-status-badge'));
+		this.teamTag = this._register(new TeamProvidedTag(this.nameRowEl, this.hoverService));
 		this.titleActionsEl = DOM.append(this.headerEl, $('.embedded-detail-title-actions'));
 
 		this.descriptionEl = DOM.append(this.root, $('.embedded-detail-description'));
@@ -314,6 +317,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			this.inputStateAutorun.value = autorun(reader => {
 				item.plugin.enablement.read(reader);
 				const policyEnablement = getPluginPolicyEnablement(item.plugin, reader);
+				item.plugin.teamProvided?.read(reader);
 				item.plugin.version?.read(reader);
 				const installations = this.marketplaceInstallService.installations.read(reader);
 				const repository = getPluginRepository(item, installations);
@@ -360,6 +364,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		const hasItem = !!item;
 		this.emptyEl.style.display = hasItem ? 'none' : '';
 		this.root.classList.toggle('is-empty', !hasItem);
+		this.updateTeamTag();
 		if (!item) {
 			this.nameEl.textContent = '';
 			this.statusBadgeEl.textContent = '';
@@ -413,8 +418,17 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			this.statusBadgeEl.style.display = 'none';
 		}
 		this.updateEnablementAction?.();
+		this.updateTeamTag();
 		this.updatePluginVersionFact(item);
 		this._onDidChangeContent.fire();
+	}
+
+	/** Shows the Team tag for an installed plugin the user's GitHub Team assigns, unless the organization manages it. */
+	private updateTeamTag(): void {
+		const item = this.current;
+		const teamProvided = item?.kind === AgentPluginItemKind.Installed
+			&& isTeamProvidedVisible(item.plugin.teamProvided?.get(), getPluginPolicyEnablement(item.plugin) !== undefined);
+		this.teamTag.update(teamProvided ? getTeamProvidedPluginTooltip() : undefined);
 	}
 
 	private renderTitleActions(item: IAgentPluginItem): void {
