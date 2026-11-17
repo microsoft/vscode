@@ -940,6 +940,15 @@ suite('Agent Host client artifact notices', () => {
 		});
 	});
 
+	test('a client integration status notice reaches the host through the artifact transport', async () => {
+		const f = fixture();
+		const notice: ArtifactAutomationNotice = { kind: 'status', session, artifact, content: 'Removed from the merge queue.', iconId: 'beaker' };
+		await f.service.postNotice(notice);
+		assert.deepStrictEqual({ requests: f.requests.map(request => request.kind), notices: f.notices, released: f.released }, {
+			requests: ['acquire', 'notice', 'release'], notices: [notice], released: 1,
+		});
+	});
+
 	for (const phase of ['before', 'after acquire'] as const) {
 		for (const reason of ['disconnect', 'owner', 'capability', 'AI disablement'] as const) {
 			test(`${reason} ${phase} prevents notice delivery without leaking the subscription`, async () => {

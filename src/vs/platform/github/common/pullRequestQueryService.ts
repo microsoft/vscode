@@ -170,8 +170,11 @@ const requiredContextsLifetime = 5 * 60 * 1000;
 /** How many parsed workflow files are kept; a workflow at a commit never changes. */
 const maximumCachedWorkflows = 50;
 
-/** How many merge group commits' failed checks are kept; checks of a merge group that left the queue do not run again. */
+/** How many merge group commits' failed checks are kept. */
 const maximumCachedMergeGroups = 50;
+
+/** How long the failed checks of a merge group whose checks all finished are reused; a check can still be re-run or report late. */
+const mergeGroupFailuresLifetime = 5 * 60 * 1000;
 
 export class PullRequestQueryService implements IPullRequestQuery {
 
@@ -186,8 +189,8 @@ export class PullRequestQueryService implements IPullRequestQuery {
 	/** The jobs of each workflow file, keyed by `host/owner/repo@commit:path`, or `undefined` when unreadable. */
 	private readonly _workflowJobs = new Map<string, ReadonlyMap<string, WorkflowJob> | undefined>();
 
-	/** The failed checks of each merge group commit, keyed by `host/owner/repo@commit`. */
-	private readonly _mergeGroupFailures = new Map<string, readonly PullRequestCheck[]>();
+	/** The failed checks of each merge group commit whose checks all finished, keyed by `host/owner/repo@commit`. */
+	private readonly _mergeGroupFailures = new Map<string, { readonly failed: readonly PullRequestCheck[]; readonly observedAt: number }>();
 
 	constructor(
 		private readonly _transport: IGitHubTransport,
@@ -828,9 +831,10 @@ export class PullRequestQueryService implements IPullRequestQuery {
 	): Promise<readonly PullRequestCheck[] | undefined> {
 		const key = `${ref.host}/${ref.owner}/${ref.repo}@${sha}`.toLowerCase();
 		const cached = this._mergeGroupFailures.get(key);
-		if (cached) {
-			return cached;
+		if (cached && this._clock.now() - cached.observedAt < mergeGroupFailuresLifetime) {
+			return cached.failed;
 		}
+		this._mergeGroupFailures.delete(key);
 		try {
 			const checks: PullRequestCheck[] = [];
 			let url: string | undefined = this._restUrl(ref, `commits/${encodeURIComponent(sha)}/check-runs?filter=latest&per_page=100`);
@@ -844,9 +848,12 @@ export class PullRequestQueryService implements IPullRequestQuery {
 			}, cancellationToken);
 			checks.push(...arrayProperty(asObject(statuses.data, 'GitHub status response was malformed'), 'statuses').map(toRestStatus));
 			const failed = checks.filter(check => getPullRequestCheckState(check) === 'failed');
-			this._mergeGroupFailures.set(key, failed);
-			if (this._mergeGroupFailures.size > maximumCachedMergeGroups) {
-				this._mergeGroupFailures.delete(this._mergeGroupFailures.keys().next().value!);
+			// Checks that are still running, or pages left unread, can add failures that a later read must find.
+			if (!url && !checks.some(check => getPullRequestCheckState(check) === 'pending')) {
+				this._mergeGroupFailures.set(key, { failed, observedAt: this._clock.now() });
+				if (this._mergeGroupFailures.size > maximumCachedMergeGroups) {
+					this._mergeGroupFailures.delete(this._mergeGroupFailures.keys().next().value!);
+				}
 			}
 			return failed;
 		} catch (error) {

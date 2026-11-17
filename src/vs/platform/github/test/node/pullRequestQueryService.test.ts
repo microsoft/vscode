@@ -48,7 +48,7 @@ suite('PullRequestQueryService', () => {
 		}
 	}
 
-	function setup(server: ProgrammableGitHubServer, capabilities = availableCapabilities, now?: number): {
+	function setup(server: ProgrammableGitHubServer, capabilities = availableCapabilities, now?: number | (() => number)): {
 		readonly query: PullRequestQueryService;
 		readonly ref: PullRequestRef;
 		readonly credential: GitHubCredential;
@@ -57,7 +57,7 @@ suite('PullRequestQueryService', () => {
 		const cancellationToken = CancellationToken.None;
 		const transport = disposables.add(new GitHubTransport(nodeFetch));
 		return {
-			query: new PullRequestQueryService(transport, new TestCapabilitiesService(capabilities), server.createEndpointService(), undefined, now === undefined ? undefined : { now: () => now }),
+			query: new PullRequestQueryService(transport, new TestCapabilitiesService(capabilities), server.createEndpointService(), undefined, now === undefined ? undefined : { now: typeof now === 'function' ? now : () => now }),
 			ref: { ...account, owner: 'octo', repo: 'repo', number: 7 },
 			credential: { account, token: 'token', generation: 1, cancellationToken },
 		};
@@ -932,6 +932,46 @@ suite('PullRequestQueryService', () => {
 				undefined,
 				undefined,
 			]);
+			server.assertSatisfied();
+		});
+	});
+
+	test('reads the checks of a merge group again while they run and after the read expires', async () => {
+		const mergeability = gitHubGraphQLStep({
+			queryIncludes: ['AgentHostPullRequestMergeability', 'REMOVED_FROM_MERGE_QUEUE_EVENT'],
+			response: gitHubGraphQLResponse({
+				repository: {
+					mergeCommitAllowed: false, squashMergeAllowed: true, rebaseMergeAllowed: false, viewerPermission: 'WRITE', mergeQueue: { id: 'MQ1' },
+					pullRequest: {
+						headRefOid: 'head-1', baseRefOid: 'base', mergeable: 'MERGEABLE', mergeStateStatus: 'BLOCKED', reviewDecision: 'APPROVED',
+						viewerCanUpdateBranch: true, viewerCanEnableAutoMerge: true, autoMergeRequest: null, mergeQueueEntry: null,
+						timelineItems: { nodes: [{ __typename: 'RemovedFromMergeQueueEvent', id: 'RFMQE_1', createdAt: '2026-11-17T07:09:23Z', reason: 'failed_checks', actor: { login: 'github-merge-queue' }, beforeCommit: { oid: 'group-1' } }] },
+					},
+				},
+			}),
+		});
+		const checks = (...check_runs: readonly unknown[]) => [
+			gitHubRestStep({ method: 'GET', path: '/repos/octo/repo/commits/group-1/check-runs', query: { filter: 'latest', per_page: 100 }, response: gitHubJsonResponse({ check_runs }) }),
+			gitHubRestStep({ method: 'GET', path: '/repos/octo/repo/commits/group-1/status', query: { per_page: 100 }, response: gitHubJsonResponse({ statuses: [] }) }),
+		];
+		const unit = (status: string, conclusion: string | null) => ({ id: 1, name: 'Linux / Unit', status, conclusion });
+		await withServer(async server => {
+			server.enqueue(
+				mergeability, ...checks(unit('in_progress', null)),
+				// The running check is read again, and its failure is then reused until the read expires.
+				mergeability, ...checks(unit('completed', 'failure')),
+				mergeability,
+				mergeability, ...checks(unit('completed', 'success')),
+			);
+			let now = 0;
+			const { query, ref, credential } = setup(server, availableCapabilities, () => now);
+			const failedChecks = [];
+			for (const at of [0, 1_000, 2_000, 2_000 + 5 * 60 * 1000]) {
+				now = at;
+				const result = await query.fetch('mergeability', ref, core('head-1'), { priority: 'interactive', mergeability: true }, credential, CancellationToken.None);
+				failedChecks.push(result.fragment === 'mergeability' ? result.value.mergeQueueRemoval?.failedChecks?.map(check => check.name) : undefined);
+			}
+			assert.deepStrictEqual(failedChecks, [[], ['Linux / Unit'], ['Linux / Unit'], []]);
 			server.assertSatisfied();
 		});
 	});

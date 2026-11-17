@@ -979,6 +979,38 @@ suite('GitHub pull request artifact integration', () => {
 		}));
 	}
 
+	test('automatic merging does not re-add a pull request whose removal changes while the run prepares', () => run(async store => {
+		const timedOut = { id: 'R1', reason: 'timed_out', removedAt: '2026-11-17T07:09:23Z' };
+		const f = await fixture(store, removedFromQueue(timedOut));
+		// A person removes the same commit again after the run was scheduled for the timeout.
+		f.onPrepareMerge(async () => {
+			f.snapshot.set(removedFromQueue({ id: 'R2', reason: 'manual', removedAt: '2026-11-17T07:19:23Z', removedBy: 'octocat' }), undefined);
+		});
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { merge: 'always' });
+		await timeout(1_000);
+		await f.service.whenIdle();
+		assert.deepStrictEqual({
+			mutations: f.mutations,
+			runs: f.service.ledger.state.get().runs.map(run => [run.actionId, run.state]),
+		}, { mutations: [], runs: [['merge', 'skipped']] });
+	}));
+
+	test('automation reconciles an uncertain manual Add to Merge Queue once GitHub confirms the merge', () => run(async store => {
+		const queueRequired = removedFromQueue(undefined);
+		const f = await fixture(store, queueRequired);
+		f.onMerge(async () => { throw new GitHubRequestError('GitHub unavailable', 'network'); });
+		const uncertain = await f.invoke('enqueue');
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { merge: 'always' });
+		f.snapshot.set({ ...queueRequired, core: { ...queueRequired.core, value: { ...queueRequired.core.value!, state: 'merged' } } }, undefined);
+		await timeout(31_000);
+		await f.service.whenIdle();
+		assert.deepStrictEqual({
+			uncertain: [uncertain.state, !!uncertain.indeterminate],
+			runs: f.service.ledger.state.get().runs.map(run => [run.actionId, run.state, !!run.indeterminate]),
+			mutations: f.mutations,
+		}, { uncertain: ['interrupted', true], runs: [['enqueue', 'completed', false]], mutations: [] });
+	}));
+
 	test('posts one notice when a pull request it saw in the merge queue leaves it without merging', () => run(async store => {
 		const queued = removedFromQueue(undefined);
 		const inQueue = { ...queued, mergeability: { ...queued.mergeability, complete: false, value: { ...queued.mergeability.value!, mergeable: 'UNKNOWN' as const, mergeQueueEntryId: 'MQE1', mergeQueueEntryState: 'AWAITING_CHECKS' as const } } };

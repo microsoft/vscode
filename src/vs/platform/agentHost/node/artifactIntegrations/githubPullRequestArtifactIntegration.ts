@@ -1069,6 +1069,15 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			|| (isArtifactDataObject(context.run.input) && context.run.input.headSha === snapshot.core.value?.headSha);
 	}
 
+	/**
+	 * Whether an automatic merge may act on the pull request's current removal from its merge queue, if it has one: only
+	 * the timeout it was requested for. A removal it was not requested for, such as one by a person, stands.
+	 */
+	private isAuthorizedAfterRemoval(context: IArtifactActionContext, snapshot: PullRequestSnapshot): boolean {
+		const removal = context.run.source === 'automation' ? getMergeQueueRemoval(snapshot, true) : undefined;
+		return !removal || (isMergeQueueTimeout(removal.reason) && isArtifactDataObject(context.run.input) && context.run.input.afterMergeQueueRemoval === removal.id);
+	}
+
 	private isInvocationCurrent(context: IArtifactActionContext, token: CancellationToken): boolean {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
@@ -1092,6 +1101,9 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 				if (!this.applicable(id, snapshot, context.run.source === 'automation') || !this.isRequestedHead(context, snapshot)) {
 					return { kind: 'skip', reason: this.actionDisabledReason(id, snapshot) };
 				}
+				if (!this.isAuthorizedAfterRemoval(context, snapshot)) {
+					return { kind: 'skip', reason: localize('prArtifact.removalNotAuthorized', "The pull request was removed from the merge queue, and automatic merging does not add it again for this removal.") };
+				}
 				const headSha = snapshot.core.value!.headSha;
 				await this.writeCheckpoint(previous => ({ ...previous, mutation: { runId: context.run.id, headSha, phase: 'preparing' } }));
 				return {
@@ -1100,7 +1112,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 						run: async ({ token, runId }) => {
 							CancellationToken.throwIfCanceled(token);
 							const current = await this.resource.refresh(token);
-							if (current.core.value?.headSha !== headSha || !this.applicable(id, current, context.run.source === 'automation')) {
+							if (current.core.value?.headSha !== headSha || !this.applicable(id, current, context.run.source === 'automation') || !this.isAuthorizedAfterRemoval(context, current)) {
 								return { kind: 'skipped', reason: localize('prArtifact.stateChanged', "The pull request changed before the action could run.") };
 							}
 							if (id === 'markReady') {
@@ -1118,7 +1130,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 							}
 							const preparation = await this.resource.withAuthentication(() => this.github.mutations.prepareMerge(this.resource.ref, headSha, token), token);
 							if (preparation.snapshot.core.value?.headSha !== headSha || !isPullRequestArtifactMergeable(preparation.snapshot, context.run.source === 'automation')
-								|| (id === 'enqueue' && !preparation.snapshot.mergeability.value?.mergeQueueRequired)) {
+								|| (id === 'enqueue' && !preparation.snapshot.mergeability.value?.mergeQueueRequired) || !this.isAuthorizedAfterRemoval(context, preparation.snapshot)) {
 								return { kind: 'skipped', reason: localize('prArtifact.mergeChanged', "GitHub's merge requirements changed.") };
 							}
 							if (context.run.source === 'automation' && !await this.unchangedForMerge()) {
@@ -1309,7 +1321,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		}
 		const uncertain = runs.find(run => run.indeterminate);
 		if (uncertain) {
-			if (uncertain.actionKind === 'code' && (uncertain.actionId === 'markReady' || uncertain.actionId === 'merge')) {
+			if (uncertain.actionKind === 'code' && (uncertain.actionId === 'markReady' || uncertain.actionId === 'merge' || uncertain.actionId === 'enqueue')) {
 				if (this.reconcilingRun) {
 					return undispatchedRetryDelay;
 				}
