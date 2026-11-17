@@ -15,6 +15,7 @@ import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../.
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { IExtensionRemoteAgentHostsService, toExtensionRemoteAgentHostEntry } from '../../../../../platform/agentHost/common/extensionRemoteAgentHosts.js';
 import { IMissionControlEnvironmentService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, type RemoteAgentHostConnection } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -116,6 +117,17 @@ export function getDefaultSessionCreationEnvironment(environments: readonly ISes
 		?? local;
 }
 
+/**
+ * The environment a draft keeps for the user's pick: as currently listed, or as picked while one of
+ * its providers is registered, such as a host hidden from the picker. Once all of them are gone, for
+ * example because their host was unregistered, the pick no longer applies; it applies again if a
+ * provider of it returns, as when one is recreated.
+ */
+export function getPickedSessionCreationEnvironment(picked: ISessionCreationEnvironment, environments: readonly ISessionCreationEnvironment[], providers: readonly ISessionsProvider[]): ISessionCreationEnvironment | undefined {
+	return environments.find(environment => environment.id === picked.id)
+		?? (providers.some(provider => picked.providerIds.includes(provider.id)) ? picked : undefined);
+}
+
 interface IEnvironmentPickerItem {
 	readonly run: () => Promise<void>;
 	readonly checked?: boolean;
@@ -155,6 +167,7 @@ export class SessionEnvironmentPicker extends Disposable {
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
 		@IMissionControlEnvironmentService private readonly environmentService: IMissionControlEnvironmentService,
+		@IExtensionRemoteAgentHostsService private readonly extensionRemoteAgentHostsService: IExtensionRemoteAgentHostsService,
 	) {
 		super();
 	}
@@ -353,6 +366,10 @@ export class SessionEnvironmentPicker extends Disposable {
 			&& this.environmentService.hosts.get().some(host => host.kind === 'user-local' && cloudSandboxAddress(host.id) === provider.remoteAddress)) {
 			return 'githubEnvironment';
 		}
-		return this.remoteAgentHostService.configuredEntries.find(entry => getEntryAddress(entry) === provider.remoteAddress)?.connection;
+		const remoteAddress = provider.remoteAddress;
+		const configured = this.remoteAgentHostService.configuredEntries.find(entry => getEntryAddress(entry) === remoteAddress)?.connection;
+		// An extension's host that the user disconnected is not dialed, so only its registration describes it.
+		const registered = configured ? undefined : this.extensionRemoteAgentHostsService.hosts.get().find(host => host.address === remoteAddress);
+		return configured ?? (registered && toExtensionRemoteAgentHostEntry(registered).connection);
 	}
 }

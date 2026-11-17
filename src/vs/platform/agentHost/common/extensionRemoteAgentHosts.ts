@@ -59,6 +59,20 @@ export interface IExtensionRemoteAgentHostsService {
 
 const DISCONNECTED_STORAGE_KEY = 'remoteAgentHost.extensionHosts.disconnected';
 
+/** The {@link RemoteAgentHostEntryType.Extension} entry of a registered host. */
+export function toExtensionRemoteAgentHostEntry(host: IExtensionRemoteAgentHost): IRemoteAgentHostEntry {
+	return {
+		name: host.name,
+		connectionToken: host.connectionToken,
+		connection: {
+			type: RemoteAgentHostEntryType.Extension,
+			address: host.address,
+			extensionId: host.extensionId,
+			extensionDisplayName: host.extensionDisplayName,
+		},
+	};
+}
+
 export class ExtensionRemoteAgentHostsService extends Disposable implements IExtensionRemoteAgentHostsService {
 	declare readonly _serviceBrand: undefined;
 
@@ -78,18 +92,7 @@ export class ExtensionRemoteAgentHostsService extends Disposable implements IExt
 
 	readonly connectableEntries = derived<readonly IRemoteAgentHostEntry[]>(this, reader => {
 		const disconnected = this._disconnectedAddresses.read(reader);
-		return this.hosts.read(reader)
-			.filter(host => !disconnected.has(host.address))
-			.map(host => ({
-				name: host.name,
-				connectionToken: host.connectionToken,
-				connection: {
-					type: RemoteAgentHostEntryType.Extension,
-					address: host.address,
-					extensionId: host.extensionId,
-					extensionDisplayName: host.extensionDisplayName,
-				},
-			}));
+		return this.hosts.read(reader).filter(host => !disconnected.has(host.address)).map(toExtensionRemoteAgentHostEntry);
 	});
 
 	constructor(

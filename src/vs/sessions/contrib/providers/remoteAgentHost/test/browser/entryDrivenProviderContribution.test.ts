@@ -7,12 +7,12 @@ import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostAdvertisedAuthenticationResolver } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
-import { IExtensionRemoteAgentHostsService } from '../../../../../../platform/agentHost/common/extensionRemoteAgentHosts.js';
-import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { type IExtensionRemoteAgentHost, IExtensionRemoteAgentHostsService, toExtensionRemoteAgentHostEntry } from '../../../../../../platform/agentHost/common/extensionRemoteAgentHosts.js';
+import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IWSLRemoteAgentHostService } from '../../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -77,7 +77,7 @@ suite('Entry-driven remote provider lifecycle', () => {
 			onDidChangeConfiguredEntries: changes.event, onDidChangeConnections: Event.None, connections: [],
 			registerConnectionFactory: () => Disposable.None,
 		});
-		instantiation.stub(IExtensionRemoteAgentHostsService, { connectableEntries: constObservable([]) });
+		instantiation.stub(IExtensionRemoteAgentHostsService, { connectableEntries: constObservable([]), hosts: constObservable([]), disconnectedAddresses: constObservable(new Set<string>()) });
 		instantiation.stub(IEnvironmentService, {});
 		instantiation.stub(IAgentHostAdvertisedAuthenticationResolver, {});
 		instantiation.stub(ISessionsProvidersService, {});
@@ -105,6 +105,59 @@ suite('Entry-driven remote provider lifecycle', () => {
 		configuredEntries = [configured];
 		changes.fire();
 		assert.deepStrictEqual(events, ['create settings', 'dispose settings', 'create extension', 'dispose extension', 'create settings']);
+	});
+
+	test('keeps the provider of an extension host the user disconnected, unlisting its sessions, until its registration ends', () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const changes = store.add(new Emitter<void>());
+		const host: IExtensionRemoteAgentHost = { address: '127.0.0.1:8445', name: 'Jobs', extensionId: 'publisher.jobs', extensionDisplayName: 'Job Runner' };
+		const hosts = observableValue<readonly IExtensionRemoteAgentHost[]>('hosts', [host]);
+		const disconnectedAddresses = observableValue<ReadonlySet<string>>('disconnectedAddresses', new Set());
+		let configuredEntries: readonly IRemoteAgentHostEntry[] = [toExtensionRemoteAgentHostEntry(host)];
+		instantiation.stub(IConfigurationService, configuration);
+		instantiation.stub(IRemoteAgentHostService, {
+			get configuredEntries() { return configuredEntries; },
+			onDidChangeConfiguredEntries: changes.event, onDidChangeConnections: Event.None, connections: [],
+			registerConnectionFactory: () => Disposable.None,
+		});
+		instantiation.stub(IExtensionRemoteAgentHostsService, { connectableEntries: constObservable([]), hosts, disconnectedAddresses });
+		instantiation.stub(IEnvironmentService, {});
+		instantiation.stub(IAgentHostAdvertisedAuthenticationResolver, {});
+		instantiation.stub(ISessionsProvidersService, {});
+		instantiation.stub(INotificationService, new TestNotificationService());
+		const providers: { readonly address: string; status?: string; sessionsListed: boolean; disposed: boolean }[] = [];
+		class TestContribution extends WebSocketAgentHostContribution {
+			protected override _createProvider(address: string, name: string) {
+				const state: { readonly address: string; status?: string; sessionsListed: boolean; disposed: boolean } = { address, sessionsListed: true, disposed: false };
+				providers.push(state);
+				const provider = new class extends mock<RemoteAgentHostSessionsProvider>() {
+					override get defaultLabel() { return name; }
+					override setConnectionStatus(status: RemoteAgentHostConnectionStatus) { state.status = status.kind; }
+					override unpublishCachedSessions() { state.sessionsListed = false; }
+					override dispose() { state.disposed = true; }
+				}();
+				const resources = new DisposableStore();
+				resources.add(provider);
+				this._providerInstances.set(address, provider);
+				resources.add(toDisposable(() => this._providerInstances.delete(address)));
+				this._providerStores.set(address, resources);
+				return provider;
+			}
+		}
+		store.add(instantiation.createInstance(TestContribution));
+
+		// The service no longer dials a host the user disconnected, so it has no configured entry.
+		configuredEntries = [];
+		disconnectedAddresses.set(new Set([host.address]), undefined);
+		changes.fire();
+		const afterDisconnect = providers.map(provider => ({ ...provider }));
+		hosts.set([], undefined);
+		assert.deepStrictEqual({ afterDisconnect, afterUnregister: providers }, {
+			afterDisconnect: [{ address: host.address, status: 'disconnected', sessionsListed: false, disposed: false }],
+			afterUnregister: [{ address: host.address, status: 'disconnected', sessionsListed: false, disposed: true }],
+		});
 	});
 
 	for (const kind of [RemoteAgentHostEntryType.SSH, RemoteAgentHostEntryType.WSL]) {
