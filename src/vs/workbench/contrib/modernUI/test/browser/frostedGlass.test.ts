@@ -429,7 +429,7 @@ suite('Frosted glass styles', () => {
 				sharesBorderBox: Math.abs(paintWidth - bounds.width) < 0.01 && Math.abs(paintHeight - bounds.height) < 0.01,
 			};
 		};
-		const radii = ['8px', '8px', '5px', '8px', '8px', '4px', '4px'];
+		const radii = ['8px', '8px', '5px', '8px', '4px', '4px'];
 		const expected = (bordered: boolean) => overlays.geometrySurfaces.map(({ name }, index) => ({
 			name,
 			hostRadius: radii[index],
