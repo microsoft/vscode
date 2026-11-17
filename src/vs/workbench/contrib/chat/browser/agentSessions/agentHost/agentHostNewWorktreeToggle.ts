@@ -153,20 +153,24 @@ export class ToggleAgentHostNewWorktreeAction extends Action2 {
 		if (!widget) {
 			return;
 		}
+		// The chat it was clicked for: also once a preselection under way applied, never the one the widget shows by then
+		const model = widget.viewModel?.model;
+		const resource = widget.viewModel?.sessionResource;
+		if (!model || !resource) {
+			return;
+		}
 		const sendChoice = accessor.get(IAgentHostWorktreeSendChoiceService);
-		const choices = accessor.get(IInstantiationService).createInstance(AgentHostWorktreeFolderChoices, () => widget.viewModel?.sessionResource);
+		const choices = accessor.get(IInstantiationService).createInstance(AgentHostWorktreeFolderChoices, () => resource);
 		try {
 			// Flips what the checkbox shows: a preselection under way, which it shows already, first applies
-			const shownResource = widget.viewModel?.sessionResource;
-			if (shownResource) {
-				await sendChoice.whenPreselected(shownResource);
+			await sendChoice.whenPreselected(resource);
+			if (widget.viewModel?.model !== model) {
+				// The widget closed or shows another chat meanwhile: the click was for a chat no longer shown
+				return;
 			}
 			await choices.setNewWorktree(!choices.isNewWorktreeSelected());
 			// The user's choice is their answer for later new chats in the folder
-			const resource = widget.viewModel?.sessionResource;
-			if (resource) {
-				sendChoice.rememberSelection(resource);
-			}
+			sendChoice.rememberSelection(resource);
 		} finally {
 			choices.dispose();
 		}

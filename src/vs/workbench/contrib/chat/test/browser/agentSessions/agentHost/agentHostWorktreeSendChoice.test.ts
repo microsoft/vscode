@@ -20,7 +20,7 @@ import { IContextKeyService } from '../../../../../../../platform/contextkey/com
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../../platform/notification/test/common/testNotificationService.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolderLocationService } from '../../../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../../../../platform/workspace/common/workspace.js';
 import { ResolveSessionConfigResult } from '../../../../../../../platform/agentHost/common/state/protocol/channels-root/commands.js';
@@ -33,10 +33,11 @@ import { IOnboardingScenarioService } from '../../../../../onboarding/common/onb
 import { IAgentHostNewSessionFolderService } from '../../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostWorktreeFolderChoices, IAgentHostWorktreeLocationsCache } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeFolderChoices.js';
-import { AGENT_HOST_WORKTREE_SEND_CHOICE_ID, AgentHostWorktreeSendChoice, IAgentHostWorktreeSendChoiceService, isRecentChatInFolder, IWorktreeSendChoiceSession, toWorktreeSendChoiceSessions, WORKTREE_SEND_CHOICE_RECENT_MS } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSendChoice.js';
+import { AGENT_HOST_WORKTREE_SEND_CHOICE_ID, AGENT_HOST_WORKTREE_SEND_CHOICE_STORAGE_KEY, AgentHostWorktreeSendChoice, IAgentHostWorktreeSendChoiceService, isRecentChatInFolder, IWorktreeSendChoiceSession, toWorktreeSendChoiceSessions, WORKTREE_SEND_CHOICE_RECENT_MS } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSendChoice.js';
 import { IAgentSession } from '../../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../browser/agentSessions/agentSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../browser/chat.js';
+import { IChatModel } from '../../../../common/model/chatModel.js';
 import { AgentHostNewWorktreeToggle, ChatAgentHostNewWorktreeSelected, ToggleAgentHostNewWorktreeAction } from '../../../../browser/agentSessions/agentHost/agentHostNewWorktreeToggle.js';
 import { ChatSubmitRequestHandlerService, ChatSubmitRequestOutcome, IChatSubmitRequestHandlerService } from '../../../../browser/chatSubmitRequestHandlerService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
@@ -451,7 +452,7 @@ suite('Agent host Work in Parallel choice on send', () => {
 			const draft = window.newDraft();
 			// The chat input's New Worktree toggle, as the editor window gives each chat widget one
 			const contextKeyService = store.add(new ContextKeyService(window.instantiationService.get(IConfigurationService)));
-			const widget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<IChatWidget['viewModel']>({ sessionResource: draft }), onDidChangeViewModel: Event.None, scopedContextKeyService: contextKeyService });
+			const widget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<IChatWidget['viewModel']>({ sessionResource: draft, model: upcastPartial<IChatModel>({}) }), onDidChangeViewModel: Event.None, scopedContextKeyService: contextKeyService });
 			const toggle = window.instantiationService.createInstance(AgentHostNewWorktreeToggle, widget);
 			const shown = () => contextKeyService.getContextKeyValue<boolean>(ChatAgentHostNewWorktreeSelected.key) === true;
 			const shownAtAction = shown();
@@ -476,6 +477,36 @@ suite('Agent host Work in Parallel choice on send', () => {
 			// The click unchecks what the checkbox showed: the chat works in the folder, as it then shows
 			toggle: { shownAtAction: true, settledEarly: false, isolation: 'folder', shownAfter: false, sent: [] },
 		});
+	});
+
+	test('a click on New Worktree while its preselection applies does nothing once the chat input shows another chat by then', async () => {
+		const window = createWindow({ firstChatIn: primary });
+		window.setAnswer('useWorktree');
+		await window.send(window.newDraft());
+		const applying = new DeferredPromise<void>();
+		window.holdApply(applying);
+		const a = window.newDraft();
+		const b = window.newDraft();
+		const preselecting = window.show(a);
+		// The chat input shows `a`, then `b` while `a`'s preselection still applies
+		let viewModel = upcastPartial<IChatWidget['viewModel']>({ sessionResource: a, model: upcastPartial<IChatModel>({}) });
+		const widget = upcastPartial<IChatWidget>({ get viewModel() { return viewModel; } });
+		const clicking = window.instantiationService.invokeFunction(accessor => new ToggleAgentHostNewWorktreeAction().run(accessor, { widget }));
+		await timeout(0);
+		viewModel = upcastPartial<IChatWidget['viewModel']>({ sessionResource: b, model: upcastPartial<IChatModel>({}) });
+		window.holdApply(undefined);
+		applying.complete();
+		await preselecting;
+		await clicking;
+		const storage = window.instantiationService.get(IStorageService);
+		const result = {
+			a: window.isolationOf(a),
+			b: { isolation: window.isolationOf(b), chosen: window.chosen.has(b.toString()) },
+			remembered: storage.get(AGENT_HOST_WORKTREE_SEND_CHOICE_STORAGE_KEY, StorageScope.PROFILE),
+		};
+		window.dispose();
+
+		assert.deepStrictEqual(result, { a: 'worktree', b: { isolation: 'folder', chosen: false }, remembered: 'worktree' });
 	});
 
 	test('does not preselect New Worktree with worktree support off', async () => {

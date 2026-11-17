@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IChatModel } from '../../../../common/model/chatModel.js';
 import { IAgentHostWorktreeSendChoiceService } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSendChoice.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -252,7 +253,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 			contextKeyService.createKey(ChatContextKeys.chatSessionType.key, SessionType.AgentHostCopilot);
 			contextKeyService.createKey('workbenchState', 'folder');
 			contextKeyService.createKey('remoteName', '');
-			const widget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<IChatWidget['viewModel']>({ sessionResource: session }), onDidChangeViewModel: Event.None, scopedContextKeyService: contextKeyService });
+			const widget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<IChatWidget['viewModel']>({ sessionResource: session, model: upcastPartial<IChatModel>({}) }), onDidChangeViewModel: Event.None, scopedContextKeyService: contextKeyService });
 			store.add(instantiationService.createInstance(AgentHostNewWorktreeToggle, widget));
 			await new Promise<void>(resolve => setTimeout(resolve, 0));
 			const shown = () => MenuRegistry.getMenuItems(MenuId.ChatInputSecondary).filter(isIMenuItem)
@@ -293,7 +294,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 			contextKeyService.createKey(ChatContextKeys.chatSessionType.key, SessionType.AgentHostCopilot);
 			contextKeyService.createKey('workbenchState', 'folder');
 			contextKeyService.createKey('remoteName', '');
-			const widget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<IChatWidget['viewModel']>({ sessionResource: session }), onDidChangeViewModel: Event.None, scopedContextKeyService: contextKeyService });
+			const widget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<IChatWidget['viewModel']>({ sessionResource: session, model: upcastPartial<IChatModel>({}) }), onDidChangeViewModel: Event.None, scopedContextKeyService: contextKeyService });
 			store.add(instantiationService.createInstance(AgentHostNewWorktreeToggle, widget));
 			await new Promise<void>(resolve => setTimeout(resolve, 0));
 			const shown = () => MenuRegistry.getMenuItems(MenuId.ChatInputSecondary).filter(isIMenuItem)
@@ -330,7 +331,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		const reads = async (options: { readonly sessionsList: boolean }) => {
 			const { listed, onDidChangeLocations, instantiationService } = await createChoices({ enabled: true, at: primary, listed: [], sessionsList: options.sessionsList, read: false });
 			const widgets = [0, 1, 2].map(() => upcastPartial<IChatWidget>({
-				viewModel: upcastPartial<IChatWidget['viewModel']>({ sessionResource: session }),
+				viewModel: upcastPartial<IChatWidget['viewModel']>({ sessionResource: session, model: upcastPartial<IChatModel>({}) }),
 				onDidChangeViewModel: Event.None,
 				scopedContextKeyService: store.add(new ContextKeyService(instantiationService.get(IConfigurationService))),
 			}));
