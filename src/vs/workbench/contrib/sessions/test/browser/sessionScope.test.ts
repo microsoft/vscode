@@ -145,33 +145,24 @@ suite('SessionsListingScopeFilter', () => {
 		]);
 	});
 
-	test('lists workspace-less quick chats in every scope, but not a session whose workspace is still hydrating', () => {
-		const quickChatFlag = observableValue('isQuickChat', true);
-		const quickChat: ISession = { ...createSession('quickChat', 'scratch'), workspace: observableValue<ISessionWorkspace | undefined>('quickChat', undefined), isQuickChat: quickChatFlag };
+	test('lists workspace-less quick chats only in an empty window, not in a window with folders, nor a session whose workspace is still hydrating until it arrives', () => {
+		const quickChat: ISession = { ...createSession('quickChat', 'scratch'), workspace: observableValue<ISessionWorkspace | undefined>('quickChat', undefined), isQuickChat: constObservable(true) };
 		const hydrating = { ...createSession('hydrating', 'repo'), isQuickChat: constObservable(false) };
 		hydrating.workspace.set(undefined, undefined);
 		const sessions = [quickChat, hydrating];
-		const changes = disposables.add(new Emitter<ISessionChangeEvent>());
-		const filter = disposables.add(new SessionsListingScopeFilter({ folders: constObservable([URI.file('/home/user/projects/repo')]) }, () => sessions, changes.event));
-		const ids = (list: readonly ISession[]) => list.map(session => session.sessionId).sort().join(',');
-		const events: string[] = [];
-		disposables.add(filter.onDidChangeSessions(e => events.push(`added=${ids(e.added)} removed=${ids(e.removed)} changed=${ids(e.changed)}`)));
-		const listed: string[] = [ids(filter.getSessions())];
+		const folders = observableValue<readonly URI[]>('folders', [URI.file('/home/user/projects/repo')]);
+		const filter = disposables.add(new SessionsListingScopeFilter({ folders }, () => sessions, Event.None));
+		const ids = () => filter.getSessions().map(session => session.sessionId).sort().join(',');
+		const listed: string[] = [ids()];
 
 		// The hydrating session's workspace arrives, in the scope
 		hydrating.workspace.set(buildTestWorkspace('repo'), undefined);
-		listed.push(ids(filter.getSessions()));
-		// The quick chat stops being one, without a workspace in the scope
-		quickChatFlag.set(false, undefined);
-		listed.push(ids(filter.getSessions()));
+		listed.push(ids());
+		// The window's folders are closed: an empty window lists every session
+		folders.set([], undefined);
+		listed.push(ids());
 
-		assert.deepStrictEqual({ listed, events }, {
-			listed: ['quickChat', 'hydrating,quickChat', 'hydrating'],
-			events: [
-				'added=hydrating removed= changed=',
-				'added= removed= changed=quickChat',
-			],
-		});
+		assert.deepStrictEqual(listed, ['', 'hydrating', 'hydrating,quickChat']);
 	});
 
 	test('reports changes of sessions only for those it lists, without matching the sessions to the scope again', () => {
