@@ -13,7 +13,9 @@ export const ILocalChatAvailabilityService = createDecorator<ILocalChatAvailabil
 /**
  * Whether local chats are offered and shown, apart from what the settings say: a feature that shows only the chats of
  * sessions, such as opening the Chat view's chats in the chat part, hides them while it is on. Then no new chat is local,
- * and sessions lists do not list local chats. It leaves the settings as the user has them.
+ * also not as a fallback once no other session type is available or one fails to start, which reports an error instead;
+ * and sessions lists do not list local chats. It leaves the settings as the user has them. Virtual workspaces and the
+ * managed policy that keeps local chat the default are exceptions (see `isEditorLocalAgentEnabled`).
  */
 export interface ILocalChatAvailabilityService {
 	readonly _serviceBrand: undefined;

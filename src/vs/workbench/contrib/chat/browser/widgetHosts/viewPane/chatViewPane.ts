@@ -61,7 +61,7 @@ import { IChatSessionsService, localChatSessionType, ResolvedChatSessionsExtensi
 import { AICustomizationManagementCommands, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { IChatOpen, IChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 import { LocalChatSessionUri, getChatSessionType, getNewChatSessionResource, isUntitledChatSession } from '../../../common/model/chatUri.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, isLocalAgentHostSessionTypeDisabledByPolicy, managedPolicyRequiresAgentHostMessage, SessionTypeSelectionReason } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, isLocalAgentHostSessionTypeDisabledByPolicy, getLocalChatFallbackRefusal, SessionTypeSelectionReason } from '../../../common/constants.js';
 import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget, layoutChatWidgetForInputHeight } from '../../widget/chatWidget.js';
@@ -1505,6 +1505,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		return this.showModel(CancellationToken.None, ref);
 	}
 
+	/** Why a new chat of the view cannot fall back to a local chat, if it cannot. */
+	private getLocalChatFallbackRefusal(): string | undefined {
+		return getLocalChatFallbackRefusal(this.configurationService, this.workspaceContextService.getWorkspace(), requiresCopilotAgentHost(this.managedSettingsService, this.configurationService), this.localChatAvailabilityService.hidden.get());
+	}
+
 	/**
 	 * When the remembered or computed default session type is a non-local
 	 * provider (for example when the agent host is enabled), return a new session
@@ -1520,8 +1525,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const resource = getNewChatSessionResource(defaultTypeAndReason.sessionType);
 		try {
 			const modelRef = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatViewPane#acquireDefaultNewSession', defaultTypeAndReason.selectionReason);
-			if (!modelRef && requiresCopilotAgentHost(this.managedSettingsService, this.configurationService)) {
-				throw new Error(managedPolicyRequiresAgentHostMessage());
+			const refusal = modelRef ? undefined : this.getLocalChatFallbackRefusal();
+			if (refusal) {
+				throw new Error(refusal);
 			}
 			return {
 				modelRef,
@@ -1534,8 +1540,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (isCancellationError(error)) {
 				throw error;
 			}
-			if (requiresCopilotAgentHost(this.managedSettingsService, this.configurationService)) {
-				this.notificationService.error(managedPolicyRequiresAgentHostMessage());
+			const refusal = this.getLocalChatFallbackRefusal();
+			if (refusal) {
+				this.notificationService.error(refusal);
 				throw error;
 			}
 			this.logService.warn(`[ChatViewPane] Failed to acquire default agent-host session, falling back to local`, error);
