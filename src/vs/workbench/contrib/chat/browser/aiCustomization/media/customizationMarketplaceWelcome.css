@@ -61,6 +61,7 @@
 	}
 }
 
-.vscode-high-contrast .customizations-marketplace-welcome-content {
+.hc-black .customizations-marketplace-welcome-content,
+.hc-light .customizations-marketplace-welcome-content {
 	border-color: var(--vscode-contrastBorder);
 }

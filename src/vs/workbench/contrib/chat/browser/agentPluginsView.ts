@@ -432,13 +432,6 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 		this.currentQuery = query;
 		const showWelcome = this.listOptions.showMarketplaceWelcome && this.marketplaceConfigurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true;
 		this.showMarketplaceWelcome(!!showWelcome);
-		if (showWelcome) {
-			const model = new PagedModel<IAgentPluginItem>([]);
-			if (this.list) {
-				this.list.model = model;
-			}
-			return model;
-		}
 
 		const stripped = query.replace(/@agentPlugins/i, '').trim();
 		const isRecommended = /^@recommended$/i.test(stripped);
@@ -517,8 +510,6 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 
 	private showMarketplaceWelcome(show: boolean): void {
 		this.welcomeContainer?.classList.toggle('hide', !show);
-		this.listContainer?.classList.toggle('hide', show);
-		this.bodyTemplate?.messageContainer.classList.toggle('hidden', show);
 	}
 
 	/**

@@ -56,7 +56,6 @@ export interface McpServerListViewOptions {
 interface IQueryResult {
 	model: IPagedModel<IWorkbenchMcpServer>;
 	disposables: DisposableStore;
-	showWelcomeContent?: boolean;
 	readonly onDidChangeModel?: Event<IPagedModel<IWorkbenchMcpServer>>;
 }
 
@@ -220,12 +219,6 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		this.currentQuery = query;
 		const queryGeneration = ++this.queryGeneration;
 
-		if (this.mpcViewOptions.showMarketplaceWelcome && this.marketplaceConfigurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true) {
-			const input = { model: new PagedModel<IWorkbenchMcpServer>([]), disposables: new DisposableStore(), showWelcomeContent: true };
-			this.setInput(input);
-			return input.model;
-		}
-
 		this.setInput({ model: new PagedModel([]), disposables: new DisposableStore() }, false);
 		const input = await this.query(query.trim());
 		if (queryGeneration !== this.queryGeneration) {
@@ -268,16 +261,12 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		if (this.list) {
 			this.list.model = new DelayedPagedModel(this.input.model);
 		}
-		this.showWelcomeContent(!!this.input.showWelcomeContent);
-		if (!this.input.showWelcomeContent) {
-			this.updateBody(undefined, announce);
-		}
+		this.showMarketplaceWelcome(this.mpcViewOptions.showMarketplaceWelcome === true && this.marketplaceConfigurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true);
+		this.updateBody(undefined, announce);
 	}
 
-	private showWelcomeContent(show: boolean): void {
+	private showMarketplaceWelcome(show: boolean): void {
 		this.welcomeContainer?.classList.toggle('hide', !show);
-		this.listContainer?.classList.toggle('hide', show);
-		this.bodyTemplate?.messageContainer.classList.toggle('hidden', show);
 	}
 
 	private createWelcomeContent(welcomeContainer: HTMLElement): void {
