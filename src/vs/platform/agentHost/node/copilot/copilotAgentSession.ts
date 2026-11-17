@@ -11452,6 +11452,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const routingProxy = this._mcpRoutingProxies.get(e.data.toolName);
 			const mcpServerName = e.data.mcpServerName ?? routingProxy?.server.serverName;
+			const mcpServerDisplayName = e.data.mcpServerName !== undefined ? e.data.mcpServerDisplayName : routingProxy?.server.displayName;
 			const displayName = routingProxy
 				? localize('copilot.mcpRouting.connect', "Connect to {0}", routingProxy.server.displayName ?? routingProxy.server.serverName)
 				: getToolDisplayName(e.data.toolName, { toolTitle, mcpToolName: e.data.mcpToolName });
@@ -11533,6 +11534,9 @@ export class CopilotAgentSession extends Disposable {
 			}
 			if (mcpServerName) {
 				meta.mcpServerName = mcpServerName;
+				if (mcpServerDisplayName) {
+					meta['vscode.mcpServerDisplayName'] = mcpServerDisplayName;
+				}
 			}
 			if (e.data.mcpToolName) {
 				meta.mcpToolName = e.data.mcpToolName;

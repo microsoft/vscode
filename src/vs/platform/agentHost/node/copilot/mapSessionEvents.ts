@@ -316,6 +316,7 @@ interface IToolStartInfo {
 	readonly parameters: Record<string, unknown> | undefined;
 	readonly parentToolCallId?: string;
 	readonly mcpServerName?: string;
+	readonly mcpServerDisplayName?: string;
 	readonly mcpToolName?: string;
 	readonly mcpUiResourceUri?: string;
 	readonly hasNativeToolInputContract?: boolean;
@@ -436,6 +437,7 @@ function makeToolStartInfo(toolName: string, rawArguments: unknown, parentToolCa
 		parameters,
 		parentToolCallId,
 		mcpServerName: readStringProperty(source, 'mcpServerName'),
+		mcpServerDisplayName: readStringProperty(source, 'mcpServerDisplayName'),
 		mcpToolName,
 		mcpUiResourceUri: readMcpUiResourceUri(source),
 	};
@@ -1382,6 +1384,7 @@ function makeToolCallPart(
 	const rawCompletion: (ToolExecutionCompleteData & { toolUsage?: unknown }) | undefined = d;
 	const imageGeneration = info.toolName === CopilotToolName.ImageGeneration ? getSdkImageGenerationMetadata(d?.result, rawCompletion?.toolUsage) : undefined;
 	const mcpServerName = info.mcpServerName ?? readStringProperty(d, 'mcpServerName');
+	const mcpServerDisplayName = info.mcpServerName !== undefined ? info.mcpServerDisplayName : readStringProperty(d, 'mcpServerDisplayName');
 	const mcpChannel = mcpServerName ? buildMcpChannel(chatURI, mcpServerName, providerId) : undefined;
 	const mcpToolName = info.mcpToolName ?? readStringProperty(d, 'mcpToolName');
 	const mcpUiResourceUri = info.mcpUiResourceUri ?? readMcpUiResourceUri(d);
@@ -1409,6 +1412,7 @@ function makeToolCallPart(
 			subagentDescription: info.subagentDescription,
 			subagentAgentName: info.subagentAgentName,
 			mcpServerName,
+			'vscode.mcpServerDisplayName': mcpServerName ? mcpServerDisplayName : undefined,
 			mcpToolName,
 			ui: mcpUi,
 		}),

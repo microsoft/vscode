@@ -270,13 +270,23 @@ function parseUri(value: string | undefined): URI | undefined {
 }
 
 /**
- * The file a recorded artifact names, in this window's URI space as its connection maps it (a `vscode-remote` file in a
- * remote window), so that the chat reads and renders the agent host's file. Agents record files with the `file` and the
- * `resource` type; resources that are no files, such as settings, have none.
+ * The window's resource for a recorded file or resource, the one its pill entry opens. The agent host's `file:` URIs are
+ * mapped into the window, which matters in remote windows; other URIs of files are the agent host file system's, as in
+ * {@link AgentHostSessionInputPills._artifactEntry}. Other resources, such as an extension's, already name something in the
+ * window. Whether the chat can show it depends on what provides its scheme (see {@link observeChatResourceExists}).
  */
-function getRecordedFileResource(artifact: ISessionArtifact, resolution: IAgentHostSessionResolution): URI | undefined {
+function getRecordedResource(artifact: ISessionArtifact, resolution: IAgentHostSessionResolution): URI | undefined {
 	const uri = artifact.type === SessionArtifactType.File || artifact.type === SessionArtifactType.Resource ? parseUri(artifact.uri) : undefined;
-	return uri && uri.scheme === Schemas.file ? resolution.connection.resourceUris.fromAgentHost(uri) : undefined;
+	if (!uri) {
+		return undefined;
+	}
+	if (uri.scheme === Schemas.file) {
+		return resolution.connection.resourceUris.fromAgentHost(uri);
+	}
+	return artifact.type === SessionArtifactType.File
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- file artifacts are Agent Host filesystem resources, not connection workspace resources
+		? toAgentHostUri(uri, getAgentHostResourceAuthority(resolution))
+		: uri;
 }
 
 function referenceLabel(link: string, kind: 'pullRequest' | 'issue', title?: string): string {
@@ -733,7 +743,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			return [...artifactSections.read(reader), ...referenceSections.read(reader)].flatMap(section => section.entries.flatMap((entry): IChatResource[] => {
 				const artifact = recordedById.get(entry.id);
 				// Recorded artifacts name the agent host's files; entries that no artifact backs, such as a chat tool's, are in this window's URI space.
-				const resource = artifact ? (currentResolution ? getRecordedFileResource(artifact, currentResolution) : undefined) : entry.resource;
+				const resource = artifact ? (currentResolution ? getRecordedResource(artifact, currentResolution) : undefined) : entry.resource;
 				// The agent asks per recording; an extension's contribution asks with its manifest, which never changes.
 				const requested = artifact?.mode ? { mode: artifact.mode, revision: artifact.modeRevision ?? 0 }
 					: !artifact && contributedModes.has(entry.id) ? { mode: contributedModes.get(entry.id)!, revision: 0 }

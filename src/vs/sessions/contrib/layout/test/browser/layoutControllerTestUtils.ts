@@ -497,6 +497,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override readonly onDidChangeSessions = harness.onDidChangeSessions.event;
 		override readonly onDidReplaceSession = harness.onDidReplaceSession.event;
 		override readonly onDidDeleteChat = harness.onDidDeleteChat.event;
+		override readonly onDidDiscardNewSession = Event.None;
 		override readonly onDidReplaceNewDraftSession = harness.onDidReplaceNewDraftSession.event;
 		override getSessions() { return []; }
 	});
