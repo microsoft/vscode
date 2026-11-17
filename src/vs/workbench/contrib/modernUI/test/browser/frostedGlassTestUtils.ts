@@ -73,7 +73,8 @@ export function createFrostedGlassOverlays(store: Pick<DisposableStore, 'add'>, 
 	const resizableHover = append(editor, 'monaco-resizable-hover');
 	resizableHover.style.position = 'absolute';
 	const resizableHoverContent = append(resizableHover, 'monaco-hover');
-	const dialog = append(root, 'monaco-dialog-box');
+	const dialogShadow = append(append(root, 'monaco-dialog-modal-block'), 'dialog-shadow');
+	const dialog = append(dialogShadow, 'monaco-dialog-box');
 	dialog.style.backgroundColor = 'var(--vscode-editorWidget-background)';
 	dialog.style.border = '1px solid var(--vscode-widget-border)';
 	const spotlight = append(root, 'spotlight-overlay');
@@ -87,18 +88,17 @@ export function createFrostedGlassOverlays(store: Pick<DisposableStore, 'add'>, 
 	toast.style.border = '1px solid var(--vscode-widget-border)';
 	const toastList = append(toast, 'notifications-list-container');
 	return {
-		root, quickInput, menu, menuContainer, menubarMenuContainer, shadowMenuContainer, picker, pickerFilter, pickerRows, pickerFooter, hover, resizableHover, resizableHoverContent, dialog, spotlightCallout, spotlightPointer, center, toast, toastList,
+		root, quickInput, menu, menuContainer, menubarMenuContainer, shadowMenuContainer, picker, pickerFilter, pickerRows, pickerFooter, hover, resizableHover, resizableHoverContent, dialog, dialogShadow, spotlightCallout, spotlightPointer, center, toast, toastList,
 		geometrySurfaces: [
 			{ name: 'quick input', surface: quickInput },
 			{ name: 'action widget', surface: picker },
 			{ name: 'hover', surface: hover },
 			{ name: 'resizable hover', surface: resizableHover },
-			{ name: 'dialog', surface: dialog },
 			{ name: 'spotlight callout', surface: spotlightCallout },
 			{ name: 'notification center', surface: center },
 			{ name: 'notification toast', surface: toast },
 		],
-		surfaces: [quickInput, menuContainer, shadowMenuContainer, picker, hover, resizableHover, dialog, spotlightCallout, center, toast],
+		surfaces: [quickInput, menuContainer, shadowMenuContainer, picker, hover, resizableHover, dialogShadow, spotlightCallout, center, toast],
 		backgrounds: [quickInput, menuBackground, shadowMenuBackground, picker, pickerRows, hover, resizableHover, resizableHoverContent, dialog, spotlightCallout, centerBackground, toast, toastList],
 	};
 }

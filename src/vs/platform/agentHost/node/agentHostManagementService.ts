@@ -17,6 +17,7 @@ import { IAgentHostMacAccessibilityTrustService } from './agentHostMacAccessibil
 import { IAgentHostSystemWakeService } from './agentHostSystemWakeService.js';
 import { flushAgentHostTelemetry } from './agentHostTelemetryService.js';
 import { getConnectionDiagnosticError } from '../common/connectionDiagnostics.js';
+import { CategorizedConnectionError } from '../common/connectionTelemetry.js';
 
 const SHUTDOWN_DRAIN_TIMEOUT_MS = 1000;
 const PROVIDER_SHUTDOWN_TIMEOUT_MS = 1500;
@@ -48,7 +49,7 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 	async configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): ReturnType<IAgentHostManagementService['configureMissionControl']> {
 		try {
 			if (!this._missionControl) {
-				throw new Error('Mission Control is unavailable in this Agent Host');
+				throw new CategorizedConnectionError('AgentHostUnavailable', 'Mission Control is unavailable in this Agent Host');
 			}
 			await this._missionControl.configure(options, withdrawingAccountId);
 		} catch (error) {
