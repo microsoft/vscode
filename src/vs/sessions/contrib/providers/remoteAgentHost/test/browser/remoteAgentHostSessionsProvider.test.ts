@@ -1509,32 +1509,34 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	});
 
 	test('remote cleanup capabilities and existence follow the owning connection across reconnects', async () => {
-			connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: {
+		connection.handshakeState.set({
+			...connection.handshakeState.get(), _meta: {
 				'vscode.worktreeCleanup': true, 'vscode.prepareSessionWorktreeCleanup': true, 'vscode.managedWorktrees': true,
-			} }, undefined);
-			const calls: string[] = [];
-			connection.prepareSessionWorktreeCleanup = async () => { };
-			connection.sessionWorktreeCleanup = async () => ({ state: 'pending' });
-			connection.listManagedWorktrees = async () => [];
-			connection.cleanupManagedWorktree = async (repository, worktree) => { calls.push(`${repository.toString()} ${worktree.toString()}`); };
-			connection.resourceResolve = async () => { throw new ProtocolError(AhpErrorCodes.NotFound, 'Removed'); };
-			const provider = createProvider(disposables, connection);
-			const worktree = {
-				repository: connection.resourceUris.fromAgentHost(URI.file('/repo')).toString(),
-				worktree: connection.resourceUris.fromAgentHost(URI.file('/repo.worktrees/task')).toString(),
-				branch: 'agents/task', cleanupStatus: { state: 'unknown' as const },
-			};
-			const supported = [provider.supportsWorktreeCleanup, provider.supportsManagedWorktreeCleanup];
-			provider.clearConnection();
-			const disconnected = [provider.supportsWorktreeCleanup, provider.supportsManagedWorktreeCleanup, await provider.managedWorktreeExists(worktree)];
-			await assert.rejects(provider.cleanupManagedWorktree(worktree), /Connect to this worktree's host/);
-			provider.setConnection(connection);
-			await provider.cleanupManagedWorktree(worktree);
-			const reconnected = [provider.supportsWorktreeCleanup, provider.supportsManagedWorktreeCleanup, await provider.managedWorktreeExists(worktree)];
-			connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: undefined }, undefined);
-			assert.deepStrictEqual({ supported, disconnected, reconnected, unsupported: [provider.supportsWorktreeCleanup, provider.supportsManagedWorktreeCleanup], calls }, {
-				supported: [true, true], disconnected: [false, false, undefined], reconnected: [true, true, false], unsupported: [false, false],
-				calls: ['file:///repo file:///repo.worktrees/task'],
+			}
+		}, undefined);
+		const calls: string[] = [];
+		connection.prepareSessionWorktreeCleanup = async () => { };
+		connection.sessionWorktreeCleanup = async () => ({ state: 'pending' });
+		connection.listManagedWorktrees = async () => [];
+		connection.cleanupManagedWorktree = async (repository, worktree) => { calls.push(`${repository.toString()} ${worktree.toString()}`); };
+		connection.resourceResolve = async () => { throw new ProtocolError(AhpErrorCodes.NotFound, 'Removed'); };
+		const provider = createProvider(disposables, connection);
+		const worktree = {
+			repository: connection.resourceUris.fromAgentHost(URI.file('/repo')).toString(),
+			worktree: connection.resourceUris.fromAgentHost(URI.file('/repo.worktrees/task')).toString(),
+			branch: 'agents/task', cleanupStatus: { state: 'unknown' as const },
+		};
+		const supported = [provider.supportsWorktreeCleanup, provider.supportsManagedWorktreeCleanup];
+		provider.clearConnection();
+		const disconnected = [provider.supportsWorktreeCleanup, provider.supportsManagedWorktreeCleanup, await provider.managedWorktreeExists(worktree)];
+		await assert.rejects(provider.cleanupManagedWorktree(worktree), /Connect to this worktree's host/);
+		provider.setConnection(connection);
+		await provider.cleanupManagedWorktree(worktree);
+		const reconnected = [provider.supportsWorktreeCleanup, provider.supportsManagedWorktreeCleanup, await provider.managedWorktreeExists(worktree)];
+		connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: undefined }, undefined);
+		assert.deepStrictEqual({ supported, disconnected, reconnected, unsupported: [provider.supportsWorktreeCleanup, provider.supportsManagedWorktreeCleanup], calls }, {
+			supported: [true, true], disconnected: [false, false, undefined], reconnected: [true, true, false], unsupported: [false, false],
+			calls: ['file:///repo file:///repo.worktrees/task'],
 		});
 	});
 

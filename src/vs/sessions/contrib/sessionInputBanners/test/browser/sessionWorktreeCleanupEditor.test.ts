@@ -175,23 +175,23 @@ suite('SessionWorktreeCleanupEditor', () => {
 	});
 
 	test('shows remote host identity and an unavailable reason without allowing selection', async () => {
-			const original = createUnlinkedWorktree('remote');
-			const worktree: ISessionWorktree = {
-				...original,
-				unlinkedWorktree: {
-					...original.unlinkedWorktree!,
-					worktree: URI.parse(original.unlinkedWorktree!.worktree).with({ scheme: 'vscode-remote', authority: 'ssh-remote+host' }).toString(),
-				},
-				cleanupUnavailableReason: 'Connect or update the host, then refresh.',
-			};
-			const { container, cleaned } = await openEditor([worktree]);
-			selectAllWorktrees(container);
-			assert.deepStrictEqual({
-				title: container.querySelector('.session-worktree-cleanup-session-link')?.textContent,
-				status: rowStatus(container.querySelector('.session-worktree-cleanup-row')!),
-				selected: container.querySelectorAll('.session-worktree-cleanup-row [aria-checked="true"]').length,
-				cleaned,
-			}, { title: 'agents/remote (ssh-remote+host)', status: worktree.cleanupUnavailableReason, selected: 0, cleaned: [] });
+		const original = createUnlinkedWorktree('remote');
+		const worktree: ISessionWorktree = {
+			...original,
+			unlinkedWorktree: {
+				...original.unlinkedWorktree!,
+				worktree: URI.parse(original.unlinkedWorktree!.worktree).with({ scheme: 'vscode-remote', authority: 'ssh-remote+host' }).toString(),
+			},
+			cleanupUnavailableReason: 'Connect or update the host, then refresh.',
+		};
+		const { container, cleaned } = await openEditor([worktree]);
+		selectAllWorktrees(container);
+		assert.deepStrictEqual({
+			title: container.querySelector('.session-worktree-cleanup-session-link')?.textContent,
+			status: rowStatus(container.querySelector('.session-worktree-cleanup-row')!),
+			selected: container.querySelectorAll('.session-worktree-cleanup-row [aria-checked="true"]').length,
+			cleaned,
+		}, { title: 'agents/remote (ssh-remote+host)', status: worktree.cleanupUnavailableReason, selected: 0, cleaned: [] });
 	});
 
 	test('shows an honest empty state and keeps settings when nothing can be cleaned up', async () => {
