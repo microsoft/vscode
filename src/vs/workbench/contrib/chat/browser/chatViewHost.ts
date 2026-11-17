@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -77,6 +78,8 @@ export interface IChatViewHostNewChatOptions {
 	 * Chat view that shows a chat: a new session that a sessions list starts, rather than New Chat of a chat widget.
 	 */
 	readonly ownChat?: boolean;
+	/** Cancelled once a later request supersedes the New Chat, such as an open: the host then starts no new chat. */
+	readonly token?: CancellationToken;
 }
 
 /** How {@link IChatViewHost.startSession} starts a session that its caller may send a first request to. */

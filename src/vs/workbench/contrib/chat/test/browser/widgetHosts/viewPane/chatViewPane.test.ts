@@ -687,9 +687,10 @@ suite('ChatViewPane session transitions', () => {
 		const opened = nextResource.with({ path: '/opened' });
 		const reference = (resource: URI) => Object.assign(toDisposable(() => { }), { object: upcastPartial<IChatModel>({ sessionResource: resource }) });
 		const newChatAcquired = new DeferredPromise<{ modelRef: IChatModelReference }>();
+		const newChatStarted = new DeferredPromise<void>();
 		Object.assign(rig.pane, {
 			chatService: { acquireOrLoadSession: async (resource: URI) => reference(resource) },
-			acquireDefaultNewSession: () => newChatAcquired.p,
+			acquireDefaultNewSession: () => { newChatStarted.complete(); return newChatAcquired.p; },
 			updateViewState: () => { },
 		});
 		const instantiationService = store.add(new TestInstantiationService());
@@ -707,6 +708,7 @@ suite('ChatViewPane session transitions', () => {
 
 		// New Chat of its own waits for its new chat, and meanwhile the user opens a chat
 		const resetting = host.newChat(undefined, { ownChat: true, preserveFocus: true });
+		await newChatStarted.p;
 		await host.openSession(opened, { preserveFocus: true });
 		const afterOpen = shown();
 		await newChatAcquired.complete({ modelRef: reference(nextResource.with({ path: '/untitled-reset' })) });
@@ -727,9 +729,10 @@ suite('ChatViewPane session transitions', () => {
 		const acquisitions = [new DeferredPromise<{ modelRef: IChatModelReference }>(), new DeferredPromise<{ modelRef: IChatModelReference }>()];
 		const [acquiredA, acquiredB] = acquisitions;
 		const pending = [...acquisitions];
+		const startedA = new DeferredPromise<void>();
 		Object.assign(rig.pane, {
 			chatService: { acquireOrLoadSession: async (resource: URI) => reference(resource) },
-			acquireDefaultNewSession: () => pending.shift()!.p,
+			acquireDefaultNewSession: () => { startedA.complete(); return pending.shift()!.p; },
 			updateViewState: () => { },
 		});
 		const instantiationService = store.add(new TestInstantiationService());
@@ -745,7 +748,9 @@ suite('ChatViewPane session transitions', () => {
 		const host = store.add(instantiationService.createInstance(ChatViewHostService));
 		const shown = () => { const value = host.shownSession.get(); return value ? `${value.resource.path} ${value.reason}` : 'none'; };
 
+		// The later New Chat starts while the Chat view acquires the earlier one's new chat
 		const newChatA = host.newChat(undefined, { ownChat: true, preserveFocus: true });
+		await startedA.p;
 		const newChatB = host.newChat(undefined, { ownChat: true, preserveFocus: true });
 		await acquiredA.complete({ modelRef: reference(nextResource.with({ path: '/untitled-a' })) });
 		await newChatA;
