@@ -8,7 +8,7 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { CommentsPanel } from '../../browser/commentsView.js';
 import { CommentService, ICommentController, ICommentInfo, ICommentService, INotebookCommentInfo } from '../../browser/commentService.js';
-import { Comment, CommentInput, CommentReaction, CommentThread, CommentThreadCollapsibleState, CommentThreadState } from '../../../../../editor/common/languages.js';
+import { Comment, CommentInput, CommentReaction, CommentThread, CommentThreadApplicability, CommentThreadCollapsibleState, CommentThreadState } from '../../../../../editor/common/languages.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IViewContainerModel, IViewDescriptor, IViewDescriptorService, IViewPaneContainer, ViewContainer, ViewContainerLocation } from '../../../../common/views.js';
@@ -32,7 +32,8 @@ class TestCommentThread implements CommentThread<IRange> {
 		public readonly threadId: string,
 		public readonly resource: string,
 		public readonly range: IRange,
-		public readonly comments: Comment[]) { }
+		public readonly comments: Comment[],
+		public readonly applicability?: CommentThreadApplicability) { }
 
 	readonly onDidChangeComments: Event<readonly Comment[] | undefined> = new Emitter<readonly Comment[] | undefined>().event;
 	readonly onDidChangeInitialCollapsibleState: Event<CommentThreadCollapsibleState | undefined> = new Emitter<CommentThreadCollapsibleState | undefined>().event;
@@ -180,6 +181,29 @@ suite('Comments View', function () {
 		view.clearFilterText();
 		// Setting showResolved causes the filter to trigger for the purposes of this test.
 		view.filters.showResolved = true;
+		assert.strictEqual(view.getFilterStats().total, 2);
+		assert.strictEqual(view.getFilterStats().filtered, 2);
+		view.dispose();
+	});
+
+	test('filter by outdated', async function () {
+		const view = instantiationService.createInstance(CommentsPanel, { id: 'comments', title: 'Comments' });
+		view.setVisible(true);
+		view.render();
+		commentService.setWorkspaceComments('test', [
+			new TestCommentThread(1, 1, '1', 'test1', new Range(1, 1, 1, 1), [{ body: 'Current comment', uniqueIdInThread: 1, userName: 'alex' }], CommentThreadApplicability.Current),
+			new TestCommentThread(2, 1, '2', 'test2', new Range(1, 1, 1, 1), [{ body: 'Outdated comment', uniqueIdInThread: 1, userName: 'alex' }], CommentThreadApplicability.Outdated),
+		]);
+		assert.strictEqual(view.getFilterStats().total, 2);
+		assert.strictEqual(view.getFilterStats().filtered, 2);
+
+		// Hide outdated comments
+		view.filters.showOutdated = false;
+		assert.strictEqual(view.getFilterStats().total, 2);
+		assert.strictEqual(view.getFilterStats().filtered, 1);
+
+		// Show outdated comments again
+		view.filters.showOutdated = true;
 		assert.strictEqual(view.getFilterStats().total, 2);
 		assert.strictEqual(view.getFilterStats().filtered, 2);
 		view.dispose();
