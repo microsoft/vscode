@@ -328,6 +328,12 @@
 	pointer-events: none;
 }
 
+/* The identity row holds only the icon and the full-width action, so its hover and focus are the row's. */
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-account.signed-out .sessions-account-titlebar-panel-provider-identity:hover .sessions-account-titlebar-panel-provider-icon,
+.agent-sessions-workbench .sessions-account-titlebar-panel-provider-account.signed-out .sessions-account-titlebar-panel-provider-identity:focus-within .sessions-account-titlebar-panel-provider-icon {
+	color: var(--vscode-list-hoverForeground, var(--vscode-foreground));
+}
+
 .agent-sessions-workbench .sessions-account-titlebar-panel-provider-sign-in-actions {
 	flex: 1 1 auto;
 	min-width: 0;

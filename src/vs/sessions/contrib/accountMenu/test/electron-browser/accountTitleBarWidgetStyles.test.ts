@@ -76,6 +76,7 @@ suite('Account Title Bar Widget Styles - signed-out sign-in rows', () => {
 				focused: {
 					background: style.backgroundColor,
 					color: style.color,
+					iconColor: mainWindow.getComputedStyle(icon).color,
 					textDecorationLine: style.textDecorationLine,
 					outline: `${style.outlineStyle} ${style.outlineColor}`,
 				},
@@ -94,6 +95,7 @@ suite('Account Title Bar Widget Styles - signed-out sign-in rows', () => {
 				focused: {
 					background: 'rgb(48, 48, 48)',
 					color: 'rgb(64, 64, 64)',
+					iconColor: 'rgb(64, 64, 64)',
 					textDecorationLine: 'none',
 					outline: 'solid rgb(80, 80, 80)',
 				},
