@@ -4294,6 +4294,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const event = notification.event;
 		const modelCallId = this._modelCallIdForTelemetry(notification);
 		const forward = (turnId: string | undefined, outcome: ICopilotModelCallCorrelationTelemetry['ahCorrelationOutcome'], waitMs?: number): void => {
+			const interactionId = event.properties.interaction_id;
+			if (turnId && (outcome === 'mappingAvailable' || outcome === 'mappingWaited') && typeof interactionId === 'string' && interactionId) {
+				session?.turnInteractionCorrelation.record(turnId, interactionId, 'modelCall');
+			}
 			this._gitHubTelemetryForwarder.forward(notification, turnId, {
 				ahCorrelationOutcome: outcome,
 				ahCorrelationWaitMs: waitMs,

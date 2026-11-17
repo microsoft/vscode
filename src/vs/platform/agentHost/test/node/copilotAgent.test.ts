@@ -151,6 +151,7 @@ import { createTestGitHubEndpointService } from './testGitHubEndpointService.js'
 import { createNoopCustomizationEnablementService } from './testCustomizationEnablementService.js';
 import { CopilotAgentSession, type ICopilotCanvasHandoff } from '../../node/copilot/copilotAgentSession.js';
 import { ModelCallTurnCorrelation, type IModelCallTurnCorrelationResult } from '../../node/copilot/modelCallTurnCorrelation.js';
+import { TurnInteractionCorrelation } from '../../node/copilot/turnInteractionCorrelation.js';
 import type { CompactionTurnCorrelation, ICompactionTurnCorrelationResult } from '../../node/copilot/compactionTurnCorrelation.js';
 import { addCopilotSandboxPath, createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
 import { CopilotClientStartupConfigChangedError } from '../../node/copilot/copilotFailureTelemetry.js';
@@ -7032,6 +7033,7 @@ suite('CopilotAgent', () => {
 
 	test('keeps host-remapped correlation for both event orders when the active turn changes', async () => {
 		const events: ITelemetryData[] = [];
+		const interactionTelemetry = new TestDataTelemetryService();
 		let received = new DeferredPromise<void>();
 		const telemetryService = new class extends RecordingTelemetryService {
 			override publicLog(eventName?: string, data?: ITelemetryData): void {
@@ -7052,11 +7054,12 @@ suite('CopilotAgent', () => {
 			sessionId: 'sdk-session',
 			get currentTurnId() { return activeTurn; },
 			modelCallTurnCorrelation: new ModelCallTurnCorrelation(),
+			turnInteractionCorrelation: new TurnInteractionCorrelation('sdk-session', interactionTelemetry),
 			isDisposed: false,
 		}, chat);
 		const notification = (call: string): GitHubTelemetryNotification => ({
 			sessionId: 'sdk-session', restricted: false,
-			event: { kind: 'response.success', model_call_id: call, properties: { initiatorType: 'agent' }, metrics: {} },
+			event: { kind: 'response.success', model_call_id: call, properties: { initiatorType: 'agent', interaction_id: 'interaction' }, metrics: {} },
 		});
 		agent.recordModelCallTurnCorrelation(chat, 'cached-call', 'subagent-turn');
 		await forward(notification('cached-call'));
@@ -7073,6 +7076,12 @@ suite('CopilotAgent', () => {
 		})), [
 			{ turn: 'subagent-turn', diagnostics: { ahCorrelationOutcome: 'mappingAvailable' } },
 			{ turn: 'original-logical-turn', diagnostics: { ahCorrelationOutcome: 'mappingWaited', ahCorrelationWaitMs: true } },
+		]);
+		assert.deepStrictEqual(interactionTelemetry.events.map(event => ({
+			turn: event.data.turnId, interaction: event.data.interactionId,
+		})), [
+			{ turn: 'subagent-turn', interaction: 'interaction' },
+			{ turn: 'original-logical-turn', interaction: 'interaction' },
 		]);
 	});
 

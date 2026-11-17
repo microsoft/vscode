@@ -83,6 +83,16 @@ The forwarder publishes every standard runtime row as `copilotSdk/<kind>`, but u
 
 ---
 
+### Copilot steering and interaction correlation
+
+`agentHost.turnInteractionCorrelated` records observed SDK-session-scoped `turnId`/`interactionId` pairs from root SDK input/turn-start boundaries and exactly correlated model responses. Associations are many-to-many; never select an arbitrary first interaction or duplicate an interaction's usage across its turns. `agentHost.turnSteered` records `turnId`, `previousTurnId` and `originalTurnId` when steering interrupts an active execution. Repeated steering retains the original turn. For the idle-before-echo race, a predecessor is recorded only when the echo shares the completed turn's observed interaction.
+
+These are analytical records, not changes to execution routing. Active SDK/interaction routing sets still expire with their turn. Bounded session-local telemetry history retains recent lineage and suppresses repeated associations; it is cleared on session disposal, is not persisted, and can re-emit after eviction. An association can also be emitted again when a previously unknown origin is resolved. Consumers should deduplicate by SDK session, turn, interaction and known origin, retaining conflicts rather than choosing an arbitrary origin. Missing lineage stays absent, including child turns whose originating request is not established by this root-steering mechanism.
+
+Late model-call evidence remains available through `agentHost.modelCallTurnCorrelated`: join its SDK session and model-call ID to the forwarded response's native interaction ID, reject conflicting owners, then join steering edges to normalize execution segments. This avoids another pending-response cache or extending the inline correlation timeout. Do not treat active-turn fallback as an exact association. Cancellation without an SDK interaction, abandoned work, cache eviction and telemetry loss can leave gaps.
+
+An original steering turn is not necessarily human-initiated. This does not establish cross-chat originating triggers for side-chat replies, reused workers, automation chains or notifications. Compaction retains attempt-based ownership and Fusion retains workflow-based routing. Full descendant usage and root-position coverage still require validated runtime inheritance and downstream joins; tool/edit attribution and restart reconstruction are separate concerns.
+
 ## 2. Ownership and Layering
 
 ```mermaid
