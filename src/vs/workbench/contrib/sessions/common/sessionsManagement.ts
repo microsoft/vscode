@@ -678,6 +678,7 @@ export interface ISessionsManagementService {
 	sessionWorktreeExists?(session: ISession, token?: CancellationToken): Promise<boolean | undefined>;
 
 	/** Reports cleanup status, optionally retrying removal without restoring or deleting session history. */
+	canCleanupWorktree?(owner: ISession | IManagedSessionWorktree): boolean;
 	canForceWorktreeCleanup?(owner: ISession | IManagedSessionWorktree): boolean;
 	sessionWorktreeCleanup?(session: ISession, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
 	prepareSessionWorktreeCleanup(session: ISession): Promise<void>;
