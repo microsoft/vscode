@@ -43,11 +43,13 @@ import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService }
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IConfirmation, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
-import { IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
+import { IFileContent, IFileService, IFileSystemProvider } from '../../../../../../platform/files/common/files.js';
 import { FragmentState, PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
 import { GitHubIssue } from '../../../../../../platform/github/common/githubQueryService.js';
 import { IGitHubClient, IGitHubService } from '../../../../../../platform/github/common/githubService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -772,12 +774,38 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
+	test('a recorded resource of an extension\'s file system can show above the chat input, unchanged', async () => {
+		const appLink = 'app-link:/devbox.cdp.link';
+		const harness = createActivityPills(upcastPartial<SessionState>({
+			defaultChat: 'vendor-chat:/main', chats: [],
+			_meta: withSessionArtifacts(undefined, [{ id: 'viewer', label: 'Devbox', uri: appLink, type: SessionArtifactType.Resource, isArtifact: true }]),
+		}), undefined, undefined, 'local', undefined, undefined, { configurationService: new TestConfigurationService({ [ChatResourcesEnabledSettingId]: true }) });
+		// The extension that renders the resource provides a file system for its scheme (late registration is covered by the existence tests).
+		const appLinks = store.add(new InMemoryFileSystemProvider());
+		store.add(harness.instantiationService.get(IFileService).registerProvider('app-link', appLinks));
+		await appLinks.writeFile(URI.parse(appLink), VSBuffer.fromString('{}').buffer, { create: true, overwrite: true, unlock: false, atomic: false });
+		const rendered = new DeferredPromise<string>();
+		harness.instantiationService.stub(ITextModelService, upcastPartial<ITextModelService>({ createModelReference: resource => { rendered.complete(resource.toString()); return Promise.reject(new Error('unreadable')); } }));
+		await timeout(0);
+		await harness.dropdown('1 Artifact').flatMap(item => item.toolbarActions ?? []).find(action => action.label.startsWith('Pin '))?.run();
+		await timeout(0);
+		const showAction = harness.menu(harness.persistentContent.querySelector<HTMLElement>('.chat-pill-item'))?.find(action => action.id === 'chatResources.showAboveInput');
+		await showAction?.run();
+
+		assert.deepStrictEqual({ offered: !!showAction, rendered: showAction ? await rendered.p : undefined }, { offered: true, rendered: appLink });
+	});
+
 	test('a file shown above the chat input is the agent host\'s file, also in a remote window', async () => {
 		const showFile = async (resourceUris: IAgentHostResourceUriMapper) => {
 			const harness = createActivityPills(upcastPartial<SessionState>({
 				defaultChat: 'vendor-chat:/main', chats: [],
 				_meta: withSessionArtifacts(undefined, [{ id: 'status', label: 'Status', uri: 'file:///repo/status.md', type: SessionArtifactType.Resource, isArtifact: true }]),
 			}), undefined, undefined, 'local', undefined, undefined, { configurationService: new TestConfigurationService({ [ChatResourcesEnabledSettingId]: true }), resourceUris });
+			// A remote window has a file system for its remote's files, which the chat checks before it shows one.
+			const windowScheme = resourceUris.fromAgentHost(URI.file('/repo/status.md')).scheme;
+			if (windowScheme !== Schemas.file) {
+				store.add(harness.instantiationService.get(IFileService).registerProvider(windowScheme, upcastPartial<IFileSystemProvider>({})));
+			}
 			const rendered = new DeferredPromise<string>();
 			harness.instantiationService.stub(ITextModelService, upcastPartial<ITextModelService>({ createModelReference: resource => { rendered.complete(resource.toString()); return Promise.reject(new Error('unreadable')); } }));
 			await timeout(0);

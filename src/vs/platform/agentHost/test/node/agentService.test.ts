@@ -31,6 +31,7 @@ import { join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -113,7 +114,7 @@ import { SCHEDULED_WORK_WAKE_SETTLE_MS } from '../../common/agentHostWakeNetwork
 import { AgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
-import { SESSION_CREDENTIAL_PRINCIPAL_KEY } from '../../node/agentHostAuthenticationService.js';
+import { IAgentHostAuthenticationController, SESSION_CREDENTIAL_PRINCIPAL_KEY } from '../../node/agentHostAuthenticationService.js';
 import { CopilotEntraAuthentication } from '../../node/copilot/copilotEntraAuthentication.js';
 import { copilotEntraClientId, copilotEntraDiscoveryResource } from '../../common/copilotEntraAuthentication.js';
 import type { IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
@@ -1198,7 +1199,7 @@ suite('AgentService (node dispatcher)', () => {
 		await assert.rejects(service.manageHostSandboxCertificate(provider.id, 'install'), /unavailable/);
 		const calls: string[] = [];
 		provider.manageHostSandboxCertificate = async operation => { calls.push(operation); };
-		const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+		const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 		for (const operation of ['install', 'rotate', 'remove'] as const) {
 			await managementService.manageHostSandboxCertificate(provider.id, operation);
 		}
@@ -1220,7 +1221,7 @@ suite('AgentService (node dispatcher)', () => {
 			provider[operation] = async (chat, scopeId) => { calls.push([chat, scopeId]); };
 			await assert.rejects(service[operation]('conversation://missing/chat', 'runtime'), /unavailable/);
 			await assert.rejects(service[operation](URI.parse(chat).toString(), 'runtime'), /unavailable/);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 			await managementService[operation](chat, 'runtime');
 			assert.deepStrictEqual(calls, [[chat, 'runtime']]);
 		});
@@ -3933,7 +3934,7 @@ suite('AgentService (node dispatcher)', () => {
 				managedKeys: ['permissions'],
 			});
 			registerTestAgentProvider(service, provider);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			assert.deepStrictEqual(await managementService.getManagedSettingsDiagnostics(), [{
 				provider: 'copilot',
@@ -3961,7 +3962,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(service, provider);
 			registerTestAgentProvider(service, otherProvider);
 			registerTestAgentProvider(service, unsupportedProvider);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			await managementService.refreshCopilotConnectorSessions();
 			await managementService.refreshCopilotConnectorSessions('mail');
@@ -3982,7 +3983,7 @@ suite('AgentService (node dispatcher)', () => {
 				return [{ name: 'spark', marketplace: 'copilot-plugins' }];
 			};
 			registerTestAgentProvider(service, provider);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			await managementService.installPlugin(provider.id, { source: 'spark@copilot-plugins' }, session);
 			await managementService.uninstallPlugin(provider.id, { name: 'spark', marketplace: 'copilot-plugins' }, session);
@@ -4033,7 +4034,7 @@ suite('AgentService (node dispatcher)', () => {
 				return [{ name: name ?? 'marketplace', success: true }];
 			};
 			registerTestAgentProvider(service, provider);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			const listed = await managementService.listPluginMarketplaces(provider.id, session);
 			const added = await managementService.addPluginMarketplace(provider.id, session, 'owner/repository');
@@ -4119,7 +4120,7 @@ suite('AgentService (node dispatcher)', () => {
 					}, [], creationTimeChatStorageResource);
 				}
 			};
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 			const session = AgentSession.uri('copilot', 'canvas-session');
 			const chat = URI.parse(buildDefaultChatUri(session.toString()));
 
@@ -4189,7 +4190,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 			let restoreCalls = 0;
 			service.restoreSession = async () => { restoreCalls++; };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 			const coldSession = AgentSession.uri('copilot', 'canvas-cold-session');
 			const resource = URI.parse('ahp-canvas:/preview');
 
@@ -4233,7 +4234,7 @@ suite('AgentService (node dispatcher)', () => {
 				},
 			});
 			service.restoreSession = async () => { };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			await assert.rejects(
 				managementService.listSessionCanvases(requestedSession, foreignChat),
@@ -4274,7 +4275,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 			let restoreCalls = 0;
 			service.restoreSession = async () => { restoreCalls++; };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			await assert.rejects(
 				managementService.listSessionCanvases(session, chat),
@@ -8983,7 +8984,7 @@ suite('AgentService (node dispatcher)', () => {
 			const provider: IAgent = copilotAgent;
 			provider.getSessionStateFile = async session => URI.file(`/state/${AgentSession.id(session)}/events.jsonl`);
 			registerTestAgentProvider(service, provider);
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			assert.deepStrictEqual({
 				supported: (await managementService.getSessionStateFile(AgentSession.uri('copilot', 'session-1')))?.toString(),
@@ -25014,7 +25015,7 @@ suite('AgentService (node dispatcher)', () => {
 			service.claimDetachedWorktree = async handle => { calls.push(`claim:${handle}`); };
 			service.deleteDetachedWorktree = async handle => { calls.push(`delete:${handle}`); };
 			service.reconcileDetachedWorktrees = async (scope, activeHandles) => { calls.push(`reconcile:${scope}:${activeHandles.join(',')}`); };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			const created = await managementService.createDetachedWorktree(session, 'prepare');
 			await managementService.setDetachedWorktreeArchived(created.handle, true);
@@ -25039,7 +25040,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('forwards system wake and network reports to scheduled work readiness', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const systemWake = disposables.add(new AgentHostSystemWakeService(new NullLogService()));
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), systemWake, new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), systemWake, new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 			const readiness = () => ({ fullyAwake: systemWake.isFullyAwake.get(), ready: systemWake.isReadyForScheduledWork.get() });
 
 			await managementService.setSystemFullyAwake(false);
@@ -25394,7 +25395,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			nullSessionDataService.whenIdle = async () => { flushCount++; };
 			let ingressShutdownCount = 0;
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { ingressShutdownCount++; }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { ingressShutdownCount++; }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			const first = managementService.shutdown();
 			const second = managementService.shutdown();
@@ -25423,7 +25424,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			service.shutdown = async () => { providerShutdownCount++; };
 			nullSessionDataService.whenIdle = async () => { flushCount++; };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, () => stalled.p, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, () => stalled.p, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			void managementService.createSessionWithExtensions({});
 			await managementService.shutdown();
@@ -25455,7 +25456,7 @@ suite('AgentService (node dispatcher)', () => {
 					warnings.push(message);
 				}
 			}();
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, logService, disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), telemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, logService, disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), telemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			let shutDown = false;
 			const shutdown = managementService.shutdown().then(() => { shutDown = true; });
@@ -25513,7 +25514,7 @@ suite('AgentService (node dispatcher)', () => {
 			service.createSession = () => createSession.p;
 			service.shutdown = async () => { providerShutdownCount++; };
 			nullSessionDataService.whenIdle = async () => { flushCount++; };
-			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService(), disposables.add(new AgentHostSystemWakeService(new NullLogService())), new AgentHostMacAccessibilityTrustService(), NullTelemetryService, new class extends mock<IAgentHostAuthenticationController>() { }());
 
 			const mutation = managementService.createSessionWithExtensions({});
 			const shutdown = managementService.shutdown();
@@ -25540,6 +25541,24 @@ suite('AgentService (node dispatcher)', () => {
 	// ---- restoreSession -------------------------------------------------
 
 	suite('restoreSession', () => {
+
+		for (const persistedArchived of [undefined, 'false', 'true']) {
+			test(`restores provider archive status with persisted override ${persistedArchived}`, async () => {
+				const db = new TestSessionDatabase();
+				if (persistedArchived !== undefined) {
+					await db.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, persistedArchived);
+				}
+				const agent = disposables.add(new MockAgent('copilot'));
+				agent.sessionMetadataOverrides = { status: SessionStatus.IsArchived };
+				const { session } = await createAgentSession(agent);
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				registerTestAgentProvider(svc, agent);
+
+				await svc.restoreSession(session);
+
+				assert.strictEqual(isSessionStatusArchived(getStateManager(svc).getSessionSummary(session.toString())!.status), persistedArchived !== 'false');
+			});
+		}
 
 		test('surviving cold subscriber installs summary interest when the restoring subscriber is cancelled', async () => {
 			const db = new TestSessionDatabase();

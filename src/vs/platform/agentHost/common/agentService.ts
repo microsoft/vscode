@@ -887,7 +887,7 @@ export interface IMissionControlOptions {
 	readonly cloneRoot?: string;
 	readonly live?: boolean;
 	readonly requireConnectionBinding?: boolean;
-	/** Uses host GitHub and Copilot credentials for same-owner relay clients. */
+	/** Selects host execution credentials; omission and registration withdrawal preserve the current choice. */
 	readonly useLocalCredentials?: boolean;
 	/** Explicit host-owner testing override; omit device remote-control policy from Mission Control registration. */
 	readonly ignoreRemoteControlPolicy?: boolean;
@@ -905,6 +905,8 @@ export interface IMissionControlCredentialSealingRequest {
 
 export interface IAgentHostManagementService {
 	readonly _serviceBrand: undefined;
+	/** Replaces parent-owned execution credentials through trusted local IPC; an empty list revokes them without client fallback. */
+	setHostExecutionCredentials(credentials: readonly AuthenticateParams[]): Promise<void>;
 	/** Opt-in Mission Control ingress; failures are explicit data so structured causes survive trusted local IPC. */
 	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void | { readonly error: IConnectionDiagnosticError }>;
 	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string>;

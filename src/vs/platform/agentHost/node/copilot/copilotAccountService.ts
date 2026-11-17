@@ -56,7 +56,7 @@ export interface ICopilotAccountService {
 	authenticate(client: Promise<AccountClient>, params: AuthenticateParams): Promise<void>;
 	requireReady(): ReadyAccountContext;
 	getSession(context: ReadyAccountContext, client: Promise<AccountClient>): Promise<CopilotSession>;
-	/** Signs a newly created conversation in to the context's service; a resumed conversation keeps the sign-in the runtime saved with it. */
+	/** Signs a newly created or reopened conversation in to the context's service; the runtime keeps the sign-in only while the conversation stays open. */
 	authenticateSession(session: CopilotSession, client: AccountClient, context: ReadyAccountContext, token: CancellationToken): Promise<void>;
 	isAuthenticationSession(sessionId: string): boolean;
 	reset(): Promise<void>;
@@ -195,8 +195,10 @@ export class CopilotAccountService extends Disposable implements ICopilotAccount
 		try {
 			const { session, outcome } = await this.login(attempt);
 			this.assertCurrent(attempt);
-			const choice = outcome.kind === 'ready' ? outcome.choice : outcome.choices.find(offered => sameServiceAccount(offered, context.choice));
-			if (!choice || !sameServiceAccount(choice, context.choice)) {
+			// TODO: Compare the account name again once github/copilot-agent-runtime#35781 gives a Microsoft 365 account a stable one. The runtime names it per sign-in, so only its service can match; the attempt already pins the Entra account by ID.
+			const isSelected = (offered: ICopilotServiceChoice) => context.choice.service === 'm365' ? sameService(offered, context.choice) : sameServiceAccount(offered, context.choice);
+			const choice = outcome.kind === 'ready' ? outcome.choice : outcome.choices.find(isSelected);
+			if (!choice || !isSelected(choice)) {
 				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'The selected Copilot service is no longer available.');
 			}
 			if (outcome.kind === 'choiceRequired') {

@@ -26,12 +26,135 @@
 
 	&.visible {
 		display: flex;
+		/* Last on the title row, so the row's actions appear to its left and it never moves. */
+		order: 1;
 		margin-left: auto;
 
 		+ .session-title-toolbar {
 			margin-left: 0;
 		}
 	}
+
+	/* A target in its own right: hovering or clicking it shows the session's scheduled messages. */
+	&.visible.actionable {
+		height: 20px;
+		border-radius: var(--vscode-cornerRadius-small);
+		cursor: pointer;
+
+		&:hover {
+			color: var(--vscode-foreground);
+			background-color: var(--vscode-toolbar-hoverBackground);
+			outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline, transparent);
+			outline-offset: calc(-1 * var(--vscode-strokeThickness));
+		}
+
+		&:focus-visible {
+			outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+			outline-offset: calc(-1 * var(--vscode-strokeThickness));
+		}
+	}
+}
+
+/* The card a session's scheduled clock shows. */
+.monaco-hover.session-scheduled-card-hover .hover-contents {
+	padding: 0;
+}
+
+.session-scheduled-card {
+	display: flex;
+	flex-direction: column;
+	width: 480px;
+	max-width: 100%;
+	color: var(--vscode-editorHoverWidget-foreground);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 18px;
+}
+
+.session-scheduled-card-header {
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+}
+
+.session-scheduled-card-title {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.session-scheduled-card-count {
+	margin-left: auto;
+	color: var(--vscode-descriptionForeground);
+	font-variant-numeric: tabular-nums;
+}
+
+/* Rows share one grid, so every time and message lines up: icon, time, message, actions. */
+.session-scheduled-card-list {
+	display: grid;
+	grid-template-columns: auto max-content minmax(0, 1fr) auto;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size40);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
+}
+
+.session-scheduled-card-row {
+	display: grid;
+	grid-column: 1 / -1;
+	grid-template-columns: subgrid;
+	align-items: center;
+	min-height: 22px;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40) var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+
+	&:hover,
+	&:focus-within {
+		background-color: var(--vscode-list-hoverBackground);
+	}
+}
+
+.monaco-hover .hover-contents .session-scheduled-card .session-scheduled-card-icon.codicon {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-codiconFontSize);
+	line-height: 18px;
+}
+
+.session-scheduled-card-time {
+	margin: 0 var(--vscode-spacing-size120) 0 var(--vscode-spacing-size60);
+	color: var(--vscode-descriptionForeground);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.session-scheduled-card-text {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+/* The actions keep their column (no reflow) and show on the row's hover and focus. */
+.session-scheduled-card-actions {
+	margin-left: var(--vscode-spacing-size80);
+	opacity: 0;
+	pointer-events: none;
+
+	.monaco-action-bar .actions-container {
+		gap: var(--vscode-spacing-size20);
+	}
+}
+
+.session-scheduled-card-row:is(:hover, :focus-within) .session-scheduled-card-actions {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.monaco-hover .hover-contents .session-scheduled-card-actions .monaco-action-bar .action-item .action-label.codicon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	font-size: var(--vscode-codiconFontSize);
 }
 
 .agent-sessions-navigation-container {
@@ -385,9 +508,17 @@
 			display: none;
 		}
 
-		.session-external-application-badge-title,
-		.session-scheduled-indicator.visible {
+		.session-external-application-badge-title {
 			display: none;
+		}
+
+		/* The clock stays, with the row's actions to its left. */
+		.session-scheduled-indicator.visible {
+			margin-left: var(--vscode-spacing-size20);
+
+			+ .session-title-toolbar {
+				margin-left: auto;
+			}
 		}
 
 		.session-title,

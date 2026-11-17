@@ -27,6 +27,7 @@ class MockChannel implements IChannel {
 	private readonly _listeners = new Map<string, Emitter<unknown>>();
 	private readonly _callResults = new Map<string, unknown>();
 	readonly calls: { command: string; arg: unknown }[] = [];
+	onCall: ((command: string) => void) | undefined;
 
 	getEmitter(event: string): Emitter<unknown> {
 		let emitter = this._listeners.get(event);
@@ -43,6 +44,7 @@ class MockChannel implements IChannel {
 
 	call<T>(command: string, _arg?: unknown): Promise<T> {
 		this.calls.push({ command, arg: _arg });
+		this.onCall?.(command);
 		return Promise.resolve((this._callResults.get(command) ?? undefined) as T);
 	}
 
@@ -233,7 +235,7 @@ suite('ServerAgentHostManager', () => {
 		roots: ['/project'], name: 'build-machine', live: true,
 	};
 
-	test('consumes GitHub environment credentials without delegating them to relay clients', () => {
+	test('consumes only trusted GitHub environment bootstrap fields', () => {
 		const env = { VSCODE_CLI_GITHUB_ENVIRONMENT_OPTIONS: JSON.stringify({ ...githubEnvironment, useLocalCredentials: true }) };
 		assert.deepStrictEqual({ options: readGithubEnvironmentOptions(env), env }, {
 			options: githubEnvironment, env: {},
@@ -314,10 +316,50 @@ suite('ServerAgentHostManager', () => {
 		}, {
 			ready: ['environment-123', 'environment-123'],
 			configurations: [
-				{ command: 'configureMissionControl', arg: [githubEnvironment] },
-				{ command: 'configureMissionControl', arg: [githubEnvironment] },
+				{ command: 'configureMissionControl', arg: [{ ...githubEnvironment, useLocalCredentials: true }] },
+				{ command: 'configureMissionControl', arg: [{ ...githubEnvironment, useLocalCredentials: true }] },
 			],
 		});
+	});
+
+	test('installs the host OAuth credential before registration and reinstalls it after a crash', async () => {
+		const authentication = new DeferredPromise<void>();
+		const authenticationRequested = new DeferredPromise<void>();
+		starter.managementChannel.onCall = command => {
+			if (command === 'setHostExecutionCredentials') {
+				void authenticationRequested.complete();
+			}
+		};
+		starter.managementChannel.setCallResult('setHostExecutionCredentials', authentication.p);
+		starter.managementChannel.setCallResult('getMissionControlEnvironmentId', 'environment-123');
+		const manager = createManager({ githubEnvironment });
+		await authenticationRequested.p;
+		assert.deepStrictEqual(starter.managementChannel.calls.map(call => call.command), ['setHostExecutionCredentials']);
+		await authentication.complete();
+		await manager.ensureStarted();
+		starter.fireProcessExit(1);
+		await manager.ensureStarted();
+		const expected = [[
+			{ resource: 'https://api.github.com', scopes: ['read:user', 'user:email'], token: 'test-credential' },
+			{ resource: 'https://api.github.com/repos', scopes: ['repo'], token: 'test-credential' },
+		]];
+		assert.deepStrictEqual(starter.managementChannel.calls.filter(call => call.command === 'setHostExecutionCredentials').map(call => call.arg), [expected, expected]);
+	});
+
+	test('does not register or report ready when the host credential is rejected', async () => {
+		starter.managementChannel.onCall = command => {
+			if (command === 'setHostExecutionCredentials') {
+				throw new Error('Rejected host execution credential');
+			}
+		};
+		const ready: string[] = [];
+		const manager = createManager({ githubEnvironment, onGithubEnvironmentReady: id => ready.push(id) });
+		await assert.rejects(manager.ensureStarted(), /Rejected host execution credential/);
+		assert.deepStrictEqual({
+			ready,
+			configured: starter.managementChannel.calls.some(call => call.command === 'configureMissionControl'),
+			disposed: starter.connectionStores.every(store => store.isDisposed),
+		}, { ready: [], configured: false, disposed: true });
 	});
 
 	test('does not report ready when GitHub environment registration fails', async () => {
@@ -335,7 +377,7 @@ suite('ServerAgentHostManager', () => {
 		const drive = join(directory, 'drive');
 		try {
 			await mkdir(drive);
-			const configuration = { ...githubEnvironment, roots: [directory, drive], projects: [directory], defaultDirectory: directory };
+			const configuration = { ...githubEnvironment, roots: [directory, drive], projects: [directory], defaultDirectory: directory, useLocalCredentials: true };
 			starter.managementChannel.setCallResult('getMissionControlEnvironmentId', 'environment-123');
 			const manager = createManager({ githubEnvironment: { ...configuration, optionalRoots: [drive] } });
 			await manager.ensureStarted();
@@ -373,8 +415,8 @@ suite('ServerAgentHostManager', () => {
 			await manager.ensureStarted();
 		}
 		assert.deepStrictEqual(starter.managementChannel.calls.filter(call => call.command === 'configureMissionControl').map(call => call.arg), [
-			[{ ...githubEnvironment, roots: [project, drive], projects: [project], defaultDirectory: project }],
-			[{ ...githubEnvironment, roots: [drive], projects: [drive], defaultDirectory: drive }],
+			[{ ...githubEnvironment, roots: [project, drive], projects: [project], defaultDirectory: project, useLocalCredentials: true }],
+			[{ ...githubEnvironment, roots: [drive], projects: [drive], defaultDirectory: drive, useLocalCredentials: true }],
 		]);
 	});
 

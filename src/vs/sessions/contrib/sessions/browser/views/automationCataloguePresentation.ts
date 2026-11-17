@@ -24,6 +24,16 @@ export function getAutomationOwnershipGroups(automations: readonly IAutomationDe
 		.map(group => ({ ...group, automations: group.automations.sort((a, b) => Number(b.enabled) - Number(a.enabled)) }));
 }
 
+export function getVisibleAutomations(automations: readonly IAutomationDescriptor[], sendLaterEnabled: boolean): readonly IAutomationDescriptor[] {
+	return automations.filter(automation =>
+		!sendLaterEnabled || automation.purpose !== 'scheduledChat' || automation.oneTimeDispatchedAt !== undefined);
+}
+
+export function hasEmptyAutomationSection(automations: readonly IAutomationDescriptor[]): boolean {
+	return automations.length === 0 || getAutomationOwnershipGroups(automations)
+		.some(group => group.automations.length === 0);
+}
+
 export interface IAutomationRemoteStatusPresentation {
 	readonly tunnelEntries: readonly IRemoteAgentHostEntry[];
 	readonly replacedTunnelProviderIds: ReadonlySet<string>;
