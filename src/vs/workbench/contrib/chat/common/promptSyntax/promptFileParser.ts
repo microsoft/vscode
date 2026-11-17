@@ -97,7 +97,7 @@ export namespace PromptHeaderAttributes {
 	export const includeCustomInstructions = 'include-custom-instructions';
 	export const commands = 'commands';
 	export const firstMessage = 'first-message';
-	export const permissions = 'permissions';
+	export const assistedApprovalInstructions = 'assisted-approval-instructions';
 }
 
 export class PromptHeader {

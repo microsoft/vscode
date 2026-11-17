@@ -16,8 +16,6 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
-import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { ChatPermissionLevel } from '../../common/constants.js';
 import { IValue, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
@@ -38,7 +36,7 @@ import { IChatWidget, IChatWidgetService } from '../chat.js';
  * first-message:         # shown as the agent's message in an empty chat
  *   markdown: What went wrong?
  *   buttons: [screenshot]   # the first one is the primary button
- * permissions: assisted  # manual | assisted, selected in a new chat
+ * assisted-approval-instructions: |  # guidance for the Assisted permissions judge (read by the agent host)
  * ```
  */
 interface IAgentCommand {
@@ -61,7 +59,6 @@ interface IAgentStartExperience {
 	readonly agentName: string;
 	readonly commands: readonly IAgentCommand[];
 	readonly firstMessage: IAgentFirstMessage | undefined;
-	readonly permissions: ChatPermissionLevel | undefined;
 }
 
 /** The VS Code command behind an agent command. */
@@ -77,8 +74,6 @@ export class ChatAgentStartExperienceContribution extends Disposable implements 
 	private readonly _firstMessages = this._register(new DisposableMap<IChatWidget>());
 	/** Commands per agent command ID, registered once and kept up to date. */
 	private readonly _commands = new Map<string, { definition: IAgentCommand; readonly registration: DisposableStore }>();
-	/** The level each widget's new chat (by session) got from its agent, so another agent can undo it and the user's later choice sticks. */
-	private readonly _permissionsApplied = new WeakMap<IChatWidget, { readonly session: string; readonly level: ChatPermissionLevel }>();
 
 	constructor(
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
@@ -122,7 +117,6 @@ export class ChatAgentStartExperienceContribution extends Disposable implements 
 		}
 		experience?.commands.forEach(command => this._registerCommand(experience.agentName, command));
 		this._setFirstMessage(widget, experience?.firstMessage && this._renderFirstMessage(experience, experience.firstMessage, widget));
-		await this._applyPermissions(widget, experience?.permissions);
 	}
 
 	private async _read(agentName: string, uri: URI): Promise<IAgentStartExperience | undefined> {
@@ -131,34 +125,11 @@ export class ChatAgentStartExperienceContribution extends Disposable implements 
 			return undefined;
 		}
 		const attribute = (name: string) => toJson(header.getAttribute(name)?.value);
-		const permissions = asString(attribute(PromptHeaderAttributes.permissions));
 		return {
 			agentName,
 			commands: toArray(attribute(PromptHeaderAttributes.commands)).map(asAgentCommand).filter((command): command is IAgentCommand => !!command),
 			firstMessage: asFirstMessage(attribute(PromptHeaderAttributes.firstMessage)),
-			permissions: permissions === 'manual' ? ChatPermissionLevel.Default : permissions === ChatPermissionLevel.Assisted ? ChatPermissionLevel.Assisted : undefined,
 		};
-	}
-
-	/**
-	 * In a new chat, selects the level the agent asks for, through the permissions picker (policy, and confirmation before
-	 * elevating, as when the user picks it). Selecting another agent in the same empty chat undoes it.
-	 */
-	private async _applyPermissions(widget: IChatWidget, level: ChatPermissionLevel | undefined): Promise<void> {
-		const viewModel = widget.viewModel;
-		if (!viewModel || viewModel.getItems().length > 0) {
-			return;
-		}
-		const session = viewModel.sessionResource.toString();
-		const applied = this._permissionsApplied.get(widget);
-		const previous = applied?.session === session ? applied.level : undefined;
-		const target = level ?? (previous !== undefined ? ChatPermissionLevel.Default : undefined);
-		const picker = widget.input.getAgentHostPicker(SessionConfigKey.Mode) ?? widget.input.getAgentHostPicker(SessionConfigKey.AutoApprove);
-		if (target === undefined || target === previous || !picker) {
-			return;
-		}
-		this._permissionsApplied.set(widget, { session, level: target });
-		await picker.requestPermissionLevel(target);
 	}
 
 	private _setFirstMessage(widget: IChatWidget, rendered: { element: HTMLElement; store: DisposableStore } | undefined): void {

@@ -655,30 +655,6 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._hidePicker();
 	}
 
-	/**
-	 * Selects a permission level on behalf of the selected agent (its `permissions`), as if the user picked it:
-	 * levels that policy disables are skipped, and elevated levels still ask for confirmation.
-	 */
-	async requestPermissionLevel(level: ChatPermissionLevel): Promise<void> {
-		const context = this._readContext(SessionConfigKey.AutoApprove);
-		if (!context || context.value === level || !this._canEdit(context)) {
-			return;
-		}
-		const items = await this._getActionItems(SessionConfigKey.AutoApprove, context.schema, context.value);
-		const item = items.find(entry => !entry.disabled && entry.item?.value === level)?.item;
-		if (!item || (level !== ChatPermissionLevel.Default && !await maybeConfirmElevatedPermissionLevel(level, this._dialogService, this._storageService, {
-			defaultSettingKey: ChatConfiguration.DefaultConfiguration,
-			levelLabel: item.label,
-		}))) {
-			return;
-		}
-		// A new chat's session may be created while the confirmation is open: write to the current one.
-		const current = this._readContext(SessionConfigKey.AutoApprove);
-		if (current && current.value !== level && this._canEdit(current)) {
-			await this._setValue(current, level, SessionConfigKey.AutoApprove);
-		}
-	}
-
 	private _setSectionExpanded(headerId: string, expanded: boolean): void {
 		this._actionWidgetService.focusItemById(headerId);
 		if (expanded) {
