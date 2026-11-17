@@ -48,7 +48,14 @@ const MAX_BODY_CHARS = 64 * 1024;
 const PROXY_ENV_KEYS = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy', 'NO_PROXY', 'no_proxy', 'COPILOT_PROXY_KERBEROS_SPN'] as const;
 
 /** Agent Host `http.*` proxy settings surfaced alongside the env vars. */
-const PROXY_CONFIG_KEYS = [AgentHostProxyConfigKey.Proxy, AgentHostProxyConfigKey.NoProxy, AgentHostProxyConfigKey.ProxyKerberosServicePrincipal] as const;
+const PROXY_CONFIG_KEYS = [
+	AgentHostProxyConfigKey.Proxy,
+	AgentHostProxyConfigKey.NoProxy,
+	AgentHostProxyConfigKey.ProxyKerberosServicePrincipal,
+	AgentHostProxyConfigKey.ProxySupport,
+	AgentHostProxyConfigKey.SystemCertificates,
+	AgentHostProxyConfigKey.SystemCertificatesNode,
+] as const;
 
 export class NetworkDiagnosticsService implements INetworkDiagnosticsService {
 

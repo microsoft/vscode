@@ -555,7 +555,7 @@ suite('ChatWorkingLogo', () => {
 		await waitForMotion();
 
 		assert.deepStrictEqual({ pausedWhileHidden, pausedWhileDetached }, { pausedWhileHidden: hidden, pausedWhileDetached: detached });
-	});
+	}).timeout(10_000); // While nothing paints, the hidden Electron test window runs animation frames once a second, so the four frames while detached take about 4s.
 
 	test('disposal cancels a scheduled Draw frame', () => {
 		const { logo, hasPendingFrame } = createDynamicLogo(ChatProgressAnimation.Draw);

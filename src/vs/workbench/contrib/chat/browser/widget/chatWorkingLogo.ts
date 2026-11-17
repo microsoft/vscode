@@ -18,10 +18,16 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { ChatConfiguration, ChatProgressAnimation } from '../../common/constants.js';
 import { chatWorkingProgressInsidersIconForeground, chatWorkingProgressStableIconForeground } from '../../common/widget/chatColors.js';
 import { CHAT_WORKING_LOGO_DRAW_PAINT_ORDER, ChatWorkingLogoDrawBand, chatWorkingLogoDrawDuration, chatWorkingLogoFacePaths, getChatWorkingLogoDrawFrame } from './chatWorkingLogoDraw.js';
-import { acquireChatWorkingLogoAtlas, getChatWorkingLogoAtlasKeyframes, loadChatWorkingLogoAtlasImage } from './chatWorkingLogoAtlas.js';
+import { acquireChatWorkingLogoAtlas, getChatWorkingLogoAtlasKeyframes, hasChatWorkingLogoAtlas, loadChatWorkingLogoAtlasImage } from './chatWorkingLogoAtlas.js';
 import './media/chatWorkingLogo.css';
 
 const fallbackFrameRate = 60;
+/**
+ * Generating an atlas costs main-thread time, so it must not compete with preparing and sending a request.
+ * New atlases are only generated once an indicator has been animating this long, by which point the request
+ * has been sent; atlases that already exist in the window are used immediately.
+ */
+const atlasPreparationDelay = 2000;
 let drawMaskIdPool = 0;
 
 function isDrawAnimation(animation: ChatProgressAnimation): boolean {
@@ -98,6 +104,8 @@ export class ChatWorkingLogo extends Disposable {
 			readonly resizeObserver?: typeof ResizeObserver;
 			readonly pixelRatio?: IPixelRatioMonitor;
 			readonly acquireAtlas?: typeof acquireChatWorkingLogoAtlas;
+			readonly hasAtlas?: typeof hasChatWorkingLogoAtlas;
+			readonly atlasPreparationDelay?: number;
 			readonly onAtlasError?: (error: Error) => void;
 		} = {},
 	) {
@@ -231,8 +239,18 @@ export class ChatWorkingLogo extends Disposable {
 			return;
 		}
 		this.clearAtlas();
-		this.atlasKey = key;
 		this.renderNextDrawFrame();
+		const remainingDelay = (this.animationOptions.atlasPreparationDelay ?? atlasPreparationDelay) - (this.now() - this.animationStartedAt);
+		if (remainingDelay > 0 && !(this.animationOptions.hasAtlas ?? hasChatWorkingLogoAtlas)(targetWindow, options)) {
+			// Keep the SVG fallback while the request is prepared instead of generating frames on its critical path.
+			const handle = targetWindow.setTimeout(() => {
+				this.atlasRefresh.clear();
+				this.scheduleAtlasRefresh();
+			}, remainingDelay);
+			this.atlasRefresh.value = toDisposable(() => targetWindow.clearTimeout(handle));
+			return;
+		}
+		this.atlasKey = key;
 		const request = this.atlasRequest.value = new DisposableStore();
 		const cancellation = new CancellationTokenSource();
 		request.add(toDisposable(() => cancellation.dispose(true)));

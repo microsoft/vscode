@@ -7,7 +7,15 @@ import { Code } from './code';
 import { closeModelConfigDetails, IModelConfigSection, openModelConfigDetails, readModelConfigSections, selectModelConfigDetailsOption } from './modelConfigPicker';
 
 const CHAT_VIEW = 'div[id="workbench.panel.chat"]';
+// The chat view sets `data-bound-chat-resource` once its widget is bound to a
+// chat session and clears it while it rebinds to another one.
+const CHAT_VIEW_BOUND_SESSION = `${CHAT_VIEW} .chat-viewpane[data-bound-chat-resource]`;
+// The resource of a local chat session (`LocalChatSessionUri`).
+const LOCAL_CHAT_SESSION_RESOURCE_PREFIX = 'vscode-chat-session://local/';
 const CHAT_EDITOR = '.editor-instance .interactive-session';
+// The chat editor sets `data-bound-chat-resource` on its editor container (the
+// `.editor-instance` element itself) once its widget is bound to a chat model.
+const CHAT_EDITOR_BOUND_SESSION = '.editor-instance.chat-editor-relative[data-bound-chat-resource]';
 const CHAT_INPUT_EDITOR = `${CHAT_VIEW} .interactive-input-part .monaco-editor[role="code"]`;
 const CHAT_INPUT_EDITOR_FOCUSED = `${CHAT_VIEW} .interactive-input-part .monaco-editor.focused[role="code"]`;
 const CHAT_SEND_BUTTON_ENABLED = `${CHAT_VIEW} .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up-compact`;
@@ -55,8 +63,44 @@ export class Chat {
 		await this.code.waitForElement(CHAT_VIEW);
 	}
 
+	/**
+	 * Returns the chat session resource the chat view is bound to, or
+	 * `undefined` when the view is not open or is rebinding to another session.
+	 */
+	async getChatViewSessionResource(): Promise<string | undefined> {
+		const [element] = await this.code.getElements(CHAT_VIEW_BOUND_SESSION, false) ?? [];
+		return element?.attributes['data-bound-chat-resource'];
+	}
+
+	/**
+	 * Waits until the chat view is bound to a local chat session other than
+	 * `previousSessionResource`, such as the one `smoketest.openLocalChat`
+	 * opens. That command keeps running after the command palette closes, and
+	 * first waits for the command that opens a local chat to be registered: a
+	 * message sent before then goes to the session the view had, such as the
+	 * Agent Host Copilot session that is its default, and never gets the
+	 * response the test expects.
+	 */
+	async waitForNewLocalChatViewSession(previousSessionResource: string | undefined, retryCount?: number): Promise<void> {
+		await this.code.waitForElement(CHAT_VIEW_BOUND_SESSION, element => {
+			const sessionResource = element?.attributes['data-bound-chat-resource'];
+			return !!sessionResource && sessionResource !== previousSessionResource && sessionResource.startsWith(LOCAL_CHAT_SESSION_RESOURCE_PREFIX);
+		}, retryCount);
+	}
+
 	async waitForChatEditor(retryCount?: number): Promise<void> {
 		await this.code.waitForElement(CHAT_EDITOR, undefined, retryCount);
+	}
+
+	/**
+	 * Waits until the chat editor is bound to a chat model and returns its
+	 * session resource. A session type whose session cannot be created falls
+	 * back to a local chat session in the same editor, so the resource tells
+	 * which session type the editor actually runs.
+	 */
+	async waitForChatEditorSessionResource(retryCount?: number): Promise<string> {
+		const element = await this.code.waitForElement(CHAT_EDITOR_BOUND_SESSION, undefined, retryCount);
+		return element.attributes['data-bound-chat-resource'];
 	}
 
 	async waitForInputFocus(): Promise<void> {
@@ -69,9 +113,22 @@ export class Chat {
 			.waitFor({ state: 'visible' });
 	}
 
+	/**
+	 * Focuses a chat input by clicking near its bottom-right corner, past the end of its content.
+	 * Attachments can show as inline pills in the input, and clicking a pill opens its attachment
+	 * in an editor, so a click at the center could replace the active editor instead.
+	 */
+	private async clickInputPastContent(inputSelector: string): Promise<void> {
+		await this.code.waitForElement(inputSelector);
+		const box = await this.code.driver.currentPage.locator(inputSelector).first().boundingBox();
+		if (!box) {
+			throw new Error(`Chat input is not visible: ${inputSelector}`);
+		}
+		await this.code.waitAndClick(inputSelector, Math.max(box.width - 30, 1), Math.max(box.height - 5, 1));
+	}
+
 	async sendMessage(message: string): Promise<void> {
-		// Click on the chat input to focus it
-		await this.code.waitAndClick(CHAT_INPUT_EDITOR);
+		await this.clickInputPastContent(CHAT_INPUT_EDITOR);
 
 		// Wait for the editor to be focused
 		await this.waitForInputFocus();
@@ -92,7 +149,7 @@ export class Chat {
 	}
 
 	async sendEditorMessage(message: string): Promise<void> {
-		await this.code.waitAndClick(CHAT_EDITOR_INPUT_EDITOR);
+		await this.clickInputPastContent(CHAT_EDITOR_INPUT_EDITOR);
 		await this.code.waitForElement(CHAT_EDITOR_INPUT_EDITOR_FOCUSED);
 
 		// Insert via Monaco's executeEdits rather than character-by-character
@@ -142,7 +199,7 @@ export class Chat {
 		return await this.pollForResponseText(CHAT_RESPONSE, CHAT_RESPONSE_RENDERED, predicate, timeoutMs, options?.acceptToolConfirmations);
 	}
 
-	async waitForEditorResponseText(predicate: string | RegExp, timeoutMs: number = 60_000, options?: { acceptToolConfirmations?: boolean }): Promise<string> {
+	async waitForEditorResponseText(predicate: string | RegExp, timeoutMs: number = 60_000, options?: { acceptToolConfirmations?: boolean; waitForCommittedResource?: boolean }): Promise<string> {
 		const matched = await this.pollForResponseText(CHAT_EDITOR_RESPONSE, CHAT_EDITOR_RESPONSE_RENDERED, predicate, timeoutMs, options?.acceptToolConfirmations);
 		// After a contributed chat session (e.g. Copilot CLI, Claude) returns
 		// its first response, the workbench commits the untitled session into
@@ -153,7 +210,11 @@ export class Chat {
 		// container after binding its widget to the loaded chat model, and
 		// clears it during rebind — so we can wait for the swap to land via
 		// Playwright's push-based `waitForSelector` (no polling on our side).
-		await this.waitForEditorChatBoundToCommittedResource();
+		// Agent Host chat editors keep their untitled resource, so callers
+		// skip this wait for them.
+		if (options?.waitForCommittedResource !== false) {
+			await this.waitForEditorChatBoundToCommittedResource();
+		}
 		return matched;
 	}
 
@@ -166,7 +227,7 @@ export class Chat {
 	 * untitled → committed swap).
 	 */
 	private async waitForEditorChatBoundToCommittedResource(timeoutMs: number = 15_000): Promise<void> {
-		const selector = `.editor-instance .chat-editor-relative[data-bound-chat-resource]:not([data-bound-chat-resource*="/untitled-"])`;
+		const selector = `${CHAT_EDITOR_BOUND_SESSION}:not([data-bound-chat-resource*="/untitled-"])`;
 		try {
 			await this.code.driver.waitForElement(selector, { state: 'attached', timeout: timeoutMs });
 		} catch {

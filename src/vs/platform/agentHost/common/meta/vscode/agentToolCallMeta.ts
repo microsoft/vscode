@@ -11,6 +11,9 @@ import { isSandboxPathGrant, type ISandboxPathGrant } from '../../sandboxPathGra
 
 export const copilotCliToolInputContract = 'copilot-cli-v1';
 
+/** What the path of a native `view` tool call named. */
+export type ViewedResourceType = 'file' | 'directory';
+
 /** Anything carrying a tool call's `_meta` bag (persisted state or wire actions). */
 interface IHasToolCallMeta {
 	readonly _meta?: Record<string, unknown>;
@@ -28,10 +31,16 @@ export interface IToolCallMeta {
 	readonly 'vscode.toolCallDurationMs'?: number;
 	/** Declares the input schema of a native tool, never a client- or MCP-contributed implementation. */
 	readonly 'vscode.toolInputContract'?: typeof copilotCliToolInputContract;
+	/** What the path of a completed native `view` call named, which its input does not say. Absent when the runtime did not report it. */
+	readonly 'vscode.viewedResourceType'?: ViewedResourceType;
 	/** Trusted Copilot host snapshot for integrated-browser client tools. Absent for other tools and harnesses. */
 	readonly 'vscode.copilotSandboxNetworkRestrictions'?: ISandboxNetworkRestrictions;
 	readonly 'agentHost.sandboxBypass'?: boolean;
 	readonly 'vscode.sandboxPathGrant'?: ISandboxPathGrant;
+	/** Why Assisted permissions left this confirmation to the user without a judge verdict to show, when it excluded or failed to review it. */
+	readonly 'vscode.assistedApprovalNotice'?: string;
+	/** The host accepts optional feedback about this Assisted permissions prompt with the user's decision. */
+	readonly 'vscode.assistedApprovalFeedbackAccepted'?: true;
 	/**
 	 * VS Code rendering hint. `terminal` routes the call to the command/output
 	 * renderer, `subagent` to the subagent UI, `search` to the search renderer,
@@ -42,6 +51,14 @@ export interface IToolCallMeta {
 	readonly toolKind?: ToolKind;
 	/** Shell language for a `terminal` tool call (drives syntax highlighting). */
 	readonly language?: string;
+	/**
+	 * Working directory of a `terminal` tool call's command, verbatim in its
+	 * execution environment's path syntax. Shown before approval because the
+	 * same relative command line runs different programs in different directories.
+	 */
+	readonly 'vscode.terminalWorkingDirectory'?: string;
+	/** Execution environment of a `terminal` tool call's command, when it is not the agent host's own machine. */
+	readonly 'vscode.terminalEnvironment'?: string;
 	/** Short task description for a `subagent` tool call (e.g. "Find related files"). */
 	readonly subagentDescription?: string;
 	/** Agent name for a `subagent` tool call (e.g. "explore"). */
@@ -60,8 +77,6 @@ export interface IToolCallMeta {
 	 * explicit user action), so the client can render it as setting-driven.
 	 */
 	readonly autoApproveBySetting?: boolean;
-	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this confirmation. */
-	readonly autoApproveRuleResolvable?: boolean;
 	/** Transient runtime corpus for the local client tool-search invocation. */
 	readonly toolSearchCandidates?: readonly IToolSearchCandidate[];
 	/** Latest progress message from a running tool; transient, meaningful only while Running. */
@@ -78,10 +93,15 @@ const toolCallMetaKeys = [
 	imageGenerationToolMetaKey,
 	'vscode.toolCallDurationMs',
 	'vscode.toolInputContract',
+	'vscode.viewedResourceType',
 	'vscode.copilotSandboxNetworkRestrictions',
 	'vscode.sandboxPathGrant',
+	'vscode.assistedApprovalNotice',
+	'vscode.assistedApprovalFeedbackAccepted',
+	'vscode.terminalWorkingDirectory',
+	'vscode.terminalEnvironment',
 	'agentHost.sandboxBypass', 'toolKind', 'language', 'subagentDescription', 'subagentAgentName', 'subagentChatUri',
-	'mcpServerName', 'mcpToolName', 'autoApproveBySetting', 'autoApproveRuleResolvable', 'toolSearchCandidates', 'progressMessage', 'fusionPhase',
+	'mcpServerName', 'mcpToolName', 'autoApproveBySetting', 'toolSearchCandidates', 'progressMessage', 'fusionPhase',
 ] as const;
 
 export function hasVSCodeToolCallMeta(source: IHasToolCallMeta): boolean {
@@ -192,14 +212,25 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	if (meta['vscode.toolInputContract'] === copilotCliToolInputContract) {
 		result['vscode.toolInputContract'] = copilotCliToolInputContract;
 	}
+	const viewedResourceType = meta['vscode.viewedResourceType'];
+	if (viewedResourceType === 'file' || viewedResourceType === 'directory') {
+		result['vscode.viewedResourceType'] = viewedResourceType;
+	}
 	const networkRestrictions = meta['vscode.copilotSandboxNetworkRestrictions'];
 	if (isSandboxNetworkRestrictions(networkRestrictions)) {
 		result['vscode.copilotSandboxNetworkRestrictions'] = networkRestrictions;
 	}
 	if (typeof meta['agentHost.sandboxBypass'] === 'boolean') { result['agentHost.sandboxBypass'] = meta['agentHost.sandboxBypass']; }
 	if (isSandboxPathGrant(meta['vscode.sandboxPathGrant'])) { result['vscode.sandboxPathGrant'] = meta['vscode.sandboxPathGrant']; }
+	const assistedApprovalNotice = meta['vscode.assistedApprovalNotice'];
+	if (typeof assistedApprovalNotice === 'string' && assistedApprovalNotice.trim()) { result['vscode.assistedApprovalNotice'] = assistedApprovalNotice; }
+	if (meta['vscode.assistedApprovalFeedbackAccepted'] === true) { result['vscode.assistedApprovalFeedbackAccepted'] = true; }
 	if (isToolKind(meta.toolKind)) { result.toolKind = meta.toolKind; }
 	if (typeof meta.language === 'string') { result.language = meta.language; }
+	const terminalWorkingDirectory = meta['vscode.terminalWorkingDirectory'];
+	if (typeof terminalWorkingDirectory === 'string' && terminalWorkingDirectory) { result['vscode.terminalWorkingDirectory'] = terminalWorkingDirectory; }
+	const terminalEnvironment = meta['vscode.terminalEnvironment'];
+	if (typeof terminalEnvironment === 'string' && terminalEnvironment) { result['vscode.terminalEnvironment'] = terminalEnvironment; }
 	if (typeof meta.subagentDescription === 'string') { result.subagentDescription = meta.subagentDescription; }
 	if (typeof meta.subagentAgentName === 'string') { result.subagentAgentName = meta.subagentAgentName; }
 	if (typeof meta.subagentChatUri === 'string') { result.subagentChatUri = meta.subagentChatUri; }
@@ -211,7 +242,6 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	const fusionPhase = readFusionPhase(meta.fusionPhase);
 	if (fusionPhase) { result.fusionPhase = fusionPhase; }
 	if (typeof meta.autoApproveBySetting === 'boolean') { result.autoApproveBySetting = meta.autoApproveBySetting; }
-	if (typeof meta.autoApproveRuleResolvable === 'boolean') { result.autoApproveRuleResolvable = meta.autoApproveRuleResolvable; }
 	const toolSearchCandidates = readToolSearchCandidates(meta.toolSearchCandidates);
 	if (toolSearchCandidates) { result.toolSearchCandidates = toolSearchCandidates; }
 	const ui = readToolCallUiMeta(meta.ui);

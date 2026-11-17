@@ -37,7 +37,7 @@ export class AgentHostSessionPromptService implements IAgentHostSessionPromptSer
 			this._turnService.startTurnMessage(URI.parse(defaultChat), {
 				text: prompt,
 				origin: { kind: MessageKind.User },
-			});
+			}, config.credentials);
 			return session;
 		} catch (error) {
 			await this._agentService.disposeSession(session);

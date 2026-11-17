@@ -13,7 +13,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { AhpJsonlLogger, getAhpLogByteLength, IAhpJsonlLoggerOptions } from '../common/ahpJsonlLogger.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
-import type { IClientTransport, ITransportCloseDetails } from '../common/state/sessionTransport.js';
+import { parseProtocolMessage, type IClientTransport, type ITransportCloseDetails } from '../common/state/sessionTransport.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../common/transportConstants.js';
 
 // ---- Client transport -------------------------------------------------------
@@ -46,6 +46,8 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 	get isOpen(): boolean {
 		return this._ws?.readyState === WebSocket.OPEN;
 	}
+
+	get bufferedAmount(): number { return this._ws?.bufferedAmount ?? 0; }
 
 	private readonly _ahpLogger?: AhpJsonlLogger;
 
@@ -133,7 +135,7 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 				const text = event.data;
 				let message: ProtocolMessage;
 				try {
-					message = JSON.parse(text) as ProtocolMessage;
+					message = parseProtocolMessage(text);
 				} catch (err) {
 					this._malformedFrames++;
 					if (this._malformedFrames <= MALFORMED_FRAMES_LOG_CAP) {

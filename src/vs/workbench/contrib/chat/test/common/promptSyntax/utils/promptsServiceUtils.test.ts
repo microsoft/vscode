@@ -47,7 +47,7 @@ suite('promptsServiceUtils', () => {
 			);
 		});
 
-		test('returns false when path does not contain /github/', () => {
+		test('returns false outside the default chat extension global storage cache', () => {
 			const uri = URI.file('/some/path/to/prompt.md');
 			const extensionId = new ExtensionIdentifier(CHAT_EXTENSION_ID);
 			const productService = createProductService(CHAT_EXTENSION_ID);
@@ -55,24 +55,24 @@ suite('promptsServiceUtils', () => {
 			assert.strictEqual(
 				isOrganizationPromptFile(uri, extensionId, productService),
 				false,
-				'Should return false when path does not contain /github/',
+				'Should return false outside global storage',
 			);
 		});
 
-		test('returns true when extension matches and path contains /github/', () => {
-			const uri = URI.file('/some/path/github/prompts/prompt.md');
+		test('returns true for the default chat extension organization cache', () => {
+			const uri = URI.file('/home/dev/.config/Code/User/globalStorage/github.copilot-chat/github/contoso/prompts/prompt.md');
 			const extensionId = new ExtensionIdentifier(CHAT_EXTENSION_ID);
 			const productService = createProductService(CHAT_EXTENSION_ID);
 
 			assert.strictEqual(
 				isOrganizationPromptFile(uri, extensionId, productService),
 				true,
-				'Should return true when extension matches and path contains /github/',
+				'Should return true for organization cache files',
 			);
 		});
 
 		test('extension ID comparison is case-insensitive', () => {
-			const uri = URI.file('/some/github/prompt.md');
+			const uri = URI.file('/home/dev/.config/Code/User/globalStorage/github.copilot-chat/github/contoso/prompt.md');
 			const extensionId = new ExtensionIdentifier('GITHUB.COPILOT-CHAT');
 			const productService = createProductService('github.copilot-chat');
 
@@ -84,7 +84,7 @@ suite('promptsServiceUtils', () => {
 		});
 
 		test('returns false when defaultChatAgent exists but chatExtensionId is empty', () => {
-			const uri = URI.file('/some/github/prompt.md');
+			const uri = URI.file('/home/dev/.config/Code/User/globalStorage/github.copilot-chat/github/contoso/prompt.md');
 			const extensionId = new ExtensionIdentifier(CHAT_EXTENSION_ID);
 			const productService = mockService<IProductService>({
 				defaultChatAgent: { chatExtensionId: '' },
@@ -97,17 +97,15 @@ suite('promptsServiceUtils', () => {
 			);
 		});
 
-		test('returns false for similar but incorrect paths', () => {
+		test('returns false for unrelated github path segments', () => {
 			const extensionId = new ExtensionIdentifier(CHAT_EXTENSION_ID);
 			const productService = createProductService(CHAT_EXTENSION_ID);
 
 			const invalidPaths = [
-				'/some/githubs/prompt.md',      // extra 's'
-				'/some/github-org/prompt.md',   // hyphenated
-				'/some/mygithub/prompt.md',     // prefix
-				'/some/githubstuff/prompt.md',  // suffix
-				'/some/GITHUB/prompt.md',       // uppercase (path matching is case-sensitive)
-				'/some/Github/prompt.md',       // mixed case
+				'/home/dev/github/vscode/extensions/copilot-chat/assets/prompts/prompt.md',
+				'/home/dev/.config/Code/User/globalStorage/other.extension/github/contoso/prompt.md',
+				'/home/dev/.config/Code/User/globalStorage/github.copilot-chat/githubs/contoso/prompt.md',
+				'/home/dev/.config/Code/User/globalStorage/github.copilot-chat/github-org/contoso/prompt.md',
 			];
 
 			for (const path of invalidPaths) {

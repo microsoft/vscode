@@ -15,7 +15,7 @@ import { LogLevel, createHttpPatch, createProxyAuthorizationLookup, createProxyR
 import { systemCertificatesNodeDefault } from '../../../platform/request/common/request.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { createRequire } from 'node:module';
-import type * as undiciType from 'undici-types';
+import type * as undiciType from 'undici';
 import type * as tlsType from 'tls';
 import { lookupKerberosAuthorization } from '../../../platform/request/node/requestService.js';
 import * as proxyAgent from '@vscode/proxy-agent';

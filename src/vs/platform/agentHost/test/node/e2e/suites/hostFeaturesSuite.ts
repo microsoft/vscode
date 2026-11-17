@@ -13,7 +13,6 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { deriveGitHubEndpoints } from '../../../../../github/common/githubEndpoints.js';
 import { AgentHostConfigKey } from '../../../../common/agentHostCustomizationConfig.js';
-import { AgentHostCopilotMultiRootEnabledConfigKey } from '../../../../common/agentHostSchema.js';
 import { gitHubCopilotResource } from '../../../../common/githubEndpoints.js';
 import { CompletionItemKind, type CompletionsResult, type InitializeResult, type ResolveSessionConfigResult, type SessionConfigCompletionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
@@ -81,11 +80,6 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 			resource: 'https://api.github.com',
 			token: config.githubToken ?? resolveGitHubToken(),
 		}, 30_000);
-		const enableCopilotMultiRoot = config.provider === 'copilotcli' && workingDirectories.length > 1;
-		if (enableCopilotMultiRoot) {
-			await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
-			await setRootConfig({ [AgentHostCopilotMultiRootEnabledConfigKey]: true });
-		}
 		const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
 		await context.client.call('createSession', {
 			channel: sessionUri,
@@ -96,9 +90,6 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 		createdSessions.push(sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 		await context.client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
-		if (enableCopilotMultiRoot) {
-			await setRootConfig({ [AgentHostCopilotMultiRootEnabledConfigKey]: false });
-		}
 		context.client.clearReceived();
 		return sessionUri;
 	}

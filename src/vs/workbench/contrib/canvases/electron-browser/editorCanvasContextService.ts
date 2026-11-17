@@ -4,20 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getWindow } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { autorun, derived, IReader, observableFromEvent, observableSignal, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, isIChatResourceViewContext, isIChatViewViewContext } from '../../chat/browser/chat.js';
 import { ChatEditor } from '../../chat/browser/widgetHosts/editor/chatEditor.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { IChatModel } from '../../chat/common/model/chatModel.js';
-import { CanvasInput, canvasOwnerKey, ICanvasContext, ICanvasContextService, ICanvasOwner, isCanvasOwner } from '../common/canvas.js';
+import { CanvasInput, ICanvasContext, ICanvasContextService, isCanvasOwner } from '../common/canvas.js';
+import { canvasOwnerKey, ICanvasOwner } from '../../../common/canvasReference.js';
 
 export class EditorCanvasContextService extends Disposable implements ICanvasContextService {
 
@@ -38,6 +42,7 @@ export class EditorCanvasContextService extends Disposable implements ICanvasCon
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 		const widgets = observableFromEvent(this, Event.any(widgetService.onDidAddWidget, widgetService.onDidRemoveWidget), () => widgetService.getAllWidgets().slice());
@@ -122,6 +127,15 @@ export class EditorCanvasContextService extends Disposable implements ICanvasCon
 		return this.contexts.read(reader).find(context => isCanvasOwner(context.owner, owner));
 	}
 
+	getFrontendSessionResource(owner: ICanvasOwner): URI | undefined {
+		for (const [resource, candidate] of this.modelOwners) {
+			if (isCanvasOwner(candidate, owner)) {
+				return resource;
+			}
+		}
+		return undefined;
+	}
+
 	getEditorGroup(owner: ICanvasOwner, input: CanvasInput): IEditorGroup | undefined {
 		const owners = this.visibleOwners.get();
 		const originating = owners.find(candidate => isCanvasOwner(candidate.context.owner, owner));
@@ -159,6 +173,11 @@ export class EditorCanvasContextService extends Disposable implements ICanvasCon
 		}
 		if (isIChatViewViewContext(widget.viewContext)) {
 			return widget.viewContext.viewId === ChatViewId;
+		}
+		// The chat part beside the editor area, where a feature has one, shows chats as the Chat view does: in editors of a
+		// part of its own, not the editor area its canvases open in
+		if (this.layoutService.getContainer(mainWindow, Parts.CHAT_PART)?.contains(widget.domNode)) {
+			return true;
 		}
 		return isIChatResourceViewContext(widget.viewContext)
 			&& !widget.viewContext.isQuickChat

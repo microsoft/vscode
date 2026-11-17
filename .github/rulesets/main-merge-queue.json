@@ -1,0 +1,32 @@
+{
+	"name": "main merge queue",
+	"target": "branch",
+	"enforcement": "active",
+	"conditions": {
+		"ref_name": {
+			"include": ["~DEFAULT_BRANCH"],
+			"exclude": []
+		}
+	},
+	"bypass_actors": [
+		{
+			"actor_id": 5,
+			"actor_type": "RepositoryRole",
+			"bypass_mode": "pull_request"
+		}
+	],
+	"rules": [
+		{
+			"type": "merge_queue",
+			"parameters": {
+				"merge_method": "SQUASH",
+				"max_entries_to_build": 8,
+				"min_entries_to_merge": 1,
+				"max_entries_to_merge": 8,
+				"min_entries_to_merge_wait_minutes": 5,
+				"grouping_strategy": "HEADGREEN",
+				"check_response_timeout_minutes": 45
+			}
+		}
+	]
+}

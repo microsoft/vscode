@@ -28,11 +28,13 @@ export const PUBLIC_REGISTRY = 'azureml';
 /** The registry of a catalog entry; its models live under `azureml-models/<registry>/` in the shared store. */
 export type LocalModelRegistryName = typeof PUBLIC_REGISTRY;
 
-/** The registry's canonical catalog metadata keys, the scope of the Copilot CLI and app; values are typed. */
+/**
+ * The registry's system metadata keys (`systemCatalogData` in search rows, `systemMetadata` in lookups): the only source
+ * of eligibility and of a model's published facts, as for the Copilot CLI and app. Values are typed JSON.
+ */
 export const LOCAL_MODEL_METADATA = {
-	publisher: 'publisher',
+	githubCopilotLocal: 'githubCopilotLocal',
 	modelFlavor: 'modelFlavor',
-	keywords: 'keywords',
 	displayName: 'displayName',
 	maxInputTokens: 'maxInputTokens',
 	textContextWindow: 'textContextWindow',
@@ -41,65 +43,36 @@ export const LOCAL_MODEL_METADATA = {
 	license: 'license',
 	licenseDescription: 'licenseDescription',
 	directoryPath: 'directoryPath',
-	/** A JSON object `{ downloadBytes, peakDiskBytes, recommendedVramBytes }`; a JSON string when it is a tag. */
+	/** A JSON object `{ downloadBytes, peakDiskBytes, recommendedVramBytes }`. */
 	requirements: 'githubCopilotLocalRequirements',
 } as const;
 
-/** The Microsoft GGUF coding scope a catalog model must be in, the Copilot CLI's scope. */
-export const LOCAL_MODEL_METADATA_SCOPE = { publisher: 'Microsoft', modelFlavor: 'GGUF', keyword: 'Coding' } as const;
+/** The `modelFlavor` an eligible model publishes: llama.cpp serves GGUF only. */
+export const LOCAL_MODEL_FLAVOR = 'GGUF';
 
-/** Azure ML tags (string values): the production registry's canonical names, with an earlier tag contract still read as a fallback. */
+/** Optional serving hints VS Code reads from Azure ML tags (string values). They never make a model eligible or change its published facts. */
 export const LOCAL_MODEL_TAGS = {
-	localCoding: 'localCoding',
-	modelFormat: 'modelFormat',
-	githubCopilotLocal: 'githubCopilotLocal',
-	modelFlavor: 'model_flavor',
-	displayName: 'displayName',
-	downloadBytes: 'downloadBytes',
-	peakDiskBytes: 'peakDiskBytes',
-	recommendedVramBytes: 'recommendedVramBytes',
-	maxInputTokens: 'maxInputTokens',
-	textContextWindow: 'textContextWindow',
-	maxPromptTokens: 'maxPromptTokens',
-	maxContextWindowTokens: 'maxContextWindowTokens',
-	maxOutputTokens: 'maxOutputTokens',
-	supportsToolCalling: 'supportsToolCalling',
-	supportsToolCalls: 'supportsToolCalls',
-	license: 'license',
-	licenseDescription: 'licenseDescription',
-	licenseName: 'licenseName',
 	licenseUrl: 'licenseUrl',
-	requirements: 'githubCopilotLocalRequirements',
 	minLlamaCppBuild: 'minLlamaCppBuild',
 	directoryPath: 'directoryPath',
 	modelUri: 'modelUri',
 } as const;
 
-/** The Copilot CLI's temporary requirements for this exact version until the registry publishes `githubCopilotLocalRequirements`; published values always win. */
-export const UNPUBLISHED_REQUIREMENTS_FALLBACK = {
-	registry: 'azureml',
-	assetName: 'MAI-Code-1.1-Flash-On-Device',
-	version: '1',
-	downloadBytes: 56_688_835_352,
-	peakDiskBytes: 56_688_835_352,
-	recommendedVramBytes: 103_079_215_104,
-} as const;
-
 export const DISPLAY_NAME_MAX_LENGTH = 100;
 
 /*
- * The Azure ML catalog endpoints the Copilot CLI uses: the anonymous backends of the Azure AI Foundry portal, so no Azure
- * account is needed (the documented routes all require sign-in). The search only accepts User-Agents starting with
- * `AzureAiStudio` ({@link getAzureMlSearchUserAgent}); `eastus` is only the region that answers `crossRegion`. The lookup
- * returns a version's metadata and a read-only SAS URL of its storage container; downloads then use the documented Blob API.
+ * The anonymous Azure ML catalog endpoints the Copilot CLI and app use. The public gallery search spans every registry
+ * (hits are filtered to the public registry by asset id) and returns full system metadata only with
+ * {@link AZURE_ML_FULL_CONTRACTS_HEADER}. The global lookup returns a version's metadata and a read-only SAS URL of the
+ * nearest region's storage replica. Downloads then use the documented Blob API.
  */
-export const AZURE_ML_PUBLIC_SEARCH_URL = 'https://ai.azure.com/api/eastus/ux/v1.0/entities/crossRegion';
-export const AZURE_ML_SEARCH_USER_AGENT = 'AzureAiStudio';
-export const AZURE_ML_PUBLIC_RESOLVE_URL = 'https://eastus.api.azureml.ms/modelregistry/v1.0/registry/models/nonazureaccount';
+export const AZURE_ML_PUBLIC_SEARCH_URL = 'https://api.catalog.azureml.ms/asset-gallery/v1.0/models';
+export const AZURE_ML_FULL_CONTRACTS_HEADER = 'x-ms-use-full-service-contracts';
+export const AZURE_ML_PUBLIC_RESOLVE_URL = 'https://api.catalog.azureml.ms/modelregistry/v1.0/registry/models/nonazureaccount';
 
-/** The search's User-Agent: the prefix it requires, then VS Code and its version when known, so Azure ML can tell VS Code's requests apart. */
+/** The search's User-Agent: VS Code and its version when known, so Azure ML can tell VS Code's requests apart. */
 export function getAzureMlSearchUserAgent(productVersion: string | undefined): string {
-	return productVersion ? `${AZURE_ML_SEARCH_USER_AGENT} VSCode/${productVersion}` : AZURE_ML_SEARCH_USER_AGENT;
+	return productVersion ? `VSCode/${productVersion}` : 'VSCode';
 }
 /** Download hosts (HTTPS on 443 only): the registry's storage accounts, and Azure ML's API hosts, whose data proxy can hand out SAS URLs. */
 export const AZURE_ML_DOWNLOAD_HOST_SUFFIXES: readonly string[] = ['.blob.core.windows.net', '.api.azureml.ms'];
@@ -184,9 +157,10 @@ export const GGUF_ARCHITECTURE_READ_MAX_BYTES = 8 * 1024 * 1024;
 /** Longest architecture name that is probed (llama.cpp names are short, for example `qwen3moe` or `gpt-oss`). */
 export const LLAMA_ARCHITECTURE_NAME_MAX_LENGTH = 64;
 
-/** Architectures no llama.cpp release supports yet, with the change that adds support; remove an entry once a release supports it. */
-export const UNPACKAGED_LLAMA_ARCHITECTURES: Readonly<Record<string, string>> = {
-	'maion-coder': 'ggml-org/llama.cpp#29778',
+/** Architectures only recent llama.cpp releases support, with the first release build (`b<build>`) that does; the unsupported-model error names it. */
+export const LLAMA_ARCHITECTURE_FIRST_BUILDS: Readonly<Record<string, number>> = {
+	// ggml-org/llama.cpp#29778
+	'maion-coder': 11658,
 };
 
 /** Public llama.cpp `LLM_ARCH` names reported as-is in telemetry; anything else (a GGUF header may be private content) is `other`. */

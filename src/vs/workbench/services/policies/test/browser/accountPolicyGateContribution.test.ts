@@ -6,6 +6,8 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { Emitter } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -13,9 +15,10 @@ import { IDefaultAccountRefreshOptions, IDefaultAccountService, IManagedSettings
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { Severity } from '../../../../../platform/notification/common/notification.js';
+import { NoOpNotification, Severity } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
+import { COPILOT_COMMUNICATION_SUPPORT_URL_KEY, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -114,6 +117,7 @@ suite('AccountPolicyGateContribution', () => {
 			productService,
 			storageService,
 			NullTelemetryService,
+			new NullManagedSettingsService(),
 		));
 
 		const states: { context: boolean | undefined; hidden: boolean | undefined }[] = [];
@@ -191,6 +195,7 @@ suite('AccountPolicyGateContribution', () => {
 			new class extends mock<IProductService>() { override readonly nameShort = 'Code'; }(),
 			disposables.add(new InMemoryStorageService()),
 			NullTelemetryService,
+			new NullManagedSettingsService(),
 		));
 
 		assert.strictEqual(notificationPromptSpy.callCount, 0);
@@ -248,6 +253,7 @@ suite('AccountPolicyGateContribution', () => {
 			new class extends mock<IProductService>() { override readonly nameShort = 'Code'; }(),
 			disposables.add(new InMemoryStorageService()),
 			NullTelemetryService,
+			new NullManagedSettingsService(),
 		));
 
 		const blockedStates = [
@@ -338,6 +344,100 @@ suite('AccountPolicyGateContribution', () => {
 		assert.match(promptStub.getCall(5).args[0].message, /requires Code to refresh managed settings whenever it starts or reloads\.\n\nAn error prevented the required policy/);
 	});
 
+	test('offers the organization support page in the approved-account notification when one is configured', async () => {
+		const clock = sinon.useFakeTimers();
+		const restricted: IAccountPolicyGateInfo = { state: AccountPolicyGateState.Restricted, reason: AccountPolicyGateUnsatisfiedReason.OrgNotApproved, approvedOrganizations: ['example-org'] };
+		const actionLabels = async (supportUrl: string | undefined) => {
+			const notificationService = new TestNotificationService();
+			const notificationPromptSpy = sinon.spy(notificationService, 'prompt');
+			const opened: { target: string; openExternal: boolean | undefined }[] = [];
+			const store = new DisposableStore();
+			store.add(new AccountPolicyGateContribution(
+				store.add(new TestAccountPolicyGateService(restricted)),
+				new MockContextKeyService(),
+				new TestChatEntitlementService(),
+				store.add(new TestDefaultAccountService()),
+				new NullLogService(),
+				notificationService,
+				new TestDialogService(),
+				new class extends mock<ICommandService>() { }(),
+				new class extends mock<IOpenerService>() {
+					override async open(target: string | URI, options?: OpenOptions) { opened.push({ target: target.toString(), openExternal: options?.openExternal }); return true; }
+				}(),
+				new class extends mock<IProductService>() { override readonly nameShort = 'Code'; }(),
+				store.add(new InMemoryStorageService()),
+				NullTelemetryService,
+				new class extends NullManagedSettingsService {
+					override getManagedSettingValue(key: string) { return key === COPILOT_COMMUNICATION_SUPPORT_URL_KEY ? supportUrl : undefined; }
+				}(),
+			));
+			await clock.tickAsync(5000);
+			const actions = notificationPromptSpy.firstCall.args[2];
+			actions.find(action => action.label === 'Contact Admin')?.run();
+			store.dispose();
+			return { labels: actions.map(action => action.label), opened };
+		};
+		assert.deepStrictEqual({
+			withoutUrl: await actionLabels(undefined),
+			invalidUrl: await actionLabels('file:///etc/passwd'),
+			withUrl: await actionLabels('https://example.com/copilot-help'),
+		}, {
+			withoutUrl: { labels: ['Sign In', 'Learn More'], opened: [] },
+			invalidUrl: { labels: ['Sign In', 'Learn More'], opened: [] },
+			withUrl: { labels: ['Sign In', 'Contact Admin', 'Learn More'], opened: [{ target: 'https://example.com/copilot-help', openExternal: true }] },
+		});
+	});
+
+	test('refreshes the open notification when the support URL changes, without undoing a dismissal', async () => {
+		const clock = sinon.useFakeTimers();
+		const restricted: IAccountPolicyGateInfo = { state: AccountPolicyGateState.Restricted, reason: AccountPolicyGateUnsatisfiedReason.OrgNotApproved, approvedOrganizations: ['example-org'] };
+		let supportUrl: string | undefined;
+		const managedSettingsChange = disposables.add(new Emitter<void>());
+		const notificationService = new TestNotificationService();
+		const handles: { closed: boolean; dismiss: () => void }[] = [];
+		const prompt = sinon.stub(notificationService, 'prompt').callsFake(() => {
+			const onDidClose = disposables.add(new Emitter<void>());
+			const state = { closed: false, dismiss: () => onDidClose.fire() };
+			handles.push(state);
+			return new class extends NoOpNotification {
+				override readonly onDidClose = onDidClose.event;
+				override close() { state.closed = true; onDidClose.fire(); }
+			}();
+		});
+		disposables.add(new AccountPolicyGateContribution(
+			disposables.add(new TestAccountPolicyGateService(restricted)),
+			new MockContextKeyService(),
+			new TestChatEntitlementService(),
+			disposables.add(new TestDefaultAccountService()),
+			new NullLogService(),
+			notificationService,
+			new TestDialogService(),
+			new class extends mock<ICommandService>() { }(),
+			new class extends mock<IOpenerService>() { }(),
+			new class extends mock<IProductService>() { override readonly nameShort = 'Code'; }(),
+			disposables.add(new InMemoryStorageService()),
+			NullTelemetryService,
+			new class extends NullManagedSettingsService {
+				override readonly onDidChangeManagedSettings = managedSettingsChange.event;
+				override getManagedSettingValue(key: string) { return key === COPILOT_COMMUNICATION_SUPPORT_URL_KEY ? supportUrl : undefined; }
+			}(),
+		));
+		await clock.tickAsync(5000);
+		supportUrl = 'https://example.com/copilot-help';
+		managedSettingsChange.fire();
+		managedSettingsChange.fire();
+		handles[1].dismiss();
+		supportUrl = 'https://example.com/other-help';
+		managedSettingsChange.fire();
+		assert.deepStrictEqual({
+			labels: prompt.getCalls().map(call => call.args[2].map(choice => choice.label)),
+			closed: handles.map(handle => handle.closed),
+		}, {
+			labels: [['Sign In', 'Learn More'], ['Sign In', 'Contact Admin', 'Learn More']],
+			closed: [true, true],
+		});
+	});
+
 	test('leaves update-required explanations to persistent surfaces without a duplicate dialog', async () => {
 		const gateService = disposables.add(new TestAccountPolicyGateService());
 		const defaultAccountService = disposables.add(new TestDefaultAccountService());
@@ -357,6 +457,7 @@ suite('AccountPolicyGateContribution', () => {
 			new class extends mock<IProductService>() { override readonly nameShort = 'Code'; }(),
 			disposables.add(new InMemoryStorageService()),
 			NullTelemetryService,
+			new NullManagedSettingsService(),
 		));
 
 		const updateRequiredInfo: IAccountPolicyGateInfo = {

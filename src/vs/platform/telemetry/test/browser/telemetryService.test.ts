@@ -113,6 +113,11 @@ suite('TelemetryService', () => {
 
 	const TestProductService: IProductService = { _serviceBrand: undefined, ...product };
 
+	// Tests replace the global error handler, restore it so that later tests still report uncaught errors
+	let originalOnError: OnErrorEventHandler;
+	setup(() => originalOnError = mainWindow.onerror);
+	teardown(() => mainWindow.onerror = originalOnError);
+
 	test('Disposing', sinonTestFn(function () {
 		const testAppender = new TestTelemetryAppender();
 		const service = new TelemetryService({ appenders: [testAppender] }, new TestConfigurationService(), TestProductService);

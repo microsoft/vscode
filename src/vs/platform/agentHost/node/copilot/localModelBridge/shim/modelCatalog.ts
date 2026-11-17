@@ -12,12 +12,12 @@ import type { ITelemetryService } from '../../../../../telemetry/common/telemetr
 import type { ILocalModelOfferV1, LocalModelCatalogState, LocalModelFitClass, LocalModelPublicRegistryState } from '../../../../common/localModel.js';
 import { containsCredential, dropCredentialEntries, dropCredentialItems, errorCodeForLog, hasSignedUrlParameter, hasUrlUserinfo, isSafeRegistryIdentifier, reportDroppedStorageEntries } from '../../../../common/logRedaction.js';
 import type { IAgentHostStorageService } from '../../../agentHostStorageService.js';
-import { AZURE_ML_PUBLIC_RESOLVE_URL, AZURE_ML_PUBLIC_SEARCH_URL, BLOB_REQUEST_HEADERS, CATALOG_REFRESH_INTERVAL_MS, CONTAINER_LIST_MAX_BLOBS, CONTAINER_LIST_MAX_BYTES, DISPLAY_NAME_MAX_LENGTH, DOWNLOAD_MAX_REDIRECTS, getAzureMlSearchUserAgent, KNOWN_AUTO_LOCAL_IDS, LOCAL_CAPI_ID_SUFFIX, LOCAL_MODEL_METADATA, LOCAL_MODEL_METADATA_SCOPE, LOCAL_MODEL_TAGS, MAX_CONCURRENT_RESOLUTIONS, ON_DEVICE_ASSET_SUFFIX, PRESET_INI_FILE_NAME, PRESET_INI_MAX_BYTES, PRESET_JSON_FILE_NAME, PUBLIC_REGISTRY, UNPUBLISHED_REQUIREMENTS_FALLBACK, type LocalModelRegistryName } from './constants.js';
-import { discardResponse, hostForLog, isAllowedDownloadUrl, isSafeModelFileName, readRemoteGgufArchitecture, readResponseText, type IDownloadFileSpec, type ILocalModelHttpClient, type ILocalModelHttpResponse } from './downloader.js';
+import { AZURE_ML_FULL_CONTRACTS_HEADER, AZURE_ML_PUBLIC_RESOLVE_URL, AZURE_ML_PUBLIC_SEARCH_URL, BLOB_REQUEST_HEADERS, CATALOG_REFRESH_INTERVAL_MS, CONTAINER_LIST_MAX_BLOBS, CONTAINER_LIST_MAX_BYTES, DISPLAY_NAME_MAX_LENGTH, DOWNLOAD_MAX_REDIRECTS, getAzureMlSearchUserAgent, KNOWN_AUTO_LOCAL_IDS, LOCAL_CAPI_ID_SUFFIX, LOCAL_MODEL_FLAVOR, LOCAL_MODEL_METADATA, LOCAL_MODEL_TAGS, MAX_CONCURRENT_RESOLUTIONS, ON_DEVICE_ASSET_SUFFIX, PRESET_INI_FILE_NAME, PRESET_INI_MAX_BYTES, PRESET_JSON_FILE_NAME, PUBLIC_REGISTRY, type LocalModelRegistryName } from './constants.js';
+import { discardResponse, hostForLog, isAllowedDownloadUrl, isSafeModelFileName, readRemoteGgufArchitecture, readResponseText, strongEtag, type IDownloadFileSpec, type ILocalModelHttpClient, type ILocalModelHttpResponse } from './downloader.js';
 import type { GgufArchitectureRead } from './gguf.js';
 import { parseLlamaConfigJson, parseLlamaPreset, type ILlamaPreset } from './llamaPreset.js';
 
-/* Azure ML tag-driven catalog: pure validation, identity, request and merge functions, then the `ModelCatalog` class (IO). */
+/* Azure ML metadata-driven catalog: pure validation, identity, request and merge functions, then the `ModelCatalog` class (IO). */
 
 // #region Profiles and identities
 
@@ -47,7 +47,7 @@ export interface ILocalModelProfile {
 	readonly createdTime?: string;
 }
 
-export type LocalModelTagValidation =
+export type LocalModelVersionValidation =
 	| { readonly ok: true; readonly profile: ILocalModelProfile }
 	| { readonly ok: false; readonly reason: string };
 
@@ -121,16 +121,9 @@ export function isPublicHttpsUrl(value: string): boolean {
 		&& host !== 'localhost' && !host.endsWith('.localhost') && !host.endsWith('.local') && !host.endsWith('.internal');
 }
 
-/** A positive safe integer from a registry value: a JSON number (metadata) or a string of digits (tags). Pure. */
+/** A positive safe integer from a typed metadata value (a JSON number); a string of digits is refused, as by the Copilot CLI. Pure. */
 function positiveInteger(value: unknown): number | undefined {
-	if (typeof value === 'number') {
-		return Number.isSafeInteger(value) && value > 0 ? value : undefined;
-	}
-	if (typeof value !== 'string' || !/^[1-9]\d{0,15}$/.test(value.trim())) {
-		return undefined;
-	}
-	const parsed = Number(value.trim());
-	return Number.isSafeInteger(parsed) ? parsed : undefined;
+	return isPositiveSafeInteger(value) ? value : undefined;
 }
 
 /**
@@ -151,27 +144,13 @@ function safeCreatedTime(value: string | undefined): string | undefined {
 	return value !== undefined && value.length <= 64 && /^[0-9TZ:.+-]+$/.test(value) && Number.isFinite(Date.parse(value)) ? value : undefined;
 }
 
-/** Longest `githubCopilotLocalRequirements` tag (a small JSON object) that is parsed. */
-const REQUIREMENTS_TAG_MAX_LENGTH = 1024;
-
 /**
- * Whether a model is in the local-coding scope: canonical metadata says Microsoft, GGUF and `Coding` (the Copilot CLI's
- * scope), or its tags opt it in as the Copilot app reads them or as an earlier tag contract did. Pure.
+ * Whether a version is published for GitHub Copilot local use: its system metadata says `modelFlavor: GGUF` and
+ * `githubCopilotLocal: true` (typed), the Copilot CLI's and app's only eligibility rule. Tags are never consulted. Pure.
  */
-export function isLocalCodingModel(tags: unknown, metadata: unknown): boolean {
+export function isLocalCodingModel(metadata: unknown): boolean {
 	const m = asRecord(metadata);
-	const keywords = m?.[LOCAL_MODEL_METADATA.keywords];
-	if (m?.[LOCAL_MODEL_METADATA.publisher] === LOCAL_MODEL_METADATA_SCOPE.publisher
-		&& m[LOCAL_MODEL_METADATA.modelFlavor] === LOCAL_MODEL_METADATA_SCOPE.modelFlavor
-		&& Array.isArray(keywords) && keywords.every(keyword => typeof keyword === 'string') && keywords.includes(LOCAL_MODEL_METADATA_SCOPE.keyword)) {
-		return true;
-	}
-	const t = asRecord(tags) ?? {};
-	const tag = (key: string) => typeof t[key] === 'string' ? (t[key] as string).trim() : undefined;
-	if (tag(LOCAL_MODEL_TAGS.githubCopilotLocal) === 'true' && tag(LOCAL_MODEL_TAGS.modelFlavor) === LOCAL_MODEL_METADATA_SCOPE.modelFlavor) {
-		return true;
-	}
-	return tag(LOCAL_MODEL_TAGS.localCoding)?.toLowerCase() === 'true' && tag(LOCAL_MODEL_TAGS.modelFormat)?.toLowerCase() === 'gguf';
+	return m?.[LOCAL_MODEL_METADATA.modelFlavor] === LOCAL_MODEL_FLAVOR && m[LOCAL_MODEL_METADATA.githubCopilotLocal] === true;
 }
 
 /** The requirements a version publishes: absent, invalid (the version is rejected), or its three byte counts. */
@@ -180,22 +159,11 @@ type RequirementsRead =
 	| { readonly kind: 'invalid' }
 	| { readonly kind: 'found'; readonly downloadBytes: number; readonly peakDiskBytes: number; readonly recommendedVramBytes: number };
 
-/** Reads `githubCopilotLocalRequirements`: a metadata object, else a JSON string tag. Pure. */
-function readRequirements(metadata: Record<string, unknown> | undefined, tags: Record<string, unknown>): RequirementsRead {
-	let value = metadata?.[LOCAL_MODEL_METADATA.requirements];
+/** Reads the `githubCopilotLocalRequirements` metadata object. Pure. */
+function readRequirements(metadata: Record<string, unknown>): RequirementsRead {
+	const value = metadata[LOCAL_MODEL_METADATA.requirements];
 	if (value === undefined || value === null) {
-		const tag = tags[LOCAL_MODEL_TAGS.requirements];
-		if (tag === undefined) {
-			return { kind: 'absent' };
-		}
-		if (typeof tag !== 'string' || tag.length > REQUIREMENTS_TAG_MAX_LENGTH) {
-			return { kind: 'invalid' };
-		}
-		try {
-			value = JSON.parse(tag);
-		} catch {
-			return { kind: 'invalid' };
-		}
+		return { kind: 'absent' };
 	}
 	const record = asRecord(value);
 	const downloadBytes = positiveInteger(record?.downloadBytes);
@@ -214,75 +182,54 @@ function licenseUrlFromDescription(description: string | undefined): string | un
 }
 
 /**
- * Validates a model version from its canonical metadata and tags (metadata first, then {@link LOCAL_MODEL_TAGS}, then
- * earlier tag names). It must be in scope and support tool calls; requirements fall back to earlier tags, then, for the
- * production MAI version only, to {@link UNPUBLISHED_REQUIREMENTS_FALLBACK}. A failing model is skipped. Pure.
+ * Validates a model version from its system metadata, the only source of eligibility and published facts (as for the
+ * Copilot CLI and app): it must be {@link isLocalCodingModel}, support tool calls and publish a display name, token
+ * limits and `githubCopilotLocalRequirements`. Unlike the Copilot CLI, a version without requirements is skipped: setup
+ * needs them for its disk and memory checks. Tags add only the optional serving hints in {@link LOCAL_MODEL_TAGS}. A
+ * failing model is skipped. Pure.
  */
-export function validateLocalModelTags(tags: unknown, source: { readonly registry: LocalModelRegistryName; readonly assetName: string; readonly version: string; readonly createdTime?: string; readonly metadata?: unknown }): LocalModelTagValidation {
-	const metadata = asRecord(source.metadata);
-	if (!asRecord(tags) && !metadata) {
-		return { ok: false, reason: 'noTags' };
+export function validateLocalModelVersion(metadata: unknown, source: { readonly registry: LocalModelRegistryName; readonly assetName: string; readonly version: string; readonly createdTime?: string; readonly tags?: unknown }): LocalModelVersionValidation {
+	const m = asRecord(metadata);
+	if (!m) {
+		return { ok: false, reason: 'noMetadata' };
 	}
 	if (!isSafeRegistryIdentifier(source.assetName) || !isSafeRegistryIdentifier(source.version)) {
 		return { ok: false, reason: 'invalidName' };
 	}
-	const t = asRecord(tags) ?? {};
-	const str = (key: string) => typeof t[key] === 'string' ? (t[key] as string).trim() : undefined;
-	/** The metadata value when present, else the first tag that is. */
-	const pick = (metadataKey: string | undefined, ...tagKeys: string[]): unknown => {
-		const fromMetadata = metadataKey !== undefined ? metadata?.[metadataKey] : undefined;
-		if (fromMetadata !== undefined && fromMetadata !== null) {
-			return fromMetadata;
-		}
-		return tagKeys.map(key => t[key]).find(value => value !== undefined && value !== null);
-	};
-	const text = (value: unknown) => typeof value === 'string' ? value.trim() : undefined;
-	if (!isLocalCodingModel(t, metadata)) {
+	if (!isLocalCodingModel(m)) {
 		return { ok: false, reason: 'scope' };
 	}
-	const toolCalls = pick(LOCAL_MODEL_METADATA.supportsToolCalling, LOCAL_MODEL_TAGS.supportsToolCalling, LOCAL_MODEL_TAGS.supportsToolCalls);
-	if (toolCalls !== true && text(toolCalls)?.toLowerCase() !== 'true') {
-		return { ok: false, reason: 'tag:supportsToolCalls' };
+	if (m[LOCAL_MODEL_METADATA.supportsToolCalling] !== true) {
+		return { ok: false, reason: 'metadata:supportsToolCalling' };
 	}
-	const rawDisplayName = text(pick(LOCAL_MODEL_METADATA.displayName, LOCAL_MODEL_TAGS.displayName));
+	const text = (value: unknown) => typeof value === 'string' ? value.trim() : undefined;
+	const rawDisplayName = text(m[LOCAL_MODEL_METADATA.displayName]);
 	const displayName = rawDisplayName !== undefined ? sanitizeDisplayName(rawDisplayName) : undefined;
 	if (!displayName) {
-		return { ok: false, reason: 'tag:displayName' };
+		return { ok: false, reason: 'metadata:displayName' };
 	}
-	let downloadBytes: number | undefined;
-	let peakDiskBytes: number | undefined;
-	let recommendedVramBytes: number | undefined;
-	const requirements = readRequirements(metadata, t);
-	const fallback = UNPUBLISHED_REQUIREMENTS_FALLBACK;
+	const requirements = readRequirements(m);
+	if (requirements.kind === 'absent') {
+		return { ok: false, reason: 'requirementsUnpublished' };
+	}
 	if (requirements.kind === 'invalid') {
-		return { ok: false, reason: 'tag:requirements' };
-	} else if (requirements.kind === 'found') {
-		({ downloadBytes, peakDiskBytes, recommendedVramBytes } = requirements);
-	} else if ([LOCAL_MODEL_TAGS.downloadBytes, LOCAL_MODEL_TAGS.peakDiskBytes, LOCAL_MODEL_TAGS.recommendedVramBytes].some(key => t[key] !== undefined)) {
-		downloadBytes = positiveInteger(t[LOCAL_MODEL_TAGS.downloadBytes]);
-		peakDiskBytes = positiveInteger(t[LOCAL_MODEL_TAGS.peakDiskBytes]);
-		recommendedVramBytes = positiveInteger(t[LOCAL_MODEL_TAGS.recommendedVramBytes]);
-	} else if (source.registry === fallback.registry && source.assetName === fallback.assetName && source.version === fallback.version) {
-		({ downloadBytes, peakDiskBytes, recommendedVramBytes } = fallback);
+		return { ok: false, reason: 'metadata:requirements' };
 	}
-	if (!downloadBytes || !peakDiskBytes || peakDiskBytes < downloadBytes) {
-		return { ok: false, reason: 'tag:sizes' };
-	}
-	if (!recommendedVramBytes) {
-		return { ok: false, reason: 'tag:recommendedVramBytes' };
-	}
-	const maxPromptTokens = positiveInteger(pick(LOCAL_MODEL_METADATA.maxInputTokens, LOCAL_MODEL_TAGS.maxInputTokens, LOCAL_MODEL_TAGS.maxPromptTokens));
-	const maxContextWindowTokens = positiveInteger(pick(LOCAL_MODEL_METADATA.textContextWindow, LOCAL_MODEL_TAGS.textContextWindow, LOCAL_MODEL_TAGS.maxContextWindowTokens));
-	const maxOutputTokens = positiveInteger(pick(LOCAL_MODEL_METADATA.maxOutputTokens, LOCAL_MODEL_TAGS.maxOutputTokens));
+	const { downloadBytes, peakDiskBytes, recommendedVramBytes } = requirements;
+	const maxPromptTokens = positiveInteger(m[LOCAL_MODEL_METADATA.maxInputTokens]);
+	const maxContextWindowTokens = positiveInteger(m[LOCAL_MODEL_METADATA.textContextWindow]);
+	const maxOutputTokens = positiveInteger(m[LOCAL_MODEL_METADATA.maxOutputTokens]);
 	if (!maxPromptTokens || !maxContextWindowTokens || !maxOutputTokens || maxPromptTokens > maxContextWindowTokens || maxOutputTokens > maxContextWindowTokens) {
-		return { ok: false, reason: 'tag:limits' };
+		return { ok: false, reason: 'metadata:limits' };
 	}
-	const licenseName = str(LOCAL_MODEL_TAGS.licenseName) ?? text(pick(LOCAL_MODEL_METADATA.license, LOCAL_MODEL_TAGS.license));
+	const t = asRecord(source.tags) ?? {};
+	const str = (key: string) => text(t[key]);
+	const licenseName = text(m[LOCAL_MODEL_METADATA.license]);
 	let licenseUrl = str(LOCAL_MODEL_TAGS.licenseUrl);
 	if (licenseUrl !== undefined && licenseUrl !== '' && !isSafeLicenseUrl(licenseUrl)) {
 		return { ok: false, reason: 'tag:licenseUrl' };
 	}
-	licenseUrl ||= licenseUrlFromDescription(text(pick(LOCAL_MODEL_METADATA.licenseDescription, LOCAL_MODEL_TAGS.licenseDescription)));
+	licenseUrl ||= licenseUrlFromDescription(text(m[LOCAL_MODEL_METADATA.licenseDescription]));
 	const rawMinBuild = str(LOCAL_MODEL_TAGS.minLlamaCppBuild);
 	let minLlamaCppBuild: number | undefined;
 	if (rawMinBuild !== undefined && rawMinBuild !== '') {
@@ -292,7 +239,7 @@ export function validateLocalModelTags(tags: unknown, source: { readonly registr
 		}
 		minLlamaCppBuild = Number(match.groups.build);
 	}
-	const directoryPath = str(LOCAL_MODEL_TAGS.directoryPath) ?? text(metadata?.[LOCAL_MODEL_METADATA.directoryPath]);
+	const directoryPath = str(LOCAL_MODEL_TAGS.directoryPath) ?? text(m[LOCAL_MODEL_METADATA.directoryPath]);
 	if (directoryPath !== undefined && (directoryPath.includes('..') || directoryPath.includes('\\') || /[?#]/.test(directoryPath) || containsCredential(directoryPath))) {
 		return { ok: false, reason: 'tag:directoryPath' };
 	}
@@ -389,27 +336,21 @@ export function formatAssetId(registry: LocalModelRegistryName, assetName: strin
 	return `azureml://registries/${registry}/models/${assetName}/versions/${version}`;
 }
 
-/** Builds the `crossRegion` search body: the latest versions in the Microsoft GGUF coding scope (the Copilot CLI's filter). Pure. */
-export function buildTagSearchBody(registry: LocalModelRegistryName, continuationToken: string | undefined, pageSize = 50): string {
+/**
+ * Builds the public gallery search body: the latest GGUF versions across registries. Eligibility is checked per hit
+ * ({@link isLocalCodingModel}), so a newer version that opted out still counts in {@link selectUnambiguousLatestHits}. Pure.
+ */
+export function buildTagSearchBody(continuationToken: string | undefined, pageSize = 50): string {
 	const filter = (field: string, value: string) => ({ field, operator: 'eq', values: [value] });
-	const scoped = [
-		filter(`annotations/systemCatalogData/${LOCAL_MODEL_METADATA.publisher}`, LOCAL_MODEL_METADATA_SCOPE.publisher),
-		filter(`annotations/systemCatalogData/${LOCAL_MODEL_METADATA.modelFlavor}`, LOCAL_MODEL_METADATA_SCOPE.modelFlavor),
-		filter(`annotations/systemCatalogData/${LOCAL_MODEL_METADATA.keywords}`, LOCAL_MODEL_METADATA_SCOPE.keyword),
-	];
 	return JSON.stringify({
-		resourceIds: [{ resourceId: registry, entityContainerType: 'Registry' }],
-		indexEntitiesRequest: {
-			filters: [
-				filter('type', 'models'),
-				filter('kind', 'Versioned'),
-				filter('labels', 'latest'),
-				...scoped,
-			],
-			pageSize,
-			skip: null,
-			continuationToken: continuationToken ?? null,
-		},
+		filters: [
+			filter('type', 'models'),
+			filter('kind', 'Versioned'),
+			filter('labels', 'latest'),
+			filter(`annotations/systemCatalogData/${LOCAL_MODEL_METADATA.modelFlavor}`, LOCAL_MODEL_FLAVOR),
+		],
+		pageSize,
+		...(continuationToken ? { continuationToken } : {}),
 	});
 }
 
@@ -417,9 +358,12 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 	return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
 }
 
-/** Parses a `crossRegion` response into hits (archived ones flagged) and the continuation token; `undefined` for an unrecognizable body. Pure. */
+/**
+ * Parses a public gallery page into the public registry's hits (archived ones flagged) and the continuation token;
+ * `undefined` for an unrecognizable body. The gallery spans every registry, so hits are attributed by asset id. Pure.
+ */
 export function parseTagSearchResponse(body: unknown): { readonly hits: IRegistrySearchHit[]; readonly continuationToken: string | undefined } | undefined {
-	const page = asRecord(asRecord(body)?.indexEntitiesResponse);
+	const page = asRecord(body);
 	if (!page || !Array.isArray(page.value)) {
 		return undefined;
 	}
@@ -429,17 +373,14 @@ export function parseTagSearchResponse(body: unknown): { readonly hits: IRegistr
 		const annotations = asRecord(entity?.annotations);
 		const properties = asRecord(entity?.properties);
 		const assetId = typeof entity?.assetId === 'string' ? parseAssetId(entity.assetId) : undefined;
-		const assetName = assetId?.name ?? (typeof properties?.name === 'string' ? properties.name : undefined);
-		const rawVersion = assetId?.version ?? entity?.version ?? properties?.version;
-		const version = typeof rawVersion === 'string' || typeof rawVersion === 'number' ? String(rawVersion) : undefined;
-		if (!assetName || !version) {
+		if (assetId?.registry !== PUBLIC_REGISTRY) {
 			continue;
 		}
 		const createdTime = asRecord(properties?.creationContext)?.createdTime;
 		const metadata = asRecord(annotations?.systemCatalogData);
 		hits.push({
-			assetName,
-			version,
+			assetName: assetId.name,
+			version: assetId.version,
 			tags: annotations?.tags,
 			...(metadata ? { metadata } : {}),
 			archived: annotations?.archived === true || annotations?.isArchived === true,
@@ -450,23 +391,48 @@ export function parseTagSearchResponse(body: unknown): { readonly hits: IRegistr
 	return { hits, continuationToken: typeof token === 'string' && token ? token : undefined };
 }
 
+/**
+ * The search hits to validate. While the registry is mid-update its index can label more than one version of a model
+ * `latest`, so an older version could stand in for the newer one: such a model is hidden until the index settles.
+ * Versions are counted before eligibility, so an older eligible version never stands in for a newer one that opted out
+ * or lacks metadata. Names compare ignoring case, as family ids do. A repeated row of one version counts and is kept once. Pure.
+ */
+function selectUnambiguousLatestHits(hits: readonly IRegistrySearchHit[]): { readonly hits: readonly IRegistrySearchHit[]; readonly ambiguousModels: number } {
+	const versionsByName = new Map<string, Set<string>>();
+	for (const hit of hits) {
+		const name = hit.assetName.toLowerCase();
+		const versions = versionsByName.get(name) ?? new Set<string>();
+		versions.add(hit.version);
+		versionsByName.set(name, versions);
+	}
+	const seen = new Set<string>();
+	const selected = hits.filter(hit => {
+		const name = hit.assetName.toLowerCase();
+		const key = `${name}/${hit.version}`;
+		if (versionsByName.get(name)?.size !== 1 || seen.has(key)) {
+			return false;
+		}
+		seen.add(key);
+		return true;
+	});
+	return { hits: selected, ambiguousModels: [...versionsByName.values()].filter(versions => versions.size > 1).length };
+}
 /** Public resolve URL (lazy). Pure. */
 export function buildPublicResolveUrl(assetName: string, version: string): string {
 	return `${AZURE_ML_PUBLIC_RESOLVE_URL}?assetId=${encodeURIComponent(formatAssetId(PUBLIC_REGISTRY, assetName, version))}`;
 }
 
-/** The public lookup of one version: the asset id it answered for, its tags and metadata, and the container SAS. */
+/** The public lookup of one version: the asset id it answered for, its metadata, and the container SAS. */
 export interface IPublicResolveResponse {
 	/** `modelEntity.assetId`: the version the registry resolved, checked against the request. */
 	readonly assetId: string | undefined;
-	readonly tags: unknown;
 	/** `modelEntity.systemMetadata`. */
 	readonly metadata: unknown;
 	readonly archived: boolean;
 	readonly blobSasUri: string;
 }
 
-/** Parses the public resolve response: `{ modelEntity: { assetId, kvTags, systemMetadata, isArchived }, blobSasUri }`. Pure. */
+/** Parses the public resolve response: `{ modelEntity: { assetId, systemMetadata, isArchived }, blobSasUri }`. Pure. */
 export function parsePublicResolveResponse(body: unknown): IPublicResolveResponse | undefined {
 	const record = asRecord(body);
 	const entity = asRecord(record?.modelEntity);
@@ -475,7 +441,6 @@ export function parsePublicResolveResponse(body: unknown): IPublicResolveRespons
 	}
 	return {
 		assetId: typeof entity.assetId === 'string' ? entity.assetId : undefined,
-		tags: entity.kvTags,
 		metadata: entity.systemMetadata,
 		archived: entity.isArchived === true,
 		blobSasUri: record.blobSasUri,
@@ -758,7 +723,8 @@ export interface IResolvedModelVersion {
 	readonly files: readonly IDownloadFileSpec[];
 	readonly primaryFile: string;
 	readonly preset: ILlamaPreset;
-	readonly contentId: string;
+	/** {@link computeContentId} of the published checksums; `undefined` until downloaded when a regional replica has none. */
+	readonly contentId: string | undefined;
 	/** The packaging folder the files were read from ({@link unwrapModelFolder}), below the SAS or `directoryPath` prefix. */
 	readonly wrapperFolder?: string;
 }
@@ -796,7 +762,7 @@ interface ICachedContentFacts {
 	readonly files: readonly (IContentFile & { readonly etag?: string })[];
 }
 
-interface ICatalogCacheV2 {
+interface ICatalogCacheV3 {
 	readonly schemaVersion: typeof CATALOG_CACHE_SCHEMA_VERSION;
 	readonly refreshedAt: number;
 	readonly publicState: LocalModelPublicRegistryState;
@@ -805,8 +771,8 @@ interface ICatalogCacheV2 {
 }
 
 const CATALOG_CACHE_KEY = 'localModel.catalog';
-/** Bumped when the catalog contract changes: a cache written under an earlier contract is discarded. */
-const CATALOG_CACHE_SCHEMA_VERSION = 2;
+/** Bumped when the catalog contract changes: a cache written under an earlier contract is discarded. 3: eligibility from system metadata only. */
+const CATALOG_CACHE_SCHEMA_VERSION = 3;
 const SEARCH_MAX_PAGES = 20;
 const JSON_RESPONSE_MAX_BYTES = 4 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -899,7 +865,7 @@ function readCachedContentFacts(key: string, value: unknown): ICachedContentFact
 	return computeContentId(files) === record.contentId ? { contentId: record.contentId, files } : undefined;
 }
 
-/** The Azure ML catalog: anonymous `crossRegion` search, lazy resolution, a 24 h cache without SAS URLs, at most two concurrent resolutions. */
+/** The Azure ML catalog: anonymous public gallery search, lazy resolution, a 24 h cache without SAS URLs, at most two concurrent resolutions. */
 export class ModelCatalog extends Disposable {
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
@@ -997,20 +963,30 @@ export class ModelCatalog extends Disposable {
 
 	private async _refreshPublic(signal: AbortSignal): Promise<void> {
 		try {
-			const profiles: ILocalModelProfile[] = [];
+			const hits: IRegistrySearchHit[] = [];
 			let continuationToken: string | undefined;
 			for (let page = 0; page < SEARCH_MAX_PAGES; page++) {
-				const response = await this._request({ url: AZURE_ML_PUBLIC_SEARCH_URL, method: 'POST', body: buildTagSearchBody(PUBLIC_REGISTRY, continuationToken), headers: { 'User-Agent': getAzureMlSearchUserAgent(this._options.productVersion), 'Content-Type': 'application/json' } }, signal);
+				const response = await this._request({ url: AZURE_ML_PUBLIC_SEARCH_URL, method: 'POST', body: buildTagSearchBody(continuationToken), headers: { 'User-Agent': getAzureMlSearchUserAgent(this._options.productVersion), 'Content-Type': 'application/json', [AZURE_ML_FULL_CONTRACTS_HEADER]: 'true' } }, signal);
 				const parsed = parseTagSearchResponse(await this._readJson(response, signal));
 				if (!parsed) {
 					throw new LocalModelCatalogError('network', 'Unrecognized search response');
 				}
-				profiles.push(...this._validateHits(parsed.hits, PUBLIC_REGISTRY));
+				hits.push(...parsed.hits);
 				continuationToken = parsed.continuationToken;
 				if (!continuationToken) {
 					break;
 				}
 			}
+			if (continuationToken) {
+				// A version beyond the last page could make a `latest` label ambiguous, so a partial result isn't used.
+				throw new LocalModelCatalogError('network', 'Search results exceeded the page limit');
+			}
+			// Selected across every page: a model's versions can be split between pages.
+			const selection = selectUnambiguousLatestHits(hits);
+			if (selection.ambiguousModels) {
+				this._options.log.warn(`[LocalModelCatalog] Skipping ${selection.ambiguousModels} model(s) from ${PUBLIC_REGISTRY} labeled latest at more than one version`);
+			}
+			const profiles = this._validateHits(selection.hits, PUBLIC_REGISTRY);
 			this._publicProfiles = profiles;
 			this._publicState = profiles.length ? 'ready' : 'empty';
 		} catch (error) {
@@ -1029,7 +1005,7 @@ export class ModelCatalog extends Disposable {
 			if (hit.archived) {
 				continue;
 			}
-			const result = validateLocalModelTags(hit.tags, { registry, assetName: hit.assetName, version: hit.version, createdTime: hit.createdTime, metadata: hit.metadata });
+			const result = validateLocalModelVersion(hit.metadata, { registry, assetName: hit.assetName, version: hit.version, createdTime: hit.createdTime, tags: hit.tags });
 			if (result.ok) {
 				profiles.push(result.profile);
 			} else {
@@ -1071,11 +1047,11 @@ export class ModelCatalog extends Disposable {
 			throw new LocalModelCatalogError('notPublished');
 		}
 		// The lookup must answer for exactly this version (the registry's identity; blob annotations copied
-		// from an original upload are not), and the version must still be in the local-coding scope.
+		// from an original upload are not), and the version must still be published for local use.
 		if (resolved.assetId !== formatAssetId(PUBLIC_REGISTRY, profile.assetName, profile.version)) {
 			throw new LocalModelCatalogError('invalidContent', 'The lookup answered for another model version');
 		}
-		if (!isLocalCodingModel(resolved.tags, resolved.metadata)) {
+		if (!isLocalCodingModel(resolved.metadata)) {
 			throw new LocalModelCatalogError('notPublished');
 		}
 		const sas = splitSasUrl(resolved.blobSasUri);
@@ -1161,7 +1137,9 @@ export class ModelCatalog extends Disposable {
 			}
 			const size = Number(head.headers['content-length']);
 			const sha256 = normalizeSha256Header(head.headers['x-ms-meta-sha256']);
-			if (!sha256) {
+			// Regional replicas don't carry blob metadata, so the published checksum only reaches the primary region's copy;
+			// elsewhere the strong ETag binds the transfer and the downloader hashes what it gets.
+			if (!sha256 && !strongEtag(head.headers.etag)) {
 				throw new LocalModelCatalogError('noChecksum');
 			}
 			// Identity is the registry's (the lookup's asset id): blob
@@ -1169,14 +1147,15 @@ export class ModelCatalog extends Disposable {
 			if (!Number.isSafeInteger(size) || size !== blob.sizeBytes) {
 				throw new LocalModelCatalogError('invalidContent', 'File facts do not match the listing');
 			}
-			files.push({ relativePath: blob.name.slice(normalized.length), url, sizeBytes: size, sha256, ...(head.headers.etag ? { etag: head.headers.etag } : {}) });
+			files.push({ relativePath: blob.name.slice(normalized.length), url, sizeBytes: size, ...(sha256 ? { sha256 } : {}), ...(head.headers.etag ? { etag: head.headers.etag } : {}) });
 		}
-		const contentId = computeContentId(files.map(file => ({ path: file.relativePath, sizeBytes: file.sizeBytes, sha256: file.sha256 })));
-		this._contentFacts.set(sourceKey(profile), {
-			contentId,
-			files: files.map(file => ({ path: file.relativePath, sizeBytes: file.sizeBytes, sha256: file.sha256, ...(file.etag ? { etag: file.etag } : {}) })),
-		});
-		this._saveCache();
+		// The content is known before the download only when every file publishes its checksum.
+		const published = files.flatMap(file => file.sha256 !== undefined ? [{ path: file.relativePath, sizeBytes: file.sizeBytes, sha256: file.sha256, ...(file.etag ? { etag: file.etag } : {}) }] : []);
+		const contentId = published.length === files.length ? computeContentId(published) : undefined;
+		if (contentId) {
+			this._contentFacts.set(sourceKey(profile), { contentId, files: published });
+			this._saveCache();
+		}
 		return { profile, files, primaryFile: primary.name.slice(normalized.length), preset, contentId, ...(wrapperFolder ? { wrapperFolder } : {}) };
 	}
 
@@ -1278,7 +1257,7 @@ export class ModelCatalog extends Disposable {
 		const profiles = dropCredentialItems(this._publicProfiles);
 		const facts = dropCredentialEntries(Object.fromEntries(this._contentFacts));
 		reportDroppedStorageEntries(this._options.log, CATALOG_CACHE_KEY, profiles.dropped + facts.dropped);
-		const cache: ICatalogCacheV2 = {
+		const cache: ICatalogCacheV3 = {
 			schemaVersion: CATALOG_CACHE_SCHEMA_VERSION,
 			refreshedAt: this._refreshedAt,
 			publicState: this._publicState,

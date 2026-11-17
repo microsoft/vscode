@@ -8,6 +8,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyGateState } from '../../../../../services/policies/common/accountPolicyService.js';
 import { IReference, MutableDisposable, ReferenceCollection } from '../../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
 import { mockObject, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -29,6 +30,10 @@ import { registerMoveActions } from '../../../browser/actions/chatMoveActions.js
 import { ChatViewId, ChatViewPaneTarget, IChatWidgetService, IChatWidgetViewContext, IQuickChatService } from '../../../browser/chat.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatWidgetService } from '../../../browser/widget/chatWidgetService.js';
+import { IChatViewHostService } from '../../../browser/chatViewHost.js';
+import { IViewDescriptorService } from '../../../../../common/views.js';
+import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
+import { ChatViewPaneHost } from '../../../browser/widgetHosts/viewPane/chatViewHostService.js';
 import { ChatEditorInput } from '../../../browser/widgetHosts/editor/chatEditorInput.js';
 import { ChatViewPane } from '../../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -87,6 +92,8 @@ suite('Chat move actions', () => {
 				return model;
 			},
 			focusInput() { },
+			shownSession: constObservable(undefined),
+			reportShown() { },
 		});
 		const viewsService = upcastPartial<IViewsService>({
 			openView: mockObject<IViewsService>()().openView.resolves(view),
@@ -142,6 +149,8 @@ suite('Chat move actions', () => {
 			}),
 			chatService,
 			new NullLogService(),
+			// The Chat view, as the host of its chats
+			upcastPartial<IChatViewHostService>(new ChatViewPaneHost(viewsService, upcastPartial<IViewDescriptorService>({}), upcastPartial<IWorkbenchLayoutService>({}), upcastPartial<IProgressService>({}))),
 		));
 		store.add(widgetService.register(widget));
 		instantiationService.set(IChatWidgetService, widgetService);

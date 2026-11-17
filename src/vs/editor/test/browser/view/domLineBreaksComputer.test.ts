@@ -10,14 +10,15 @@ import { DOMLineBreaksComputerFactory } from '../../../browser/view/domLineBreak
 import { WrappingIndent } from '../../../common/config/editorOptions.js';
 import { FontInfo } from '../../../common/config/fontInfo.js';
 import { ILineBreaksComputerContext } from '../../../common/modelLineProjectionData.js';
+import { LineInjectedText } from '../../../common/textModelEvents.js';
 
 /**
- * Measures `text` the way advanced wrapping does, in a container one pixel wide. The browser then
- * puts every character on a line of its own whichever font it ends up picking, so the break
- * offsets, and with them the visible column each character sits at, do not depend on the machine
- * running the test.
+ * Measures `text` the way advanced wrapping does, in a container one pixel wide unless
+ * `wrappingColumn` is given. The browser then puts every character on a line of its own whichever
+ * font it ends up picking, so the break offsets, and with them the visible column each character
+ * sits at, do not depend on the machine running the test.
  */
-function measure(text: string, useTwoCellFullwidthCharacters: boolean): { breakOffsets: number[]; visibleColumns: number[] } {
+function measure(text: string, useTwoCellFullwidthCharacters: boolean, injectedTexts: LineInjectedText[] | null = null, wrappingColumn = 1): { breakOffsets: number[]; visibleColumns: number[] } {
 	const fontInfo = new FontInfo({
 		pixelRatio: 1,
 		fontFamily: 'monospace',
@@ -38,9 +39,9 @@ function measure(text: string, useTwoCellFullwidthCharacters: boolean): { breakO
 	}, false);
 	const context: ILineBreaksComputerContext = {
 		getLineContent: () => text,
-		getLineInjectedText: () => null
+		getLineInjectedText: () => injectedTexts
 	};
-	const computer = DOMLineBreaksComputerFactory.create(mainWindow).createLineBreaksComputer(context, fontInfo, 4, 1, WrappingIndent.None, 'normal', false, useTwoCellFullwidthCharacters);
+	const computer = DOMLineBreaksComputerFactory.create(mainWindow).createLineBreaksComputer(context, fontInfo, 4, wrappingColumn, WrappingIndent.None, 'normal', false, useTwoCellFullwidthCharacters);
 	computer.addRequest(1, null);
 	const lineBreakData = computer.finalize()[0];
 	assert.ok(lineBreakData, 'the line should have wrapped');
@@ -62,5 +63,22 @@ suite('Editor View - DOMLineBreaksComputer', () => {
 			twoCells: { breakOffsets: [1, 2, 3, 4, 5, 6], visibleColumns: [2, 3, 4, 5, 7, 8] },
 			naturalWidth: { breakOffsets: [1, 2, 3, 4, 5, 6], visibleColumns: [2, 3, 4, 5, 7, 8] }
 		});
+	});
+
+	test('a space that ends the line after injected text reserving space does not prevent wrapping', () => {
+		// The space renders in a span of its own, which has no client rects.
+		const { breakOffsets } = measure('ab ', false, [new LineInjectedText(0, 1, 3, { content: '', widthInEm: 1 }, 0)]);
+		assert.deepStrictEqual(breakOffsets, [1, 3]);
+	});
+
+	test('a space between injected texts reserving space stays on the line it ends', () => {
+		// In a container 41px wide, `a` and the space take about 17px, so the 2em (28px) that the
+		// injected text before `b` reserves goes on the next line, along with `b`. The space renders in a
+		// span of its own between the injected texts, and is collapsed where the line wraps.
+		const { breakOffsets } = measure('a b', false, [
+			new LineInjectedText(0, 1, 2, { content: '', widthInEm: 0.001 }, 0),
+			new LineInjectedText(0, 1, 3, { content: '', widthInEm: 2 }, 1),
+		], 41);
+		assert.deepStrictEqual(breakOffsets, [2, 3]);
 	});
 });

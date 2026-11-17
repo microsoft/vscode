@@ -1,0 +1,30 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-sessions-workbench .browser-root.sessions-browser-empty {
+	position: relative;
+}
+
+.agent-sessions-workbench .browser-root .browser-welcome-container {
+	display: none;
+}
+
+.agent-sessions-workbench .browser-root.sessions-browser-empty > .browser-container-wrapper {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	visibility: hidden;
+}
+
+.sessions-browser-empty-state {
+	display: none;
+}
+
+.agent-sessions-workbench .sessions-browser-empty-state:not([hidden]) {
+	display: block;
+	flex: 0 0 auto;
+	width: min(320px, calc(100% - 2 * var(--vscode-spacing-size240)));
+	margin: auto;
+}

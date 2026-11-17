@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
+import type { WebviewMouseActivity } from '../common/webview.js';
 import type { WebviewStyles } from './webview.js';
 
 type KeyEvent = {
@@ -36,6 +37,7 @@ export type FromWebviewMessage = {
 	'load-resource': { id: number; path: string; query: string; scheme: string; authority: string; ifNoneMatch?: string; range?: { readonly start: number; readonly end?: number } };
 	'load-localhost': { id: string; origin: string };
 	'did-scroll-wheel': IMouseWheelEvent;
+	'did-mouse-move': WebviewMouseActivity;
 	'fatal-error': { message: string };
 	'no-csp-found': void;
 	'did-keydown': KeyEvent;
@@ -53,6 +55,7 @@ interface UpdateContentEvent {
 		allowMultipleAPIAcquire: boolean;
 		allowScripts: boolean;
 		allowForms: boolean;
+		includeHorizontalScrollbarInContentHeight?: boolean;
 	};
 	state: any;
 	cspSource: string;

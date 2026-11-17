@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { API } from '@typescript/native/unstable/async';
+import { API } from '@typescript/native/async';
 import * as vscode from 'vscode';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';

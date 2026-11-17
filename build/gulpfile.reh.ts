@@ -12,7 +12,7 @@ import * as task from './lib/gulp/task.ts';
 import { inlineMeta } from './lib/inlineMeta.ts';
 import { computeNLSMetadataHash } from './lib/nlsMetadata.ts';
 import product from '../product.json' with { type: 'json' };
-import { getProductionDependencies } from './lib/dependencies.ts';
+import { getProductionDependencies, toPackagedLayout } from './lib/dependencies.ts';
 import { readISODate, writeISODate } from './lib/date.ts';
 import vfs from 'vinyl-fs';
 import packageJson from '../package.json' with { type: 'json' };
@@ -32,6 +32,7 @@ import { fetchUrls } from './lib/fetch.ts';
 import { downloadFeedPackage } from './lib/azureFeed.ts';
 import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
 import { readAgentSdkResults } from './agent-sdk/common.ts';
+import { getServerNodeVersion } from './lib/node.ts';
 
 
 const rcedit = promisify(rceditCallback);
@@ -55,13 +56,6 @@ const BUILD_TARGETS = [
 	// multiple alpine images and moved to a better model (alpine as the platform)
 	{ platform: 'linux', arch: 'alpine' },
 ];
-
-function getNodeVersion() {
-	const npmrc = fs.readFileSync(path.join(REPO_ROOT, 'remote', '.npmrc'), 'utf8');
-	const nodeVersion = /^target="(.*)"$/m.exec(npmrc)![1];
-	const internalNodeVersion = /^ms_build_id="(.*)"$/m.exec(npmrc)![1];
-	return { nodeVersion, internalNodeVersion };
-}
 
 function getNodeChecksum(expectedName: string): string | undefined {
 	const nodeJsChecksums = fs.readFileSync(path.join(REPO_ROOT, 'build', 'checksums', 'nodejs.txt'), 'utf8');
@@ -124,7 +118,7 @@ function patchElfLoadAlign(): NodeJS.ReadWriteStream {
 	});
 }
 
-const { nodeVersion, internalNodeVersion } = getNodeVersion();
+const { nodeVersion, internalNodeVersion } = getServerNodeVersion(REPO_ROOT);
 
 // In product builds, the server (reh) Node.js binaries are fetched on demand
 // from our Azure Artifacts feed named by `product.nodejsArtifactFeed` using the
@@ -353,8 +347,9 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 
 		const productionDependencies = getProductionDependencies(REMOTE_FOLDER);
-		const dependenciesSrc = productionDependencies.map(d => path.relative(REPO_ROOT, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]).flat();
+		const dependenciesSrc = productionDependencies.map(d => path.relative(REPO_ROOT, d.source)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]).flat();
 		const cleanedDeps = gulp.src(dependenciesSrc, { base: 'remote', dot: true })
+			.pipe(toPackagedLayout(productionDependencies))
 			// filter out unnecessary files, no source maps in server build
 			.pipe(filter(['**', '!**/package-lock.json', '!**/*.{js,css}.map']))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))

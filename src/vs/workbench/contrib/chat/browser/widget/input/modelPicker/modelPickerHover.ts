@@ -173,7 +173,7 @@ export function getModelHoverContent(
 		const seenGroups = new Set<string>();
 		for (const propSchema of Object.values(model.metadata.configurationSchema.properties)) {
 			if (propSchema.enum && propSchema.enum.length >= 2 && propSchema.group && SUPPORTED_CONFIG_GROUPS.includes(propSchema.group) && !seenGroups.has(propSchema.group)) {
-				const label = isAuto && propSchema.group === MODEL_CONFIG_GROUP_EFFORT && !model.metadata.autoModelEnsemble ? localize('models.optimizeFor', "Optimize for") : propSchema.title ?? propSchema.description;
+				const label = isAuto && propSchema.group === MODEL_CONFIG_GROUP_EFFORT && !model.metadata.autoModelFusion ? localize('models.optimizeFor', "Optimize for") : propSchema.title ?? propSchema.description;
 				if (label) {
 					seenGroups.add(propSchema.group);
 					configButtons.push({ group: propSchema.group, label });

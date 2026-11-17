@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../../base/common/event.js';
-import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem } from '../../../../base/common/platform.js';
+import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -40,6 +40,7 @@ import { IRemoteAgentService } from '../../../services/remote/common/remoteAgent
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { shouldUseEnvironmentVariableCollection } from '../../../../platform/terminal/common/terminalEnvironment.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { serializeEnvironmentVariableCollections } from '../../../../platform/terminal/common/environmentVariableShared.js';
 
 export class LocalTerminalBackendContribution implements IWorkbenchContribution {
 
@@ -220,11 +221,11 @@ export class LocalTerminalBackend extends BaseTerminalBackend implements ITermin
 		return pty;
 	}
 
-	async attachToProcess(id: number, pid?: number): Promise<ITerminalChildProcess | undefined> {
+	async attachToProcess(id: number, pid?: number, isRevived: boolean = false): Promise<ITerminalChildProcess | undefined> {
 		await this._connectToDirectProxy();
 		try {
 			await this._proxy.attachToProcess(id, pid);
-			const pty = new LocalPty(id, true, this._proxy);
+			const pty = new LocalPty(id, true, this._proxy, isRevived);
 			this._ptys.set(id, pty);
 			return pty;
 		} catch (e) {
@@ -238,7 +239,7 @@ export class LocalTerminalBackend extends BaseTerminalBackend implements ITermin
 		try {
 			const newId = await this._proxy.getRevivedPtyNewId(this._getWorkspaceId(), id);
 			if (newId !== undefined) {
-				return await this.attachToProcess(newId);
+				return await this.attachToProcess(newId, undefined, true);
 			}
 			// The original ID may belong to another window's process after a pty host restart
 			return await this.attachToProcess(id, pid > 0 ? pid : undefined);
@@ -343,12 +344,11 @@ export class LocalTerminalBackend extends BaseTerminalBackend implements ITermin
 				// Re-resolve the environments and replace it on the state so local terminals use a fresh
 				// environment
 				mark('code/terminal/willGetReviveEnvironments');
-				await Promise.all(reviveBufferState.map(state => new Promise<void>(r => {
-					this._resolveEnvironmentForRevive(variableResolver, state.shellLaunchConfig).then(freshEnv => {
-						state.processLaunchConfig.env = freshEnv;
-						r();
-					});
-				})));
+				await Promise.all(reviveBufferState.map(async state => {
+					const { env, environmentVariableCollections } = await this._resolveEnvironmentForRevive(variableResolver, state.shellLaunchConfig);
+					state.processLaunchConfig.env = env;
+					state.processLaunchConfig.options.environmentVariableCollections = environmentVariableCollections;
+				}));
 				mark('code/terminal/didGetReviveEnvironments');
 
 				mark('code/terminal/willReviveTerminalProcesses');
@@ -372,16 +372,19 @@ export class LocalTerminalBackend extends BaseTerminalBackend implements ITermin
 		return this._proxy.getTerminalLayoutInfo(layoutArgs);
 	}
 
-	private async _resolveEnvironmentForRevive(variableResolver: terminalEnvironment.VariableResolver | undefined, shellLaunchConfig: IShellLaunchConfig): Promise<IProcessEnvironment> {
+	private async _resolveEnvironmentForRevive(variableResolver: terminalEnvironment.VariableResolver | undefined, shellLaunchConfig: IShellLaunchConfig): Promise<{ env: IProcessEnvironment; environmentVariableCollections: ReturnType<typeof serializeEnvironmentVariableCollections> | undefined }> {
 		const platformKey = isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
 		const envFromConfigValue = this._configurationService.getValue<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
 		const baseEnv = await (shellLaunchConfig.useShellEnvironment ? this.getShellEnvironment() : this.getEnvironment());
 		const env = await terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, this._productService.version, this._configurationService.getValue(TerminalSettingId.DetectLocale), baseEnv);
+		let environmentVariableCollections: ReturnType<typeof serializeEnvironmentVariableCollections> | undefined;
 		if (shouldUseEnvironmentVariableCollection(shellLaunchConfig)) {
 			const workspaceFolder = terminalEnvironment.getWorkspaceForTerminal(shellLaunchConfig.cwd, this._workspaceContextService, this._historyService);
-			await this._environmentVariableService.mergedCollection.applyToProcessEnvironment(env, { workspaceFolder }, variableResolver);
+			const collection = this._environmentVariableService.getMergedCollection(this.remoteAuthority, OS);
+			await collection.applyToProcessEnvironment(env, { workspaceFolder }, variableResolver);
+			environmentVariableCollections = serializeEnvironmentVariableCollections(collection.collections);
 		}
-		return env;
+		return { env, environmentVariableCollections };
 	}
 
 	private _getWorkspaceName(): string {
@@ -390,11 +393,11 @@ export class LocalTerminalBackend extends BaseTerminalBackend implements ITermin
 
 	// #region Pty service contribution RPC calls
 
-	installAutoReply(match: string, reply: string): Promise<void> {
-		return this._proxy.installAutoReply(match, reply);
+	installAutoReply(match: string, reply: string, ownerId: string): Promise<void> {
+		return this._proxy.installAutoReply(match, reply, ownerId);
 	}
-	uninstallAllAutoReplies(): Promise<void> {
-		return this._proxy.uninstallAllAutoReplies();
+	uninstallAllAutoReplies(ownerId: string): Promise<void> {
+		return this._proxy.uninstallAllAutoReplies(ownerId);
 	}
 
 	// #endregion

@@ -8,8 +8,9 @@ import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ActionType, type ChatErrorAction, type ChatToolCallReadyAction } from '../../../../common/state/sessionActions.js';
+import { ActionType, type ChatErrorAction, type ChatToolCallReadyAction, type SessionChatAddedAction } from '../../../../common/state/sessionActions.js';
 import { ChatSourceKind, CompletionItemKind, type CompletionsResult, type ListSessionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { AhpErrorCodes } from '../../../../common/state/protocol/common/errors.js';
 import {
 	ChatOriginKind,
 	isAhpChatChannel,
@@ -564,6 +565,44 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		}]);
 	}, config.supportsMultipleChats);
 
+	conformanceTest(context, 'titled peer chat publishes its title in the first notification and snapshots', async function () {
+		const { sessionUri, defaultChatUri } = await createSession('titled-peer');
+		await driveTurn(defaultChatUri, 'titled-peer-source', '/rename Fork Source', 1);
+		await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		context.client.clearReceived();
+
+		const peer = newTestChatUri();
+		const chatAddedPromise = context.client.waitForNotification(notification => {
+			if (!isActionNotification(notification, 'session/chatAdded')) {
+				return false;
+			}
+			const envelope = getActionEnvelope(notification);
+			return envelope.channel === sessionUri
+				&& (envelope.action as SessionChatAddedAction).summary.resource === peer;
+		});
+		await context.client.call('createChat', {
+			channel: sessionUri,
+			chat: peer,
+			title: 'Named peer .',
+			source: { kind: ChatSourceKind.Fork, chat: defaultChatUri, turnId: 'titled-peer-source' },
+		}, 30_000);
+		const chatAdded = (getActionEnvelope(await chatAddedPromise).action as SessionChatAddedAction).summary;
+		const initialSession = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const initialChat = await context.client.call<SubscribeResult>('subscribe', { channel: peer });
+		const sessionChat = (initialSession.snapshot!.state as SessionState).chats.find(chat => chat.resource === peer);
+		const chat = initialChat.snapshot!.state as ChatState;
+
+		assert.deepStrictEqual({
+			chatAdded: { resource: chatAdded.resource, title: chatAdded.title },
+			sessionChat: sessionChat && { resource: sessionChat.resource, title: sessionChat.title },
+			chatSnapshot: { snapshotResource: initialChat.snapshot!.resource, resource: chat.resource, title: chat.title },
+		}, {
+			chatAdded: { resource: peer, title: 'Named peer .' },
+			sessionChat: { resource: peer, title: 'Named peer .' },
+			chatSnapshot: { snapshotResource: peer, resource: peer, title: 'Named peer .' },
+		});
+	}, config.supportsMultipleChats && config.supportsInitialTitle);
+
 	conformanceTest(context, 'first peer chat snapshots the session title onto the default chat', async function () {
 		const { sessionUri, defaultChatUri } = await createSession('default-title');
 		await rename(sessionUri, 'Original Session');
@@ -590,6 +629,69 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 
 		assert.deepStrictEqual((await chatState(peer)).turns, []);
 	}, config.supportsMultipleChats);
+
+	conformanceTest(context, 'fork with an initial local message publishes before returning an accepted turn snapshot', async function () {
+		const { sessionUri, defaultChatUri } = await createSession('fork-initial-message');
+		await driveTurn(defaultChatUri, 'fork-initial-message-source', '/rename Source Chat', 1);
+		await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		context.client.clearReceived();
+
+		const peer = newTestChatUri();
+		const chatAddedPromise = context.client.waitForNotification(notification =>
+			isActionNotification(notification, 'session/chatAdded')
+			&& getActionEnvelope(notification).channel === sessionUri
+			&& (getActionEnvelope(notification).action as SessionChatAddedAction).summary.resource === peer
+		);
+		const initialMessage = {
+			text: '/rename Initial Message Title',
+			origin: { kind: MessageKind.User },
+			attachments: [{ type: MessageAttachmentKind.Simple, label: 'Initial context', modelRepresentation: 'local initial context' }],
+		};
+		const createChat = context.client.call('createChat', {
+			channel: sessionUri,
+			chat: peer,
+			title: 'Explicit Fork Title',
+			source: { kind: ChatSourceKind.Fork, chat: defaultChatUri, turnId: 'fork-initial-message-source' },
+			initialMessage,
+		}, 30_000);
+
+		const chatAddedEnvelope = getActionEnvelope(await chatAddedPromise);
+		await createChat;
+		const chatAdded = chatAddedEnvelope.action as SessionChatAddedAction;
+		const initialChat = await context.client.call<SubscribeResult>('subscribe', { channel: peer });
+		const state = initialChat.snapshot!.state as ChatState;
+		const initialTurnCount = state.turns.filter(turn => turn.message.text === '/rename Initial Message Title').length
+			+ (state.activeTurn?.message.text === '/rename Initial Message Title' ? 1 : 0);
+		const initialTurnMessage = [...state.turns.map(turn => turn.message), ...(state.activeTurn ? [state.activeTurn.message] : [])]
+			.find(message => message.text === '/rename Initial Message Title');
+
+		assert.deepStrictEqual({
+			snapshotAfterPublication: initialChat.snapshot!.fromSeq > chatAddedEnvelope.serverSeq,
+			firstPublishedTitle: chatAdded.summary.title,
+			initialTurnCount,
+			initialAttachment: initialTurnMessage?.attachments?.map(attachment => attachment.label),
+		}, {
+			snapshotAfterPublication: true,
+			firstPublishedTitle: 'Explicit Fork Title',
+			initialTurnCount: 1,
+			initialAttachment: ['Initial context'],
+		});
+
+		await assert.rejects(() => context.client.call('createChat', {
+			channel: sessionUri,
+			chat: peer,
+			title: 'Explicit Fork Title',
+			source: { kind: ChatSourceKind.Fork, chat: defaultChatUri, turnId: 'fork-initial-message-source' },
+			initialMessage,
+		}, 30_000), error => (error as { code?: number }).code === AhpErrorCodes.AlreadyExists);
+
+		const repeatedState = await chatState(peer);
+		assert.strictEqual(
+			repeatedState.turns.filter(turn => turn.message.text === '/rename Initial Message Title').length
+			+ (repeatedState.activeTurn?.message.text === '/rename Initial Message Title' ? 1 : 0),
+			1,
+		);
+	}, config.supportsMultipleChats && config.supportsChatFork);
 
 	providerTest('peer chat completes a simple turn', async function () {
 		const { sessionUri } = await createSession('peer-turn');
@@ -628,14 +730,38 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		const { sessionUri, defaultChatUri } = await createSession('fork-history');
 		const sourceResponse = await driveTurn(defaultChatUri, 'fork-source', 'Remember the code word FORKCODE. Reply exactly "ready".', 1);
 
-		const peer = await createPeer(sessionUri, 'fork', { kind: ChatSourceKind.Fork, chat: defaultChatUri, turnId: 'fork-source' });
-		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
-		const response = await driveTurn(peer, 'fork-turn', 'What code word did I ask you to remember? Reply with only the code word.', 2);
+		const peer = newTestChatUri();
+		await context.client.call('createChat', {
+			channel: sessionUri,
+			chat: peer,
+			source: { kind: ChatSourceKind.Fork, chat: defaultChatUri, turnId: 'fork-source' },
+			initialMessage: {
+				text: 'What code word did I ask you to remember? Reply with only the code word.',
+				origin: { kind: MessageKind.User },
+			},
+		}, 30_000);
+		let state = (await context.client.call<SubscribeResult>('subscribe', { channel: peer })).snapshot!.state as ChatState;
+		if (!state.turns.some(turn => turn.message.text === 'What code word did I ask you to remember? Reply with only the code word.')) {
+			const completion = await context.client.waitForNotification(notification =>
+				(isActionNotification(notification, 'chat/turnComplete') || isActionNotification(notification, 'chat/error'))
+				&& getActionEnvelope(notification).channel === peer,
+			);
+			if (isActionNotification(completion, 'chat/error')) {
+				const action = getActionEnvelope(completion).action as ChatErrorAction;
+				throw new Error(`Fork initial message error: ${JSON.stringify(action.part.error)}`);
+			}
+			state = await chatState(peer);
+		}
+		const forkTurn = state.turns.find(turn => turn.message.text === 'What code word did I ask you to remember? Reply with only the code word.');
+		const response = forkTurn?.responseParts
+			.filter(part => part.kind === ResponsePartKind.Markdown)
+			.map(part => part.content)
+			.join('') ?? '';
 		const messages = observedModelMessages(context.observedModelRequestBodies.at(-1) ?? '');
 		const priorAssistantResponse = sourceResponse.trim();
 
 		assert.deepStrictEqual({
-			seededMessages: (await chatState(peer)).turns.map(turn => turn.message.text),
+			seededMessages: state.turns.map(turn => turn.message.text),
 			priorAssistantResponseIsNonEmpty: priorAssistantResponse.length > 0,
 			responseHasCodeWord: /FORKCODE/i.test(response),
 			requestHasPriorUserMessage: messages.some(message => message.role === 'user' && message.content.includes('Remember the code word FORKCODE')),
@@ -956,10 +1082,11 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
 		await driveTurn(peer, 'peer-old-context', 'Remember the code word OLD_PEER. Reply exactly "ready".', 1);
 		await context.client.call('disposeChat', { channel: peer }, 30_000);
-		await context.client.call('createChat', { channel: sessionUri, chat: peer }, 30_000);
-		await context.client.call<SubscribeResult>('subscribe', { channel: peer });
+		// Disposed identities are tombstoned; recreation must use a fresh peer URI.
+		const replacement = await createPeer(sessionUri, 'replacement');
+		await context.client.call<SubscribeResult>('subscribe', { channel: replacement });
 
-		await driveTurn(peer, 'peer-new-context', 'Reply exactly "new".', 10);
+		await driveTurn(replacement, 'peer-new-context', 'Reply exactly "new".', 10);
 		const messages = observedModelMessages(context.observedModelRequestBodies.at(-1) ?? '');
 
 		assert.strictEqual(messages.some(message => message.content.includes('OLD_PEER')), false);

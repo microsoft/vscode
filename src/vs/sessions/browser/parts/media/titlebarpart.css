@@ -7,6 +7,18 @@
 	justify-content: initial;
 }
 
+/* Keep window controls full-height when Modern UI applies its macOS offset. */
+.agent-sessions-workbench.monaco-workbench:not(.modern-ui-compact) .part.titlebar > .sessions-titlebar-container > :is(.titlebar-left, .titlebar-right) {
+	padding-top: 0;
+}
+
+/* Apply optical centering to toolbar content, not the window-control hit targets. */
+.agent-sessions-workbench.monaco-workbench:not(.modern-ui-compact) .part.titlebar > .sessions-titlebar-container > .titlebar-center,
+.agent-sessions-workbench.monaco-workbench:not(.modern-ui-compact) .part.titlebar > .sessions-titlebar-container > :is(.titlebar-left, .titlebar-right) > :is(.left-toolbar-container, .titlebar-actions-container) {
+	box-sizing: border-box;
+	padding-top: var(--vscode-spacing-size20);
+}
+
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left {
 	display: flex;
 	height: 100%;
@@ -107,11 +119,30 @@
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container {
+	padding-right: var(--vscode-spacing-size40);
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right.has-window-controls > .titlebar-right-layout-container:not(.titlebar-last-actions) {
 	padding-right: var(--vscode-spacing-size80);
 }
 
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-screen-reader-container:not(.has-no-actions) {
+/* The last shown actions of a window with layout actions, such as a chat window, keep the inset of the main window's last
+ * actions to the window's edge: its layout actions, or the actions before them while those show in its Session Activity Bar. */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container.titlebar-last-actions {
+	padding-right: calc(var(--vscode-spacing-size40) + var(--vscode-agents-layout-floatingPanelGap));
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right.has-window-controls > .titlebar-actions-container.titlebar-last-actions {
+	padding-right: var(--vscode-spacing-size80);
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-screen-reader-container:not(.has-no-actions, .titlebar-last-actions) {
 	margin-right: var(--vscode-spacing-size40);
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-screen-reader-container .monaco-button {
+	height: var(--vscode-spacing-size240);
+	padding: 0 var(--vscode-spacing-size80);
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center > .titlebar-actions-container.overflowing,
@@ -123,13 +154,46 @@
 	gap: 1px;
 }
 
-.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .monaco-toolbar .actions-container > .action-item.open-in-vscode-titlebar-widget + .action-item {
-	margin-left: 5px;
+.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right .monaco-toolbar .actions-container {
+	gap: var(--vscode-spacing-size40);
 }
 
-/* Add spacing between the session action group and the right layout actions. */
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container:not(.has-no-actions) + .titlebar-right-layout-container:not(.has-no-actions) {
-	margin-left: 4px;
+.agent-sessions-workbench .sessions-titlebar-container > .titlebar-right .monaco-action-bar .action-item :is(.action-label, .monaco-button, .monaco-button-dropdown) {
+	box-sizing: border-box;
+	height: var(--vscode-spacing-size240);
+	min-height: var(--vscode-spacing-size240);
+}
+
+.agent-sessions-workbench .sessions-titlebar-container > .titlebar-right .monaco-action-bar .action-item .action-label {
+	min-width: var(--vscode-spacing-size240);
+	padding: var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.agent-sessions-workbench .sessions-titlebar-container > .titlebar-right .monaco-action-bar .action-item :is(.action-label.codicon, .monaco-button.codicon) {
+	width: var(--vscode-spacing-size240);
+}
+
+.agent-sessions-workbench .sessions-titlebar-container > .titlebar-right .monaco-action-bar .action-item .monaco-button {
+	padding-block: 0;
+}
+
+.agent-sessions-workbench .sessions-titlebar-container > .titlebar-right .monaco-action-bar .action-item .monaco-button.codicon {
+	padding-inline: 0;
+	justify-content: center;
+}
+
+.agent-sessions-workbench .sessions-titlebar-container > .titlebar-right .monaco-action-bar .action-item.changes-actions-bar {
+	margin-inline: 0;
+}
+
+/*
+ * Add spacing between the session action group and the actions that follow it: extension actions or layout actions.
+ * Empty or overflowing extension actions don't take part, the layout actions after them get the spacing.
+ */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container:not(.has-no-actions) + :is(.titlebar-extension-actions-container, .titlebar-right-layout-container, .titlebar-window-layout-container):not(.has-no-actions),
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container:not(.has-no-actions) + .titlebar-extension-actions-container:is(.has-no-actions, .overflowing) + .titlebar-right-layout-container:not(.has-no-actions) {
+	margin-left: var(--vscode-spacing-size40);
 }
 
 /* Toggled action buttons in session actions toolbar */
@@ -177,7 +241,7 @@
 	align-items: center;
 }
 
-.monaco-workbench.mac:not(.web):not(.fullscreen) .part.titlebar > .sessions-titlebar-container > .titlebar-left > .window-controls-container + .left-toolbar-container {
+.monaco-workbench.mac:not(.web) .part.titlebar:not(.titlebar-fullscreen) > .sessions-titlebar-container > .titlebar-left > .window-controls-container + .left-toolbar-container {
 	padding-left: var(--vscode-spacing-size160);
 }
 

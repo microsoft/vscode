@@ -32,7 +32,7 @@ function savedThread(id: string): Thread {
 		canAcceptDirectInput: null, threadSource: null, agentNickname: null, agentRole: null, gitInfo: null,
 		name: null, daybreakEnabled: null,
 		turns: [{
-			id: 'turn-1', status: 'completed', itemsView: 'full', error: null,
+			id: 'turn-1', rootTurnId: null, status: 'completed', itemsView: 'full', error: null,
 			startedAt: null, completedAt: null, durationMs: null,
 			items: [
 				{ type: 'userMessage', id: 'message-1', clientId: null, content: [{ type: 'text', text: 'Earlier question', text_elements: [] }] },

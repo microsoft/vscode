@@ -61,6 +61,13 @@ export interface IActionWidgetService {
 	 * rebuilding the list.
 	 */
 	focusItemById(itemId: string): void;
+
+	/** Collapses the section that contains the focused item. */
+	collapseSection(): void;
+
+	/** Expands the section that contains the focused item. */
+	expandSection(): void;
+
 	setFilter(value: string, focusItemId?: string): void;
 
 	hide(didCancel?: boolean): void;

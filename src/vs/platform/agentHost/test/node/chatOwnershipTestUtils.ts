@@ -7,6 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { IAgentHostDatabase, type IAgentHostDatabaseChatOwner, type IAgentHostDatabaseSessionRegistrations } from '../../node/agentHostDatabase.js';
 import { AgentHostChatOwnershipService, IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
+import type { IOlderBuildCopyParticipant } from '../../node/agentHostPeerChatStore.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 
 /** A catalog that records no chats or sessions, so ownership comes from the live registry only. */
@@ -31,6 +32,9 @@ export function createTestChatOwnershipService(stateManager: AgentHostStateManag
 }
 
 /** An ownership service answering only live owner lookups, for consumers that need nothing else. */
+/** A peer chat store's older-build copy participant that prepares nothing. */
+export const noOlderBuildCopyParticipant: IOlderBuildCopyParticipant = { beforeOlderBuildCopyPublish: async () => { } };
+
 export function createLiveChatOwnership(getChatOwner: (chat: string) => string | undefined, getDefaultChat: (session: string) => string | undefined): IAgentHostChatOwnershipService {
 	return new class extends mock<IAgentHostChatOwnershipService>() {
 		override readonly onDidRegisterChat = Event.None;

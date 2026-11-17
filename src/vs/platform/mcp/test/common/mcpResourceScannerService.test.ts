@@ -59,6 +59,153 @@ suite('McpResourceScannerService', () => {
 	const read = async () => (await fileService.readFile(resource)).value.toString();
 	const write = (content: string) => fileService.writeFile(resource, VSBuffer.fromString(content));
 
+	suite('VS Code input cleanup', () => {
+		const input = (id: string) => ({ id, type: McpServerVariableType.PROMPT, description: id, password: true });
+
+		for (const target of [ConfigurationTarget.USER, ConfigurationTarget.WORKSPACE_FOLDER, ConfigurationTarget.WORKSPACE] as const) {
+			test(`removes only unreferenced inputs belonging to removed servers at target ${target}`, async () => {
+				const removed = {
+					type: McpServerType.LOCAL,
+					command: '${input:command}',
+					args: ['${input:argument}', '${input:shared}', '${input:sharedLonger}'],
+					env: { TOKEN: 'prefix-${input:token}-${input:token}' },
+					cwd: '${input:directory}',
+					windows: { args: ['${input:platform}'] },
+					linux: { args: ['${input:otherPlatform}'] },
+				};
+				const kept = {
+					type: McpServerType.REMOTE,
+					url: 'https://${input:host}/mcp',
+					headers: { Authorization: 'Bearer ${input:shared}' },
+					osx: { headers: { Token: '${input:otherPlatform}' } },
+				};
+				const inputs = ['command', 'argument', 'shared', 'sharedLonger', 'token', 'directory', 'platform', 'otherPlatform', 'host', 'unrelated'].map(input);
+				const config = { servers: { removed, kept }, inputs };
+				await write(JSON.stringify(target === ConfigurationTarget.WORKSPACE ? { folders: [], settings: { mcp: config, 'editor.fontSize': 14 } } : config));
+
+				await scanner.removeMcpServers(['removed', 'missing'], resource, target);
+
+				const expected = { servers: { kept }, inputs: ['shared', 'otherPlatform', 'host', 'unrelated'].map(input) };
+				assert.deepStrictEqual(JSON.parse(await read()), target === ConfigurationTarget.WORKSPACE
+					? { folders: [], settings: { mcp: expected, 'editor.fontSize': 14 } }
+					: expected);
+			});
+		}
+
+		test('removes shared inputs when all referencing servers are removed together', async () => {
+			await scanner.addMcpServers([
+				{ name: 'one', config: { type: McpServerType.LOCAL, command: 'node', args: ['${input:shared}'] }, inputs: [input('shared')] },
+				{ name: 'two', config: { type: McpServerType.REMOTE, url: 'https://${input:shared}/mcp' } },
+			], resource, ConfigurationTarget.WORKSPACE_FOLDER);
+
+			await scanner.removeMcpServers(['one', 'two'], resource, ConfigurationTarget.WORKSPACE_FOLDER);
+
+			assert.deepStrictEqual(JSON.parse(await read()), { servers: {}, inputs: [] });
+		});
+
+		test('deletes the user resource after removing its last server and input', async () => {
+			await scanner.addMcpServers([
+				{ name: 'one', config: { type: McpServerType.REMOTE, url: 'https://${input:host}/mcp' }, inputs: [input('host')] },
+			], resource);
+
+			await scanner.removeMcpServers(['one'], resource);
+
+			assert.strictEqual(await fileService.exists(resource), false);
+		});
+
+		test('preserves inputs used by the root sandbox and unrelated inputs', async () => {
+			const sandbox = { filesystem: { allowWrite: ['${input:directory}'] } };
+			const inputs = [input('directory'), input('unrelated')];
+			await write(JSON.stringify({ servers: { one: { type: McpServerType.LOCAL, command: 'node', cwd: '${input:directory}' } }, inputs, sandbox }));
+
+			await scanner.removeMcpServers(['one'], resource);
+
+			assert.deepStrictEqual(JSON.parse(await read()), { servers: {}, inputs, sandbox });
+		});
+
+		test('preserves inputs when the server is missing or has no input references', async () => {
+			const inputs = [input('unrelated')];
+			await scanner.addMcpServers([{ ...server('one'), inputs }], resource);
+
+			await scanner.removeMcpServers(['missing', 'one'], resource);
+
+			assert.deepStrictEqual(JSON.parse(await read()), { servers: {}, inputs });
+		});
+
+		test('handles input IDs containing JSON escapes and references in object keys', async () => {
+			const id = 'quoted"\\input';
+			await write(JSON.stringify({
+				servers: { one: { type: McpServerType.LOCAL, command: 'node', env: { [`\${input:${id}}`]: '${input:value}' } } },
+				inputs: [input(id), input('value'), input('unrelated')],
+			}));
+
+			await scanner.removeMcpServers(['one'], resource);
+
+			assert.deepStrictEqual(JSON.parse(await read()), { servers: {}, inputs: [input('unrelated')] });
+		});
+
+		for (const hasRemainingServer of [true, false]) {
+			test(`preserves transitive input defaults with remaining server: ${hasRemainingServer}`, async () => {
+				const kept = { type: McpServerType.LOCAL, command: '${input:alias}' };
+				const inputs = [
+					input('shared'),
+					{ ...input('middle'), default: '${input:shared}' },
+					{ ...input('alias'), default: '${input:middle}' },
+				];
+				await write(JSON.stringify({
+					servers: {
+						removed: { type: McpServerType.LOCAL, command: 'node', args: ['${input:shared}', '${input:middle}', '${input:exclusive}'] },
+						...(hasRemainingServer ? { kept } : {}),
+					},
+					inputs: [...inputs, input('exclusive')],
+				}));
+
+				await scanner.removeMcpServers(['removed'], resource);
+
+				assert.deepStrictEqual(JSON.parse(await read()), { servers: hasRemainingServer ? { kept } : {}, inputs });
+			});
+		}
+
+		for (const referencingDeclarationLast of [true, false]) {
+			test(`preserves duplicate input dependencies with referencing declaration last: ${referencingDeclarationLast}`, async () => {
+				const kept = { type: McpServerType.LOCAL, command: '${input:alias}' };
+				const literal = { ...input('alias'), default: 'literal' };
+				const referencing = { ...input('alias'), default: '${input:middle}' };
+				const inputs = [
+					input('shared'),
+					{ ...input('middle'), default: '${input:shared}' },
+					...(referencingDeclarationLast ? [literal, referencing] : [referencing, literal]),
+				];
+				await write(JSON.stringify({
+					servers: {
+						removed: { type: McpServerType.LOCAL, command: 'node', args: ['${input:shared}', '${input:middle}', '${input:exclusive}'] },
+						kept,
+					},
+					inputs: [...inputs, input('exclusive')],
+				}));
+
+				await scanner.removeMcpServers(['removed'], resource);
+
+				assert.deepStrictEqual(JSON.parse(await read()), { servers: { kept }, inputs });
+			});
+		}
+
+		test('preserves cyclic input dependencies without retaining an unreferenced cycle', async () => {
+			const inputs = [
+				{ ...input('alias'), default: '${input:shared}' },
+				{ ...input('shared'), default: '${input:alias}' },
+			];
+			await write(JSON.stringify({
+				servers: { removed: { type: McpServerType.LOCAL, command: 'node', args: ['${input:shared}', '${input:unusedA}', '${input:unusedB}'] } },
+				inputs: [...inputs, { ...input('unusedA'), default: '${input:unusedB}' }, { ...input('unusedB'), default: '${input:unusedA}' }],
+			}));
+
+			await scanner.removeMcpServers(['removed'], resource);
+
+			assert.deepStrictEqual(JSON.parse(await read()), { servers: {}, inputs });
+		});
+	});
+
 	suite('Copilot Global', () => {
 		const format = McpResourceFormat.CopilotGlobal;
 
@@ -76,7 +223,7 @@ suite('McpResourceScannerService', () => {
 				lineEndings: content.includes('\r\n') && !content.replaceAll('\r\n', '').includes('\n'),
 				names: Object.keys((await scanner.scanMcpServers(resource, undefined, format)).servers ?? {}),
 			}, {
-				document: { custom: true, mcpServers: { keep: { type: 'ws', url: 'ws://localhost', tools: ['read'] }, invalid: null, two: { type: 'local', command: 'two', args: [], tools: ['*'] } } },
+				document: { custom: true, mcpServers: { keep: { type: 'ws', url: 'ws://localhost', tools: ['read'] }, invalid: null, two: { type: 'stdio', command: 'two', args: [], tools: ['*'] } } },
 				lineEndings: true,
 				names: ['two'],
 			});
@@ -87,7 +234,7 @@ suite('McpResourceScannerService', () => {
 			await scanner.removeMcpServers(['absent'], resource, undefined, format);
 			assert.strictEqual(await fileService.exists(resource), false);
 			await scanner.addMcpServers([server('new')], resource, undefined, format);
-			assert.deepStrictEqual(JSON.parse(await read()), { mcpServers: { new: { type: 'local', command: 'new', args: [], tools: ['*'] } } });
+			assert.deepStrictEqual(JSON.parse(await read()), { mcpServers: { new: { type: 'stdio', command: 'new', args: [], tools: ['*'] } } });
 		});
 
 		for (const original of ['', 'null', '[]', '{ broken', '{"mcpServers":null}', '{"mcpServers":[]}', '{"mcpServers":"bad"}']) {

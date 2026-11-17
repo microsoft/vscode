@@ -6,6 +6,7 @@
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { autorunWithStore, IObservable, ISettableObservable, mapObservableArrayCached, observableFromEvent, observableValue, waitForState } from '../../../util/vs/base/common/observable';
 import { IGitExtensionService } from '../../git/common/gitExtensionService';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { API } from '../../git/vscode/git';
 
 export class ObservableGit extends Disposable {

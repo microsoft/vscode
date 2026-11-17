@@ -44,6 +44,7 @@ export type {
 
 // Command params and results
 export type {
+	AuthenticateTarget,
 	CreateSessionParams,
 	DirectoryEntry,
 	DispatchActionParams,
@@ -54,6 +55,7 @@ export type {
 	InitializeResult,
 	ListSessionsParams,
 	ListSessionsResult,
+	McpServerAuthenticateTarget,
 	ReconnectParams,
 	ReconnectReplayResult,
 	ReconnectResult,
@@ -84,7 +86,7 @@ export type {
 	CreateResourceWatchResult,
 } from './protocol/channels-resource-watch/commands.js';
 
-export { ContentEncoding, ReconnectResultType, ResourceType, ResourceWriteMode } from './protocol/commands.js';
+export { AuthenticateTargetKind, ContentEncoding, ReconnectResultType, ResourceType, ResourceWriteMode } from './protocol/commands.js';
 export { ResourceChangeType } from './protocol/channels-resource-watch/state.js';
 export type { ResourceChange, ResourceWatchState } from './protocol/channels-resource-watch/state.js';
 

@@ -1922,10 +1922,12 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		this._setPhase(operation, 'resolving');
 		const resolved = await this._catalog.resolveForSetup(profile, signal);
 		this._throwIfCancelled(operation.abort);
-		if (record.target.contentId && record.target.contentId !== resolved.contentId) {
+		// Content consented to that the registry now publishes differently asks again; without checksums (a regional
+		// replica) the content is known only once downloaded.
+		if (record.target.contentId && resolved.contentId && record.target.contentId !== resolved.contentId) {
 			throw new PauseRequest('consentChanged');
 		}
-		this._updateRecord(operation, { target: { ...record.target, contentId: resolved.contentId } });
+		this._updateRecord(operation, { target: { ...record.target, contentId: resolved.contentId ?? record.target.contentId } });
 		// Every name the registry provided must stay beneath the version directory (the catalog validated them; fail closed anyway).
 		const targetDir = host.store.versionDir(profile.registry, profile.assetName, profile.version);
 		if (![resolved.primaryFile, ...resolved.files.map(file => file.relativePath)].every(name => resolveModelFilePath(targetDir, name))) {
@@ -1937,7 +1939,7 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 		const versionDir = await host.store.beginVersion(profile.registry, profile.assetName, profile.version, profile.capiId);
 		const totalBytes = resolved.files.reduce((sum, file) => sum + file.sizeBytes, 0);
 		this._setPhase(operation, 'downloading', { completedBytes: 0, totalBytes });
-		await host.downloader.download({
+		const download = await host.downloader.download({
 			modelId,
 			targetDir: versionDir,
 			familyDir: host.store.familyDir(profile.registry, profile.assetName),
@@ -1957,7 +1959,7 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 			assetName: profile.assetName,
 			version: profile.version,
 			primaryFile: resolved.primaryFile,
-			files: resolved.files.map(file => ({ path: file.relativePath, totalBytes: file.sizeBytes, sha256: file.sha256, etag: file.etag ?? '' })),
+			files: resolved.files.map((file, index) => ({ path: file.relativePath, totalBytes: file.sizeBytes, sha256: download.sha256s[index], etag: file.etag ?? '' })),
 			ctxSize: resolved.preset.ctxSize ?? 4096,
 			parallel: resolved.preset.parallel ?? 1,
 			args: buildLlamaPresetArgs(resolved.preset, support).args,
@@ -1966,6 +1968,10 @@ export class ShimLocalModelProvider extends Disposable implements ILocalModelPro
 			autoCapable: profile.autoCapable,
 			activate: true,
 		});
+		if (!resolved.contentId && operation.record) {
+			// The content is known now that its files were hashed: a Retry of a later step serves exactly these files.
+			this._updateRecord(operation, { target: { ...operation.record.target, contentId: install.contentId } });
+		}
 		this._rememberFamily(operation.familyId, profile);
 		await this._refreshInstalls();
 		return install;

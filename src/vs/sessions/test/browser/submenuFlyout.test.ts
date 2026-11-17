@@ -9,18 +9,19 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { timeout } from '../../../base/common/async.js';
 import { ActionRunner, toAction } from '../../../base/common/actions.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
+import { AnchorAlignment, layout2d } from '../../../base/common/layout.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { SubmenuFlyout } from '../../browser/parts/submenuFlyout.js';
+import { SubmenuFlyout } from '../../../workbench/browser/parts/sessions/submenuFlyout.js';
 import { TestContextViewService } from './testContextViewService.js';
 
 suite('Sessions - Submenu flyout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createFlyout(disposables: Pick<DisposableStore, 'add'>) {
+	function createFlyout(disposables: Pick<DisposableStore, 'add'>, anchorAlignment?: AnchorAlignment, actionsContext?: unknown) {
 		const root = append(mainWindow.document.body, $('.monaco-workbench'));
 		disposables.add(toDisposable(() => root.remove()));
 		const anchor = append(root, $('a.anchor'));
@@ -28,7 +29,8 @@ suite('Sessions - Submenu flyout', () => {
 		const outside = append(root, $('input.outside'));
 
 		const ran: string[] = [];
-		const actions = [toAction({ id: 'test.kusto', label: 'Kusto', run: () => { ran.push('test.kusto'); } })];
+		const contexts: unknown[] = [];
+		const actions = [toAction({ id: 'test.kusto', label: 'Kusto', run: (context?: unknown) => { ran.push('test.kusto'); contexts.push(context); } })];
 		const actionRunner = disposables.add(new ActionRunner());
 		const contextViewService = new TestContextViewService();
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -37,13 +39,42 @@ suite('Sessions - Submenu flyout', () => {
 			anchor,
 			getActions: () => actions,
 			getActionRunner: () => actionRunner,
+			getActionsContext: () => actionsContext,
 			lookupKeybinding: () => undefined,
 			openKeys: [KeyCode.Enter],
 			closeKeys: [KeyCode.LeftArrow],
+			anchorAlignment,
 		}));
 		const state = () => ({ open: flyout.isOpen, expanded: anchor.getAttribute('aria-expanded'), highlighted: anchor.classList.contains('submenu-open'), shown: contextViewService.openSubmenu });
-		return { anchor, outside, flyout, contextViewService, ran, state };
+		return { anchor, outside, flyout, contextViewService, ran, contexts, state };
 	}
+
+	test('opens on its preferred side when there is room on both sides, and flips only when there is not', () => {
+		const disposables = store.add(new DisposableStore());
+		const viewport = { top: 0, left: 0, width: 1000, height: 600 };
+		const view = { width: 200, height: 100 };
+		const placement = (anchorAlignment: AnchorAlignment | undefined, anchorLeft: number) => {
+			const { flyout, contextViewService } = createFlyout(disposables, anchorAlignment);
+			flyout.show(false);
+			const delegate = contextViewService.delegate!;
+			const anchor = { top: 100, left: anchorLeft, width: 28, height: 28 };
+			const { left } = layout2d(viewport, view, anchor, { anchorAlignment: delegate.anchorAlignment, anchorAxisAlignment: delegate.anchorAxisAlignment });
+			flyout.dispose();
+			return left + view.width <= anchor.left ? 'left' : left >= anchor.left + anchor.width ? 'right' : 'overlap';
+		};
+
+		assert.deepStrictEqual({
+			defaultWithRoomOnBothSides: placement(undefined, 400),
+			preferLeftWithRoomOnBothSides: placement(AnchorAlignment.RIGHT, 400),
+			preferLeftAtLeftEdge: placement(AnchorAlignment.RIGHT, 20),
+			defaultAtRightEdge: placement(undefined, 960),
+		}, {
+			defaultWithRoomOnBothSides: 'right',
+			preferLeftWithRoomOnBothSides: 'left',
+			preferLeftAtLeftEdge: 'right',
+			defaultAtRightEdge: 'left',
+		});
+	});
 
 	test('marks its anchor and closes on outside clicks, window blur, a replacing context view, and disposal', () => {
 		const disposables = store.add(new DisposableStore());
@@ -106,5 +137,17 @@ suite('Sessions - Submenu flyout', () => {
 			afterEnter: { items: ['Kusto'], focused: true },
 			afterRun: { open: false, ran: ['test.kusto'], anchorFocused: true },
 		});
+	}));
+
+	test('runs its items with the context of its entry, so they act on the window the entry belongs to', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const disposables = store.add(new DisposableStore());
+		const { anchor, contexts, flyout } = createFlyout(disposables, undefined, { entry: 7 });
+
+		anchor.focus();
+		flyout.show(true);
+		getActiveElement()!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		await timeout(0);
+
+		assert.deepStrictEqual(contexts, [{ entry: 7 }]);
 	}));
 });

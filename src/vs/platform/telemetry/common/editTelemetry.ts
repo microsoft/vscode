@@ -33,6 +33,8 @@ export interface IEditSourcesDetailsTelemetryData {
 	modifiedCount: number;
 	deltaModifiedCount: number;
 	totalModifiedCount: number;
+	/** Scope-wide coarse diff applications; repeated on source rows, not additive across them. Omitted by older producers. */
+	coarseDiffCount?: number;
 }
 
 type EditSourcesDetailsTelemetryClassification = {
@@ -59,6 +61,7 @@ type EditSourcesDetailsTelemetryClassification = {
 	modifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of characters inserted by the given edit source during the session that are still in the text document at the end of the session.'; isMeasurement: true };
 	deltaModifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of characters inserted by the given edit source during the session.'; isMeasurement: true };
 	totalModifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of characters inserted by any edit source during the session that are still in the text document at the end of the session.'; isMeasurement: true };
+	coarseDiffCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Scope-wide count of diff applications that timed out or used a coarse fallback, including external reconciliation. Repeated on each source row; do not sum across source rows. Missing means unavailable, not zero.'; isMeasurement: true };
 };
 
 export function sendEditSourcesDetailsTelemetry(telemetryService: ITelemetryService, data: IEditSourcesDetailsTelemetryData): void {
@@ -89,9 +92,11 @@ export interface IEditSourcesStatsTelemetryData {
 	agentHostAttributionCoverage?: 'complete' | 'partial';
 	agentHostUntrackedEditCount?: number;
 	agentHostUntrackedInsertedCount?: number;
+	coarseDiffCount?: number;
 }
 
 type EditSourcesStatsTelemetryClassification = {
+	coarseDiffCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Count of diff applications that timed out or used a coarse fallback in this reporting scope, including external reconciliation. Missing means unavailable, not zero.'; isMeasurement: true };
 	copilotSku?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The raw Copilot entitlement SKU for the authenticated GitHub account.' };
 	owner: 'hediet';
 	comment: 'Aggregates character counts by edit source category (user typing, AI completions, NES, IDE actions, external changes) for each editing session. Sessions represent units of work and end when documents close, branches change, commits occur, or time limits are reached (10 or 20 minutes of focus time for visible documents, or 10 hours otherwise). Focus time is computed as accumulated 1-minute blocks where VS Code has focus and there was recent user activity. Tracks both total characters inserted and characters remaining at session end to measure retention. This high-level summary complements editSources.details which provides granular per-source breakdowns. @sentToGitHub';

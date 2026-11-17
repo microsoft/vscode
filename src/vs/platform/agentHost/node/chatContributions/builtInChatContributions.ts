@@ -6,12 +6,15 @@
 import { DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { AdditionalWorktreeLifecycleContribution } from './additionalWorktreeLifecycle/additionalWorktreeLifecycleContribution.js';
+import { ArtifactToolsContribution } from './artifactTools/artifactToolsContribution.js';
+import { ArtifactRunsContribution } from './artifactRuns/artifactRunsContribution.js';
 import { ChatArchiveContribution } from './chatArchive/chatArchiveContribution.js';
 import { ChatConfigContribution } from './chatConfig/chatConfigContribution.js';
 import { ChatDraftContribution } from './chatDraft/chatDraftContribution.js';
 import { ChatInputContribution } from './chatInput/chatInputContribution.js';
 import { ChatReadContribution } from './chatRead/chatReadContribution.js';
 import { ChatSurfaceContribution } from './chatSurface/chatSurfaceContribution.js';
+import { ChatUsageContribution } from './chatUsage/chatUsageContribution.js';
 import { CheckpointAndChangesetContribution } from './checkpointAndChangeset/checkpointAndChangesetContribution.js';
 import { ExternalSessionAdoptionContribution } from './externalSessionAdoption/externalSessionAdoptionContribution.js';
 import { GitHubReferencesContribution } from './githubReferences/githubReferencesContribution.js';
@@ -25,8 +28,10 @@ import { PullRequestChatContribution } from './pullRequest/pullRequestChatContri
 import { SessionWorkspaceConversionContribution } from './sessionWorkspaceConversion/sessionWorkspaceConversionContribution.js';
 import { QueueDrainContribution } from './queueDrain/queueDrainContribution.js';
 import { RemoteSessionOriginContribution } from './remoteSessionOrigin/remoteSessionOriginContribution.js';
+import { ScheduledChatMovesContribution } from './scheduledChatMoves/scheduledChatMovesContribution.js';
 import { SessionFlagsContribution } from './sessionFlags/sessionFlagsContribution.js';
 import { SessionInputNeededContribution } from './sessionInputNeeded/sessionInputNeededContribution.js';
+import { SessionSummaryTelemetryContribution } from './sessionSummaryTelemetry/sessionSummaryTelemetryContribution.js';
 import { SessionTitleContribution } from './sessionTitle/sessionTitleContribution.js';
 import { SideChatContribution } from './sideChat/sideChatContribution.js';
 import { TurnAdmissionContribution } from './turnAdmission/turnAdmissionContribution.js';
@@ -48,11 +53,13 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(ChatInputContribution));
 	registrations.add(contributions.registerContribution(PullRequestChatContribution));
 	registrations.add(contributions.registerContribution(TurnDelegationContribution));
+	registrations.add(contributions.registerContribution(ChatUsageContribution));
 	registrations.add(contributions.registerContribution(PersistedTurnUsageContribution));
 	registrations.add(contributions.registerContribution(PersistedFailedTurnsContribution));
 	registrations.add(contributions.registerContribution(WorktreeAnnouncementContribution));
 	registrations.add(contributions.registerContribution(CheckpointAndChangesetContribution));
 	registrations.add(contributions.registerContribution(SessionWorkspaceConversionContribution));
+	registrations.add(contributions.registerContribution(ScheduledChatMovesContribution));
 	registrations.add(contributions.registerContribution(QueueDrainContribution));
 	registrations.add(contributions.registerContribution(SessionInputNeededContribution));
 	registrations.add(contributions.registerContribution(GitHubReferencesContribution));
@@ -62,6 +69,8 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(ChatConfigContribution));
 	registrations.add(contributions.registerContribution(MarkdownPlanRichLinksContribution));
 	registrations.add(contributions.registerContribution(WorkspaceContextContribution));
+	registrations.add(contributions.registerContribution(ArtifactToolsContribution));
+	registrations.add(contributions.registerContribution(ArtifactRunsContribution));
 	registrations.add(contributions.registerContribution(ChatSurfaceContribution));
 	registrations.add(contributions.registerContribution(RemoteSessionOriginContribution));
 	registrations.add(contributions.registerContribution(SideChatContribution));
@@ -69,5 +78,6 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(AdditionalWorktreeLifecycleContribution));
 	registrations.add(contributions.registerContribution(ChatArchiveContribution));
 	registrations.add(contributions.registerContribution(ChatReadContribution));
+	registrations.add(contributions.registerContribution(SessionSummaryTelemetryContribution));
 	return registrations;
 }

@@ -3553,7 +3553,15 @@ export class CommandCenter {
 		}
 
 		try {
-			await repository.createWorktree({ path: worktreePath, branch, commitish: commitish });
+			const createdWorktreePath = await repository.createWorktree({ path: worktreePath, branch, commitish: commitish });
+
+			// Remember the location picked by the user so that it is used as the default next time
+			const worktreeRootStorageKey = `${Repository.WORKTREE_ROOT_STORAGE_KEY}:${repository.root}`;
+			const worktreeRoot = path.dirname(createdWorktreePath);
+			const lastWorktreeRoot = this.globalState.get<string>(worktreeRootStorageKey);
+			if (!lastWorktreeRoot || !pathEquals(worktreeRoot, lastWorktreeRoot)) {
+				await this.globalState.update(worktreeRootStorageKey, worktreeRoot);
+			}
 		} catch (err) {
 			if (err instanceof GitError && err.gitErrorCode === GitErrorCodes.WorktreeAlreadyExists) {
 				await this.handleWorktreeAlreadyExists(err);
@@ -4734,16 +4742,9 @@ export class CommandCenter {
 			return undefined;
 		}
 
-		// Stash
-		const regex = /^stash@{(\d+)}$/;
-		const match = regex.exec(stashUri.ref);
-		if (!match) {
-			return undefined;
-		}
-
-		const [, index] = match;
+		// Stash (the uri references the stash commit hash since the stash index changes)
 		const stashes = await repository.getStashes();
-		const stash = stashes.find(stash => stash.index === parseInt(index));
+		const stash = stashes.find(stash => stash.hash === stashUri.ref);
 		if (!stash) {
 			return undefined;
 		}
@@ -4771,7 +4772,7 @@ export class CommandCenter {
 		}
 
 		const title = `Git Stash #${stash.index}: ${stash.description}`;
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `stash@{${stash.index}}`, { scheme: 'git-stash' });
+		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), stash.hash, { scheme: 'git-stash' });
 
 		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
 		for (const change of stashChanges) {
@@ -4847,11 +4848,12 @@ export class CommandCenter {
 	}
 
 	private async _resolveTimelineOpenCommitCommand(item: TimelineItem, uri: Uri | undefined, options?: TextDocumentShowOptions): Promise<Command | undefined> {
-		if (uri === undefined || uri === null || !GitTimelineItem.is(item)) {
+		if (!GitTimelineItem.is(item)) {
 			return undefined;
 		}
 
-		const repository = await this.model.getRepository(uri.fsPath);
+		// Items of the workspace timeline have no uri, so use the repository of the item
+		const repository = this.model.getRepository(item.rootUri);
 		if (!repository) {
 			return undefined;
 		}
@@ -4863,7 +4865,8 @@ export class CommandCenter {
 
 		const title = `${item.shortRef} - ${subject(commit.message)}`;
 		const multiDiffSourceUri = Uri.from({ scheme: 'scm-history-item', path: `${repository.root}/${commitParentId}..${commit.hash}` });
-		const reveal = { modifiedUri: toGitUri(uri, commit.hash) };
+		// Only the items of a file timeline know which file of the commit to reveal
+		const reveal = uri && item.contextValue?.startsWith('git:file') ? { modifiedUri: toGitUri(uri, commit.hash) } : undefined;
 
 		return {
 			command: '_workbench.openMultiDiffEditor',

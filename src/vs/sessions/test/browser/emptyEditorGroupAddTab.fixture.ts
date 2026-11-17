@@ -12,10 +12,11 @@ import { IContextKeyService } from '../../../platform/contextkey/common/contextk
 import { IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { EmptyEditorGroupAddTab } from '../../browser/parts/emptyEditorGroupAddTab.js';
-import { FixtureContextViewService, FixtureKeybindingService, FixtureMenuService, fixtureBrowser, fixtureCanvas, fixtureChanges, fixtureFiles, fixtureSearch, IFixtureEntry } from './addTabFixtureUtils.js';
+import { EmptyEditorGroupAddTab } from '../../../workbench/browser/parts/sessions/emptyEditorGroupAddTab.js';
+import { FixtureContextViewService, FixtureKeybindingService, FixtureMenuService, fixtureBrowser, fixtureCanvas, fixtureCanvasWithDiscover, fixtureCanvasWithTitledGroups, fixtureChanges, fixtureFiles, IFixtureEntry } from './addTabFixtureUtils.js';
 
 const addTabMenu = MenuId.for('sessions.fixture.emptyEditorGroupAddTab');
+const addTabListMenu = MenuId.for('sessions.fixture.emptyEditorGroupAddTabList');
 
 interface IFixtureOptions {
 	readonly entries: readonly IFixtureEntry[];
@@ -31,33 +32,43 @@ export default defineThemedFixtureGroup({ path: 'sessions/emptyEditorGroupAddTab
 	WithSubmenuEntry: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderEmptyGroup(context, { entries: [fixtureChanges, fixtureFiles, fixtureBrowser, fixtureSearch, fixtureCanvas] }),
+		render: context => renderEmptyGroup(context, { entries: [fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas] }),
 	}),
 	WithoutSubmenuEntry: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderEmptyGroup(context, { entries: [fixtureChanges, fixtureFiles, fixtureBrowser, fixtureSearch] }),
+		render: context => renderEmptyGroup(context, { entries: [fixtureChanges, fixtureFiles, fixtureBrowser] }),
 	}),
 	SubmenuOpen: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderEmptyGroup(context, { entries: [fixtureChanges, fixtureFiles, fixtureBrowser, fixtureSearch, fixtureCanvas], width: 720, openSubmenu: true }),
+		render: context => renderEmptyGroup(context, { entries: [fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas], width: 720, openSubmenu: true }),
+	}),
+	SubmenuWithGroupHeader: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderEmptyGroup(context, { entries: [fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvasWithDiscover], width: 960, openSubmenu: true }),
+	}),
+	SubmenuWithTitledGroups: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderEmptyGroup(context, { entries: [fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvasWithTitledGroups], width: 960, openSubmenu: true }),
 	}),
 	DetailPanelDocked: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderEmptyGroup(context, { entries: [fixtureChanges, fixtureFiles, fixtureBrowser, fixtureSearch, fixtureCanvas], width: 720, detailPanelWidth: 300 }),
+		render: context => renderEmptyGroup(context, { entries: [fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas], width: 720, detailPanelWidth: 300 }),
 	}),
 	KeyboardFocusedEntry: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderEmptyGroup(context, { entries: [fixtureChanges, fixtureFiles, fixtureBrowser, fixtureSearch, fixtureCanvas], focusFirstEntry: true }),
+		render: context => renderEmptyGroup(context, { entries: [fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas], focusFirstEntry: true }),
 	}),
 	DisabledEntry: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderEmptyGroup(context, { entries: [fixtureChanges, { ...fixtureFiles, disabled: true }, fixtureBrowser, fixtureSearch, fixtureCanvas] }),
+		render: context => renderEmptyGroup(context, { entries: [fixtureChanges, { ...fixtureFiles, disabled: true }, fixtureBrowser, fixtureCanvas] }),
 	}),
 	Narrow: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderEmptyGroup(context, { entries: [fixtureChanges, fixtureFiles, fixtureBrowser, fixtureSearch, fixtureCanvas], width: 240 }),
+		render: context => renderEmptyGroup(context, { entries: [fixtureChanges, fixtureFiles, fixtureBrowser, fixtureCanvas], width: 240 }),
 	}),
 });
 
@@ -94,11 +105,12 @@ async function renderEmptyGroup({ container, disposableStore, theme, focus }: Co
 	menuService.commandService = instantiationService.get(ICommandService);
 
 	disposableStore.add(instantiationService.createInstance(EmptyEditorGroupAddTab, {
+		id: 1,
 		element: groupElement,
 		scopedContextKeyService: instantiationService.get(IContextKeyService),
 		isEmpty: true,
 		onDidModelChange: Event.None,
-	}, addTabMenu));
+	}, addTabMenu, addTabListMenu));
 
 	if (options.focusFirstEntry) {
 		const firstEntry = groupElement.querySelector<HTMLElement>('.sessions-add-tab-watermark-entry');

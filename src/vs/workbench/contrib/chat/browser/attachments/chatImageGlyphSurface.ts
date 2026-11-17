@@ -46,7 +46,7 @@ interface IGlyphAtlas {
 	readonly cell: number;
 }
 
-/** Paints the loading wave and its single-pass ASCII Resolve transition into the generated image. */
+/** Fades the loading wave during expansion, then runs a single-pass ASCII Resolve into the generated image. */
 export class GlyphSurface extends Disposable {
 	readonly canvas: HTMLCanvasElement;
 	private readonly nextFrame = this._register(new MutableDisposable());
@@ -58,6 +58,7 @@ export class GlyphSurface extends Disposable {
 	private fontFamily = 'monospace';
 	private pixelRatio = 1;
 	private gridX = 0;
+	private loadingTime: number | undefined;
 	private imagePalette: Float32Array | undefined;
 	private readonly stageTimes = new Float64Array(3);
 
@@ -77,13 +78,17 @@ export class GlyphSurface extends Disposable {
 			this.canvas.remove();
 			this.canvas.width = this.canvas.height = 0;
 		}));
-		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatImageGlyphSurface', () => this.refresh()));
+		// Repaint in the next frame: painting a reveal frame resizes the image container, which must not
+		// happen while resize observers deliver notifications ("ResizeObserver loop completed with undelivered notifications")
+		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatImageGlyphSurface', () => {
+			this.nextFrame.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.canvas), () => this.refresh());
+		}));
 		this._register(resizeObserver.observe(this.canvas));
 		this._register(themeService.onDidColorThemeChange(() => this.refresh()));
 		this._register(accessibilityService.onDidChangeReducedMotion(() => this.refresh()));
 	}
 
-	getRevealTiming(fromWidth: number, loadingTime: number): ITextureRevealTiming {
+	getRevealTiming(fromWidth: number, loadingTime = this.loadingTime ?? Date.now() * 2): ITextureRevealTiming {
 		const wave = getLoadingWave(fromWidth, loadingTime);
 		const speed = (fromWidth + wave.tail * 1.3) / wavePeriod;
 		const loadingEnd = this.showingBand && speed > 0 ? Math.max(0, (fromWidth + wave.tail * wakeLength - wave.head) / speed) : 0;
@@ -156,6 +161,7 @@ export class GlyphSurface extends Disposable {
 		if (!context || !atlas) {
 			return;
 		}
+		this.loadingTime = time;
 		context.clearRect(0, 0, canvasWidth, canvasHeight);
 		const size = this.cellSize;
 		const offsetX = this.gridOffset(width);
@@ -219,24 +225,27 @@ export class GlyphSurface extends Disposable {
 		const resize = easeInOutCubic(opening / openLength);
 		const frameWidth = fromWidth + (width - fromWidth) * resize;
 		const frameHeight = fromHeight + (height - fromHeight) * resize;
-		const loadingTime = timing.loadingTime + timing.loadingEnd;
+		const loadingTime = timing.loadingTime + opening;
 		const seed = Math.floor(timing.loadingTime / wavePeriod);
+		const loadingGain = 1 - resize;
+		const loadingWave = loadingGain > 0 ? placeWave(timing.loadingTime / wavePeriod - seed + opening / wavePeriod, fromWidth, seed) : undefined;
 		const wave = opening >= openLength ? placeWave((opening - openLength) / passLength, width, seed + 1, width * 0.5) : undefined;
 		const offsetX = this.gridX;
 		const imageColumns = Math.floor((width - offsetX) / size);
-		const columns = Math.ceil((frameWidth - offsetX) / size);
+		const columns = Math.floor((frameWidth - offsetX) / size);
+		const loadingColumns = Math.floor(fromWidth / size);
 		const times = this.stageTimes;
-		for (let row = 0; row * size < frameHeight; row++) {
+		for (let row = 0; (row + 1) * size <= frameHeight; row++) {
 			const y = row * size + size / 2;
 			for (let column = 0; column < columns; column++) {
 				const x = offsetX + column * size + size / 2;
 				if (column >= imageColumns) {
 					if (frameWidth > width + 0.5) {
-						this.drawLoadingCell(context, coarse, undefined, column, row, columns, offsetX, frameHeight, loadingTime, 1);
+						this.drawLoadingCell(context, coarse, loadingWave, column, row, loadingColumns, offsetX, frameHeight, loadingTime, loadingGain);
 					}
 					continue;
 				}
-				const glow = wave ? this.glow(wave, x, y, height, loadingTime) : 0;
+				const glow = wave ? this.glow(wave, x, y, frameHeight, loadingTime) : 0;
 				const drawn = wave && wave.head - x >= wave.tail * (0.3 + 0.12 * hash(column, row, 24)) && glow <= 0.55;
 				if (drawn) {
 					const along = x / width;
@@ -248,11 +257,7 @@ export class GlyphSurface extends Disposable {
 					const flashing = stage > 0 && flash(opening - times[stage - 1], 110) > 0;
 					this.drawImageCell(context, overlay, coarse, fine, samples, column, row, offsetX, stage, flashing, stage >= 3 ? smoothstep(times[2], times[2] + 250, opening) : 0);
 				} else {
-					if (glow > waveThreshold) {
-						this.drawWaveGlyph(context, coarse, glow, x - size / 2, y - size / 2);
-					} else {
-						this.drawLoadingCell(context, coarse, wave, column, row, columns, offsetX, height, loadingTime, 1);
-					}
+					this.drawLoadingCell(context, coarse, wave ?? loadingWave, column, row, loadingColumns, offsetX, frameHeight, loadingTime, wave ? 1 : loadingGain);
 				}
 			}
 		}
@@ -306,7 +311,7 @@ export class GlyphSurface extends Disposable {
 		const wake = wave && behind >= 0 && behind < wave.tail * wakeLength ? (1 - behind / (wave.tail * wakeLength)) * gain : 0;
 		const shimmer = wave && behind >= 0 && behind < wave.tail * 1.2 ? Math.floor(time / 170 + hash(column, row, 5) * 9) & 1 : 0;
 		const baseLevel = 0.6 + 2 * swell(x, y, time);
-		const level = Math.max(baseLevel, 3.6 * wake, 3.2 * twinkle(column, row, time)) - shimmer;
+		const level = Math.max(baseLevel, 3.6 * wake, 3.2 * twinkle(column, row, time)) - shimmer * gain;
 		const tone = Math.max(0, Math.min(binaryTones - 1, Math.floor(level)));
 		this.draw(context, atlas, getGlyphMessageBit(column, row, columns), tone, x, y);
 	}

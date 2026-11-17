@@ -6,8 +6,17 @@
 import { Event } from '../../../base/common/event.js';
 import type { ConnectionDiagnosticObserver } from './connectionDiagnostics.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { localize } from '../../../nls.js';
 
 export const ITunnelAgentHostService = createDecorator<ITunnelAgentHostService>('tunnelAgentHostService');
+
+/** Silent discovery has no usable token for a configured authentication provider. */
+export class TunnelAuthenticationRequiredError extends Error {
+	constructor(readonly authProvider: 'github' | 'microsoft') {
+		super(localize('tunnelAgentHost.authenticationRequired', "Sign in to allow access to your tunnels."));
+		this.name = 'TunnelAuthenticationRequiredError';
+	}
+}
 
 /**
  * IPC channel name for the shared-process tunnel service.
@@ -555,6 +564,14 @@ export interface ITunnelAgentHostService {
 	 * Returns `undefined` if no cached session is available.
 	 */
 	getAuthProvider(options?: { silent?: boolean }): Promise<'github' | 'microsoft' | undefined>;
+	/** Requests the configured tunnel permissions without connecting to a host. */
+	signIn?(authProvider: 'github' | 'microsoft'): Promise<void>;
+
+	/**
+	 * The type of the agent host that the tunnel's gateway selected for the current or most recent connection to the
+	 * tunnel at {@link address}, or `undefined` when this service has not connected it or cannot tell.
+	 */
+	getSelectedServerType(address: string): TunnelGatewayServerType | 'unknown' | undefined;
 }
 
 /** Information about an actively hosted tunnel. */

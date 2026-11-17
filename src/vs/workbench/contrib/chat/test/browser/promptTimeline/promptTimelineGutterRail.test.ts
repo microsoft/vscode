@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { getWindow } from '../../../../../../base/browser/dom.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PromptTimelineGutterRail, restDotCount } from '../../../browser/promptTimeline/promptTimelineGutterRail.js';
@@ -67,6 +68,44 @@ suite('PromptTimelineGutterRail', () => {
 				rows: [false, false, true],
 				dots: [false, false, true],
 			},
+		});
+	});
+
+	test('keeps an active row hover visible in high contrast', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench hc-black';
+		root.style.setProperty('--vscode-contrastActiveBorder', '#f38518');
+		root.style.setProperty('--vscode-focusBorder', '#007fd4');
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+		const rail = store.add(new PromptTimelineGutterRail());
+		root.appendChild(rail.domNode);
+		rail.setTicks([tick(0), tick(1)]);
+		rail.setActive('1');
+		const activeJump = rowParts(rail)[1].jump;
+		activeJump.classList.add('hovered');
+		const readOutline = () => {
+			const style = getWindow(activeJump).getComputedStyle(activeJump);
+			return {
+				color: style.outlineColor,
+				offset: style.outlineOffset,
+				style: style.outlineStyle,
+				width: style.outlineWidth,
+			};
+		};
+		const hovered = readOutline();
+		activeJump.classList.add('focus-visible');
+		const focusedAndHovered = readOutline();
+
+		assert.deepStrictEqual({
+			active: activeJump.parentElement?.classList.contains('active'),
+			hovered,
+			focusedAndHovered,
+		}, {
+			active: true,
+			hovered: { color: 'rgb(243, 133, 24)', offset: '-1px', style: 'dashed', width: '1px' },
+			focusedAndHovered: { color: 'rgb(0, 127, 212)', offset: '-1px', style: 'solid', width: '1px' },
 		});
 	});
 
@@ -162,6 +201,56 @@ suite('PromptTimelineGutterRail', () => {
 			reviewable: false,
 			tabbable: 1,
 		});
+	});
+
+	test('preserves unchanged row content and focus while updating another prompt', () => {
+		const stat = { added: 3, removed: 1, fileCount: 1 };
+		const ticks = [tick(0, stat), tick(1, stat)];
+		const rail = createRail(ticks);
+		const rows = rowParts(rail);
+		const label = rows[0].jump.firstChild!.firstChild;
+		const added = rows[0].diff.querySelector('.added');
+		rows[0].diff.focus();
+
+		rail.setTicks(ticks.map(item => ({ ...item, allRequestIds: [...item.allRequestIds], stat: { ...stat } })));
+		const unchanged = { label: rows[0].jump.firstChild!.firstChild === label, stat: rows[0].diff.querySelector('.added') === added };
+		const updated = { ...ticks[1], text: 'Updated', ariaLabel: 'Updated prompt', stat: { added: 7, removed: 2, fileCount: 2 } };
+		rail.setTicks([ticks[0], updated]);
+		rail.setActive(ticks[1].requestId);
+
+		assert.deepStrictEqual({
+			unchanged,
+			firstLabelPreserved: rows[0].jump.firstChild!.firstChild === label,
+			firstStatPreserved: rows[0].diff.querySelector('.added') === added,
+			focused: document.activeElement === rows[0].diff,
+			tabbable: rows.flatMap(row => [row.jump, row.diff]).filter(button => button.tabIndex === 0).length,
+			label: rows[1].jump.textContent,
+			ariaLabel: rows[1].jump.getAttribute('aria-label'),
+			stat: rows[1].diff.textContent,
+			active: rows[1].jump.getAttribute('aria-current'),
+		}, {
+			unchanged: { label: true, stat: true },
+			firstLabelPreserved: true,
+			firstStatPreserved: true,
+			focused: true,
+			tabbable: 1,
+			label: 'Updated',
+			ariaLabel: 'Updated prompt',
+			stat: '+7\u22122',
+			active: 'location',
+		});
+	});
+
+	test('keeps review metadata current when only bucket membership or timestamp changes', () => {
+		const original = tick(0, { added: 3, removed: 1, fileCount: 1 });
+		const rail = createRail([original]);
+		const reviewed: PromptTick[] = [];
+		store.add(rail.onDidReview(value => reviewed.push(value)));
+		const updated = { ...original, allRequestIds: ['0', '1'], count: 2, timestamp: 42 };
+		rail.setTicks([updated]);
+		rowParts(rail)[0].diff.click();
+
+		assert.deepStrictEqual(reviewed, [updated]);
 	});
 
 	test('keeps the flyout above sticky scroll and the transcript scrollbar', () => {

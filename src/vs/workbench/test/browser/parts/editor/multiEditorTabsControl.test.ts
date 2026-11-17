@@ -5,8 +5,13 @@
 
 import assert from 'assert';
 import { stub } from 'sinon';
+import { isSafari } from '../../../../../base/browser/browser.js';
 import { $, Dimension, EventType, ModifierKeyEmitter, reset, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { Menu } from '../../../../../base/browser/ui/menu/menu.js';
+import { defaultMenuStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -15,11 +20,18 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDnd.js';
 import { ITreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDndService.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { CapturingTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
 import { MultiEditorTabsControl } from '../../../../browser/parts/editor/multiEditorTabsControl.js';
+import { EditorAddTabControl } from '../../../../browser/parts/editor/editorAddTabControl.js';
 import { MultiRowEditorControl } from '../../../../browser/parts/editor/multiRowEditorTabsControl.js';
 import { EditorInputCapabilities, EditorsOrder, IEditorPartOptions, Verbosity } from '../../../../common/editor.js';
 import { EditorGroupModel } from '../../../../common/editor/editorGroupModel.js';
@@ -29,10 +41,15 @@ import { IDecorationsService } from '../../../../services/decorations/common/dec
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { INotebookDocumentService, NotebookDocumentWorkbenchService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { createEditorPart, TestFileEditorInput, TestHostService, TestMenuService, workbenchInstantiationService } from '../../workbenchTestServices.js';
+import { IEditorTransferVeto } from '../../../../browser/parts/editor/editorTransferVeto.js';
+import { IAuxiliaryEditorPart, IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
 
 suite('MultiEditorTabsControl', () => {
+
+	// WebKit mispositions RTL sticky Add controls: https://bugs.webkit.org/show_bug.cgi?id=203120
+	const stickyAddTabDirections = isSafari ? ['ltr'] : ['ltr', 'rtl'];
 
 	let disposables: DisposableStore;
 
@@ -48,10 +65,13 @@ suite('MultiEditorTabsControl', () => {
 	let editorPartsView: IEditorPartsView;
 	let addMenuVisible: boolean;
 	let addMenuChange: Emitter<void>;
+	/** What drags of tabs out of the window did: the editors that moved, the windows created, the vetoes shown. */
+	let newWindowTransfers: string[];
 
 	setup(() => {
 		disposables = new DisposableStore();
 		partOptions = { ...DEFAULT_EDITOR_PART_OPTIONS };
+		newWindowTransfers = [];
 		addMenuVisible = true;
 		addMenuChange = disposables.add(new Emitter<void>());
 
@@ -93,6 +113,14 @@ suite('MultiEditorTabsControl', () => {
 			override createEditorActions() { return { actions: { primary: [], secondary: [] }, onDidChange: Event.None }; }
 			override relayout() { }
 			override readonly onDidActiveEditorChange = Event.None;
+			override get disposed() { return false; }
+			override moveEditors(editors: { editor: EditorInput }[]): boolean {
+				newWindowTransfers.push(`move ${editors.map(({ editor }) => editor.getName()).join(', ')}`);
+				return true;
+			}
+			override copyEditors(editors: { editor: EditorInput }[]): void {
+				newWindowTransfers.push(`copy ${editors.map(({ editor }) => editor.getName()).join(', ')}`);
+			}
 		};
 
 		groupsView = new class extends mock<IEditorGroupsView>() {
@@ -106,6 +134,22 @@ suite('MultiEditorTabsControl', () => {
 		editorPartsView = new class extends mock<IEditorPartsView>() {
 			override get count() { return 1; }
 			override getGroup() { return groupView; }
+			override async createAuxiliaryEditorPart(): Promise<IAuxiliaryEditorPart> {
+				newWindowTransfers.push('new window');
+				const targetGroup = new class extends mock<IEditorGroup>() {
+					override readonly id = 4242;
+					override readonly isEmpty = true;
+					override focus(): void { }
+				}();
+				return new class extends mock<IAuxiliaryEditorPart>() {
+					override readonly onWillClose = Event.None;
+					override readonly activeGroup = targetGroup;
+					override readonly groups = [targetGroup];
+				}();
+			}
+			override showTransferVeto(veto: IEditorTransferVeto): void {
+				newWindowTransfers.push(`veto: ${veto.message}`);
+			}
 		};
 
 		container = $('.title.tabs');
@@ -167,7 +211,7 @@ suite('MultiEditorTabsControl', () => {
 
 	function connectedGroup(): HTMLElement {
 		const root = $('.monaco-workbench.modern-ui.modern-ui-tabs.modern-ui-connected-editor-tabs.floating-panels');
-		root.style.cssText = '--vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-spacing-size160: 16px; --vscode-spacing-size200: 20px; --vscode-spacing-size280: 28px; --vscode-strokeThickness: 1px; --vscode-cornerRadius-small: 4px; --vscode-cornerRadius-medium: 6px; --vscode-cornerRadius-large: 8px; --vscode-fontSize-body1: 13px; --vscode-fontWeight-regular: 400;';
+		root.style.cssText = '--vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-spacing-size160: 16px; --vscode-spacing-size200: 20px; --vscode-spacing-size240: 24px; --vscode-spacing-size280: 28px; --vscode-strokeThickness: 1px; --vscode-cornerRadius-small: 4px; --vscode-cornerRadius-medium: 6px; --vscode-cornerRadius-large: 8px; --vscode-fontSize-body1: 13px; --vscode-fontWeight-regular: 400;';
 		mainWindow.document.body.appendChild(root);
 		disposables.add(toDisposable(() => root.remove()));
 		const editor = $('.part.editor.editor-tabs-multiple');
@@ -211,6 +255,136 @@ suite('MultiEditorTabsControl', () => {
 				: indicator.getBoundingClientRect().top - fill.getBoundingClientRect().top,
 		};
 	}
+
+	/** Drags the tab at `tabIndex` and releases it outside the window, which opens a new window for the dragged editors. */
+	async function dragTabOutOfWindow(tabIndex: number): Promise<void> {
+		const tab = container.querySelectorAll('.tabs-container > .tab')[tabIndex];
+		// Not over a window of the workbench, which tests that dispatch drag events over it may have left behind
+		mainWindow.dispatchEvent(new DragEvent(EventType.DRAG_LEAVE));
+		tab.dispatchEvent(new DragEvent(EventType.DRAG_START, { dataTransfer: new DataTransfer(), bubbles: true }));
+		tab.dispatchEvent(new DragEvent(EventType.DRAG_END, { dataTransfer: new DataTransfer(), bubbles: true, screenX: 100000, screenY: 100000 }));
+		await timeout(0);
+	}
+
+	test('a tab dragged out of the window moves its editor, while an inactive editor of the group that cannot go stays', async () => {
+		(model.getEditorByIndex(1) as TestFileEditorInput).setMoveDisabled('Cannot leave');
+
+		await dragTabOutOfWindow(0);
+
+		assert.deepStrictEqual(newWindowTransfers, ['new window', 'move file0.txt']);
+	});
+
+	test('a tab dragged out of the window, whose editor cannot go, opens no window', async () => {
+		(model.getEditorByIndex(0) as TestFileEditorInput).setMoveDisabled('Cannot leave');
+
+		await dragTabOutOfWindow(0);
+
+		assert.deepStrictEqual(newWindowTransfers, ['veto: Cannot leave']);
+	});
+
+	test('modern tab scrollbars overlay the top edge without changing header or body geometry', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		const body = $('div');
+		body.style.height = '100px';
+		group.appendChild(body);
+		openNamedEditors(['first-long-editor-name.ts', 'second-long-editor-name.ts', 'third-long-editor-name.ts']);
+		const results = [];
+		for (const modern of [false, true]) {
+			root.classList.toggle('modern-ui-tabs', modern);
+			for (const connected of [false, true]) {
+				root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+				for (const tabHeight of ['default', 'compact'] as const) {
+					container.classList.toggle('compact-height', tabHeight === 'compact');
+					for (const titleScrollbarSizing of ['default', 'large'] as const) {
+						const oldOptions = partOptions;
+						partOptions = { ...partOptions, tabHeight, titleScrollbarSizing, titleScrollbarVisibility: 'auto', editorActionsLocation: 'hidden' };
+						control.updateOptions(oldOptions, partOptions);
+						await layoutConnectedGroup(group, 300);
+						const scrollable = container.querySelector<HTMLElement>('.monaco-scrollable-element')!;
+						const scrollbar = scrollable.querySelector<HTMLElement>('.scrollbar.horizontal')!;
+						const geometry = () => ({
+							headerHeight: container.getBoundingClientRect().height,
+							tabHeights: Array.from(container.querySelectorAll<HTMLElement>('.tab')).map(tab => tab.getBoundingClientRect().height),
+							bodyTop: body.getBoundingClientRect().top,
+						});
+						scrollable.dispatchEvent(new MouseEvent(EventType.MOUSE_LEAVE));
+						const idleGeometry = geometry();
+						const hiddenAtRest = scrollbar.classList.contains('invisible') && mainWindow.getComputedStyle(scrollbar).pointerEvents === 'none';
+						scrollable.dispatchEvent(new MouseEvent(EventType.MOUSE_OVER, { bubbles: true }));
+						await timeout(0);
+						const bounds = scrollbar.getBoundingClientRect();
+						const viewport = scrollable.getBoundingClientRect();
+						results.push({
+							modern, connected, tabHeight, titleScrollbarSizing,
+							hiddenAtRest,
+							visibleOnHover: scrollbar.classList.contains('visible'),
+							correctEdge: Math.abs(modern ? bounds.top - viewport.top : bounds.bottom - viewport.bottom) < 1 / 32,
+							withinHeader: bounds.top >= viewport.top && bounds.bottom <= viewport.bottom,
+							stableGeometry: JSON.stringify(geometry()) === JSON.stringify(idleGeometry),
+						});
+					}
+				}
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result, hiddenAtRest: true, visibleOnHover: true, correctEdge: true, withinHeader: true, stableGeometry: true,
+		})));
+	});
+
+	test('connected top scrollbars preserve explicit visibility settings and stay hidden without overflow', async () => {
+		const group = connectedGroup();
+		openNamedEditors(['first-long-editor-name.ts', 'second-long-editor-name.ts', 'third-long-editor-name.ts']);
+		const results = [];
+		for (const titleScrollbarVisibility of ['auto', 'visible', 'hidden'] as const) {
+			const oldOptions = partOptions;
+			partOptions = { ...partOptions, titleScrollbarVisibility, editorActionsLocation: 'hidden' };
+			control.updateOptions(oldOptions, partOptions);
+			for (const width of [300, 2000]) {
+				await layoutConnectedGroup(group, width);
+				const scrollable = container.querySelector<HTMLElement>('.monaco-scrollable-element')!;
+				const scrollbar = scrollable.querySelector<HTMLElement>('.scrollbar.horizontal')!;
+				scrollable.dispatchEvent(new MouseEvent(EventType.MOUSE_OVER, { bubbles: true }));
+				await timeout(0);
+				const visibleOnHover = scrollbar.classList.contains('visible');
+				scrollable.dispatchEvent(new MouseEvent(EventType.MOUSE_LEAVE));
+				results.push({
+					titleScrollbarVisibility, width,
+					visibleOnHover,
+					visibleAtRest: scrollbar.classList.contains('visible'),
+				});
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result,
+			visibleOnHover: result.width === 300 && result.titleScrollbarVisibility !== 'hidden',
+			visibleAtRest: result.width === 300 && result.titleScrollbarVisibility === 'visible',
+		})));
+	});
+
+	test('connected editor tab scrollbars keep rounded ends and configured thickness', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		root.style.setProperty('--vscode-cornerRadius-circle', '9999px');
+		const results = [];
+		for (const titleScrollbarSizing of ['default', 'large'] as const) {
+			const oldOptions = partOptions;
+			partOptions = { ...partOptions, titleScrollbarSizing };
+			control.updateOptions(oldOptions, partOptions);
+			await layoutConnectedGroup(group, 180);
+			const slider = container.querySelector<HTMLElement>('.scrollbar.horizontal > .slider')!;
+			results.push({
+				titleScrollbarSizing,
+				height: slider.getBoundingClientRect().height,
+				radius: mainWindow.getComputedStyle(slider).borderRadius,
+			});
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result,
+			height: result.titleScrollbarSizing === 'large' ? 10 : 3,
+			radius: '9999px',
+		})));
+	});
 
 	test('keeps connected layout current when an Add Tab toolbar follows the editor tabs', async () => {
 		const group = connectedGroup();
@@ -326,6 +500,11 @@ suite('MultiEditorTabsControl', () => {
 			const oppositeShoulder = mainWindow.getComputedStyle(activeFill, direction === 'rtl' ? '::after' : '::before');
 			const shoulderWidth = Number.parseFloat(oppositeShoulder.width) * zoom;
 			const activeFillBounds = activeFill.getBoundingClientRect();
+			const activeClip = mainWindow.getComputedStyle(activeFill.parentElement!).clipPath;
+			const clipInsets = activeClip === 'none' ? undefined : activeClip.slice(6, -1).split(' ');
+			const shoulderClipEdge = clipInsets
+				? direction === 'rtl' ? activeFillBounds.left + Number.parseFloat(clipInsets[3]) * zoom : activeFillBounds.right - Number.parseFloat(clipInsets[1]) * zoom
+				: direction === 'rtl' ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY;
 			const activeVisibleWidth = Math.min(activeFillBounds.right, tabs.getBoundingClientRect().right) - Math.max(activeFillBounds.left, boundary);
 			const rtlCapExpected = direction === 'rtl' && activeVisibleWidth > shoulderWidth;
 			const oppositeShoulderOutsideViewport = direction === 'rtl'
@@ -338,15 +517,17 @@ suite('MultiEditorTabsControl', () => {
 					? Math.abs(overlay.getBoundingClientRect().left - boundary) < 1 / 32
 					: !overlay.classList.contains('connected-tab-left-clipped')),
 				oppositeShoulderPresentWhenVisible: oppositeShoulderOutsideViewport || oppositeShoulder.content === '""',
+				activeClipPreservesBodyBoundary: Math.abs(shoulderClipEdge - boundary) < 1 / 32,
 				matchingClip: rendered.every(tab => {
 					const expected = Math.max(0, (direction === 'rtl' ? boundary - tab.getBoundingClientRect().left : tab.getBoundingClientRect().right - boundary) / zoom);
-					const match = mainWindow.getComputedStyle(tab).clipPath.match(direction === 'rtl' ? /^inset\(-1px -8px -1px ([\d.]+)px\)$/ : /^inset\(-1px ([\d.]+)px -1px -8px\)$/);
-					return expected < 1 / 32 ? !tab.style.clipPath || !!match && Number.parseFloat(match[1]) < 1 / 32 : !!match && Math.abs(Number.parseFloat(match[1]) - expected) < 1 / 32;
+					const inset = expected - (tab.classList.contains('active') && expected + shoulderWidth / zoom <= 8 ? 8 : 0);
+					const match = mainWindow.getComputedStyle(tab).clipPath.match(direction === 'rtl' ? /^inset\(-1px -8px -1px (-?[\d.]+)px\)$/ : /^inset\(-1px (-?[\d.]+)px -1px -8px\)$/);
+					return expected < 1 / 32 ? !tab.style.clipPath || !!match && Math.abs(Number.parseFloat(match[1]) - inset) < 1 / 32 : !!match && Math.abs(Number.parseFloat(match[1]) - inset) < 1 / 32;
 				}),
 			};
 		};
 		const results = [];
-		for (const direction of ['ltr', 'rtl']) {
+		for (const direction of stickyAddTabDirections) {
 			for (const zoom of [1, 1.25]) {
 				const root = group.closest<HTMLElement>('.monaco-workbench')!;
 				root.dir = direction;
@@ -375,10 +556,107 @@ suite('MultiEditorTabsControl', () => {
 			results, hiddenAddClippingCleared,
 			wrappedClippingCleared: Array.from(tabs.querySelectorAll<HTMLElement>('.tab')).every(tab => !tab.style.clipPath),
 		}, {
-			results: results.map(result => ({ ...result, resting: { hasClippedTab: true, hasClippedActive: true, rtlCapAtBoundary: true, oppositeShoulderPresentWhenVisible: true, matchingClip: true }, scrolled: { hasClippedTab: true, hasClippedActive: true, rtlCapAtBoundary: true, oppositeShoulderPresentWhenVisible: true, matchingClip: true } })),
+			results: results.map(result => ({ ...result, resting: { hasClippedTab: true, hasClippedActive: true, rtlCapAtBoundary: true, oppositeShoulderPresentWhenVisible: true, activeClipPreservesBodyBoundary: true, matchingClip: true }, scrolled: { hasClippedTab: true, hasClippedActive: true, rtlCapAtBoundary: true, oppositeShoulderPresentWhenVisible: true, activeClipPreservesBodyBoundary: true, matchingClip: true } })),
 			hiddenAddClippingCleared: true,
 			wrappedClippingCleared: true,
 		});
+	});
+
+	test('Connected active tabs cover the separator when Add Tab clips them', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		root.classList.add('test-connected-tab-seam');
+		const probe = mainWindow.document.createElement('style');
+		// Expose the painted surfaces to the browser's stacking-order hit test.
+		probe.textContent = '.test-connected-tab-seam.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container::after { pointer-events: auto; }';
+		root.appendChild(probe);
+		control.dispose();
+		reset(container);
+		control = createControl({ tabsBarAddTab: MenuId.for('test.connectedTabs.activeSeam') });
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120, wrapTabs: false, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		const results = [];
+		for (const count of [1, 3]) {
+			const editors = openNamedEditors(Array.from({ length: count }, (_, index) => `file${index}.ts`));
+			for (let activeIndex = 0; activeIndex < count; activeIndex++) {
+				model.setActive(editors[activeIndex]);
+				control.openEditor(editors[activeIndex]);
+				for (const direction of stickyAddTabDirections) {
+					root.dir = direction;
+					for (const width of [600, 100, 600]) {
+						await layoutConnectedGroup(group, width);
+						control.layout({ container: new Dimension(width, 33), available: new Dimension(width, 300) }, { forceRevealActiveTab: true });
+						await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+						const strip = container.querySelector<HTMLElement>('.tabs-and-actions-container')!;
+						const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
+						const active = tabs.querySelector<HTMLElement>('.tab.active')!;
+						const fill = active.querySelector<HTMLElement>('.tab-fill')!;
+						fill.style.pointerEvents = 'auto';
+						const add = tabs.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
+						if (direction === 'rtl') {
+							tabs.classList.add('scroll');
+							tabs.scrollLeft += active.getBoundingClientRect().right - tabs.getBoundingClientRect().right;
+							tabs.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
+						}
+						const bounds = fill.getBoundingClientRect();
+						const viewport = tabs.getBoundingClientRect();
+						const left = Math.max(bounds.left, viewport.left, direction === 'rtl' ? add.getBoundingClientRect().right + 8 : viewport.left);
+						const right = Math.min(bounds.right, viewport.right, direction === 'ltr' ? add.getBoundingClientRect().left - 8 : viewport.right);
+						const hit = mainWindow.document.elementFromPoint((left + right) / 2, strip.getBoundingClientRect().bottom - 0.5);
+						results.push({
+							count, activeIndex, direction, width,
+							clipped: !!active.style.clipPath,
+							stacking: mainWindow.getComputedStyle(active).zIndex,
+							visible: right > left,
+							seamOwner: hit === fill ? 'activeFill' : hit?.className,
+						});
+					}
+				}
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result, clipped: result.width === 100, stacking: result.width === 100 ? '1' : 'auto', visible: true, seamOwner: 'activeFill',
+		})));
+	});
+
+	test('fractional terminal tabs retain a natural shoulder when its gutter fits beside Add Tab', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		control.dispose();
+		reset(container);
+		control = createControl({ tabsBarAddTab: MenuId.for('test.connectedTabs.fractionalShoulder') });
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, tabSizing: 'fixed', tabSizingFixedMinWidth: 120.25, tabSizingFixedMaxWidth: 120.25, wrapTabs: false, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		openNamedEditors(['first.ts', 'middle.ts', 'last.ts']);
+		const results = [];
+		for (const direction of stickyAddTabDirections) {
+			root.dir = direction;
+			for (const zoom of [1, 1.25]) {
+				root.style.zoom = String(zoom);
+				await layoutConnectedGroup(group, 600);
+				await layoutConnectedGroup(group, 300);
+				const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
+				tabs.classList.add('scroll');
+				const active = tabs.querySelector<HTMLElement>('.tab.active')!;
+				tabs.scrollLeft += direction === 'rtl'
+					? active.getBoundingClientRect().right - tabs.getBoundingClientRect().right
+					: tabs.scrollWidth;
+				tabs.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
+				const fill = active.querySelector<HTMLElement>('.tab-fill')!;
+				const shoulder = mainWindow.getComputedStyle(fill, direction === 'rtl' ? '::before' : '::after');
+				const insets = mainWindow.getComputedStyle(active).clipPath;
+				const clip = insets === 'none' ? undefined : insets.slice(6, -1).split(' ');
+				const naturalEdge = direction === 'rtl' ? fill.getBoundingClientRect().left : fill.getBoundingClientRect().right;
+				const clipEdge = clip ? naturalEdge + (direction === 'rtl' ? Number.parseFloat(clip[3]) : -Number.parseFloat(clip[1])) * zoom : undefined;
+				results.push({
+					direction, zoom, shoulder: shoulder.content,
+					completeCurve: clipEdge === undefined || (direction === 'rtl' ? naturalEdge - clipEdge : clipEdge - naturalEdge) >= Number.parseFloat(shoulder.width) * zoom - 1 / 32,
+				});
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, shoulder: '""', completeCurve: true })));
 	});
 
 	test('scrolling Add clipping reads every tab before changing clip styles', async () => {
@@ -717,6 +995,107 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(results, results.map(result => ({ ...result, allIconsVisible: true })));
 	});
 
+	test('fixed tabs respect configured width bounds across tab styles', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		openNamedEditors(['short.ts', 'a-significantly-longer-filename.ts', 'another-significantly-longer-filename.ts']);
+		const results = [];
+		for (const style of ['legacy', 'pill', 'connected']) {
+			root.classList.toggle('modern-ui-tabs', style !== 'legacy');
+			root.classList.toggle('modern-ui-connected-editor-tabs', style === 'connected');
+			for (const [minimum, maximum] of [[50, 50], [50, 60], [50, 160], [120, 140]]) {
+				for (const tabActionLocation of ['left', 'right'] as const) {
+					if (style !== 'connected' && tabActionLocation === 'left') {
+						continue;
+					}
+					for (const tabActionReserveSpace of [false, true]) {
+						const oldOptions = partOptions;
+						partOptions = { ...partOptions, tabSizing: 'fixed', tabActionLocation, tabActionReserveSpace, tabSizingFixedMinWidth: minimum, tabSizingFixedMaxWidth: maximum, editorActionsLocation: 'hidden' };
+						control.updateOptions(oldOptions, partOptions);
+						for (const [available, expectedWidth] of [[maximum * 3 + 100, maximum], [minimum * 3 - 20, minimum]]) {
+							await layoutConnectedGroup(group, available);
+							const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+							results.push({
+								style, tabActionLocation, tabActionReserveSpace, minimum, maximum, available,
+								widths: tabs.map(tab => tab.getBoundingClientRect().width),
+								widthsMatch: tabs.every(tab => Math.abs(tab.getBoundingClientRect().width - expectedWidth) < 1 / 32),
+								actionsInBounds: style === 'legacy' || tabs.every(tab => {
+									const action = tab.querySelector<HTMLElement>('.action-label')!;
+									const bounds = action.getBoundingClientRect();
+									const tabBounds = tab.getBoundingClientRect();
+									return bounds.left >= tabBounds.left && bounds.right <= tabBounds.right;
+								}),
+							});
+						}
+					}
+				}
+			}
+		}
+		assert.deepStrictEqual(results.filter(result => !result.widthsMatch || !result.actionsInBounds), []);
+	});
+
+	test('connected fixed width bounds leave compact and shrink pinned tabs at their dedicated widths', async () => {
+		const group = connectedGroup();
+		openNamedEditors(['sticky.ts', 'regular.ts']);
+		const sticky = model.getEditorByIndex(0)!;
+		model.stick(sticky);
+		control.stickEditor(sticky);
+		const results = [];
+		for (const pinnedTabSizing of ['compact', 'shrink'] as const) {
+			for (const minimum of [50, 120]) {
+				const oldOptions = partOptions;
+				partOptions = { ...partOptions, tabSizing: 'fixed', pinnedTabSizing, tabSizingFixedMinWidth: minimum, tabSizingFixedMaxWidth: 140, editorActionsLocation: 'hidden' };
+				control.updateOptions(oldOptions, partOptions);
+				await layoutConnectedGroup(group, 600);
+				results.push({
+					pinnedTabSizing, minimum,
+					width: container.querySelector<HTMLElement>('.tab.sticky')!.getBoundingClientRect().width,
+				});
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, width: result.pinnedTabSizing === 'compact' ? 28 : 80 })));
+	});
+
+	test('fit and shrink tabs ignore fixed width bounds and respond to available space', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		openNamedEditors(['short.ts', 'a-significantly-longer-filename.ts', 'another-significantly-longer-filename.ts']);
+		const results = [];
+		for (const connected of [false, true]) {
+			root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+			for (const tabSizing of ['fit', 'shrink'] as const) {
+				let baseline: number[] | undefined;
+				for (const fixedWidth of [38, 200]) {
+					const oldOptions = partOptions;
+					partOptions = { ...partOptions, tabSizing, tabActionReserveSpace: true, tabSizingFixedMinWidth: fixedWidth, tabSizingFixedMaxWidth: fixedWidth, editorActionsLocation: 'hidden' };
+					control.updateOptions(oldOptions, partOptions);
+					await layoutConnectedGroup(group, 1200);
+					const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+					const widths = () => tabs.map(tab => tab.getBoundingClientRect().width);
+					const fullNames = () => tabs.every(tab => {
+						const name = tab.querySelector<HTMLElement>('.monaco-icon-name-container')!;
+						return name.scrollWidth <= name.clientWidth;
+					});
+					const wide = widths();
+					const baselineWidths = baseline ??= wide;
+					const wideNamesComplete = fullNames();
+					await layoutConnectedGroup(group, 240);
+					const narrow = widths();
+					const narrowMatchesMode = tabSizing === 'fit'
+						? narrow.every((width, index) => Math.abs(width - wide[index]) < 1 / 32) && fullNames()
+						: narrow.every((width, index) => width <= wide[index] + 1 / 32) && narrow.some((width, index) => width < wide[index] - 1) && !fullNames();
+					await layoutConnectedGroup(group, 1200);
+					results.push({
+						connected, tabSizing, fixedWidth, wideNamesComplete, narrowMatchesMode,
+						ignoresFixedBounds: wide.every((width, index) => Math.abs(width - baselineWidths[index]) < 1 / 32),
+						restored: widths().every((width, index) => Math.abs(width - wide[index]) < 1 / 32) && fullNames(),
+					});
+				}
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, wideNamesComplete: true, narrowMatchesMode: true, ignoresFixedBounds: true, restored: true })));
+	});
+
 	test('connected shrink tabs preserve icons as the editor width changes', async () => {
 		const group = connectedGroup();
 		const iconStyle = document.createElement('style');
@@ -775,10 +1154,10 @@ suite('MultiEditorTabsControl', () => {
 	test('action reservation does not make inactive clean Close buttons visible', async () => {
 		const group = connectedGroup();
 		const root = group.closest<HTMLElement>('.monaco-workbench')!;
-		const modified = disposables.add(new TestFileEditorInput(URI.file('/path/modified.ts'), 'testEditorInput'));
+		const modified = disposables.add(new TestFileEditorInput(URI.file('/path/a-naturally-wide-modified-editor.ts'), 'testEditorInput'));
 		modified.setDirty();
 		model.openEditor(modified, { pinned: true, active: false });
-		const sticky = disposables.add(new TestFileEditorInput(URI.file('/path/sticky.ts'), 'testEditorInput'));
+		const sticky = disposables.add(new TestFileEditorInput(URI.file('/path/a-naturally-wide-sticky-editor.ts'), 'testEditorInput'));
 		model.openEditor(sticky, { pinned: true, active: false });
 		model.stick(sticky);
 		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
@@ -1314,34 +1693,38 @@ suite('MultiEditorTabsControl', () => {
 			root.classList.toggle('modern-ui-tabs', style !== 'legacy');
 			root.classList.toggle('modern-ui-connected-editor-tabs', style === 'connected');
 			for (const tabActionLocation of ['left', 'right'] as const) {
-				let oldOptions = partOptions;
-				partOptions = { ...partOptions, tabSizing: 'fit', tabActionReserveSpace: true, tabActionLocation, tabActionUnpinVisibility: true, pinnedTabSizing: 'normal', editorActionsLocation: 'hidden' };
-				control.updateOptions(oldOptions, partOptions);
-				await layoutConnectedGroup(group, 600);
-				const tab = container.querySelector<HTMLElement>('.tab:not(.active):not(.dirty):not(.sticky)')!;
-				const persistentTabs = Array.from(container.querySelectorAll<HTMLElement>('.tab:is(.dirty, .sticky)'));
-				const persistentWidths = persistentTabs.map(tab => tab.getBoundingClientRect().width);
-				const reserved = tab.getBoundingClientRect().width;
-				const widths = [];
-				let persistentStable = true;
-				for (const tabActionReserveSpace of [false, true, false]) {
-					oldOptions = partOptions;
-					partOptions = { ...partOptions, tabActionReserveSpace };
+				for (const layout of ['single', 'wrapped', 'pinned-wrapped']) {
+					let oldOptions = partOptions;
+					const wrapped = layout !== 'single';
+					partOptions = { ...partOptions, tabSizing: 'fit', tabActionReserveSpace: true, tabActionLocation, tabActionUnpinVisibility: true, pinnedTabSizing: 'normal', wrapTabs: wrapped, pinnedTabsOnSeparateRow: layout === 'pinned-wrapped', editorActionsLocation: 'hidden' };
 					control.updateOptions(oldOptions, partOptions);
-					await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
-					widths.push(tab.getBoundingClientRect().width);
-					persistentStable &&= persistentTabs.every((tab, index) => Math.abs(tab.getBoundingClientRect().width - persistentWidths[index]) < 1 / 32);
+					await layoutConnectedGroup(group, wrapped ? 240 : 600);
+					const tab = container.querySelector<HTMLElement>('.tab:not(.active):not(.dirty):not(.sticky)')!;
+					const persistentTabs = Array.from(container.querySelectorAll<HTMLElement>('.tab:is(.dirty, .sticky)')).filter(tab => !wrapped || tab.classList.contains('connected-tab-upper-row'));
+					const persistentWidths = persistentTabs.map(tab => tab.getBoundingClientRect().width);
+					const reserved = tab.getBoundingClientRect().width;
+					const widths = [];
+					let persistentStable = true;
+					for (const tabActionReserveSpace of [false, true, false]) {
+						oldOptions = partOptions;
+						partOptions = { ...partOptions, tabActionReserveSpace };
+						control.updateOptions(oldOptions, partOptions);
+						await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+						widths.push(tab.getBoundingClientRect().width);
+						persistentStable &&= persistentTabs.every((tab, index) => Math.abs(tab.getBoundingClientRect().width - persistentWidths[index]) < 1 / 32);
+					}
+					results.push({
+						style, tabActionLocation, layout,
+						toggleRestoresReservation: widths[1] === reserved,
+						toggleIsRepeatable: widths[0] === widths[2],
+						compactWithoutReservation: style === 'legacy' ? widths[0] === reserved : widths[0] < reserved,
+						persistentStable,
+						persistentUpperRows: style !== 'connected' || !wrapped || persistentTabs.length > 0,
+					});
 				}
-				results.push({
-					style, tabActionLocation,
-					toggleRestoresReservation: widths[1] === reserved,
-					toggleIsRepeatable: widths[0] === widths[2],
-					compactWithoutReservation: style === 'legacy' ? widths[0] === reserved : widths[0] < reserved,
-					persistentStable,
-				});
 			}
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, toggleRestoresReservation: true, toggleIsRepeatable: true, compactWithoutReservation: true, persistentStable: true })));
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, toggleRestoresReservation: true, toggleIsRepeatable: true, compactWithoutReservation: true, persistentStable: true, persistentUpperRows: true })));
 	});
 
 	test('fit-sized Connected tabs retain short-label icons and match Pill widths', async () => {
@@ -1369,6 +1752,118 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(tabs.map(tab => tab.getBoundingClientRect().width), pillWidths);
 	});
 
+	test('fit-sized Connected tabs resolve calculated action reservation before caching widths', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		for (const name of ['a.ts', 'b.ts']) {
+			const editor = disposables.add(new class extends TestFileEditorInput {
+				override getName(): string { return name; }
+			}(URI.file(`/path/${name}`), 'testEditorInput'));
+			model.openEditor(editor, { pinned: true, active: false });
+		}
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, tabSizing: 'fit', hasIcons: false, tabActionReserveSpace: false, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tab')).slice(-2);
+		const measureFitWidths = async (connected: boolean) => {
+			root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+			tabs.forEach(tab => tab.style.removeProperty('--tab-sizing-fit-width'));
+			await layoutConnectedGroup(group, 300);
+			return tabs.map(tab => Number.parseFloat(tab.style.getPropertyValue('--tab-sizing-fit-width')));
+		};
+		const pillWidths = await measureFitWidths(false);
+		const connectedWidths = await measureFitWidths(true);
+
+		assert.deepStrictEqual({
+			reservation: mainWindow.getComputedStyle(tabs[0]).getPropertyValue('--modern-ui-tab-action-fit-padding').trim(),
+			widthDeltas: connectedWidths.map((width, index) => width - pillWidths[index]),
+		}, {
+			reservation: '30.5px',
+			widthDeltas: [2.5, 2.5],
+		});
+	});
+
+	test('fit-sized Connected tabs keep stable reservations across density and wrapping changes', async () => {
+		const group = connectedGroup();
+		const [persistentEditor] = openNamedEditors(['a-long-persistent-editor-name.ts', 'b.ts']);
+		persistentEditor.setDirty();
+		control.updateEditorDirty(persistentEditor);
+		let oldOptions = partOptions;
+		partOptions = { ...partOptions, tabSizing: 'fit', tabActionReserveSpace: false, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		const getCachedWidths = () => Array.from(container.querySelectorAll<HTMLElement>('.tab')).map(tab => Number.parseFloat(tab.style.getPropertyValue('--tab-sizing-fit-width')));
+
+		await layoutConnectedGroup(group, 600);
+		const defaultWidths = getCachedWidths();
+		oldOptions = partOptions;
+		partOptions = { ...partOptions, tabHeight: 'compact' };
+		control.updateOptions(oldOptions, partOptions);
+		await layoutConnectedGroup(group, 600);
+		const compactWidths = getCachedWidths();
+		oldOptions = partOptions;
+		partOptions = { ...partOptions, tabHeight: 'default' };
+		control.updateOptions(oldOptions, partOptions);
+		await layoutConnectedGroup(group, 600);
+		const restoredWidths = getCachedWidths();
+		oldOptions = partOptions;
+		partOptions = { ...partOptions, wrapTabs: true };
+		control.updateOptions(oldOptions, partOptions);
+		await layoutConnectedGroup(group, 120);
+		const wrappedWidths = getCachedWidths();
+		const wrapping = group.querySelector('.tabs-and-actions-container')?.classList.contains('wrapping');
+		Array.from(container.querySelectorAll<HTMLElement>('.tab')).forEach(tab => tab.style.removeProperty('--tab-sizing-fit-width'));
+		await layoutConnectedGroup(group, 120);
+		const wrappedRecachedWidths = getCachedWidths();
+		oldOptions = partOptions;
+		partOptions = { ...partOptions, wrapTabs: false, tabActionCloseVisibility: false };
+		control.updateOptions(oldOptions, partOptions);
+		await layoutConnectedGroup(group, 600);
+		const hiddenDefaultWidths = getCachedWidths();
+		oldOptions = partOptions;
+		partOptions = { ...partOptions, wrapTabs: true };
+		control.updateOptions(oldOptions, partOptions);
+		await layoutConnectedGroup(group, 120);
+		Array.from(container.querySelectorAll<HTMLElement>('.tab')).forEach(tab => tab.style.removeProperty('--tab-sizing-fit-width'));
+		await layoutConnectedGroup(group, 120);
+		const hiddenWrappedWidths = getCachedWidths();
+		const stickyEditor = model.getEditorByIndex(1)!;
+		model.stick(stickyEditor);
+		control.stickEditor(stickyEditor);
+		oldOptions = partOptions;
+		partOptions = { ...partOptions, wrapTabs: false, tabActionCloseVisibility: true, tabActionLocation: 'left' };
+		control.updateOptions(oldOptions, partOptions);
+		await layoutConnectedGroup(group, 600);
+		const stickyLeftDefaultWidths = getCachedWidths();
+		oldOptions = partOptions;
+		partOptions = { ...partOptions, wrapTabs: true };
+		control.updateOptions(oldOptions, partOptions);
+		await layoutConnectedGroup(group, 120);
+		Array.from(container.querySelectorAll<HTMLElement>('.tab')).forEach(tab => tab.style.removeProperty('--tab-sizing-fit-width'));
+		await layoutConnectedGroup(group, 120);
+		const stickyLeftWrappedWidths = getCachedWidths();
+
+		assert.deepStrictEqual({
+			defaultWidths,
+			compactDeltas: compactWidths.map((width, index) => width - defaultWidths[index]),
+			restoredWidths,
+			wrapping,
+			wrappedWidths,
+			wrappedRecachedWidths,
+			hiddenWrappedWidths,
+			stickyLeftWrappedWidths,
+		}, {
+			defaultWidths,
+			compactDeltas: [-2, -2],
+			restoredWidths: defaultWidths,
+			wrapping: true,
+			wrappedWidths: defaultWidths,
+			wrappedRecachedWidths: defaultWidths,
+			hiddenWrappedWidths: hiddenDefaultWidths,
+			stickyLeftWrappedWidths: stickyLeftDefaultWidths,
+		});
+	});
+
 	test('connected close actions keep consistent spacing across terminal and wrapped tabs', async () => {
 		const group = connectedGroup();
 		group.style.setProperty('--vscode-editorGroupHeader-tabsBorder', '#333333');
@@ -1391,7 +1886,6 @@ suite('MultiEditorTabsControl', () => {
 				left: actionBounds.left - label.getBoundingClientRect().right,
 				width: fillBounds.width,
 				target: [actionBounds.width, actionBounds.height],
-				reservation: mainWindow.getComputedStyle(tab).getPropertyValue('--modern-ui-tab-action-padding').trim(),
 				actionInsets: [
 					actionBounds.left - actionsBounds.left - Number.parseFloat(actionsStyle.borderLeftWidth),
 					actionsBounds.right - Number.parseFloat(actionsStyle.borderRightWidth) - actionBounds.right,
@@ -1452,19 +1946,15 @@ suite('MultiEditorTabsControl', () => {
 				width: leftSingle.width === leftMultiple.width,
 			},
 			balancedActionSurface: [...measurements, leftMultiple, leftSingle].every(measurement => Math.abs(measurement.actionInsets[0] - measurement.actionInsets[1]) <= stroke),
-			balancedActionInsets: measurements.every(measurement => Math.abs(measurement.right - measurement.left) <= stroke),
 			actionPadding: measurements.every(measurement => new Set(measurement.padding).size === 1 && measurement.padding[0] === multiple.padding[0]),
 			targets: measurements.map(measurement => measurement.target),
-			reservations: measurements.map(measurement => measurement.reservation),
 		}, {
 			single: { top: true, right: true, left: true, width: true },
-			horizontal: { clearance: [[5.5, 4, 5.5, 4], [5.5, 4, 5.5, 4], [4, 4, 4, 4], [4, 4, 4, 4]] },
+			horizontal: { clearance: [[5.5, 6.5, 5.5, 4], [5.5, 6.5, 5.5, 4], [4, 3.5, 4, 4.5], [4, 4, 4, 4]] },
 			leftAction: { top: true, right: true, left: true, width: true },
 			balancedActionSurface: true,
-			balancedActionInsets: true,
 			actionPadding: true,
 			targets: Array.from({ length: 4 }, () => [20, 20]),
-			reservations: Array(4).fill('28px'),
 		});
 	});
 
@@ -1570,9 +2060,16 @@ suite('MultiEditorTabsControl', () => {
 							leftBorder: rowStart && !upperRow ? mainWindow.getComputedStyle(tab.querySelector<HTMLElement>('.tab-fill')!).borderLeftColor : undefined,
 						});
 						const clearance = wrapTabs ? tabHeight === 'compact' ? 2 : 4 : tabHeight === 'compact' ? 3.5 : 5.5;
+						const trailing = tabActionLocation === 'left'
+							? 5
+							: !wrapTabs
+								? tabHeight === 'compact' ? 4.5 : 6.5
+								: activeIndex === 1
+									? tabHeight === 'compact' ? 1.5 : 3.5
+									: 4;
 						expected.push({
 							tabHeight, tabActionLocation, wrapTabs, activeIndex,
-							top: clearance, bottom: clearance, trailing: tabActionLocation === 'left' ? 5 : 4,
+							top: clearance, bottom: clearance, trailing,
 							target: [20, 20],
 							leftBorder: rowStart && !upperRow ? 'rgba(0, 0, 0, 0)' : undefined,
 						});
@@ -2104,7 +2601,7 @@ suite('MultiEditorTabsControl', () => {
 						});
 						expected.push({
 							...context,
-							insets: active && !upper ? [wrapTabs && rowStart ? -2 : 0, 0, wrapTabs ? 2 : 0] : [2, 2, wrapTabs ? 2 : 3.5],
+							insets: active && !upper ? [wrapTabs && rowStart ? -2 : 0, 0, wrapTabs ? 2 : -1] : [2, 2, wrapTabs ? 2 : 3.5],
 							corners: [topLeftRadius, radius, active && !upper ? '0px' : '4px', active && !upper ? '0px' : '4px'],
 							leftBorder: rowStart ? 'rgba(0, 0, 0, 0)' : undefined,
 						});
@@ -2265,10 +2762,44 @@ suite('MultiEditorTabsControl', () => {
 		});
 	});
 
-	test('regular-theme Connected active multi-selection leaves the document join open', async () => {
+	test('Connected tabs join the surface their part sets where the active tab meets its editor, as the theme joins them to the editor, also in an unfocused group; a theme accent below the active tab stays', async () => {
+		const group = connectedGroup();
+		group.style.setProperty('--modern-ui-connected-tab-surface', '#333333');
+		const themeService = instantiationService.get(IThemeService);
+		assert.ok(themeService instanceof TestThemeService);
+		const active = model.getEditorByIndex(1)!;
+		model.openEditor(active, { active: true });
+		const read = async (colors: { [id: string]: string }, active = true) => {
+			themeService.setTheme(new TestColorTheme(colors));
+			control.setActive(active);
+			control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+			await layoutConnectedGroup(group, 600);
+			const tab = container.querySelector<HTMLElement>('.tab.active')!;
+			return {
+				belowActiveTab: mainWindow.getComputedStyle(tab.querySelector<HTMLElement>('.tab-border-bottom-container')!).backgroundColor,
+				title: mainWindow.getComputedStyle(group.querySelector<HTMLElement>(':scope > .title')!).backgroundColor,
+			};
+		};
+
+		assert.deepStrictEqual({
+			joinsEditor: await read({ 'tab.activeBorder': '#121314', 'editor.background': '#121314' }),
+			accent: await read({ 'tab.activeBorder': '#22d3ee', 'editor.background': '#121314' }),
+			unfocusedJoinsEditor: await read({ 'tab.activeBorder': '#22d3ee', 'tab.unfocusedActiveBorder': '#12131480', 'editor.background': '#121314' }, false),
+			unfocusedAccent: await read({ 'tab.activeBorder': '#121314', 'tab.unfocusedActiveBorder': '#22d3ee', 'editor.background': '#121314' }, false),
+		}, {
+			joinsEditor: { belowActiveTab: 'rgb(51, 51, 51)', title: 'rgb(51, 51, 51)' },
+			accent: { belowActiveTab: 'rgb(34, 211, 238)', title: 'rgb(51, 51, 51)' },
+			unfocusedJoinsEditor: { belowActiveTab: 'rgb(51, 51, 51)', title: 'rgb(51, 51, 51)' },
+			unfocusedAccent: { belowActiveTab: 'rgb(34, 211, 238)', title: 'rgb(51, 51, 51)' },
+		});
+	});
+
+	test('regular-theme Connected multi-selection shares a top accent without coloring the document frame', async () => {
 		const group = connectedGroup();
 		const root = group.closest<HTMLElement>('.monaco-workbench')!;
 		root.style.setProperty('--vscode-tab-activeBorderTop', '#ffaa00');
+		root.style.setProperty('--vscode-tab-selectedBorderTop', '#0080ff');
+		group.style.setProperty('--modern-ui-editor-tab-custom-border', '#abcdef');
 		const themeService = instantiationService.get(IThemeService);
 		assert.ok(themeService instanceof TestThemeService);
 		themeService.setTheme(new TestColorTheme({ 'tab.activeBorderTop': '#ffaa00', 'tab.selectedBorderTop': '#ffaa00' }));
@@ -2289,19 +2820,258 @@ suite('MultiEditorTabsControl', () => {
 					const tab = container.querySelector<HTMLElement>('.tab.active')!;
 					const fill = tab.querySelector<HTMLElement>('.tab-fill')!;
 					const style = mainWindow.getComputedStyle(fill);
+					const selectedFill = container.querySelector<HTMLElement>('.tab.selected:not(.active) > .tab-fill')!;
+					const selectedStyle = mainWindow.getComputedStyle(selectedFill);
 					results.push({
 						theme, tabHeight, wrapTabs,
 						attachedSelection: tab.classList.contains('multi-selected') && !tab.classList.contains('connected-tab-upper-row'),
 						fillBottom: [style.borderBottomWidth, style.borderBottomColor],
 						capColor: getTabStrokeStyle(tab).borderRightColor,
+						topAccent: getTabStrokeStyle(tab).borderTopColor,
 						capBottom: getTabStrokeStyle(tab).borderBottomWidth,
 						shoulderColor: mainWindow.getComputedStyle(fill, '::after').borderBottomColor,
+						selection: !wrapTabs ? {
+							topAccent: selectedStyle.borderTopColor,
+							topPaint: selectedStyle.backgroundImage,
+							paintOffset: selectedStyle.backgroundPositionY,
+							side: selectedStyle.borderRightColor,
+							sameHeight: selectedFill.getBoundingClientRect().height === fill.getBoundingClientRect().height,
+							sameTop: selectedFill.getBoundingClientRect().top === fill.getBoundingClientRect().top,
+						} : undefined,
 					});
 				}
 			}
 			root.classList.remove(theme);
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, attachedSelection: true, fillBottom: ['0px', 'rgba(0, 0, 0, 0)'], capColor: 'rgb(255, 170, 0)', capBottom: '0px', shoulderColor: 'rgb(255, 170, 0)' })));
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result, attachedSelection: true, fillBottom: ['0px', 'rgba(0, 0, 0, 0)'], capColor: 'rgb(171, 205, 239)', topAccent: 'rgb(0, 128, 255)', capBottom: '0px', shoulderColor: 'rgb(171, 205, 239)',
+			selection: !result.wrapTabs ? { topAccent: 'rgb(0, 128, 255)', topPaint: 'linear-gradient(rgb(0, 128, 255) 1px, rgba(0, 0, 0, 0) 1px)', paintOffset: '1px', side: 'rgba(0, 0, 0, 0)', sameHeight: true, sameTop: true } : undefined,
+		})));
+	});
+
+	test('dirty selected Connected multi-selection paints its accent inside the visible fill', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		const themeService = instantiationService.get(IThemeService);
+		assert.ok(themeService instanceof TestThemeService);
+		themeService.setTheme(new TestColorTheme({ 'tab.inactiveModifiedBorder': '#22d3ee' }));
+		root.style.setProperty('--vscode-contrastActiveBorder', '#ffaa00');
+		const dirty = disposables.add(new TestFileEditorInput(URI.file('/path/modified-selected.ts'), 'testEditorInput'));
+		dirty.setDirty();
+		model.openEditor(dirty, { index: model.count, pinned: true, active: false });
+		const active = model.getEditorByIndex(1)!;
+		model.openEditor(active, { active: true });
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, wrapTabs: false, highlightModifiedTabs: true, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120 };
+		control.updateOptions(oldOptions, partOptions);
+		model.setSelection(active, [model.getEditorByIndex(0)!, dirty]);
+		control.updateEditorSelections();
+		const results = [];
+		for (const theme of ['vs-dark', 'hc-black']) {
+			root.classList.add(theme);
+			await layoutConnectedGroup(group, 600);
+			const fill = container.querySelector<HTMLElement>('.tab.dirty.selected.multi-selected:not(.active):not(.connected-tab-upper-row) > .tab-fill')!;
+			const style = mainWindow.getComputedStyle(fill);
+			results.push({
+				theme,
+				selected: fill.parentElement!.classList.contains('selected'),
+				dirtyAccent: style.backgroundImage.includes(' 2px,'),
+				paintOffset: style.backgroundPositionY,
+			});
+			root.classList.remove(theme);
+		}
+		assert.deepStrictEqual({
+			results,
+		}, {
+			results: results.map(result => ({ ...result, selected: true, dirtyAccent: true, paintOffset: '1px' })),
+		});
+	});
+
+	test('Connected selection accents track the visible surface when modified highlighting changes', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		root.style.setProperty('--vscode-tab-selectedBorderTop', '#0080ff');
+		const themeService = instantiationService.get(IThemeService);
+		assert.ok(themeService instanceof TestThemeService);
+		themeService.setTheme(new TestColorTheme({
+			'tab.selectedBorderTop': '#0080ff',
+			'tab.activeModifiedBorder': '#22d3ee',
+			'tab.inactiveModifiedBorder': '#22d3ee',
+		}));
+		const dirty = disposables.add(new TestFileEditorInput(URI.file('/path/modified-selection.ts'), 'testEditorInput'));
+		dirty.setDirty();
+		model.openEditor(dirty, { index: model.count, pinned: true, active: false });
+		const editors = model.getEditors(EditorsOrder.SEQUENTIAL);
+		control.openEditors(editors);
+		const results = [];
+		const expected = [];
+		for (const tabHeight of ['default', 'compact'] as const) {
+			container.classList.toggle('compact-height', tabHeight === 'compact');
+			for (const active of [editors[1], dirty]) {
+				model.openEditor(active, { active: true });
+				control.openEditors(editors);
+				for (const highlightModifiedTabs of [false, true, false]) {
+					const oldOptions = partOptions;
+					partOptions = { ...partOptions, tabHeight, wrapTabs: false, highlightModifiedTabs, editorActionsLocation: 'hidden', tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120 };
+					control.updateOptions(oldOptions, partOptions);
+					model.setSelection(active, editors.filter(editor => editor !== active));
+					control.updateEditorSelections();
+					await layoutConnectedGroup(group, 600);
+					for (const tab of container.querySelectorAll<HTMLElement>('.tab')) {
+						const surface = tab.querySelector<HTMLElement>(tab.classList.contains('active') ? '.tab-connected-edge' : '.tab-fill')!;
+						const style = mainWindow.getComputedStyle(surface);
+						const modified = tab.classList.contains('dirty') && highlightModifiedTabs;
+						const context = { tabHeight, active: active.getName(), highlightModifiedTabs, name: tab.dataset.resourceName };
+						results.push({
+							...context,
+							paint: style.backgroundImage,
+							offset: Number.parseFloat(style.backgroundPositionY),
+							visibleTop: surface.getBoundingClientRect().top + Number.parseFloat(style.backgroundPositionY) >= tab.getBoundingClientRect().top,
+							ariaSelected: tab.getAttribute('aria-selected'),
+						});
+						const color = modified ? 'rgb(34, 211, 238)' : 'rgb(0, 128, 255)';
+						const thickness = modified ? 2 : 1;
+						expected.push({
+							...context,
+							paint: `linear-gradient(${color} ${thickness}px, rgba(0, 0, 0, 0) ${thickness}px)`,
+							offset: 1,
+							visibleTop: true,
+							ariaSelected: 'true',
+						});
+					}
+				}
+			}
+		}
+		assert.deepStrictEqual(results, expected);
+	});
+
+	test('Connected modified selection clears an accent when the next theme has no modified border', async () => {
+		const group = connectedGroup();
+		const themeService = instantiationService.get(IThemeService);
+		assert.ok(themeService instanceof TestThemeService);
+		const dirty = disposables.add(new TestFileEditorInput(URI.file('/path/modified-theme-transition.ts'), 'testEditorInput'));
+		dirty.setDirty();
+		model.openEditor(dirty, { index: model.count, pinned: true, active: false });
+		const editors = model.getEditors(EditorsOrder.SEQUENTIAL);
+		control.openEditors(editors);
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, wrapTabs: false, highlightModifiedTabs: true };
+		control.updateOptions(oldOptions, partOptions);
+		const results = [];
+		for (const active of [editors[1], dirty]) {
+			model.openEditor(active, { active: true });
+			model.setSelection(active, editors.filter(editor => editor !== active));
+			control.openEditors(editors);
+			for (const modifiedBorder of ['#22d3ee', undefined, '#22d3ee']) {
+				themeService.setTheme(new TestColorTheme({
+					'tab.selectedBorderTop': '#0080ff',
+					...(modifiedBorder ? { 'tab.activeModifiedBorder': modifiedBorder, 'tab.inactiveModifiedBorder': modifiedBorder } : {}),
+				}));
+				await layoutConnectedGroup(group, 600);
+				const tab = container.querySelector<HTMLElement>('.tab.dirty')!;
+				results.push({
+					active: active === dirty,
+					modifiedBorder,
+					modifiedAccent: tab.classList.contains('dirty-border-top'),
+					modifiedColor: tab.style.getPropertyValue('--tab-dirty-border-top-color'),
+					selectionAccent: tab.classList.contains('tab-border-top'),
+					selected: tab.getAttribute('aria-selected'),
+				});
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result,
+			modifiedAccent: !!result.modifiedBorder,
+			modifiedColor: result.modifiedBorder ? '#22d3ee' : '',
+			selectionAccent: !result.modifiedBorder,
+			selected: 'true',
+		})));
+	});
+
+	test('HC Connected multi-selection keeps its top outline visible without a theme selection accent', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		root.style.setProperty('--vscode-contrastActiveBorder', '#ffaa00');
+		root.style.setProperty('--vscode-focusBorder', '#00ff00');
+		const dirty = disposables.add(new TestFileEditorInput(URI.file('/path/modified-selection-hc.ts'), 'testEditorInput'));
+		dirty.setDirty();
+		model.openEditor(dirty, { index: model.count, pinned: true, active: false });
+		const editors = model.getEditors(EditorsOrder.SEQUENTIAL);
+		const themeService = instantiationService.get(IThemeService);
+		assert.ok(themeService instanceof TestThemeService);
+		const actual = [];
+		const expected = [];
+		for (const theme of ['hc-black', 'hc-light']) {
+			root.classList.add(theme);
+			themeService.setTheme(new TestColorTheme({
+				'tab.activeModifiedBorder': '#ffffff',
+				'tab.inactiveModifiedBorder': '#ffffff',
+			}, theme === 'hc-black' ? ColorScheme.HIGH_CONTRAST_DARK : ColorScheme.HIGH_CONTRAST_LIGHT));
+			for (const tabHeight of ['default', 'compact'] as const) {
+				container.classList.toggle('compact-height', tabHeight === 'compact');
+				for (const active of [editors[1], dirty]) {
+					model.openEditor(active, { active: true });
+					control.openEditors(editors);
+					for (const highlightModifiedTabs of [false, true]) {
+						const oldOptions = partOptions;
+						partOptions = { ...partOptions, tabHeight, wrapTabs: false, highlightModifiedTabs, editorActionsLocation: 'hidden', tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120 };
+						control.updateOptions(oldOptions, partOptions);
+						model.setSelection(active, editors.filter(editor => editor !== active));
+						control.updateEditorSelections();
+						for (const zoom of [1, 1.25, 1.6, 2]) {
+							root.style.zoom = String(zoom);
+							await layoutConnectedGroup(group, 600);
+							for (const tab of container.querySelectorAll<HTMLElement>('.tab')) {
+								const surface = tab.querySelector<HTMLElement>(tab.classList.contains('active') ? '.tab-connected-edge' : '.tab-fill')!;
+								const style = mainWindow.getComputedStyle(surface);
+								const modified = tab.classList.contains('dirty') && highlightModifiedTabs;
+								const viewportTop = tab.closest<HTMLElement>('.monaco-scrollable-element')!.getBoundingClientRect().top;
+								const paintTop = surface.getBoundingClientRect().top + Number.parseFloat(style.backgroundPositionY) * zoom;
+								const context = { theme, tabHeight, zoom, active: active.getName(), highlightModifiedTabs, name: tab.dataset.resourceName };
+								actual.push({
+									...context,
+									image: style.backgroundImage,
+									position: style.backgroundPositionY,
+									paintWithinViewportEdge: paintTop >= viewportTop - 1 / 64 && paintTop < viewportTop + zoom + 1 / 64,
+									ariaSelected: tab.getAttribute('aria-selected'),
+								});
+								const color = modified ? 'rgb(255, 255, 255)' : 'rgb(255, 170, 0)';
+								const thickness = modified ? 2 : 1;
+								expected.push({
+									...context,
+									image: `linear-gradient(${color} ${thickness}px, rgba(0, 0, 0, 0) ${thickness}px)`,
+									position: '1px',
+									paintWithinViewportEdge: true,
+									ariaSelected: 'true',
+								});
+							}
+							const focused = container.querySelector<HTMLElement>('.tab.selected:not(.active):not(.dirty)')!;
+							const previousTabIndex = focused.tabIndex;
+							focused.tabIndex = 0;
+							focused.focus();
+							const cssFocused = focused.matches(':focus');
+							actual.push({
+								theme, tabHeight, zoom, active: active.getName(), highlightModifiedTabs,
+								name: 'focused',
+								focused: mainWindow.document.activeElement === focused,
+								image: mainWindow.getComputedStyle(focused.querySelector<HTMLElement>('.tab-fill')!).backgroundImage,
+							});
+							expected.push({
+								theme, tabHeight, zoom, active: active.getName(), highlightModifiedTabs,
+								name: 'focused',
+								focused: true,
+								image: cssFocused ? 'linear-gradient(rgb(0, 255, 0) 1px, rgba(0, 0, 0, 0) 1px)' : 'linear-gradient(rgb(255, 170, 0) 1px, rgba(0, 0, 0, 0) 1px)',
+							});
+							focused.blur();
+							focused.tabIndex = previousTabIndex;
+						}
+					}
+				}
+			}
+			root.classList.remove(theme);
+		}
+		assert.deepStrictEqual(actual, expected);
 	});
 
 	test('HC connected selection keeps its outline independent of modified highlighting', async () => {
@@ -2357,6 +3127,7 @@ suite('MultiEditorTabsControl', () => {
 									const painted = accent.visible && accent.color !== 'rgba(0, 0, 0, 0)';
 									const selected = multiSelected && index !== 2;
 									const modified = index >= 2 && highlightModifiedTabs;
+									const selectionAccent = selected && !modified && !tab.classList.contains('connected-tab-upper-row');
 									const context = { theme, tabHeight, wrapTabs, highlightModifiedTabs, activeIndex, multiSelected, index };
 									measurements.push({
 										...context,
@@ -2371,9 +3142,9 @@ suite('MultiEditorTabsControl', () => {
 									});
 									expected.push({
 										...context,
-										color: modified ? 'rgb(255, 255, 255)' : undefined,
-										thickness: modified ? 2 : undefined,
-										topOffset: modified ? 0 : undefined,
+										color: modified ? 'rgb(255, 255, 255)' : selectionAccent ? 'rgb(255, 170, 0)' : undefined,
+										thickness: modified ? 2 : selectionAccent ? 1 : undefined,
+										topOffset: modified || selectionAccent ? 0 : undefined,
 										clippedToFill: true,
 										selectedStroke: selected ? 'rgb(255, 170, 0)' : undefined,
 										borders: ['0px', '0px', '0px', '0px'],
@@ -2524,6 +3295,99 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(results, results.map(result => ({
 			...result, labelCentered: true, actionCentered: true, fillHeight: result.tabHeight === 'default' ? 24 : 20,
 		})));
+	});
+
+	test('single-row Connected selected and modified inactive fills retain their geometry on hover and focus', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		const themeService = instantiationService.get(IThemeService);
+		assert.ok(themeService instanceof TestThemeService);
+		themeService.setTheme(new TestColorTheme({ 'tab.inactiveModifiedBorder': '#22d3ee' }));
+		const dirty = disposables.add(new TestFileEditorInput(URI.file('/path/dirty.ts'), 'testEditorInput'));
+		dirty.setDirty();
+		model.openEditor(dirty, { pinned: true, active: false });
+		model.setSelection(model.activeEditor!, [model.getEditorByIndex(1)!]);
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		control.updateEditorSelections();
+		const results = [];
+		for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+			root.classList.add(theme);
+			for (const tabHeight of ['default', 'compact'] as const) {
+				const oldOptions = partOptions;
+				partOptions = { ...partOptions, tabHeight, wrapTabs: false, highlightModifiedTabs: true };
+				control.updateOptions(oldOptions, partOptions);
+				await layoutConnectedGroup(group, 900);
+				for (const tab of container.querySelectorAll<HTMLElement>('.tab:not(.active):is(.multi-selected, .dirty-border-top)')) {
+					const fill = tab.querySelector<HTMLElement>('.tab-fill')!;
+					const bounds = () => {
+						const rect = fill.getBoundingClientRect();
+						return [rect.top, rect.bottom, rect.height];
+					};
+					const resting = bounds();
+					tab.classList.add('hovered');
+					const hovered = bounds();
+					tab.classList.remove('hovered');
+					tab.focus();
+					const focused = bounds();
+					tab.blur();
+					results.push({ theme, tabHeight, hovered, focused, resting });
+				}
+			}
+			root.classList.remove(theme);
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result, hovered: result.resting, focused: result.resting,
+		})));
+	});
+
+	test('wrapped bottom-row selection accents do not add a second top stroke', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		root.style.setProperty('--vscode-tab-selectedBorderTop', '#0080ff');
+		const themeService = instantiationService.get(IThemeService);
+		assert.ok(themeService instanceof TestThemeService);
+		themeService.setTheme(new TestColorTheme({
+			'tab.selectedBorderTop': '#0080ff',
+			'tab.inactiveModifiedBorder': '#22d3ee',
+		}));
+		const dirty = disposables.add(new TestFileEditorInput(URI.file('/path/wrapped-modified-selected.ts'), 'testEditorInput'));
+		dirty.setDirty();
+		model.openEditor(dirty, { index: model.count, pinned: true, active: false });
+		const active = model.getEditorByIndex(0)!;
+		model.setSelection(active, model.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => editor !== active));
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		control.updateEditorSelections();
+		const actual = [];
+		const expected = [];
+		for (const highlightModifiedTabs of [false, true]) {
+			const oldOptions = partOptions;
+			partOptions = { ...partOptions, wrapTabs: true, highlightModifiedTabs, editorActionsLocation: 'hidden', tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120 };
+			control.updateOptions(oldOptions, partOptions);
+			await layoutConnectedGroup(group, 280);
+			const tab = container.querySelector<HTMLElement>('.tab.dirty')!;
+			const fill = mainWindow.getComputedStyle(tab.querySelector<HTMLElement>('.tab-fill')!);
+			actual.push({
+				highlightModifiedTabs,
+				wrapping: container.querySelector('.tabs-and-actions-container')!.classList.contains('wrapping'),
+				upperRow: tab.classList.contains('connected-tab-upper-row'),
+				selected: tab.getAttribute('aria-selected'),
+				position: fill.backgroundPositionY,
+				image: fill.backgroundImage,
+				borderColor: fill.borderTopColor,
+			});
+			const color = highlightModifiedTabs ? 'rgb(34, 211, 238)' : 'rgb(0, 128, 255)';
+			const thickness = highlightModifiedTabs ? 2 : 1;
+			expected.push({
+				highlightModifiedTabs,
+				wrapping: true,
+				upperRow: false,
+				selected: 'true',
+				position: '0%',
+				image: `linear-gradient(${color} ${thickness}px, rgba(0, 0, 0, 0) ${thickness}px)`,
+				borderColor: color,
+			});
+		}
+		assert.deepStrictEqual(actual, expected);
 	});
 
 	test('wrapped fills retain equal content heights and only the active bottom cap joins the document', async () => {
@@ -2717,10 +3581,10 @@ suite('MultiEditorTabsControl', () => {
 			tabHeights: [0, 1, 2].map(index => layout === 'single' || layout === 'pinned' && index > 0 ? tabHeight === 'default' ? 31 : 27 : tabHeight === 'default' ? 28 : 24),
 			fillHeights: [0, 1, 2].map(index => {
 				const upper = layout === 'pinned' ? index === 0 : layout !== 'single' && index < 2;
-				const extension = layout === 'single' || layout === 'pinned' ? 8 : 3;
+				const extension = layout === 'single' || layout === 'pinned' ? 9 : 3;
 				return (tabHeight === 'default' ? 24 : 20) + (!upper && index === 1 ? extension : 0);
 			}),
-			contentHeights: [0, 1, 2].map(index => (layout === 'single' || layout === 'pinned') && index === 1 ? tabHeight === 'default' ? 31 : 27 : tabHeight === 'default' ? 24 : 20),
+			contentHeights: [0, 1, 2].map(index => (layout === 'single' || layout === 'pinned') && index === 1 ? tabHeight === 'default' ? 32 : 28 : tabHeight === 'default' ? 24 : 20),
 			backgrounds: ['rgb(30, 41, 59)', 'rgb(22, 78, 99)', 'rgb(30, 41, 59)'],
 			actionTargets: [[20, 20], [20, 20], [20, 20]],
 		}))));
@@ -3075,7 +3939,7 @@ suite('MultiEditorTabsControl', () => {
 						contentHeight: Math.round(peerBounds.height / zoom),
 						pillHeight: Math.round(pillHeight),
 						sameCapHeight: Math.abs(beforeHeight - fillBounds.height / zoom) < 1 / 32,
-						defaultContentHeight: Math.round(beforeHeight - 8),
+						defaultContentHeight: Math.round(beforeHeight - 9),
 						peerCentered: Math.abs((peerBounds.top + peerBounds.bottom) / 2 - (tab.getBoundingClientRect().top + tab.getBoundingClientRect().bottom) / 2) < 1 / 32,
 						stableHitbox: JSON.stringify(hitbox) === JSON.stringify(tab.getBoundingClientRect().toJSON()),
 						stableClose: JSON.stringify(action) === JSON.stringify(tab.querySelector<HTMLElement>('.action-label')!.getBoundingClientRect().toJSON()),
@@ -3163,7 +4027,7 @@ suite('MultiEditorTabsControl', () => {
 				}
 			}
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, sameContentHeight: result.wrapTabs, contentHeight: result.wrapTabs ? result.tabHeight === 'default' ? 24 : 20 : result.tabHeight === 'default' ? 32 : 28, hitboxStable: true, actionStable: true })));
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, sameContentHeight: result.wrapTabs, contentHeight: result.wrapTabs ? result.tabHeight === 'default' ? 24 : 20 : result.tabHeight === 'default' ? 33 : 29, hitboxStable: true, actionStable: true })));
 	});
 
 	test('single-row connected caps stay flush while inactive pills are centered without losing rounded corners', async () => {
@@ -3194,7 +4058,7 @@ suite('MultiEditorTabsControl', () => {
 						...context,
 						topRow: tab.classList.contains('connected-tab-top-row'),
 						capTop: getTabStrokeStyle(tab).borderTopColor,
-						topAligned: Math.abs(fill.getBoundingClientRect().top - tab.getBoundingClientRect().top) < 1 / 64,
+						topInset: Math.round((fill.getBoundingClientRect().top - tab.getBoundingClientRect().top) / zoom * 2) / 2,
 						roundedTop: mainWindow.getComputedStyle(edge).borderTopRightRadius === '7px' && mainWindow.getComputedStyle(fill).borderTopRightRadius === '7px',
 						peerInset: Math.round((peer.getBoundingClientRect().top - tab.getBoundingClientRect().top) / zoom * 2) / 2,
 						edgeTopAligns: Math.abs(edge.getBoundingClientRect().top - fill.getBoundingClientRect().top) < 1 / 64,
@@ -3203,7 +4067,7 @@ suite('MultiEditorTabsControl', () => {
 						heightStable: Math.abs(tab.getBoundingClientRect().height / zoom - nominalHeight) < 1 / 64,
 						controlHeight: control.getHeight(),
 					});
-					expected.push({ ...context, topRow: true, capTop: theme.startsWith('hc-') ? 'rgb(255, 170, 0)' : 'rgb(68, 85, 102)', topAligned: true, roundedTop: true, peerInset: 3.5, edgeTopAligns: true, peerHeight: tabHeight === 'default' ? 24 : 20, connectionExtension: 4.5, heightStable: true, controlHeight: nominalHeight + 1 });
+					expected.push({ ...context, topRow: true, capTop: theme.startsWith('hc-') ? 'rgb(255, 170, 0)' : 'rgb(68, 85, 102)', topInset: -1, roundedTop: true, peerInset: 3.5, edgeTopAligns: true, peerHeight: tabHeight === 'default' ? 24 : 20, connectionExtension: 4.5, heightStable: true, controlHeight: nominalHeight + 1 });
 				}
 			}
 			root.classList.remove(theme);
@@ -3327,6 +4191,11 @@ suite('MultiEditorTabsControl', () => {
 					tabs.scrollLeft = 0;
 					tabs.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
 					const capStyle = getTabStrokeStyle(tab);
+					const cap = tab.querySelector<HTMLElement>('.tab-connected-edge')!;
+					const capBounds = cap.getBoundingClientRect();
+					const tabsBounds = tabs.getBoundingClientRect();
+					const accentTop = capBounds.top + Number.parseFloat(capStyle.backgroundPositionY);
+					const accentHeight = modified ? 2 : 1;
 					const overflow = container.querySelector<HTMLElement>('.tab-connected-overflow-edge')!;
 					const clippedStyle = mainWindow.getComputedStyle(overflow.querySelector<HTMLElement>('.tab-connected-overflow-right-edge')!);
 					results.push({
@@ -3335,6 +4204,8 @@ suite('MultiEditorTabsControl', () => {
 						topColor: clippedStyle.borderTopColor,
 						sameSides: clippedStyle.borderRightColor === capStyle.borderRightColor,
 						sameModifiedPaint: clippedStyle.backgroundImage === capStyle.backgroundImage,
+						accentInsideViewport: accentTop >= tabsBounds.top && accentTop + accentHeight <= tabsBounds.bottom,
+						accentStartsAtViewportTop: Math.abs(accentTop - tabsBounds.top) < 1 / 64,
 					});
 				}
 			}
@@ -3347,7 +4218,7 @@ suite('MultiEditorTabsControl', () => {
 			results,
 			cleared: [overflow.style.getPropertyValue('--modern-ui-connected-tab-overflow-top-border'), overflow.style.getPropertyValue('--modern-ui-connected-tab-overflow-top-background')],
 		}, {
-			results: results.map(result => ({ ...result, rightClipped: true, topColor: result.modified ? 'rgb(255, 255, 255)' : result.activeGroup ? 'rgb(34, 211, 238)' : 'rgb(192, 132, 252)', sameSides: true, sameModifiedPaint: true })),
+			results: results.map(result => ({ ...result, rightClipped: true, topColor: result.modified ? 'rgb(255, 255, 255)' : result.activeGroup ? 'rgb(34, 211, 238)' : 'rgb(192, 132, 252)', sameSides: true, sameModifiedPaint: true, accentInsideViewport: true, accentStartsAtViewportTop: true })),
 			cleared: ['', ''],
 		});
 	});
@@ -3530,13 +4401,69 @@ suite('MultiEditorTabsControl', () => {
 			rowPaddingLeft: rowStyle.paddingLeft,
 			rowPaddingTop: rowStyle.paddingTop,
 		}, {
-			active: { top: '0px', left: '0px', right: '0px', bottom: '-1px' },
+			active: { top: '-1px', left: '0px', right: '0px', bottom: '-1px' },
 			activeEdgeBottom: '-1px',
 			inactive: { top: '3.5px', left: '2px', right: '2px', bottom: '3.5px' },
 			alignItems: 'flex-start',
 			editorActionsHeight: '31px',
 			rowPaddingLeft: '0px',
 			rowPaddingTop: '0px',
+		});
+	});
+
+	test('preserves the first Connected tab edge without duplicating the editor frame when scrolled', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		root.style.setProperty('--vscode-editorGroupHeader-tabsBorder', '#334455');
+		root.style.setProperty('--vscode-contrastBorder', '#334455');
+		root.style.setProperty('--vscode-focusBorder', '#334455');
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, tabSizing: 'fixed', tabSizingFixedMinWidth: 160, tabSizingFixedMaxWidth: 160, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		const third = disposables.add(new TestFileEditorInput(URI.file('/path/third.ts'), 'testEditorInput'));
+		model.openEditor(third, { pinned: true, active: false });
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		const results = [];
+		for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+			root.classList.add(theme);
+			for (const compact of [false, true]) {
+				root.classList.toggle('modern-ui-compact', compact);
+				for (const zoom of [1, 1.25]) {
+					root.style.zoom = String(zoom);
+					for (const index of [0, 1, 0]) {
+						model.openEditor(model.getEditorByIndex(index)!, { active: true });
+						control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+						await layoutConnectedGroup(group, 240);
+						const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
+						tabs.classList.add('scroll');
+						tabs.scrollLeft = index === 0 ? 40 : 200;
+						tabs.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
+						const cap = container.querySelector<HTMLElement>('.tab.active > .tab-connected-edge')!;
+						const overflow = container.querySelector<HTMLElement>('.tab-connected-overflow-edge')!;
+						const sourceStyle = mainWindow.getComputedStyle(cap);
+						const clippedStyle = mainWindow.getComputedStyle(overflow, '::before');
+						results.push({
+							theme, compact, zoom, index,
+							clipped: overflow.classList.contains('connected-tab-left-clipped'),
+							sourceHasLeadingStroke: Number.parseFloat(sourceStyle.borderLeftWidth) > 0,
+							matchingLeadingStroke: clippedStyle.borderLeftWidth === sourceStyle.borderLeftWidth,
+							matchingLeadingRadius: clippedStyle.borderTopLeftRadius === sourceStyle.borderTopLeftRadius,
+						});
+					}
+				}
+			}
+			root.classList.remove(theme);
+		}
+		root.classList.remove('modern-ui-connected-editor-tabs');
+		await layoutConnectedGroup(group, 240);
+		assert.deepStrictEqual({
+			results,
+			squareLeftCleared: !container.querySelector('.tab-connected-overflow-edge.connected-tab-square-left'),
+		}, {
+			results: results.map(result => ({
+				...result, clipped: true, sourceHasLeadingStroke: result.index !== 0, matchingLeadingStroke: true, matchingLeadingRadius: true,
+			})),
+			squareLeftCleared: true,
 		});
 	});
 
@@ -3768,7 +4695,7 @@ suite('MultiEditorTabsControl', () => {
 		}, {
 			clippedHover: { hovered: true, background: 'rgb(101, 67, 33)' },
 			clippedHoverReset: { hovered: false, background: 'rgb(51, 51, 51)' },
-			clippedLeft: { edge: true, clipped: true, fillOffset: '', edgeOffset: ['0px', '0px'], inset: 0, stationaryParent: true, ownCapTop: true, edgeOverlay: ['none', 'block', '8', '5px', '5px', 'border-box', '1px', '1px', 'rgb(51, 51, 51)'] },
+			clippedLeft: { edge: true, clipped: true, fillOffset: '', edgeOffset: ['0px', '0px'], inset: 0, stationaryParent: true, ownCapTop: true, edgeOverlay: ['none', 'block', '8', '5px', '0px', 'border-box', '0px', '1px', 'rgb(51, 51, 51)'] },
 			multiSelected: { clipping: '0px', edge: 'block', radius: '0px 5px 0px 0px', connectedClass: true },
 			singleSelected: { clipping: '0px', connectedClass: true },
 			terminalOutline: { right: '1px', rightShoulder: '""', rightMask: 'none' },
@@ -3941,5 +4868,178 @@ suite('MultiEditorTabsControl', () => {
 		]);
 	});
 
+	test('runs the Add Tab entries with the group of its tabs bar, so that they act on that group rather than on the active one', async () => {
+		const ran: unknown[][] = [];
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<R>(_id: string, ...args: unknown[]): Promise<R> { ran.push(args); return undefined as R; }
+		}());
+		let shownMenu: IContextMenuDelegate | undefined;
+		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+			override readonly onDidShowContextMenu = Event.None;
+			override readonly onDidHideContextMenu = Event.None;
+			override showContextMenu(delegate: IContextMenuDelegate): void { shownMenu = delegate; }
+		}());
+		control.dispose();
+		reset(container);
+		control = createControl({ tabsBarAddTab: MenuId.for('test.addTab.context') });
+
+		container.querySelector<HTMLElement>('.tabs-bar-add-tab .action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true }));
+		const [entry] = shownMenu?.getActions() ?? [];
+		await entry?.run(shownMenu?.getActionsContext?.());
+
+		assert.deepStrictEqual(ran, [[{ groupId: groupView.id }]]);
+	});
+
+	test('logs the journey through the Add Tab menu: opened, then picked or dismissed', async () => {
+		const telemetryService = new CapturingTelemetryService();
+		instantiationService.stub(ITelemetryService, telemetryService);
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<R>(): Promise<R> { return undefined as R; }
+		}());
+		let shownMenu: IContextMenuDelegate | undefined;
+		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+			override readonly onDidShowContextMenu = Event.None;
+			override readonly onDidHideContextMenu = Event.None;
+			override showContextMenu(delegate: IContextMenuDelegate): void { shownMenu = delegate; }
+		}());
+		control.dispose();
+		reset(container);
+		control = createControl({ tabsBarAddTab: MenuId.for('test.addTab.journey') });
+
+		const open = () => container.querySelector<HTMLElement>('.tabs-bar-add-tab .action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true }));
+		open();
+		const [entry] = shownMenu!.getActions();
+		// Like the context menu: running an entry first hides the menu
+		const onWillRun = shownMenu!.actionRunner!.onWillRun(() => shownMenu!.onHide?.(false));
+		await shownMenu!.actionRunner!.run(entry, shownMenu!.getActionsContext?.());
+		onWillRun.dispose();
+		open();
+		shownMenu!.onHide?.(true);
+		await timeout(0);
+
+		assert.deepStrictEqual(telemetryService.events.filter(e => e.eventName === 'editorAddTabMenu').map(e => e.data), [
+			{ kind: 'opened', menuId: 'test.addTab.journey', entry: undefined },
+			{ kind: 'picked', menuId: 'test.addTab.journey', entry: 'test.connectedTabs.newEditor' },
+			{ kind: 'opened', menuId: 'test.addTab.journey', entry: undefined },
+			{ kind: 'dismissed', menuId: 'test.addTab.journey', entry: undefined },
+		]);
+	});
+
+	test('the new tab button lists the entry picked last above its entries, as its default entry that a second press picks', async () => {
+		const executed: string[] = [];
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<R>(id: string): Promise<R> { executed.push(id); return undefined as R; }
+		}());
+		instantiationService.stub(IMenuService, new class extends TestMenuService {
+			override createMenu(): IMenu {
+				return {
+					onDidChange: Event.None,
+					dispose: () => { },
+					getActions: options => [['navigation', ['test.newTabButton.first', 'test.newTabButton.second'].map(id =>
+						instantiationService.createInstance(MenuItemAction, { id, title: id }, undefined, options, undefined, undefined))]],
+				};
+			}
+		}());
+		let shownMenu: IContextMenuDelegate | undefined;
+		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+			override readonly onDidShowContextMenu = Event.None;
+			override readonly onDidHideContextMenu = Event.None;
+			override showContextMenu(delegate: IContextMenuDelegate): void { shownMenu = delegate; }
+		}());
+		instantiationService.stub(IContextViewService, new class extends mock<IContextViewService>() {
+			override hideContextView(): void { const menu = shownMenu; shownMenu = undefined; menu?.onHide?.(true); }
+		}());
+
+		const createButton = () => disposables.add(instantiationService.createInstance(EditorAddTabControl, container, MenuId.for('test.newTabButton'), instantiationService.get(IContextKeyService), { recentFirst: true, defaultEntry: true }));
+		const press = (button: EditorAddTabControl) => {
+			const bounds = button.element.getBoundingClientRect();
+			button.element.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true, clientX: bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2 }));
+		};
+		const open = (button: EditorAddTabControl) => {
+			press(button);
+			const menu = shownMenu!.getActions().map(action => action.id);
+			shownMenu!.onHide?.(true);
+			return menu;
+		};
+
+		const button = createButton();
+		const initially = open(button);
+		press(button);
+		// Like the context menu: picking an entry hides the menu first
+		const picked = shownMenu!;
+		picked.onHide?.(false);
+		await picked.actionRunner!.run(picked.getActions()[1], picked.getActionsContext?.());
+		const afterPickingSecond = open(button);
+		// A second press while the menu is open picks the default entry and closes the menu
+		press(button);
+		press(button);
+		await timeout(0);
+		const menuOpen = !!shownMenu;
+
+		assert.deepStrictEqual({
+			initially,
+			afterPickingSecond,
+			inAnotherButton: open(createButton()),
+			executed,
+			menuOpen,
+		}, {
+			initially: ['test.newTabButton.first', 'test.newTabButton.second'],
+			afterPickingSecond: ['test.newTabButton.second', 'test.newTabButton.first'],
+			inAnotherButton: ['test.newTabButton.second', 'test.newTabButton.first'],
+			executed: ['test.newTabButton.second', 'test.newTabButton.second'],
+			menuOpen: false,
+		});
+	});
+
+	test('the new tab button menu describes the recent entry and highlights it only while the pointer is over the button', async () => {
+		instantiationService.stub(IMenuService, new class extends TestMenuService {
+			override createMenu(): IMenu {
+				return {
+					onDidChange: Event.None,
+					dispose: () => { },
+					getActions: options => [['navigation', ['test.newTabButton.first', 'test.newTabButton.second'].map(id =>
+						instantiationService.createInstance(MenuItemAction, { id, title: id }, undefined, options, undefined, undefined))]],
+				};
+			}
+		}());
+		// Renders the menu like the context menu service does: in a context view with the menu's class names
+		const menuStore = disposables.add(new DisposableStore());
+		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+			override readonly onDidShowContextMenu = Event.None;
+			override readonly onDidHideContextMenu = Event.None;
+			override showContextMenu(delegate: IContextMenuDelegate): void {
+				const contextView = $(`.context-view.${delegate.getMenuClassName!().split(' ').join('.')}`);
+				mainWindow.document.body.appendChild(contextView);
+				menuStore.add(toDisposable(() => contextView.remove()));
+				menuStore.add(new Menu(contextView, delegate.getActions(), {}, defaultMenuStyles));
+			}
+		}());
+		instantiationService.get(IStorageService).store('editor.addTabMenu.recentEntry.test.newTabButton.decorated', 'test.newTabButton.second', StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		const button = disposables.add(instantiationService.createInstance(EditorAddTabControl, container, MenuId.for('test.newTabButton.decorated'), instantiationService.get(IContextKeyService), { recentFirst: true, defaultEntry: true }));
+		// The button can have no size in a headless browser
+		Object.assign(button.element.style, { display: 'inline-block', width: '20px', height: '20px' });
+		// The button can move once the menu shows, so its center is read for each event
+		const onButton = () => {
+			const bounds = button.element.getBoundingClientRect();
+			return { clientX: bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2 };
+		};
+		button.element.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true, ...onButton() }));
+		await timeout(0);
+		const menu = () => [...mainWindow.document.querySelectorAll('.context-view.editor-add-tab-menu .action-item')].map(item => (item.classList.contains('focused') ? '* ' : '') + item.textContent);
+		const onOpen = menu();
+		const { clientX, clientY } = onButton();
+		mainWindow.document.body.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, clientX: clientX + 300, clientY: clientY + 300 }));
+		const pointerElsewhere = menu();
+		button.element.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, ...onButton() }));
+		const pointerOnButton = menu();
+		menuStore.clear();
+
+		assert.deepStrictEqual({ onOpen, pointerElsewhere, pointerOnButton }, {
+			onOpen: ['* test.newTabButton.secondrecently used', 'test.newTabButton.first'],
+			pointerElsewhere: ['test.newTabButton.secondrecently used', 'test.newTabButton.first'],
+			pointerOnButton: ['* test.newTabButton.secondrecently used', 'test.newTabButton.first'],
+		});
+	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

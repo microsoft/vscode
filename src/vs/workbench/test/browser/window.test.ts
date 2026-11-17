@@ -6,8 +6,10 @@
 import assert from 'assert';
 import { setZoomFactor, setZoomLevel } from '../../../base/browser/browser.js';
 import { IRegisteredCodeWindow, trackAttributes } from '../../../base/browser/dom.js';
+import { IPixelRatioMonitor } from '../../../base/browser/pixelRatio.js';
 import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { timeout } from '../../../base/common/async.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
@@ -21,8 +23,8 @@ suite('Window', () => {
 
 	class TestWindow extends BaseWindow {
 
-		constructor(window: CodeWindow, dom: { getWindowsCount: () => number; getWindows: () => Iterable<IRegisteredCodeWindow> }, container = document.createElement('div')) {
-			super(window, dom, new TestHostService(), TestEnvironmentService, new TestContextMenuService(), new class extends TestLayoutService {
+		constructor(window: CodeWindow, dom: { getWindowsCount: () => number; getWindows: () => Iterable<IRegisteredCodeWindow> }, container = document.createElement('div'), pixelRatio: IPixelRatioMonitor = { value: 1, onDidChange: Event.None }) {
+			super(window, { ...dom, getPixelRatioMonitor: () => pixelRatio }, new TestHostService(), TestEnvironmentService, new TestContextMenuService(), new class extends TestLayoutService {
 				override getContainer(): HTMLElement { return container; }
 			}());
 		}
@@ -81,6 +83,57 @@ suite('Window', () => {
 			afterSourceZoom: ['1.2', '0.5'],
 			afterAuxiliaryZoom: ['1.2', '0.8'],
 			afterDispose: ['1.2', '0.8'],
+		});
+	});
+
+	test('keeps device pixel ratios local and updates them when displays change', async () => {
+		class PixelRatioTestWindow extends TestWindow {
+			protected override enableMultiWindowAwareTimeout(): void { }
+		}
+		const sourceWindow = new class extends mock<CodeWindow>() {
+			override readonly vscodeWindowId = 803;
+		}();
+		const auxiliaryWindow = new class extends mock<CodeWindow>() {
+			override readonly vscodeWindowId = 804;
+		}();
+		const sourceDocument = document.createElement('div');
+		const auxiliaryDocument = document.createElement('div');
+		const sourceContainer = sourceDocument.appendChild(document.createElement('div'));
+		const auxiliaryContainer = auxiliaryDocument.appendChild(document.createElement('div'));
+		document.body.append(sourceDocument, auxiliaryDocument);
+		store.add(toDisposable(() => {
+			sourceDocument.remove();
+			auxiliaryDocument.remove();
+		}));
+		const sourceChange = store.add(new Emitter<number>());
+		const auxiliaryChange = store.add(new Emitter<number>());
+		const sourceRatio = { value: 2, onDidChange: sourceChange.event };
+		const auxiliaryRatio = { value: 1.25, onDidChange: auxiliaryChange.event };
+		const dom = { getWindowsCount: () => 2, getWindows: () => [] };
+		store.add(new PixelRatioTestWindow(sourceWindow, dom, sourceContainer, sourceRatio));
+		const auxiliary = store.add(new PixelRatioTestWindow(auxiliaryWindow, dom, auxiliaryContainer, auxiliaryRatio));
+		store.add(trackAttributes(sourceDocument, auxiliaryDocument));
+		const ratios = () => [sourceContainer, auxiliaryContainer].map(container => mainWindow.getComputedStyle(container).getPropertyValue('--window-device-pixel-ratio'));
+		const initial = ratios();
+
+		sourceRatio.value = 2.5;
+		sourceChange.fire(sourceRatio.value);
+		sourceDocument.style.setProperty('--window-device-pixel-ratio', '2.5');
+		await timeout(0);
+		const afterSourceChange = ratios();
+
+		auxiliaryRatio.value = 1.5;
+		auxiliaryChange.fire(auxiliaryRatio.value);
+		const afterAuxiliaryChange = ratios();
+		auxiliary.dispose();
+		auxiliaryRatio.value = 3;
+		auxiliaryChange.fire(auxiliaryRatio.value);
+
+		assert.deepStrictEqual({ initial, afterSourceChange, afterAuxiliaryChange, afterDispose: ratios() }, {
+			initial: ['2', '1.25'],
+			afterSourceChange: ['2.5', '1.25'],
+			afterAuxiliaryChange: ['2.5', '1.5'],
+			afterDispose: ['2.5', '1.5'],
 		});
 	});
 

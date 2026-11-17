@@ -44,6 +44,21 @@ suite('Radio', () => {
 		await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => targetWindow.requestAnimationFrame(() => resolve())));
 	}
 
+	test('an optional empty selection stays keyboard reachable and selecting the first option emits a change', () => {
+		const radio = createRadio({ className: 'segmented', allowNoSelection: true, arrowKeyBehavior: 'focus', items: [{ text: 'Low' }, { text: 'High' }] });
+		const selected: number[] = [];
+		disposables.add(radio.onDidSelect(index => selected.push(index)));
+		radio.focusActiveItem();
+		const initial = radio.optionElements.map(element => ({ checked: element.getAttribute('aria-checked'), tabIndex: element.tabIndex, focused: element === mainWindow.document.activeElement }));
+		radio.optionElements[0].click();
+		assert.deepStrictEqual({
+			initial, selected, checked: radio.optionElements.map(element => element.getAttribute('aria-checked')),
+		}, {
+			initial: [{ checked: 'false', tabIndex: 0, focused: true }, { checked: 'false', tabIndex: -1, focused: false }],
+			selected: [0], checked: ['true', 'false'],
+		});
+	});
+
 	for (const highContrast of [false, true]) {
 		test(`segmented controls share rounded rectangles and a neutral selected fill${highContrast ? ' in high contrast' : ''}`, async () => {
 			const radio = createRadio({ className: 'segmented', items: [{ text: 'Low' }, { text: 'Medium', isActive: true }, { text: 'High' }] });

@@ -16,6 +16,7 @@ import { ActionType } from '../../../../../../platform/agentHost/common/state/pr
 import { SessionConfigPropertySchema, SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agent.js';
+import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
@@ -75,7 +76,7 @@ function parseSessionSettingsUri(uri: URI): ISessionSettingsContext | undefined 
 /**
  * Property filter: only session-mutable, non-read-only properties are
  * editable. Mirrors the sessions-window filter in
- * `vs/sessions/contrib/providers/agentHost/browser/agentSessionSettingsFileSystemProvider.ts`
+ * `vs/workbench/contrib/sessions/providers/agentHost/browser/agentSessionSettingsFileSystemProvider.ts`
  * - kept as a separate small local definition rather than a shared export
  * since it encodes session-config-specific business rules, not target-neutral
  * editor infrastructure.
@@ -194,7 +195,7 @@ export class AgentSessionSettingsFileSystemProvider extends AbstractAgentHostCon
 		if (this._getProvider(ctx) === undefined) {
 			return createFileSystemProviderError(localize('chatAgentSessionSettings.pending', "Session settings are not available yet."), FileSystemProviderErrorCode.Unavailable);
 		}
-		return createFileSystemProviderError(localize('chatAgentSessionSettings.disabledByPolicy', "Session settings are unavailable because this agent is disabled by your organization's policy."), FileSystemProviderErrorCode.NoPermissions);
+		return createFileSystemProviderError(localize('chatAgentSessionSettings.disabledByPolicy', "Session settings are unavailable because this agent is disabled by your organization."), FileSystemProviderErrorCode.NoPermissions);
 	}
 
 	private _getProvider(ctx: ISessionSettingsContext): string | undefined {
@@ -249,12 +250,14 @@ export class AgentSessionSettingsFileSystemProvider extends AbstractAgentHostCon
 				if (Object.hasOwn(values, key)) {
 					nextValues[key] = normalizeSessionConfigValue(key, values[key], policyRestricted);
 				}
-			} else if (key !== 'availableApprovalModes' && key !== 'effectiveApprovalMode' && Object.hasOwn(current.values, key)) {
+			} else if (key !== 'availableApprovalModes' && key !== 'effectiveApprovalMode' && key !== agentModelConfigurationReportKey && Object.hasOwn(current.values, key)) {
 				nextValues[key] = current.values[key];
 			}
 		}
 
-		if (equals(nextValues, current.values)) {
+		const currentValues = { ...current.values };
+		delete currentValues[agentModelConfigurationReportKey];
+		if (equals(nextValues, currentValues)) {
 			return;
 		}
 

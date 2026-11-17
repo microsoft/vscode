@@ -50,7 +50,7 @@ function getThinkingSignature(directModel: ILocalModelDirectModelConfig | undefi
 }
 
 /** Everything the page shows except progress: a change re-renders it, progress alone updates it in place. */
-function getCardSignature({ status, family, readiness, directModel, pendingStops }: ILocalModelDetails): string {
+function getCardSignature({ status, family, readiness, directModel, pendingStops, autoModelFusion }: ILocalModelDetails): string {
 	const { usage: _usage, operation, ...rest } = family;
 	return JSON.stringify([
 		readiness,
@@ -59,6 +59,7 @@ function getCardSignature({ status, family, readiness, directModel, pendingStops
 		status.runtime,
 		status.active && { ...status.active, drain: !!status.active.drain },
 		status.useInAuto,
+		!!autoModelFusion,
 		status.device,
 		getThinkingSignature(directModel),
 		[operation?.id, getLocalModelServerStopId(family.familyId)].map(id => !!id && !!pendingStops?.has(id)),
@@ -794,10 +795,16 @@ export class LocalModelCard extends DisposableStore {
 		const { status, family } = details;
 		const active = status.active?.familyId === family.familyId ? status.active : undefined;
 		const tooSlow = active?.autoEligible === false;
-		const label = localize('localModel.useInAuto', "Use in Auto");
-		const description = tooSlow
-			? localize('localModel.useInAuto.tooSlow', "{0} runs on this device but is too slow for Auto. You can still select it directly.", family.displayName)
-			: localize('localModel.useInAuto.description', "Let Auto route turns to this on-device model, with cloud fallback.");
+		const label = details.autoModelFusion
+			? localize('localModel.useInFusion', "Use in Copilot Fusion")
+			: localize('localModel.useInAuto', "Use in Auto");
+		const description = details.autoModelFusion
+			? tooSlow
+				? localize('localModel.useInFusion.tooSlow', "{0} runs on this device but is too slow for Copilot Fusion. You can still select it directly.", family.displayName)
+				: localize('localModel.useInFusion.description', "Let Copilot Fusion route turns to this on-device model, with cloud fallback.")
+			: tooSlow
+				? localize('localModel.useInAuto.tooSlow', "{0} runs on this device but is too slow for Auto. You can still select it directly.", family.displayName)
+				: localize('localModel.useInAuto.description', "Let Auto route turns to this on-device model, with cloud fallback.");
 		const section = this._section();
 		const row = dom.append(section, dom.$('.chat-local-model-card-setting'));
 		const labelId = `chat-local-model-card-auto-${generateUuid()}`;

@@ -153,6 +153,35 @@ suite('SpotlightPresentation', () => {
 		assert.strictEqual((await result).outcome, OnboardingOutcome.Completed);
 	});
 
+	for (const choice of ['primary', 'endTour'] as const) {
+		test(`an advancing primary action completes the last step, and a custom End Tour label skips it (${choice})`, async () => {
+			const container = createContainer();
+			const contextKeys = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeys));
+			createTarget(container, 'test.upgrade');
+			let actions = 0;
+			let visibleButtons: (string | null)[] = [];
+			const result = await presentation.run(createScenario('test.upgrade', {
+				id: 'upgrade', targetId: 'test.upgrade', title: 'Upgrade', description: 'Get more requests.',
+				primaryAction: { label: 'See Plans', run: () => { actions++; }, advance: true },
+				endTourLabel: 'Later',
+			}), {
+				targetWindow: mainWindow, onAbort: Event.None,
+				onDidShow: () => {
+					const buttons = Array.from(container.querySelectorAll<HTMLElement>('.monaco-button'));
+					visibleButtons = buttons.filter(button => button.style.display !== 'none').map(button => button.textContent);
+					buttons[choice === 'primary' ? 2 : 0].click();
+				},
+			});
+			assert.deepStrictEqual({ actions, visibleButtons, outcome: result.outcome, dismissReason: result.dismissReason }, {
+				actions: choice === 'primary' ? 1 : 0,
+				visibleButtons: ['Later', 'See Plans'],
+				outcome: choice === 'primary' ? OnboardingOutcome.Completed : OnboardingOutcome.Skipped,
+				dismissReason: choice === 'primary' ? OnboardingDismissReason.Completed : OnboardingDismissReason.SkipButton,
+			});
+		});
+	}
+
 	for (const exit of ['back', 'endTour', 'abort', 'replace'] as const) {
 		test(`cancels a pending primary action on ${exit} and ignores its late result`, async () => {
 			const container = createContainer();
@@ -906,11 +935,13 @@ suite('SpotlightPresentation', () => {
 				createTarget(container, 'test.spotlight.collapsedModel', { open: () => { modelOpened++; } });
 				const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService));
 				const buttons: { readonly hidden: boolean; readonly label: string | null }[] = [];
+				const titles: (string | null)[] = [];
 				const result = await presentation.run(createScenario('test.spotlight.optionalSelection', {
 					id: 'workspace',
 					targetId,
 					title: 'Workspace',
 					description: 'Choose a workspace or continue',
+					selectedContent: { title: 'Selected workspace', description: 'Switch workspaces' },
 					openTarget: 'ifUnselected',
 					allowTargetInteraction: true,
 					advanceOnTargetSelection: true,
@@ -927,6 +958,7 @@ suite('SpotlightPresentation', () => {
 					onDidShow: () => {
 						const next = container.getElementsByClassName('monaco-button')[2] as HTMLElement;
 						buttons.push({ hidden: next.style.display === 'none', label: next.textContent });
+						titles.push(container.getElementsByClassName('spotlight-callout-title')[0].textContent);
 						const isWorkspaceStep = buttons.length === 1;
 						disposables.add(disposableTimeout(() => {
 							if (isWorkspaceStep && action === 'select') {
@@ -937,10 +969,11 @@ suite('SpotlightPresentation', () => {
 						}, 0));
 					},
 				});
-				assert.deepStrictEqual({ opened, modelOpened, buttons, selectionListenerRetained: selected.hasListeners(), result }, {
+				assert.deepStrictEqual({ opened, modelOpened, buttons, titles, selectionListenerRetained: selected.hasListeners(), result }, {
 					opened: preselected ? 0 : 1,
 					modelOpened: 0,
 					buttons: [{ hidden: false, label: 'Next' }, { hidden: false, label: 'Done' }],
+					titles: [preselected ? 'Selected workspace' : 'Workspace', 'Model'],
 					selectionListenerRetained: false,
 					result: {
 						outcome: OnboardingOutcome.Completed,
@@ -952,6 +985,37 @@ suite('SpotlightPresentation', () => {
 				});
 			});
 		}
+	}
+
+	for (const runAsSequenceStep of [false, true]) {
+		test(`skips a step whose target already has a selection (runAsSequenceStep: ${runAsSequenceStep})`, async () => {
+			const container = createContainer();
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService));
+			createTarget(container, 'test.spotlight.preselected', { hasSelection: () => true });
+			createTarget(container, 'test.spotlight.unselected', { hasSelection: () => false });
+			const step = (id: string): ISpotlightStep => ({ id, targetId: `test.spotlight.${id}`, title: id, description: id, skipIfSelected: true });
+			const shown: (string | null)[] = [];
+			const onDidShow = () => {
+				shown.push(container.getElementsByClassName('spotlight-callout-title')[0].textContent);
+				(container.getElementsByClassName('monaco-button')[2] as HTMLElement).click();
+			};
+			const results: (string | number)[] = [];
+			if (runAsSequenceStep) {
+				for (const id of ['preselected', 'unselected']) {
+					results.push((await presentation.runStep({ id, kind: SPOTLIGHT_PRESENTATION_KIND, payload: step(id) }, {
+						targetWindow: mainWindow, onAbort: Event.None, onDidShow,
+						cancellationToken: CancellationToken.None, stepIndex: 0, visualStepIndex: 0, visualStepCount: 1, canGoBack: false, isLastVisualStep: true,
+					})).action);
+				}
+			} else {
+				results.push((await presentation.run(createScenario('test.spotlight.skipIfSelected', step('preselected'), step('unselected')), { targetWindow: mainWindow, onAbort: Event.None, onDidShow })).lastStepIndex);
+			}
+			assert.deepStrictEqual({ shown, results }, {
+				shown: ['unselected'],
+				results: runAsSequenceStep ? ['skipStep', 'next'] : [1],
+			});
+		});
 	}
 
 	for (const accepted of [true, false]) {
@@ -1039,6 +1103,31 @@ suite('SpotlightPresentation', () => {
 			stepCount: 1,
 		});
 	});
+
+	test('closes an opened target before a step for another element and when the tour ends', () => runWithFakedTimers({}, async () => {
+		const container = createContainer();
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeyService));
+		const shared = createTarget(container, 'test.spotlight.closeShared');
+		const other = createTarget(container, 'test.spotlight.closeOther');
+		const log: string[] = [];
+		const provide = (label: string, element: HTMLElement) => disposables.add(registerOnboardingTargetProvider(`test.spotlight.close.${label}`, () => ({
+			element,
+			open: () => {
+				log.push(`open ${label}`);
+				element.click();
+			},
+			close: () => log.push(`close ${label}${container.querySelector('.spotlight-overlay') ? '' : ' after the overlay'}`),
+		})));
+		provide('first', shared);
+		provide('second', shared);
+		provide('third', other);
+		const step = (label: string): ISpotlightStep => ({ id: label, targetId: `test.spotlight.close.${label}`, title: label, description: label, openTarget: true, advanceOnTargetClick: true });
+
+		await presentation.run(createScenario('test.spotlight.close', step('first'), step('second'), step('third')), { targetWindow: mainWindow, onAbort: Event.None });
+
+		assert.deepStrictEqual(log, ['open first', 'open second', 'close second', 'open third', 'close third']);
+	}));
 
 	test('does not show a step after aborting during variation resolution', async () => {
 		const container = createContainer();

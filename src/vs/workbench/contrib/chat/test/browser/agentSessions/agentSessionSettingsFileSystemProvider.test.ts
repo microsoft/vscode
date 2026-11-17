@@ -6,8 +6,8 @@
 import assert from 'assert';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, IReference } from '../../../../../../base/common/lifecycle.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { Disposable, DisposableStore, IReference } from '../../../../../../base/common/lifecycle.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
@@ -18,10 +18,12 @@ import { Registry } from '../../../../../../platform/registry/common/platform.js
 import { NullLogService, ILogService } from '../../../../../../platform/log/common/log.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../../../../../platform/files/common/files.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -194,7 +196,7 @@ suite('AgentSessionSettingsFileSystemProvider (editor-window per-session adapter
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createConnectionsService(agentHostService: IAgentHostService): AgentHostConnectionsService {
-		return store.add(new AgentHostConnectionsService(agentHostService, new NullRemoteAgentHostService(), new TestPathService(), new NullLogService()));
+		return store.add(new AgentHostConnectionsService(agentHostService, new NullRemoteAgentHostService(), new TestPathService(), upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None })));
 	}
 
 	function createHarness(initialState?: SessionState | Error, configurationService: IConfigurationService = new TestConfigurationService(), backendSession = BACKEND_SESSION) {
@@ -271,7 +273,8 @@ suite('AgentSessionSettingsFileSystemProvider (editor-window per-session adapter
 			mode: { type: 'string', title: 'Mode', sessionMutable: true, enum: ['a', 'b'] },
 			isolation: { type: 'string', title: 'Isolation', enum: ['worktree'] }, // non-mutable, must be preserved
 			branch: { type: 'string', title: 'Branch', sessionMutable: true, readOnly: true, enum: ['main'] }, // readOnly, must be preserved
-		}, { autoApprove: 'default', mode: 'a', isolation: 'worktree', branch: 'main' }));
+			[agentModelConfigurationReportKey]: { type: 'object', title: 'Runtime model configuration', readOnly: true },
+		}, { autoApprove: 'default', mode: 'a', isolation: 'worktree', branch: 'main', [agentModelConfigurationReportKey]: { 'custom-chat:/one': { models: {} } } }));
 
 		// Omit `mode` entirely — it should be cleared, not defaulted.
 		await fs.writeFile(uri, VSBuffer.fromString('{ "autoApprove": "autoApprove" }\n').buffer, { create: false, overwrite: true, unlock: false, atomic: false });
@@ -280,6 +283,15 @@ suite('AgentSessionSettingsFileSystemProvider (editor-window per-session adapter
 		const action = agentHostService.dispatchedActions[0].action as { config: Record<string, unknown> };
 		assert.deepStrictEqual(action.config, { autoApprove: 'autoApprove', isolation: 'worktree', branch: 'main' });
 		assert.strictEqual(Object.hasOwn(action.config, 'mode'), false);
+	});
+
+	test('writeFile does not dispatch unchanged settings when a host model report is present', async () => {
+		const { fs, uri, agentHostService } = createHarness(makeSessionState({
+			autoApprove: { type: 'string', title: 'Auto Approve', sessionMutable: true, enum: ['default', 'autoApprove'] },
+			[agentModelConfigurationReportKey]: { type: 'object', title: 'Runtime model configuration', readOnly: true },
+		}, { autoApprove: 'default', [agentModelConfigurationReportKey]: { 'custom-chat:/one': { models: {} } } }));
+		await fs.writeFile(uri, VSBuffer.fromString('{ "autoApprove": "default" }\n').buffer, { create: false, overwrite: true, unlock: false, atomic: false });
+		assert.deepStrictEqual(agentHostService.dispatchedActions, []);
 	});
 
 	test('writeFile clamps autoApprove to default when org policy disables global auto-approve', async () => {

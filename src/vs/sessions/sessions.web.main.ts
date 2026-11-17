@@ -109,8 +109,6 @@ import { WorkbenchMcpGalleryManifestService } from '../workbench/services/mcp/br
 import { UserDataSyncResourceProviderService } from '../platform/userDataSync/common/userDataSyncResourceProvider.js';
 import { IRemoteAgentHostService } from '../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentsWindowRemoteAgentHostService } from '../platform/agentHost/browser/remoteAgentHostServiceImpl.js';
-import { IRemoteAgentHostLocationPreferenceService } from '../platform/agentHost/common/remoteAgentHostLocationPreference.js';
-import { RemoteAgentHostLocationPreferenceService } from '../platform/agentHost/browser/remoteAgentHostLocationPreferenceService.js';
 import { ISSHRemoteAgentHostService } from '../platform/agentHost/common/sshRemoteAgentHost.js';
 import { NullSSHRemoteAgentHostService } from '../platform/agentHost/browser/nullSshRemoteAgentHostService.js';
 import { IWSLRemoteAgentHostService } from '../platform/agentHost/common/wslRemoteAgentHost.js';
@@ -139,7 +137,6 @@ registerSingleton(IWebContentExtractorService, NullWebContentExtractorService, I
 registerSingleton(ISharedWebContentExtractorService, NullSharedWebContentExtractorService, InstantiationType.Delayed);
 registerSingleton(IMcpGalleryManifestService, WorkbenchMcpGalleryManifestService, InstantiationType.Delayed);
 registerSingleton(IRemoteAgentHostService, AgentsWindowRemoteAgentHostService, InstantiationType.Delayed);
-registerSingleton(IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreferenceService, InstantiationType.Delayed);
 registerSingleton(ISSHRemoteAgentHostService, NullSSHRemoteAgentHostService, InstantiationType.Delayed);
 registerSingleton(IWSLRemoteAgentHostService, NullWSLRemoteAgentHostService, InstantiationType.Delayed);
 registerSingleton(IAgentHostService, EditorRemoteAgentHostServiceClient, InstantiationType.Delayed);
@@ -181,8 +178,8 @@ import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.
 import './contrib/providers/agentHost/browser/agentHostSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSessionBranchActions.js';
 import './contrib/providers/agentHost/browser/agentMergeActions.js';
-import './contrib/providers/agentHost/browser/agentHostSkillButtons.js';
-import './contrib/providers/agentHost/browser/openSubagentChat.js';
+import './contrib/providers/agentHost/browser/agentHostSkillButtons.contribution.js';
+import './contrib/providers/agentHost/browser/openSubagentChat.contribution.js';
 
 // Host filter dropdown in the titlebar (scopes the sessions list to a host)
 import './contrib/providers/remoteAgentHost/browser/hostFilter.contribution.js';
@@ -192,13 +189,13 @@ import './contrib/providers/remoteAgentHost/browser/hostFilter.contribution.js';
 // build. The desktop mode + model pickers are gated off on phone via
 // `when: IsPhoneLayoutContext.negate()`, so the two registrations are
 // mutually exclusive at the action-menu level.
-import './contrib/providers/agentHost/browser/mobile/mobileChatInputConfigPicker.js';
+import './contrib/providers/agentHost/browser/mobile/mobileChatInputConfigPicker.contribution.js';
 
 // Phone-only presenter for the workbench `ChatInputPart`'s Mode + Model
 // pickers. Replaces the desktop popups with the same bottom-sheet
 // experience used by the empty new-chat input, applied to the
 // already-opened chat input. Web-only for the same reason as above.
-import './contrib/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.js';
+import './contrib/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.contribution.js';
 
 // TODO: support agent feedback in web
 import './contrib/agentFeedback/browser/nullAgentFeedbackService.contribution.js';

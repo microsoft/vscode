@@ -48,6 +48,10 @@ export class WorktreeAnnouncementContribution extends Disposable implements IAge
 		return hydrated;
 	}
 
+	onDidHandOverWorktree(_session: string, chat: string): void {
+		this._context.memento(announcementEmittedKey, chat).set(true, undefined);
+	}
+
 	async onOutgoingTurn(turn: IOutgoingTurn): Promise<undefined> {
 		if (this._chatOwnership.isDefaultChat(turn.session, turn.chat)) {
 			return undefined;

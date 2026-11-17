@@ -69,8 +69,6 @@ import { AdoCodeSearchService, IAdoCodeSearchService } from '../../../platform/r
 import { GithubCodeSearchService, IGithubCodeSearchService } from '../../../platform/remoteCodeSearch/common/githubCodeSearchService';
 import { ICodeSearchAuthenticationService } from '../../../platform/remoteCodeSearch/node/codeSearchRepoAuth';
 import { VsCodeCodeSearchAuthenticationService } from '../../../platform/remoteCodeSearch/vscode-node/codeSearchRepoAuth';
-import { IDocsSearchClient } from '../../../platform/remoteSearch/common/codeOrDocsSearchClient';
-import { DocsSearchClient } from '../../../platform/remoteSearch/node/codeOrDocsSearchClientImpl';
 import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { IScopeSelector } from '../../../platform/scopeSelection/common/scopeSelection';
 import { ScopeSelectorImpl } from '../../../platform/scopeSelection/vscode-node/scopeSelectionImpl';
@@ -112,7 +110,6 @@ import { IUserFeedbackService, UserFeedbackService } from '../../conversation/vs
 import { ConversationStore, IConversationStore } from '../../conversationStore/node/conversationStore';
 import { SimilarFilesContextService } from '../../inlineEdits/vscode-node/similarFilesContext';
 import { IIntentService, IntentService } from '../../intents/node/intentService';
-import { INewWorkspacePreviewContentManager, NewWorkspacePreviewContentManagerImpl } from '../../intents/node/newIntent';
 import { LanguageContextProviderService } from '../../languageContextProvider/vscode-node/languageContextProviderService';
 import { ILinkifyService, LinkifyService } from '../../linkify/common/linkifyService';
 import { DebugCommandToConfigConverter, IDebugCommandToConfigConverter } from '../../onboardDebug/node/commandToConfigConverter';
@@ -226,7 +223,6 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IWorkspaceFileIndex, new SyncDescriptor(WorkspaceFileIndex));
 	builder.define(IChunkingEndpointClient, new SyncDescriptor(ChunkingEndpointClientImpl));
 	builder.define(ICommandService, new SyncDescriptor(CommandServiceImpl));
-	builder.define(IDocsSearchClient, new SyncDescriptor(DocsSearchClient));
 	builder.define(ISearchService, new SyncDescriptor(SearchServiceImpl));
 	builder.define(ITestDepsResolver, new SyncDescriptor(TestDepsResolver));
 	builder.define(ISetupTestsDetector, new SyncDescriptor(SetupTestsDetector));
@@ -252,7 +248,6 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IGithubApiFetcherService, new SyncDescriptor(GithubApiFetcherService));
 	builder.define(IAdoCodeSearchService, new SyncDescriptor(AdoCodeSearchService));
 	builder.define(ISettingsEditorSearchService, new SyncDescriptor(SettingsEditorSearchServiceImpl));
-	builder.define(INewWorkspacePreviewContentManager, new SyncDescriptor(NewWorkspacePreviewContentManagerImpl));
 	builder.define(IPromptVariablesService, new SyncDescriptor(PromptVariablesServiceImpl));
 	builder.define(IPromptWorkspaceLabels, new SyncDescriptor(PromptWorkspaceLabels));
 	builder.define(IUserFeedbackService, new SyncDescriptor(UserFeedbackService));

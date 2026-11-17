@@ -12,6 +12,7 @@ import { isAhpChatChannel, isSessionStatusRead } from '../../../common/state/ses
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 import { IAgentHostPeerChatPersistenceService } from '../../agentHostPeerChatStore.js';
+import { IAgentHostProviderService } from '../../agentHostProviderService.js';
 import { IAgentHostArchivedChatWorkspaceService } from './archivedChatWorkspaceService.js';
 
 /**
@@ -30,6 +31,7 @@ export class ChatArchiveContribution extends Disposable implements IAgentHostCha
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		@IAgentHostPeerChatPersistenceService private readonly _peerChatPersistenceService: IAgentHostPeerChatPersistenceService,
 		@IAgentHostArchivedChatWorkspaceService private readonly _archivedChatWorkspace: IAgentHostArchivedChatWorkspaceService,
+		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -44,7 +46,13 @@ export class ChatArchiveContribution extends Disposable implements IAgentHostCha
 		}
 		const session = URI.parse(dispatched.session);
 		const chat = URI.parse(dispatched.channel);
-		if (dispatched.action.isArchived && !isSessionStatusRead(this._stateManager.getChatState(dispatched.channel)?.status)) {
+		if (dispatched.action.isArchived) {
+			this._providerService.getProviderForChat(session, chat)?.clearCanvasContinuity?.(session, chat);
+		}
+		// A chat whose history is not materialized carries its status on the session's chat summary.
+		const status = this._stateManager.getChatState(dispatched.channel)?.status
+			?? this._stateManager.getSessionState(dispatched.session)?.chats.find(chat => chat.resource === dispatched.channel)?.status;
+		if (dispatched.action.isArchived && !isSessionStatusRead(status)) {
 			this._stateManager.dispatchServerAction(dispatched.channel, { type: ActionType.ChatIsReadChanged, isRead: true });
 		}
 		void this._peerChatPersistenceService.setArchived(session, chat, dispatched.action.isArchived).catch(error => {

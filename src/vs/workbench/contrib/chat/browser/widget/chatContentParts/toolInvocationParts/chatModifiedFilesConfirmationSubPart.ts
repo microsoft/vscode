@@ -17,7 +17,6 @@ import { IContextKeyService } from '../../../../../../../platform/contextkey/com
 import { IEditorOptions } from '../../../../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
-import { IMarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatModifiedFilesConfirmationData, IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
@@ -25,6 +24,7 @@ import { ModifiedFileEntryState } from '../../../../common/editing/chatEditingSe
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../../chat.js';
 import { IChatToolRiskAssessmentService } from '../../../tools/chatToolRiskAssessmentService.js';
+import { ChatContentMarkdownRenderer } from '../../chatContentMarkdownRenderer.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { renderFileWidgets } from '../chatInlineAnchorWidget.js';
@@ -32,8 +32,9 @@ import { IChatMarkdownAnchorService } from '../chatMarkdownAnchorService.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from '../chatReferencesContentPart.js';
 import { IUntypedEditorInput } from '../../../../../../common/editor.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
-import { AbstractToolConfirmationSubPart } from './abstractToolConfirmationSubPart.js';
+import { AbstractToolConfirmationSubPart, buildCustomOptionButtons } from './abstractToolConfirmationSubPart.js';
 import { createApprovalReasonBadge } from './toolRiskBadgeHelper.js';
+import { renderToolConfirmationFeedback } from './toolConfirmationFeedback.js';
 
 type ModifiedFileConfirmationEntry = IChatModifiedFilesConfirmationData['modifiedFiles'][number];
 
@@ -96,7 +97,6 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
-		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -122,10 +122,15 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 				title: this.getTitle(),
 				icon: tool?.icon && hasKey(tool.icon, { id: true }) ? tool.icon : Codicon.tools,
 				subtitle: typeof toolInvocation.originMessage === 'string' ? toolInvocation.originMessage : toolInvocation.originMessage?.value,
-				buttons: this.createButtons(data.options),
-				message: this.createWidgetContentElement(state.confirmationMessages.message, data),
+				buttons: state.confirmationMessages.customOptions?.length
+					? buildCustomOptionButtons(state.confirmationMessages.customOptions, option => () => {
+						this.confirmWith(toolInvocation, { type: ToolConfirmKind.UserAction, selectedButton: option.id, selectedButtonKind: option.kind });
+					})
+					: this.createButtons(data.options),
+				message: this.createWidgetContentElement(state.confirmationMessages.message, state.confirmationMessages.disclaimer, data),
 				footerBanner: createApprovalReasonBadge(this._store, this.instantiationService, state.confirmationMessages.approvalReason)?.domNode
 					?? this.createRiskBadgeDomNode(state.parameters),
+				additionalContent: state.confirmationMessages.feedback ? renderToolConfirmationFeedback(this._store, toolInvocation, state.confirmationMessages.feedback) : undefined,
 			}
 		));
 
@@ -158,16 +163,22 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 		];
 	}
 
-	private createWidgetContentElement(message: string | IMarkdownString | undefined, data: IChatModifiedFilesConfirmationData): HTMLElement {
+	private createWidgetContentElement(message: string | IMarkdownString | undefined, disclaimer: string | IMarkdownString | undefined, data: IChatModifiedFilesConfirmationData): HTMLElement {
 		const container = dom.$('.chat-modified-files-confirmation');
+		const renderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
 
 		if (message) {
-			const renderedMessage = this._register(this.markdownRendererService.render(typeof message === 'string' ? new MarkdownString(message) : message));
+			const renderedMessage = this._register(renderer.render(typeof message === 'string' ? new MarkdownString(message) : message));
 			renderFileWidgets(renderedMessage.element, this.instantiationService, this.chatMarkdownAnchorService, this._store, {
 				...this.openedEditors.fileWidgetOptions,
 				openResource: (resource, editorOptions) => this.openModifiedFilePreview(data, resource, editorOptions),
 			});
 			container.append(renderedMessage.element);
+		}
+
+		if (disclaimer) {
+			const renderedDisclaimer = this._register(renderer.render(typeof disclaimer === 'string' ? new MarkdownString(disclaimer) : disclaimer));
+			container.append(dom.$('.disclaimer', undefined, renderedDisclaimer.element));
 		}
 
 		container.append(this.createModifiedFilesElement(data));

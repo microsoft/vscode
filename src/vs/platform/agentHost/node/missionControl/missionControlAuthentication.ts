@@ -9,6 +9,7 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import type { IMissionControlCredentialSealingRequest } from '../../common/agentService.js';
+import { sealAgentHostCredential } from '../../common/agentHostCredentialSealing.js';
 import type { AuthenticateParams } from '../../common/agent.js';
 import type { IHostEncryptionKey } from '../../common/cloudSandboxAgentHost.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -35,43 +36,11 @@ async function createHpkeCipherSuite(): Promise<CipherSuite> {
 	});
 }
 
-/** The caller authenticates the public key through MC HTTPS before crossing trusted local IPC. */
+/** The caller supplies a recipient key authenticated through MC HTTPS or a trusted direct connection. */
 export async function sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string> {
-	if (!request.token || request.token.length > 32 * 1024 || request.resource.length > 8192
-		|| (request.key.algorithm !== 'x25519-sealedbox' && request.key.algorithm !== 'hpke-x25519-hkdf-sha256-aes256gcm')
-		|| (request.key.use !== 'auth-token' && request.key.use !== 'mcp-auth-token')
-		|| (request.challenge !== undefined && !/^[0-9a-f]{32}$/.test(request.challenge))) {
-		throw new Error('Invalid Mission Control credential sealing request');
-	}
-	new URL(request.resource);
-	const publicKey = Buffer.from(request.key.public_key, 'base64');
-	const keyId = createHash('sha256').update(publicKey).digest().subarray(0, 8).toString('base64url');
-	if (publicKey.length !== 32 || publicKey.toString('base64') !== request.key.public_key || keyId !== request.key.key_id) {
-		throw new Error('Invalid Mission Control recipient key');
-	}
 	const sodium = (await import('libsodium-wrappers')).default;
 	await sodium.ready;
-	const plaintext = sodium.from_string(JSON.stringify({
-		cty: 'text', value: request.token,
-		ctx: {
-			purpose: request.key.use, resource: request.resource,
-			...(request.challenge ? { connection: { challenge: request.challenge, nonce: randomBytes(16).toString('hex'), issuedAt: Math.floor(Date.now() / 1000) } } : {}),
-		},
-	}));
-	try {
-		let ciphertext: Uint8Array;
-		if (request.key.algorithm === 'hpke-x25519-hkdf-sha256-aes256gcm') {
-			const hpke = await createHpkeCipherSuite();
-			const recipientPublicKey = await globalThis.crypto.subtle.importKey('raw', publicKey, 'X25519', true, []);
-			const sender = await hpke.createSenderContext({ recipientPublicKey });
-			ciphertext = Buffer.concat([new Uint8Array(sender.enc), new Uint8Array(await sender.seal(plaintext))]);
-		} else {
-			ciphertext = sodium.crypto_box_seal(plaintext, publicKey);
-		}
-		return `copilot-sealed.v1.${keyId}.${Buffer.from(ciphertext).toString('base64url')}`;
-	} finally {
-		sodium.memzero(plaintext);
-	}
+	return sealAgentHostCredential(request, sodium, createHpkeCipherSuite);
 }
 
 /** Process-local sealing keys; private material never crosses IPC or the relay. */
@@ -208,7 +177,7 @@ function parseMissionControlExpiration(expiration: string): number {
 	return expiresAt;
 }
 
-async function resolveMissionControlIdentity(fetcher: typeof fetch, apiOrigin: string, credential: string): Promise<{ owner: string; expiresAt?: number }> {
+export async function resolveMissionControlIdentity(fetcher: typeof fetch, apiOrigin: string, credential: string): Promise<{ owner: string; expiresAt?: number }> {
 	if (!/^[\x21-\x7e]+$/.test(credential)) {
 		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid GitHub credential encoding');
 	}
@@ -265,7 +234,6 @@ export class MissionControlAuthentication extends Disposable {
 		private readonly _fetch: typeof fetch,
 		private readonly _requireBinding: boolean,
 		private readonly _isCurrentIdentityAuthority: () => boolean = () => true,
-		private readonly _getLocalCredential?: () => string | undefined,
 	) { super(); }
 
 	beginHandshake(): void {
@@ -286,6 +254,10 @@ export class MissionControlAuthentication extends Disposable {
 
 	get resource(): string {
 		return this._apiOrigin;
+	}
+
+	get owner(): string {
+		return this._owner;
 	}
 
 	captureAuthorization(): () => void {
@@ -340,7 +312,7 @@ export class MissionControlAuthentication extends Disposable {
 		}
 		const generation = this._generation;
 		const resource = new URL(params.resource);
-		const identity = resource.origin === new URL(this._apiOrigin).origin;
+		const identity = !params.target && resource.origin === new URL(this._apiOrigin).origin;
 		if (!identity && !this.authenticated) {
 			const validation = this._identityValidation;
 			if (!validation) {
@@ -399,25 +371,6 @@ export class MissionControlAuthentication extends Disposable {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Credential does not belong to the registered owner');
 			}
 		}
-		let localCredential: string | undefined;
-		let localExpiresAt: number | undefined;
-		if (this._getLocalCredential && params.resource === this._apiOrigin) {
-			if (this._closed || generation !== this._generation || !this._isCurrentIdentityAuthority()) {
-				throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Relay authentication belongs to an expired handshake');
-			}
-			localCredential = this._getLocalCredential();
-			if (!localCredential) {
-				throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Mission Control local credential is unavailable');
-			}
-			const validated = await resolveMissionControlIdentity(this._fetch, this._apiOrigin, localCredential);
-			localExpiresAt = validated.expiresAt;
-			if (validated.owner !== this._owner) {
-				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Local credential does not belong to the registered owner');
-			}
-			if (localCredential !== this._getLocalCredential()) {
-				throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Mission Control local credential changed during authentication');
-			}
-		}
 		if (this._closed || generation !== this._generation || !this._isCurrentIdentityAuthority()) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Relay authentication belongs to an expired handshake');
 		}
@@ -426,7 +379,7 @@ export class MissionControlAuthentication extends Disposable {
 			if (attempt !== this._identityAttempt) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Relay identity authentication was superseded');
 			}
-			if ((expiresAt !== undefined && expiresAt <= Date.now()) || (localExpiresAt !== undefined && localExpiresAt <= Date.now())) {
+			if (expiresAt !== undefined && expiresAt <= Date.now()) {
 				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'GitHub credential has expired');
 			}
 			this._checkExpiration();
@@ -438,12 +391,11 @@ export class MissionControlAuthentication extends Disposable {
 		if (!identity) {
 			return { ...params, token: opened.token };
 		}
-		const deadline = localCredential ? localExpiresAt : expiresAt;
 		const { expiresIn: _expiresIn, ...validatedParams } = params;
 		return {
-			...(localCredential ? { resource: params.resource } : validatedParams),
-			token: localCredential ?? opened.token,
-			...(deadline !== undefined ? { expiresIn: (deadline - Date.now()) / 1000 } : {}),
+			...validatedParams,
+			token: opened.token,
+			...(expiresAt !== undefined ? { expiresIn: (expiresAt - Date.now()) / 1000 } : {}),
 		};
 	}
 }

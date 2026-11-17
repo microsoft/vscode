@@ -7,13 +7,16 @@ import { isObject } from '../../../../../base/common/types.js';
 
 const sandboxStateKey = 'vscode.sandboxState';
 
-/** Last successful sandbox application, with failures scoped to the client that requested the change. */
+/** Last successful sandbox application, with client-requested or host synchronization failures. */
 export interface ISessionSandboxState {
-	readonly enabled: boolean;
+	readonly enabled?: boolean;
 	readonly rejectedSelection?: boolean;
 	readonly error?: {
 		readonly clientId: string;
 		readonly clientSeq: number;
+		readonly message: string;
+	} | {
+		readonly id: string;
 		readonly message: string;
 	};
 }
@@ -52,20 +55,23 @@ function parseSandboxState(value: unknown): ISessionSandboxState | undefined {
 		return undefined;
 	}
 	const { enabled, error, rejectedSelection } = value as Record<string, unknown>;
-	if (typeof enabled !== 'boolean') {
+	if (enabled !== undefined && typeof enabled !== 'boolean') {
 		return undefined;
 	}
 	if (rejectedSelection !== undefined && typeof rejectedSelection !== 'boolean') {
 		return undefined;
 	}
 	if (error === undefined) {
-		return { enabled, ...(rejectedSelection ? { rejectedSelection } : {}) };
+		return enabled === undefined ? undefined : { enabled, ...(rejectedSelection ? { rejectedSelection } : {}) };
 	}
 	if (!isObject(error)) {
 		return undefined;
 	}
-	const { clientId, clientSeq, message } = error as Record<string, unknown>;
-	if (typeof clientId !== 'string' || typeof clientSeq !== 'number' || !Number.isSafeInteger(clientSeq) || typeof message !== 'string') {
+	const { id, clientId, clientSeq, message } = error as Record<string, unknown>;
+	if (typeof id === 'string' && id.length > 0 && typeof message === 'string' && clientId === undefined && clientSeq === undefined) {
+		return { enabled, ...(rejectedSelection ? { rejectedSelection } : {}), error: { id, message } };
+	}
+	if (id !== undefined || enabled === undefined || typeof clientId !== 'string' || typeof clientSeq !== 'number' || !Number.isSafeInteger(clientSeq) || typeof message !== 'string') {
 		return undefined;
 	}
 	return { enabled, ...(rejectedSelection ? { rejectedSelection } : {}), error: { clientId, clientSeq, message } };

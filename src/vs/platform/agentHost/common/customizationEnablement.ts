@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CustomizationEnablementKind, type CustomizationEnablement, type SkillCustomization } from './state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationType, type Customization, type CustomizationEnablement, type SkillCustomization } from './state/protocol/state.js';
 
 /**
  * Effective enablement when no explicit decision exists at any scope. It is
@@ -25,6 +25,7 @@ export type CustomizationDisabledReason =
 			readonly uri: string;
 			readonly clientId?: string;
 			readonly enablement?: readonly CustomizationEnablement[];
+			readonly _meta?: Record<string, unknown>;
 		};
 	};
 
@@ -45,6 +46,22 @@ export function isCustomizationEnabled(customization: { readonly enablement?: re
 /** Returns whether a skill should be offered for direct user invocation. */
 export function isSkillEligibleForUserInvocation(skill: SkillCustomization): boolean {
 	return skill.enabled !== false && skill.disableUserInvocation !== true;
+}
+
+/** Enumerates skills and their effective container enablement, including MCP server children. */
+export function* getSkillCustomizations(customizations: readonly Customization[]): Iterable<{ readonly skill: SkillCustomization; readonly container: Customization; readonly containerEnabled: boolean }> {
+	for (const container of customizations) {
+		const containerEnabled = container.type === CustomizationType.Directory ? container.enabled : isCustomizationEnabled(container);
+		for (const child of container.children ?? []) {
+			if (child.type === CustomizationType.Skill) {
+				yield { skill: child, container, containerEnabled };
+			} else if (child.type === CustomizationType.McpServer) {
+				for (const skill of child.children ?? []) {
+					yield { skill, container: child, containerEnabled: containerEnabled && isCustomizationEnabled(child) };
+				}
+			}
+		}
+	}
 }
 
 export interface ICustomizationScopeEnablement {
@@ -71,7 +88,7 @@ export function getCustomizationScopeEnablement(customization: { readonly enable
  * disabled. The plugin takes precedence because its child cannot take effect
  * until the plugin is enabled again.
  */
-export function getCustomizationDisabledReason(customization: { readonly enablement?: readonly CustomizationEnablement[] }, plugin?: { readonly id: string; readonly name: string; readonly uri: string; readonly clientId?: string; readonly enablement?: readonly CustomizationEnablement[] }): CustomizationDisabledReason | undefined {
+export function getCustomizationDisabledReason(customization: { readonly enablement?: readonly CustomizationEnablement[] }, plugin?: { readonly id: string; readonly name: string; readonly uri: string; readonly clientId?: string; readonly enablement?: readonly CustomizationEnablement[]; readonly _meta?: Record<string, unknown> }): CustomizationDisabledReason | undefined {
 	if (plugin && !isCustomizationEnabled(plugin)) {
 		return {
 			source: 'plugin',
@@ -81,6 +98,7 @@ export function getCustomizationDisabledReason(customization: { readonly enablem
 				uri: plugin.uri,
 				...(plugin.clientId === undefined ? undefined : { clientId: plugin.clientId }),
 				enablement: plugin.enablement,
+				...(plugin._meta === undefined ? undefined : { _meta: plugin._meta }),
 			},
 		};
 	}

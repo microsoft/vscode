@@ -7,12 +7,13 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { ensureNpmPackage, materializeNpmPackageVersion, type EnsureNpmPackageOptions } from './npmPackage.ts';
+import { getLockfileFolder, parsePackageKey, readPnpmLockfile, type PnpmLockfile } from './pnpmLock.ts';
 
 /**
  * Options for {@link prepareBuiltInCopilotRipgrepShim}. Extends the npm packing
  * options with an override for the extension lockfile used to verify natives
- * fetched for the pinned version (defaults to the repo's copy; overridable in
- * tests).
+ * fetched for the pinned version (defaults to the repo's lockfile that records
+ * `extensions/copilot`; overridable in tests).
  */
 export interface PrepareBuiltInCopilotOptions extends EnsureNpmPackageOptions {
 	extensionLockfilePath?: string;
@@ -27,6 +28,30 @@ export const copilotPlatforms = [
 	'linuxmusl-arm64', 'linuxmusl-x64',
 	'win32-arm64', 'win32-x64',
 ];
+
+/**
+ * Product values that {@link renderCopilotShimLauncher} writes into `resources/win32/bin/copilot.sh`.
+ */
+export interface CopilotShimLauncherOptions {
+	readonly commit: string;
+	readonly quality: string;
+	readonly applicationName: string;
+	readonly dataFolderName: string;
+	readonly serverDataFolderName: string;
+}
+
+/**
+ * Renders the POSIX `copilot` launcher that Windows builds ship next to `copilot.exe` in `bin/copilot-shim`, so that
+ * WSL, Git Bash, and Cygwin shells that use the Windows PATH get a `copilot` command, like `bin/code` next to `code.cmd`.
+ */
+export function renderCopilotShimLauncher(template: string, options: CopilotShimLauncherOptions): string {
+	return template
+		.replace(/@@COMMIT@@/g, () => options.commit)
+		.replace(/@@QUALITY@@/g, () => options.quality)
+		.replace(/@@APPNAME@@/g, () => options.applicationName)
+		.replace(/@@DATAFOLDER@@/g, () => options.dataFolderName)
+		.replace(/@@SERVERDATAFOLDER@@/g, () => options.serverDataFolderName);
+}
 
 export function getCopilotRuntimeVersion(nodeModulesRoot = 'node_modules'): string {
 	const packageJsonPath = path.join(nodeModulesRoot, '@github', 'copilot-sdk', 'package.json');
@@ -229,9 +254,11 @@ export function ensureCopilotPlatformPackage(platform: string, arch: string, nod
  * Materializes target-platform Copilot CLI SDK files directly inside the built-in copilot extension.
  *
  * This is used when copilot is shipped as a built-in extension so startup does
- * not need to create the shim at runtime. The Copilot VSIX is built once on the
- * Linux x64 host, so product packaging also restores target-platform SDK
- * natives from the selected @github/copilot-{platform} package.
+ * not need to create the shim at runtime. The built-in extension is packaged
+ * with the SDK natives of the build machine, which can differ from the target
+ * (for example darwin-x64 on arm64 Macs, or Alpine on glibc Linux), so product
+ * packaging also restores target-platform SDK natives from the selected
+ * @github/copilot-{platform} package.
  *
  * Note: `node-pty` is no longer shimmed. The copilot CLI SDK resolves
  * `node-pty` from the embedder (VS Code) via `hostRequire` and falls back to
@@ -377,26 +404,39 @@ function resolveVersionMatchedCopilotPlatformPackage(copilotPackagePlatformArch:
  * so the build must stop rather than ship an unverified binary.
  */
 function resolvePinnedPlatformPackageIntegrity(packageName: string, extVersion: string, options: PrepareBuiltInCopilotOptions): string {
-	const lockfilePath = options.extensionLockfilePath ?? path.join(import.meta.dirname, '..', '..', 'extensions', 'copilot', 'package-lock.json');
+	const lockfilePath = options.extensionLockfilePath ?? getCopilotLockfilePath();
 
-	let lock: { packages?: Record<string, { version?: string; integrity?: string }> };
+	let lockfile: PnpmLockfile;
 	try {
-		lock = JSON.parse(fs.readFileSync(lockfilePath, 'utf8'));
+		lockfile = readPnpmLockfile(lockfilePath);
 	} catch (err) {
 		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Could not read ${lockfilePath} to verify ${packageName}@${extVersion}: ${err instanceof Error ? err.message : String(err)}`);
 	}
 
-	const entry = lock.packages?.[path.posix.join('node_modules', packageName)];
-	if (!entry) {
+	const versions = Object.keys(lockfile.packages ?? {}).map(parsePackageKey).filter(p => p.name === packageName).map(p => p.version);
+	if (versions.length === 0) {
 		throw new Error(`[prepareBuiltInCopilotRipgrepShim] ${packageName} is not recorded in ${lockfilePath}; refusing to fetch an unverifiable native.`);
 	}
-	if (entry.version !== extVersion) {
-		throw new Error(`[prepareBuiltInCopilotRipgrepShim] ${packageName} is pinned to ${entry.version} in ${lockfilePath} but the built-in extension is @github/copilot@${extVersion}; refusing to fetch an unverifiable native.`);
+	if (!versions.includes(extVersion)) {
+		throw new Error(`[prepareBuiltInCopilotRipgrepShim] ${packageName} is pinned to ${versions.join(', ')} in ${lockfilePath} but the built-in extension is @github/copilot@${extVersion}; refusing to fetch an unverifiable native.`);
 	}
-	if (!entry.integrity) {
+	const integrity = lockfile.packages?.[`${packageName}@${extVersion}`]?.resolution.integrity;
+	if (!integrity) {
 		throw new Error(`[prepareBuiltInCopilotRipgrepShim] ${packageName}@${extVersion} has no integrity in ${lockfilePath}; refusing to fetch an unverifiable native.`);
 	}
-	return entry.integrity;
+	return integrity;
+}
+
+/**
+ * Returns the `pnpm-lock.yaml` that records the dependencies of `extensions/copilot`: the lockfile
+ * of its pnpm install root.
+ */
+function getCopilotLockfilePath(): string {
+	const lockfileFolder = getLockfileFolder('extensions/copilot');
+	if (lockfileFolder === undefined) {
+		throw new Error('[prepareBuiltInCopilotRipgrepShim] extensions/copilot is not a pnpm project.');
+	}
+	return path.join(import.meta.dirname, '..', '..', lockfileFolder, 'pnpm-lock.yaml');
 }
 
 function readCopilotPackageVersion(copilotBase: string): string {

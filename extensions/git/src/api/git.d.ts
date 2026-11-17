@@ -325,6 +325,8 @@ export interface Repository {
 	/** Rebases the current branch; onto and rebaseMerges allow replaying a stack onto a new base. */
 	rebase(branch: string, options?: { onto?: string; rebaseMerges?: boolean }): Promise<void>;
 	rebaseAbort(): Promise<void>;
+	/** Continues an in-progress rebase after its conflicts have been resolved and staged, keeping the original commit message. */
+	rebaseContinue(): Promise<void>;
 	/**
 	 * Updates a refs/heads/ branch only if its current value matches oldSha; an all-zero oldSha creates it.
 	 * Replaces symbolic refs rather than updating their targets.

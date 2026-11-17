@@ -6,13 +6,14 @@
 import type { CCAModel } from '@vscode/copilot-api';
 import type { ModelInfo, OnElicitation, Options, SDKSessionInfo, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import * as fs from 'fs/promises';
 import { Limiter, retry, SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -25,14 +26,13 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { IAgentSdkDownloader } from '../agentSdkDownloader.js';
 import { AgentSdkSetupChannel } from '../agentSdkSetupChannel.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { AgentHostConfigKey, agentHostCustomizationConfigSchema } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, createSchema, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, createSchema, platformRootSchema, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { ClaudePermissionMode, ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
 import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../common/claudeModelConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import type { ChatUriFormat } from '../../common/agentHostChatMinting.js';
 import { AgentChatMigrationDeferred, type AgentChatMigrationResult, AgentProvider, AgentSession, resolveSessionBackedStorage, type IAgentChatOwnerRef, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentListedChat, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, type IAgentChatMetadataOptions, IAgentChats, IAgentChatConfigCompletionsParams, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IAgentSpawnedChatParent, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent } from '../../common/agent.js';
 import { ensureWorkspacelessScratchDir } from '../workspacelessScratchDir.js';
+import { workspacelessChatsRoot } from '../../common/workspacelessScratchDir.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -226,8 +226,6 @@ interface IChatScopeBinding {
 	readonly owner: IAgentChatOwnerRef;
 	/** This exact chat's own persistence resource (`IAgentChatContext.resource`) — the key its overlay is written under. */
 	readonly resource: URI;
-	/** Format of the subagent chat ids minted for the chat's session. */
-	readonly subagentChatUriFormat: ChatUriFormat;
 }
 
 /**
@@ -244,9 +242,10 @@ interface IResolvedClaudeChatContext {
 	/** The SDK id of a chat stored in its session's database (older chats have no recorded backing); `undefined` for a chat stored under its own resource. */
 	readonly sessionBackedSdkId: string | undefined;
 	readonly resource: URI;
-	readonly subagentChatUriFormat: ChatUriFormat;
 	readonly chat: URI;
 	readonly chatKey: string;
+	/** The host's per-chat decision: the chat runs in a recorded scratch folder. */
+	readonly workspaceless: boolean;
 	/**
 	 * The spawning chat + tool call when {@link chat} is a provider-spawned
 	 * subagent, read off the host-supplied origin. `undefined` for every other
@@ -279,8 +278,8 @@ function _toPersistedChat(backing: IClaudeChatBacking): IPersistedChat {
 /**
  * Claude active-client handle, addressed to exactly one host-supplied chat.
  * Tools read/write through the live session's {@link SessionClientToolsModel};
- * customization assignment kicks off the agent's async sync (via the
- * provided closure). The handle caches the last assigned customization
+ * customization assignment notifies the agent to start its async sync.
+ * The handle caches the last assigned customization
  * inputs so the getter reflects what the client most recently published.
  *
  * There is no membership here: Agent Host addresses this handle to exactly
@@ -288,7 +287,13 @@ function _toPersistedChat(backing: IClaudeChatBacking): IPersistedChat {
  * customizations) applies to that chat alone. A sibling chat needs its own
  * handle, obtained through its own `getOrCreateActiveClient` call.
  */
-class ClaudeActiveClientHandle implements IActiveClient {
+class ClaudeActiveClientHandle extends Disposable implements IActiveClient {
+	private readonly _onDidChangeTools = this._register(new Emitter<readonly ToolDefinition[]>());
+	readonly onDidChangeTools = this._onDidChangeTools.event;
+
+	private readonly _onDidChangeCustomizations = this._register(new Emitter<readonly ClientPluginCustomization[]>());
+	readonly onDidChangeCustomizations = this._onDidChangeCustomizations.event;
+
 	private _tools: readonly ToolDefinition[] = [];
 	private _customizations: readonly ClientPluginCustomization[] = [];
 	private _customizationsAssigned = false;
@@ -305,16 +310,16 @@ class ClaudeActiveClientHandle implements IActiveClient {
 		readonly displayName: string | undefined,
 		/** The exact chat this handle's contributions are addressed to. */
 		readonly chat: URI,
-		private readonly _setTools: (chat: URI, tools: readonly ToolDefinition[]) => void,
-		private readonly _syncCustomizations: (chat: URI, customizations: readonly ClientPluginCustomization[], hostCustomizations: readonly Customization[] | undefined) => void,
-	) { }
+	) {
+		super();
+	}
 
 	get tools(): readonly ToolDefinition[] {
 		return this._tools;
 	}
 	set tools(tools: readonly ToolDefinition[]) {
 		this._tools = tools;
-		this._setTools(this.chat, tools);
+		this._onDidChangeTools.fire(tools);
 	}
 
 	get customizations(): readonly ClientPluginCustomization[] {
@@ -323,7 +328,7 @@ class ClaudeActiveClientHandle implements IActiveClient {
 	set customizations(customizations: readonly ClientPluginCustomization[]) {
 		this._customizations = customizations;
 		this._customizationsAssigned = true;
-		this._syncCustomizations(this.chat, customizations, this._hostCustomizations);
+		this._onDidChangeCustomizations.fire(customizations);
 	}
 
 	/** The last host snapshot, for syncs this client's own assignment triggers. */
@@ -344,9 +349,9 @@ class ClaudeActiveClientHandle implements IActiveClient {
 	 * up, so contributions made before the runtime existed still reach it.
 	 */
 	refresh(): void {
-		this._setTools(this.chat, this._tools);
+		this._onDidChangeTools.fire(this._tools);
 		if (this._customizationsAssigned) {
-			this._syncCustomizations(this.chat, this._customizations, this._hostCustomizations);
+			this._onDidChangeCustomizations.fire(this._customizations);
 		}
 	}
 }
@@ -458,7 +463,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * same session gets one independent handle per chat, each obtained
 	 * through its own {@link getOrCreateActiveClient} call.
 	 */
-	private readonly _activeClientHandles = new Map<string, ClaudeActiveClientHandle>();
+	private readonly _activeClientHandles = this._register(new DisposableMap<string, IReference<ClaudeActiveClientHandle>>());
 
 	/**
 	 * Fired once per session when {@link _materializeProvisional} promotes a
@@ -533,9 +538,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			owner: resolved.owner,
 			sessionBackedSdkId: sessionBackedSdkId(resolved, chat),
 			resource: resolved.resource,
-			subagentChatUriFormat: resolved.subagentChatUriFormat,
 			chat,
 			chatKey,
+			workspaceless: resolved.workspaceless,
 			spawnedFrom: resolveSubagentChatParent(resolved),
 			customizations: resolveAgentHostCustomizations(resolved),
 			sdkSessionId,
@@ -545,8 +550,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	/** Records `chat`'s exact scope binding, populated on create and materialize. */
-	private _recordChatScope(chat: URI, owner: IAgentChatOwnerRef, resource: URI, subagentChatUriFormat: ChatUriFormat): void {
-		this._chatConfigScopes.set(chat.toString(), { owner, resource, subagentChatUriFormat });
+	private _recordChatScope(chat: URI, owner: IAgentChatOwnerRef, resource: URI): void {
+		this._chatConfigScopes.set(chat.toString(), { owner, resource });
 	}
 
 	/** Resolves the scope binding recorded for an exact source chat. */
@@ -626,7 +631,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private _emitSpawnedChatEvents(signal: AgentSignal): void {
 		const spawn = SubagentChatSignal.toSpawnEvent(signal, chat => {
 			const scope = this._chatConfigScopes.get(chat);
-			return scope && { owner: scope.owner.get().toString(), format: scope.subagentChatUriFormat };
+			return scope && { owner: scope.owner.get().toString(), format: scope.owner.getSubagentChatUriFormat() };
 		});
 		if (spawn) {
 			this._onDidSpawnChat.fire(spawn);
@@ -717,8 +722,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * provider-qualified model bypasses this and routes on its own provider.
 	 */
 	private _defaultTransportMode(): ClaudeTransportMode {
-		const allowSignedOutWhenUsable = this._configurationService.getRootValue(agentHostCustomizationConfigSchema, AgentHostConfigKey.AllowSignedOutWhenUsable) === true;
-		return resolveClaudeTransportMode({ allowSignedOutWhenUsable, hasGitHubToken: this._proxyHandle !== undefined, hasExistingSetup: this._nativeAccountSetUp });
+		return resolveClaudeTransportMode({ hasGitHubToken: this._proxyHandle !== undefined, hasExistingSetup: this._nativeAccountSetUp });
 	}
 
 	/**
@@ -736,13 +740,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			description: localize('claudeAgent.description', "Claude agent backed by the Anthropic Claude Agent SDK"),
 			capabilities: {
 				multipleChats: { fork: true, sideChat: true },
-				...(this._isMultiRootEnabled() ? { multipleWorkingDirectories: { immutablePrimary: true } } : {}),
+				multipleWorkingDirectories: { immutablePrimary: true },
 			},
 		};
-	}
-
-	private _isMultiRootEnabled(): boolean {
-		return this._configurationService.getRootValue(platformRootSchema, AgentHostClaudeMultiRootEnabledConfigKey) === true;
 	}
 
 	async setWorkingDirectory(_chat: URI, _context: URI | IAgentChatContext, _workingDirectory: URI): Promise<void> {
@@ -877,19 +877,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		this._githubToken = token;
 		this._logService.info('[Claude] Auth token updated');
 		oldHandle?.dispose();
-		// Blank the catalog only on a *replacement*: a different account can have
-		// different model entitlements, so don't retain the previous list if
-		// enumeration for the new token fails.
-		//
-		// A first sign-in (no `oldHandle`) must NOT blank. It has no superseded
-		// account to drop, and the catalog it would clear is native-only — the
-		// bootstrap list, which is account-independent and stays valid. Blanking
-		// there publishes an empty catalog for the length of the refresh, which the
-		// window gate reads as `SessionTypeAuthRequirement.Unusable` (an agent with
-		// no models is unusable). That closes the `allowSignedOutWhenUsable` gate
-		// mid-startup and forces the sign-in dialog on a user who is already signed
-		// in — the GitHub session resolves before the Copilot default account does,
-		// so the welcome flow still believes it is signed out.
+		// A replacement invalidates the previous account's catalog; first sign-in must preserve the native catalog.
 		if (oldHandle) {
 			this._models.set([], undefined);
 		}
@@ -1166,7 +1154,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			this._deleteSession(existing);
 		}
 		await this._sdkService.deleteSession(sdkSessionId);
-		const fresh = await this._createProvisionalChatSession(context.owner, context.chat, context.resource, context.subagentChatUriFormat, workingDirectories);
+		const fresh = await this._createProvisionalChatSession(context.owner, context.chat, context.resource, workingDirectories);
 		await fresh.pruneAllTurns(context.resource);
 		this._logService.info(`[Claude:${sdkSessionId}] truncateChat removed all turns (deleteSession + fresh same-id)`);
 	}
@@ -1286,14 +1274,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 		const canUseTool = this._makeCanUseTool(sessionId, context.owner);
 		const onElicitation = this._makeOnElicitation(sessionId);
-		this._recordChatScope(context.chat, context.owner, context.resource, context.subagentChatUriFormat);
+		this._recordChatScope(context.chat, context.owner, context.resource);
 		try {
 			await session.materialize({
 				transport,
 				canUseTool,
 				onElicitation,
 				isResume: false,
-				subagentChatUriFormat: context.subagentChatUriFormat,
 				resource,
 				owner: context.owner,
 				customizations: context.customizations,
@@ -1357,12 +1344,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	private async _disposeLiveSession(session: ClaudeAgentSession): Promise<void> {
 		session.abortController.abort();
-		if (!session.isPipelineReady) {
-			// Nothing else to tear down yet.
-		} else {
-			session.abort();
+		try {
+			if (session.isPipelineReady) {
+				await session.abort();
+			}
+		} finally {
+			this._deleteSession(session);
 		}
-		this._deleteSession(session);
 	}
 
 	// #region Chat creation — the one algorithm every chat is created by
@@ -1401,7 +1389,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const chatKey = chat.toString();
 		// Record this chat's own scope now — the only place a later fork
 		// naming this chat as its source resolves that source's scope from.
-		this._recordChatScope(chat, context.owner, context.resource, context.subagentChatUriFormat);
+		this._recordChatScope(chat, context.owner, context.resource);
 		return this._sessionSequencer.queue(chatKey, async () => {
 			const existing = this._chatBackings.get(chatKey);
 			const created = existing
@@ -1581,9 +1569,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// marker itself is owned/persisted centrally by the AH service.
 		const requestedWorkingDirectory = options?.workingDirectories?.[0];
 		const workingDirectory = requestedWorkingDirectory ?? await ensureWorkspacelessScratchDir(this._environmentService.userHome, AgentSession.id(context.owner.get()));
+		if (requestedWorkingDirectory && context.workspaceless) {
+			// A recorded scratch folder (nested chat) that no longer exists is recreated.
+			await fs.mkdir(requestedWorkingDirectory.fsPath, { recursive: true });
+		}
 		// Only probe for a project when AH resolved a real folder; a scratch dir
 		// is never a code project.
-		const project = requestedWorkingDirectory ? await this._resolveProject(requestedWorkingDirectory) : undefined;
+		const project = requestedWorkingDirectory && !context.workspaceless ? await this._resolveProject(requestedWorkingDirectory) : undefined;
 		const backing = this._recordChatBacking(chat, {
 			sdkSessionId,
 			...(model ? { model } : {}),
@@ -1647,13 +1639,16 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const initialContext = this._resolveChatContext(chat, operationContext);
 		await this._sessionSequencer.queue(initialContext.sequencerKey, async () => {
 			const target = this._findChatByUri(chatKey);
-			if (target) {
-				await this._disposeLiveSession(target);
+			try {
+				if (target) {
+					await this._disposeLiveSession(target);
+				}
+			} finally {
+				this._chatBackings.delete(chatKey);
+				this._chatConfigScopes.delete(chatKey);
+				this._pruneActiveClientHandlesForChat(chat);
+				this._otelService.releaseSessionTraceContext(initialContext.resource.toString());
 			}
-			this._chatBackings.delete(chatKey);
-			this._chatConfigScopes.delete(chatKey);
-			this._pruneActiveClientHandlesForChat(chat);
-			this._otelService.releaseSessionTraceContext(initialContext.resource.toString());
 		});
 		// The Claude SDK exposes no delete-chat RPC, so the forked /
 		// fresh transcript is left on disk; without a catalog entry it is never
@@ -1716,7 +1711,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * its provider backing when necessary. The caller holds the chat sequencer.
 	 */
 	private async _resolveOrResumeChatSessionLocked(context: IResolvedClaudeChatContext, workingDirectories?: readonly URI[]): Promise<ClaudeAgentSession> {
-		const { owner, chat, chatKey, resource, subagentChatUriFormat } = context;
+		const { owner, chat, chatKey, resource } = context;
 		const existing = this._findChatByUri(chatKey);
 		if (existing?.isPipelineReady) {
 			return existing;
@@ -1724,7 +1719,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// The send's own resolved snapshot is the last-resort placement for a
 		// chat whose conversation never reached the SDK and whose overlay was
 		// never written (a fresh chat created in a previous window).
-		const chatSession = existing ?? await this._createProvisionalChatSession(owner, chat, resource, subagentChatUriFormat, workingDirectories);
+		const chatSession = existing ?? await this._createProvisionalChatSession(owner, chat, resource, workingDirectories);
+		await this._recreateMissingScratchFolder(context, chatSession.workingDirectory);
 		// Resume when the SDK already has a transcript for this chat
 		// (forked or restored); otherwise materialize a fresh one.
 		const sdkInfo = await this._sdkService.getSessionInfo(chatSession.sessionId);
@@ -1735,14 +1731,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const transport = this._ensureAuthenticated(chatSession.provisionalModel);
 		const canUseTool = this._makeCanUseTool(chatSession.sessionId, owner);
 		const onElicitation = this._makeOnElicitation(chatSession.sessionId);
-		this._recordChatScope(chat, owner, resource, subagentChatUriFormat);
+		this._recordChatScope(chat, owner, resource);
 		try {
 			await chatSession.materialize({
 				transport,
 				canUseTool,
 				onElicitation,
 				isResume: !!sdkInfo,
-				subagentChatUriFormat,
 				resource,
 				owner,
 				customizations: context.customizations,
@@ -1774,6 +1769,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 */
 	private async _ensureResolvedChatSession(context: IResolvedClaudeChatContext, workingDirectories?: readonly URI[]): Promise<ClaudeAgentSession> {
 		const existing = context.target;
+		if (existing && this._isRecordedScratchFolder(existing.workingDirectory)) {
+			await this._recreateMissingScratchFolder(context, existing.workingDirectory);
+		}
 		if (existing?.isPipelineReady) {
 			return existing;
 		}
@@ -1783,11 +1781,24 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return this._resolveOrResumeChatSessionLocked(context, workingDirectories);
 	}
 
+	private _isRecordedScratchFolder(workingDirectory: URI | undefined): workingDirectory is URI {
+		return !!workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectory, workspacelessChatsRoot(this._environmentService.userHome));
+	}
+
+	/** Recreates (mkdir -p) a recorded scratch folder that was reaped since the chat last ran. */
+	private async _recreateMissingScratchFolder(context: IResolvedClaudeChatContext, workingDirectory: URI | undefined): Promise<void> {
+		// A chat moved under a foldered session keeps working in its folder under the chats root, which only the host allocates.
+		// The path check only guards what may be recreated; it never decides which session or chat owns the folder.
+		if (this._isRecordedScratchFolder(workingDirectory)) {
+			await fs.mkdir(workingDirectory.fsPath, { recursive: true });
+		}
+	}
+
 	/**
 	 * Build a provisional {@link ClaudeAgentSession} from an exact chat backing
 	 * and its provider-owned overlay.
 	 */
-	private async _createProvisionalChatSession(owner: IAgentChatOwnerRef, chat: URI, resource: URI, subagentChatUriFormat: ChatUriFormat, fallbackWorkingDirectories?: readonly URI[]): Promise<ClaudeAgentSession> {
+	private async _createProvisionalChatSession(owner: IAgentChatOwnerRef, chat: URI, resource: URI, fallbackWorkingDirectories?: readonly URI[]): Promise<ClaudeAgentSession> {
 		const info = this._chatBackings.get(chat.toString());
 		if (!info) {
 			throw new Error(`[Claude] no backing chat for chat ${chat.toString()}`);
@@ -1838,7 +1849,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			additionalDirectories,
 		);
 		this._registerLiveChat(chat, chatSession);
-		this._recordChatScope(chat, owner, resource, subagentChatUriFormat);
+		this._recordChatScope(chat, owner, resource);
 		// The chat now has a live runtime, so re-apply the contributions of
 		// every client addressed to this exact chat. This replaces nothing —
 		// it only pushes each handle's already-assigned tools/customizations
@@ -1850,9 +1861,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	/** Visits the active-client handles Agent Host registered for the exact `chat`. */
 	private _forEachActiveClientHandleForChat(chat: URI, visit: (handle: ClaudeActiveClientHandle) => void): void {
 		const prefix = `${chat.toString()}\u0000`;
-		for (const [key, handle] of this._activeClientHandles) {
+		for (const [key, registration] of this._activeClientHandles) {
 			if (key.startsWith(prefix)) {
-				visit(handle);
+				visit(registration.object);
 			}
 		}
 	}
@@ -1862,7 +1873,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const prefix = `${chat.toString()}\u0000`;
 		for (const key of [...this._activeClientHandles.keys()]) {
 			if (key.startsWith(prefix)) {
-				this._activeClientHandles.delete(key);
+				this._activeClientHandles.deleteAndDispose(key);
 			}
 		}
 	}
@@ -1892,7 +1903,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 */
 	async materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void> {
 		const resolved = resolveAgentChatContext(context, chat);
-		this._recordChatScope(chat, resolved.owner, resolved.resource, resolved.subagentChatUriFormat);
+		this._recordChatScope(chat, resolved.owner, resolved.resource);
 		if (providerData === undefined) {
 			// Only a chat stored in its session's database can recover its backing from that session.
 			const sdkSessionId = sessionBackedSdkId(resolved, chat);
@@ -1944,7 +1955,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			throw new Error(`[Claude] Cannot recover chat ${chatKey}: it records no backing and does not store in a session`);
 		}
 		this._chatBackings.set(chatKey, backing);
-		this._recordChatScope(chat, resolved.owner, resolved.resource, resolved.subagentChatUriFormat);
+		this._recordChatScope(chat, resolved.owner, resolved.resource);
 		return { providerData: encodeProviderData(_toPersistedChat(backing)) };
 	}
 
@@ -2371,7 +2382,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			// in-memory state afterwards. Durable data is untouched — Agent
 			// Host re-materializes each chat's backing on the next restore.
 			this._chatBackings.clear();
-			this._activeClientHandles.clear();
+			this._activeClientHandles.clearAndDisposeAll();
 		})();
 	}
 
@@ -2449,13 +2460,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	private async _abortSession(chat: URI, context: URI | IAgentChatContext): Promise<void> {
 		resolveAgentChatContext(context, chat);
-		// Cancel via the abort controller, NOT `Query.interrupt()`. Abort is a
-		// control-plane operation — it must NOT serialize through
-		// `_sessionSequencer` because an in-flight `sendMessage` task is
-		// parked on its turn deferred and would deadlock the abort behind the
-		// very turn it's trying to cancel. Calling `chat.abort()` directly
-		// rejects the in-flight deferred, which lets the queued sendMessage
-		// task complete and frees the sequencer for the next caller.
+		// Abort bypasses the send sequencer because the current send is waiting for this turn to end.
 		const sess = this._findChatByUri(chat);
 		if (!sess) {
 			return;
@@ -2464,10 +2469,14 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			sess.abortController.abort();
 			return;
 		}
-		sess.abort();
+		await sess.abort();
 	}
 
-	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
+	sendSteeringMessage(chat: URI, message: PendingMessage): boolean {
+		return this.setPendingMessages(chat, message, []);
+	}
+
+	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): boolean {
 		// Queued messages are intentionally a no-op. CONTEXT.md M10 +
 		// AgentSideEffects confirm queued messages are consumed server-side;
 		// the agent boundary always receives an empty queue.
@@ -2478,11 +2487,15 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		this._logService.info(`[Claude] setPendingMessages for ${chat.toString()}: steering=${steeringMessage?.id ?? 'none'} queued=${_queuedMessages.length}`);
 		if (!target) {
 			this._logService.warn(`[Claude] setPendingMessages: target not found for ${chat.toString()}`);
-			return;
+			return false;
 		}
 		if (steeringMessage) {
+			if (!target.hasActiveTurn) {
+				return false;
+			}
 			target.injectSteering(steeringMessage);
 		}
+		return true;
 	}
 
 	private async _changeModel(chat: URI, model: ModelSelection, operationContext: URI | IAgentChatContext): Promise<void> {
@@ -2540,19 +2553,21 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	getOrCreateActiveClient(chat: URI, context: URI | IAgentChatContext, client: { readonly clientId: string; readonly displayName?: string }, hostCustomizations?: readonly Customization[]): IActiveClient {
 		const { owner } = resolveAgentChatContext(context, chat);
 		const key = `${chat.toString()}\u0000${client.clientId}`;
-		let handle = this._activeClientHandles.get(key);
+		let handle = this._activeClientHandles.get(key)?.object;
 		if (!handle) {
-			handle = new ClaudeActiveClientHandle(
-				client.clientId,
-				client.displayName,
-				chat,
-				(targetChat, tools) => {
-					this._logService.info(`[Claude:${AgentSession.id(owner.get())}] active client ${client.clientId} tools=[${tools.map(t => t.name).join(', ') || '(none)'}] chat=${targetChat.toString()}`);
-					this._findChatByUri(targetChat)?.setClientTools(client.clientId, tools);
-				},
-				(targetChat, customizations, snapshot) => { void this._syncClientCustomizations(targetChat, owner, client.clientId, [...customizations], snapshot); },
-			);
-			this._activeClientHandles.set(key, handle);
+			const subscriptions = new DisposableStore();
+			const newHandle = subscriptions.add(new ClaudeActiveClientHandle(client.clientId, client.displayName, chat));
+			this._activeClientHandles.set(key, { object: newHandle, dispose: () => subscriptions.dispose() });
+			subscriptions.add(newHandle.onDidChangeTools(tools => {
+				this._logService.info(`[Claude:${AgentSession.id(owner.get())}] active client ${client.clientId} tools=[${tools.map(t => t.name).join(', ') || '(none)'}] chat=${chat.toString()}`);
+				this._findChatByUri(chat)?.setClientTools(client.clientId, tools);
+			}));
+			subscriptions.add(newHandle.onDidChangeCustomizations(customizations => {
+				void this._syncClientCustomizations(chat, owner, client.clientId, [...customizations], newHandle.hostCustomizations).catch(err => {
+					this._logService.error(`[Claude] Failed to sync active client ${client.clientId} customizations`, err);
+				});
+			}));
+			handle = newHandle;
 		}
 		handle.setHostCustomizations(hostCustomizations);
 		return handle;
@@ -2560,9 +2575,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	removeActiveClient(chat: URI, _context: URI | IAgentChatContext, clientId: string): void {
 		const key = `${chat.toString()}\u0000${clientId}`;
-		if (!this._activeClientHandles.delete(key)) {
+		if (!this._activeClientHandles.has(key)) {
 			return;
 		}
+		this._activeClientHandles.deleteAndDispose(key);
 		const target = this._findChatByUri(chat);
 		if (!target) {
 			return;
@@ -2601,7 +2617,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 */
 	async syncClientCustomizations(chat: URI, context: URI | IAgentChatContext, clientId: string, customizations: ClientPluginCustomization[], options?: { readonly quiet?: boolean }): Promise<ISyncedCustomization[]> {
 		const { owner } = resolveAgentChatContext(context, chat);
-		const handle = this._activeClientHandles.get(`${chat.toString()}\u0000${clientId}`);
+		const handle = this._activeClientHandles.get(`${chat.toString()}\u0000${clientId}`)?.object;
 		return this._syncClientCustomizations(chat, owner, clientId, customizations, handle?.hostCustomizations, options);
 	}
 
@@ -2691,9 +2707,6 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * never surfaces them as customizations.
 	 */
 	async computeFolderPickerDecision(workingDirectories: readonly URI[], token: CancellationToken = CancellationToken.None): Promise<ISessionFolderPickerDecision | undefined> {
-		if (!this._isMultiRootEnabled()) {
-			return undefined;
-		}
 		return computeFolderPickerDecisionForRoots(workingDirectories, (directory, t) => claudeDirectoryQualifiesForPrimary(this._fileService, directory, this._environmentService.userHome, t), token);
 	}
 

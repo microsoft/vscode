@@ -5,6 +5,7 @@
 
 
 import { IChatEndpoint, IChatEndpointTokenPricing, PENDING_DEPRECATION_CODE } from '../../../platform/networking/common/networking';
+import { isKimiK3PlusFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
 import * as l10n from '@vscode/l10n';
 import type { LanguageModelChatInformation, LanguageModelConfigurationSchema } from 'vscode';
 
@@ -15,7 +16,7 @@ import type { LanguageModelChatInformation, LanguageModelConfigurationSchema } f
  *
  * Selection order:
  *  - claude-opus-5.5 / claude-haiku-5.5 → 'medium' if available (Anthropic's default for these models)
- *  - other claude / Kimi K3 families → 'high' if available
+ *  - other claude / Kimi K3 and newer families → 'high' if available
  *  - other families   → 'medium' if available
  *  - fallback         → the first advertised level
  */
@@ -25,7 +26,7 @@ export function pickDefaultReasoningEffort(effortLevels: readonly string[], fami
 	}
 	const lowerFamily = family.toLowerCase();
 	const defaultsToMedium = /^claude-(?:opus|haiku)-5[.-]5(?![.\d])/.test(lowerFamily);
-	const preferred = !defaultsToMedium && (lowerFamily.startsWith('claude') || lowerFamily.includes('kimi-k3')) ? 'high' : 'medium';
+	const preferred = !defaultsToMedium && (lowerFamily.startsWith('claude') || isKimiK3PlusFamily(lowerFamily)) ? 'high' : 'medium';
 	if (effortLevels.includes(preferred)) {
 		return preferred;
 	}

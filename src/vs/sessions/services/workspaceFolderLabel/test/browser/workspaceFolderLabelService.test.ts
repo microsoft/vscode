@@ -12,10 +12,11 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { IChat, ISession } from '../../../sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../sessions/browser/sessionsService.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { SessionsWorkspaceFolderLabelService } from '../../browser/workspaceFolderLabelService.js';
+import { focusedSessionHostServiceOf, TestShown } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions - Workspace Folder Label Service', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -46,11 +47,13 @@ suite('Sessions - Workspace Folder Label Service', () => {
 			});
 		};
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = observableValue<IActiveSession | undefined>(this, new class extends mock<IActiveSession>() {
-				override readonly workspace = session.workspace;
-				override readonly activeChat = observableValue<IChat>(this, new class extends mock<IChat>() {
+			readonly activeSession = observableValue<TestShown | undefined>(this, {
+				session: new class extends mock<ISession>() {
 					override readonly workspace = session.workspace;
-				});
+				},
+				chat: new class extends mock<IChat>() {
+					override readonly workspace = session.workspace;
+				},
 			});
 		};
 		const uriIdentityService = new class extends mock<IUriIdentityService>() {
@@ -66,7 +69,7 @@ suite('Sessions - Workspace Folder Label Service', () => {
 				return [session];
 			}
 		};
-		const service = new SessionsWorkspaceFolderLabelService(sessionsService, sessionsManagementService, uriIdentityService, labelService);
+		const service = new SessionsWorkspaceFolderLabelService(focusedSessionHostServiceOf(sessionsService.activeSession), sessionsManagementService, uriIdentityService, labelService);
 		const workspaceFolder = new WorkspaceFolder({ uri: workingDirectory, name: 'vscode-tools (add-sandeep-to-readme-26eb9789)', index: 0 });
 
 		assert.deepStrictEqual({
@@ -92,7 +95,7 @@ suite('Sessions - Workspace Folder Label Service', () => {
 			});
 		};
 		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = observableValue<IActiveSession | undefined>(this, undefined);
+			readonly activeSession = observableValue<TestShown | undefined>(this, undefined);
 		};
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
 			override getSessions(): ISession[] {
@@ -107,7 +110,7 @@ suite('Sessions - Workspace Folder Label Service', () => {
 				return basename(resource);
 			}
 		};
-		const service = new SessionsWorkspaceFolderLabelService(sessionsService, sessionsManagementService, uriIdentityService, labelService);
+		const service = new SessionsWorkspaceFolderLabelService(focusedSessionHostServiceOf(sessionsService.activeSession), sessionsManagementService, uriIdentityService, labelService);
 
 		assert.strictEqual(service.getWorkspaceFolderLabel(new WorkspaceFolder({ uri: workingDirectory, name: 'feature', index: 0 })), 'vscode-tools');
 	});

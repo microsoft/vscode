@@ -253,6 +253,7 @@ export async function validateZip(zipPath: string, options: IZipValidationOption
 export interface IZipOptions {
 	readonly token?: CancellationToken;
 	readonly onProgress?: (bytes: number, path: string) => void;
+	readonly onSourceError?: (path: string, error: Error) => void;
 }
 
 export async function zip(zipPath: string, files: IFile[], options?: IZipOptions): Promise<string> {
@@ -314,6 +315,7 @@ export async function zip(zipPath: string, files: IFile[], options?: IZipOptions
 						handle = await promises.open(f.localPath, 'r');
 					} catch (error) {
 						if (f.skipSourceErrors) {
+							options?.onSourceError?.(f.path, error instanceof Error ? error : new Error(String(error)));
 							continue;
 						}
 						throw error;
@@ -326,6 +328,7 @@ export async function zip(zipPath: string, files: IFile[], options?: IZipOptions
 							size = f.localPathSize === undefined ? currentSize : Math.min(f.localPathSize, currentSize);
 						} catch (error) {
 							if (f.skipSourceErrors) {
+								options?.onSourceError?.(f.path, error instanceof Error ? error : new Error(String(error)));
 								continue;
 							}
 							throw error;

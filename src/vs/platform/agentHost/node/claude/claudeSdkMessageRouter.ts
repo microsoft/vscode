@@ -12,11 +12,12 @@ import { ILogService } from '../../../log/common/log.js';
 import { AgentSignal, type IAgentChatOwnerRef } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
-import { subagentChatUri, type ChatUriFormat } from '../../common/agentHostChatMinting.js';
+import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { ClaudeFileEditObserver } from './claudeFileEditObserver.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { ClaudeTerminalOutputs } from './claudeTerminalOutput.js';
+import type { SessionClientToolsModel } from './clientTools/claudeSessionClientToolsModel.js';
 
 interface IClaudeSdkMessageContext {
 	readonly turnDuration?: number;
@@ -49,30 +50,22 @@ export class ClaudeSdkMessageRouter extends Disposable {
 	private readonly _terminalOutputs: ClaudeTerminalOutputs;
 	private readonly _mapperState = new ClaudeMapperState();
 
-	private _clientToolOwner: ((toolName: string) => string | undefined) | undefined;
-
 	constructor(
 		private readonly _chatChannelUri: URI,
 		/** The session that owns the chat, read at each use. */
 		private readonly _owner: IAgentChatOwnerRef,
-		private readonly _subagentChatUriFormat: ChatUriFormat,
 		private readonly _resource: URI,
 		dbRef: IReference<ISessionDatabase>,
 		private readonly _subagents: SubagentRegistry,
-		clientToolOwner: ((toolName: string) => string | undefined) | undefined = undefined,
+		private readonly _clientTools: SessionClientToolsModel | undefined = undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this._clientToolOwner = clientToolOwner;
 		this._editObserver = this._register(
-			instantiationService.createInstance(ClaudeFileEditObserver, _resource.toString(), () => _owner.get().toString(), dbRef),
+			instantiationService.createInstance(ClaudeFileEditObserver, _resource.toString(), _owner, dbRef),
 		);
 		this._terminalOutputs = instantiationService.createInstance(ClaudeTerminalOutputs);
-	}
-
-	setClientToolOwner(clientToolOwner: ((toolName: string) => string | undefined) | undefined): void {
-		this._clientToolOwner = clientToolOwner;
 	}
 
 	async handle(message: SDKMessage, turnId: string | undefined, context?: IClaudeSdkMessageContext): Promise<void> {
@@ -97,7 +90,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 				this._mapperState,
 				this._logService,
 				this._subagents,
-				this._clientToolOwner,
+				this._clientTools,
 				context?.turnDuration,
 			);
 			for (const signal of signals) {
@@ -110,7 +103,7 @@ export class ClaudeSdkMessageRouter extends Disposable {
 
 	private _getEditChatUri(parentToolUseId: string | null): string {
 		return parentToolUseId
-			? subagentChatUri(this._subagentChatUriFormat, this._owner.get().toString(), this._chatChannelUri.toString(), parentToolUseId)
+			? subagentChatUri(this._owner.getSubagentChatUriFormat(), this._owner.get().toString(), this._chatChannelUri.toString(), parentToolUseId)
 			: this._chatChannelUri.toString();
 	}
 }

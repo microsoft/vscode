@@ -333,6 +333,29 @@ suite('Sessions - Panel Part', () => {
 		});
 	});
 
+	test('keeps the panel title border override scoped to the Agents window', () => {
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add({ dispose: () => container.remove() });
+		const workbench = mainWindow.document.createElement('div');
+		workbench.className = 'monaco-workbench';
+		container.appendChild(workbench);
+		const sessions = mainWindow.document.createElement('div');
+		sessions.className = 'monaco-workbench agent-sessions-workbench';
+		container.appendChild(sessions);
+
+		const workbenchTitle = createPanelTab(workbench).title;
+		const sessionsTitle = createPanelTab(sessions).title;
+
+		assert.deepStrictEqual({
+			workbenchHasBorder: parseFloat(mainWindow.getComputedStyle(workbenchTitle).borderTopWidth) > 0,
+			sessionsBorder: mainWindow.getComputedStyle(sessionsTitle).borderTopWidth,
+		}, {
+			workbenchHasBorder: true,
+			sessionsBorder: '0px',
+		});
+	});
+
 	test('uses the editor tab presentation for bottom panel tabs', () => {
 		const root = mainWindow.document.createElement('div');
 		root.className = 'monaco-workbench agent-sessions-workbench modern-ui-tabs';
@@ -380,6 +403,7 @@ suite('Sessions - Panel Part', () => {
 			bottom: targetWindow.getComputedStyle(indicator).bottom,
 			left: targetWindow.getComputedStyle(indicator).left,
 			boxHeight: indicator.getBoundingClientRect().height,
+			boxTopOffset: indicator.getBoundingClientRect().top - title.getBoundingClientRect().top,
 			radius: targetWindow.getComputedStyle(indicator).borderRadius,
 		};
 
@@ -413,10 +437,13 @@ suite('Sessions - Panel Part', () => {
 		secondActionItem.classList.remove('checked');
 		actionItem.classList.add('checked');
 
+		root.classList.remove('modern-ui-connected-editor-tabs');
 		title.style.height = '28px';
 		const compact = {
 			titleHeight: title.getBoundingClientRect().height,
 			itemHeight: actionItem.getBoundingClientRect().height,
+			indicatorHeight: indicator.getBoundingClientRect().height,
+			indicatorTopOffset: indicator.getBoundingClientRect().top - title.getBoundingClientRect().top,
 			titleActions: getTitleActionLayout(),
 		};
 
@@ -434,7 +461,10 @@ suite('Sessions - Panel Part', () => {
 			indicatorRadius: targetWindow.getComputedStyle(indicator).borderRadius,
 		};
 
-		assert.deepStrictEqual({ pill, connected, nonFirstConnected, compact, iconMode }, {
+		root.classList.remove('agent-sessions-workbench');
+		const workbenchBorderTopWidth = targetWindow.getComputedStyle(title).borderTopWidth;
+
+		assert.deepStrictEqual({ pill, connected, nonFirstConnected, compact, iconMode, workbenchBorderTopWidth }, {
 			pill: {
 				titleHeight: 32,
 				titleActions: {
@@ -444,11 +474,12 @@ suite('Sessions - Panel Part', () => {
 				background: 'rgb(32, 48, 64)',
 				foreground: 'rgb(171, 205, 239)',
 				itemPadding: '0px 8px',
-				top: '0px',
+				top: '16px',
 				right: '2px',
-				bottom: '0px',
+				bottom: '-8px',
 				left: '2px',
-				boxHeight: 32,
+				boxHeight: 24,
+				boxTopOffset: 4,
 				radius: '4px',
 			},
 			connected: {
@@ -464,7 +495,7 @@ suite('Sessions - Panel Part', () => {
 				bottom: '-1px',
 				borderTopColor: 'rgb(52, 86, 120)',
 				borderBottomWidth: '0px',
-				radius: '7px 7px 0px 0px',
+				radius: '0px 7px 0px 0px',
 				leftShoulder: 'none',
 				rightShoulder: '""',
 				firstTabOmitsLeftShoulder: true,
@@ -477,6 +508,8 @@ suite('Sessions - Panel Part', () => {
 			compact: {
 				titleHeight: 28,
 				itemHeight: 28,
+				indicatorHeight: 24,
+				indicatorTopOffset: 2,
 				titleActions: {
 					height: 28,
 					centerOffset: 0,
@@ -495,6 +528,54 @@ suite('Sessions - Panel Part', () => {
 				indicatorHeight: '24px',
 				indicatorRadius: '4px',
 			},
+			workbenchBorderTopWidth: '1px',
 		});
+	});
+
+	test('lets the panel frame own only the first connected tab leading edge', () => {
+		const root = mainWindow.document.createElement('div');
+		root.className = 'monaco-workbench agent-sessions-workbench modern-ui-tabs modern-ui-connected-editor-tabs';
+		root.style.cssText = '--vscode-strokeThickness: 1px; --vscode-cornerRadius-medium: 6px';
+		mainWindow.document.body.appendChild(root);
+		disposables.add({ dispose: () => root.remove() });
+		const { actionItem, indicator, secondActionItem, secondIndicator } = createPanelTab(root);
+
+		for (const compact of [false, true]) {
+			root.classList.toggle('modern-ui-compact', compact);
+			for (const direction of ['ltr', 'rtl']) {
+				root.dir = direction;
+				const getLeadingEdge = (element: HTMLElement) => {
+					const style = mainWindow.getComputedStyle(element);
+					return {
+						color: style.borderInlineStartColor,
+						width: style.borderInlineStartWidth,
+						radius: style.borderStartStartRadius,
+						backgroundClip: style.backgroundClip,
+					};
+				};
+
+				actionItem.classList.add('checked');
+				secondActionItem.classList.remove('checked');
+				const firstTab = getLeadingEdge(indicator);
+				actionItem.classList.remove('checked');
+				secondActionItem.classList.add('checked');
+				const secondTab = getLeadingEdge(secondIndicator);
+
+				assert.deepStrictEqual({ firstTab, secondTab }, {
+					firstTab: {
+						color: 'rgba(0, 0, 0, 0)',
+						width: '1px',
+						radius: '0px',
+						backgroundClip: 'border-box',
+					},
+					secondTab: {
+						color: 'rgb(52, 86, 120)',
+						width: '1px',
+						radius: '7px',
+						backgroundClip: 'border-box',
+					},
+				}, `${direction}, compact: ${compact}`);
+			}
+		}
 	});
 });

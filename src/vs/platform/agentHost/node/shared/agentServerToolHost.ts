@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from '../../../../base/common/objects.js';
-import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
+import type { IAgentServerToolDefinition, IAgentServerToolHost, IServerToolConfirmationDisplay } from '../../common/agentServerTools.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { isAhpChatChannel, isSubagentSession, type StringOrMarkdown, type ToolDefinition, type URI } from '../../common/state/sessionState.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
@@ -55,6 +55,8 @@ export interface IServerToolExecutionContext {
 	readonly sessionUri: URI;
 	readonly chatUri: URI;
 	readonly turnId?: string;
+	/** The tool call in the chat's active turn that is executing, when the provider reports it. */
+	readonly toolCallId?: string;
 }
 
 /**
@@ -134,6 +136,9 @@ export interface IServerToolGroup {
 	 */
 	getDisplay?(toolName: string, args: unknown, result?: IServerToolDisplayResult): IServerToolDisplay | undefined;
 }
+
+/** What the pure display path ({@link IServerToolGroup.getDisplay} without a host) needs of a group. */
+export type IServerToolDisplaySource = Pick<IServerToolGroup, 'definitions' | 'legacyToolNames' | 'getDisplay'>;
 
 /**
  * Bridges the agent host's server tools to the authoritative state tree.
@@ -261,7 +266,16 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 			?? false;
 	}
 
-	executeTool(chatUri: URI, toolName: string, rawArgs: unknown): string | Promise<string> {
+	getConfirmationDisplay(toolName: string, args: unknown): IServerToolConfirmationDisplay | undefined {
+		const display = this._groupByToolName.get(toolName)?.getDisplay?.(this._currentToolName(toolName), args);
+		return display && {
+			...(display.confirmationTitle !== undefined ? { confirmationTitle: display.confirmationTitle } : {}),
+			...(display.confirmationMessage !== undefined ? { confirmationMessage: display.confirmationMessage } : {}),
+			...(display.hideConfirmationInput !== undefined ? { hideConfirmationInput: display.hideConfirmationInput } : {}),
+		};
+	}
+
+	executeTool(chatUri: URI, toolName: string, rawArgs: unknown, toolCallId?: string): string | Promise<string> {
 		const group = this._groupByToolName.get(toolName);
 		if (!group) {
 			throw new Error(`Unknown server tool: ${toolName}`);
@@ -270,14 +284,15 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 		if (!this._isEnabledForSession(group, chatUri, name, toolName)) {
 			throw new Error(`Server tool "${toolName}" is disabled.`);
 		}
-		return group.execute(this._stateManager, this._executionContext(chatUri), name, rawArgs);
+		return group.execute(this._stateManager, this._executionContext(chatUri, toolCallId), name, rawArgs);
 	}
 
-	private _executionContext(chatUri: URI): IServerToolExecutionContext {
+	private _executionContext(chatUri: URI, toolCallId?: string): IServerToolExecutionContext {
 		return {
 			sessionUri: this._stateManager.requireChatOwner(chatUri),
 			chatUri,
 			turnId: this._stateManager.getActiveTurnId(chatUri),
+			...(toolCallId ? { toolCallId } : {}),
 		};
 	}
 

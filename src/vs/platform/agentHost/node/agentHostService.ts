@@ -10,6 +10,7 @@ import { RemoteLoggerChannelClient } from '../../log/common/logIpc.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentHostStartError, IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
 import { reportAgentHostProcessError } from '../common/agentHostProcessTelemetry.js';
+import type { IAgentHostProcessExitEvent } from '../common/agentHostProcessExit.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { AgentHostIpcChannels } from '../common/agentService.js';
 
@@ -168,7 +169,7 @@ export class AgentHostProcessManager extends Disposable {
 			// Connect logger channel so agent host logs appear in the output channel
 			startedConnection.store.add(new RemoteLoggerChannelClient(this._loggerService, startedConnection.client.getChannel(AgentHostIpcChannels.Logger)));
 
-			startedConnection.store.add(startedConnection.onDidProcessExit(e => this._handleProcessExit(startedConnection, e.code)));
+			startedConnection.store.add(startedConnection.onDidProcessExit(e => this._handleProcessExit(startedConnection, e)));
 		} catch (error) {
 			this._clearConnection(connection);
 			if (!this._store.isDisposed && !this._wasQuitRequested) {
@@ -202,7 +203,8 @@ export class AgentHostProcessManager extends Disposable {
 		}
 	}
 
-	private _handleProcessExit(connection: IAgentHostConnection, code: number): void {
+	private _handleProcessExit(connection: IAgentHostConnection, e: IAgentHostProcessExitEvent): void {
+		const code = e.code;
 		if (this._connection !== connection) {
 			return;
 		}
@@ -223,6 +225,7 @@ export class AgentHostProcessManager extends Disposable {
 			code,
 			restartCount: this._restartCount,
 			willRestart,
+			exitDiagnostics: e.diagnostics,
 		});
 		if (willRestart) {
 			this._logService.error(`AgentHostProcessManager: agent host terminated unexpectedly with code ${code}`);

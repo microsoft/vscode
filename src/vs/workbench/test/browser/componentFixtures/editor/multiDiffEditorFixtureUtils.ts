@@ -16,6 +16,7 @@ import { IDiffEditorOptions } from '../../../../../editor/common/config/editorOp
 import type { MultiDiffEditorVariant } from '../../../../../editor/common/multiDiffEditor.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ResourceLabel } from '../../../../browser/labels.js';
@@ -23,8 +24,9 @@ import { IDecorationsService } from '../../../../services/decorations/common/dec
 import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, registerWorkbenchServices } from '../fixtureUtils.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
-class FixtureWorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
+export class FixtureWorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) { }
@@ -116,8 +118,9 @@ export function createMultiDiffEditorFixtureServices(disposableStore: Disposable
 			});
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
 			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
-			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: '', folders: [], configuration: undefined }; } }());
+			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return testIWorkspace({ id: '', folders: [], configuration: undefined }); } }());
 			reg.definePartialInstance(INotebookDocumentService, { getNotebook: () => undefined });
+			reg.define(IListService, ListService);
 			registerWorkbenchServices(reg);
 		},
 	});

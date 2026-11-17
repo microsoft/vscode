@@ -18,7 +18,9 @@ import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
 import { AgentHostLaunchKind, AgentHostLaunchKindEnvVar, telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
-import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostIpcChannels, AgentHostOTelCaptureContentSettingId, AgentHostOTelCaptureIdentitySettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostManagementService, readAgentHostOTelPolicySettings } from '../common/agentService.js';
+import { AgentHostAhpJsonlLoggingEnvVar } from '../common/ahpJsonlLogger.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostIpcChannels, AgentHostOTelCaptureContentSettingId, AgentHostOTelCaptureIdentitySettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostManagementService, readAgentHostOTelPolicySettings } from '../common/agentService.js';
+import { ChatProvidersSettingId } from '../common/agentHostChatProviders.js';
 
 /**
  * Options for configuring the agent host WebSocket server in the child process.
@@ -33,6 +35,8 @@ export interface IAgentHostWebSocketConfig {
 	readonly host?: string;
 	/** Connection token value. When set, WebSocket clients must present this token. */
 	readonly connectionToken?: string;
+	/** User data path under which to publish a shared standalone endpoint. */
+	readonly registryUserDataPath?: string;
 }
 
 /** Retains deletion markers so the IPC client's inherited environment cannot restore removed variables. */
@@ -95,6 +99,7 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: 'true',
 			[AgentHostLaunchKindEnvVar]: AgentHostLaunchKind.VSCodeCLI,
+			[AgentHostAhpJsonlLoggingEnvVar]: String(this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId)),
 		};
 
 		// Forward the Claude/Codex SDK overrides + codex home/args from
@@ -105,6 +110,7 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			codexHome: this._configurationService.getValue<string>(AgentHostCodexAgentCodexHomeSettingId),
 			codexBinaryArgs: this._configurationService.getValue<readonly string[]>(AgentHostCodexAgentBinaryArgsSettingId),
 			claudeAgentEnabled: this._configurationService.getValue<boolean>(AgentHostClaudeAgentEnabledSettingId),
+			multipleChatProvidersEnabled: this._configurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) === true,
 			codexAgentEnabled: this._configurationService.getValue<boolean>(AgentHostCodexAgentEnabledSettingId),
 		}, process.env);
 		Object.assign(env, sdkEnv);
@@ -137,6 +143,9 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			}
 			if (this._wsConfig.connectionToken) {
 				env['VSCODE_AGENT_HOST_CONNECTION_TOKEN'] = this._wsConfig.connectionToken;
+			}
+			if (this._wsConfig.registryUserDataPath) {
+				env['VSCODE_AGENT_HOST_REGISTRY_USER_DATA_PATH'] = this._wsConfig.registryUserDataPath;
 			}
 		}
 

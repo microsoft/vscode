@@ -3,22 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../base/common/errors.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
+import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
 import {
-	CreatedPullRequest,
-	CreatePullRequestOptions,
-	EnablePullRequestAutoMergeOptions,
-	GitHubCheckAnnotation,
-	GitHubWorkflowJob,
 	GitHubWorkflowLog,
 	GitHubWorkflowRerunOptions,
 	GitHubWorkflowRun,
-	PullRequestBranchUpdateOptions,
-	PullRequestCommentOptions,
 	PullRequestEnqueueResult,
 	PullRequestMergeAuthorization,
 	PullRequestMergeOptions,
@@ -26,15 +21,11 @@ import {
 	PullRequestMergeResult,
 	PullRequestMutationApi,
 	PullRequestMutationResult,
-	PullRequestNodeOptions,
 	PullRequestReplyAndResolveOptions,
 	PullRequestReplyAndResolveResult,
-	PullRequestReplyOptions,
 	PullRequestReplyResult,
 } from './githubPullRequestMutationService.js';
-import { GitHubRepositoryRef } from './githubQueryService.js';
 import {
-	PullRequestComment,
 	GitHubFragmentError,
 	PullRequestInlineComment,
 	PullRequestRef,
@@ -42,16 +33,13 @@ import {
 	PullRequestSnapshot,
 	PullRequestSubscription,
 } from './githubPullRequestService.js';
-import { GitHubRequestTimeoutError, IGitHubEndpointProvider } from './githubTypes.js';
-import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
-import { arrayProperty, asArray, asObject, booleanProperty, idProperty, nextLink, normalizedEnumProperty, nullableStringProperty, numberProperty, objectAt, optionalObjectProperty, requiredId, requiredNumber, requiredString, stringProperty } from './githubResponse.js';
-import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
+import { GitHubRepositoryRef } from './githubQueryService.js';
+import { asObject, booleanProperty, idProperty, normalizedEnumProperty, nullableStringProperty, numberProperty, objectAt, optionalObjectProperty, requiredId, requiredString, stringProperty } from './githubResponse.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
+import { GitHubRequestTimeoutError, IGitHubEndpointProvider } from './githubTypes.js';
 import { IPullRequestResources } from './pullRequestResourceService.js';
 import { PullRequestScheduler } from './pullRequestScheduler.js';
-
-export interface IPullRequestMutations extends PullRequestMutationApi {
-}
+import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
 
 interface IPreparationState {
 	readonly value: PullRequestMergePreparation;
@@ -66,7 +54,6 @@ interface IUnconfirmedRerun {
 
 const operationMarkerPrefix = '<!-- vscode-agent-host-operation:';
 const operationIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
-const maximumPaginationPages = 100;
 const maximumWorkflowLogBytes = 16 * 1024 * 1024;
 const workflowLogTimeout = 30_000;
 const mergePreparationLifetime = 5 * 60_000;
@@ -91,25 +78,7 @@ const enqueuePullRequestMutation = `mutation AgentHostEnqueuePullRequest($pullRe
 	}
 }`;
 
-const enableAutoMergeMutation = `mutation AgentHostEnablePullRequestAutoMerge($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
-	enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: $mergeMethod }) {
-		pullRequest { id }
-	}
-}`;
-
-const disableAutoMergeMutation = `mutation AgentHostDisablePullRequestAutoMerge($pullRequestId: ID!) {
-	disablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId }) {
-		pullRequest { id }
-	}
-}`;
-
-const markReadyForReviewMutation = `mutation AgentHostMarkPullRequestReadyForReview($pullRequestId: ID!) {
-	markPullRequestReadyForReview(input: { pullRequestId: $pullRequestId }) {
-		pullRequest { id isDraft }
-	}
-}`;
-
-export class PullRequestMutationService extends Disposable implements IPullRequestMutations {
+export class PullRequestMutationService extends Disposable implements PullRequestMutationApi {
 
 	private readonly _mutationTails = new Map<string, Promise<void>>();
 	private readonly _preparations = new Map<string, IPreparationState>();
@@ -132,121 +101,18 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 
 	private readonly _clock: IRequestScheduler;
 
-	createPullRequest(
-		ref: GitHubRepositoryRef,
-		options: CreatePullRequestOptions,
-		signal: AbortSignal,
-	): Promise<CreatedPullRequest> {
-		return this._serializeRepository(ref, 'createPullRequest', async () => {
-			const created = await this._withCredential<CreatedPullRequest>(ref, signal, async (credential, combinedSignal) => {
-				const response = await this._transport.rest<unknown>(credential.account, credential.token, {
-					caller: 'github.mutations',
-					method: 'POST',
-					url: this._restUrl(ref, 'pulls'),
-					body: {
-						title: options.title,
-						body: options.body,
-						head: options.head,
-						base: options.base,
-						draft: options.draft,
-					},
-					priority: 'mutation',
-				}, combinedSignal);
-				const value = asObject(response.data, 'GitHub create pull request response was malformed');
-				const number = requiredNumber(value, 'number');
-				const state = stringProperty(value, 'state');
-				return {
-					ref: { ...ref, number },
-					id: idProperty(value, 'node_id'),
-					url: requiredString(value, 'html_url'),
-					title: options.title,
-					createdAt: stringProperty(value, 'created_at'),
-					...(state === 'open' || state === 'closed' ? { state } : {}),
-				};
-			});
-			return created;
-		});
-	}
-
-	enableAutoMerge(
-		ref: GitHubRepositoryRef,
-		options: EnablePullRequestAutoMergeOptions,
-		signal: AbortSignal,
-	): Promise<void> {
-		return this._serializeRepository(ref, 'enableAutoMerge', async () => {
-			await this._withCredential(ref, signal, async (credential, combinedSignal) => {
-				const response = await this._transport.graphql(
-					credential.account,
-					credential.token,
-					this._endpoint.getGraphQlUri(),
-					enableAutoMergeMutation,
-					{ pullRequestId: options.pullRequestId, mergeMethod: options.method },
-					combinedSignal,
-					'mutation',
-					{ caller: 'github.mutations' },
-				);
-				throwGraphQLErrors(response.errors);
-			});
-		});
-	}
-
-	disableAutoMerge(
-		ref: PullRequestRef,
-		options: PullRequestNodeOptions,
-		signal: AbortSignal,
-	): Promise<void> {
-		return this._serialize(ref, 'disableAutoMerge', async () => {
-			await this._pullRequestNodeMutation(ref, options, disableAutoMergeMutation, signal);
-			this._resources.invalidatePullRequest(ref, ['mergeability']);
-		});
-	}
-
-	markReadyForReview(
-		ref: PullRequestRef,
-		options: PullRequestNodeOptions,
-		signal: AbortSignal,
-	): Promise<void> {
-		return this._serialize(ref, 'markReadyForReview', async () => {
-			await this._pullRequestNodeMutation(ref, options, markReadyForReviewMutation, signal);
-			this._resources.invalidatePullRequest(ref, ['core', 'mergeability']);
-		});
-	}
-
-	addComment(
-		ref: PullRequestRef,
-		options: PullRequestCommentOptions,
-		signal: AbortSignal,
-	): Promise<PullRequestMutationResult<PullRequestComment>> {
-		return this._serialize(ref, 'addComment', () => this._addComment(ref, options, signal));
-	}
-
-	replyToThread(
-		ref: PullRequestRef,
-		options: PullRequestReplyOptions,
-		signal: AbortSignal,
-	): Promise<PullRequestReplyResult> {
-		return this._serialize(ref, 'replyToThread', () => this._replyToThread(ref, options, signal));
-	}
-
-	resolveThread(ref: PullRequestRef, threadId: string, signal: AbortSignal): Promise<void> {
-		return this._serialize(ref, 'resolveThread', async () => {
-			await this._resolveThread(ref, threadId, signal);
-			this._resources.invalidatePullRequest(ref, ['reviewThreads']);
-		});
-	}
-
 	replyAndResolveThread(
 		ref: PullRequestRef,
 		options: PullRequestReplyAndResolveOptions,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 	): Promise<PullRequestReplyAndResolveResult> {
 		return this._serialize(ref, 'replyAndResolveThread', async () => {
-			const reply = await this._replyToThread(ref, options, signal);
+			const reply = await this._replyToThread(ref, options, cancellationToken);
 			if (!options.resolve || (reply.outcome !== 'succeeded' && reply.outcome !== 'reconciled')) {
 				return { reply, resolved: false };
 			}
 			try {
-				await this._resolveThread(ref, options.threadId, signal);
+				await this._resolveThread(ref, options.threadId, cancellationToken);
 				this._resources.invalidatePullRequest(ref, ['reviewThreads']);
 				return { reply, resolved: true };
 			} catch (error) {
@@ -255,57 +121,14 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		});
 	}
 
-	listWorkflowRuns(ref: PullRequestRef, headSha: string, signal: AbortSignal): Promise<readonly GitHubWorkflowRun[]> {
-		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
-			const values = await this._fetchRestArray(
-				ref,
-				credential,
-				`actions/runs?head_sha=${encodeURIComponent(headSha)}&per_page=100`,
-				combinedSignal,
-				'workflow_runs',
-			);
-			return values.map(toWorkflowRun);
-		});
-	}
-
-	listWorkflowJobs(ref: PullRequestRef, runId: string, signal: AbortSignal, runAttempt?: number): Promise<readonly GitHubWorkflowJob[]> {
-		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
-			if (runAttempt !== undefined && (!Number.isSafeInteger(runAttempt) || runAttempt < 1)) {
-				throw new GitHubRequestError('GitHub workflow run attempt must be a positive integer', 'validation');
-			}
-			const attemptPath = runAttempt === undefined ? '' : `/attempts/${runAttempt}`;
-			const values = await this._fetchRestArray(
-				ref,
-				credential,
-				`actions/runs/${encodeURIComponent(runId)}${attemptPath}/jobs?per_page=100`,
-				combinedSignal,
-				'jobs',
-			);
-			return values.map(value => toWorkflowJob(value, runId));
-		});
-	}
-
-	listCheckAnnotations(ref: PullRequestRef, checkRunId: string, signal: AbortSignal): Promise<readonly GitHubCheckAnnotation[]> {
-		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
-			const values = await this._fetchRestArray(
-				ref,
-				credential,
-				`check-runs/${encodeURIComponent(checkRunId)}/annotations?per_page=100`,
-				combinedSignal,
-			);
-			return values.map(toCheckAnnotation);
-		});
-	}
-
-	downloadWorkflowJobLog(ref: PullRequestRef, jobId: string, signal: AbortSignal): Promise<GitHubWorkflowLog> {
-		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
+	downloadWorkflowJobLog(ref: PullRequestRef, jobId: string, cancellationToken: CancellationToken): Promise<GitHubWorkflowLog> {
+		return this._withCredential(ref, cancellationToken, async (credential, combinedToken) => {
 			const response = await this._transport.download(credential.account, credential.token, {
 				caller: 'github.mutations',
 				url: this._restUrl(ref, `actions/jobs/${encodeURIComponent(jobId)}/logs`),
 				maximumBytes: maximumWorkflowLogBytes,
 				timeout: workflowLogTimeout,
-				priority: 'interactive',
-			}, combinedSignal);
+			}, combinedToken);
 			// Drop partial secrets before applying redaction to the entire captured log.
 			const text = response.truncated ? response.text.slice(0, response.text.lastIndexOf('\n') + 1) : response.text;
 			return {
@@ -320,14 +143,14 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 	rerunWorkflow(
 		ref: PullRequestRef,
 		options: GitHubWorkflowRerunOptions,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 	): Promise<PullRequestMutationResult<GitHubWorkflowRun>> {
 		return this._serialize(ref, 'rerunWorkflow', async () => {
 			validateOperationId(options.operationId);
 			const rerunKey = `${pullRequestMutationKey(ref)}\x00${options.runId}`;
 			const unconfirmed = this._unconfirmedReruns.get(rerunKey);
 			if (unconfirmed) {
-				const run = await this._getWorkflowRun(ref, options.runId, signal);
+				const run = await this._getWorkflowRun(ref, options.runId, cancellationToken);
 				if (rerunConfirmed(run, unconfirmed.expectedRunAttempt)) {
 					this._unconfirmedReruns.delete(rerunKey);
 					this._resources.invalidatePullRequest(ref, ['checks']);
@@ -340,7 +163,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 			}
 
 			try {
-				await this._withCredential(ref, signal, async (credential, combinedSignal) => {
+				await this._withCredential(ref, cancellationToken, async (credential, combinedToken) => {
 					await this._transport.rest(credential.account, credential.token, {
 						caller: 'github.mutations',
 						method: 'POST',
@@ -349,7 +172,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 							`actions/runs/${encodeURIComponent(options.runId)}/${options.failedJobsOnly ? 'rerun-failed-jobs' : 'rerun'}`,
 						),
 						priority: 'mutation',
-					}, combinedSignal);
+					}, combinedToken);
 				});
 				this._resources.invalidatePullRequest(ref, ['checks']);
 				return { outcome: 'succeeded' };
@@ -361,7 +184,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 					operationId: options.operationId,
 					expectedRunAttempt: options.expectedRunAttempt,
 				});
-				const run = await this._tryGetWorkflowRun(ref, options.runId, signal);
+				const run = await this._tryGetWorkflowRun(ref, options.runId, cancellationToken);
 				if (run && rerunConfirmed(run, options.expectedRunAttempt)) {
 					this._unconfirmedReruns.delete(rerunKey);
 					this._resources.invalidatePullRequest(ref, ['checks']);
@@ -372,25 +195,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		});
 	}
 
-	updateBranch(ref: PullRequestRef, options: PullRequestBranchUpdateOptions, signal: AbortSignal): Promise<void> {
-		return this._serialize(ref, 'updateBranch', async () => {
-			if (!options.expectedHeadSha) {
-				throw new Error('A branch update requires the expected head SHA');
-			}
-			await this._withCredential(ref, signal, async (credential, combinedSignal) => {
-				await this._transport.rest(credential.account, credential.token, {
-					caller: 'github.mutations',
-					method: 'PUT',
-					url: this._restUrl(ref, `pulls/${ref.number}/update-branch`),
-					body: { expected_head_sha: options.expectedHeadSha },
-					priority: 'mutation',
-				}, combinedSignal);
-			});
-			this._resources.invalidatePullRequest(ref, ['core', 'checks', 'mergeability']);
-		});
-	}
-
-	prepareMerge(ref: PullRequestRef, expectedHeadSha: string, signal: AbortSignal): Promise<PullRequestMergePreparation> {
+	prepareMerge(ref: PullRequestRef, expectedHeadSha: string, cancellationToken: CancellationToken): Promise<PullRequestMergePreparation> {
 		return this._serialize(ref, 'prepareMerge', async () => {
 			if (!expectedHeadSha) {
 				throw new Error('Merge preparation requires an expected head SHA');
@@ -401,23 +206,20 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 				checks: { required: true, includeOptional: true },
 				mergeability: true,
 			});
-			const cancellation = cancellationTokenFromSignal(signal);
 			try {
-				await subscription.refresh('core', cancellation.tokenSource.token, { authoritative: true });
+				await subscription.refresh('core', cancellationToken, { authoritative: true });
 				await Promise.all([
-					subscription.refresh('checks', cancellation.tokenSource.token, { authoritative: true }),
-					subscription.refresh('submittedReviews', cancellation.tokenSource.token, { authoritative: true }),
-					subscription.refresh('reviewThreads', cancellation.tokenSource.token, { authoritative: true }),
-					subscription.refresh('mergeability', cancellation.tokenSource.token, { authoritative: true }),
+					subscription.refresh('checks', cancellationToken, { authoritative: true }),
+					subscription.refresh('submittedReviews', cancellationToken, { authoritative: true }),
+					subscription.refresh('reviewThreads', cancellationToken, { authoritative: true }),
+					subscription.refresh('mergeability', cancellationToken, { authoritative: true }),
 				]);
 				// Refreshed last so that a comment posted while the fragments above were
 				// in flight is still part of the captured snapshot. Callers gate merges on
 				// new maintainer comments, and a comment that lands after this point bumps
 				// the resource generation, which invalidates the preparation.
-				await subscription.refresh('topLevelComments', cancellation.tokenSource.token, { authoritative: true });
-				if (signal.aborted) {
-					throw signal.reason ?? new Error('Merge preparation was cancelled');
-				}
+				await subscription.refresh('topLevelComments', cancellationToken, { authoritative: true });
+				CancellationToken.throwIfCanceled(cancellationToken);
 				const snapshot = subscription.resource.snapshot.get();
 				validateMergeGateSnapshot(snapshot, expectedHeadSha);
 				const token = generateUuid();
@@ -440,12 +242,8 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 				return value;
 			} catch (error) {
 				subscription.dispose();
-				if (signal.aborted) {
-					throw signal.reason ?? error;
-				}
+				CancellationToken.throwIfCanceled(cancellationToken);
 				throw error;
-			} finally {
-				cancellation.dispose();
 			}
 		});
 	}
@@ -453,7 +251,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 	merge(
 		preparation: PullRequestMergePreparation,
 		options: PullRequestMergeOptions,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 	): Promise<PullRequestMergeResult> {
 		return this._serialize(preparation.ref, 'merge', async () => {
 			const state = this._takePreparation(preparation);
@@ -470,7 +268,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 					throw new GitHubRequestError(`Merge method ${options.method} is not allowed`, 'validation');
 				}
 				try {
-					const result = await this._withCredential(preparation.ref, signal, async (credential, combinedSignal) => {
+					const result = await this._withCredential(preparation.ref, cancellationToken, async (credential, combinedToken) => {
 						const response = await this._transport.rest<unknown>(credential.account, credential.token, {
 							caller: 'github.mutations',
 							method: 'PUT',
@@ -482,7 +280,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 								commit_message: options.message,
 							},
 							priority: 'mutation',
-						}, combinedSignal);
+						}, combinedToken);
 						return toMergeResult(response.data);
 					});
 					this._resources.invalidatePullRequest(preparation.ref, ['core', 'checks', 'mergeability']);
@@ -492,7 +290,12 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 						throw error;
 					}
 					this._resources.invalidatePullRequest(preparation.ref, ['core']);
-					await state.subscription.refresh('core', undefined, { authoritative: true });
+					try {
+						await state.subscription.refresh('core', undefined, { authoritative: true });
+					} catch {
+						// A failed read cannot show that the merge was not applied.
+						throw error;
+					}
 					const reconciled = state.resource.snapshot.get().core.value;
 					if (reconciled?.state === 'merged') {
 						return { outcome: 'reconciled', message: 'Pull request was merged' };
@@ -508,7 +311,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 	enqueue(
 		preparation: PullRequestMergePreparation,
 		authorization: PullRequestMergeAuthorization,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 	): Promise<PullRequestEnqueueResult> {
 		return this._serialize(preparation.ref, 'enqueue', async () => {
 			const state = this._takePreparation(preparation);
@@ -533,7 +336,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 						preparation.ref,
 						pullRequestId,
 						preparation.expectedHeadSha,
-						signal,
+						cancellationToken,
 					);
 					this._resources.invalidatePullRequest(preparation.ref, ['core', 'mergeability']);
 					return { outcome: 'succeeded', mergeQueueEntryId: entryId };
@@ -542,7 +345,12 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 						throw error;
 					}
 					this._resources.invalidatePullRequest(preparation.ref, ['mergeability']);
-					await state.subscription.refresh('mergeability', undefined, { authoritative: true });
+					try {
+						await state.subscription.refresh('mergeability', undefined, { authoritative: true });
+					} catch {
+						// A failed read cannot show that the pull request was not enqueued.
+						throw error;
+					}
 					const entryId = state.resource.snapshot.get().mergeability.value?.mergeQueueEntryId;
 					if (entryId) {
 						return { outcome: 'reconciled', mergeQueueEntryId: entryId };
@@ -562,70 +370,28 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		super.dispose();
 	}
 
-	private async _addComment(
-		ref: PullRequestRef,
-		options: PullRequestCommentOptions,
-		signal: AbortSignal,
-	): Promise<PullRequestMutationResult<PullRequestComment>> {
-		const body = withOperationMarker(options.body, options.operationId);
-		try {
-			const value = await this._postComment(ref, body, signal);
-			this._resources.invalidatePullRequest(ref, ['topLevelComments']);
-			return { outcome: 'succeeded', value };
-		} catch (error) {
-			if (!isAmbiguousMutationError(error)) {
-				throw error;
-			}
-			const reconciled = await this._reconcileComment(ref, 'topLevelComments', options.operationId, signal);
-			if (reconciled.proven) {
-				return reconciled.value
-					? { outcome: 'reconciled', value: reconciled.value as PullRequestComment }
-					: this._retryComment(ref, body, signal);
-			}
-			return { outcome: 'indeterminate' };
-		}
-	}
-
 	private async _replyToThread(
 		ref: PullRequestRef,
-		options: PullRequestReplyOptions,
-		signal: AbortSignal,
+		options: PullRequestReplyAndResolveOptions,
+		cancellationToken: CancellationToken,
 	): Promise<PullRequestReplyResult> {
 		const body = withOperationMarker(options.body, options.operationId);
 		try {
-			const value = await this._postThreadReply(ref, options.threadId, body, signal);
-			this._resources.invalidatePullRequest(ref, ['reviewThreads', 'inlineComments']);
+			const value = await this._postThreadReply(ref, options.threadId, body, cancellationToken);
+			this._resources.invalidatePullRequest(ref, ['reviewThreads']);
 			return toThreadReplyResult(value, 'succeeded');
 		} catch (error) {
 			if (!isAmbiguousMutationError(error)) {
 				throw error;
 			}
-			const reconciled = await this._reconcileComment(ref, 'reviewThreads', options.operationId, signal);
+			const reconciled = await this._reconcileThreadReply(ref, options.operationId);
 			if (reconciled.proven) {
 				if (reconciled.value) {
-					this._resources.invalidatePullRequest(ref, ['inlineComments']);
 					return toThreadReplyResult(reconciled.value, 'reconciled');
 				}
-				return this._retryThreadReply(ref, options.threadId, body, signal);
+				return this._retryThreadReply(ref, options.threadId, body, cancellationToken);
 			}
 			return { outcome: 'indeterminate' };
-		}
-	}
-
-	private async _retryComment(
-		ref: PullRequestRef,
-		body: string,
-		signal: AbortSignal,
-	): Promise<PullRequestMutationResult<PullRequestComment>> {
-		try {
-			const value = await this._postComment(ref, body, signal);
-			this._resources.invalidatePullRequest(ref, ['topLevelComments']);
-			return { outcome: 'succeeded', value };
-		} catch (error) {
-			if (isAmbiguousMutationError(error)) {
-				return { outcome: 'indeterminate' };
-			}
-			throw error;
 		}
 	}
 
@@ -633,11 +399,11 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		ref: PullRequestRef,
 		threadId: string,
 		body: string,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 	): Promise<PullRequestReplyResult> {
 		try {
-			const value = await this._postThreadReply(ref, threadId, body, signal);
-			this._resources.invalidatePullRequest(ref, ['reviewThreads', 'inlineComments']);
+			const value = await this._postThreadReply(ref, threadId, body, cancellationToken);
+			this._resources.invalidatePullRequest(ref, ['reviewThreads']);
 			return toThreadReplyResult(value, 'succeeded');
 		} catch (error) {
 			if (isAmbiguousMutationError(error)) {
@@ -647,28 +413,15 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		}
 	}
 
-	private _postComment(ref: PullRequestRef, body: string, signal: AbortSignal): Promise<PullRequestComment> {
-		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
-			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
-				caller: 'github.mutations',
-				method: 'POST',
-				url: this._restUrl(ref, `issues/${ref.number}/comments`),
-				body: { body },
-				priority: 'mutation',
-			}, combinedSignal);
-			return toComment(response.data);
-		});
-	}
-
-	private _postThreadReply(ref: PullRequestRef, threadId: string, body: string, signal: AbortSignal): Promise<PullRequestInlineComment> {
-		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
+	private _postThreadReply(ref: PullRequestRef, threadId: string, body: string, cancellationToken: CancellationToken): Promise<PullRequestInlineComment> {
+		return this._withCredential(ref, cancellationToken, async (credential, combinedToken) => {
 			const response = await this._transport.graphql<unknown>(
 				credential.account,
 				credential.token,
 				this._endpoint.getGraphQlUri(),
 				addReviewThreadReplyMutation,
 				{ threadId, body },
-				combinedSignal,
+				combinedToken,
 				'mutation',
 				{ caller: 'github.mutations' },
 			);
@@ -677,15 +430,15 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		});
 	}
 
-	private _resolveThread(ref: PullRequestRef, threadId: string, signal: AbortSignal): Promise<void> {
-		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
+	private _resolveThread(ref: PullRequestRef, threadId: string, cancellationToken: CancellationToken): Promise<void> {
+		return this._withCredential(ref, cancellationToken, async (credential, combinedToken) => {
 			const response = await this._transport.graphql<unknown>(
 				credential.account,
 				credential.token,
 				this._endpoint.getGraphQlUri(),
 				resolveReviewThreadMutation,
 				{ threadId },
-				combinedSignal,
+				combinedToken,
 				'mutation',
 				{ caller: 'github.mutations' },
 			);
@@ -697,32 +450,21 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		});
 	}
 
-	private async _reconcileComment(
+	private async _reconcileThreadReply(
 		ref: PullRequestRef,
-		fragment: 'topLevelComments' | 'reviewThreads',
 		operationId: string,
-		signal: AbortSignal,
-	): Promise<{ readonly proven: boolean; readonly value?: PullRequestComment | PullRequestInlineComment }> {
+	): Promise<{ readonly proven: boolean; readonly value?: PullRequestInlineComment }> {
 		const subscription = this._resources.subscribePullRequest(ref, {
 			priority: 'interactive',
-			conversation: fragment === 'topLevelComments'
-				? { topLevelComments: true, includeBodies: true }
-				: { reviewThreads: true, includeBodies: true },
+			conversation: { reviewThreads: true, includeBodies: true },
 		});
 		try {
 			try {
-				await subscription.refresh(fragment, undefined, { authoritative: true });
+				await subscription.refresh('reviewThreads', undefined, { authoritative: true });
 			} catch {
 				return { proven: false };
 			}
 			const marker = operationMarker(operationId);
-			if (fragment === 'topLevelComments') {
-				const state = subscription.resource.snapshot.get().topLevelComments;
-				if (state.status !== 'ready' || !state.complete || !state.value) {
-					return { proven: false };
-				}
-				return { proven: true, value: state.value.find(comment => comment.body?.includes(marker)) };
-			}
 			const state = subscription.resource.snapshot.get().reviewThreads;
 			if (state.status !== 'ready' || !state.complete || !state.value) {
 				return { proven: false };
@@ -744,8 +486,8 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		}
 	}
 
-	private async _getWorkflowRun(ref: PullRequestRef, runId: string, signal: AbortSignal): Promise<GitHubWorkflowRun> {
-		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
+	private async _getWorkflowRun(ref: PullRequestRef, runId: string, cancellationToken: CancellationToken): Promise<GitHubWorkflowRun> {
+		return this._withCredential(ref, cancellationToken, async (credential, combinedToken) => {
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
 				caller: 'github.mutations',
 				method: 'GET',
@@ -753,14 +495,14 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 				etag: false,
 				unconditional: true,
 				priority: 'mutationReconciliation',
-			}, combinedSignal);
+			}, combinedToken);
 			return toWorkflowRun(response.data);
 		});
 	}
 
-	private async _tryGetWorkflowRun(ref: PullRequestRef, runId: string, signal: AbortSignal): Promise<GitHubWorkflowRun | undefined> {
+	private async _tryGetWorkflowRun(ref: PullRequestRef, runId: string, cancellationToken: CancellationToken): Promise<GitHubWorkflowRun | undefined> {
 		try {
-			return await this._getWorkflowRun(ref, runId, signal);
+			return await this._getWorkflowRun(ref, runId, cancellationToken);
 		} catch {
 			return undefined;
 		}
@@ -770,16 +512,16 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		ref: PullRequestRef,
 		pullRequestId: string,
 		expectedHeadOid: string,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 	): Promise<string> {
-		return this._withCredential(ref, signal, async (credential, combinedSignal) => {
+		return this._withCredential(ref, cancellationToken, async (credential, combinedToken) => {
 			const response = await this._transport.graphql<unknown>(
 				credential.account,
 				credential.token,
 				this._endpoint.getGraphQlUri(),
 				enqueuePullRequestMutation,
 				{ pullRequestId, expectedHeadOid },
-				combinedSignal,
+				combinedToken,
 				'mutation',
 				{ caller: 'github.mutations' },
 			);
@@ -788,73 +530,23 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		});
 	}
 
-	private async _fetchRestArray(
-		ref: PullRequestRef,
-		credential: GitHubCredential,
-		route: string,
-		signal: AbortSignal,
-		arrayPropertyName?: string,
-	): Promise<readonly unknown[]> {
-		const values: unknown[] = [];
-		let url: string | undefined = this._restUrl(ref, route);
-		for (let page = 0; url && page < maximumPaginationPages; page++) {
-			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
-				caller: 'github.mutations',
-				method: 'GET',
-				url,
-				etag: true,
-				priority: 'interactive',
-			}, signal);
-			const pageValues = arrayPropertyName
-				? arrayProperty(asObject(response.data, 'GitHub paginated response was malformed'), arrayPropertyName)
-				: asArray(response.data, 'GitHub paginated response was not an array');
-			values.push(...pageValues);
-			url = nextLink(response.link);
-		}
-		if (url) {
-			throw new GitHubRequestError('GitHub pagination exceeded its page limit', 'malformedResponse');
-		}
-		return values;
-	}
-
-	private async _pullRequestNodeMutation(
-		ref: PullRequestRef,
-		options: PullRequestNodeOptions,
-		mutation: string,
-		signal: AbortSignal,
-	): Promise<void> {
-		if (!options.pullRequestId) {
-			throw new GitHubRequestError('Pull request node ID is required for this mutation', 'validation');
-		}
-		await this._withCredential(ref, signal, async (credential, combinedSignal) => {
-			const response = await this._transport.graphql(
-				credential.account,
-				credential.token,
-				this._endpoint.getGraphQlUri(),
-				mutation,
-				{ pullRequestId: options.pullRequestId },
-				combinedSignal,
-				'mutation',
-				{ caller: 'github.mutations' },
-			);
-			throwGraphQLErrors(response.errors);
-		});
-	}
-
 	private async _withCredential<T>(
 		ref: GitHubRepositoryRef,
-		signal: AbortSignal,
-		task: (credential: GitHubCredential, combinedSignal: AbortSignal) => Promise<T>,
+		cancellationToken: CancellationToken,
+		task: (credential: GitHubCredential, combinedToken: CancellationToken) => Promise<T>,
 	): Promise<T> {
-		const credential = await this._credentials.getCredential(signal);
+		const credential = await this._credentials.getCredential(cancellationToken);
 		if (!sameAccount(ref, credential)) {
 			throw new GitHubRequestError('Pull request account does not match the current GitHub credential', 'authentication');
 		}
+		const lifetime = new DisposableStore();
 		try {
-			return await task(credential, AbortSignal.any([signal, credential.signal]));
+			return await task(credential, CancellationToken.any([cancellationToken, credential.cancellationToken], lifetime));
 		} catch (error) {
 			this._credentials.handleRequestError(credential, error);
-			throw error;
+			throw !cancellationToken.isCancellationRequested && isCancellationError(error) ? credential.cancellationError ?? error : error;
+		} finally {
+			lifetime.dispose();
 		}
 	}
 
@@ -883,26 +575,6 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		return result;
 	}
 
-	private _serializeRepository<T>(ref: GitHubRepositoryRef, operation: string, task: () => Promise<T>): Promise<T> {
-		const key = [
-			ref.host.toLowerCase(),
-			ref.accountId,
-			ref.owner.toLowerCase(),
-			ref.repo.toLowerCase(),
-		].join('\x00');
-		const previous = this._mutationTails.get(key) ?? Promise.resolve();
-		const run = () => this._runMutation(operation, `${ref.owner}/${ref.repo}`, task);
-		const result = previous.then(run, run);
-		const tail = result.then(() => undefined, () => undefined);
-		this._mutationTails.set(key, tail);
-		void tail.then(() => {
-			if (this._mutationTails.get(key) === tail) {
-				this._mutationTails.delete(key);
-			}
-		});
-		return result;
-	}
-
 	private async _runMutation<T>(operation: string, target: string, task: () => Promise<T>): Promise<T> {
 		const startedAt = this._clock.now();
 		this._logService?.debug(`[PullRequestMutationService] ${operation} started for ${target}`);
@@ -917,6 +589,10 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 	}
 
 	private _handleCredentialInvalidation(event: GitHubCredentialInvalidation): void {
+		// Reauthorizing the same credential does not change what a preparation or rerun is waiting for.
+		if (event.reason === 'reauthorization') {
+			return;
+		}
 		if (this._preparations.size > 0 || this._unconfirmedReruns.size > 0) {
 			this._logService?.debug(`[PullRequestMutationService] Clearing mutation reconciliation state after credential invalidation (${event.reason})`);
 		}
@@ -1043,19 +719,6 @@ function pullRequestMutationKey(ref: PullRequestRef): string {
 	].join('\x00');
 }
 
-function toComment(value: unknown): PullRequestComment {
-	const item = asObject(value, 'GitHub comment response was malformed');
-	return {
-		id: requiredId(item, 'id'),
-		nodeId: idProperty(item, 'node_id'),
-		body: nullableStringProperty(item, 'body'),
-		url: stringProperty(item, 'html_url'),
-		createdAt: stringProperty(item, 'created_at'),
-		updatedAt: stringProperty(item, 'updated_at'),
-		author: toActor(optionalObjectProperty(item, 'user')),
-	};
-}
-
 function toGraphQLComment(value: unknown): PullRequestInlineComment {
 	const item = asObject(value, 'GitHub reply response was malformed');
 	return {
@@ -1083,10 +746,11 @@ function toThreadReplyResult(value: PullRequestInlineComment, outcome: 'succeede
 
 function toWorkflowRun(value: unknown): GitHubWorkflowRun {
 	const item = asObject(value, 'GitHub workflow run was malformed');
+	const name: unknown = Reflect.get(item, 'name');
 	const runAttempt = numberProperty(item, 'run_attempt');
 	return {
 		id: requiredId(item, 'id'),
-		name: requiredString(item, 'name'),
+		name: name === null || name === undefined ? name : requiredString(item, 'name'),
 		event: stringProperty(item, 'event'),
 		status: normalizedEnumProperty(item, 'status'),
 		conclusion: normalizedEnumProperty(item, 'conclusion'),
@@ -1096,46 +760,6 @@ function toWorkflowRun(value: unknown): GitHubWorkflowRun {
 		url: stringProperty(item, 'html_url'),
 		createdAt: stringProperty(item, 'created_at'),
 		updatedAt: stringProperty(item, 'updated_at'),
-	};
-}
-
-function toWorkflowJob(value: unknown, runId: string): GitHubWorkflowJob {
-	const item = asObject(value, 'GitHub workflow job was malformed');
-	const steps = Reflect.get(item, 'steps');
-	return {
-		id: requiredId(item, 'id'),
-		runId,
-		name: requiredString(item, 'name'),
-		headSha: stringProperty(item, 'head_sha'),
-		runAttempt: numberProperty(item, 'run_attempt'),
-		status: normalizedEnumProperty(item, 'status'),
-		conclusion: normalizedEnumProperty(item, 'conclusion'),
-		steps: steps === undefined || steps === null ? undefined : asArray(steps, 'GitHub workflow job steps were malformed').map(value => {
-			const step = asObject(value, 'GitHub workflow job step was malformed');
-			return {
-				number: requiredNumber(step, 'number'),
-				name: requiredString(step, 'name'),
-				status: normalizedEnumProperty(step, 'status'),
-				conclusion: normalizedEnumProperty(step, 'conclusion'),
-			};
-		}),
-		checkRunId: idProperty(item, 'check_run_id') ?? /\/check-runs\/(?<id>\d+)(?:[?#]|$)/.exec(stringProperty(item, 'check_run_url') ?? '')?.groups?.id,
-		url: stringProperty(item, 'html_url'),
-		startedAt: stringProperty(item, 'started_at'),
-		completedAt: stringProperty(item, 'completed_at'),
-	};
-}
-
-function toCheckAnnotation(value: unknown): GitHubCheckAnnotation {
-	const item = asObject(value, 'GitHub check annotation was malformed');
-	return {
-		path: requiredString(item, 'path'),
-		startLine: numberProperty(item, 'start_line') ?? 0,
-		endLine: numberProperty(item, 'end_line') ?? numberProperty(item, 'start_line') ?? 0,
-		level: requiredString(item, 'annotation_level'),
-		message: requiredString(item, 'message'),
-		title: nullableStringProperty(item, 'title'),
-		rawDetails: nullableStringProperty(item, 'raw_details'),
 	};
 }
 
@@ -1196,24 +820,6 @@ function throwGraphQLErrors(errors: readonly GitHubGraphQLError[]): void {
 		undefined,
 		errors,
 	);
-}
-
-function cancellationTokenFromSignal(signal: AbortSignal): { readonly tokenSource: CancellationTokenSource; readonly dispose: () => void } {
-	const tokenSource = new CancellationTokenSource();
-	if (signal.aborted) {
-		tokenSource.cancel();
-		return { tokenSource, dispose: () => tokenSource.dispose() };
-	}
-	const onAbort = () => tokenSource.cancel();
-	const listener = toDisposable(() => signal.removeEventListener('abort', onAbort));
-	signal.addEventListener('abort', onAbort, { once: true });
-	return {
-		tokenSource,
-		dispose: () => {
-			listener.dispose();
-			tokenSource.dispose();
-		},
-	};
 }
 
 function toFragmentError(error: unknown): GitHubFragmentError {

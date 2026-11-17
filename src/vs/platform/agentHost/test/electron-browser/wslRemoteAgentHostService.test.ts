@@ -6,16 +6,18 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import type { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { URI } from '../../../../base/common/uri.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ISharedProcessService } from '../../../ipc/electron-browser/services.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { IDefaultAccountService } from '../../../defaultAccount/common/defaultAccount.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
 import { ILabelService } from '../../../label/common/label.js';
@@ -31,6 +33,7 @@ import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.j
 import { AHP_UNSUPPORTED_PROTOCOL_VERSION, JsonRpcErrorCodes, isJsonRpcRequest, type JsonRpcRequest, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { type IWSLAgentHostConfig, type IWSLConnectResult, type IWSLConnectProgress, type IWSLRemoteAgentHostMainService } from '../../common/wslRemoteAgentHost.js';
 import { IWSLRelayClientFactory, WSLRelayClientFactory, WSLRemoteAgentHostService } from '../../electron-browser/wslRemoteAgentHostServiceImpl.js';
+import { IRequestService } from '../../../request/common/request.js';
 
 class TestProtocolTransport extends Disposable implements IProtocolTransport {
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
@@ -224,7 +227,7 @@ function asChannel(target: object): IChannel {
 }
 
 suite('WSLRemoteAgentHostService (renderer)', () => {
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let mainService: MockWSLMainService;
 	let instantiationService: TestInstantiationService;
 	let remoteAgentHostService: EditorWindowRemoteAgentHostService;
@@ -242,7 +245,9 @@ suite('WSLRemoteAgentHostService (renderer)', () => {
 		transports = [];
 
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IRequestService, { resolveProxy: async () => undefined });
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IDefaultAccountService, { policyData: null, onDidChangePolicyData: Event.None });
 		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
 		instantiationService.stub(ILabelService, {
@@ -286,8 +291,17 @@ suite('WSLRemoteAgentHostService (renderer)', () => {
 		service = disposables.add(instantiationService.createInstance(WSLRemoteAgentHostService));
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	test('registers a distro persistently without explicitly connecting', () => {
+		service.cacheDistro({ distro: 'Ubuntu', name: 'Ubuntu' });
+		service.cacheDistro({ distro: 'Ubuntu', name: 'Work Ubuntu' });
+		assert.deepStrictEqual({
+			cached: service.getCachedDistros(),
+			entries: remoteAgentHostService.configuredEntries.map(entry => entry.name),
+			connectCalls: mainService.connectCalls,
+			transports: transports.length,
+		}, { cached: [{ distro: 'Ubuntu', name: 'Work Ubuntu' }], entries: ['Work Ubuntu'], connectCalls: [], transports: 0 });
+	});
+
 
 	async function connect(config: IWSLAgentHostConfig = { distro: 'Ubuntu', name: 'Ubuntu' }): Promise<void> {
 		const promise = service.connect(config);
@@ -456,7 +470,8 @@ suite('WSLRemoteAgentHostService (renderer)', () => {
 		});
 	});
 
-	test('releases a late replacement relay after the protocol client is disposed', async () => {
+	test('releases a late replacement relay after the protocol client is disposed', () => runWithFakedTimers({}, async () => {
+		// The relay reconnects after the default real-time backoff; advance it in virtual time.
 		const initial = await mainService.connect({ distro: 'Ubuntu', name: 'Ubuntu' });
 		const replacement = new DeferredPromise<IWSLConnectResult>();
 		mainService.deferredReconnect = replacement;
@@ -479,5 +494,5 @@ suite('WSLRemoteAgentHostService (renderer)', () => {
 		await lateRelease;
 
 		assert.deepStrictEqual(mainService.releaseRelayCalls, [initial.connectionId, 'late-relay']);
-	});
+	}));
 });

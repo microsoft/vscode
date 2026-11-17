@@ -128,7 +128,7 @@ export interface IAgentHostConnectionsService {
 
 	/**
 	 * Resolves a live connection by sanitized authority, including
-	 * {@link AMBIENT_AGENT_HOST_AUTHORITY} for the ambient host. Returns
+	 * {@link AMBIENT_AGENT_HOST_AUTHORITY} and its resource mapper's authority for the ambient host. Returns
 	 * `undefined` when no connected host matches.
 	 */
 	getConnectionByAuthority(authority: string): IAgentConnection | undefined;
@@ -154,6 +154,9 @@ export interface IAgentHostConnectionsService {
 
 	/** Records an exact backend identity and adapts only its frontend provider scheme. */
 	registerSessionResource(backendSession: URI, authority?: string, provider?: string): URI;
+
+	/** Binds a catalog resource to an acquired execution for the owner's lifetime. */
+	registerSessionResourceAlias(resource: URI, backendSession: URI, authority: string, provider: string): IDisposable;
 
 	/** Looks up a frontend resource using its advertised backend identity on one connection. */
 	findSessionResource(backendSession: URI, authority?: string): URI | undefined;

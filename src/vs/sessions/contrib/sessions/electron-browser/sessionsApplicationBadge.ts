@@ -13,18 +13,17 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IApplicationBadge, INativeHostService } from '../../../../platform/native/common/native.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import product from '../../../../platform/product/common/product.js';
 import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from '../../../../workbench/common/theme.js';
-import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { BlockedSessions } from '../../blockedSessions/browser/blockedSessions.js';
+import { ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { BlockedSessions } from '../../../../workbench/contrib/sessions/browser/blockedSessions.js';
 
 export const SESSIONS_APPLICATION_BADGE_SETTING = 'sessions.showApplicationBadge';
-export const SESSIONS_APPLICATION_BADGE_DEFAULT = product.quality !== 'stable';
+export const SESSIONS_APPLICATION_BADGE_DEFAULT = true;
 export const SESSIONS_APPLICATION_BADGE_OPTIONS_SETTING = 'sessions.applicationBadge';
 export const SESSIONS_APPLICATION_BADGE_OPTIONS_DEFAULT = {
 	inputNeeded: true,

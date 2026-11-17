@@ -72,6 +72,10 @@ pub struct GithubEnvironmentConfig {
 	pub account_id: String,
 	pub credential: String,
 	pub roots: Vec<String>,
+	#[serde(skip_serializing_if = "Vec::is_empty")]
+	pub optional_roots: Vec<String>,
+	pub projects: Vec<String>,
+	pub default_directory: String,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub name: Option<String>,
 	pub live: bool,
@@ -2347,6 +2351,11 @@ mod tests {
 	/// does: `run_server` owns the process until it exits, so it is spawned
 	/// and only its readiness is awaited here. The returned handle completes
 	/// once the process has exited.
+	///
+	/// The process does not exit before its readiness has been observed: a
+	/// server that exits right after printing its readiness line races
+	/// `run_server`, which may observe the exit first and report that the
+	/// server exited before it was ready.
 	#[cfg(unix)]
 	async fn start_fake_server(
 		manager: &Arc<AgentHostManager>,
@@ -2366,9 +2375,14 @@ mod tests {
 		let bin_dir = server_dir.join(SERVER_FOLDER_NAME).join("bin");
 		std::fs::create_dir_all(&bin_dir).unwrap();
 		let script = bin_dir.join(release.quality.server_entrypoint());
+		let ready_observed = dir.join("ready-observed");
 		std::fs::write(
 			&script,
-			format!("#!/bin/sh\necho 'Agent host server listening on test'\n{body}\n"),
+			format!(
+				"#!/bin/sh\necho 'Agent host server listening on test'\n{body}\n\
+				 i=0; while [ ! -e '{}' ] && [ $i -lt 600 ]; do sleep 0.05; i=$((i+1)); done\n",
+				ready_observed.display()
+			),
 		)
 		.unwrap();
 		std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -2378,6 +2392,7 @@ mod tests {
 		let server =
 			tokio::spawn(async move { manager.run_server(release, server_dir, opener).await });
 		assert!(ready.wait().await.unwrap().is_ok());
+		std::fs::write(&ready_observed, b"").unwrap();
 		server
 	}
 
@@ -2415,6 +2430,9 @@ mod tests {
 			account_id: "123".into(),
 			credential: "test-credential".into(),
 			roots: vec![dir.path().to_string_lossy().into_owned()],
+			optional_roots: vec![],
+			projects: vec![dir.path().to_string_lossy().into_owned()],
+			default_directory: dir.path().to_string_lossy().into_owned(),
 			name: Some("build-machine".into()),
 			live: true,
 		};
@@ -2473,6 +2491,9 @@ mod tests {
 			account_id: "123".into(),
 			credential: "test-credential".into(),
 			roots: vec![dir.path().to_string_lossy().into_owned()],
+			optional_roots: vec![],
+			projects: vec![dir.path().to_string_lossy().into_owned()],
+			default_directory: dir.path().to_string_lossy().into_owned(),
 			name: None,
 			live: true,
 		});
@@ -2510,6 +2531,9 @@ mod tests {
 			account_id: "123".into(),
 			credential: "test-credential".into(),
 			roots: vec![dir.to_string_lossy().into_owned()],
+			optional_roots: vec![],
+			projects: vec![dir.to_string_lossy().into_owned()],
+			default_directory: dir.to_string_lossy().into_owned(),
 			name: None,
 			live: true,
 		});

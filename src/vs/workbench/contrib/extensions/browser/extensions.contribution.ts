@@ -30,7 +30,7 @@ import { EXTENSION_INSTALL_SOURCE_CONTEXT, ExtensionInstallSource, ExtensionRequ
 import { areSameExtensions, getIdAndVersion } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { ExtensionStorageService } from '../../../../platform/extensionManagement/common/extensionStorage.js';
 import { IExtensionRecommendationNotificationService } from '../../../../platform/extensionRecommendations/common/extensionRecommendations.js';
-import { EXTENSION_CATEGORIES, ExtensionType } from '../../../../platform/extensions/common/extensions.js';
+import { EXTENSION_CATEGORIES, ExtensionType, MANAGE_EXTENSION_COMMAND_ID } from '../../../../platform/extensions/common/extensions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -55,7 +55,6 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { EnablementState, IExtensionManagementServerService, IPublisherInfo, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 import { IWorkspaceExtensionsConfigService } from '../../../services/extensionRecommendations/common/workspaceExtensionsConfig.js';
-import { EXTENSIONS_SUPPORT_AGENTS_WINDOW } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
@@ -248,24 +247,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					}
 				}]
 			},
-			[EXTENSIONS_SUPPORT_AGENTS_WINDOW]: {
-				type: 'object',
-				scope: ConfigurationScope.APPLICATION,
-				markdownDescription: localize('extensions.supportAgentsWindow', "Override the Agents window support of an extension. Extensions using `true` will be enabled in the Agents window even when they would otherwise be disabled."),
-				patternProperties: {
-					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
-						type: 'boolean',
-						default: false
-					}
-				},
-				additionalProperties: false,
-				default: {},
-				defaultSnippets: [{
-					'body': {
-						'pub.name': true
-					}
-				}]
-			},
 			'extensions.experimental.affinity': {
 				type: 'object',
 				markdownDescription: localize('extensions.affinity', "Configure an extension to execute in a different extension host process."),
@@ -412,7 +393,7 @@ const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registr
 jsonRegistry.registerSchema(ExtensionsConfigurationSchemaId, ExtensionsConfigurationSchema);
 
 // Register Commands
-CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccessor, extensionId: string, tab?: ExtensionEditorTab, preserveFocus?: boolean, feature?: string) => {
+CommandsRegistry.registerCommand(MANAGE_EXTENSION_COMMAND_ID, (accessor: ServicesAccessor, extensionId: string, tab?: ExtensionEditorTab, preserveFocus?: boolean, feature?: string) => {
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
 	const extension = extensionService.local.find(e => areSameExtensions(e.identifier, { id: extensionId }));
 	if (extension) {
@@ -431,7 +412,7 @@ CommandsRegistry.registerCommand('extension.open', async (accessor: ServicesAcce
 		return extensionService.open(extension, { tab, preserveFocus, feature, sideByside });
 	}
 
-	return commandService.executeCommand('_extensions.manage', extensionId, tab, preserveFocus, feature);
+	return commandService.executeCommand(MANAGE_EXTENSION_COMMAND_ID, extensionId, tab, preserveFocus, feature);
 });
 
 CommandsRegistry.registerCommand({
