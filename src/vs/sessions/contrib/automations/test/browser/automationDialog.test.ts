@@ -3187,12 +3187,14 @@ suite('Automation dialog creation', () => {
 
 	test('cancelling the shared calendar leaves the cutoff unchanged and restores invoking focus', async () => {
 		const date = '2099-01-21T17:24:37.123Z';
-		const dialog = openDialog({ initialValues: {
-			name: 'Calendar review', prompt: 'Review changes',
-			target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' },
-			schedule: { interval: 'manual', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
-			disableConditions: buildAutomationDisableConditions(date), enabled: false,
-		} });
+		const dialog = openDialog({
+			initialValues: {
+				name: 'Calendar review', prompt: 'Review changes',
+				target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' },
+				schedule: { interval: 'manual', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
+				disableConditions: buildAutomationDisableConditions(date), enabled: false,
+			}
+		});
 		dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!.click();
 		const button = dialog.container.querySelector<HTMLElement>('#automation-end-date')!;
 		button.click();
