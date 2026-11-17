@@ -10,10 +10,9 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Button, ButtonBar, ButtonWithDropdown, IButton } from '../../../../../base/browser/ui/button/button.js';
-import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -34,7 +33,7 @@ import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { Link } from '../../../../../platform/opener/browser/link.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { normalizeRemoteAgentHostAddress } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IMissionControlEnvironmentService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
@@ -119,6 +118,8 @@ function canArchiveAutomationSession(session: ISession, reader?: IReader): boole
 }
 export const SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY = 'sessions.automations.seenPluginTemplateIds';
 export const SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY = 'sessions.automations.showDisabled';
+const ShowDisabledAutomationsContext = new RawContextKey<boolean>('sessionsAutomationsShowDisabled', false);
+const TOGGLE_SHOW_DISABLED_AUTOMATIONS_COMMAND_ID = 'sessions.automations.toggleShowDisabled';
 /** Onboarding spotlight targets shared by automatic introductions and checklist tours. */
 const AUTOMATION_TEMPLATES_ONBOARDING_TARGET_ID = 'sessions.automations.templates';
 const CREATE_AUTOMATION_ONBOARDING_TARGET_ID = 'sessions.automations.create';
@@ -189,7 +190,6 @@ interface IAutomationOwnershipSection {
 	readonly title: HTMLElement;
 	readonly grid: HTMLElement;
 	readonly emptyState: HTMLElement | undefined;
-	readonly disabledFilter: { readonly container: HTMLElement; readonly checkbox: Checkbox } | undefined;
 	readonly disposables: DisposableStore;
 }
 
@@ -461,6 +461,13 @@ class AutomationCardsSection extends Disposable {
 		super();
 		// Storage restores the preference; delayed storage echoes must not overwrite live input.
 		this.showDisabled = observableValue(this, this.storageService.getBoolean(SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, StorageScope.PROFILE, false));
+		const showDisabledContext = ShowDisabledAutomationsContext.bindTo(this.contextKeyService);
+		this._register(toDisposable(() => showDisabledContext.reset()));
+		this._register(autorun(reader => showDisabledContext.set(this.showDisabled.read(reader))));
+		this._register(CommandsRegistry.registerCommand(TOGGLE_SHOW_DISABLED_AUTOMATIONS_COMMAND_ID, () => {
+			this.showDisabled.set(!this.showDisabled.get(), undefined);
+			this.storageService.store(SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, this.showDisabled.get(), StorageScope.PROFILE, StorageTarget.MACHINE);
+		}));
 		this.seenPluginTemplateIds = this.readSeenPluginTemplateIds();
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY, this._store)(() => {
 			this.seenPluginTemplateIds = this.readSeenPluginTemplateIds();
@@ -609,14 +616,6 @@ class AutomationCardsSection extends Disposable {
 				this.ownershipSections.set(group.ownership, rendered);
 			}
 			rendered.title.textContent = group.label;
-			if (rendered.disabledFilter) {
-				rendered.disabledFilter.checkbox.checked = showDisabled;
-				const hasDisabled = group.automations.some(automation => !automation.enabled);
-				if (!hasDisabled && DOM.isHTMLElement(activeElement) && rendered.disabledFilter.container.contains(activeElement)) {
-					rendered.summary.focus();
-				}
-				rendered.disabledFilter.container.style.display = hasDisabled ? '' : 'none';
-			}
 			if (rendered.emptyState) {
 				rendered.emptyState.style.display = group.automations.length === 0 ? '' : 'none';
 			}
@@ -682,9 +681,7 @@ class AutomationCardsSection extends Disposable {
 			const hiddenCard = activeElement.closest<HTMLElement>('.automations-card-wrapper');
 			const userSection = this.ownershipSections.get('user');
 			if (hiddenCard?.style.display === 'none') {
-				userSection?.disabledFilter?.checkbox.focus();
-			} else if (userSection?.disabledFilter?.container.contains(activeElement) && userSection.disabledFilter.container.style.display === 'none') {
-				userSection.summary.focus();
+				userSection?.summary.focus();
 			} else if (!nextContainer.contains(activeElement) && !this.isVisibleTemplateElement(activeElement)) {
 				this.focusVisibleState(automations, catalogueState);
 			} else if (!DOM.isActiveElement(activeElement)) {
@@ -712,25 +709,6 @@ class AutomationCardsSection extends Disposable {
 		title.setAttribute('aria-level', '3');
 		title.textContent = label;
 		summary.setAttribute('aria-labelledby', title.id);
-		let disabledFilter: IAutomationOwnershipSection['disabledFilter'];
-		if (ownership === 'user') {
-			const container = DOM.append(summary, $('span.automations-show-disabled'));
-			const label = localize('showDisabledAutomations', "Show disabled");
-			const checkbox = disposables.add(new Checkbox(label, this.showDisabled.get(), { ...defaultCheckboxStyles, size: 14 }));
-			DOM.append(container, checkbox.domNode);
-			const labelText = DOM.append(container, $('span', undefined, label));
-			disposables.add(DOM.addDisposableGenericMouseDownListener(labelText, (event: MouseEvent) => {
-				event.preventDefault();
-				checkbox.focus();
-			}));
-			disposables.add(DOM.addDisposableListener(labelText, DOM.EventType.CLICK, () => checkbox.domNode.click()));
-			disposables.add(DOM.addDisposableListener(container, DOM.EventType.CLICK, event => DOM.EventHelper.stop(event, true)));
-			disposables.add(checkbox.onChange(() => {
-				this.showDisabled.set(checkbox.checked, undefined);
-				this.storageService.store(SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, checkbox.checked, StorageScope.PROFILE, StorageTarget.MACHINE);
-			}));
-			disabledFilter = { container, checkbox };
-		}
 		if (description) {
 			summary.setAttribute('aria-description', description);
 			const info = DOM.append(heading, renderIcon(Codicon.info));
@@ -752,7 +730,7 @@ class AutomationCardsSection extends Disposable {
 			this.renderEmptyState(emptyState, disposables);
 			emptyState.style.display = 'none';
 		}
-		return { section, summary, title, grid, emptyState, disabledFilter, disposables };
+		return { section, summary, title, grid, emptyState, disposables };
 	}
 
 	private isVisibleTemplateElement(element: HTMLElement): boolean {
@@ -1566,7 +1544,7 @@ class AutomationCardsSection extends Disposable {
 
 	private focusCard(card: IAutomationCardEntry): void {
 		if (card.element.style.display === 'none') {
-			this.ownershipSections.get('user')?.disabledFilter?.checkbox.focus();
+			this.ownershipSections.get('user')?.summary.focus();
 			return;
 		}
 		const section = card.element.closest<HTMLDetailsElement>('details.automations-ownership-section');
@@ -1602,7 +1580,7 @@ class AutomationCardsSection extends Disposable {
 			if (!this._store.isDisposed && this.focusRoot.isConnected && DOM.isHTMLElement(focusedElement)
 				&& focusedElement.closest<HTMLElement>('.automations-card-wrapper')?.style.display === 'none'
 				&& DOM.getActiveElement() === DOM.getWindow(this.focusRoot).document.body) {
-				this.ownershipSections.get('user')?.disabledFilter?.checkbox.focus();
+				this.ownershipSections.get('user')?.summary.focus();
 			}
 			if (!result || result.kind !== 'update') {
 				return;
@@ -3208,7 +3186,19 @@ MenuRegistry.appendMenuItem(AgentsWindowMenus.CustomViewAutomations, {
 	icon: Codicon.more,
 	group: 'navigation',
 	order: 4,
-	when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, ContextKeyExpr.equals(`config.${CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING}`, true)),
+	when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
+});
+
+MenuRegistry.appendMenuItem(AgentsWindowMenus.AutomationsMoreActions, {
+	command: {
+		id: TOGGLE_SHOW_DISABLED_AUTOMATIONS_COMMAND_ID,
+		title: localize2('showDisabledAutomations', "Show Disabled Automations"),
+		toggled: ShowDisabledAutomationsContext,
+		precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
+	},
+	group: '1_state',
+	order: 2,
+	when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
 });
 
 registerAction2(class ToggleOtherSharedAutomationsAction extends Action2 {
