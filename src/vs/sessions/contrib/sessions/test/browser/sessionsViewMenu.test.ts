@@ -75,7 +75,9 @@ suite('Sessions - View Menu', () => {
 		providers?: readonly ISessionsProvider[],
 	) {
 		const configurationService = new class extends TestConfigurationService {
-			override async updateValue(key: string, value: unknown): Promise<void> {
+			readonly updates: unknown[][] = [];
+			override async updateValue(key: string, value: unknown, ...rest: unknown[]): Promise<void> {
+				this.updates.push([key, value, ...rest]);
 				await this.setUserConfiguration(key, value);
 				this.onDidChangeConfigurationEmitter.fire({
 					affectsConfiguration: section => section === key,
@@ -1290,7 +1292,7 @@ suite('Sessions - View Menu', () => {
 			enabled,
 			defaults,
 			checked: snapshot(Menus.SessionsViewAutomationRuns).filter(item => item.checked).map(item => item.title),
-			setting: configurationService.getValue(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING),
+			updates: configurationService.updates,
 		}, {
 			disabled: [],
 			enabled: [{ title: 'Show Automation Runs', group: '3_visibility', submenu: Menus.SessionsViewAutomationRuns.id }],
@@ -1300,7 +1302,7 @@ suite('Sessions - View Menu', () => {
 				{ title: 'Never', group: '1_modes', checked: false },
 			],
 			checked: ['Always'],
-			setting: AutomationSessionsListMode.Always,
+			updates: [[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, AutomationSessionsListMode.Always]],
 		});
 	});
 

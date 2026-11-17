@@ -1050,7 +1050,8 @@ function createSessionsListActions(): DisposableStore {
 			}
 
 			override async run(accessor: ServicesAccessor): Promise<void> {
-				await accessor.get(IConfigurationService).updateValue(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, mode, ConfigurationTarget.USER);
+				// Without a target, the value is written where it takes effect, such as over a workspace's value
+				await accessor.get(IConfigurationService).updateValue(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, mode);
 			}
 		}));
 	}
