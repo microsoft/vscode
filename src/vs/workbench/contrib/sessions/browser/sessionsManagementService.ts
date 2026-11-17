@@ -345,11 +345,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return resource;
 	}
 
-	getSessions(): ISession[] {		// Dedup only affects the displayed list; lookups (`getSession`,
+	getSessions(options?: { readonly includeHidden?: boolean }): ISession[] {		// Dedup only affects the displayed list; lookups (`getSession`,
 		// `getSessionForChatResource`) use every session, unscoped and undeduped, so a hidden row can
 		// still be resolved by resource, and {@link resolveSessionResource} redirects
 		// it to its agent-host twin when it is opened.
-		const sessions = this._getMergedSessions();
+		const sessions = options?.includeHidden ? this._getAllSessions() : this._getMergedSessions();
 		for (const { session } of this._inFlightNewSessionRequests.values()) {
 			if (!sessions.some(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, session.resource))) {
 				sessions.push(session);

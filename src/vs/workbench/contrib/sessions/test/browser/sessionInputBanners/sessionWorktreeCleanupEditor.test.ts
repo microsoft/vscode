@@ -4,45 +4,47 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter, Event as BaseEvent } from '../../../../../../base/common/event.js';
+import { ISessionsManagementService, ISessionChange } from '../../../common/sessionsManagement.js';
 import { spy, stub } from 'sinon';
-import * as dom from '../../../../../base/browser/dom.js';
-import { mainWindow } from '../../../../../base/browser/window.js';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { IAction } from '../../../../../base/common/actions.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { getErrorMessage } from '../../../../../base/common/errors.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { upcastPartial } from '../../../../../base/test/common/mock.js';
-import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IListService, ListService, WorkbenchTable } from '../../../../../platform/list/browser/listService.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
-import { SessionWorktreeCleanupEditor } from '../../browser/sessionWorktreeCleanupEditor.js';
-import { SessionWorktreeCleanupEditorInput } from '../../browser/sessionWorktreeCleanupEditorInput.js';
-import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, getWorktreeCleanupId, ISessionWorktree, ISessionWorktreeCleanupCandidate, ISessionWorktreeCleanupOperation, ISessionWorktreeCleanupService, ISessionWorktreeMeasurementProgress, SessionWorktreeCleanupProgress } from '../../../../../workbench/contrib/sessions/browser/sessionInputBanners/sessionWorktreeCleanupService.js';
-import '../../../../../workbench/browser/actions/listCommands.js';
+import * as dom from '../../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { IAction } from '../../../../../../base/common/actions.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { getErrorMessage } from '../../../../../../base/common/errors.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { constObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IListService, ListService, WorkbenchTable } from '../../../../../../platform/list/browser/listService.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { ChatConfiguration } from '../../../../chat/common/constants.js';
+import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { ISessionsService } from '../../../browser/sessionsService.js';
+import { ISession } from '../../../../../services/sessions/common/session.js';
+import { SessionWorktreeCleanupEditor } from '../../../browser/sessionInputBanners/sessionWorktreeCleanupEditor.js';
+import { SessionWorktreeCleanupEditorInput } from '../../../browser/sessionInputBanners/sessionWorktreeCleanupEditorInput.js';
+import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, getWorktreeCleanupId, ISessionWorktree, ISessionWorktreeCleanupCandidate, ISessionWorktreeCleanupOperation, ISessionWorktreeCleanupService, ISessionWorktreeMeasurementProgress, SessionWorktreeCleanupProgress } from '../../../browser/sessionInputBanners/sessionWorktreeCleanupService.js';
+import '../../../../../browser/actions/listCommands.js';
 
 suite('SessionWorktreeCleanupEditor', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const contextMenus = new WeakMap<HTMLElement, () => readonly IAction[]>();
 
-	function createEditor(cleanupService: Partial<ISessionWorktreeCleanupService> = {}, contextKeyService?: IContextKeyService) {
+	function createEditor(cleanupService: Partial<ISessionWorktreeCleanupService> = {}, contextKeyService?: IContextKeyService, onDidChangeSession: BaseEvent<readonly ISessionChange[]> = BaseEvent.None) {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		if (contextKeyService) {
 			instantiationService.stub(IContextKeyService, contextKeyService);
@@ -64,6 +66,7 @@ suite('SessionWorktreeCleanupEditor', () => {
 			isSchedulingCleanup: constObservable(false),
 			...cleanupService,
 		}));
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ onDidChangeSession }));
 		const opened: string[] = [];
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ openSession: async resource => { opened.push(resource.toString()); return undefined; } }));
 		const errors: string[] = [];
@@ -130,6 +133,30 @@ suite('SessionWorktreeCleanupEditor', () => {
 	function sortWorktrees(container: HTMLElement, order: string): void {
 		chooseOption(container, 'sort', order);
 	}
+
+	test('refreshes sessions discovered after opening and stops refreshing on close', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const changed = disposables.add(new Emitter<readonly ISessionChange[]>());
+		let worktrees: ISessionWorktree[] = [];
+		let scans = 0;
+		const { editor, container } = createEditor({
+			getWorktrees: async () => { scans++; return worktrees; },
+		}, undefined, changed.event);
+		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+		await timeout(0);
+		worktrees = [createWorktree('discovered', '/repos/app')];
+		changed.fire([{ session: worktrees[0].session!, kind: 'added' }]);
+		await timeout(600);
+		const titles = [...container.querySelectorAll('.session-worktree-cleanup-session-link')].map(link => link.textContent);
+		const link = container.querySelector<HTMLElement>('.session-worktree-cleanup-session-link')!;
+		link.focus();
+		changed.fire([{ session: worktrees[0].session!, kind: 'changed' }]);
+		await timeout(600);
+		const focusPreserved = mainWindow.document.activeElement === link;
+		changed.fire([{ session: worktrees[0].session!, kind: 'changed' }]);
+		editor.clearInput();
+		await timeout(600);
+		assert.deepStrictEqual({ scans, titles, focusPreserved }, { scans: 3, titles: ['discovered'], focusPreserved: true });
+	}));
 
 	test('shows ownership once for idle worktrees and hides failed worktrees without hiding progress', async () => {
 		const { container } = await openEditor([

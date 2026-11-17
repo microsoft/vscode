@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { InstantiationType } from '../../../../../platform/instantiation/common/extensions.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
+import { EditorWindowWorktreeCleanup } from './editorWindowWorktreeCleanup.js';
 import { registerEditorWindowSessionsSingleton } from './editorWindowSessionsServices.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../services/sessions/browser/chatHostOpener.js';
 import { ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
@@ -76,6 +78,7 @@ import { EditorWindowComposerFoldersService, IEditorWindowComposerFoldersService
 
 // The sessions services of an editor window, for the sessions features it can host. Every one is created only as it is
 // first used, and nothing in the window uses them until such a feature does.
+registerWorkbenchContribution2(EditorWindowWorktreeCleanup.ID, EditorWindowWorktreeCleanup, WorkbenchPhase.AfterRestored);
 registerEditorWindowSessionsSingleton(ISessionsHostLayoutService, EditorWindowSessionsHostLayout, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionsProvidersService, EditorWindowSessionsProvidersService, InstantiationType.Delayed);
 registerEditorWindowSessionsSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Delayed);

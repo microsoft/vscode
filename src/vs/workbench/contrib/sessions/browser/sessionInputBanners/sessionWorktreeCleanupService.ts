@@ -318,7 +318,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			this._suggestion.set(undefined, undefined);
 			return;
 		}
-		const hasLocalWorktree = this.sessionsManagementService.getSessions().some(session =>
+		const hasLocalWorktree = this.sessionsManagementService.getSessions({ includeHidden: true }).some(session =>
 			session.workspace.get()?.folders.some(folder => folder.gitRepository?.workTreeUri?.scheme === Schemas.file)
 		);
 		if (hasLocalWorktree && this._availableDiskSpace !== undefined && this._availableDiskSpace < LOW_DISK_SPACE_BYTES) {
@@ -345,7 +345,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	}
 
 	private async _measureWorktrees(token: CancellationToken, onProgress: (progress: IWorktreeMeasurementProgress) => void): Promise<readonly IMeasuredSessionWorktree[]> {
-		const worktreeSessions = this.sessionsManagementService.getSessions().filter(session =>
+		const worktreeSessions = this.sessionsManagementService.getSessions({ includeHidden: true }).filter(session =>
 			session.workspace.get()?.folders.some(folder => folder.gitRepository?.workTreeUri) === true
 			&& session.workspace.get()?.folders.every(folder => !folder.gitRepository?.workTreeUri || folder.gitRepository.workTreeUri.scheme === Schemas.file)
 			&& isWorktreeCleanupBranchSupported({ session })
@@ -496,7 +496,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			return;
 		}
 		const inventory = await raceCancellationError(this.sessionsManagementService.listManagedWorktrees(this._unlinkedWorktrees.flatMap(worktree => worktree.unlinkedWorktree ?? [])), token);
-		const linkedPaths = new Set(this.sessionsManagementService.getSessions().flatMap(session =>
+		const linkedPaths = new Set(this.sessionsManagementService.getSessions({ includeHidden: true }).flatMap(session =>
 			session.workspace.get()?.folders.flatMap(folder => folder.gitRepository?.workTreeUri
 				? [`${session.providerId}:${extUri.getComparisonKey(folder.gitRepository.workTreeUri)}`] : []) ?? []));
 		const seen = new Set<string>();
@@ -684,7 +684,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 	}
 
 	private _getWorktreeSessionSignature(includeActivity = true): string {
-		return this.sessionsManagementService.getSessions()
+		return this.sessionsManagementService.getSessions({ includeHidden: true })
 			.flatMap(session => session.workspace.get()?.folders
 				.map(folder => folder.gitRepository?.workTreeUri)
 				.filter(worktreeUri => worktreeUri !== undefined)

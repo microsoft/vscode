@@ -36,6 +36,23 @@ suite('SessionWorktreeCleanupService', () => {
 		return { providerId: 'test', repository: URI.file('/repo').toString(), worktree: URI.file(worktree).toString(), branch: 'agents/unlinked', cleanupStatus: { state: 'unknown' } };
 	}
 
+	test('includes sessions outside the editor listing scope without treating their worktrees as unlinked', async () => {
+		const session = createSession('hidden', oldDate());
+		const repository = session.workspace.get()!.folders[0].gitRepository!;
+		const service = disposables.add(createService([], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+			getSessions: options => options?.includeHidden ? [session] : [],
+			listManagedWorktrees: async () => [{
+				providerId: session.providerId,
+				repository: repository.uri.toString(),
+				worktree: repository.workTreeUri!.toString(),
+				branch: repository.branchName!,
+				cleanupStatus: { state: 'unknown' },
+			}],
+		}));
+		const worktrees = await service.getWorktrees(0);
+		assert.deepStrictEqual(worktrees.map(worktree => ({ sessionId: worktree.session?.sessionId, unlinked: !!worktree.unlinkedWorktree })), [{ sessionId: 'hidden', unlinked: false }]);
+	});
+
 	test('groups shared checkouts, measures once, and cleans up every associated session', async () => {
 		const first = createSession('first', oldDate());
 		const latest = { ...createSession('latest', new Date()), workspace: first.workspace };
@@ -2166,6 +2183,7 @@ function createService(
 	configurationService = new TestConfigurationService({ [AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING]: enabled }),
 	onDidChangeSessions: Event<ISessionsChangeEvent> = Event.None,
 	overrides: {
+		readonly getSessions?: ISessionsManagementService['getSessions'];
 		readonly progressService?: IProgressService;
 		readonly dialogService?: IDialogService;
 		readonly onArchive?: (session: ISession) => Promise<void>;
@@ -2182,7 +2200,7 @@ function createService(
 ): SessionWorktreeCleanupService {
 	return new SessionWorktreeCleanupService(
 		upcastPartial<ISessionsManagementService>({
-			getSessions: () => sessions,
+			getSessions: overrides.getSessions ?? (() => sessions),
 			getSessionWorktreeDiskUsage: async (session, token) => sizeForSession(session, token),
 			archiveSession: async session => overrides.onArchive?.(session),
 			prepareSessionWorktreeCleanup: async session => overrides.onPrepare?.(session),

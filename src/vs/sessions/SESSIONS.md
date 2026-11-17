@@ -59,6 +59,8 @@ The model-orchestration service:
 
 It does not own active or visible session state, focus, or layout.
 
+Worktree cleanup is a shared workbench editor available in both windows. It uses `getSessions({ includeHidden: true })` to include known sessions outside a provider's listing scope, preserving their ownership and shared-checkout protections without broadening the sidebar. In editor windows, an open cleanup editor holds the session providers independently of chat or sidebar visibility; closing it releases that hold, not accepted host cleanup requests.
+
 Archived inventory discovery is an optional `IChatSessionsService` capability, registered independently of per-environment controllers so it remains reachable before any archived session is known. Management exposes its observable state and disposable demand to Sessions surfaces. Providers without the capability keep their existing discovery behavior; opening a known session does not depend on archive-list demand.
 
 ### `ISessionsService`
