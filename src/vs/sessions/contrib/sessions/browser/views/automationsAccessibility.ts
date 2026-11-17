@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
-import { getActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
+import { getActiveElement, isAncestorOfActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
@@ -19,6 +19,7 @@ import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../.
 import { AutomationCatalogueState, type AutomationHistoryState, type IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { automationTriggerSummary } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
+import { AutomationsLayout, CHAT_AUTOMATIONS_LAYOUT_SETTING, CHAT_AUTOMATIONS_SAMPLE_DATA_SETTING, toAutomationsLayout } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -30,6 +31,7 @@ import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING }
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
 import { formatUnavailableAutomationsMessage, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from './automationRunProgress.js';
+import { getFocusedAutomationsLayoutWidget } from './automationsLayoutWidget.js';
 
 class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.Help;
@@ -42,6 +44,17 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const automationService = accessor.get(IAutomationService);
 		const agentPluginService = accessor.get(IAgentPluginService);
 		const restoreFocus = createFocusRestorer(layoutService);
+		const layout = getFocusedLayout(accessor);
+		if (layout) {
+			const layoutContent = getAutomationsLayoutHelpContent(layout);
+			return new AccessibleContentProvider(
+				AccessibleViewProviderId.Automations,
+				{ type: AccessibleViewType.Help },
+				() => layoutContent,
+				restoreFocus,
+				AccessibilityVerbositySettingId.Automations,
+			);
+		}
 		const templates = readAutomationTemplates(agentPluginService.plugins.get());
 		const hasSavedAutomations = automationService.automations.get().length > 0;
 		const builtInTemplatesVisible = templates.some(template => !template.source);
@@ -110,6 +123,16 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 		const missionControlEnvironmentService = accessor.get(IMissionControlEnvironmentService);
 		const restoreFocus = createFocusRestorer(layoutService);
+		const layoutWidget = getFocusedLayout(accessor) ? getFocusedAutomationsLayoutWidget() : undefined;
+		if (layoutWidget) {
+			return new AccessibleContentProvider(
+				AccessibleViewProviderId.Automations,
+				{ type: AccessibleViewType.View },
+				() => layoutWidget.getAccessibleContent(),
+				restoreFocus,
+				AccessibilityVerbositySettingId.Automations,
+			);
+		}
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.Automations,
 			{ type: AccessibleViewType.View },
@@ -159,6 +182,35 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 			AccessibilityVerbositySettingId.Automations,
 		);
 	}
+}
+
+/** The experimental layout whose widget has focus, if any. */
+function getFocusedLayout(accessor: ServicesAccessor): Exclude<AutomationsLayout, 'page'> | undefined {
+	const layout = toAutomationsLayout(accessor.get(IConfigurationService).getValue(CHAT_AUTOMATIONS_LAYOUT_SETTING));
+	const widget = getFocusedAutomationsLayoutWidget();
+	return layout !== 'page' && widget && isAncestorOfActiveElement(widget.element) ? layout : undefined;
+}
+
+function getAutomationsLayoutHelpContent(layout: Exclude<AutomationsLayout, 'page'>): string {
+	return [
+		layout === 'modal'
+			? localize('automationsLayout.help.modal', "Automations is open in a modal. The sidebar lists All automations, Personal, Cloud, Repository, Runs and Examples, each with a count. Use Up Arrow and Down Arrow in the sidebar to choose one, and Enter to move to its list. Escape closes Automations.")
+			: localize('automationsLayout.help.chatInput', "Automations starts with a chat input. Describe an automation and press Enter to start a new chat that runs /automate with your description; an empty input does nothing. Create manually, next to the input, opens the automation form with your text as the prompt. Under the input, tabs list All automations, Personal, Cloud, Repository, Runs and Examples, each with a count. Use Left Arrow and Right Arrow to choose a tab."),
+		localize('automationsLayout.help.warnings', "A warning on All automations, Personal or Cloud means a provider is unavailable. The tab's name includes the reason, and its hover offers Manage Remotes when a remote host is disconnected."),
+		layout === 'modal'
+			? localize('automationsLayout.help.create', "Create with Agent closes Automations and starts a new chat with /automate in its input, so you can describe the automation you want. Its dropdown contains Create Manually, which shows the automation form in place of the list. Use Right Arrow and Left Arrow to move between the two button parts. You can also type /automate in any chat.")
+			: localize('automationsLayout.help.createChatInput', "You can also type /automate in any chat to create an automation."),
+		localize('automationsLayout.help.search', "Search filters the current list by name and prompt, or by run title and automation name on Runs, and announces how many items match. Escape clears the search."),
+		layout === 'modal'
+			? localize('automationsLayout.help.contextFilters', "The workspace, location and status buttons above the heading open filter menus. Each menu lets you select multiple values. Choose All workspaces, All locations or Any status to clear that filter without changing the others. When details narrows the table, schedule and location move out of the list and remain available in the details and each row's accessible description.")
+			: localize('automationsLayout.help.filter', "Filter opens a menu that shows automations by where they run, by status, or by workspace. Reset filters clears them."),
+		localize('automationsLayout.help.lists', "In a list, use Up Arrow and Down Arrow to move between section headers and rows, and Home or End to jump to the first or last. Enter on a section header expands or collapses it. Enter or Space on an automation opens its details, and Shift+F10 opens More Actions, which include Edit. Right Arrow and Left Arrow move between a row's Run now, More Actions and On controls; Space on On turns the automation on or off. Disabled automations are in the Disabled section at the bottom, which starts collapsed."),
+		localize('automationsLayout.help.details', "An automation's details open in a resizable side panel beside the list. The list stays available, so you can select another automation without closing the details. In a narrow pane, details replace the list until closed. They show its prompt, its schedule and whether it's on, where it runs, its latest run, its latest result with the run it came from, and its runs, newest first, with Run now and Edit. In the runs, use Up Arrow and Down Arrow to move, and Enter to open a run's own session, or its page on GitHub. A run without a session says so instead. Escape or Close closes the details and returns to the automation's row."),
+		localize('automationsLayout.help.runs', "Runs lists recent runs by day, with unread runs marked. Enter opens a run. Mark all as read marks finished runs as read."),
+		localize('automationsLayout.help.examples', "Examples lists starting points. Enter or Use opens the automation form filled in from the example."),
+		localize('automationsLayout.help.sample', "When {0} is on, sample automations are shown with a Sample data label. They aren't real: running, turning on or off, editing or deleting them, or opening their runs only shows a notification.", CHAT_AUTOMATIONS_SAMPLE_DATA_SETTING),
+		localize('automationsLayout.help.accessibleView', "Open the Accessible View to read the selected list, or the open details, as text."),
+	].join('\n');
 }
 
 function createFocusRestorer(layoutService: IWorkbenchLayoutService): () => void {

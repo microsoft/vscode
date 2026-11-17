@@ -131,12 +131,13 @@ import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../../ba
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { createSessionSummaryHover, getChatSummaryHoverData, getDistinctChatHarnessLabel, getSessionDiffStats, getSessionSummaryHoverData } from '../sessionHoverContent.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
-import { ChatAutomationsEnabledContext } from '../../../chat/common/automations/automationsEnabled.js';
+import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_LAYOUT_SETTING, toAutomationsLayout } from '../../../chat/common/automations/automationsEnabled.js';
 import { AICustomizationManagementEditorInput } from '../../../chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IAutomationService } from '../../../chat/common/automations/automationService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ICustomViewService } from '../customView.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID, AUTOMATIONS_MANAGEMENT_EDITOR_INPUT_ID } from '../automationsConstants.js';
+import { formatAutomationsRunStatus, IAutomationsRunStatusSummary } from '../automationsSidebarStatus.js';
 import { IOpenAICustomizationsCommandOptions, OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../customizationsConstants.js';
 import { ChatCustomizationsHover } from '../../../chat/browser/aiCustomization/chatCustomizationsHover.js';
 import { ChatCustomizationsTelemetry } from '../../../chat/browser/aiCustomization/chatCustomizationsTelemetry.js';
@@ -2836,7 +2837,8 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 	/** Keyed by template because sticky scroll renders a second copy of a header while its tree row stays rendered. */
 	private readonly renderedSections = new Map<ISessionSectionTemplate, ISessionSection>();
 	// TODO@BenV: Move automation-specific code into an AutomationSectionRenderer subclass.
-	readonly automationStatus = derived(this, reader => {
+	/** The automation runs behind the Automations entry's status dot, by automation name. */
+	readonly automationRunSummary = derived(this, (reader): IAutomationsRunStatusSummary => {
 		const automationSessions = this.automationSessions.read(reader);
 		const sessionsByResource = new Map<string, ISession>();
 		for (const session of automationSessions) {
@@ -2845,9 +2847,12 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 				sessionsByResource.set(key, session);
 			}
 		}
-		const personalAutomationIds = new Set(this.automationService.automations.read(reader)
+		const automations = this.automationService.automations.read(reader);
+		const personalAutomationIds = new Set(automations
 			.filter(automation => automation.ownership !== 'repository')
 			.map(automation => automation.id));
+		const automationNames = new Map(automations.map(automation => [automation.id, automation.name]));
+		const nameOf = (automationId: string) => automationNames.get(automationId) ?? this.automationService.getAutomationHistoryName?.(automationId) ?? '';
 		// A run whose session the Sessions list shows reports its status on that row instead,
 		// unless the row cannot: a cloud run can still be active while its session reports it finished.
 		const runs = this.automationService.runs.read(reader).map(run => {
@@ -2862,17 +2867,26 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			return (status === 'pending' || status === 'running') && sessionStatus !== SessionStatus.InProgress && sessionStatus !== SessionStatus.NeedsInput;
 		});
 
+		const needsInput = runs.filter(({ status, session }) => status === 'running' && session?.status.read(reader) === SessionStatus.NeedsInput);
+		const inProgress = runs.filter(run => !needsInput.includes(run) && personalAutomationIds.has(run.automationId) && (run.status === 'pending' || run.status === 'running'));
+		const finished = runs.filter(({ status, session }) => (status === 'completed' || status === 'failed')
+			&& !!session && !session.isRead.read(reader) && !session.isArchived.read(reader));
+		return {
+			needsInput: needsInput.map(run => nameOf(run.automationId)),
+			inProgress: inProgress.map(run => nameOf(run.automationId)),
+			finished: finished.map(run => nameOf(run.automationId)),
+		};
+	});
+	readonly automationStatus = derived(this, reader => {
+		const summary = this.automationRunSummary.read(reader);
 		// NeedsInput takes priority: any running automation whose session is waiting for input.
-		if (runs.some(({ status, session }) => status === 'running' && session?.status.read(reader) === SessionStatus.NeedsInput)) {
+		if (summary.needsInput.length > 0) {
 			return SessionStatus.NeedsInput;
 		}
-
-		if (runs.some(({ automationId, status }) => personalAutomationIds.has(automationId) && (status === 'pending' || status === 'running'))) {
+		if (summary.inProgress.length > 0) {
 			return SessionStatus.InProgress;
 		}
-		const hasUnreadRun = runs.some(({ status, session }) => (status === 'completed' || status === 'failed')
-			&& !!session && !session.isRead.read(reader) && !session.isArchived.read(reader));
-		if (hasUnreadRun) {
+		if (summary.finished.length > 0) {
 			return SessionStatus.Completed;
 		}
 		return undefined;
@@ -2916,6 +2930,10 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly isSessionListed: (session: ISession, reader: IReader) => boolean = () => false,
 		/** Whether the canvas page shows a pinned canvas, which highlights its row. */
 		private readonly isPinnedCanvasActive: (entry: IPinnedCanvas, reader: IReader) => boolean = () => false,
+		/** Whether the modal Automations editor of the experimental `modal` layout is active. */
+		private readonly automationsModalActive: IObservable<boolean> = constObservable(false),
+		/** Whether the Automations entry explains its status dot in a hover, as the experimental layouts do. */
+		private readonly automationRunHoverEnabled: IObservable<boolean> = constObservable(false),
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionSectionTemplate {
@@ -3110,8 +3128,27 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			template.icon.style.display = '';
 			template.elementDisposables.add(autorun(reader => {
 				const activeCustomView = this.customViewService.activeCustomView.read(reader);
-				template.container.classList.toggle('active', activeCustomView?.id === AUTOMATIONS_CUSTOM_VIEW_ID && !this.customizationsActive.read(reader));
+				const active = activeCustomView?.id === AUTOMATIONS_CUSTOM_VIEW_ID || this.automationsModalActive.read(reader);
+				template.container.classList.toggle('active', active && !this.customizationsActive.read(reader));
 			}));
+			const runHoverDelegate = getDefaultHoverDelegate('element');
+			template.elementDisposables.add(this.hoverService.setupManagedHover(
+				{
+					placement: 'element',
+					get delay() { return runHoverDelegate.delay; },
+					showHover: (options, focus) => runHoverDelegate.showHover({
+						...options,
+						additionalClasses: [...options.additionalClasses ?? [], 'sessions-list-hover'],
+						position: { ...options.position, hoverPosition: HoverPosition.RIGHT },
+						appearance: { ...options.appearance, showPointer: true },
+					}, focus),
+				},
+				template.container,
+				() => {
+					const lines = this.automationRunHoverEnabled.get() ? formatAutomationsRunStatus(this.automationRunSummary.get()) : [];
+					return lines.length > 0 ? lines.join('\n') : undefined;
+				},
+			));
 			const statusIcon = template.elementDisposables.add(this.instantiationService.createInstance(SessionStatusIcon, template.icon));
 			template.elementDisposables.add(autorun(reader => {
 				const automationStatus = this.automationStatus.read(reader);
@@ -5217,6 +5254,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				.map(blocked => blocked.session.sessionId)
 		));
 		const customizationsActive = observableFromEvent(this, editorService.onDidActiveEditorChange, () => editorService.activeEditor instanceof AICustomizationManagementEditorInput);
+		const automationsModalActive = observableFromEvent(this, editorService.onDidActiveEditorChange, () => editorService.activeEditor?.typeId === AUTOMATIONS_MANAGEMENT_EDITOR_INPUT_ID);
+		const automationsLayout = observableConfigValue<unknown>(CHAT_AUTOMATIONS_LAYOUT_SETTING, 'page', this.configurationService);
+		const automationRunHoverEnabled = automationsLayout.map(layout => toAutomationsLayout(layout) !== 'page');
 		const newSessionKeybindingAriaLabel = observableFromEvent(this, keybindingService.onDidUpdateKeybindings, () => keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID, this.contextKeyService)?.getAriaLabel() ?? undefined);
 		const customizationsCount = this.options.customizationsCount ?? constObservable(0);
 		const customizationMigrationsAvailable = this.options.customizationMigrationsAvailable ?? constObservable(false);
@@ -5254,6 +5294,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			(session, reader) => this.isSessionListed(session, reader),
 			(entry, reader) => this.customViewService.activeCustomView.read(reader)?.id === PINNED_CANVAS_PAGE_ID
 				&& this.options.pinnedCanvases?.selected.read(reader) === entry,
+			automationsModalActive,
+			automationRunHoverEnabled,
 		);
 		const sectionRenderer = createSectionRenderer(undefined, 'session-list-section-row');
 		const shortcutSectionRenderer = createSectionRenderer(SESSION_SHORTCUT_SECTION_TEMPLATE_ID, 'session-list-shortcut-row');

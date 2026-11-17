@@ -58,7 +58,7 @@ import { getDefaultSessionCreationEnvironment, getEnvironmentWorkspaceProvider, 
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
-import { IChatViewOptions, INewSessionDraftHost, INewSessionTarget, INewSessionViewOptions } from '../parts/chatView.js';
+import { IChatViewOptions, INewSessionComposerCustomization, INewSessionDraftHost, INewSessionRequestDraft, INewSessionTarget, INewSessionViewOptions } from '../parts/chatView.js';
 import { INewSessionPresentationController } from '../newSessionPresentation.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { WorkspaceSelectionOrigin, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
@@ -201,6 +201,8 @@ export class NewChatWidget extends Disposable {
 	private readonly _detached: boolean;
 	/** The slot of a {@link _detached} composer's drafts. */
 	private readonly _draftSlot: INewSessionDraftSlot;
+	/** How the host customizes this composer ({@link IChatViewOptions.newSessionCustomization}). */
+	private readonly _newSessionCustomization: INewSessionComposerCustomization | undefined;
 	private readonly _backgroundSend: boolean;
 	private readonly _backgroundSendStatus = observableValue<string | undefined>(this, undefined);
 	private _lastBackgroundSentSessionResource: URI | undefined;
@@ -331,8 +333,9 @@ export class NewChatWidget extends Disposable {
 		this._detached = this._preserveCustomView || !!this._draftHost;
 		this._savedDraftComposer = this._detached ? undefined : sessionDraftsService.createComposer();
 		this._draftSlot = this._draftHost?.slot ?? this.sessionsManagementService.defaultNewSessionSlot;
+		this._newSessionCustomization = options.newSessionCustomization;
 		this._backgroundSend = options.backgroundSend === true;
-		this._welcomePhraseIndex = NewChatWidget._takeNextWelcomePhraseIndex(storageService);
+		this._welcomePhraseIndex = this._newSessionCustomization?.composerOnly ? 0 : NewChatWidget._takeNextWelcomePhraseIndex(storageService);
 		this._usage = new AgentsWindowUsage(storageService);
 		this._register(this._pendingPreferredUpgrade);
 		this._register(this._newSessionCreation);
@@ -659,7 +662,7 @@ export class NewChatWidget extends Disposable {
 			canSubmitWithoutSession,
 			hasAdditionalSendContent: hasFeedback,
 			loading,
-			placeholder: NEW_SESSION_PROMPT_PLACEHOLDER,
+			placeholder: this._newSessionCustomization?.placeholder ?? NEW_SESSION_PROMPT_PLACEHOLDER,
 			onboardingTargetId: 'sessions.newSession.input',
 			supportsBackground: true,
 			...this._globalTargetOptions(),
@@ -956,6 +959,10 @@ export class NewChatWidget extends Disposable {
 			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(NEW_SESSION_WELCOME_MESSAGES_SETTING)),
 		);
 		this._register(autorun(reader => {
+			if (this._newSessionCustomization?.composerOnly) {
+				welcomeMessage.hidden = true;
+				return;
+			}
 			configuredWelcomeMessagesChanged.read(reader);
 			const inputVisible = this.options.inputVisible?.read(reader) ?? true;
 			const phrases = getNewSessionWelcomePhrases(
@@ -1074,7 +1081,7 @@ export class NewChatWidget extends Disposable {
 			this._inputController = this._register(this.options.newSessionInput.createComposer(belowInputSurfaces, {
 				session: this._session,
 				pickerVisibility: this._newChatInput.pickerVisibility,
-				visible: derived(this, reader => (this.options.hostVisible?.read(reader) ?? true) && (this.options.inputVisible?.read(reader) ?? true)),
+				visible: derived(this, reader => !this._newSessionCustomization?.composerOnly && (this.options.hostVisible?.read(reader) ?? true) && (this.options.inputVisible?.read(reader) ?? true)),
 				getInputValue: () => this._newChatInput.getInputValue(),
 				onDidChangeInput: this._newChatInput.onDidChangeInput,
 				focusInput: () => this.focusInput(),
@@ -1090,7 +1097,7 @@ export class NewChatWidget extends Disposable {
 		const tipsEnabled = observableConfigValue<boolean>('chat.tips.enabled', true, this.configurationService);
 		// The composer owns one foreground chat widget itself. Another foreground widget raises the count
 		// above one and suppresses the tip, as does the no-agent-host empty state.
-		const chatTipBanner = this._register(banners.register(NewSessionBannerPriority.Tip, derived(this, reader => tipsEnabled.read(reader) && shouldShowNewSessionChatTip(
+		const chatTipBanner = this._register(banners.register(NewSessionBannerPriority.Tip, derived(this, reader => !this._newSessionCustomization?.composerOnly && tipsEnabled.read(reader) && shouldShowNewSessionChatTip(
 			!this._activeEmptyState.read(reader),
 			foregroundSessionCount.read(reader),
 		))));
@@ -3084,11 +3091,19 @@ export class NewChatWidget extends Disposable {
 		if (!workspaceValid || session !== this._session.get()) {
 			return false;
 		}
+		let prepared: INewSessionRequestDraft = { query, attachedContext: attachedContext ?? [] };
+		const customization = this._newSessionCustomization;
+		if (customization?.prepareRequest) {
+			prepared = await customization.prepareRequest(prepared);
+			if (session !== this._session.get()) {
+				return false;
+			}
+		}
 		const feedbackItems = [...this._feedbackItems.get()];
 		const workspaceRoots = this._getWorkspaceRoots(session);
-		const request = buildNewSessionPrompt(query, feedbackItems, workspaceRoots);
+		const request = buildNewSessionPrompt(prepared.query, feedbackItems, workspaceRoots);
 		const requestContext = new Map<string, IChatRequestVariableEntry>();
-		for (const context of attachedContext ?? []) {
+		for (const context of prepared.attachedContext) {
 			if (!requestContext.has(context.id)) {
 				requestContext.set(context.id, context);
 			}

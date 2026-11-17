@@ -28,7 +28,8 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { IAutomationDialogService } from '../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_AUTOMATIONS_LAYOUT_SETTING, CHAT_AUTOMATIONS_SAMPLE_DATA_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, toAutomationsLayout } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { AutomationDialogService } from './automationDialogService.js';
 import { AutomationRunner } from './automationRunner.js';
 import { ProviderAutomationService } from './providerAutomationService.js';
@@ -37,7 +38,7 @@ import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY } from '../../../../platform/
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../workbench/contrib/sessions/browser/automationsConstants.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID, MANAGE_AUTOMATIONS_COMMAND_ID } from '../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 
 const initialProvidersSettled = observableFromPromise(
 	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).whenRestored.then(() => true)
@@ -71,6 +72,8 @@ registerAction2(class RunAutomationAction extends Action2 {
 		const notificationService = accessor.get(INotificationService);
 		const sessionsService = accessor.get(ISessionsService);
 		const customViewService = accessor.get(ICustomViewService);
+		// The experimental modal layout opens Automations through the command that knows the layout.
+		const commandService = toAutomationsLayout(configurationService.getValue(CHAT_AUTOMATIONS_LAYOUT_SETTING)) === 'modal' ? accessor.get(ICommandService) : undefined;
 		const isEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true
 			&& !configurationService.getValue<boolean>(ChatAIDisabledSettingId);
 		if (!isEnabled()) {
@@ -160,6 +163,8 @@ registerAction2(class RunAutomationAction extends Action2 {
 					try {
 						if (sessionResource) {
 							await sessionsService.openSession(sessionResource, { preserveFocus: false, source: 'automation' });
+						} else if (commandService) {
+							await commandService.executeCommand(MANAGE_AUTOMATIONS_COMMAND_ID);
 						} else {
 							customViewService.showCustomView(AUTOMATIONS_CUSTOM_VIEW_ID);
 						}
@@ -196,6 +201,24 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('chat.automations.enabled', "Enables the Automations feature: scheduling agent sessions to run on a cadence. When disabled, the Automations entry in the Customizations sidebar, the Automations section in the Customizations editor, and the Automation option in the new-session composer are hidden, and scheduled automations are not dispatched."),
 			experiment: { mode: 'auto' },
 			agentHost: { key: AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY },
+		},
+		[CHAT_AUTOMATIONS_LAYOUT_SETTING]: {
+			type: 'string',
+			enum: ['page', 'modal', 'chatInput'],
+			enumDescriptions: [
+				localize('chat.automations.layout.page', "Today's Automations page, with cards for each automation."),
+				localize('chat.automations.layout.modal', "A modal with a navigation sidebar, like Customizations, and a table of automations."),
+				localize('chat.automations.layout.chatInput', "The Automations page with a chat input at the top and the navigation as tabs under it."),
+			],
+			default: 'page',
+			description: localize('chat.automations.layout', "Controls how Automations are laid out. Switching takes effect immediately."),
+			tags: ['experimental'],
+		},
+		[CHAT_AUTOMATIONS_SAMPLE_DATA_SETTING]: {
+			type: 'boolean',
+			default: false,
+			description: localize('chat.automations.sampleData', "Prototype only. Adds sample automations and runs to the modal and chat input Automations layouts. Sample automations aren't real: running, turning on or off, editing or deleting them only shows a notification."),
+			tags: ['experimental'],
 		},
 	},
 });

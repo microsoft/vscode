@@ -5,3 +5,9 @@
 
 export const AUTOMATIONS_CUSTOM_VIEW_ID = 'sessions.customView.automations';
 export const AUTOMATIONS_TOUR_SEEN_KEY = 'sessions.getStarted.showMe.automation';
+
+/** Type of the modal Automations editor input used by the `modal` layout. */
+export const AUTOMATIONS_MANAGEMENT_EDITOR_INPUT_ID = 'workbench.input.sessions.automationsManagement';
+
+/** Opens Automations where `chat.automations.layout` puts them. */
+export const MANAGE_AUTOMATIONS_COMMAND_ID = 'sessionsView.manageAutomations';

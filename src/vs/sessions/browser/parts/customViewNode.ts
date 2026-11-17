@@ -66,6 +66,9 @@ export class CustomViewNode extends Disposable {
 		this._titleEl = $('.custom-view-header-title');
 		titleRow.appendChild(this._titleEl);
 
+		const titleAccessoryEl = $('.custom-view-header-title-accessory');
+		titleRow.appendChild(titleAccessoryEl);
+
 		this._descriptionEl = $('.custom-view-header-description');
 		this._headerBandEl.appendChild(this._descriptionEl);
 
@@ -129,6 +132,12 @@ export class CustomViewNode extends Disposable {
 			this._descriptionEl.textContent = description ?? '';
 			this._descriptionEl.classList.toggle('hidden', !description);
 			this._layoutChildren();
+		}));
+
+		this._register(autorun(reader => {
+			const accessory = this._view.titleAccessory.read(reader);
+			titleAccessoryEl.replaceChildren(...(accessory ? [accessory] : []));
+			titleAccessoryEl.classList.toggle('hidden', !accessory);
 		}));
 
 		this._register(toDisposable(() => this.element.remove()));

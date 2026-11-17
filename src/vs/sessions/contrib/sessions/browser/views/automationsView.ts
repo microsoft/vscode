@@ -41,7 +41,9 @@ import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolba
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { type AutomationCatalogueState, type AutomationHistoryState, type IAutomationProviderDescriptor, type IAutomationRefreshOptions, IAutomationService, type IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_AUTOMATIONS_LAYOUT_SETTING, ChatAutomationsEnabledContext, toAutomationsLayout } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import { AutomationsLayoutWidget } from './automationsLayoutWidget.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type AutomationDialogCreateInitialValues, IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, AutomationBlueprintParseError, automationToBlueprint, createAutomationBlueprintFileName, parseAutomationBlueprint, serializeAutomationBlueprint } from '../../../../../workbench/contrib/chat/common/automations/automationBlueprint.js';
@@ -94,8 +96,9 @@ import { INewSessionComposerService } from '../../../../../workbench/contrib/ses
 import { ISessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
 import { readNewChatDraftState } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
+import { getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getUnavailableAutomationsReasons, isAutomationVisibleInCatalogue } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from './automationRunProgress.js';
+import { AutomationCardCanDeleteContext, AutomationCardCanUpdateContext, AutomationCardEnabledContext, AutomationCardHasEventTriggerContext, AutomationCardHasExternalResourceContext, AutomationCardHasLimitsContext, AutomationCardIsCloudContext } from './automationCardContextKeys.js';
 import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from '../../../automations/browser/automationTelemetry.js';
 
 const $ = DOM.$;
@@ -120,15 +123,8 @@ export const DISABLED_AUTOMATIONS_EXPANDED_STORAGE_KEY = 'sessions.automations.d
 const AUTOMATION_TEMPLATES_ONBOARDING_TARGET_ID = 'sessions.automations.templates';
 const CREATE_AUTOMATION_ONBOARDING_TARGET_ID = 'sessions.automations.create';
 const CREATE_AUTOMATION_WITH_AGENT_COMMAND_ID = 'sessions.automations.createWithAgent';
-const AutomationCardCanDeleteContext = new RawContextKey<boolean>('sessionsAutomationCardCanDelete', false);
-const AutomationCardCanUpdateContext = new RawContextKey<boolean>('sessionsAutomationCardCanUpdate', false);
-const AutomationCardHasExternalResourceContext = new RawContextKey<boolean>('sessionsAutomationCardHasExternalResource', false);
-const AutomationCardEnabledContext = new RawContextKey<boolean>('sessionsAutomationCardEnabled', false);
-const AutomationCardHasLimitsContext = new RawContextKey<boolean>('sessionsAutomationCardHasLimits', false);
 const AutomationRunHistoryStateContext = new RawContextKey<string>('sessionsAutomationRunHistoryState', '');
 const AutomationRunCanDeleteHistoryContext = new RawContextKey<boolean>('sessionsAutomationRunCanDeleteHistory', false);
-const AutomationCardIsCloudContext = new RawContextKey<boolean>('sessionsAutomationCardIsCloud', false);
-const AutomationCardHasEventTriggerContext = new RawContextKey<boolean>('sessionsAutomationCardHasEventTrigger', false);
 
 function areAutomationTemplatesEqual(first: readonly IAutomationTemplate[], second: readonly IAutomationTemplate[]): boolean {
 	return first.length === second.length && first.every((template, index) => {
@@ -274,8 +270,7 @@ export class AutomationsCardsWidget extends Disposable {
 		const visibleAutomations = derived(this, reader => {
 			configurationChanged.read(reader);
 			const sendLaterEnabled = configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true;
-			return this.automationService.automations.read(reader).filter(automation =>
-				!sendLaterEnabled || automation.purpose !== 'scheduledChat' || automation.oneTimeDispatchedAt !== undefined);
+			return this.automationService.automations.read(reader).filter(automation => isAutomationVisibleInCatalogue(automation, sendLaterEnabled));
 		});
 		this.element = $('.automations-cards-widget');
 		this.element.tabIndex = -1;
@@ -2785,21 +2780,42 @@ export class AutomationsCustomView extends AbstractCustomView {
 	override readonly description: IObservable<string | undefined> = constObservable(
 		localize('automationsDescription', "Configure agent sessions to run automatically from events or on a schedule."));
 
-	private _widget: AutomationsCardsWidget | undefined;
+	private _widget: AutomationsCardsWidget | AutomationsLayoutWidget | undefined;
+	private readonly _layoutWidget = observableValue<AutomationsLayoutWidget | undefined>(this, undefined);
+	override readonly titleAccessory: IObservable<HTMLElement | undefined> = derived(this, reader => this._layoutWidget.read(reader)?.titleAccessory.read(reader));
+	private _size: { readonly width: number; readonly height: number } | undefined;
+	/** The experimental `chatInput` layout replaces the cards with a chat input over tabs. */
+	private readonly _chatInputLayout: IObservable<boolean>;
 
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
+		this._chatInputLayout = observableConfigValue<unknown>(CHAT_AUTOMATIONS_LAYOUT_SETTING, 'page', configurationService)
+			.map(layout => toAutomationsLayout(layout) === 'chatInput');
 	}
 
 	render(container: HTMLElement): void {
-		container.classList.add('automations-cards-content');
-		this._widget = this._register(this.instantiationService.createInstance(AutomationsCardsWidget));
-		container.appendChild(this._widget.element);
+		this._register(autorun(reader => {
+			const chatInput = this._chatInputLayout.read(reader);
+			DOM.clearNode(container);
+			container.classList.toggle('automations-cards-content', !chatInput);
+			container.classList.toggle('automations-layout-page', chatInput);
+			const widget = chatInput
+				? reader.store.add(this.instantiationService.createInstance(AutomationsLayoutWidget, { variant: 'chatInput' }))
+				: reader.store.add(this.instantiationService.createInstance(AutomationsCardsWidget));
+			this._widget = widget;
+			this._layoutWidget.set(widget instanceof AutomationsLayoutWidget ? widget : undefined, undefined);
+			container.appendChild(widget.element);
+			if (this._size) {
+				widget.layout(this._size.width, this._size.height);
+			}
+		}));
 	}
 
 	layout(width: number, height: number): void {
+		this._size = { width, height };
 		this._widget?.layout(width, height);
 	}
 
@@ -3206,7 +3222,7 @@ registerAction2(class NewAutomationAction extends Action2 {
 			id: 'sessionsView.newAutomation',
 			title: localize2('createManually', "Create Manually"),
 			precondition: ChatAutomationsEnabledContext,
-			menu: [{ id: AgentsWindowMenus.CustomViewAutomations, group: 'navigation', order: 2, when: ChatAutomationsEnabledContext }],
+			menu: [{ id: AgentsWindowMenus.CustomViewAutomations, group: 'navigation', order: 2, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, ContextKeyExpr.notEquals(`config.${CHAT_AUTOMATIONS_LAYOUT_SETTING}`, 'chatInput')) }],
 		});
 	}
 	override async run(accessor: ServicesAccessor): Promise<void> {
@@ -3242,7 +3258,7 @@ registerAction2(class CreateAutomationWithAgentAction extends Action2 {
 			title: localize2('createWithAgent', "Create with Agent"),
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
 			// The empty state hosts this button until the first automation exists.
-			menu: [{ id: AgentsWindowMenus.CustomViewAutomations, group: 'navigation', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationsHasItemsContext) }],
+			menu: [{ id: AgentsWindowMenus.CustomViewAutomations, group: 'navigation', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationsHasItemsContext, ContextKeyExpr.notEquals(`config.${CHAT_AUTOMATIONS_LAYOUT_SETTING}`, 'chatInput')) }],
 		});
 	}
 	override async run(accessor: ServicesAccessor): Promise<void> {

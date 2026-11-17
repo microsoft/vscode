@@ -54,6 +54,9 @@ export abstract class AbstractCustomView extends Disposable {
 	/** Optional secondary line below the title. */
 	readonly description: IObservable<string | undefined> = constObservable(undefined);
 
+	/** Optional element shown right after the title, such as a label for what the view shows. */
+	readonly titleAccessory: IObservable<HTMLElement | undefined> = constObservable(undefined);
+
 	/**
 	 * Width the content is capped to. Defaults to the same measure the session
 	 * views use.

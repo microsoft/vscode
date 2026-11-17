@@ -11,6 +11,10 @@ import { getEntryAddress, IRemoteAgentHostEntry, RemoteAgentHostEntryType } from
 import type { IAutomationDescriptor } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import type { IAutomationProviderDescriptor } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 
+export function isAutomationVisibleInCatalogue(automation: IAutomationDescriptor, sendLaterEnabled: boolean): boolean {
+	return !sendLaterEnabled || automation.purpose !== 'scheduledChat' || automation.oneTimeDispatchedAt !== undefined;
+}
+
 export function getAutomationOwnershipGroups(automations: readonly IAutomationDescriptor[]) {
 	return [
 		{ ownership: 'user', label: localize('automations.yours', "Your automations"), automations: automations.filter(automation => automation.ownership !== 'repository') },

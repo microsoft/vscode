@@ -52,7 +52,7 @@
 }
 
 .custom-view-header-title {
-	flex: 1 1 auto;
+	flex: 0 1 auto;
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -61,10 +61,21 @@
 	font-weight: var(--vscode-fontWeight-semiBold, 600);
 }
 
+.custom-view-header-title-accessory {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+}
+
+.custom-view-header-title-accessory.hidden {
+	display: none;
+}
+
 .custom-view-header-actions {
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
+	margin-left: auto;
 }
 
 .custom-view-header-actions.custom-view-header-actions-buttons .monaco-action-bar .actions-container {
