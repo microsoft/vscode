@@ -8870,8 +8870,24 @@ export class SessionsList extends Disposable implements ISessionsList {
 		});
 	}
 
+	/** Whether {@link onContextMenu} shows a menu of `element`'s own. */
+	private hasItemContextMenu(element: SessionListItem): boolean {
+		if (isSessionShowMore(element) || isSessionPlaceholder(element)) {
+			return false;
+		}
+		if (isSessionSection(element)) {
+			return element.id === AUTOMATIONS_SECTION_ID || !!element.pinnedCanvas || !(isShortcutSection(element.id) || element.pendingItems);
+		}
+		return true;
+	}
+
 	private onContextMenu(e: ITreeContextMenuEvent<SessionListItem | null>): void {
 		const element = e.element;
+		// The menu of an item is the list's own: a host that shows its own context menu, such as the view the list is in, does not
+		// show it over the item's. Empty space and rows without a menu leave it to the host.
+		if (element && this.hasItemContextMenu(element)) {
+			DOM.EventHelper.stop(e.browserEvent, true);
+		}
 		if (element && isPendingSessionItem(element)) {
 			this.showPendingSessionContextMenu(element, e.anchor);
 			return;
