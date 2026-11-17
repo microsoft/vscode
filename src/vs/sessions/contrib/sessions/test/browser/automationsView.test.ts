@@ -79,7 +79,7 @@ import { ExternalSessionApplicationBadgeMode, SESSIONS_AUTOMATIONS_SHOW_SHARED_B
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
 import { automationRunWithLocalProgress } from '../../browser/views/automationRunProgress.js';
 import { AUTOMATION_TEMPLATES } from '../../browser/views/automationTemplates.js';
-import { AutomationsCardsWidget, AutomationsCustomViewContribution, SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY } from '../../browser/views/automationsView.js';
+import { AutomationsCardsWidget, AutomationsCustomViewContribution, AutomationsHistoryWidget, SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY } from '../../browser/views/automationsView.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -1518,10 +1518,14 @@ suite('AutomationsCardsWidget', () => {
 					instantiationService.stub(INewSessionComposerService, { hasDraftInput: true });
 				}
 				dialogService.promptButtonIndex = choice === 'replace' ? 0 : choice === 'view' ? 1 : -1;
-				const execute = stub(commandService, 'executeCommand').resolves();
+				const order: string[] = [];
+				const execute = stub(commandService, 'executeCommand').callsFake(async () => { order.push('navigate'); });
 				disposables.add(toDisposable(() => execute.restore()));
 
-				await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessions.automations.createWithAgent')!.handler(accessor));
+				let hostClosed = false;
+				const result = await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessions.automations.createWithAgent')!.handler(accessor, {
+					beforeOpen: async () => { hostClosed = true; order.push('close'); },
+				}));
 
 				assert.deepStrictEqual({
 					prompts: dialogService.prompts.map(prompt => ({
@@ -1531,6 +1535,9 @@ suite('AutomationsCardsWidget', () => {
 					commands: execute.args,
 					draftNavigations: sessionsService.openNewSessionCalls,
 					savedDraft: readNewChatDraftState(storageService),
+					hostClosed,
+					result,
+					order,
 				}, {
 					prompts: content === 'empty' ? [] : [{
 						type: 'warning',
@@ -1544,6 +1551,9 @@ suite('AutomationsCardsWidget', () => {
 						: [],
 					draftNavigations: content !== 'empty' && choice === 'view' ? 1 : 0,
 					savedDraft,
+					hostClosed: content === 'empty' || choice !== 'cancel',
+					result: content === 'empty' || choice !== 'cancel',
+					order: content === 'empty' || choice === 'replace' ? ['close', 'navigate'] : choice === 'view' ? ['close'] : [],
 				});
 			});
 		}
@@ -5472,6 +5482,56 @@ suite('AutomationsCardsWidget', () => {
 			existing: item,
 			runCalls: 1,
 		});
+	});
+
+	test('a scoped history header marks only its automation runs as read', async () => {
+		const { automationService, instantiationService, sessionsManagementService } = setup();
+		const history = disposables.add(instantiationService.createInstance(AutomationsHistoryWidget, {
+			query: constObservable(''), automationId: constObservable(AUTOMATION_ID),
+		}));
+		document.body.appendChild(history.element);
+		disposables.add(toDisposable(() => history.element.remove()));
+		automationService.setAutomations([automation(), automation({ id: 'other' })]);
+		automationService.setRuns([run(), run({ id: 'other-run', automationId: 'other', sessionResource: SECOND_SESSION_RESOURCE })]);
+		history.element.querySelector<HTMLElement>('.automations-mark-all-read')!.click();
+		await sessionsManagementService.markAllReadCompleted.p;
+		assert.deepStrictEqual({
+			first: sessionsManagementService.isRead.get(),
+			other: sessionsManagementService.secondIsRead.get(),
+			count: sessionsManagementService.markAllReadSessionCount,
+		}, { first: true, other: false, count: 1 });
+	});
+
+	test('shared history filters by automation and query, then closes its host before opening the same run', async () => {
+		const { automationService, instantiationService, sessionsService } = setup();
+		const query = observableValue('query', '');
+		const automationId = observableValue<string | undefined>('automation', undefined);
+		const closing = new DeferredPromise<void>();
+		let closeCalls = 0;
+		const history = disposables.add(instantiationService.createInstance(AutomationsHistoryWidget, {
+			query, automationId,
+			beforeOpen: () => { closeCalls++; return closing.p; },
+		}));
+		document.body.appendChild(history.element);
+		disposables.add(toDisposable(() => history.element.remove()));
+		automationService.setAutomations([automation({ name: 'Release review' }), automation({ id: 'other', name: 'Other review' })]);
+		automationService.setRuns([run(), run({ id: 'other-run', automationId: 'other', sessionResource: undefined, externalResource: URI.parse('https://github.com/owner/repo/tasks/other') })]);
+		assert.ok(history.element.querySelector('.automations-run-session-list .monaco-list-row'));
+		assert.ok(history.element.querySelector('.automations-temporary-run'));
+		automationId.set(AUTOMATION_ID, undefined);
+		assert.strictEqual(history.element.querySelector('.automations-temporary-run'), null);
+		query.set('missing', undefined);
+		assert.ok(history.element.textContent?.includes('No runs match.'));
+		query.set('release', undefined);
+		const row = history.element.querySelector<HTMLElement>('.automations-run-session-list .monaco-list-row');
+		assert.ok(row);
+		row.click();
+		assert.deepStrictEqual({ closeCalls, opens: sessionsService.openCalls }, { closeCalls: 1, opens: 0 });
+		await closing.complete();
+		await closing.p;
+		assert.strictEqual(sessionsService.openCalls, 1);
+		await sessionsService.openGate.complete();
+		await sessionsService.openGate.p;
 	});
 
 	test('session row opens and becomes read only after open succeeds', async () => {

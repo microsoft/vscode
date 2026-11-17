@@ -24,6 +24,7 @@ import { ICustomViewService } from '../../../../../workbench/contrib/sessions/br
 import { IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { AutomationsLayoutWidget } from './automationsLayoutWidget.js';
+import { AutomationBlueprintDropTarget, AutomationsHistoryWidget } from './automationsView.js';
 
 /** The singleton input of the modal Automations editor, used by the experimental `modal` layout. */
 export class AutomationsManagementEditorInput extends EditorInput implements IModalEditorOptionsProvider {
@@ -91,6 +92,8 @@ export class AutomationsManagementEditor extends EditorPane {
 		this.widget = this._register(this.instantiationService.createInstance(AutomationsLayoutWidget, {
 			variant: 'modal',
 			close: () => this.close(),
+			createHistory: options => this.instantiationService.createInstance(AutomationsHistoryWidget, options),
+			registerDropTarget: element => this.instantiationService.createInstance(AutomationBlueprintDropTarget, element),
 		}));
 		container.appendChild(this.widget.element);
 	}

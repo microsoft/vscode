@@ -15,6 +15,7 @@ import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { LayoutPriority, Orientation, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Switch } from '../../../../../base/browser/ui/toggle/switch.js';
+import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { IAction, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -44,7 +45,7 @@ import { INotificationService, Severity } from '../../../../../platform/notifica
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { getAutomationAfterDate } from '../../../../../platform/agentHost/common/automationDisableConditions.js';
 import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
@@ -52,7 +53,7 @@ import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/br
 import { IChatExecuteActionContext } from '../../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
 import type { AutomationRunTrigger, IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationCatalogueState, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { CHAT_AUTOMATIONS_SAMPLE_DATA_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { CHAT_AUTOMATIONS_SAMPLE_DATA_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { automationTriggerSummary, hasAutomationEventTrigger } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { isAgentHostProviderId, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
@@ -60,7 +61,8 @@ import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING }
 import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService, trackNewSessionRequestEnd, WorkspaceNotTrustedError } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { AbstractChatView } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -69,7 +71,7 @@ import { isActiveSessionStatus, ISession, SessionArtifactKind, SessionStatus } f
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { AutomationsCustomViewFocusContext } from '../../../../common/agentsWindowContextKeys.js';
 import { AutomationCardCanDeleteContext, AutomationCardCanUpdateContext, AutomationCardEnabledContext, AutomationCardHasEventTriggerContext, AutomationCardHasExternalResourceContext, AutomationCardHasLimitsContext, AutomationCardIsCloudContext } from './automationCardContextKeys.js';
-import { getUnavailableAutomationsReasons, getVisibleAutomations } from './automationCataloguePresentation.js';
+import { getAutomationsViewContent, getUnavailableAutomationsReasons, getVisibleAutomations } from './automationCataloguePresentation.js';
 import { AutomationsLayoutActions } from './automationsLayoutActions.js';
 import { AUTOMATIONS_NAV_IDS, AutomationRunState, AutomationsNavId, AutomationsSectionId, IAutomationLayoutSection, AutomationStatusFilter, classifyAutomation, CLOUD_AUTOMATION_HOST, EMPTY_AUTOMATIONS_LAYOUT_FILTERS, filterAutomationExamples, filterAutomationRows, filterAutomationRuns, getAutomationLayoutDetails, getAutomationLayoutSections, getAutomationNavCounts, getAutomationNavWarnings, getAutomationRunArtifacts, getAutomationRunDestination, getAutomationRunState, getSharedRepositoryLabel, getThisMachineLabel, groupAutomationRunsByDay, IAutomationLayoutDetails, IAutomationLayoutExample, IAutomationLayoutRow, IAutomationLayoutRun, IAutomationLayoutRunResult, IAutomationLayoutWarning, IAutomationsLayoutFilters, isAutomationsFilterActive, LOCAL_AUTOMATION_HOST } from './automationsLayoutModel.js';
 import { getAutomationsSampleData, IAutomationsSampleData, sampleAutomationRunsRead } from './automationsLayoutSampleData.js';
@@ -93,7 +95,7 @@ const DETAILS_DEFAULT_WIDTH = 440;
 const DETAILS_MIN_WIDTH = 320;
 const NARROW_WIDTH = 640;
 const REPOSITORY_DESCRIPTION = localize('automationsLayout.repositoryDescription', "These automations are visible to anyone with repository access, and can be edited by anyone with write access.");
-const DEFAULT_OPEN_SECTIONS: Readonly<Record<AutomationsSectionId, boolean>> = { personal: true, cloud: true, repository: false, disabled: false };
+const DEFAULT_OPEN_SECTIONS: Readonly<Record<AutomationsSectionId, boolean>> = { personal: true, cloud: true, repository: false };
 const STATUS_FILTER_LABELS: Record<AutomationStatusFilter, string> = {
 	on: localize('automationsLayout.filter.on', "On"),
 	off: localize('automationsLayout.filter.off', "Off"),
@@ -187,6 +189,21 @@ export interface IAutomationsLayoutWidgetOptions {
 	readonly variant: AutomationsLayoutVariant;
 	/** Closes the modal before New opens a session. */
 	readonly close?: () => Promise<void>;
+	/** Reuses the page's full history without importing its command-registration module here. */
+	readonly createHistory?: (options: IAutomationsLayoutHistoryOptions) => IAutomationsLayoutHistory;
+	readonly registerDropTarget?: (element: HTMLElement) => IDisposable;
+}
+
+export interface IAutomationsLayoutHistoryOptions {
+	readonly query: IObservable<string>;
+	readonly automationId: IObservable<string | undefined>;
+	readonly beforeOpen?: () => Promise<void>;
+}
+
+export interface IAutomationsLayoutHistory extends IDisposable {
+	readonly element: HTMLElement;
+	layout(): void;
+	focus(): void;
 }
 
 interface INavItem {
@@ -227,12 +244,16 @@ function getAutomationRowPlace(row: IAutomationLayoutRow, separator = ' \u00B7 '
 /** The facts at the top of an automation's details: its schedule and whether it's on, where it runs, and its next run. */
 function getAutomationDetailsFacts(row: IAutomationLayoutRow, now: number, separator = ' \u00B7 '): { readonly term: string; readonly description: string }[] {
 	const schedule = row.schedule.cronExpression ? `${row.schedule.label} (${row.schedule.cronExpression})` : row.schedule.label;
-	// On and Off are about the schedule; a manual automation has none, and Run now works either way.
 	const onOff = row.enabled ? localize('automationsLayout.details.on', "On") : localize('automationsLayout.details.off', "Off");
 	const facts = [
-		{ term: localize('automationsLayout.details.schedule', "Schedule"), description: row.automation?.schedule.interval === 'manual' ? schedule : `${schedule}${separator}${onOff}` },
+		{ term: localize('automationsLayout.details.schedule', "Schedule"), description: schedule },
+		{ term: localize('automationsLayout.details.status', "Status"), description: onOff },
 		{ term: localize('automationsLayout.details.runsOn', "Runs on"), description: getAutomationRowPlace(row, separator) },
 	];
+	const endDate = getAutomationAfterDate(row.automation?.disableConditions);
+	if (endDate) {
+		facts.push({ term: localize('automationsLayout.details.endDate', "Disables after"), description: new Date(endDate).toLocaleString() });
+	}
 	const next = row.enabled && row.automation?.nextRunAt ? Date.parse(row.automation.nextRunAt) : Number.NaN;
 	if (next > now) {
 		facts.push({ term: localize('automationsLayout.details.nextRun', "Next run"), description: fromNow(next, true) });
@@ -315,7 +336,6 @@ function getSectionLabel(id: AutomationsSectionId, repository: string | undefine
 		case 'repository': return repository
 			? localize('automationsLayout.section.repositoryNamed', "Shared in {0}", repository)
 			: localize('automationsLayout.section.repository', "Repository");
-		case 'disabled': return localize('automationsLayout.section.disabled', "Disabled");
 	}
 }
 
@@ -506,6 +526,10 @@ class AutomationsLayoutModel extends Disposable {
 		super();
 		const sampleSetting = observableConfigValue<boolean>(CHAT_AUTOMATIONS_SAMPLE_DATA_SETTING, false, configurationService);
 		const sendLaterSetting = observableConfigValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING, false, configurationService);
+		const showSharedByOthers = observableConfigValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, false, configurationService);
+		const visibleContent = derived(this, reader => getAutomationsViewContent(
+			automationService.automations.read(reader), automationService.runs.read(reader), showSharedByOthers.read(reader) === true,
+		));
 		this.sampleDataEnabled = sampleSetting.map(value => value === true);
 		this.catalogueState = automationService.catalogueState;
 		this.sample = derived(this, reader => this.sampleDataEnabled.read(reader)
@@ -520,9 +544,9 @@ class AutomationsLayoutModel extends Disposable {
 		this.rows = derived(this, reader => {
 			providersChanged.read(reader);
 			automationService.availableProviders.read(reader);
-			const runs = automationService.runs.read(reader);
+			const { automations, runs } = visibleContent.read(reader);
 			const sendLaterEnabled = sendLaterSetting.read(reader) === true;
-			const real = getVisibleAutomations(automationService.automations.read(reader), sendLaterEnabled).map(automation => {
+			const real = getVisibleAutomations(automations, sendLaterEnabled).map(automation => {
 				const latestRun = runs.find(run => run.automationId === automation.id);
 				return this.toRow(automation, latestRun && withLocalProgress(latestRun, reader));
 			});
@@ -531,7 +555,7 @@ class AutomationsLayoutModel extends Disposable {
 
 		this.runs = derived(this, reader => {
 			sessionsChanged.read(reader);
-			const real = automationService.runs.read(reader).map((historyRun): IAutomationLayoutRun => {
+			const real = visibleContent.read(reader).runs.map((historyRun): IAutomationLayoutRun => {
 				const run = withLocalProgress(historyRun, reader);
 				const session = run.sessionResource ? sessionsManagementService.getSession(run.sessionResource) : undefined;
 				const automationName = automationService.getAutomation(run.automationId)?.name
@@ -636,6 +660,7 @@ export class AutomationsLayoutWidget extends Disposable {
 	private readonly selectedNav: ISettableObservable<AutomationsNavId>;
 	private readonly query = observableValue<string>(this, '');
 	private readonly filters: ISettableObservable<IAutomationsLayoutFilters>;
+	private readonly showOff: ISettableObservable<boolean>;
 	private readonly openSections: ISettableObservable<Readonly<Record<string, boolean>>>;
 
 	private readonly navContainer: HTMLElement;
@@ -660,10 +685,18 @@ export class AutomationsLayoutWidget extends Disposable {
 	private readonly filterButton: Button;
 	private filterTitle = localize('automationsLayout.filterTitle', "Filter");
 	private readonly markAllButton: Button;
+	private readonly viewOptionsButton: Button;
+	private readonly showOffContainer: HTMLElement;
+	private readonly showOffCheckbox: Checkbox;
 	private readonly createButtons: HTMLElement | undefined;
 	private readonly resultCount: HTMLElement;
 	private readonly scrollContainer: HTMLElement;
 	private readonly content: HTMLElement;
+	private readonly historyHost: HTMLElement;
+	private readonly historyScope: HTMLElement;
+	private readonly historyScopeLabel: HTMLElement;
+	private readonly historyAutomationId = observableValue<string | undefined>(this, undefined);
+	private readonly historyWidget = this._register(new MutableDisposable<IAutomationsLayoutHistory>());
 	private readonly contentDisposables = this._register(new DisposableStore());
 	private readonly splitView: SplitView<number> | undefined;
 	private readonly sidebar: HTMLElement | undefined;
@@ -706,6 +739,10 @@ export class AutomationsLayoutWidget extends Disposable {
 		const storedNav = this.storageService.get(SELECTED_NAV_STORAGE_KEY, StorageScope.PROFILE);
 		this.selectedNav = observableValue<AutomationsNavId>(this, AUTOMATIONS_NAV_IDS.find(id => id === storedNav) ?? 'all');
 		this.filters = observableValue<IAutomationsLayoutFilters>(this, this.readFilters());
+		this.showOff = observableValue(this, this.storageService.getBoolean(SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, StorageScope.PROFILE, false));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, this._store)(() => {
+			this.showOff.set(this.storageService.getBoolean(SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, StorageScope.PROFILE, false), undefined);
+		}));
 		this.openSections = observableValue<Readonly<Record<string, boolean>>>(this, this.readOpenSections());
 
 		const modal = options.variant === 'modal';
@@ -822,6 +859,10 @@ export class AutomationsLayoutWidget extends Disposable {
 					id: 'sessions.automations.createManually',
 					label: localize('automationsLayout.createManuallyDropdown', "Create Manually"),
 					run: () => this.createManuallyInPane(),
+				}), toAction({
+					id: 'sessions.automations.import',
+					label: localize('automationsLayout.import', "Import Automation..."),
+					run: () => this.actions.importAutomation(),
 				})],
 				addPrimaryActionToDropdown: false,
 			}));
@@ -917,9 +958,44 @@ export class AutomationsLayoutWidget extends Disposable {
 			this._register(resizeObserver.observe(this.paneSplitContainer));
 		}
 
+		this.viewOptionsButton = this._register(new Button(this.toolbar, { supportIcons: true, ariaLabel: localize('automationsLayout.viewOptions', "View options") }));
+		this.viewOptionsButton.label = `$(${Codicon.ellipsis.id})`;
+		this.viewOptionsButton.element.classList.add('automations-layout-icon-button', 'automations-layout-view-options-button');
+		this.viewOptionsButton.element.setAttribute('aria-haspopup', 'menu');
+		this._register(this.viewOptionsButton.onDidClick(() => {
+			this.contextMenuService.showContextMenu({
+				menuId: AgentsWindowMenus.AutomationsMoreActions,
+				getAnchor: () => this.viewOptionsButton.element,
+				contextKeyService: this.contextKeyService,
+			});
+		}));
+		const cloudEnabled = observableConfigValue<boolean>(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, false, this.configurationService);
+		this._register(autorun(reader => {
+			this.viewOptionsButton.element.style.display = cloudEnabled.read(reader) ? '' : 'none';
+		}));
+		this.showOffContainer = DOM.append(this.paneContainer, $('.automations-layout-show-off'));
+		const showOffLabel = localize('automationsLayout.showOff', "Show turned-off automations");
+		this.showOffCheckbox = this._register(new Checkbox(showOffLabel, this.showOff.get(), defaultCheckboxStyles));
+		this.showOffContainer.appendChild(this.showOffCheckbox.domNode);
+		const offLabel = DOM.append(this.showOffContainer, $('span', undefined, showOffLabel));
+		this._register(DOM.addDisposableListener(offLabel, DOM.EventType.CLICK, () => {
+			this.showOffCheckbox.checked = !this.showOffCheckbox.checked;
+			this.setShowOff(this.showOffCheckbox.checked);
+			this.showOffCheckbox.focus();
+		}));
+		this._register(this.showOffCheckbox.onChange(() => this.setShowOff(this.showOffCheckbox.checked)));
+		this.historyScope = DOM.append(this.paneContainer, $('.automations-layout-history-scope'));
+		this.historyScopeLabel = DOM.append(this.historyScope, $('span'));
+		const allRuns = this._register(new Button(this.historyScope, { ...defaultButtonStyles, secondary: true }));
+		allRuns.label = localize('automationsLayout.allRuns', "Show all runs");
+		this._register(allRuns.onDidClick(() => this.historyAutomationId.set(undefined, undefined)));
 		this.resultCount = DOM.append(this.paneContainer, $('.automations-layout-result-count', { role: 'status', 'aria-live': 'polite' }));
 		this.scrollContainer = DOM.append(this.paneContainer, $('.automations-layout-scroll'));
+		this.historyHost = DOM.append(this.scrollContainer, $('.automations-layout-history'));
 		this.content = DOM.append(this.scrollContainer, $('.automations-layout-content'));
+		if (options.registerDropTarget) {
+			this._register(options.registerDropTarget(this.element));
+		}
 		this._register(DOM.addDisposableListener(this.content, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => this.onContentKeyDown(event)));
 		this._register(DOM.addDisposableListener(this.content, DOM.EventType.FOCUS_IN, (event: FocusEvent) => this.onContentFocus(event)));
 
@@ -953,12 +1029,21 @@ export class AutomationsLayoutWidget extends Disposable {
 			const sample = this.model.sampleDataEnabled.read(reader);
 			const query = this.query.read(reader);
 			const filters = this.filters.read(reader);
+			const showOff = this.showOff.read(reader);
 			const openSections = this.openSections.read(reader);
 			const catalogueState = this.model.catalogueState.read(reader);
+			const historyId = this.historyAutomationId.read(reader);
 			this.model.now.read(reader);
 			this.updateNav(nav, rows, runs, examples, warnings);
 			this.updateChrome(nav, sample, filters);
-			this.renderPane(nav, rows, runs, examples, query, filters, openSections, catalogueState);
+			this.showOffCheckbox.checked = showOff;
+			this.showOffContainer.style.display = (nav === 'all' || nav === 'personal' || nav === 'cloud')
+				&& rows.some(row => !row.enabled && row.group !== 'repository' && (nav === 'all' || row.group === nav)) ? '' : 'none';
+			this.historyScope.style.display = nav === 'runs' && historyId ? '' : 'none';
+			this.historyScopeLabel.textContent = historyId
+				? localize('automationsLayout.runsOf', "Runs of {0}", rows.find(row => row.id === historyId)?.name ?? this.automationService.getAutomationHistoryName?.(historyId) ?? localize('automationsLayout.removedAutomation', "Removed automation"))
+				: '';
+			this.renderPane(nav, rows, runs, examples, query, filters, openSections, catalogueState, showOff);
 		}));
 
 		void this.refresh();
@@ -1006,6 +1091,7 @@ export class AutomationsLayoutWidget extends Disposable {
 		if (moveFocus) {
 			this.detailsView?.panel.focus({ preventScroll: true });
 		}
+		this.historyWidget.value?.layout();
 	}
 
 	private animateDetailsLayout(): void {
@@ -1059,7 +1145,8 @@ export class AutomationsLayoutWidget extends Disposable {
 		lines.push('', localize('automationsLayout.accessible.selected', "Showing {0}.", getNavLabel(nav)));
 		const query = this.query.get();
 		if (nav === 'runs') {
-			for (const group of groupAutomationRunsByDay(filterAutomationRuns(runs, query), this.model.now.get())) {
+			const historyId = this.historyAutomationId.get();
+			for (const group of groupAutomationRunsByDay(filterAutomationRuns(runs, query).filter(run => !historyId || run.automationId === historyId), this.model.now.get())) {
 				lines.push('', group.label);
 				for (const run of group.runs) {
 					lines.push([run.title, run.title !== run.automationName ? run.automationName : '', getRunStateDescription(run.state) ?? '', fromNow(run.time, true), run.unread ? localize('automationsLayout.runAria.unread', "unread") : ''].filter(Boolean).join(', '));
@@ -1240,6 +1327,7 @@ export class AutomationsLayoutWidget extends Disposable {
 	private setSelectedNav(nav: AutomationsNavId): void {
 		this.inlineCreation?.cancel();
 		this.hideDetails();
+		this.historyAutomationId.set(undefined, undefined);
 		if (this.selectedNav.get() === nav) {
 			return;
 		}
@@ -1321,7 +1409,7 @@ export class AutomationsLayoutWidget extends Disposable {
 		}
 		this.sampleLabel.style.display = sample ? '' : 'none';
 		this.filterButton.element.style.display = listPane && !this.filterBar ? '' : 'none';
-		this.markAllButton.element.style.display = nav === 'runs' ? '' : 'none';
+		this.markAllButton.element.style.display = nav === 'runs' && !this.options.createHistory ? '' : 'none';
 		const active = isAutomationsFilterActive(filters);
 		this.filterButton.label = `$(${active ? Codicon.filterFilled.id : Codicon.filter.id})`;
 		this.filterButton.element.classList.toggle('active', active);
@@ -1378,8 +1466,16 @@ export class AutomationsLayoutWidget extends Disposable {
 	}
 
 	private setFilters(filters: IAutomationsLayoutFilters): void {
+		if (filters.statuses.includes('off')) {
+			this.setShowOff(true);
+		}
 		this.filters.set(filters, undefined);
 		this.storageService.store(FILTERS_STORAGE_KEY, JSON.stringify(filters), StorageScope.PROFILE, StorageTarget.USER);
+	}
+
+	private setShowOff(show: boolean): void {
+		this.showOff.set(show, undefined);
+		this.storageService.store(SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY, show, StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	private readFilters(): IAutomationsLayoutFilters {
@@ -1430,7 +1526,7 @@ export class AutomationsLayoutWidget extends Disposable {
 
 	//#region Panes
 
-	private renderPane(nav: AutomationsNavId, rows: readonly IAutomationLayoutRow[], runs: readonly IAutomationLayoutRun[], examples: readonly IAutomationLayoutExample[], query: string, filters: IAutomationsLayoutFilters, openSections: Readonly<Record<string, boolean>>, catalogueState: AutomationCatalogueState): void {
+	private renderPane(nav: AutomationsNavId, rows: readonly IAutomationLayoutRow[], runs: readonly IAutomationLayoutRun[], examples: readonly IAutomationLayoutExample[], query: string, filters: IAutomationsLayoutFilters, openSections: Readonly<Record<string, boolean>>, catalogueState: AutomationCatalogueState, showOff: boolean): void {
 		const focused = this.getFocusedContent();
 		const scrollTop = this.scrollContainer.scrollTop;
 		this.contentDisposables.clear();
@@ -1439,13 +1535,32 @@ export class AutomationsLayoutWidget extends Disposable {
 		DOM.clearNode(this.content);
 		this.content.dataset.nav = nav;
 		this.paneContainer.setAttribute('aria-labelledby', `${this.idPrefix}-nav-${nav}`);
+		const sharedHistory = nav === 'runs' && !!this.options.createHistory;
+		this.historyHost.style.display = sharedHistory ? '' : 'none';
+		if (sharedHistory && !this.historyWidget.value) {
+			this.historyWidget.value = this.options.createHistory!({
+				query: this.query,
+				automationId: this.historyAutomationId,
+				beforeOpen: this.options.close,
+			});
+			this.historyHost.appendChild(this.historyWidget.value.element);
+		}
+		this.historyWidget.value?.layout();
 
 		let resultMessage = '';
 		switch (nav) {
 			case 'runs': {
-				const shown = filterAutomationRuns(runs, query);
+				const historyId = this.historyAutomationId.get();
+				const shown = filterAutomationRuns(runs, query).filter(run => (!historyId || run.automationId === historyId) && (!sharedHistory || run.isSample));
 				resultMessage = query.trim() ? formatResultCount(shown.length, 'runs') : '';
-				this.renderRuns(shown, runs.some(run => run.unread));
+				if (!sharedHistory || shown.length > 0) {
+					if (sharedHistory) {
+						DOM.append(this.content, $('p.automations-layout-quiet', undefined, localize('automationsLayout.sampleData', "Sample data")));
+					}
+					this.renderRuns(shown, runs.some(run => run.unread));
+				} else {
+					resultMessage = '';
+				}
 				break;
 			}
 			case 'examples': {
@@ -1457,11 +1572,13 @@ export class AutomationsLayoutWidget extends Disposable {
 			default: {
 				const shown = filterAutomationRows(rows, query, filters);
 				const searching = !!query.trim() || isAutomationsFilterActive(filters);
-				const sections = getAutomationLayoutSections(shown, nav);
+				const sections = getAutomationLayoutSections(shown, nav, showOff);
 				const total = sections.reduce((sum, section) => sum + section.rows.length, 0);
 				resultMessage = searching ? formatResultCount(total, 'automations') : '';
 				if (rows.length === 0 && !searching) {
 					this.renderEmptyState(nav, catalogueState, examples);
+				} else if (total === 0 && !searching && !showOff && shown.some(row => !row.enabled && (nav === 'all' || row.group === nav))) {
+					DOM.append(this.content, $('p.automations-layout-quiet', undefined, localize('automationsLayout.allOff', "Your automations are off. Select Show turned-off automations to see them.")));
 				} else {
 					this.renderAutomationSections(nav, sections, getSharedRepositoryLabel(rows), openSections, searching);
 				}
@@ -1503,8 +1620,7 @@ export class AutomationsLayoutWidget extends Disposable {
 			return;
 		}
 		for (const section of sections) {
-			// Group panes list their own automations directly; only All automations and Disabled get headers.
-			const headed = nav === 'all' || section.id === 'disabled';
+			const headed = nav === 'all';
 			const key = `${nav}:${section.id}`;
 			const open = !headed || searching || this.isSectionOpen(key, openSections);
 			const sectionElement = DOM.append(table, $('section.automations-layout-section'));
@@ -1882,8 +1998,7 @@ export class AutomationsLayoutWidget extends Disposable {
 	}
 
 	private async startNewAutomation(): Promise<void> {
-		await this.options.close?.();
-		await this.actions.startAutomationChat();
+		await this.actions.startAutomationChat(this.options.close);
 	}
 
 	/** Explains Create with agent the first time the modal shows, once the modal has laid the button out. */
@@ -2171,6 +2286,18 @@ export class AutomationsLayoutWidget extends Disposable {
 
 	private renderDetailsRuns(view: IDetailsView, row: IAutomationLayoutRow, details: IAutomationLayoutDetails): void {
 		const section = this.appendDetailsSection(view.body, localize('automationsLayout.details.runs', "Runs"), String(details.runs.length));
+		if (!row.isSample && this.options.createHistory) {
+			const manage = view.content.add(new Button(section, { ...defaultButtonStyles, secondary: true }));
+			manage.label = localize('automationsLayout.manageRuns', "Manage runs");
+			manage.element.classList.add('automations-layout-manage-runs');
+			this.setDetailsKey(view, manage.element, 'manage-runs');
+			view.content.add(manage.onDidClick(() => {
+				this.setSelectedNav('runs');
+				this.query.set('', undefined);
+				this.historyAutomationId.set(row.id, undefined);
+				this.historyWidget.value?.focus();
+			}));
+		}
 		const list = DOM.append(section, $('.automations-layout-details-runs', { role: 'list', 'aria-label': localize('automationsLayout.details.runsAria', "Runs of {0}, newest first", row.name) }));
 		const items = details.runs.map(run => this.renderDetailsRun(view, list, run));
 		// One tab stop in the list, like the automation list: the run that last had focus, or the newest.
@@ -2334,6 +2461,10 @@ export class AutomationsLayoutWidget extends Disposable {
 	}
 
 	private focusFirstContentItem(): void {
+		if (this.selectedNav.get() === 'runs' && this.historyWidget.value) {
+			this.historyWidget.value.focus();
+			return;
+		}
 		const items = this.getRovingItems();
 		const target = items.find(item => item.tabIndex === 0) ?? items[0];
 		target?.focus();
@@ -2425,7 +2556,13 @@ export class AutomationsLayoutWidget extends Disposable {
 			target.classList.remove('restoring-focus');
 		}
 		if (!control || DOM.getActiveElement() !== control) {
-			(target ?? items[0])?.focus();
+			if (target ?? items[0]) {
+				(target ?? items[0]).focus();
+			} else if (this.showOffContainer.style.display !== 'none') {
+				this.showOffCheckbox.focus();
+			} else {
+				this.searchBox.focus();
+			}
 		}
 	}
 

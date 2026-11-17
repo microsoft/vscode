@@ -44,7 +44,7 @@ import type { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, Automa
 import { type AutomationCatalogueState, type AutomationHistoryState, type IAutomationProviderDescriptor, type IAutomationRefreshOptions, IAutomationService, type IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_AUTOMATIONS_LAYOUT_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext, toAutomationsLayout } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
-import { AutomationsLayoutWidget } from './automationsLayoutWidget.js';
+import { AutomationsLayoutWidget, IAutomationsLayoutHistory, IAutomationsLayoutHistoryOptions } from './automationsLayoutWidget.js';
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type AutomationDialogCreateInitialValues, IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, AutomationBlueprintParseError, automationToBlueprint, createAutomationBlueprintFileName, parseAutomationBlueprint, serializeAutomationBlueprint } from '../../../../../workbench/contrib/chat/common/automations/automationBlueprint.js';
@@ -91,7 +91,8 @@ import { Action, IAction, toAction } from '../../../../../base/common/actions.js
 import { SessionIsArchivedContext, SessionIsReadContext, SessionSupportsRenameContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { AutomationsCustomViewFocusContext, AutomationsHasItemsContext, AutomationsHasOthersContext } from '../../../../common/agentsWindowContextKeys.js';
 import { SessionsFlatList, SessionItemStatusContext, formatSessionListTime } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID, SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
+export { SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, OPEN_REMOTES_EDITOR_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { INewSessionInAgentsWindowOptions } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -121,7 +122,6 @@ function canArchiveAutomationSession(session: ISession, reader?: IReader): boole
 		&& session.chats.read(reader).every(chat => terminal(chat.status.read(reader)));
 }
 export const SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY = 'sessions.automations.seenPluginTemplateIds';
-export const SHOW_DISABLED_AUTOMATIONS_STORAGE_KEY = 'sessions.automations.showDisabled';
 /** Onboarding spotlight targets shared by automatic introductions and checklist tours. */
 const AUTOMATION_TEMPLATES_ONBOARDING_TARGET_ID = 'sessions.automations.templates';
 const CREATE_AUTOMATION_ONBOARDING_TARGET_ID = 'sessions.automations.create';
@@ -310,7 +310,7 @@ export class AutomationsCardsWidget extends Disposable {
 			historyState.textContent = message;
 			historyState.style.display = message ? '' : 'none';
 		}));
-		this.historySection = this._register(instantiationService.createInstance(AutomationHistorySection, scrollContent, this.element, this.isMarkingAllRead));
+		this.historySection = this._register(instantiationService.createInstance(AutomationHistorySection, scrollContent, this.element, this.isMarkingAllRead, undefined));
 
 		this._register(autorun(reader => {
 			const catalogueState = this.automationService.catalogueState.read(reader);
@@ -380,6 +380,125 @@ export class AutomationsCardsWidget extends Disposable {
 	}
 }
 
+/** The existing history surface, shared by the page and experimental layout. */
+export class AutomationsHistoryWidget extends Disposable implements IAutomationsLayoutHistory {
+	readonly element = $('.automations-history-widget');
+	private readonly history: AutomationHistorySection;
+	private readonly markingAll = observableValue(this, false);
+
+	constructor(
+		options: IAutomationsLayoutHistoryOptions,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IAutomationService automationService: IAutomationService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IConfigurationService configurationService: IConfigurationService,
+	) {
+		super();
+		this.element.tabIndex = -1;
+		const message = DOM.append(this.element, $('.automations-history-state', { role: 'status' }));
+		this.history = this._register(instantiationService.createInstance(AutomationHistorySection, this.element, this.element, this.markingAll, options.beforeOpen));
+		const sessionChanged = observableSignalFromEvent(this, Event.any(sessionsManagementService.onDidChangeSessions, sessionsManagementService.onDidDeleteSession));
+		const configurationChanged = observableSignalFromEvent(this, configurationService.onDidChangeConfiguration);
+		this._register(autorun(reader => {
+			if (this.markingAll.read(reader)) {
+				return;
+			}
+			sessionChanged.read(reader);
+			configurationChanged.read(reader);
+			automationService.availableProviders.read(reader);
+			const query = options.query.read(reader).trim().toLocaleLowerCase();
+			const automationId = options.automationId.read(reader);
+			const content = getAutomationsViewContent(
+				automationService.automations.read(reader), automationService.runs.read(reader),
+				configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
+			);
+			const sessionsByResource = new Map(sessionsManagementService.getSessions().map(session => [uriIdentityService.extUri.getComparisonKey(session.resource), session]));
+			const sessions = new Map<string, ISession>();
+			const runs = content.runs.filter(run => {
+				if (automationId && run.automationId !== automationId) {
+					return false;
+				}
+				const session = run.sessionResource && sessionsByResource.get(uriIdentityService.extUri.getComparisonKey(run.sessionResource));
+				const name = content.automations.find(automation => automation.id === run.automationId)?.name
+					?? automationService.getAutomationHistoryName?.(run.automationId) ?? '';
+				const matches = !query || name.toLocaleLowerCase().includes(query) || !!session?.title.read(reader).toLocaleLowerCase().includes(query);
+				if (matches && session) {
+					sessions.set(run.id, session);
+				}
+				return matches;
+			});
+			const state = automationService.historyState?.read(reader);
+			message.textContent = state === 'error'
+				? localize('historyRefreshFailed', "Run history could not be refreshed. Showing the last available history. Use Refresh to try again.")
+				: state === 'loading' ? localize('automationsHistory.loading', "Loading run history...")
+					: runs.length === 0 ? query ? localize('automationsHistory.noMatches', "No runs match.") : localize('automationsHistory.noRuns', "No runs yet.") : '';
+			message.style.display = message.textContent ? '' : 'none';
+			this.history.render(runs, sessions);
+		}));
+	}
+
+	layout(): void {
+		this.history.layout();
+	}
+
+	focus(): void {
+		this.history.focus();
+	}
+}
+
+/** Reuses blueprint validation and persistence for drag-and-drop on either Automations surface. */
+export class AutomationBlueprintDropTarget extends Disposable {
+	private readonly overlay: HTMLElement;
+
+	constructor(
+		element: HTMLElement,
+		@IFileService private readonly fileService: IFileService,
+		@IAutomationDialogService private readonly automationDialogService: IAutomationDialogService,
+		@IAutomationService private readonly automationService: IAutomationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@ILogService private readonly logService: ILogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+	) {
+		super();
+		this.overlay = DOM.append(element, $('.automations-drop-overlay', { role: 'status', 'aria-live': 'polite' }));
+		DOM.append(this.overlay, $(`span.automations-drop-overlay-icon${ThemeIcon.asCSSSelector(Codicon.cloudUpload)}`, { 'aria-hidden': 'true' }));
+		DOM.append(this.overlay, $('span.automations-drop-overlay-title', undefined, localize('automationDropTitle', "Drop to import automation")));
+		DOM.append(this.overlay, $('span.automations-drop-overlay-description', undefined, localize('automationDropDescription', "You can review the Automation before creating it.")));
+		const update = (event: DragEvent) => {
+			const data = getAutomationDropData(event);
+			const canImport = data.kind === 'resource' || data.kind === 'file';
+			this.overlay.classList.toggle('visible', canImport);
+			if (canImport && event.dataTransfer) {
+				event.dataTransfer.dropEffect = 'copy';
+			}
+		};
+		const hide = () => this.overlay.classList.remove('visible');
+		this._register(new DOM.DragAndDropObserver(element, {
+			onDragEnter: update, onDragOver: update, onDragLeave: hide, onDragEnd: hide,
+			onDrop: event => {
+				const data = getAutomationDropData(event);
+				hide();
+				if (data.kind === 'none') {
+					return;
+				}
+				DOM.EventHelper.stop(event, true);
+				if (data.kind === 'invalid') {
+					void this.dialogService.error(localize('automationDropFailed', "Unable to import automation."), data.reason === 'multiple'
+						? localize('automationDropMultiple', "Drop one Automation blueprint file at a time.")
+						: localize('automationDropUnsupported', "Only .automation.md files can be imported."));
+					return;
+				}
+				const read = data.kind === 'resource' ? async () => (await this.fileService.readFile(data.resource)).value.toString()
+					: async () => VSBuffer.wrap(new Uint8Array(await data.file.arrayBuffer())).toString();
+				void importAutomationBlueprint(read, this.automationDialogService, this.automationService, this.configurationService, this.dialogService, this.logService, this.telemetryService);
+			},
+		}));
+		this._register(toDisposable(() => this.overlay.remove()));
+	}
+}
+
 //#region AutomationCardsSection
 
 /**
@@ -395,7 +514,6 @@ class AutomationCardsSection extends Disposable {
 	private readonly errorContainer: HTMLElement;
 	private readonly templatesContainer: HTMLElement;
 	private readonly partialStateContainer: HTMLElement;
-	private readonly dropOverlay: HTMLElement;
 	private readonly partialErrorIcon: HTMLElement;
 	private readonly partialStateMessage: HTMLElement;
 	private readonly persistentCards = new Map<string, IAutomationCardEntry>();
@@ -441,7 +559,6 @@ class AutomationCardsSection extends Disposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IFileService private readonly fileService: IFileService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -490,23 +607,7 @@ class AutomationCardsSection extends Disposable {
 		this.errorCreateButton = this.renderErrorState();
 		this.templatesContainer = DOM.append(parent, $('.automations-templates'));
 		this.templatesContainer.style.display = 'none';
-		this.dropOverlay = DOM.append(this.focusRoot, $('.automations-drop-overlay'));
-		this.dropOverlay.setAttribute('role', 'status');
-		this.dropOverlay.setAttribute('aria-live', 'polite');
-		const dropIcon = DOM.append(this.dropOverlay, $('span.automations-drop-overlay-icon'));
-		dropIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.cloudUpload));
-		dropIcon.setAttribute('aria-hidden', 'true');
-		const dropTitle = DOM.append(this.dropOverlay, $('span.automations-drop-overlay-title'));
-		dropTitle.textContent = localize('automationDropTitle', "Drop to import automation");
-		const dropDescription = DOM.append(this.dropOverlay, $('span.automations-drop-overlay-description'));
-		dropDescription.textContent = localize('automationDropDescription', "You can review the Automation before creating it.");
-		this._register(new DOM.DragAndDropObserver(this.focusRoot, {
-			onDragEnter: event => this.updateDropOverlay(event),
-			onDragOver: event => this.updateDropOverlay(event),
-			onDragLeave: () => this.hideDropOverlay(),
-			onDragEnd: () => this.hideDropOverlay(),
-			onDrop: event => this.handleDrop(event),
-		}));
+		this._register(this.instantiationService.createInstance(AutomationBlueprintDropTarget, this.focusRoot));
 		const focusTracker = this._register(DOM.trackFocus(this.focusRoot));
 		this._register(focusTracker.onDidBlur(() => this.clearPendingFocus()));
 		this._register(DOM.addDisposableListener(this.focusRoot, DOM.EventType.FOCUS_OUT, (event: FocusEvent) => {
@@ -531,47 +632,6 @@ class AutomationCardsSection extends Disposable {
 			}
 			this.ownershipSections.clear();
 		}));
-	}
-
-	private updateDropOverlay(event: DragEvent): void {
-		const dropData = getAutomationDropData(event);
-		const canImport = dropData.kind === 'resource' || dropData.kind === 'file';
-		this.dropOverlay.classList.toggle('visible', canImport);
-		if (canImport && event.dataTransfer) {
-			event.dataTransfer.dropEffect = 'copy';
-		}
-	}
-
-	private hideDropOverlay(): void {
-		this.dropOverlay.classList.remove('visible');
-	}
-
-	private handleDrop(event: DragEvent): void {
-		const dropData = getAutomationDropData(event);
-		this.hideDropOverlay();
-		if (dropData.kind === 'none') {
-			return;
-		}
-		DOM.EventHelper.stop(event, true);
-		if (dropData.kind === 'invalid') {
-			const detail = dropData.reason === 'multiple'
-				? localize('automationDropMultiple', "Drop one Automation blueprint file at a time.")
-				: localize('automationDropUnsupported', "Only .automation.md files can be imported.");
-			void this.dialogService.error(localize('automationDropFailed', "Unable to import automation."), detail);
-			return;
-		}
-		const readContent = dropData.kind === 'resource'
-			? async () => (await this.fileService.readFile(dropData.resource)).value.toString()
-			: async () => VSBuffer.wrap(new Uint8Array(await dropData.file.arrayBuffer())).toString();
-		void importAutomationBlueprint(
-			readContent,
-			this.automationDialogService,
-			this.automationService,
-			this.configurationService,
-			this.dialogService,
-			this.logService,
-			this.telemetryService,
-		);
 	}
 
 	render(automations: readonly IAutomationDescriptor[], catalogueState: AutomationCatalogueState, unavailableProviders: readonly IAutomationProviderDescriptor[], templates: readonly IAutomationTemplate[], showDisabled: boolean): void {
@@ -1740,6 +1800,7 @@ class AutomationHistorySection extends Disposable {
 		parent: HTMLElement,
 		private readonly focusFallback: HTMLElement,
 		private readonly isMarkingAllRead: ISettableObservable<boolean>,
+		private readonly beforeOpen: (() => Promise<void>) | undefined,
 		@IAutomationService private readonly automationService: IAutomationService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -1863,6 +1924,15 @@ class AutomationHistorySection extends Disposable {
 			for (const block of entry.sessionLists.values()) {
 				this.layoutSessionList(block.listContainer, block.list);
 			}
+		}
+	}
+
+	focus(): void {
+		const target = this.runFocusTargets.values().next().value;
+		if (target) {
+			target.list.focusSession(target.session);
+		} else {
+			this.focusFallback.focus();
 		}
 	}
 
@@ -2366,6 +2436,9 @@ class AutomationHistorySection extends Disposable {
 			if (!this.sessionsManagementService.getSession(resolved)) {
 				throw new Error(localize('automationRunSessionUnavailable', "The cloud session is not available yet. Try again or open it on GitHub."));
 			}
+			if (this.beforeOpen) {
+				await this.beforeOpen();
+			}
 			await this.sessionsService.openSession(resolved, { preserveFocus: false, source: 'automation' });
 		} catch (error) {
 			this.logService.error('[AutomationsCards] Failed to open automation run', error);
@@ -2392,6 +2465,9 @@ class AutomationHistorySection extends Disposable {
 
 	private async openRunOnGitHub(run: IAutomationRun): Promise<void> {
 		try {
+			if (run.externalResource && this.beforeOpen) {
+				await this.beforeOpen();
+			}
 			if (!run.externalResource || !await this.openerService.open(run.externalResource, { openExternal: true, allowCommands: false })) {
 				throw new Error(localize('automationRunOpenRejected', "The link could not be opened."));
 			}
@@ -2452,7 +2528,7 @@ class AutomationHistorySection extends Disposable {
 			await markAllAutomationRunsRead(
 				this.automationService, this.sessionsManagementService, this.uriIdentityService,
 				this.chatModels.get(), this.logService, this.dialogService,
-				this.configurationService,
+				this.configurationService, this.currentRuns.get(),
 			);
 		} finally {
 			this.isMarkingAllRead.set(false, undefined);
@@ -2472,10 +2548,11 @@ async function markAllAutomationRunsRead(
 	logService: ILogService,
 	dialogService: IDialogService,
 	configurationService: IConfigurationService,
+	scopedRuns?: readonly IAutomationRun[],
 ): Promise<void> {
 	try {
 		const { runs } = getAutomationsViewContent(
-			automationService.automations.get(), automationService.runs.get(),
+			automationService.automations.get(), scopedRuns ?? automationService.runs.get(),
 			configurationService.getValue<boolean>(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING) === true,
 		);
 		const models = [...chatModels];
@@ -2846,7 +2923,11 @@ export class AutomationsCustomView extends AbstractCustomView {
 			container.classList.toggle('automations-cards-content', !chatInput);
 			container.classList.toggle('automations-layout-page', chatInput);
 			const widget = chatInput
-				? reader.store.add(this.instantiationService.createInstance(AutomationsLayoutWidget, { variant: 'chatInput' }))
+				? reader.store.add(this.instantiationService.createInstance(AutomationsLayoutWidget, {
+					variant: 'chatInput',
+					createHistory: options => this.instantiationService.createInstance(AutomationsHistoryWidget, options),
+					registerDropTarget: element => this.instantiationService.createInstance(AutomationBlueprintDropTarget, element),
+				}))
 				: reader.store.add(this.instantiationService.createInstance(AutomationsCardsWidget));
 			this._widget = widget;
 			this._layoutWidget.set(widget instanceof AutomationsLayoutWidget ? widget : undefined, undefined);
@@ -3328,7 +3409,7 @@ registerAction2(class CreateAutomationWithAgentAction extends Action2 {
 			menu: [{ id: AgentsWindowMenus.CustomViewAutomations, group: 'navigation', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationsHasItemsContext, ContextKeyExpr.notEquals(`config.${CHAT_AUTOMATIONS_LAYOUT_SETTING}`, 'chatInput')) }],
 		});
 	}
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, host?: { readonly beforeOpen?: () => Promise<void> }): Promise<boolean> {
 		const commandService = accessor.get(ICommandService);
 		const dialogService = accessor.get(IDialogService);
 		const sessionsService = accessor.get(ISessionsService);
@@ -3348,16 +3429,24 @@ registerAction2(class CreateAutomationWithAgentAction extends Action2 {
 			});
 			if (result !== true) {
 				if (result === false) {
+					if (typeof host?.beforeOpen === 'function') {
+						await host.beforeOpen();
+					}
 					await sessionsService.openNewSession();
+					return true;
 				}
-				return;
+				return false;
 			}
 		}
 		const options: INewSessionInAgentsWindowOptions = {
 			prompt: '/automate ',
 			prefillPrompt: true,
 		};
+		if (typeof host?.beforeOpen === 'function') {
+			await host.beforeOpen();
+		}
 		await commandService.executeCommand(NEW_SESSION_ACTION_ID, options);
+		return true;
 	}
 });
 

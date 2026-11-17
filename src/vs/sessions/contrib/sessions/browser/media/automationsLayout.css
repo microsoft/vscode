@@ -6,6 +6,7 @@
 /* The experimental Automations layouts: `modal` (a sidebar and a pane) and `chatInput` (a chat input over tabs). */
 
 .automations-layout {
+	position: relative;
 	display: flex;
 	flex-direction: column;
 	height: 100%;
@@ -480,6 +481,59 @@
 
 .automations-layout-modal .automations-layout-result-count {
 	margin-inline: var(--vscode-spacing-size120);
+}
+
+.automations-layout-show-off {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size60);
+	margin: 0 var(--vscode-spacing-size120) var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.automations-layout-show-off > span {
+	cursor: pointer;
+}
+
+.automations-layout-view-options-button {
+	flex-shrink: 0;
+}
+
+.automations-layout-history-scope {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size80);
+	margin: 0 var(--vscode-spacing-size120) var(--vscode-spacing-size80);
+}
+
+.automations-layout-history-scope > span {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.automations-layout-history-scope .monaco-button,
+.automations-layout-manage-runs.monaco-button {
+	width: auto;
+	align-self: flex-start;
+}
+
+.automations-layout-history .automations-history {
+	max-width: none;
+	margin-top: 0;
+}
+
+.automations-layout-history-widget:focus {
+	outline: none;
+}
+
+.automations-layout .automations-drop-overlay {
+	background: color-mix(in srgb, var(--vscode-editor-background) 92%, transparent);
+	color: var(--vscode-foreground);
 }
 
 .automations-layout-scroll {

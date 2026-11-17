@@ -45,7 +45,7 @@ import { AutomationsLayoutActions } from '../../browser/views/automationsLayoutA
 import { AutomationsLayoutWidget } from '../../browser/views/automationsLayoutWidget.js';
 import { getAutomationsSampleData } from '../../browser/views/automationsLayoutSampleData.js';
 import { describeAutomationSchedule, describeCronExpression, formatAutomationTime } from '../../browser/views/automationsLayoutSchedule.js';
-import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { AutomationDisableConditionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { IEditorPaneRegistry } from '../../../../../workbench/browser/editor.js';
 import { EditorExtensions } from '../../../../../workbench/common/editor.js';
@@ -168,7 +168,7 @@ suite('Automations layout model', () => {
 		assert.deepStrictEqual([...new Set(sample.rows.filter(row => row.hostKey === LOCAL_AUTOMATION_HOST).map(row => row.hostLabel))], [getThisMachineLabel()]);
 	});
 
-	test('counts leave out disabled automations, and Runs counts unread runs', () => {
+	test('counts include saved off automations, and Runs counts unread runs', () => {
 		const counts = getAutomationNavCounts(sample.rows, sample.runs, []);
 		assert.deepStrictEqual(AUTOMATIONS_NAV_IDS.map(id => `${id}: ${counts[id]}, ${getAutomationNavWarnings(sample.warnings, id).length} warnings`), [
 			'all: 3, 1 warnings',
@@ -178,16 +178,30 @@ suite('Automations layout model', () => {
 			'runs: 2, 0 warnings',
 			'examples: 0, 0 warnings',
 		]);
+		const off = { ...sample.rows[0], id: 'off', enabled: false };
+		assert.strictEqual(getAutomationNavCounts([...sample.rows, off], [], []).personal, 3);
 	});
 
-	test('All automations lists Personal, Cloud and Repository, then every disabled automation last', () => {
+	test('All automations keeps off entries in their group after on entries', () => {
+		const off = { ...sample.rows[0], id: 'off', name: 'Off automation', enabled: false };
+		const sharedOff = { ...off, id: 'shared-off', group: 'repository' as const };
+		assert.deepStrictEqual(getAutomationLayoutSections([off, ...sample.rows, sharedOff], 'all').map(section => [section.id, section.rows.map(row => row.name)]), [
+			['personal', ['Morning inbox triage', 'Nightly variation lab', 'Off automation']],
+			['cloud', ['PR review summary']],
+			['repository', ['Off automation']],
+		]);
+		assert.deepStrictEqual(getAutomationLayoutSections([off, ...sample.rows, sharedOff], 'all', false).map(section => [section.id, section.rows.map(row => row.id)]), [
+			['personal', ['sample.inboxTriage', 'sample.variationLab']],
+			['cloud', ['sample.prReviewSummary']],
+			['repository', ['shared-off']],
+		]);
 		assert.deepStrictEqual(getAutomationLayoutSections(sample.rows, 'all').map(section => [section.id, section.rows.map(row => row.name)]), [
 			['personal', ['Morning inbox triage', 'Nightly variation lab']],
 			['cloud', ['PR review summary']],
 		]);
 	});
 
-	test('a group pane ends with its own disabled automations and hides empty sections', () => {
+	test('a group pane retains its ownership and hides empty sections', () => {
 		assert.deepStrictEqual({
 			personal: getAutomationLayoutSections(sample.rows, 'personal').map(section => [section.id, section.rows.length]),
 			repository: getAutomationLayoutSections(sample.rows, 'repository').map(section => [section.id, section.rows.length]),
@@ -401,12 +415,12 @@ suite('Automations layout details panel', () => {
 	function createWidget(
 		contextMenuVisible = false,
 		showContextMenu: IContextMenuService['showContextMenu'] = () => { },
-		model?: { readonly automations: IObservable<readonly IAutomationDescriptor[]>; readonly configurationService?: TestConfigurationService },
+		model?: { readonly automations: IObservable<readonly IAutomationDescriptor[]>; readonly configurationService?: TestConfigurationService; readonly storageService?: IStorageService },
 	): AutomationsLayoutWidget {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configurationService = model?.configurationService ?? new TestConfigurationService({ chat: { automations: { sampleData: !model } } });
 		const automations = model?.automations ?? constObservable<readonly IAutomationDescriptor[]>([]);
-		const storageService = store.add(new InMemoryStorageService());
+		const storageService = model?.storageService ?? store.add(new InMemoryStorageService());
 		storageService.store('sessions.automations.layout.createSpotlightShown', true, StorageScope.PROFILE, StorageTarget.USER);
 		instantiationService.stubInstance(AutomationsLayoutActions, {});
 		instantiationService.stub(IConfigurationService, configurationService);
@@ -450,6 +464,63 @@ suite('Automations layout details panel', () => {
 		assert.ok(result, selector);
 		return result;
 	}
+
+	test('off automations stay in their group and the remembered switch only hides personal off entries', () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const automations = constObservable([
+			automation('off', { enabled: false }),
+			automation('on'),
+			automation('shared-off', { enabled: false, ownership: 'repository', isCreatedByCurrentUser: true }),
+		]);
+		const widget = createWidget(false, undefined, { automations, storageService });
+		widget.select('personal');
+		assert.strictEqual(widget.element.querySelectorAll('.automations-layout-row').length, 1);
+		assert.strictEqual(element(widget, '[data-nav="all"] .automations-layout-nav-count').textContent, '3');
+		element(widget, '.automations-layout-show-off [role="checkbox"]').click();
+		assert.deepStrictEqual(Array.from(widget.element.querySelectorAll<HTMLElement>('.automations-layout-row'), row => row.dataset.key), ['row:on', 'row:off']);
+		assert.strictEqual(widget.element.querySelector('[data-section="disabled"]'), null);
+		widget.select('repository');
+		assert.strictEqual(widget.element.querySelectorAll('.automations-layout-row').length, 1);
+		assert.strictEqual(element(widget, '.automations-layout-show-off').style.display, 'none');
+		const reopened = createWidget(false, undefined, { automations, storageService });
+		reopened.select('personal');
+		assert.strictEqual(reopened.element.querySelectorAll('.automations-layout-row').length, 2);
+		element(reopened, '.automations-layout-show-off [role="checkbox"]').click();
+		assert.strictEqual(reopened.element.querySelectorAll('.automations-layout-row').length, 1);
+	});
+
+	test('hiding the last visible automation returns keyboard focus to the show-off control', () => {
+		const item = automation('last');
+		const automations = observableValue<readonly IAutomationDescriptor[]>('catalogue', [item]);
+		const widget = createWidget(false, undefined, { automations });
+		widget.select('personal');
+		const row = element(widget, '[data-key="row:last"]');
+		row.focus();
+		element(widget, '[data-key="row:last"] [data-control="enabled"]').focus();
+		automations.set([{ ...item, enabled: false }], undefined);
+		assert.strictEqual(widget.element.querySelectorAll('.automations-layout-row').length, 0);
+		assert.strictEqual(DOM.getActiveElement(), element(widget, '.automations-layout-show-off [role="checkbox"]'));
+	});
+
+	test('shared creators follow the same opt-in preference as current Automations', async () => {
+		const configurationService = new TestConfigurationService();
+		const automations = constObservable([
+			automation('mine', { ownership: 'repository', isCreatedByCurrentUser: true }),
+			automation('other', { ownership: 'repository', isCreatedByCurrentUser: false }),
+			automation('unknown', { ownership: 'repository' }),
+		]);
+		const widget = createWidget(false, undefined, { automations, configurationService });
+		widget.select('repository');
+		assert.deepStrictEqual(Array.from(widget.element.querySelectorAll<HTMLElement>('.automations-layout-row'), row => row.dataset.key), ['row:mine']);
+		await configurationService.setUserConfiguration(SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING, true);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: key => key === SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING,
+			affectedKeys: new Set([SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING]),
+			change: { keys: [SESSIONS_AUTOMATIONS_SHOW_SHARED_BY_OTHERS_SETTING], overrides: [] },
+			source: ConfigurationTarget.USER,
+		});
+		assert.strictEqual(widget.element.querySelectorAll('.automations-layout-row').length, 3);
+	});
 
 	test('pending scheduled chats follow Send Later visibility without changing the saved catalogue', async () => {
 		const once = { ...schedule('once'), runAt: '2027-01-01T10:00:00.000Z' };

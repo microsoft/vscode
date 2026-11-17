@@ -16,7 +16,7 @@ export type AutomationsNavId = 'all' | 'personal' | 'cloud' | 'repository' | 'ru
 export const AUTOMATIONS_NAV_IDS: readonly AutomationsNavId[] = ['all', 'personal', 'cloud', 'repository', 'runs', 'examples'];
 
 export type AutomationGroupId = 'personal' | 'cloud' | 'repository';
-export type AutomationsSectionId = AutomationGroupId | 'disabled';
+export type AutomationsSectionId = AutomationGroupId;
 export type AutomationRunState = 'completed' | 'failed' | 'running' | 'needsInput';
 export type AutomationStatusFilter = 'on' | 'off' | 'failed';
 
@@ -148,14 +148,13 @@ export function getAutomationRunState(run: Pick<IAutomationRun, 'status' | 'need
 	}
 }
 
-/** Counts of enabled automations per group, unread runs, and examples. */
+/** Counts of saved automations per group, unread runs, and examples. */
 export function getAutomationNavCounts(rows: readonly IAutomationLayoutRow[], runs: readonly IAutomationLayoutRun[], examples: readonly IAutomationLayoutExample[]): Record<AutomationsNavId, number> {
-	const enabled = rows.filter(row => row.enabled);
 	return {
-		all: enabled.length,
-		personal: enabled.filter(row => row.group === 'personal').length,
-		cloud: enabled.filter(row => row.group === 'cloud').length,
-		repository: enabled.filter(row => row.group === 'repository').length,
+		all: rows.length,
+		personal: rows.filter(row => row.group === 'personal').length,
+		cloud: rows.filter(row => row.group === 'cloud').length,
+		repository: rows.filter(row => row.group === 'repository').length,
 		runs: runs.filter(run => run.unread).length,
 		examples: examples.length,
 	};
@@ -210,15 +209,14 @@ export function filterAutomationExamples(examples: readonly IAutomationLayoutExa
 	return examples.filter(example => matchesQuery(query, example.template.name, example.template.prompt));
 }
 
-/**
- * The sections of All automations or of one group, without empty ones. Disabled automations of
- * every group shown sit in the last section.
- */
-export function getAutomationLayoutSections(rows: readonly IAutomationLayoutRow[], nav: 'all' | AutomationGroupId): IAutomationLayoutSection[] {
+/** Off automations stay in their ownership group, sorted after on automations. */
+export function getAutomationLayoutSections(rows: readonly IAutomationLayoutRow[], nav: 'all' | AutomationGroupId, showOff = true): IAutomationLayoutSection[] {
 	const groups: readonly AutomationGroupId[] = nav === 'all' ? ['personal', 'cloud', 'repository'] : [nav];
-	const shown = rows.filter(row => groups.includes(row.group));
-	const sections: IAutomationLayoutSection[] = groups.map(id => ({ id, rows: shown.filter(row => row.group === id && row.enabled) }));
-	sections.push({ id: 'disabled', rows: shown.filter(row => !row.enabled) });
+	const shown = rows.filter(row => groups.includes(row.group) && (row.enabled || row.group === 'repository' || showOff));
+	const sections: IAutomationLayoutSection[] = groups.map(id => ({
+		id,
+		rows: shown.filter(row => row.group === id).sort((a, b) => Number(b.enabled) - Number(a.enabled)),
+	}));
 	return sections.filter(section => section.rows.length > 0);
 }
 

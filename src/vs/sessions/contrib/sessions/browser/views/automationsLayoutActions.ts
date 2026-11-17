@@ -54,8 +54,12 @@ export class AutomationsLayoutActions {
 	) { }
 
 	/** Use the upstream action so its draft-replacement confirmation also applies here. */
-	async startAutomationChat(): Promise<void> {
-		await this.commandService.executeCommand('sessions.automations.createWithAgent');
+	async startAutomationChat(beforeOpen?: () => Promise<void>): Promise<boolean> {
+		return await this.commandService.executeCommand<boolean>('sessions.automations.createWithAgent', { beforeOpen }) === true;
+	}
+
+	async importAutomation(): Promise<void> {
+		await this.commandService.executeCommand('sessions.automations.import');
 	}
 
 	/**
@@ -101,11 +105,12 @@ export class AutomationsLayoutActions {
 			name: template.name,
 			prompt: template.prompt,
 			schedule: template.schedule,
+			...(template.disableConditions !== undefined ? { disableConditions: template.disableConditions } : {}),
 			...(template.enabled !== undefined ? { enabled: template.enabled } : {}),
 		});
 	}
 
-	private async create(initialValues: { readonly name: string; readonly prompt: string; readonly schedule: IAutomationSchedule; readonly enabled?: boolean }, inline?: IInlineAutomationDialogOptions['inline']): Promise<void> {
+	private async create(initialValues: { readonly name: string; readonly prompt: string; readonly schedule: IAutomationSchedule; readonly enabled?: boolean; readonly disableConditions?: IAutomationDescriptor['disableConditions'] }, inline?: IInlineAutomationDialogOptions['inline']): Promise<void> {
 		if (!await this.ensureEnabled()) {
 			return;
 		}
