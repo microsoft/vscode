@@ -49,8 +49,8 @@ export interface ICustomizationRemote {
 	readonly kind: RemoteKind;
 	readonly name: string;
 	readonly detail: string;
-	/** Display name of the extension that registered this remote, when an extension did. */
-	readonly contributedBy?: string;
+	/** The extension that registered this remote, when an extension did. */
+	readonly contributedBy?: { readonly extensionId: string; readonly displayName: string };
 	readonly canRemove: boolean;
 	readonly canDelete?: boolean;
 	readonly connectionStatus: RemoteAgentHostConnectionStatus;
@@ -753,7 +753,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			const hidden = this.pickerVisibility.isHidden(this.getPickerKey(target), reader);
 			remotes.push({
 				id, kind: target.kind, name, detail, canRemove, unavailableReason,
-				...(target.kind === 'extension' ? { contributedBy: target.host.extensionDisplayName } : {}),
+				...(target.kind === 'extension' ? { contributedBy: { extensionId: target.host.extensionId, displayName: target.host.extensionDisplayName } } : {}),
 				...(target.kind === 'tunnel' ? {
 					canDelete: this.tunnelService.canDeleteTunnels && !!this.remoteTunnelStatus
 						&& !isTunnelHosted(this.remoteTunnelStatus.type === 'connected' ? this.remoteTunnelStatus.info : undefined, target.tunnel),

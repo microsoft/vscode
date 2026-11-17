@@ -377,7 +377,7 @@ suite('RemotesModel', () => {
 		registration.dispose();
 
 		assert.deepStrictEqual({ registered, removal, disconnected, reconnects, unregistered: extensionRemotes() }, {
-			registered: [{ id: '127.0.0.1:8445', name: 'Runner Jobs', detail: '127.0.0.1:8445', contributedBy: 'Job Runner', canRemove: false, status: 'disconnected' }],
+			registered: [{ id: '127.0.0.1:8445', name: 'Runner Jobs', detail: '127.0.0.1:8445', contributedBy: { extensionId: 'publisher.jobs', displayName: 'Job Runner' }, canRemove: false, status: 'disconnected' }],
 			removal: 'This remote cannot be removed. Only registered remotes that support removal can be removed.',
 			disconnected: [],
 			reconnects: ['127.0.0.1:8445'],
