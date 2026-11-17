@@ -90,6 +90,7 @@ export function registerAgentsChatPartActions(): IDisposable {
 			super({
 				id: AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID,
 				title: localize2('agentsView.closeChat', "Close"),
+				icon: Codicon.close,
 				precondition: ChatContextKeys.enabled,
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib + 1,
@@ -97,7 +98,13 @@ export function registerAgentsChatPartActions(): IDisposable {
 					primary: KeyMod.CtrlCmd | KeyCode.KeyW,
 					win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
 				},
-				menu: SessionHeaderMenus.map(id => ({ id, group: 'secondary/0_pane', order: 10, when: inChatPart })),
+				menu: [
+					{ id: Menus.SessionHeaderContext, group: 'secondary/0_pane', order: 10, when: inChatPart },
+					// Last in its header's toolbar, right before More Actions, as the editor area closes an editor; where it shows tabs,
+					// each tab has its own close, so it stays in More Actions there
+					{ id: Menus.SessionBarToolbar, group: 'navigation', order: 1000, when: ContextKeyExpr.and(inChatPart, ContextKeyExpr.notEquals(`config.${SESSIONS_CHAT_TABS_SETTING}`, SessionsChatTabsMode.Multiple)) },
+					{ id: Menus.SessionBarToolbar, group: 'secondary/0_pane', order: 10, when: ContextKeyExpr.and(inChatPart, ContextKeyExpr.equals(`config.${SESSIONS_CHAT_TABS_SETTING}`, SessionsChatTabsMode.Multiple)) },
+				],
 			});
 		}
 		async run(accessor: ServicesAccessor, session?: ISession, chat?: IChat): Promise<void> {

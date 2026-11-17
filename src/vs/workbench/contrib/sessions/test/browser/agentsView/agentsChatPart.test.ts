@@ -834,21 +834,18 @@ suite('AgentsChatPartService', () => {
 		});
 	});
 
-	test('in Single, closing the chat it shows shows a new-session composer, and closing that closes the chat part; closing all its chats closes it at once', async () => {
-		const { service, part, layout } = createService({ chatTabs: SessionsChatTabsMode.Single });
+	test('in Single, closing the chat it shows closes the chat part, as closing all its chats does', async () => {
+		const { service, layout } = createService({ chatTabs: SessionsChatTabsMode.Single });
 		await service.openChat(session, chatA);
 		await service.closeChat(chatA);
 		await timeout(0);
 		const afterChat = layout();
-		await part.activeGroup.closeEditor(part.activeGroup.activeEditor!);
-		const afterComposer = layout();
 		await service.openChat(session, chatB);
 		await service.closeAllChats();
 		await timeout(0);
 
-		assert.deepStrictEqual({ afterChat, afterComposer, afterCloseAll: layout() }, {
-			afterChat: { groups: [{ tabs: ['composer'], active: 'composer' }], activeGroup: 0, visible: true },
-			afterComposer: { groups: [{ tabs: [], active: null }], activeGroup: 0, visible: false },
+		assert.deepStrictEqual({ afterChat, afterCloseAll: layout() }, {
+			afterChat: { groups: [{ tabs: [], active: null }], activeGroup: 0, visible: false },
 			afterCloseAll: { groups: [{ tabs: [], active: null }], activeGroup: 0, visible: false },
 		});
 	});
