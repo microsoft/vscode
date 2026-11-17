@@ -53,6 +53,8 @@ export interface IModelRouterPick {
 	readonly probabilities: Readonly<Record<string, number>>;
 	/** Expected effort rank, from 0 (low) to 4 (max). */
 	readonly effortScore?: number;
+	/** The facts about the turn the decision was told, which can be fewer or shorter than it was offered. */
+	readonly facts?: readonly string[];
 }
 
 export const enum ModelRouterPickerFailure {
@@ -258,11 +260,11 @@ export class CopilotModelRouter {
 		}
 		const picked = routes.find(route => routeKey(route) === pick.model);
 		if (!picked || pick.confidence < MIN_PICK_CONFIDENCE) {
-			this._logService.info(`[ModelRouter] ${request.chat}: no confident pick (${pick.model}, ${pick.confidence}); using ${fallback.model.id}${describeDecision(context, pick)}`);
+			this._logService.info(`[ModelRouter] ${request.chat}: no confident pick (${pick.model}, ${pick.confidence}); using ${fallback.model.id}${describeDecision(pick)}`);
 			return decision(context, fallback, { ...switchedFrom(fallback), defaulted: true }, [], this._effortFor(context, fallback, pick.effortScore));
 		}
 		const effort = this._effortFor(context, picked, pick.effortScore);
-		this._logService.info(`[ModelRouter] ${request.chat}: picked ${picked.model.id} (${pick.confidence}) effort=${effort}${describeDecision(context, pick)}`);
+		this._logService.info(`[ModelRouter] ${request.chat}: picked ${picked.model.id} (${pick.confidence}) effort=${effort}${describeDecision(pick)}`);
 		return decision(context, picked, { ...switchedFrom(picked), ...preferenceOf(picked) }, [], effort);
 	}
 
@@ -303,7 +305,7 @@ export class CopilotModelRouter {
 			return stay;
 		}
 		const outcome = decideModelRouterSwitch({ currentModel: routeKey(current), pick, ...switchHistory(previousTurns) });
-		this._logService.info(`[ModelRouter] ${request.chat}: follow-up ${outcome}; current=${current.model.id} pick=${pick.model}${describeDecision(context, pick)}`);
+		this._logService.info(`[ModelRouter] ${request.chat}: follow-up ${outcome}; current=${current.model.id} pick=${pick.model}${describeDecision(pick)}`);
 		const effort = router.effort === 'auto' && !current.effort
 			? decideModelRouterEffort({ current: currentEffort, score: pick.effortScore, supported: current.supportedEfforts })
 			: this._effortFor(context, current, undefined);
@@ -355,8 +357,8 @@ function decision({ router, keepLongContext }: IRouteContext, route: IResolvedMo
 const PREFERENCE_CHARS = 300;
 
 /** For the log: how the decision weighed each route, and the facts it was told besides the message. Never the message. */
-function describeDecision({ situation }: IRouteContext, pick: IModelRouterPick): string {
-	return ` probabilities=${JSON.stringify(pick.probabilities)} facts=${JSON.stringify(situation ?? [])}`;
+function describeDecision(pick: IModelRouterPick): string {
+	return ` probabilities=${JSON.stringify(pick.probabilities)} facts=${JSON.stringify(pick.facts ?? [])}`;
 }
 
 /** What a routing decision answers with, and what a chat's turns remember a pick by: the route's name, or its model when it has none. */
