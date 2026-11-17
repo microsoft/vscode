@@ -26,6 +26,7 @@ import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
 import { parseFrontMatter, parse as parseYaml, type YamlParseError } from '../../../../base/common/yaml.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { CopilotForkTiming } from './copilotForkTiming.js';
+import { isCopilotJournalCorruptionError, recoverCopilotSessionHistory } from './copilotSessionHistoryRecovery.js';
 import { readCopilotRepositoryPluginEnablement, setCopilotRepositoryPluginEnabled } from './copilotRepositoryPluginSettings.js';
 import { readRuntimePluginEnablement, withRuntimePluginEnablement } from '../../common/meta/pluginEnablementMeta.js';
 import { toCopilotAccountModelCatalog } from './copilotAccountModelCatalog.js';
@@ -1102,6 +1103,26 @@ type LegacyMarkerFallbackClassification = {
 function isInvalidWorkspaceMetadataError(error: unknown): boolean {
 	const message = getErrorMessage(error);
 	return message.includes('Failed to load workspace from') && message.includes('workspace.yaml');
+}
+
+function getReadOnlyHistoryError(error: unknown): ErrorInfo | undefined {
+	const message = getErrorMessage(error);
+	if (isInvalidWorkspaceMetadataError(error)) {
+		return { errorType: 'invalidWorkspaceMetadata', message };
+	}
+	if (/Failed to initialize standalone session (?:extensions|tools)\b/i.test(message)) {
+		return {
+			errorType: 'sessionExtensionsUnavailable',
+			message: localize('copilotAgent.sessionExtensionsUnavailable', "This chat is read-only because its extensions or tools could not be initialized. Repair the Copilot CLI plugin configuration and reopen the chat to try again. {0}", message),
+		};
+	}
+	if (isCopilotJournalCorruptionError(error)) {
+		return {
+			errorType: 'sessionHistoryCorrupted',
+			message: localize('copilotAgent.sessionHistoryCorrupted', "This chat is read-only because its session history is damaged or incompatible. Some history may be unavailable. {0}", message),
+		};
+	}
+	return undefined;
 }
 
 /** Whether a native or JSON-RPC-wrapped SDK error indicates a blocked Windows UNC host (`security.allowedUNCHosts`). */
@@ -6371,9 +6392,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 			: this._retryAfterClosedConnection('getSessionMetadata', client => client.getSessionMetadata(sessionId), createCopilotFailureCorrelation(session, chat, undefined, sessionId)));
 		if (!sessionMetadata) {
 			const awaitingFirstSdkOperation = sessionStorage ? await getDeferredCopilotSdkExecution(this._sessionDataService, sessionStorage, sessionId, this._logService) : undefined;
-			const marker = !awaitingFirstSdkOperation && storedMetadata?.workingDirectory ? await this._readExtensionHostCliMarker(sessionId) : undefined;
+			if (!awaitingFirstSdkOperation && options?.activation === 'restore' && !resolvedContext.credentials && /^[a-zA-Z0-9_-]+$/.test(sessionId)) {
+				const root = resourceJoinPath(this._copilotHomeService.home, 'session-state').fsPath;
+				if (await this._getLegacyStoragePathStatus(join(root, sessionId)) === 'missing' && await this._getLegacyStoragePathStatus(root) === 'directory') {
+					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found on backend: ${session.toString()}`);
+				}
+			}
+			const adoptionPending = this._readOnlyChatInputErrors.get(chat.toString())?.errorType === 'sessionAdoptionPending';
+			const marker = !awaitingFirstSdkOperation && (storedMetadata?.workingDirectory || adoptionPending)
+				? (await this._readExtensionHostCliMarkerUncached(sessionId)).marker : undefined;
 			const adoptedLegacy = !awaitingFirstSdkOperation && !!storedMetadata?.workingDirectory && isExtensionHostCliMarker(marker);
-			if (!awaitingFirstSdkOperation && !adoptedLegacy) {
+			const readableLegacy = !awaitingFirstSdkOperation && adoptionPending && isExtensionHostCliMarker(marker)
+				&& await this._getLegacyStoragePathStatus(this._extensionHostCliSidecarPath(sessionId, 'events.jsonl')) === 'file';
+			if (!awaitingFirstSdkOperation && !adoptedLegacy && !readableLegacy) {
 				return undefined;
 			}
 			const fallbackTimestamps = awaitingFirstSdkOperation
@@ -6388,6 +6419,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 				modifiedTime: fallbackTimestamps.modifiedTime,
 				project: storedMetadata?.project,
 				workingDirectories: storedMetadata?.workingDirectories,
+				...(readableLegacy ? {
+					summary: marker?.customTitle,
+					status: withSessionStatusFlag(SessionStatus.Idle, SessionStatus.IsArchived, marker?.archived === true),
+				} : {}),
 				_meta: withSessionWorkspaceless(undefined, storedMetadata?.workspaceless ?? false),
 			};
 		}
@@ -7501,9 +7536,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** Reads the marker from disk, bypassing the cache, for its mutable fields. */
 	private async _readExtensionHostCliMarkerUncached(sessionId: string): Promise<IExtensionHostCliMarkerRead> {
-		const result = await this._readExtensionHostCliMarkerFromDisk(sessionId);
-		if (result.marker) {
-			this._extensionHostCliMarkerCache.set(sessionId, Promise.resolve(result));
+		const pending = this._readExtensionHostCliMarkerFromDisk(sessionId);
+		this._extensionHostCliMarkerCache.set(sessionId, pending);
+		const result = await pending;
+		if (!result.marker && this._extensionHostCliMarkerCache.get(sessionId) === pending) {
+			this._extensionHostCliMarkerCache.delete(sessionId);
 		}
 		return result;
 	}
@@ -7734,6 +7771,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
+	private _deferLegacyChatAdoption(chat: URI, reason: 'workingDirectoryMissing' | 'markerUnavailable', diagnostics: IAgentChatAdoptionResult['diagnostics']): IAgentChatAdoptionResult {
+		this._readOnlyChatInputErrors.set(chat.toString(), {
+			errorType: 'sessionAdoptionPending',
+			message: localize('copilotAgent.sessionAdoptionPending', "This chat is read-only because its legacy workspace or archive state could not be verified. Restore access to the original session files and workspace, then reload the window to retry migration."),
+		});
+		return { adopted: false, eligible: true, reason, diagnostics };
+	}
+
 	/** Adopts a legacy extension-host Copilot CLI session in place when it is eligible on disk. */
 	async ensureChatAdopted(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult> {
 		const session = resolveAgentChatContext(context, chat).owner.get();
@@ -7752,14 +7797,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 				await this._backfillAdoptedLegacyMarker(session, sessionId);
 				await this._backfillAdoptedLegacyListVisibleMetadata(session, sessionId);
 				this._logService.trace(`[Copilot] Adoption skipped for ${sessionId}: already has Agent Host metadata (cwd=${existing.workingDirectory.fsPath})`);
+				if (this._readOnlyChatInputErrors.get(chat.toString())?.errorType === 'sessionAdoptionPending') {
+					this._readOnlyChatInputErrors.delete(chat.toString());
+				}
 				return { adopted: false, eligible: false, native: true, reason: 'alreadyNative' };
 			}
 			// Only migrate legacy EH Copilot CLI sessions — never other Copilot SDK
 			// sessions (standalone CLI, Local agent, …) that share `~/.copilot`.
 			// A session the extension recorded only in its bulk metadata gets its marker first.
 			await this._restoreLegacyMarkersOnce();
-			const markerRead = await this._readExtensionHostCliMarkerWithDiagnostics(sessionId);
+			const previouslyLegacy = isExtensionHostCliMarker((await this._extensionHostCliMarkerCache.get(sessionId))?.marker);
+			const markerRead = await this._readExtensionHostCliMarkerUncached(sessionId);
 			if (!isExtensionHostCliMarker(markerRead.marker)) {
+				if (previouslyLegacy) {
+					this._deferLegacyChatAdoption(chat, 'markerUnavailable', markerRead.diagnostics);
+				}
 				this._logService.info(`[Copilot] Adoption declined for ${sessionId}: marker=${markerRead.diagnostics.markerStatus}, provenance=${markerRead.diagnostics.provenance}, cached=${markerRead.diagnostics.markerFromCache}`);
 				return { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics: await this._getLegacyDeclineDiagnostics(sessionId, markerRead) };
 			}
@@ -7770,7 +7822,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			} catch (error) {
 				if (isDisallowedUncHostError(error)) {
 					this._logService.warn(`[Copilot] Adoption skipped for ${sessionId}: SDK session metadata references a disallowed UNC host; preserving original workspace for retry.`);
-					return { adopted: false, eligible: true, reason: 'workingDirectoryMissing', diagnostics: markerRead.diagnostics };
+					return this._deferLegacyChatAdoption(chat, 'workingDirectoryMissing', markerRead.diagnostics);
 				}
 				throw error;
 			}
@@ -7792,7 +7844,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					: await this._resolveLegacyWorkingDirectory(sessionId, sdkWorkingDirectory);
 			if (!legacyWorkingDirectory.directory && legacyWorkingDirectory.hasInaccessibleCandidate) {
 				this._logService.warn(`[Copilot] Adoption skipped for ${sessionId}: recorded working directory is inaccessible; preserving original workspace for retry.`);
-				return { adopted: false, eligible: true, reason: 'workingDirectoryMissing', diagnostics: markerRead.diagnostics };
+				return this._deferLegacyChatAdoption(chat, 'workingDirectoryMissing', markerRead.diagnostics);
 			}
 			const workspacelessFallback = !legacyWorkingDirectory.directory;
 			const workingDirectory = legacyWorkingDirectory.directory ?? this._workspacelessScratchDir(sessionId);
@@ -7823,7 +7875,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// the chat once it does. Guessing `false` here would resurface a session the
 				// user had filed away, so leave it for the next open instead.
 				this._logService.warn(`[Copilot] Adoption skipped for ${sessionId}: its extension-host marker could not be re-read, so the archived state is unknown`);
-				return { adopted: false, eligible: true, reason: 'markerUnavailable', diagnostics };
+				return this._deferLegacyChatAdoption(chat, 'markerUnavailable', diagnostics);
 			}
 			// Seed VS Code-layer metadata only — the SDK event log on disk is
 			// untouched. Writing `agentSessionData/<sanitizedId>/session.db` here
@@ -7858,6 +7910,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const startTime = sdkMetadata?.startTime ? new Date(sdkMetadata.startTime).getTime() : NaN;
 			const modifiedTime = sdkMetadata?.modifiedTime ? new Date(sdkMetadata.modifiedTime).getTime() : NaN;
 			const timestamps = Number.isFinite(startTime) && Number.isFinite(modifiedTime) ? { startTime, modifiedTime } : undefined;
+			if (this._readOnlyChatInputErrors.get(chat.toString())?.errorType === 'sessionAdoptionPending') {
+				this._readOnlyChatInputErrors.delete(chat.toString());
+			}
 			return { adopted: true, eligible: true, reason: 'adopted', listVisible, ...(adoptedWorktree ? { worktree: adoptedWorktree } : {}), ...(timestamps ? { timestamps } : {}) };
 		});
 	}
@@ -9386,6 +9441,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!recordedError) {
 			return {};
 		}
+		if (recordedError.errorType === 'sessionAdoptionPending') {
+			return { error: recordedError };
+		}
 		if (context.target) {
 			this._readOnlyChatInputErrors.delete(context.chatKey);
 			return {};
@@ -9404,8 +9462,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._readOnlyChatInputErrors.delete(context.chatKey);
 				return {};
 			} catch (err) {
-				if (isInvalidWorkspaceMetadataError(err)) {
-					const error: ErrorInfo = { errorType: 'invalidWorkspaceMetadata', message: getErrorMessage(err) };
+				const error = getReadOnlyHistoryError(err);
+				if (error) {
 					this._readOnlyChatInputErrors.set(context.chatKey, error);
 					return { error };
 				}
@@ -9430,7 +9488,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// Session hydration can request history before the returning client republishes its customizations.
 		// Keep released canvas continuity cold until that publication can resume the runtime with its providers.
 		const releasedCanvasContinuity = !context.target && context.sdkSessionId ? this._releasedCanvasContinuity(context) : undefined;
-		if (!context.target && context.sdkSessionId && (context.credentials || releasedCanvasContinuity)) {
+		if (!context.target && context.sdkSessionId && (context.credentials || releasedCanvasContinuity || this._readOnlyChatInputErrors.get(context.chatKey)?.errorType === 'sessionAdoptionPending')) {
 			return (await this._readPersistedChatHistory(context, context.sdkSessionId)).turns;
 		}
 		const entry = await this._queueChat(context.lifetimeId, context.sequencerKey, 'getChatMessages', async () => {
@@ -9446,10 +9504,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 					}
 					throw err;
 				}
-				if (isInvalidWorkspaceMetadataError(err) && context.sdkSessionId) {
-					const message = getErrorMessage(err);
-					this._logService.info(`[Copilot:${context.ownerSessionId}] Workspace metadata is invalid on restore; reading persisted history from disk: ${message}`);
-					this._readOnlyChatInputErrors.set(context.chatKey, { errorType: 'invalidWorkspaceMetadata', message });
+				const error = getReadOnlyHistoryError(err);
+				if (error && context.sdkSessionId) {
+					this._logService.info(`[Copilot:${context.ownerSessionId}] Runtime unavailable on restore; reading persisted history from disk: ${getErrorMessage(err)}`);
+					this._readOnlyChatInputErrors.set(context.chatKey, error);
 					return 'persistedHistory' as const;
 				}
 				if (context.sdkSessionId) {
@@ -9495,7 +9553,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 		try {
 			const [events, metadata] = await Promise.all([
 				this._withChatStorageClient(context.chatKey, client => readCopilotSessionEvents(cursor =>
-					client.rpc.sessions.readPersistedEvents({ sessionId: sdkSessionId, cursor, max: 1000, direction: 'backward' }), CancellationToken.None), true),
+					client.rpc.sessions.readPersistedEvents({ sessionId: sdkSessionId, cursor, max: 1000, direction: 'backward' }), CancellationToken.None), true).catch(async error => {
+					if (!isCopilotJournalCorruptionError(error)) {
+						throw error;
+					}
+					if (this._readOnlyChatInputErrors.get(context.chatKey)?.errorType !== 'sessionAdoptionPending') {
+						this._readOnlyChatInputErrors.set(context.chatKey, getReadOnlyHistoryError(error)!);
+					}
+					this._logService.warn(`[Copilot:${context.ownerSessionId}] Persisted journal is invalid; attempting read-only transcript recovery`);
+					if (!/^[a-zA-Z0-9_-]+$/.test(sdkSessionId)) {
+						throw new Error('Invalid Copilot session ID for transcript recovery');
+					}
+					return recoverCopilotSessionHistory(resourceJoinPath(this._copilotHomeService.home, 'session-state', sdkSessionId, 'events.jsonl').fsPath, this._logService);
+				}),
 				this._readSessionMetadata({ storage: context.resource, owner: context.ownerSession }, context.workspaceless),
 			]);
 			if (this._isShuttingDown) {
@@ -9548,12 +9618,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return [];
 		}
 		const parentContext = this._resolveChatContext(spawnedFrom.chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner, resource: parentStorage, credentials });
-		if (!parentContext.target && parentContext.credentials && parentContext.sdkSessionId) {
+		if (!parentContext.target && parentContext.sdkSessionId && (parentContext.credentials || this._readOnlyChatInputErrors.get(parentContext.chatKey)?.errorType === 'sessionAdoptionPending')) {
 			const history = await this._readPersistedChatHistory(parentContext, parentContext.sdkSessionId);
 			return history.subagentTurnsByToolCallId.get(spawnedFrom.toolCallId) ?? [];
 		}
 		const parentEntry = await this._ensureResolvedChatSession(parentContext).catch(err => {
-			if ((err instanceof SessionWorkingDirectoryMissingError || err instanceof CopilotMcpConfigReadError || isInvalidWorkspaceMetadataError(err)) && parentContext.sdkSessionId) {
+			const error = getReadOnlyHistoryError(err);
+			if ((err instanceof SessionWorkingDirectoryMissingError || err instanceof CopilotMcpConfigReadError || error) && parentContext.sdkSessionId) {
+				this._logService.info(`[Copilot:${parentContext.ownerSessionId}] Runtime unavailable on subagent restore; reading persisted history from disk: ${getErrorMessage(err)}`);
+				if (error) {
+					this._readOnlyChatInputErrors.set(parentContext.chatKey, error);
+				}
 				return 'persistedHistory' as const;
 			}
 			this._logService.warn(`[Copilot:${parentContext.sdkSessionId ?? parentContext.ownerSessionId}] Failed to resume exact source chat for subagent restore`, err);
@@ -9863,6 +9938,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _ensureResolvedChatSession(context: IResolvedCopilotChatContext, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder, token = CancellationToken.None, operationContext?: URI | IAgentChatContext): Promise<CopilotAgentSession | undefined> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
+		}
+		const inputError = this._readOnlyChatInputErrors.get(context.chatKey);
+		if (inputError?.errorType === 'sessionAdoptionPending') {
+			throw new Error(inputError.message);
 		}
 		this._throwIfWorkingDirectoryMutationBlocksChat(context.ownerSession, context.chat);
 		if (context.credentials && !this._credentialPins.has(context.chatKey)) {

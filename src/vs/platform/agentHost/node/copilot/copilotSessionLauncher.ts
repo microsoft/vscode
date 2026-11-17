@@ -17,7 +17,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import type { IParsedAgent, IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
-import { IFileService } from '../../../files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../files/common/files.js';
 import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
@@ -1575,8 +1575,22 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const customAgentsPromise = plan.isEphemeral || plan.workspace?.kind === 'virtual' ? Promise.resolve([]) : toSdkCustomAgents(getCopilotCustomAgents(plan.snapshot), this._fileService, availableModelIds);
 		const byokPromise = this.resolveByokSessionConfig(plan.sessionId);
 		const computerUseToolsPromise = plan.isEphemeral ? Promise.resolve([]) : runtime.createComputerUseActivationTools?.() ?? Promise.resolve([]);
+		const pluginDirectoriesPromise = Promise.all(coalesce((plan.workspace?.kind === 'virtual' ? [] : plugins).map(p => p.pluginDir))
+			.filter(directory => directory.scheme === Schemas.file).map(async directory => {
+				try {
+					if ((await this._fileService.resolve(directory)).isDirectory) {
+						return directory.fsPath;
+					}
+				} catch (error) {
+					if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+						throw error;
+					}
+				}
+				this._logService.warn(`[Copilot:${plan.sessionId}] Skipping unavailable plugin directory: ${directory.fsPath}`);
+				return undefined;
+			}));
 		// These are independent, so resolve them concurrently rather than paying each in turn.
-		const [externalByok, shellTools, pluginCustomAgents, computerUseTools] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise, computerUseToolsPromise]);
+		const [externalByok, shellTools, pluginCustomAgents, computerUseTools, pluginDirectories] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise, computerUseToolsPromise, pluginDirectoriesPromise]);
 		if (externalByok.models?.length) {
 			// The provider base URL carries the proxy's host:port, which correlates a
 			// session with its `ByokLmProxyService` bind when reading logs.
@@ -1843,8 +1857,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			},
 			availableTools: sdkAvailableTools,
 			excludedBuiltinAgents: this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ExploreAgent) === false ? ['explore'] : [],
-			pluginDirectories: coalesce((plan.workspace?.kind === 'virtual' ? [] : plugins).map(p => p.pluginDir))
-				.filter(d => d.scheme === Schemas.file).map(d => d.fsPath),
+			pluginDirectories: coalesce(pluginDirectories),
 			tools: toolConfiguration.tools,
 			...plan.githubCredentials.sdkSessionOptions,
 			// Enable infinite sessions so the SDK provisions a workspace

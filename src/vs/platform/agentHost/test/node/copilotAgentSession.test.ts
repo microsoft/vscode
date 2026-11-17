@@ -9,7 +9,7 @@ import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { spy, stub } from 'sinon';
 import { createHash } from 'crypto';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
@@ -97,6 +97,7 @@ import { SessionDataService } from '../../node/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
 import { readCopilotSessionEvents } from '../../node/copilot/copilotSessionHistory.js';
+import { isCopilotJournalCorruptionError, recoverCopilotSessionHistory } from '../../node/copilot/copilotSessionHistoryRecovery.js';
 import type { ICopilotMcpServerInfo } from '../../node/copilot/copilotAgent.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { GENERATED_IMAGE_PRESENTATION_CONTEXT } from '../../node/copilot/copilotGeneratedImages.js';
@@ -7823,6 +7824,50 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(await session.getMessages(), []);
 		});
 	}
+
+	test('damaged journal recovery validates records and leaves the source untouched', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'copilot-history-recovery-'));
+		const path = join(directory, 'events.jsonl');
+		const events = toSessionEvents([
+			{ type: 'user.message', data: { content: 'First prompt' } },
+			{ type: 'assistant.message', data: { messageId: 'first', content: 'First answer' } },
+			{ type: 'user.message', data: { content: 'Second prompt' } },
+			{ type: 'assistant.message', data: { messageId: 'second', content: 'Second answer' } },
+		]).map((event, index) => ({ ...event, id: `event-${index}`, timestamp: '2026-03-01T00:00:00.000Z', parentId: null }));
+		const original = [
+			JSON.stringify(events[0]), '{malformed',
+			JSON.stringify({ ...events[1], data: { content: [], messageId: 'invalid' } }),
+			JSON.stringify(events[1]), 'null', '[]',
+			JSON.stringify({ ...events[1], type: 'session.shutdown', data: {} }),
+			JSON.stringify(events[2]),
+			JSON.stringify({ ...events[3], data: { content: 'Invalid tools', messageId: 'invalid', toolRequests: [null] } }),
+			JSON.stringify(events[3]), '{"truncated":',
+		].join('\r\n');
+		const warnings: string[] = [];
+		const logService = new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		};
+		try {
+			writeFileSync(path, original);
+			const recovered = await recoverCopilotSessionHistory(path, logService);
+			assert.deepStrictEqual({
+				messages: recovered.flatMap(event => event.type === 'user.message' || event.type === 'assistant.message' ? [event.data.content] : []),
+				unchanged: readFileSync(path, 'utf8') === original,
+				warnings,
+				notCorruption: ['Access denied', 'Authentication failed', 'Session history changed while it was loading'].map(message => isCopilotJournalCorruptionError(new Error(message))),
+			}, {
+				messages: ['First prompt', 'First answer', 'Second prompt', 'Second answer'],
+				unchanged: true,
+				warnings: ['[Copilot] Recovered 4 transcript records from a damaged journal; omitted 7 invalid or unsupported records. Rich payloads are excluded; the original journal was not changed.'],
+				notCorruption: [false, false, false],
+			});
+			writeFileSync(path, 'null\n{malformed');
+			await assert.rejects(recoverCopilotSessionHistory(path, logService), /No conversation could be recovered/);
+			await assert.rejects(recoverCopilotSessionHistory(join(directory, 'missing.jsonl'), logService), /ENOENT/);
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
 
 	test('restores and sends in the parent without waiting for child history', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
