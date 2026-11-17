@@ -93,6 +93,7 @@ import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHo
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IWorktreeSendChoiceTargetService, WorktreeSendChoiceTargetService } from '../../../../../workbench/contrib/chat/browser/agentSessions/worktreeSendChoiceTarget.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { SessionsGrouping } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
@@ -262,6 +263,13 @@ const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarnes
 const seedRequestedTarget = Reflect.get(NewChatWidget.prototype, '_seedRequestedTarget') as (this: object, target: INewSessionTarget) => void;
 const seedWorkspaceDraft = Reflect.get(NewChatWidget.prototype, '_seedWorkspaceDraft') as (this: object) => void;
 /** The widget's methods that `methods` names, called on `harness`, which then has them. */
+/** Creates the worktree send choice targets of a composer, as the workbench does. */
+function targetInstantiationService(store: Pick<DisposableStore, 'add'>): TestInstantiationService {
+	const instantiationService = store.add(new TestInstantiationService());
+	instantiationService.stub(IWorktreeSendChoiceTargetService, store.add(new WorktreeSendChoiceTargetService()));
+	return instantiationService;
+}
+
 function withWidgetMethods<T extends object, M extends string>(harness: T, methods: readonly M[]): T & { [K in M]: (...args: unknown[]) => unknown } {
 	for (const method of methods) {
 		const implementation = Reflect.get(NewChatWidget.prototype, method) as (...args: unknown[]) => unknown;
@@ -5518,7 +5526,7 @@ suite('NewChatWidget', () => {
 						return element;
 					});
 					let current: HTMLElement | undefined = checkbox;
-					const harness = { worktreeSendChoiceService, _session: constObservable(upcastPartial<ISession>({ resource: draft })), _getWorktreeSendChoiceControl: () => current };
+					const harness = { worktreeSendChoiceService, instantiationService: targetInstantiationService(store), _session: constObservable(upcastPartial<ISession>({ resource: draft })), _getWorktreeSendChoiceControl: () => current };
 					store.add(mark.call(harness, checkbox));
 					store.add(mark.call(harness, picker));
 					const target = () => findOnboardingTarget(mainWindow, 'test.worktreeSendChoice')?.className;
@@ -5558,6 +5566,7 @@ suite('NewChatWidget', () => {
 						const provider = store.add(new CalloutSendChoiceProvider(onboarding));
 						const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
 						store.add(worktreeSendChoiceService.registerProvider(provider));
+						const instantiationService = targetInstantiationService(store);
 
 						// Composers of the draft, each with its New Worktree control, one below the other
 						const controls: { readonly name: string; readonly element: HTMLElement; readonly composer: { readonly session: ISettableObservable<ISession | undefined>; control: HTMLElement | undefined }; marker: IDisposable }[] = [];
@@ -5569,6 +5578,7 @@ suite('NewChatWidget', () => {
 							composer.control = element;
 							const harness = {
 								worktreeSendChoiceService,
+								instantiationService,
 								_session: composer.session,
 								_getWorktreeSendChoiceControl: () => composer.control,
 							};
@@ -5604,12 +5614,12 @@ suite('NewChatWidget', () => {
 							// Its composer shows another draft, as the user picks another workspace
 							target.composer.session.set(upcastPartial<ISession>({ resource: other }), undefined);
 						} else {
-							target.marker.dispose();
-							target.element.remove();
 							if (how === 'replaceAnchor') {
-								// Its composer renders its control again, elsewhere
+								// Its composer renders its control again, elsewhere, before the one it replaces goes, as it swaps them
 								addControl('replacement', 250, target.composer);
 							}
+							target.marker.dispose();
+							target.element.remove();
 						}
 						await timeout(0);
 						const expected = how === 'replaceAnchor' ? 'replacement' : how === 'disposeAnchorWithOther' ? 'second' : undefined;
@@ -5647,13 +5657,14 @@ suite('NewChatWidget', () => {
 					const cancelled: string[] = [];
 					const worktreeSendChoiceService = new NewSessionWorktreeSendChoiceService();
 					store.add(worktreeSendChoiceService.registerProvider({ targetId: 'test.worktreeSendChoice', pendingSendChoice: pending, onDidShowSendChoice: onDidShow.event, cancelSendChoice: asked => cancelled.push(asked.path), isRecentChatInFolder: () => true, requestSendChoice: async () => undefined }));
+					const instantiationService = targetInstantiationService(store);
 					const container = append(mainWindow.document.body, $('div'));
 					store.add(toDisposable(() => container.remove()));
 					const composer = (name: string, resource: URI) => {
 						const element = append(container, $(`div.${name}`));
 						element.style.width = element.style.height = '10px';
 						const session = observableValue<ISession | undefined>('session', upcastPartial<ISession>({ resource }));
-						store.add(mark.call({ worktreeSendChoiceService, _session: session, _getWorktreeSendChoiceControl: () => element }, element));
+						store.add(mark.call({ worktreeSendChoiceService, instantiationService, _session: session, _getWorktreeSendChoiceControl: () => element }, element));
 						return session;
 					};
 					// First, where it would be found first were it in scope

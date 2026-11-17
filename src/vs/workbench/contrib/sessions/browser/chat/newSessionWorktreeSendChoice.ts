@@ -17,7 +17,7 @@ export type NewSessionWorktreeSendChoice = 'worktree' | 'folder';
  * Decides, as the first request of a new session that would work in its folder is sent, whether it works in a new worktree
  * of the folder instead: such as when another chat recently worked in that folder, as the user chose once or chooses now
  * in a callout on the New Worktree control of the draft's composer. It holds no UI: the composer marks its own control as
- * the callout's target while the provider asks about its draft, with `markWorktreeSendChoiceTarget`.
+ * the callout's target while the provider asks about its draft, with `WorktreeSendChoiceTarget`.
  */
 export interface INewSessionWorktreeSendChoiceProvider extends IWorktreeSendChoiceAsker {
 	/** Whether another chat recently worked in `folder` itself, other than the session of `draft`: only then is there a choice. */

@@ -48,7 +48,7 @@ import { IWorkspacePickerNewWorktreeOption, IWorkspacePickerNoWorkspaceOption, I
 import { NewWorktreeChoice } from './newWorktreeChoice.js';
 import { NewWorktreeCheckbox } from './newWorktreeCheckbox.js';
 import { INewSessionWorktreeSendChoiceProvider, INewSessionWorktreeSendChoiceService, NewSessionWorktreeSendChoice } from './newSessionWorktreeSendChoice.js';
-import { markWorktreeSendChoiceTarget } from '../../../chat/browser/agentSessions/worktreeSendChoiceTarget.js';
+import { WorktreeSendChoiceTarget } from '../../../chat/browser/agentSessions/worktreeSendChoiceTarget.js';
 import { IChatSubmitRequest, IChatSubmitRequestHandlerService } from '../../../chat/browser/chatSubmitRequestHandlerService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
@@ -1765,14 +1765,14 @@ export class NewChatWidget extends Disposable {
 
 	/**
 	 * Marks `element` as the target of the registered provider's callout while the provider asks about the composer's draft
-	 * and `element` is where the composer offers New Worktree now ({@link markWorktreeSendChoiceTarget}).
+	 * and `element` is where the composer offers New Worktree now ({@link WorktreeSendChoiceTarget}).
 	 */
 	private _markWorktreeSendChoiceTarget(element: HTMLElement): IDisposable {
 		const draft = derived(this, reader => this._session.read(reader)?.resource);
 		return autorun(reader => {
 			const provider = this.worktreeSendChoiceService.provider.read(reader);
 			if (provider) {
-				reader.store.add(markWorktreeSendChoiceTarget(element, provider, draft, () => this._getWorktreeSendChoiceControl() === element));
+				reader.store.add(this.instantiationService.createInstance(WorktreeSendChoiceTarget, element, provider, draft, () => this._getWorktreeSendChoiceControl() === element));
 			}
 		});
 	}
