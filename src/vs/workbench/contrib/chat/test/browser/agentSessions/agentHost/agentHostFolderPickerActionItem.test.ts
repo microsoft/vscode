@@ -74,7 +74,7 @@ suite('AgentHostFolderPickerActionItem', () => {
 			getLocation: () => undefined,
 			resolveLocation: async () => undefined,
 		}));
-		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({ onDidChangeFolder: Event.None, getFolder: () => folder, isNoWorkspace: () => false, getDefaultFolder: () => undefined }));
+		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({ onDidChangeFolder: Event.None, getFolder: () => folder, getDefaultFolder: () => undefined }));
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({ onDidChange: Event.None, getResolvedConfig: () => undefined, getPreparedSessionConfig: () => undefined }));
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>({ onDidChangeSessions: Event.None }) }));
 		instantiationService.stub(IAgentHostWorktreeLocationsCache, store.add(instantiationService.createInstance(AgentHostWorktreeLocationsCache)));
@@ -134,13 +134,12 @@ suite('AgentHostFolderPickerActionItem', () => {
 		});
 	});
 	/** A chat input's secondary row of `availableWidth`, with two neighbors and the folder chip last, as in the chat input. */
-	function createRow(availableWidth: number, started?: { readonly workspaceless: boolean }, itemCtor: typeof AgentHostFolderPickerActionItem = AgentHostFolderPickerActionItem) {
+	function createRow(availableWidth: number, itemCtor: typeof AgentHostFolderPickerActionItem = AgentHostFolderPickerActionItem) {
 		const primary = URI.file('/work/vscode');
 		const longName = URI.file('/work/a-worktree-with-a-name-far-too-long-to-fit-in-the-chat-input-row');
 		const shortName = URI.file('/work/fix');
 		const session = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-1' });
 		let selected = shortName;
-		let noWorkspace = false;
 		const onDidChangeFolder = store.add(new Emitter<URI>());
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.EditorWindowEnableWorktree]: true }));
@@ -158,17 +157,14 @@ suite('AgentHostFolderPickerActionItem', () => {
 			getLocation: () => undefined,
 			resolveLocation: async () => undefined,
 		}));
-		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({ onDidChangeFolder: onDidChangeFolder.event, getFolder: () => noWorkspace || started ? undefined : selected, isNoWorkspace: () => noWorkspace, getDefaultFolder: () => undefined }));
+		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({ onDidChangeFolder: onDidChangeFolder.event, getFolder: () => selected, getDefaultFolder: () => undefined }));
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({ onDidChange: Event.None, getResolvedConfig: () => undefined, getPreparedSessionConfig: () => undefined }));
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>({ onDidChangeSessions: Event.None }) }));
 		instantiationService.stub(IAgentHostWorktreeLocationsCache, store.add(instantiationService.createInstance(AgentHostWorktreeLocationsCache)));
 		instantiationService.stub(IAgentHostWorktreeSendChoiceService, upcastPartial<IAgentHostWorktreeSendChoiceService>({ registerWorktreeControl: () => Disposable.None, rememberSelection: () => { } }));
-		// A started session, such as a restored one, which works in the scratch folder the agent host created for it if it has no workspace
-		const scratch = URI.file('/home/.copilot/chats/3e215af6-5a8e-4060-b25e-0d2f1c9a7b41');
 		instantiationService.stub(IAgentHostCustomizationService, upcastPartial<IAgentHostCustomizationService>({
 			onDidChangeCustomizations: Event.None,
-			getClientWorkingDirectoryUris: () => started ? [started.workspaceless ? scratch : selected] : [],
-			isWorkspaceless: () => started?.workspaceless === true,
+			getClientWorkingDirectoryUris: () => [],
 		}));
 		instantiationService.stub(ISCMService, upcastPartial<ISCMService>({ getRepository: () => undefined }));
 		const widget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: session }), onDidChangeViewModel: Event.None });
@@ -201,9 +197,8 @@ suite('AgentHostFolderPickerActionItem', () => {
 		}));
 		// Last, as in the chat input
 		toolbar.setActions([...neighbors, folderAction]);
-		const select = (folder: URI | 'none') => {
-			noWorkspace = folder === 'none';
-			selected = folder === 'none' ? selected : folder;
+		const select = (folder: URI) => {
+			selected = folder;
 			onDidChangeFolder.fire(session);
 			// The min width the toolbar applied for the name before, as the chip measures the new one
 			let slot = chip?.element;
@@ -225,7 +220,7 @@ suite('AgentHostFolderPickerActionItem', () => {
 				return super.measureChrome();
 			}
 		}
-		const { select, longName, shortName } = createRow(1000, undefined, CountingItem);
+		const { select, longName, shortName } = createRow(1000, CountingItem);
 		const first = select(shortName);
 		const initial = measurements;
 		// Renders again, as its session's state changes, and is laid out again, with the same name
@@ -252,7 +247,7 @@ suite('AgentHostFolderPickerActionItem', () => {
 		}
 		const visible = createRow(1000).select(URI.file('/work/fix'));
 		root.style.display = 'none';
-		const { select, longName, shortName } = createRow(1000, undefined, CountingItem);
+		const { select, longName, shortName } = createRow(1000, CountingItem);
 		select(longName);
 		// Its name changes while hidden
 		const hidden = select(shortName);
@@ -271,7 +266,7 @@ suite('AgentHostFolderPickerActionItem', () => {
 				return super.measureChrome();
 			}
 		}
-		const { select, shortName, themeService } = createRow(1000, undefined, CountingItem);
+		const { select, shortName, themeService } = createRow(1000, CountingItem);
 		const before = select(shortName);
 		const measured = measurements;
 		// The new theme's glyph is wider
@@ -293,7 +288,7 @@ suite('AgentHostFolderPickerActionItem', () => {
 				return super.measureChrome();
 			}
 		}
-		const { select, shortName } = createRow(1000, undefined, CountingItem);
+		const { select, shortName } = createRow(1000, CountingItem);
 		const before = select(shortName);
 		const measured = measurements;
 		// The icon font loaded and its glyph is wider than the fallback's
@@ -309,23 +304,21 @@ suite('AgentHostFolderPickerActionItem', () => {
 		assert.deepStrictEqual({ remeasured: remeasured > measured, wider: after.minWidth - before.minWidth, thenUnchanged: measurements === remeasured }, { remeasured: true, wider: 10, thenUnchanged: true });
 	});
 
-	test('last in a narrow row, it needs the width of the name it shows now: a shorter name, or No Workspace, brings it back from the overflow', () => {
+	test('last in a narrow row, it needs the width of the name it shows now: a shorter name brings it back from the overflow', () => {
 		// Room for its neighbors and a chip with a short name, not a long one
 		const { select, longName, shortName } = createRow(160);
 		const short = select(shortName);
 		const long = select(longName);
 		// Changed while in the overflow
 		const shortAgain = select(shortName);
-		const none = select('none');
 
 		assert.deepStrictEqual({
 			short: short.overflowed,
 			long: long.overflowed,
 			shortAgain: shortAgain.overflowed,
-			none: none.overflowed,
 			shorterNeedsLess: shortAgain.minWidth < long.minWidth,
 			sameAsBefore: shortAgain.minWidth === short.minWidth,
-		}, { short: false, long: true, shortAgain: false, none: false, shorterNeedsLess: true, sameAsBefore: true });
+		}, { short: false, long: true, shortAgain: false, shorterNeedsLess: true, sameAsBefore: true });
 	});
 	test('in a wide row, its width follows its name also while it stays in the row: a shorter name needs what a fresh chip with it does', () => {
 		// Room for the chip with a long name too, which the toolbar then gives a width the shorter name does not need
@@ -333,16 +326,14 @@ suite('AgentHostFolderPickerActionItem', () => {
 		const fresh = select(shortName);
 		const long = select(longName);
 		const short = select(shortName);
-		const none = select('none');
 
 		assert.deepStrictEqual({
-			overflowed: [fresh.overflowed, long.overflowed, short.overflowed, none.overflowed],
+			overflowed: [fresh.overflowed, long.overflowed, short.overflowed],
 			longNeedsMore: long.minWidth > fresh.minWidth,
 			// Measured while still held at the long name's width
 			measuredWithinLongFloor: short.floor === long.minWidth,
 			shortAsFresh: short.minWidth === fresh.minWidth,
-			noWorkspaceLessThanLong: none.minWidth < long.minWidth,
-		}, { overflowed: [false, false, false, false], longNeedsMore: true, measuredWithinLongFloor: true, shortAsFresh: true, noWorkspaceLessThanLong: true });
+		}, { overflowed: [false, false, false], longNeedsMore: true, measuredWithinLongFloor: true, shortAsFresh: true });
 	});
 	test('at a narrow width it really is, a long name, fresh or after a short one, needs what it does in a wide row, without overlapping its neighbors', () => {
 		const wideRow = createRow(1000);
@@ -371,20 +362,6 @@ suite('AgentHostFolderPickerActionItem', () => {
 			laidOut: [true, true, true, true],
 		});
 	});
-	test('a started or restored session without a workspace shows No Workspace, not the scratch folder it works in, and one with a folder shows the folder', () => {
-		const shown = (workspaceless: boolean) => {
-			root.textContent = '';
-			const { chip } = createRow(1000, { workspaceless });
-			const element = chip()?.element;
-			const icon = element?.firstElementChild;
-			return { label: element?.textContent, ariaLabel: element?.ariaLabel, noWorkspaceIcon: !!icon?.classList.contains('codicon-comment') };
-		};
-
-		assert.deepStrictEqual({ workspaceless: shown(true), inFolder: shown(false) }, {
-			workspaceless: { label: 'No Workspace', ariaLabel: 'No workspace: start the session in a temporary directory', noWorkspaceIcon: true },
-			inFolder: { label: 'fix', ariaLabel: 'Folder: fix', noWorkspaceIcon: false },
-		});
-	});
 	test('a session started in a new worktree shows that worktree by name, path and branch, also once the host reports it late, and New Worktree until then', () => {
 		const primary = URI.file('/work/vscode');
 		const worktree = URI.file('/work/vscode.worktrees/copilot-hello');
@@ -409,7 +386,7 @@ suite('AgentHostFolderPickerActionItem', () => {
 			resolveLocation: async () => undefined,
 		}));
 		// The folder chosen for the session stays its folder, the one the new worktree is made of, also after it started
-		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({ onDidChangeFolder: Event.None, getFolder: () => primary, isNoWorkspace: () => false, getDefaultFolder: () => undefined }));
+		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({ onDidChangeFolder: Event.None, getFolder: () => primary, getDefaultFolder: () => undefined }));
 		// The session's configuration keeps its isolation in a new worktree after it started
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({
 			onDidChange: Event.None,
@@ -422,7 +399,6 @@ suite('AgentHostFolderPickerActionItem', () => {
 		instantiationService.stub(IAgentHostCustomizationService, upcastPartial<IAgentHostCustomizationService>({
 			onDidChangeCustomizations: onDidChangeCustomizations.event,
 			getClientWorkingDirectoryUris: () => workingDirectories,
-			isWorkspaceless: () => false,
 		}));
 		// Each checkout on its own branch
 		const branches = new Map([[primary.path, 'main'], [worktree.path, 'copilot/hello']]);
@@ -463,7 +439,6 @@ suite('AgentHostFolderPickerActionItem', () => {
 		instantiationService.set(IOpenerService, NullOpenerService);
 		// As the dropdown shows the picker's choices: each by its icon, with what it does below its name
 		const items: IActionListItem<unknown>[] = [
-			{ kind: ActionListItemKind.Action, label: 'No Workspace', detail: 'Start without a backing workspace', group: { title: '', icon: Codicon.comment }, item: {} },
 			{ kind: ActionListItemKind.Action, label: 'vscode', description: 'Current', detail: 'Works in the folder already on this computer', group: { title: '', icon: Codicon.folder }, item: {} },
 			{ kind: ActionListItemKind.Action, label: 'New Worktree', detail: 'Creates a separate copy for this session', group: { title: '', icon: Codicon.worktree }, item: {} },
 		];
@@ -478,6 +453,6 @@ suite('AgentHostFolderPickerActionItem', () => {
 			return { title: row.querySelector<HTMLElement>('.title')!.getBoundingClientRect().top - bounds.top, detail: detail.top - bounds.top, inside: detail.bottom <= bounds.bottom };
 		};
 
-		assert.deepStrictEqual(offsets(rows[1]), offsets(rows[0]));
+		assert.deepStrictEqual(offsets(rows[0]), offsets(rows[1]));
 	});
 });

@@ -74,7 +74,7 @@ export class OpenAgentHostFolderPickerAction extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 1.1,
-				// With worktree support, a window with a single local folder offers New Worktree, No Workspace, the folder and its
+				// With worktree support, a window with a single local folder offers New Worktree, the folder and its
 				// worktrees; only while that is more than the folder, and not where a New Worktree checkbox stands in for it
 				when: ContextKeyExpr.and(agentHostWorktreeChoicesWhen, ChatAgentHostFolderChipVisible),
 			}],

@@ -194,9 +194,6 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	private _selectedFolder(): URI | undefined {
 		const folders = this._workspaceContextService.getWorkspace().folders;
 		const sessionResource = this._sessionResource();
-		if (this._isNoWorkspace()) {
-			return undefined;
-		}
 		const stored = sessionResource ? this._newSessionFolderService.getFolder(sessionResource) : undefined;
 		// Stale workspace selections are cleared by the folder service; standalone selections remain valid.
 		if (stored) {
@@ -289,13 +286,10 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		return this._chrome && Math.ceil(this._chrome.width + Math.min(measureTextWidth(chip.label, this._chrome.font), FOLDER_CHIP_LABEL_MAX_WIDTH));
 	}
 
-	/** With worktree support, the chip by its icon and name: a folder, a worktree, New Worktree or No Workspace, also while compact. */
+	/** With worktree support, the chip by its icon and name: a folder, a worktree or New Worktree, also while compact. */
 	private _chip(selected: URI | undefined): { readonly icon: ThemeIcon; readonly label: string; readonly description: string } | undefined {
 		if (!this._worktree?.isActive()) {
 			return undefined;
-		}
-		if (this._isNoWorkspace()) {
-			return this._worktree.getNoWorkspaceChip();
 		}
 		return selected && this._worktree.getChip(selected, this._startedWorktree());
 	}
@@ -305,7 +299,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	 * new worktree, else the selected folder, which stays the one the new worktree was made of.
 	 */
 	private _displayedFolder(): URI | undefined {
-		const started = this._worktree.isActive() && !this._isNoWorkspace() && this._worktree.isNewWorktreeSelected() ? this._startedWorktree() : undefined;
+		const started = this._worktree.isActive() && this._worktree.isNewWorktreeSelected() ? this._startedWorktree() : undefined;
 		return started ?? this._selectedFolder();
 	}
 
@@ -323,19 +317,10 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	}
 
 	/**
-	 * Measures what the chip needs besides its name from what does not give way as the toolbar narrows it, its icon,
-	 * gaps, margins, paddings and borders, rather than from its width, which is less than it needs while narrowed.
+	 * What the chip needs besides its name, as it shows now; `undefined` while it is not in the DOM. Measured from what does
+	 * not give way as the toolbar narrows it, its icon, gaps, margins, paddings and borders, rather than from its width, which
+	 * is less than it needs while narrowed.
 	 */
-	/**
-	 * Whether the session has no workspace: as chosen for a new chat, or as the started or restored session is, which works in
-	 * a scratch folder the agent host created for it rather than in a folder to show.
-	 */
-	private _isNoWorkspace(): boolean {
-		const sessionResource = this._sessionResource();
-		return !!sessionResource && (this._newSessionFolderService.isNoWorkspace(sessionResource) || this._customizationService.isWorkspaceless?.(sessionResource) === true);
-	}
-
-	/** What the chip needs besides its name, as it shows now; `undefined` while it is not in the DOM. */
 	protected measureChrome(): { readonly width: number; readonly font: string } | undefined {
 		const element = this.element;
 		const container = this._container;
@@ -371,10 +356,6 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	 * Returns `undefined` when no folder is selected so no hover is shown.
 	 */
 	protected _buildHoverContent(): IManagedHoverTooltipMarkdownString | undefined {
-		if (this._worktree.isActive() && this._isNoWorkspace()) {
-			const { description } = this._worktree.getNoWorkspaceChip();
-			return { markdown: new MarkdownString().appendText(description), markdownNotSupportedFallback: description };
-		}
 		const selected = this._displayedFolder();
 		if (!selected) {
 			return undefined;

@@ -31,13 +31,7 @@ import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitled
 /** What the folder chip shows for a folder, and which one it is. */
 /** The icon of a worktree in the folder chip: New Worktree, the window's folder's worktrees, and the chip at one. */
 const WORKTREE_ICON = Codicon.worktree;
-/** As the Agents window shows a session without a workspace. */
-const NO_WORKSPACE_ICON = Codicon.comment;
 /** The setting that shows the Agents window's sessions, with their workspace-less chats, in the Chat view. */
-
-function getNoWorkspaceLabel(): string {
-	return localize('agentHost.folderPicker.noWorkspace', "No Workspace");
-}
 
 interface IFolderChoice {
 	readonly uri: URI;
@@ -188,11 +182,6 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 	/** Reads the folder's worktrees again, such as one that a session created since. */
 	refresh(): void {
 		this._locations.refresh();
-	}
-
-	/** The chip of a session without a working directory, such as a restored one: by its icon and name. */
-	getNoWorkspaceChip(): { readonly icon: ThemeIcon; readonly label: string; readonly description: string } {
-		return { icon: NO_WORKSPACE_ICON, label: getNoWorkspaceLabel(), description: localize('agentHost.folderPicker.noWorkspaceChipDescription', "No workspace: start the session in a temporary directory") };
 	}
 
 	/** Whether the session is to work in a new worktree of its folder. */

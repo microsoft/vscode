@@ -307,7 +307,7 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 	}
 
 	rememberSelection(resource: URI): void {
-		if (!isLocalAgentHostTarget(resource.scheme) || !isUntitledChatSession(resource) || this._folderService.isNoWorkspace(resource)) {
+		if (!isLocalAgentHostTarget(resource.scheme) || !isUntitledChatSession(resource)) {
 			return;
 		}
 		const choices = this._instantiationService.createInstance(AgentHostWorktreeFolderChoices, () => resource);
@@ -387,7 +387,7 @@ export class AgentHostWorktreeSendChoice extends Disposable implements IAgentHos
 		return isLocalAgentHostTarget(resource.scheme) && isUntitledChatSession(resource)
 			&& this._contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key) === true
 			&& !this._environmentService.isSessionsWindow && !this._environmentService.remoteAuthority
-			&& !this._folderService.isIsolationChosen(resource) && !this._folderService.isNoWorkspace(resource) && !this._folderService.isNewWorktree(resource);
+			&& !this._folderService.isIsolationChosen(resource) && !this._folderService.isNewWorktree(resource);
 	}
 
 	private _hasRecentChatInFolder(draft: URI): boolean {

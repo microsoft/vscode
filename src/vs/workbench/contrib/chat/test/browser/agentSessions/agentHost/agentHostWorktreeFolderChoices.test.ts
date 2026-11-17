@@ -48,7 +48,6 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		const onDidChangeProvisional = store.add(new Emitter<URI>());
 		/** Changing the session's folder resets its configuration until it applies a change, as the provisional service does. */
 		let configReset = false;
-		let noWorkspace = false;
 		/** The working directory of each configuration change, `none` without one. */
 		const configDirectories: string[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
@@ -69,9 +68,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		}));
 		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({
 			getFolder: () => undefined,
-			setFolder: (_resource: URI, folder: URI) => { changes.push(`folder ${folder.path}`); configReset = true; noWorkspace = false; },
-			isNoWorkspace: () => noWorkspace,
-			setNoWorkspace: () => { changes.push('no workspace'); configReset = true; noWorkspace = true; },
+			setFolder: (_resource: URI, folder: URI) => { changes.push(`folder ${folder.path}`); configReset = true; },
 			setIsolationChosen: () => { },
 		}));
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({

@@ -77,7 +77,7 @@ suite('Agent host Work in Parallel choice on send', () => {
 		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({ getLocation: () => undefined, canSetLocation: () => true }));
 		instantiationService.stub(IAgentHostWorktreeLocationsCache, upcastPartial<IAgentHostWorktreeLocationsCache>({ isActive: () => !!configuration.getValue<boolean>(ChatConfiguration.EditorWindowEnableWorktree), getLocations: () => [], refresh: () => { }, onWillRefresh: Event.None, onDidChange: Event.None }));
 		const chosen = new Set<string>();
-		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({ getFolder: () => undefined, isNoWorkspace: () => false, isNewWorktree: () => false, isIsolationChosen: (resource: URI) => chosen.has(resource.toString()), setIsolationChosen: (resource: URI) => { chosen.add(resource.toString()); } }));
+		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({ getFolder: () => undefined, isNewWorktree: () => false, isIsolationChosen: (resource: URI) => chosen.has(resource.toString()), setIsolationChosen: (resource: URI) => { chosen.add(resource.toString()); } }));
 		// The isolation of each new chat, as its configuration has it; a change to it can be held until `applied` completes, or
 		// fail: a new worktree before or after it changes the configuration; after which going back to the folder fails too, does
 		// nothing, or the configuration or its isolation is gone

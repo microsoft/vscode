@@ -160,10 +160,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			// resource, flickering the chip back to the first folder. Carrying a
 			// folder forward is not a new choice, so the window's default stays as
 			// it is (a folder chosen on the user's behalf must not become it).
-			const noWorkspace = this._newSessionFolderService.isNoWorkspace(request.untitledResource);
-			if (noWorkspace) {
-				this._newSessionFolderService.setNoWorkspace(item.resource);
-			} else if (workingDirectory) {
+			if (workingDirectory) {
 				this._newSessionFolderService.setFolder(item.resource, workingDirectory, { updateDefault: false });
 			}
 			// Carry any imported ("Continue in…") conversation snapshot from the
@@ -194,9 +191,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 					: this._newSessionFolderService.getFolder(request.untitledResource)
 					?? this._newSessionFolderService.getDefaultFolder()
 					?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
-				if (noWorkspace) {
-					this._newSessionFolderService.setNoWorkspace(nextResource);
-				} else if (currentDirectory) {
+				if (currentDirectory) {
 					this._newSessionFolderService.setFolder(nextResource, currentDirectory, { updateDefault: false });
 				}
 				this._newSessionFolderService.clear(previousResource);
