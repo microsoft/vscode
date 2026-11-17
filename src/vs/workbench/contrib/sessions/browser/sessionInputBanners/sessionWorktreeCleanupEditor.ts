@@ -186,7 +186,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 	}, 100));
 	private automaticCleanupInput: Checkbox | undefined;
 	private readonly inventoryRefreshScheduler = this._register(new RunOnceScheduler(() => {
-		if (this.input && !this.isSchedulingCleanup && this.cleanupBatch.size === 0) {
+		if (this.input && !this.isSchedulingCleanup) {
 			void this.load(false, true);
 		}
 	}, 500));

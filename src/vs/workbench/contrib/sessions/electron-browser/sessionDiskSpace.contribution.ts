@@ -56,7 +56,7 @@ export class SessionDiskSpaceContribution extends Disposable implements IWorkben
 			this.cleanupService.setAvailableDiskSpace(undefined);
 			return;
 		}
-		const paths = new Set(this.sessionsManagementService.getSessions().flatMap(session =>
+		const paths = new Set(this.sessionsManagementService.getSessions({ includeHidden: true }).flatMap(session =>
 			session.workspace.get()?.folders.flatMap(folder => {
 				const uri = folder.gitRepository?.workTreeUri;
 				return uri?.scheme === Schemas.file ? [uri.fsPath] : [];

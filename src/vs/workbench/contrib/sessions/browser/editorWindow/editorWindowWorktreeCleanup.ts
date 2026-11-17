@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IAgentsViewProvidersService } from '../agentsView/agentsViewProviders.js';
 import { SessionWorktreeCleanupEditorInput } from '../sessionInputBanners/sessionWorktreeCleanupEditorInput.js';
+import { ISessionWorktreeCleanupService } from '../sessionInputBanners/sessionWorktreeCleanupService.js';
 
 export class EditorWindowWorktreeCleanup extends Disposable {
 	static readonly ID = 'workbench.contrib.editorWindowWorktreeCleanup';
@@ -14,19 +16,20 @@ export class EditorWindowWorktreeCleanup extends Disposable {
 	private readonly providers = this._register(new MutableDisposable());
 
 	constructor(
-		@IEditorService private readonly editorService: IEditorService,
-		@IAgentsViewProvidersService private readonly providersService: IAgentsViewProvidersService,
+		@IEditorService editorService: IEditorService,
+		@IAgentsViewProvidersService providersService: IAgentsViewProvidersService,
+		@ISessionWorktreeCleanupService cleanupService: ISessionWorktreeCleanupService,
 	) {
 		super();
-		this._register(this.editorService.onDidEditorsChange(() => this.update()));
-		this.update();
-	}
-
-	private update(): void {
-		if (this.editorService.editors.some(editor => editor instanceof SessionWorktreeCleanupEditorInput)) {
-			this.providers.value ??= this.providersService.acquire();
-		} else {
-			this.providers.clear();
-		}
+		const cleanupOpen = observableFromEvent(this, editorService.onDidEditorsChange, () => editorService.editors.some(editor => editor instanceof SessionWorktreeCleanupEditorInput));
+		this._register(autorun(reader => {
+			const isOpen = cleanupOpen.read(reader);
+			const isScheduling = cleanupService.isSchedulingCleanup.read(reader);
+			if (isOpen || isScheduling) {
+				this.providers.value ??= providersService.acquire();
+			} else {
+				this.providers.clear();
+			}
+		}));
 	}
 }

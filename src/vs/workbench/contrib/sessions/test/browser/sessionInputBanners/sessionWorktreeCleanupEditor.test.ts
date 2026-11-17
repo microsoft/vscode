@@ -176,6 +176,30 @@ suite('SessionWorktreeCleanupEditor', () => {
 		});
 	});
 
+	test('refreshes newly discovered sessions while retaining completed cleanup results', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const changed = disposables.add(new Emitter<readonly ISessionChange[]>());
+		const removed = createUnlinkedWorktree('removed');
+		const discovered = createWorktree('discovered', '/repos/app');
+		let worktrees: ISessionWorktree[] = [removed];
+		const { editor, container } = createEditor({
+			getWorktrees: async () => worktrees,
+			cleanupWorktrees: async (candidates, onProgress) => scheduleCleanup(candidates, onProgress),
+			refreshPendingCleanup: async () => [{ ...removedWorktree(removed), isListedByHost: false }],
+		}, undefined, changed.event);
+		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+		await timeout(0);
+		selectAllWorktrees(container);
+		container.querySelector<HTMLElement>('.session-worktree-cleanup-action')!.click();
+		await timeout(2_100);
+		worktrees = [discovered];
+		changed.fire([{ session: discovered.session, kind: 'added' }]);
+		await timeout(600);
+		assert.deepStrictEqual({
+			titles: [...container.querySelectorAll('.session-worktree-cleanup-session-link')].map(link => link.textContent).sort(),
+			batch: container.querySelector('.session-worktree-cleanup-batch [role="status"]')?.textContent,
+		}, { titles: ['agents/removed', 'discovered'], batch: 'Cleanup: 1 worktree removed.' });
+	}));
+
 	test('hides protected, failed, unverified, and blocked rows even when the host advertises forced cleanup', async () => {
 		const unavailable: ISessionWorktree[] = [
 			...(['running', 'pinned', 'recent', 'untitled', 'error', 'unavailable'] as const).map(state => createWorktree(state, '/repos/app', state)),

@@ -26,6 +26,7 @@ suite('SessionDiskSpaceContribution', () => {
 
 	function create(options: {
 		paths?: readonly URI[];
+		hiddenPaths?: readonly URI[];
 		enabled?: boolean;
 		hidden?: boolean;
 		getFreeDiskSpace?: (path: string) => Promise<number>;
@@ -38,7 +39,7 @@ suite('SessionDiskSpaceContribution', () => {
 		const paths = options.paths ?? [URI.file('/worktree')];
 		const contribution = disposables.add(new SessionDiskSpaceContribution(
 			upcastPartial<ISessionsManagementService>({
-				getSessions: () => paths.map(path => upcastPartial<ISession>({
+				getSessions: query => [...paths, ...(query?.includeHidden ? options.hiddenPaths ?? [] : [])].map(path => upcastPartial<ISession>({
 					workspace: constObservable(upcastPartial<ISessionWorkspace>({
 						folders: [{
 							root: path,
@@ -76,6 +77,14 @@ suite('SessionDiskSpaceContribution', () => {
 			checks: [URI.file('/worktree').fsPath],
 			availableSpace: [ByteSize.GB],
 		});
+	}));
+
+	test('checks worktrees outside the session listing scope', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const path = URI.file('/hidden-worktree');
+		const { contribution, checks, availableSpace } = create({ paths: [], hiddenPaths: [path] });
+		await timeout(10_001);
+		contribution.dispose();
+		assert.deepStrictEqual({ checks, availableSpace }, { checks: [path.fsPath], availableSpace: [ByteSize.GB] });
 	}));
 
 	for (const available of [0, 5 * ByteSize.GB - 1, 5 * ByteSize.GB, 10 * ByteSize.GB]) {
