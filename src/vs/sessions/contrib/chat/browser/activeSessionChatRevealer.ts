@@ -6,6 +6,7 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { whenChatWidgetForSession } from '../../../../workbench/contrib/sessions/browser/chat/chatWidgetUtils.js';
 import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 
 /**
@@ -25,8 +26,8 @@ export class ActiveSessionChatRevealerContribution extends Disposable implements
 		this._register(chatWidgetService.registerWidgetRevealer({
 			revealWidget: async preserveFocus => {
 				const chat = focusedSessionHostService.getFocusedHost().chat.get();
-				// The full chat of the session rather than its row in the Inbox, when both show it.
-				const widget = chat && chatWidgetService.getWidgetBySessionResource(chat.resource, { preferInputRequests: true });
+				// The full chat of the session, once its view has loaded it, rather than its row in the Inbox, which shows it too.
+				const widget = chat && await whenChatWidgetForSession(chatWidgetService, chat.resource, { supportsInputRequests: true });
 				if (widget && !preserveFocus) {
 					widget.focusInput();
 				}

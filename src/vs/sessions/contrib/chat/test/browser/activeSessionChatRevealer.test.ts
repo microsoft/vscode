@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { IChatWidget, IChatWidgetService, IQuickChatService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, IQuickChatService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatViewHostService } from '../../../../../workbench/contrib/chat/browser/chatViewHost.js';
 import { ChatWidgetService } from '../../../../../workbench/contrib/chat/browser/widget/chatWidgetService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -27,16 +27,21 @@ import { ActiveSessionChatRevealerContribution } from '../../browser/activeSessi
 suite('ActiveSessionChatRevealer', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const activeResource = URI.parse('test:/active');
 
-	test('reveals the chat of the focused host before the last focused widget or the Chat view', async () => {
+	/**
+	 * The revealer on a chat widget service whose focused host shows the chat of `activeResource`, with a log of the widgets
+	 * whose input it focused and of how often it fell back to the Chat view.
+	 */
+	function createRevealer() {
 		const instantiationService = store.add(new TestInstantiationService());
-		let chatViewReveals = 0;
+		const log = { focused: [] as string[], chatViewReveals: 0 };
 		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ groups: [] }));
 		instantiationService.stub(IViewsService, {});
 		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({
 			revealIfShowing: async () => undefined,
 			reveal: async () => {
-				chatViewReveals++;
+				log.chatViewReveals++;
 				return undefined;
 			},
 		}));
@@ -48,29 +53,45 @@ suite('ActiveSessionChatRevealer', () => {
 		const chatWidgetService = store.add(instantiationService.createInstance(ChatWidgetService));
 		instantiationService.stub(IChatWidgetService, chatWidgetService);
 
-		const focused: string[] = [];
-		const createWidget = (name: string, sessionResource: URI, supportsInputRequests: boolean) => upcastPartial<IChatWidget>({
-			supportsInputRequests,
-			viewContext: {},
-			viewModel: upcastPartial<IChatViewModel>({ sessionResource }),
-			focusInput: () => { focused.push(name); },
-			onDidFocus: Event.None,
-			onDidShow: Event.None,
-			onDidHide: Event.None,
-			onDidChangeViewModel: Event.None,
-		});
-		const activeResource = URI.parse('test:/active');
-		// Registered first, so it is the last focused widget.
-		store.add(chatWidgetService.register(createWidget('other', URI.parse('test:/other'), true)));
-		store.add(chatWidgetService.register(createWidget('inbox', activeResource, false)));
-		const active = createWidget('active', activeResource, true);
-		store.add(chatWidgetService.register(active));
-
 		const shownChat = observableValue<IChat | undefined>('shownChat', upcastPartial<IChat>({ resource: activeResource }));
 		instantiationService.stub(IFocusedSessionHostService, upcastPartial<IFocusedSessionHostService>({
 			getFocusedHost: () => upcastPartial<ISessionHost>({ chat: shownChat }),
 		}));
-		const contribution = instantiationService.createInstance(ActiveSessionChatRevealerContribution);
+		const contribution = store.add(instantiationService.createInstance(ActiveSessionChatRevealerContribution));
+
+		/** Registers a widget that shows the chat of `sessionResource`, or none until it loads one. */
+		const registerWidget = (name: string, sessionResource: URI | undefined, supportsInputRequests: boolean) => {
+			const onDidChangeViewModel = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
+			let viewModel = sessionResource && upcastPartial<IChatViewModel>({ sessionResource });
+			const widget = upcastPartial<IChatWidget>({
+				supportsInputRequests,
+				viewContext: {},
+				get viewModel() { return viewModel; },
+				focusInput: () => { log.focused.push(name); },
+				onDidFocus: Event.None,
+				onDidShow: Event.None,
+				onDidHide: Event.None,
+				onDidChangeViewModel: onDidChangeViewModel.event,
+			});
+			store.add(chatWidgetService.register(widget));
+			return {
+				widget,
+				load: (resource: URI) => {
+					viewModel = upcastPartial<IChatViewModel>({ sessionResource: resource });
+					onDidChangeViewModel.fire({ previousSessionResource: undefined, currentSessionResource: resource });
+				},
+			};
+		};
+
+		return { chatWidgetService, shownChat, contribution, registerWidget, log };
+	}
+
+	test('reveals the chat of the focused host before the last focused widget or the Chat view', async () => {
+		const { chatWidgetService, shownChat, contribution, registerWidget, log } = createRevealer();
+		// Registered first, so it is the last focused widget.
+		registerWidget('other', URI.parse('test:/other'), true);
+		registerWidget('inbox', activeResource, false);
+		const active = registerWidget('active', activeResource, true).widget;
 
 		const revealed = await chatWidgetService.revealWidget();
 		const revealedPreservingFocus = await chatWidgetService.revealWidget(true);
@@ -85,8 +106,7 @@ suite('ActiveSessionChatRevealer', () => {
 			revealedPreservingFocus: revealedPreservingFocus === active,
 			withoutShownChat,
 			afterDispose,
-			focused,
-			chatViewReveals,
+			...log,
 		}, {
 			revealed: true,
 			revealedPreservingFocus: true,
@@ -96,4 +116,16 @@ suite('ActiveSessionChatRevealer', () => {
 			chatViewReveals: 2,
 		});
 	});
+
+	test('waits for the view of the focused host to load its chat rather than revealing its row in the Inbox', async () => {
+		const { chatWidgetService, registerWidget, log } = createRevealer();
+		registerWidget('inbox', activeResource, false);
+		const active = registerWidget('active', undefined, true);
+
+		const revealing = chatWidgetService.revealWidget();
+		active.load(activeResource);
+
+		assert.deepStrictEqual({ revealed: (await revealing) === active.widget, ...log }, { revealed: true, focused: ['active'], chatViewReveals: 0 });
+	});
 });
+
