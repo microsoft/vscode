@@ -2402,10 +2402,10 @@ suite('AgentHostSessionInputPills', () => {
 				actionLabels: [
 					'Copy Pull Request URL',
 					'Pin Live pull request 332982',
-					'Remove Artifact Chat: unify Agent Host status pills across chat surfaces from Session',
+					'Remove "Chat: unify Agent Host status pills across chat surfaces" Artifact',
 					'Copy Pull Request URL',
 					'Pin Live pull request 335387',
-					'Remove Artifact sessions: preserve recorded issue titles in pills from Session',
+					'Remove "sessions: preserve recorded issue titles in pills" Artifact',
 				],
 			},
 			issue: {
@@ -4158,7 +4158,7 @@ suite('AgentHostSessionInputPills', () => {
 			copied.push(await clipboardService.readText());
 		}
 		connection.removeSessionArtifactError = new Error('write failed');
-		await dropdownActions.find(action => action.label === 'Remove Reference Preview from Session')?.run();
+		await dropdownActions.find(action => action.label === 'Remove "Preview" Reference')?.run();
 
 		assert.deepStrictEqual({
 			pills: Array.from(persistentContent.querySelectorAll('.chat-pill-label')).map(label => label.textContent),
@@ -4174,16 +4174,16 @@ suite('AgentHostSessionInputPills', () => {
 			dropdownActionLabels: [
 				'Copy Commit URL',
 				'Pin Commit',
-				'Remove Reference Commit from Session',
+				'Remove "Commit" Reference',
 				'Copy Website URL',
 				'Pin Preview',
-				'Remove Reference Preview from Session',
+				'Remove "Preview" Reference',
 				'Copy Path',
 				'Pin README.md',
-				'Remove Reference README from Session',
+				'Remove "README" Reference',
 				'Copy URI',
 				'Pin Chat settings',
-				'Remove Reference Chat settings from Session',
+				'Remove "Chat settings" Reference',
 			],
 			dropdownFooterActionLabels: ['Copy Hash', 'Copy Relative Path'],
 			copied: [

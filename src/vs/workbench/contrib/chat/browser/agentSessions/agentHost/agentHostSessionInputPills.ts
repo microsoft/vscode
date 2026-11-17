@@ -1185,8 +1185,8 @@ export class AgentHostSessionInputPills extends Disposable {
 		return withChatPillHoverLabel(toAction({
 			id: `chat.agentHost.sessionPills.removeArtifact.${artifact.id}`,
 			label: artifact.isArtifact
-				? localize('agentHostSessionPills.removeArtifact', "Remove Artifact {0} from Session", artifact.label)
-				: localize('agentHostSessionPills.removeReference', "Remove Reference {0} from Session", artifact.label),
+				? localize('agentHostSessionPills.removeArtifact', "Remove \"{0}\" Artifact", artifact.label)
+				: localize('agentHostSessionPills.removeReference', "Remove \"{0}\" Reference", artifact.label),
 			class: ThemeIcon.asClassName(Codicon.close),
 			run: () => removeArtifact(artifact),
 		}), artifact.isArtifact ? chatPillRemoveArtifactHoverLabel : chatPillRemoveReferenceHoverLabel);
