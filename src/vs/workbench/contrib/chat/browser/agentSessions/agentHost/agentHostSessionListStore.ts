@@ -94,6 +94,10 @@ export class AgentHostSessionListStore extends Disposable {
 	 */
 	private readonly _pendingNewSessions = new Set<string>();
 	private _cacheValid = false;
+	/** Whether the store has the host's current sessions: listed, and kept since by its notifications. */
+	get isListed(): boolean {
+		return this._cacheValid;
+	}
 	private _refreshInFlight: Promise<void> | undefined;
 	/**
 	 * Incremented whenever the in-memory list is mutated outside of
