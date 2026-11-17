@@ -105,6 +105,41 @@ describe('ExperimentExposureTracker', () => {
 
 		expect(exposures).toHaveLength(1);
 	});
+
+	it('reports a flag again when it is reassigned after being unassigned', () => {
+		const { tracker, exposures } = createTracker({ [VSCODE_GATE]: true });
+
+		tracker.onRead('copilotchat.a', 'treatment');
+		tracker.onRead('copilotchat.a', undefined);
+		tracker.onRead('copilotchat.a', 'treatment');
+
+		expect(exposures).toHaveLength(2);
+	});
+
+	it('skips reads while the unit is unknown and reports the first read once it is known', () => {
+		let context: IExposureContext | undefined;
+		const exposures: IExperimentExposure[] = [];
+		const tracker = new ExperimentExposureTracker('vscode', () => true, () => context, exposure => exposures.push(exposure));
+
+		tracker.onRead('copilotchat.a', true);
+		context = CONTEXT;
+		tracker.onRead('copilotchat.a', true);
+
+		expect(exposures.map(e => e.trackingId)).toEqual([CONTEXT.trackingId]);
+	});
+
+	it('reports exposed flags again for a different account', () => {
+		let context: IExposureContext = CONTEXT;
+		const exposures: IExperimentExposure[] = [];
+		const tracker = new ExperimentExposureTracker('vscode', () => true, () => context, exposure => exposures.push(exposure));
+
+		tracker.onRead('copilotchat.a', true);
+		context = { ...CONTEXT, trackingId: 'tid-2' };
+		tracker.onRead('copilotchat.a', true);
+		tracker.onRead('copilotchat.a', true);
+
+		expect(exposures.map(e => e.trackingId)).toEqual(['tid-1', 'tid-2']);
+	});
 });
 
 describe('exposureMetadata', () => {
@@ -225,6 +260,20 @@ describe('BaseExperimentationService exposure', () => {
 		expect(service.getTreatmentVariable('copilotchat.legacy')).toBe(true);
 
 		expect(service.exposures).toHaveLength(0);
+		service.dispose();
+	});
+
+	it('does not expose peeked values until their exposure is recorded', () => {
+		const service = createService(new Map<string, TreatmentValue>([
+			[`/vscode/${VSCODE_GATE}`, true],
+			['/vscode/copilotchat.a', 'treatment'],
+		]));
+
+		const value = service.peekTreatmentVariable<string>('copilotchat.a');
+		expect(service.exposures).toHaveLength(0);
+
+		service.recordTreatmentExposure('copilotchat.a', value!);
+		expect(service.exposures.map(e => [e.flag, e.value])).toEqual([['copilotchat.a', 'treatment']]);
 		service.dispose();
 	});
 });

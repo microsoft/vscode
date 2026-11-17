@@ -104,6 +104,7 @@ describe('MicrosoftExperimentationService endpoint routing', () => {
 		const env = new class extends mock<IEnvService>() {
 			override devDeviceId = 'test-device';
 			override isPreRelease() { return false; }
+			override getVersion() { return '1.0.0'; }
 		}();
 		const log = new class extends mock<ILogService>() {
 			override trace(): void { }
@@ -470,45 +471,99 @@ describe('MicrosoftExperimentationService endpoint routing', () => {
 		]);
 	});
 
-	it('reports the data version of the assignment snapshot in use, not the latest poll', () => {
+
+	function exposingService(token: CopilotToken | undefined, state: ICopilotTokenStore['authenticationState']) {
 		treatments.set(`/vscode/${EXPOSURE_GATE_TREATMENTS.vscode}`, true);
-		treatments.set('/vscode/copilotchat.a', 'a');
-		treatments.set('/vscode/copilotchat.b', 'b');
-		treatments.set('/vscode/copilotchat.c', 'c');
-		treatments.set('/vscode/copilotchat.d', 'd');
 		const sendTelemetryEvent = vi.fn<(eventName: string, destination: TelemetryDestination, properties?: TelemetryEventProperties) => void>();
 		const telemetry = new class extends mock<ITelemetryService>() {
 			override sendTelemetryEvent = sendTelemetryEvent;
 			override setSharedProperty() { }
 			override postEvent() { }
 		}();
-		const token = new CopilotToken(createTestExtendedTokenInfo({ token: 'tid=user', endpoints: { exp: 'https://exp.individual.githubcopilot.com' } }));
-		const { service } = createService(token, 'signedIn', AuthProviderId.GitHub, new ExperimentationExtensionContext(), telemetry);
-		const tas = vi.mocked(getExperimentationServiceFromConfig).mock.calls.at(-1)![0].telemetry;
-		const validation = (dataVersion: string, assignmentContext: string) => tas.postEvent('assignments-validation', new Map([['DataVersion', dataVersion], ['AssignmentContext', assignmentContext]]));
-		const install = (assignmentContext: string) => tas.setSharedProperty('abexp.assignmentcontext', assignmentContext);
+		const created = createService(token, state, AuthProviderId.GitHub, new ExperimentationExtensionContext(), telemetry);
+		const config = () => vi.mocked(getExperimentationServiceFromConfig).mock.calls.at(-1)![0];
+		const read = (flag: string, value: string) => {
+			treatments.set(`/vscode/${flag}`, value);
+			created.service.getTreatmentVariable(flag);
+		};
+		const exposures = () => sendTelemetryEvent.mock.calls.map(([, , properties]) => [
+			(properties?.flag as TelemetryTrustedValue<string>).value,
+			(properties?.data_version as TelemetryTrustedValue<string>).value,
+		]);
+		const validation = (dataVersion: string, assignmentContext: string) => config().telemetry.postEvent('assignments-validation', new Map([['DataVersion', dataVersion], ['AssignmentContext', assignmentContext]]));
+		const install = (assignmentContext: string) => config().telemetry.setSharedProperty('abexp.assignmentcontext', assignmentContext);
+		const fail = () => config().telemetry.postEvent('call-assignments-error', new Map([['ErrorType', 'ServerError']]));
+		return { ...created, config, read, exposures, validation, install, fail };
+	}
+
+	const userToken = (tid: string) => new CopilotToken(createTestExtendedTokenInfo({ token: `tid=${tid}`, endpoints: { exp: 'https://exp.individual.githubcopilot.com' } }));
+
+	it('reports the data version of the assignment snapshot in use, not the latest poll', () => {
+		const { read, exposures, validation, install } = exposingService(userToken('user'), 'signedIn');
 
 		// Cached snapshot from a previous session, then the first fetch installs v1.
 		install('cached;');
-		service.getTreatmentVariable('copilotchat.a');
+		read('copilotchat.a', 'a');
 		validation('1', 'ctx1;');
 		install('legacy;ctx1;');
-		service.getTreatmentVariable('copilotchat.b');
+		read('copilotchat.b', 'b');
 		// A background poll fetches v2 but tas-client keeps serving the consumed v1 snapshot.
 		validation('2', 'ctx2;');
-		service.getTreatmentVariable('copilotchat.c');
+		read('copilotchat.c', 'c');
 		// A forced refresh installs v2.
 		install('legacy;ctx2;');
-		service.getTreatmentVariable('copilotchat.d');
+		read('copilotchat.d', 'd');
 
-		expect(sendTelemetryEvent.mock.calls.map(([, , properties]) => [
-			(properties?.flag as TelemetryTrustedValue<string>).value,
-			(properties?.data_version as TelemetryTrustedValue<string>).value,
-		])).toEqual([
+		expect(exposures()).toEqual([
 			['copilotchat.a', ''],
 			['copilotchat.b', '1'],
 			['copilotchat.c', '1'],
 			['copilotchat.d', '2'],
 		]);
+	});
+
+	it('does not attribute a fetched data version to a snapshot installed without its assignments', () => {
+		const { read, exposures, validation, install, fail } = exposingService(userToken('user'), 'signedIn');
+
+		// A poll fetches v2, then a forced refresh's assignments request fails and only legacy installs.
+		validation('2', 'ctx2;');
+		fail();
+		install('legacy;');
+		read('copilotchat.a', 'a');
+		// A legacy context that merely contains the fetched context isn't that fetch's snapshot.
+		validation('3', 'ctx3;');
+		install('legacy-ctx3;');
+		read('copilotchat.b', 'b');
+
+		expect(exposures()).toEqual([
+			['copilotchat.a', ''],
+			['copilotchat.b', ''],
+		]);
+	});
+
+	it('does not expose reads until sign-in settles', () => {
+		const { tokens, read, exposures } = exposingService(undefined, 'unknown');
+
+		read('copilotchat.a', 'a');
+		tokens.copilotToken = userToken('user');
+		tokens.authenticationState = 'signedIn';
+		read('copilotchat.a', 'a');
+
+		expect(exposures()).toEqual([['copilotchat.a', '']]);
+	});
+
+	it('does not load assignments cached for another account', () => {
+		const { tokens, config } = exposingService(userToken('a'), 'signedIn');
+		const cacheA = config().memento;
+		cacheA.update('features', { assignmentContext: 'a;' });
+		expect(cacheA.get('features')).toEqual({ assignmentContext: 'a;' });
+
+		tokens.copilotToken = userToken('b');
+		expect(config().memento).not.toBe(cacheA);
+		expect(config().memento.get('features')).toBeUndefined();
+
+		tokens.copilotToken = undefined;
+		tokens.authenticationState = 'signedOut';
+		expect(config().memento.get('features')).toBeUndefined();
 	});
 });
