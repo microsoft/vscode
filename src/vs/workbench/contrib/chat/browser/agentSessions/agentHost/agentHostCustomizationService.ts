@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
+import { equals } from '../../../../../../base/common/arrays.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
@@ -1295,7 +1296,19 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		const store = new DisposableStore();
 		const ref = store.add(target.connection.getSubscription(StateComponents.Session, target.backendSession, 'AgentHostCustomizationService'));
 		const sub = ref.object;
+		let previousState = sub.value instanceof Error ? sub.verifiedValue : sub.value;
 		store.add(Event.any(sub.onDidChange, sub.onDidError ?? Event.None)(() => {
+			const state = sub.value instanceof Error ? sub.verifiedValue : sub.value;
+			if (state === previousState || (state && previousState
+				&& state.customizations === previousState.customizations
+				&& state.workingDirectories === previousState.workingDirectories
+				&& state.activeClients === previousState.activeClients
+				&& state.defaultChat === previousState.defaultChat
+				&& equals(state.chats, previousState.chats, (a, b) => a.resource === b.resource)
+				&& state._meta === previousState._meta)) {
+				return;
+			}
+			previousState = state;
 			this._fireCustomizationsChanged();
 			this._fireCustomAgentsChanged();
 		}));
