@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
+import type { SessionEventPayload, SessionEventType } from '@microsoft/copilot-sdk';
 
 const phase = { fusionId: 'fusion-1', phaseId: 'phase-1', phaseKind: 'repair', role: 'solver', conversationScope: 'root', model: 'model-a' } as const;
 const usage = { requestCount: 1, inputTokens: 10, outputTokens: 4, cachedTokens: 0, totalNanoAiu: 100 };
