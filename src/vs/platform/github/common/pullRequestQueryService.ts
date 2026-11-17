@@ -3,10 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { ILogService } from '../../log/common/log.js';
+import { GitHubCredential } from './githubCredentialService.js';
+import { IGitHubCapabilities } from './githubHostCapabilitiesService.js';
 import {
 	PullRequestCheck,
-	PullRequestChecks,
 	PullRequestCheckSuite,
+	PullRequestChecks,
 	PullRequestComment,
 	PullRequestCore,
 	PullRequestFragment,
@@ -17,14 +21,11 @@ import {
 	PullRequestReviewThread,
 	PullRequestSubscriptionOptions,
 } from './githubPullRequestService.js';
-import { GitHubHostCapabilities, IGitHubEndpointProvider } from './githubTypes.js';
-import { GitHubCredential } from './githubCredentialService.js';
-import { IGitHubCapabilities } from './githubHostCapabilitiesService.js';
 import { arrayProperty, asObject, booleanProperty, idProperty, nextLink, normalizedEnumProperty, nullableStringProperty, numberProperty, objectAt, objectProperty, optionalObjectProperty, requiredId, requiredString, stringProperty } from './githubResponse.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
-import { ILogService } from '../../log/common/log.js';
+import { GitHubHostCapabilities, IGitHubEndpointProvider } from './githubTypes.js';
 import { PullRequestRequestPlanner } from './pullRequestRequestPlanner.js';
-import { annotateRequiredCheckDependencies, getRequiredPullRequestCheckNames, getUnfinishedRequiredPullRequestCheckNames, parseWorkflowJobs, WorkflowJob } from './pullRequestRequiredChecks.js';
+import { WorkflowJob, annotateRequiredCheckDependencies, getRequiredPullRequestCheckNames, getUnfinishedRequiredPullRequestCheckNames, parseWorkflowJobs } from './pullRequestRequiredChecks.js';
 import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
 
 /** How long an idle check suite of an app other than GitHub Actions is awaited before it is considered not to report. */
@@ -39,14 +40,14 @@ export type PullRequestFragmentResult =
 	| { readonly fragment: 'mergeability'; readonly value: PullRequestMergeability; readonly complete: boolean; readonly headSha: string };
 
 export interface IPullRequestQuery {
-	promote(signal: AbortSignal, priority: PullRequestSubscriptionOptions['priority']): void;
+	promote(cancellationToken: CancellationToken, priority: PullRequestSubscriptionOptions['priority']): void;
 	fetch(
 		fragment: PullRequestFragment,
 		ref: PullRequestRef,
 		core: PullRequestCore | undefined,
 		options: PullRequestSubscriptionOptions,
 		credential: GitHubCredential,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 	): Promise<PullRequestFragmentResult>;
 }
 
@@ -179,8 +180,8 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		private readonly _clock: Pick<IRequestScheduler, 'now'> = systemRequestScheduler,
 	) { }
 
-	promote(signal: AbortSignal, priority: PullRequestSubscriptionOptions['priority']): void {
-		this._transport.promote(signal, priority);
+	promote(cancellationToken: CancellationToken, priority: PullRequestSubscriptionOptions['priority']): void {
+		this._transport.promote(cancellationToken, priority);
 	}
 
 	async fetch(
@@ -189,26 +190,26 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		core: PullRequestCore | undefined,
 		options: PullRequestSubscriptionOptions,
 		credential: GitHubCredential,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 	): Promise<PullRequestFragmentResult> {
 		const capabilities = needsCapabilities(fragment)
-			? await this._capabilities.getCapabilities(credential, signal)
+			? await this._capabilities.getCapabilities(credential, cancellationToken)
 			: restCapabilities;
 		const plan = this._planner.plan(fragment, options.priority, capabilities);
 		switch (fragment) {
 			case 'core':
-				return { fragment, value: await this._fetchCore(ref, credential, signal, plan.priority), complete: true };
+				return { fragment, value: await this._fetchCore(ref, credential, cancellationToken, plan.priority), complete: true };
 			case 'topLevelComments':
 				return {
 					fragment,
-					value: (await this._fetchRestArray(ref, credential, `issues/${ref.number}/comments?per_page=100`, signal, plan.priority))
+					value: (await this._fetchRestArray(ref, credential, `issues/${ref.number}/comments?per_page=100`, cancellationToken, plan.priority))
 						.map(item => toComment(item, options.conversation?.includeBodies === true)),
 					complete: true,
 				};
 			case 'submittedReviews':
 				return {
 					fragment,
-					value: (await this._fetchRestArray(ref, credential, `pulls/${ref.number}/reviews?per_page=100`, signal, plan.priority))
+					value: (await this._fetchRestArray(ref, credential, `pulls/${ref.number}/reviews?per_page=100`, cancellationToken, plan.priority))
 						.map(item => toReview(item, options.conversation?.includeBodies === true)),
 					complete: true,
 				};
@@ -221,7 +222,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				}
 				return {
 					fragment,
-					value: await this._fetchReviewThreads(ref, core, credential, signal, plan.priority, options.conversation?.includeBodies === true),
+					value: await this._fetchReviewThreads(ref, core, credential, cancellationToken, plan.priority, options.conversation?.includeBodies === true),
 					complete: true,
 					headSha: core.headSha,
 				};
@@ -232,7 +233,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				if (plan.strategy === 'restChecksFallback') {
 					return {
 						fragment,
-						value: await this._fetchChecksFallback(ref, core, credential, signal, plan.priority),
+						value: await this._fetchChecksFallback(ref, core, credential, cancellationToken, plan.priority),
 						complete: false,
 						headSha: core.headSha,
 					};
@@ -243,7 +244,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 						ref,
 						core,
 						credential,
-						signal,
+						cancellationToken,
 						plan.priority,
 						capabilities.checkContextRequiredness,
 						options.checks?.required === true,
@@ -259,12 +260,12 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				if (plan.strategy === 'restMergeabilityFallback') {
 					return {
 						fragment,
-						value: await this._fetchMergeabilityFallback(ref, core, credential, signal, plan.priority),
+						value: await this._fetchMergeabilityFallback(ref, core, credential, cancellationToken, plan.priority),
 						complete: false,
 						headSha: core.headSha,
 					};
 				}
-				const mergeability = await this._fetchMergeability(ref, core, credential, signal, plan.priority, capabilities.mergeQueue);
+				const mergeability = await this._fetchMergeability(ref, core, credential, cancellationToken, plan.priority, capabilities.mergeQueue);
 				return {
 					fragment,
 					value: mergeability,
@@ -275,14 +276,14 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		}
 	}
 
-	private async _fetchCore(ref: PullRequestRef, credential: GitHubCredential, signal: AbortSignal, priority: import('./types.js').RequestPriority): Promise<PullRequestCore> {
+	private async _fetchCore(ref: PullRequestRef, credential: GitHubCredential, cancellationToken: CancellationToken, priority: import('./types.js').RequestPriority): Promise<PullRequestCore> {
 		const response = await this._transport.rest<unknown>(credential.account, credential.token, {
 			caller: 'github.pullRequestQuery',
 			method: 'GET',
 			url: this._restUrl(ref, `pulls/${ref.number}`),
 			etag: true,
 			priority,
-		}, signal);
+		}, cancellationToken);
 		return toCore(response.data, ref);
 	}
 
@@ -290,7 +291,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		ref: PullRequestRef,
 		credential: GitHubCredential,
 		route: string,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 		priority: import('./types.js').RequestPriority,
 	): Promise<readonly unknown[]> {
 		const result: unknown[] = [];
@@ -302,7 +303,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				url,
 				etag: true,
 				priority,
-			}, signal);
+			}, cancellationToken);
 			if (!Array.isArray(response.data)) {
 				throw new GitHubRequestError('GitHub paginated response was not an array', 'malformedResponse');
 			}
@@ -319,7 +320,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		ref: PullRequestRef,
 		core: PullRequestCore,
 		credential: GitHubCredential,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 		priority: import('./types.js').RequestPriority,
 		includeBodies: boolean,
 	): Promise<readonly PullRequestReviewThread[]> {
@@ -332,7 +333,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				this._endpoint.getGraphQlUri(),
 				reviewThreadsQuery,
 				{ owner: ref.owner, repo: ref.repo, number: ref.number, after },
-				signal,
+				cancellationToken,
 				priority,
 				{ caller: 'github.pullRequestQuery' },
 			);
@@ -343,7 +344,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 			}
 			const connection = objectProperty(pullRequest, 'reviewThreads');
 			for (const node of arrayProperty(connection, 'nodes')) {
-				const thread = await this._toReviewThread(node, credential, signal, priority, includeBodies);
+				const thread = await this._toReviewThread(node, credential, cancellationToken, priority, includeBodies);
 				result.push(thread);
 			}
 			const pageInfo = pageInfoFrom(connection);
@@ -358,7 +359,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 	private async _toReviewThread(
 		value: unknown,
 		credential: GitHubCredential,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 		priority: import('./types.js').RequestPriority,
 		includeBodies: boolean,
 	): Promise<PullRequestReviewThread> {
@@ -376,7 +377,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				this._endpoint.getGraphQlUri(),
 				reviewThreadCommentsQuery,
 				{ threadId: id, after: requiredCursor(after) },
-				signal,
+				cancellationToken,
 				priority,
 				{ caller: 'github.pullRequestQuery' },
 			);
@@ -412,17 +413,17 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		ref: PullRequestRef,
 		core: PullRequestCore,
 		credential: GitHubCredential,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 		priority: import('./types.js').RequestPriority,
 		includeRequiredness: boolean,
 		loadRequired: boolean,
 		includeOptional: boolean,
 	): Promise<PullRequestChecks> {
-		const rollup = await this._fetchCheckRollupWithWorkflowNames(ref, core, credential, signal, priority, includeRequiredness);
+		const rollup = await this._fetchCheckRollupWithWorkflowNames(ref, core, credential, cancellationToken, priority, includeRequiredness);
 		const expected = loadRequired
-			? await this._fetchExpectedCheckSuitesWhenPermitted(ref, core.headSha, credential, signal, priority)
+			? await this._fetchExpectedCheckSuitesWhenPermitted(ref, core.headSha, credential, cancellationToken, priority)
 			: { suites: [], complete: false };
-		const requiredContexts = loadRequired ? await this._fetchRequiredContexts(ref, core.baseRef, credential, signal, priority) : undefined;
+		const requiredContexts = loadRequired ? await this._fetchRequiredContexts(ref, core.baseRef, credential, cancellationToken, priority) : undefined;
 		let value: PullRequestChecks = {
 			headSha: rollup.headSha,
 			checks: rollup.checks,
@@ -433,7 +434,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		};
 		const unfinished = loadRequired ? getUnfinishedRequiredPullRequestCheckNames(value) : [];
 		if (unfinished.length > 0) {
-			const workflows = await this._fetchWorkflowJobs(ref, rollup.headSha, rollup.checks, credential, signal, priority);
+			const workflows = await this._fetchWorkflowJobs(ref, rollup.headSha, rollup.checks, credential, cancellationToken, priority);
 			value = { ...value, checks: annotateRequiredCheckDependencies(value.checks, unfinished, path => workflows.get(path)) };
 		}
 		// When nothing is required every check counts, so none is dropped as optional.
@@ -451,7 +452,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		ref: PullRequestRef,
 		baseRef: string,
 		credential: GitHubCredential,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 		priority: import('./types.js').RequestPriority,
 	): Promise<readonly string[] | undefined> {
 		// Branch names are case-sensitive, unlike the host, owner and repository.
@@ -467,16 +468,16 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				url: this._restUrl(ref, `branches/${encodeURIComponent(baseRef)}`),
 				etag: true,
 				priority,
-			}, signal);
+			}, cancellationToken);
 			const contexts = new Set(toBranchProtectionContexts(branch.data));
-			for (const context of await this._fetchRulesetContexts(ref, baseRef, credential, signal, priority)) {
+			for (const context of await this._fetchRulesetContexts(ref, baseRef, credential, cancellationToken, priority)) {
 				contexts.add(context);
 			}
 			const result = [...contexts].sort();
 			this._requiredContexts.set(key, { contexts: result, observedAt: this._clock.now() });
 			return result;
 		} catch (error) {
-			if (signal.aborted || !(error instanceof GitHubRequestError)) {
+			if (cancellationToken.isCancellationRequested || !(error instanceof GitHubRequestError)) {
 				throw error;
 			}
 			this._logService?.warn(`[PullRequestQueryService] Could not read the required checks of ${ref.owner}/${ref.repo}@${baseRef} (${error.kind}): ${error.message}`);
@@ -489,11 +490,11 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		ref: PullRequestRef,
 		baseRef: string,
 		credential: GitHubCredential,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 		priority: import('./types.js').RequestPriority,
 	): Promise<readonly string[]> {
 		try {
-			const rules = await this._fetchRestArray(ref, credential, `rules/branches/${encodeURIComponent(baseRef)}?per_page=100`, signal, priority);
+			const rules = await this._fetchRestArray(ref, credential, `rules/branches/${encodeURIComponent(baseRef)}?per_page=100`, cancellationToken, priority);
 			return rules.flatMap(toRulesetContexts);
 		} catch (error) {
 			if (error instanceof GitHubRequestError && error.kind === 'notFound') {
@@ -515,7 +516,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		headSha: string,
 		checks: readonly PullRequestCheck[],
 		credential: GitHubCredential,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 		priority: import('./types.js').RequestPriority,
 	): Promise<ReadonlyMap<string, ReadonlyMap<string, WorkflowJob> | undefined>> {
 		const keyOf = (path: string) => `${ref.host}/${ref.owner}/${ref.repo}`.toLowerCase() + `@${headSha}:${path}`;
@@ -539,7 +540,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				this._endpoint.getGraphQlUri(),
 				workflowFilesQuery(unread.length),
 				{ owner: ref.owner, repo: ref.repo, ...Object.fromEntries(unread.map((path, index) => [`file${index}`, `${headSha}:${path}`])) },
-				signal,
+				cancellationToken,
 				priority,
 				{ caller: 'github.pullRequestQuery' },
 			);
@@ -556,7 +557,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				result.set(path, jobs);
 			});
 		} catch (error) {
-			if (signal.aborted || !(error instanceof GitHubRequestError)) {
+			if (cancellationToken.isCancellationRequested || !(error instanceof GitHubRequestError)) {
 				throw error;
 			}
 			this._logService?.warn(`[PullRequestQueryService] Could not read the workflows of ${ref.owner}/${ref.repo}@${headSha}, so the checks that required checks wait for are unknown (${error.kind}): ${error.message}`);
@@ -572,21 +573,21 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		ref: PullRequestRef,
 		core: PullRequestCore,
 		credential: GitHubCredential,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 		priority: import('./types.js').RequestPriority,
 		includeRequiredness: boolean,
 	): Promise<{ readonly headSha: string; readonly checks: readonly PullRequestCheck[] }> {
 		const repositoryKey = `${ref.owner}/${ref.repo}`.toLowerCase();
 		const includeWorkflowNames = !this._workflowNamesUnavailable.has(repositoryKey);
 		try {
-			return await this._fetchCheckRollup(ref, core, credential, signal, priority, includeRequiredness, includeWorkflowNames);
+			return await this._fetchCheckRollup(ref, core, credential, cancellationToken, priority, includeRequiredness, includeWorkflowNames);
 		} catch (error) {
 			if (!includeWorkflowNames || !(error instanceof GitHubRequestError) || error.kind !== 'authorization') {
 				throw error;
 			}
 			this._workflowNamesUnavailable.add(repositoryKey);
 			this._logService?.warn(`[PullRequestQueryService] Retrying checks for ${ref.owner}/${ref.repo}#${ref.number} without workflow names because GitHub refused them: ${error.message}`);
-			return await this._fetchCheckRollup(ref, core, credential, signal, priority, includeRequiredness, false);
+			return await this._fetchCheckRollup(ref, core, credential, cancellationToken, priority, includeRequiredness, false);
 		}
 	}
 
@@ -595,11 +596,11 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		ref: PullRequestRef,
 		headSha: string,
 		credential: GitHubCredential,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 		priority: import('./types.js').RequestPriority,
 	): Promise<{ readonly suites: readonly PullRequestCheckSuite[]; readonly complete: boolean }> {
 		try {
-			return { suites: await this._fetchExpectedCheckSuites(ref, headSha, credential, signal, priority), complete: true };
+			return { suites: await this._fetchExpectedCheckSuites(ref, headSha, credential, cancellationToken, priority), complete: true };
 		} catch (error) {
 			if (!(error instanceof GitHubRequestError) || error.kind !== 'authorization') {
 				throw error;
@@ -613,7 +614,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		ref: PullRequestRef,
 		core: PullRequestCore,
 		credential: GitHubCredential,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 		priority: import('./types.js').RequestPriority,
 		includeRequiredness: boolean,
 		includeWorkflowNames: boolean,
@@ -627,7 +628,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				this._endpoint.getGraphQlUri(),
 				checksQuery(includeRequiredness, includeWorkflowNames),
 				{ owner: ref.owner, repo: ref.repo, number: ref.number, after },
-				signal,
+				cancellationToken,
 				priority,
 				{ caller: 'github.pullRequestQuery' },
 			);
@@ -659,7 +660,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		ref: PullRequestRef,
 		headSha: string,
 		credential: GitHubCredential,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 		priority: import('./types.js').RequestPriority,
 	): Promise<readonly PullRequestCheckSuite[]> {
 		const suites: PullRequestCheckSuite[] = [];
@@ -671,7 +672,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				this._endpoint.getGraphQlUri(),
 				expectedCheckSuitesQuery,
 				{ owner: ref.owner, repo: ref.repo, headSha, after },
-				signal,
+				cancellationToken,
 				priority,
 				{ caller: 'github.pullRequestQuery' },
 			);
@@ -700,7 +701,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		ref: PullRequestRef,
 		core: PullRequestCore,
 		credential: GitHubCredential,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 		priority: import('./types.js').RequestPriority,
 	): Promise<PullRequestChecks> {
 		const checks: PullRequestCheck[] = [];
@@ -712,7 +713,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 				url,
 				etag: true,
 				priority,
-			}, signal);
+			}, cancellationToken);
 			const body = asObject(response.data, 'GitHub check-runs response was malformed');
 			checks.push(...arrayProperty(body, 'check_runs').map(toRestCheckRun));
 			url = nextLink(response.link);
@@ -726,7 +727,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 			url: this._restUrl(ref, `commits/${encodeURIComponent(core.headSha)}/status?per_page=100`),
 			etag: true,
 			priority,
-		}, signal);
+		}, cancellationToken);
 		const statusBody = asObject(statuses.data, 'GitHub status response was malformed');
 		checks.push(...arrayProperty(statusBody, 'statuses').map(toRestStatus));
 		return {
@@ -742,7 +743,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		ref: PullRequestRef,
 		core: PullRequestCore,
 		credential: GitHubCredential,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 		priority: import('./types.js').RequestPriority,
 		mergeQueueSupported: boolean,
 	): Promise<PullRequestMergeability> {
@@ -754,7 +755,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 			mergeQueueSupported
 				? { owner: ref.owner, repo: ref.repo, number: ref.number, baseBranch: core.baseRef }
 				: { owner: ref.owner, repo: ref.repo, number: ref.number },
-			signal,
+			cancellationToken,
 			priority,
 			{ caller: 'github.pullRequestQuery' },
 		);
@@ -794,7 +795,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		ref: PullRequestRef,
 		core: PullRequestCore,
 		credential: GitHubCredential,
-		signal: AbortSignal,
+		cancellationToken: CancellationToken,
 		priority: import('./types.js').RequestPriority,
 	): Promise<PullRequestMergeability> {
 		const response = await this._transport.rest<unknown>(credential.account, credential.token, {
@@ -803,7 +804,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 			url: this._restUrl(ref, `pulls/${ref.number}`),
 			unconditional: true,
 			priority,
-		}, signal);
+		}, cancellationToken);
 		const body = asObject(response.data, 'GitHub mergeability fallback response was malformed');
 		const mergeable = booleanProperty(body, 'mergeable');
 		return {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { scopesMatch } from '../../../base/common/oauth.js';
 import type { TelemetryLevel } from '../../telemetry/common/telemetry.js';
@@ -93,7 +94,7 @@ export interface IGitHubEndpointProvider {
 /** Silent token access for one explicitly selected GitHub grant. */
 export interface IGitHubTokenProvider {
 	readonly onDidChangeToken?: Event<void>;
-	getToken(signal: AbortSignal): string | undefined | Promise<string | undefined>;
+	getToken(cancellationToken: CancellationToken): string | undefined | Promise<string | undefined>;
 	invalidateToken?(token: string): void;
 }
 
@@ -164,6 +165,6 @@ export interface IGitHubCredentialProvider {
 	readonly onDidChange: Event<GitHubCredentialChange>;
 	/** A new token for the same grant invalidates the generation, not its client leases. */
 	readonly onDidChangeToken?: Event<GitHubCredentialChange>;
-	getToken(context: GitHubAuthorizationContext, signal: AbortSignal): string | undefined | Promise<string | undefined>;
+	getToken(context: GitHubAuthorizationContext, cancellationToken: CancellationToken): string | undefined | Promise<string | undefined>;
 	invalidateToken?(context: GitHubAuthorizationContext, token: string): void;
 }

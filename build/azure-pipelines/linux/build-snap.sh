@@ -34,10 +34,27 @@ done
 # Make sure we get latest packages
 sudo apt-get update
 sudo apt-get upgrade -y
-sudo apt-get install -y curl apt-transport-https ca-certificates
+sudo apt-get install -y curl apt-transport-https ca-certificates gcc
 
 # Define variables
 SNAP_ROOT="$(pwd)/.build/linux/snap/$VSCODE_ARCH"
+
+# Build OpenSSL 3 shared libraries against core20 glibc from the prebuilt static
+# archives so the Copilot SDK runtime resolves libcrypto.so.3 / libssl.so.3 from
+# the snap rather than loading an incompatible host OpenSSL.
+OPENSSL_PREBUILT_DIR="$(pwd)/.build/linux/snap/openssl"
+if [ -f "$OPENSSL_PREBUILT_DIR/libcrypto.a" ] && [ -f "$OPENSSL_PREBUILT_DIR/libssl.a" ]; then
+  for prebuild_dir in "$SNAP_ROOT"/code-*/usr/share/*/resources/app/node_modules.asar.unpacked/@github/copilot-sdk-linux-*/prebuilds/linux-*; do
+    [ -d "$prebuild_dir" ] || continue
+    gcc -shared -Wl,-soname,libcrypto.so.3 \
+      -Wl,--whole-archive "$OPENSSL_PREBUILT_DIR/libcrypto.a" -Wl,--no-whole-archive \
+      -ldl -pthread -o "$prebuild_dir/libcrypto.so.3"
+    gcc -shared -Wl,-soname,libssl.so.3 \
+      -Wl,-rpath,'$ORIGIN' \
+      -Wl,--whole-archive "$OPENSSL_PREBUILT_DIR/libssl.a" -Wl,--no-whole-archive \
+      -L"$prebuild_dir" -l:libcrypto.so.3 -ldl -pthread -o "$prebuild_dir/libssl.so.3"
+  done
+fi
 
 # Create snap package
 BUILD_VERSION="$(date +%s)"

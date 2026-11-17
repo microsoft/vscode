@@ -3,41 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
-import assert from 'assert';
-import * as sinon from 'sinon';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
+import assert from 'assert';
+import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../log/common/log.js';
-import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
-import { AgentHostGitHubService, IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
-import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
-import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
-import { AgentHostPeerChatStore } from '../../node/agentHostPeerChatStore.js';
-import { AgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
-import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
-import { ActionType, NotificationType } from '../../common/state/sessionActions.js';
-import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ResponsePart, type SessionSummary, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
 import { IGitHubAccountClient } from '../../../github/common/account/account.js';
 import { ApiRequestOptions } from '../../../github/common/client/request.js';
 import { RepositoryRef } from '../../../github/common/client/types.js';
 import { IIssuesClient, Issue } from '../../../github/common/core/issues.js';
-import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
+import { ActionType, NotificationType } from '../../common/state/sessionActions.js';
+import { MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, buildChatUri, buildDefaultChatUri, type ResponsePart, type SessionSummary, type ToolCallCompletedState, type Turn } from '../../common/state/sessionState.js';
+import { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { AgentHostGitHubService, IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
+import { AgentHostPeerChatStore } from '../../node/agentHostPeerChatStore.js';
+import { AgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostUtilityModelUnavailableError, AgentHostUtilityModelUnavailableReason, type IAgentHostUtilityModelContext, type IAgentHostUtilityModelService } from '../../node/agentHostUtilityModelService.js';
-import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, SESSION_CUSTOM_TITLE_SOURCE_KEY, customChatTitleMetadataKey, customChatTitleSourceMetadataKey } from '../../node/shared/persistSessionMetadata.js';
 import { sessionServerToolDefinitions } from '../../node/shared/sessionServerTools.js';
-import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { createTestGitHubIssue } from './testGitHubService.js';
-import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
+import { TestSessionDatabase, createSessionDataService } from '../common/sessionTestHelpers.js';
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { createLiveChatOwnership, createTestChatOwnershipService, noOlderBuildCopyParticipant } from './chatOwnershipTestUtils.js';
+import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
+import { createTestGitHubIssue } from './testGitHubService.js';
 
 class TestCopilotApiService implements ICopilotApiService {
 	declare readonly _serviceBrand: undefined;
@@ -77,30 +79,43 @@ class TestCopilotApiService implements ICopilotApiService {
 function createUtilityModelService(copilotApiService: TestCopilotApiService, getGitHubCopilotToken: () => string | undefined): IAgentHostUtilityModelService {
 	return {
 		_serviceBrand: undefined,
-		chatCompletion: (_context, request, options) => {
+		chatCompletion: async (_context, request, options) => {
 			const token = getGitHubCopilotToken();
-			return token
-				? copilotApiService.utilityChatCompletion(token, request, options)
-				: Promise.reject(new AgentHostUtilityModelUnavailableError(AgentHostUtilityModelUnavailableReason.CopilotSignInRequired));
+			if (!token) {
+				throw new AgentHostUtilityModelUnavailableError(AgentHostUtilityModelUnavailableReason.CopilotSignInRequired);
+			}
+			const lifetime = new DisposableStore();
+			try {
+				const { cancellationToken, ...requestOptions } = options ?? {};
+				return await copilotApiService.utilityChatCompletion(token, request, {
+					...requestOptions,
+					signal: cancellationToken && CancellationToken.toAbortSignal(cancellationToken, lifetime),
+				});
+			} finally {
+				lifetime.dispose();
+			}
 		},
 	};
 }
 
 class TestGitHubQuery extends mock<IIssuesClient>() {
-	readonly calls: { owner: string; repo: string; number: number; options?: ApiRequestOptions; signal: AbortSignal }[] = [];
+	readonly calls: { owner: string; repo: string; number: number; options?: ApiRequestOptions; cancellationToken: CancellationToken }[] = [];
 	readonly responses = new Map<string, Pick<Issue, 'title' | 'body'> | Error>();
 	readonly pendingResponses = new Set<string>();
 
-	override async get({ owner, repo }: RepositoryRef, number: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<Issue> {
-		this.calls.push({ owner, repo, number, options, signal });
+	override async get({ owner, repo }: RepositoryRef, number: number, cancellationToken: CancellationToken, options?: ApiRequestOptions): Promise<Issue> {
+		this.calls.push({ owner, repo, number, options, cancellationToken });
 		const key = `${owner}/${repo}#${number}`;
 		if (this.pendingResponses.has(key)) {
 			return new Promise((_resolve, reject) => {
-				if (signal.aborted) {
-					reject(signal.reason);
+				if (cancellationToken.isCancellationRequested) {
+					reject(new CancellationError());
 					return;
 				}
-				signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+				const listener = cancellationToken.onCancellationRequested(() => {
+					listener.dispose();
+					reject(new CancellationError());
+				});
 			});
 		}
 		const response = this.responses.get(key);
@@ -212,8 +227,8 @@ suite('AgentHostSessionTitleController', () => {
 			getGitHubHost,
 			gitHubContextRequestTimeout,
 			gitHubService: new class extends mock<IAgentHostGitHubService>() {
-				override acquireRepositoryApiClient(signal: AbortSignal): IGitHubAccountClient {
-					signal.throwIfAborted();
+				override acquireRepositoryApiClient(cancellationToken: CancellationToken): IGitHubAccountClient {
+					CancellationToken.throwIfCanceled(cancellationToken);
 					return new class extends mock<IGitHubAccountClient>() {
 						override readonly issues = query;
 						override dispose(): void { clientDisposals++; }
@@ -1114,7 +1129,7 @@ suite('AgentHostSessionTitleController', () => {
 
 		const userMessage = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content;
 		assert.deepStrictEqual({
-			calls: query.calls.map(({ signal, ...call }) => call),
+			calls: query.calls.map(({ cancellationToken, ...call }) => call),
 			clientDisposals: clientDisposals(),
 			userMessage,
 		}, {
@@ -1211,7 +1226,7 @@ suite('AgentHostSessionTitleController', () => {
 	for (const cancelFirst of [false, true]) {
 		test(`concurrent title enrichment uses the engine queue${cancelFirst ? ' and preserves shared reads when one title is cancelled' : ''}`, async () => {
 			const maximumCallerConcurrency = 8;
-			const started = new DeferredPromise<AbortSignal>();
+			const started = new DeferredPromise<CancellationToken>();
 			const release = new DeferredPromise<void>();
 			const requests: string[] = [];
 			let activeRequests = 0;
@@ -1227,8 +1242,8 @@ suite('AgentHostSessionTitleController', () => {
 				override getSessionCredentialPrincipal() { return undefined; }
 			}();
 			const gitHubService = disposables.add(new class extends AgentHostGitHubService {
-				override acquireRepositoryApiClient(signal: AbortSignal): IGitHubAccountClient {
-					const client = super.acquireRepositoryApiClient(signal);
+				override acquireRepositoryApiClient(cancellationToken: CancellationToken): IGitHubAccountClient {
+					const client = super.acquireRepositoryApiClient(cancellationToken);
 					const read = sinon.stub(client.issues, 'get').callsFake(function (this: IIssuesClient, ...args) {
 						progressed.fire();
 						return read.wrappedMethod.apply(this, args);
@@ -1237,7 +1252,7 @@ suite('AgentHostSessionTitleController', () => {
 					return client;
 				}
 			}({
-				fetch: async (input, init) => {
+				fetch: async (input, init, fetchToken) => {
 					const path = new URL(String(input)).pathname;
 					requests.push(path);
 					activeRequests++;
@@ -1249,8 +1264,8 @@ suite('AgentHostSessionTitleController', () => {
 						}
 						const number = Number(path.split('/').pop());
 						if (number === 1) {
-							assert.ok(init?.signal);
-							await started.complete(init.signal);
+							assert.ok(fetchToken);
+							await started.complete(fetchToken);
 						}
 						await release.p;
 						return Response.json(createTestGitHubIssue(number, { title: `Issue ${number}`, body: `Body ${number}` }));
@@ -1293,7 +1308,7 @@ suite('AgentHostSessionTitleController', () => {
 					beforeRelease,
 					requests,
 					maximumActiveRequests,
-					wireAborted: wireSignal.aborted,
+					wireAborted: wireSignal.isCancellationRequested,
 					persistedTitles,
 					contexts: copilotApiService.utilityCalls.map(call => {
 						const message = call.request.messages.find(message => message.role === 'user')?.content ?? '';
@@ -1361,7 +1376,7 @@ suite('AgentHostSessionTitleController', () => {
 
 		const userMessage = copilotApiService.utilityCalls[0].request.messages.find(message => message.role === 'user')?.content;
 		assert.deepStrictEqual({
-			requestAborted: query.calls[0].signal.aborted,
+			requestAborted: query.calls[0].cancellationToken.isCancellationRequested,
 			userMessage,
 		}, {
 			requestAborted: true,
