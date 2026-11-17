@@ -157,15 +157,16 @@ suite('MainThreadWorkspace', () => {
 
 	test('pushes the locations of the workspace folders to the extension host', async () => {
 		const pushed: IWorkspaceFolderLocationsDto[][] = [];
-		disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({
+		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({
 			$initializeWorkspace: () => { },
 			$acceptWorkspaceFolderLocations: (data: IWorkspaceFolderLocationsDto[]) => { pushed.push(data); }
 		})));
-		await new Promise(resolve => setTimeout(resolve, 0));
+		mtw.$getWorkspaceFolderLocations();
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
 
 		assert.ok(pushed.length > 0);
 		for (const [data] of pushed) {
-			assert.strictEqual(data.locations.filter(l => l.isCurrent).length, 1);
+			assert.strictEqual(data.locations.filter(l => l.isPrimary).length, 1);
 			assert.strictEqual(data.locations[0].isPrimary, true);
 		}
 	});
@@ -177,7 +178,7 @@ suite('MainThreadWorkspace', () => {
 			return { uri, label: uri.path };
 		}
 
-		function setup2(context?: Partial<IWorkspaceContextService>) {
+		function setup2(context?: Partial<IWorkspaceContextService>, requested = true) {
 			const changes = disposables.add(new Emitter<IFolderLocationChangeEvent>());
 			const requests: DeferredPromise<IFolderLocation[]>[] = [];
 			instantiationService.stub(IWorkspaceFolderLocationService, {
@@ -208,10 +209,24 @@ suite('MainThreadWorkspace', () => {
 				$acceptWorkspaceData: () => { },
 				$acceptWorkspaceFolderLocations: (data: IWorkspaceFolderLocationsDto[]) => { pushed.push(data); }
 			})));
+			if (requested) {
+				mtw.$getWorkspaceFolderLocations();
+			}
 			return { changes, requests, pushed, mtw };
 		}
 
 		const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+
+		test('no locations are resolved until an extension host consumer asks', async () => {
+			const { changes, requests, mtw } = setup2(undefined, false);
+			await tick();
+			changes.fire({} as IFolderLocationChangeEvent);
+			await tick();
+			assert.strictEqual(requests.length, 0);
+
+			mtw.$getWorkspaceFolderLocations();
+			assert.strictEqual(requests.length, 1);
+		});
 
 		test('a stale resolve does not overwrite a newer one', async () => {
 			const { changes, requests, pushed } = setup2();

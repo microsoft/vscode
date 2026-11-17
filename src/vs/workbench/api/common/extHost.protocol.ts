@@ -123,7 +123,6 @@ export interface IWorkspaceFolderLocationDto {
 	label: string;
 	description?: string;
 	isPrimary: boolean;
-	isCurrent: boolean;
 }
 
 export interface IWorkspaceFolderLocationsDto {
@@ -2034,6 +2033,8 @@ export interface ResourceTrustRequestOptionsDto {
 }
 
 export interface MainThreadWorkspaceShape extends IDisposable {
+	/** Starts resolving, and keeping current, the locations of the workspace folders. */
+	$getWorkspaceFolderLocations(): void;
 	$startFileSearch(includeFolder: UriComponents | null, options: IFileQueryBuilderOptions, token: CancellationToken): Promise<UriComponents[] | null>;
 	$startTextSearch(query: search.IPatternInfo, folder: UriComponents | null, options: ITextQueryBuilderOptions, requestId: number, token: CancellationToken): Promise<ITextSearchComplete | null>;
 	$checkExists(folders: readonly UriComponents[], includes: string[], token: CancellationToken): Promise<boolean>;

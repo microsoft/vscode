@@ -40,6 +40,7 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 	private readonly _activeCancelTokens: { [id: number]: CancellationTokenSource } = Object.create(null);
 	private readonly _proxy: ExtHostWorkspaceShape;
 	private readonly _queryBuilder: QueryBuilder;
+	private _locationsRequested = false;
 	private readonly _locationResolves = new Map<string, CancellationTokenSource>();
 
 	constructor(
@@ -80,7 +81,6 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 				this._updateFolderLocations();
 			});
 		}
-		this._register(this._folderLocationService.onDidChangeLocation(() => this._updateFolderLocations()));
 		this._register(this._folderLocationService.onDidChangeProviders(() => this._updateFolderLocations()));
 		this._register(this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this));
 		this._register(this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this));
@@ -151,12 +151,19 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 		this._updateFolderLocations();
 	}
 
+	$getWorkspaceFolderLocations(): void {
+		if (!this._locationsRequested) {
+			this._locationsRequested = true;
+			this._updateFolderLocations();
+		}
+	}
+
 	/**
 	 * Resolves the locations of every workspace folder and pushes them to the extension host.
 	 * A newer resolve of a folder cancels the one in flight, and results of cancelled resolves are dropped.
 	 */
 	private _updateFolderLocations(): void {
-		if (this._store.isDisposed || !this._contextService.hasWorkspaceData()) {
+		if (!this._locationsRequested || this._store.isDisposed || !this._contextService.hasWorkspaceData()) {
 			return;
 		}
 		const workspace = this._contextService.getWorkspace();
@@ -169,7 +176,7 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 			const cts = new CancellationTokenSource();
 			this._locationResolves.get(key)?.dispose(true);
 			this._locationResolves.set(key, cts);
-			this._resolveFolderLocations(folder.uri, primary, singleFolder, cts.token).then(locations => {
+			this._resolveFolderLocations(primary, singleFolder, cts.token).then(locations => {
 				// the resolver may ignore the token, so check that this resolve is still the current one
 				if (!cts.token.isCancellationRequested && this._locationResolves.get(key) === cts) {
 					this._proxy.$acceptWorkspaceFolderLocations([{ folder: folder.uri, locations }]);
@@ -188,17 +195,14 @@ export class MainThreadWorkspace extends Disposable implements MainThreadWorkspa
 		}
 	}
 
-	private async _resolveFolderLocations(folderUri: URI, primary: URI, resolveAlternates: boolean, token: CancellationToken): Promise<IWorkspaceFolderLocationDto[]> {
+	private async _resolveFolderLocations(primary: URI, resolveAlternates: boolean, token: CancellationToken): Promise<IWorkspaceFolderLocationDto[]> {
 		const extUri = this._uriIdentityService.extUri;
 		const alternates = resolveAlternates ? await this._folderLocationService.getLocations(primary, token) : [];
-		const locations: IWorkspaceFolderLocationDto[] = [{ uri: primary, label: basename(primary), isPrimary: true, isCurrent: extUri.isEqual(primary, folderUri) }];
+		const locations: IWorkspaceFolderLocationDto[] = [{ uri: primary, label: basename(primary), isPrimary: true }];
 		for (const alternate of alternates) {
 			if (!extUri.isEqual(alternate.uri, primary)) {
-				locations.push({ uri: alternate.uri, label: alternate.label, description: alternate.description, isPrimary: false, isCurrent: extUri.isEqual(alternate.uri, folderUri) });
+				locations.push({ uri: alternate.uri, label: alternate.label, description: alternate.description, isPrimary: false });
 			}
-		}
-		if (!locations.some(location => location.isCurrent)) {
-			locations.push({ uri: folderUri, label: basename(folderUri), isPrimary: false, isCurrent: true });
 		}
 		return locations;
 	}

@@ -31,21 +31,24 @@ declare module 'vscode' {
 		 * Whether this is the primary location of the workspace folder.
 		 */
 		readonly isPrimary: boolean;
-
-		/**
-		 * Whether this is the location the workspace folder is currently shown at,
-		 * which is the location whose {@link WorkspaceFolderLocation.uri uri} is
-		 * the {@link WorkspaceFolder.uri uri} of the workspace folder.
-		 */
-		readonly isCurrent: boolean;
 	}
 
 	export interface WorkspaceFolder {
 
 		/**
 		 * All known locations of this workspace folder, the primary location first.
-		 * Never empty. Before the locations are resolved, it contains the primary
-		 * location and, if the folder is at an alternate location, that current location.
+		 * Never empty. This is only the set of known locations: it does not change when
+		 * the folder is switched to another location. A switch is reported as the folder
+		 * being removed and added again in {@link workspace.onDidChangeWorkspaceFolders}
+		 * and does not fire {@link workspace.onDidChangeWorkspaceFolderLocations}. The location the folder is currently
+		 * at is {@link WorkspaceFolder.uri}.
+		 *
+		 * Resolution is lazy: it starts when this property is first read or when
+		 * {@link workspace.onDidChangeWorkspaceFolderLocations} is subscribed to.
+		 * The first read returns a synchronous value holding only the primary
+		 * location. The full set arrives later through the event, so prefer
+		 * subscribing to the event. The property is not enumerable, so spreading
+		 * or serializing a folder does not trigger resolution.
 		 *
 		 * Alternate locations are currently only discovered for a folder that is the
 		 * only folder of a local workspace.
@@ -62,9 +65,8 @@ declare module 'vscode' {
 	export interface WorkspaceFolderLocationsChangeEvent {
 
 		/**
-		 * The workspace folders whose {@link WorkspaceFolder.locations locations} changed,
-		 * either because the set of locations changed or because another location became
-		 * the current one.
+		 * The workspace folders whose set of known {@link WorkspaceFolder.locations locations}
+		 * changed. Switching a folder to another location does not fire this event.
 		 */
 		readonly workspaceFolders: readonly WorkspaceFolder[];
 	}

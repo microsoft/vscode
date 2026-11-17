@@ -114,6 +114,10 @@ export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
 		return new Proxy(Object.create(null), handler);
 	}
 
+	public has<T>(identifier: ProxyIdentifier<T>): boolean {
+		return !!this._locals[identifier.sid];
+	}
+
 	public set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
 		this._locals[identifier.sid] = value;
 		return value;

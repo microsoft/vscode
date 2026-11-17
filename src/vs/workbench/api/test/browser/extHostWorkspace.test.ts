@@ -11,7 +11,7 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { MainThreadWorkspace } from '../../browser/mainThreadWorkspace.js';
-import { IMainContext, IWorkspaceData, MainContext, ITextSearchComplete, MainThreadTelemetryShape } from '../../common/extHost.protocol.js';
+import { IMainContext, IWorkspaceData, MainContext, ITextSearchComplete, MainThreadTelemetryShape, MainThreadWorkspaceShape } from '../../common/extHost.protocol.js';
 import { RelativePattern } from '../../common/extHostTypes.js';
 import { ExtHostWorkspace } from '../../common/extHostWorkspace.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -29,6 +29,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ExcludeSettingOptions } from '../../../services/search/common/searchExtTypes.js';
 
 function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData, logService: ILogService): ExtHostWorkspace {
+	if (mainContext instanceof TestRPCProtocol && !mainContext.has(MainContext.MainThreadWorkspace)) {
+		mainContext.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspaceShape>() {
+			override $getWorkspaceFolderLocations(): void { }
+		});
+	}
 	mainContext.set(MainContext.MainThreadTelemetry, new class extends mock<MainThreadTelemetryShape>() {
 		override $publicLog2(): void { }
 	});
@@ -273,33 +278,95 @@ suite('ExtHostWorkspace', function () {
 	test('Workspace folder locations default to the folder itself', function () {
 		const ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0, 'bar')] }, new NullLogService());
 
-		assert.deepStrictEqual(ws.getWorkspaceFolders()![0].locations.map(l => ({ uri: l.uri.toString(), label: l.label, isPrimary: l.isPrimary, isCurrent: l.isCurrent })), [
-			{ uri: 'foo:bar', label: 'bar', isPrimary: true, isCurrent: true }
+		assert.deepStrictEqual(ws.getWorkspaceFolders()![0].locations.map(l => ({ uri: l.uri.toString(), label: l.label, isPrimary: l.isPrimary })), [
+			{ uri: 'foo:bar', label: 'bar', isPrimary: true }
 		]);
 	});
 
-	test('Workspace folder locations before resolution name the primary when the folder is at an alternate location', function () {
+	suite('lazy location resolution', function () {
+
+		function create() {
+			const rpc = new TestRPCProtocol();
+			let requests = 0;
+			rpc.set(MainContext.MainThreadWorkspace, new class extends mock<MainThreadWorkspaceShape>() {
+				override $getWorkspaceFolderLocations(): void { requests++; }
+			});
+			const ws = createExtHostWorkspace(rpc, { id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar'), 0, 'bar')] }, new NullLogService());
+			return { ws, requests: () => requests };
+		}
+
+		test('nothing is requested until locations are read', function () {
+			const { ws, requests } = create();
+			ws.getWorkspaceFolders();
+			assert.strictEqual(requests(), 0);
+		});
+
+		test('the first read requests once', function () {
+			const { ws, requests } = create();
+			const folder = ws.getWorkspaceFolders()![0];
+			assert.ok(folder.locations);
+			assert.ok(folder.locations);
+			assert.strictEqual(requests(), 1);
+		});
+
+		test('subscribing to the event requests', function () {
+			const { ws, requests } = create();
+			ws.requestWorkspaceFolderLocations();
+			assert.strictEqual(requests(), 1);
+		});
+
+		test('enumerating or serializing a folder does not request', function () {
+			const { ws, requests } = create();
+			const folder = ws.getWorkspaceFolders()![0];
+			Object.keys(folder);
+			JSON.stringify(folder);
+			assert.ok({ ...folder });
+			assert.strictEqual(requests(), 0);
+		});
+	});
+
+	test('Workspace folder locations before resolution name only the primary when the folder is at an alternate location', function () {
 		const ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [{ ...aWorkspaceFolderData(URI.parse('foo:wt'), 0, 'wt'), primary: URI.parse('foo:main') }] }, new NullLogService());
 		const folder = ws.getWorkspaceFolders()![0];
-		const view = () => folder.locations.map(l => ({ uri: l.uri.toString(), isPrimary: l.isPrimary, isCurrent: l.isCurrent }));
+		const view = () => folder.locations.map(l => ({ uri: l.uri.toString(), isPrimary: l.isPrimary }));
 
 		const events: number[] = [];
 		store.add(ws.onDidChangeWorkspaceFolderLocations(() => events.push(1)));
 
-		assert.deepStrictEqual(view(), [
-			{ uri: 'foo:main', isPrimary: true, isCurrent: false },
-			{ uri: 'foo:wt', isPrimary: false, isCurrent: true }
-		]);
+		assert.deepStrictEqual(view(), [{ uri: 'foo:main', isPrimary: true }]);
 
 		ws.$acceptWorkspaceFolderLocations([{
 			folder: URI.parse('foo:wt'),
 			locations: [
-				{ uri: URI.parse('foo:main'), label: 'main', isPrimary: true, isCurrent: false },
-				{ uri: URI.parse('foo:wt'), label: 'wt', isPrimary: false, isCurrent: true },
-				{ uri: URI.parse('foo:other'), label: 'other', isPrimary: false, isCurrent: false }
+				{ uri: URI.parse('foo:main'), label: 'main', isPrimary: true },
+				{ uri: URI.parse('foo:wt'), label: 'wt', isPrimary: false }
 			]
 		}]);
-		assert.deepStrictEqual([view().length, events.length], [3, 1]);
+		assert.deepStrictEqual([view().length, events.length], [2, 1]);
+	});
+
+	test('A location switch is reported as removed and added and does not change the locations', function () {
+		const ws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', name: 'Test', folders: [{ ...aWorkspaceFolderData(URI.parse('foo:main'), 0, 'repo'), primary: URI.parse('foo:main') }] }, new NullLogService());
+		const locations = [
+			{ uri: URI.parse('foo:main'), label: 'main', isPrimary: true },
+			{ uri: URI.parse('foo:wt'), label: 'wt', isPrimary: false }
+		];
+		ws.$acceptWorkspaceFolderLocations([{ folder: URI.parse('foo:main'), locations }]);
+		const before = ws.getWorkspaceFolders()![0].locations.map(l => l.uri.toString());
+
+		const locationEvents: number[] = [];
+		const changes: { added: string[]; removed: string[] }[] = [];
+		store.add(ws.onDidChangeWorkspaceFolderLocations(() => locationEvents.push(1)));
+		store.add(ws.onDidChangeWorkspace(e => changes.push({ added: e.added.map(f => f.uri.toString()), removed: e.removed.map(f => f.uri.toString()) })));
+
+		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [{ ...aWorkspaceFolderData(URI.parse('foo:wt'), 0, 'repo'), primary: URI.parse('foo:main') }] });
+		ws.$acceptWorkspaceFolderLocations([{ folder: URI.parse('foo:wt'), locations }]);
+
+		assert.deepStrictEqual({ changes, locationEvents: locationEvents.length, after: ws.getWorkspaceFolders()![0].locations.map(l => l.uri.toString()) }, {
+			changes: [{ added: ['foo:wt'], removed: ['foo:main'] }],
+			locationEvents: 0,
+			after: before
+		});
 	});
 
 	test('Workspace folder locations are updated in place and fire an event once per change', function () {
@@ -312,21 +379,21 @@ suite('ExtHostWorkspace', function () {
 		const dto = [{
 			folder: URI.parse('foo:bar'),
 			locations: [
-				{ uri: URI.parse('foo:bar'), label: 'main', isPrimary: true, isCurrent: true },
-				{ uri: URI.parse('foo:wt'), label: 'wt', description: 'feature', isPrimary: false, isCurrent: false }
+				{ uri: URI.parse('foo:bar'), label: 'main', isPrimary: true },
+				{ uri: URI.parse('foo:wt'), label: 'wt', description: 'feature', isPrimary: false }
 			]
 		}];
 		ws.$acceptWorkspaceFolderLocations(dto);
 		ws.$acceptWorkspaceFolderLocations(dto);
 
 		assert.strictEqual(ws.getWorkspaceFolders()![0], folder);
-		assert.deepStrictEqual(folder.locations.map(l => ({ uri: l.uri.toString(), label: l.label, description: l.description, isPrimary: l.isPrimary, isCurrent: l.isCurrent })), [
-			{ uri: 'foo:bar', label: 'main', description: undefined, isPrimary: true, isCurrent: true },
-			{ uri: 'foo:wt', label: 'wt', description: 'feature', isPrimary: false, isCurrent: false }
+		assert.deepStrictEqual(folder.locations.map(l => ({ uri: l.uri.toString(), label: l.label, description: l.description, isPrimary: l.isPrimary })), [
+			{ uri: 'foo:bar', label: 'main', description: undefined, isPrimary: true },
+			{ uri: 'foo:wt', label: 'wt', description: 'feature', isPrimary: false }
 		]);
 		assert.deepStrictEqual(events, [['foo:bar']]);
 
-		ws.$acceptWorkspaceFolderLocations([{ folder: URI.parse('foo:bar'), locations: [dto[0].locations[0], { ...dto[0].locations[1], isCurrent: true }] }]);
+		ws.$acceptWorkspaceFolderLocations([{ folder: URI.parse('foo:bar'), locations: [dto[0].locations[0], { ...dto[0].locations[1], label: 'renamed' }] }]);
 		assert.deepStrictEqual(events, [['foo:bar'], ['foo:bar']]);
 	});
 
@@ -337,8 +404,8 @@ suite('ExtHostWorkspace', function () {
 		store.add(ws.onDidChangeWorkspaceFolderLocations(() => events.push(1)));
 
 		ws.$acceptWorkspaceFolderLocations([
-			{ folder: URI.parse('foo:unknown'), locations: [{ uri: URI.parse('foo:unknown'), label: 'x', isPrimary: true, isCurrent: true }] },
-			{ folder: URI.parse('foo:bar'), locations: [{ uri: URI.parse('foo:bar'), label: 'main', isPrimary: true, isCurrent: true }, { uri: URI.parse('foo:wt'), label: 'wt', isPrimary: false, isCurrent: false }] }
+			{ folder: URI.parse('foo:unknown'), locations: [{ uri: URI.parse('foo:unknown'), label: 'x', isPrimary: true }] },
+			{ folder: URI.parse('foo:bar'), locations: [{ uri: URI.parse('foo:bar'), label: 'main', isPrimary: true }, { uri: URI.parse('foo:wt'), label: 'wt', isPrimary: false }] }
 		]);
 		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:other'), 0), aWorkspaceFolderData(URI.parse('foo:bar'), 1, 'bar')] });
 

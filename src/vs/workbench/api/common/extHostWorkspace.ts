@@ -89,16 +89,32 @@ interface MutableWorkspaceFolder extends vscode.WorkspaceFolder {
 
 function defaultLocations(uri: URI, name: string, primary?: URI): readonly vscode.WorkspaceFolderLocation[] {
 	if (!primary || primary.toString() === uri.toString()) {
-		return [{ uri, label: name, isPrimary: true, isCurrent: true }];
+		return [{ uri, label: name, isPrimary: true }];
 	}
-	return [
-		{ uri: primary, label: basenameOrAuthority(primary), isPrimary: true, isCurrent: false },
-		{ uri, label: name, isPrimary: false, isCurrent: true }
-	];
+	return [{ uri: primary, label: basenameOrAuthority(primary), isPrimary: true }];
+}
+
+/**
+ * Creates a workspace folder whose `locations` is a non-enumerable accessor, so that
+ * enumerating or serializing a folder does not trigger the lazy resolution of its locations.
+ */
+function createWorkspaceFolder(uri: URI, name: string, index: number, primary: URI | undefined, requestLocations: () => void): MutableWorkspaceFolder {
+	let locations = defaultLocations(uri, name, primary);
+	const base: Omit<MutableWorkspaceFolder, 'locations'> = { uri, name, index };
+	const folder = Object.defineProperty(base, 'locations', {
+		enumerable: false,
+		configurable: true,
+		get: () => {
+			requestLocations();
+			return locations;
+		},
+		set: (value: readonly vscode.WorkspaceFolderLocation[]) => { locations = value; }
+	}) as MutableWorkspaceFolder;
+	return folder;
 }
 
 function equalLocations(a: readonly vscode.WorkspaceFolderLocation[], b: readonly vscode.WorkspaceFolderLocation[]): boolean {
-	return a.length === b.length && a.every((l, i) => l.uri.toString() === b[i].uri.toString() && l.label === b[i].label && l.description === b[i].description && l.isPrimary === b[i].isPrimary && l.isCurrent === b[i].isCurrent);
+	return a.length === b.length && a.every((l, i) => l.uri.toString() === b[i].uri.toString() && l.label === b[i].label && l.description === b[i].description && l.isPrimary === b[i].isPrimary);
 }
 
 interface QueryOptions<T> {
@@ -117,7 +133,7 @@ interface FindFilesCallIntent {
 
 class ExtHostWorkspaceImpl extends Workspace {
 
-	static toExtHostWorkspace(data: IWorkspaceData | null, previousConfirmedWorkspace: ExtHostWorkspaceImpl | undefined, previousUnconfirmedWorkspace: ExtHostWorkspaceImpl | undefined, extHostFileSystemInfo: IExtHostFileSystemInfo): { workspace: ExtHostWorkspaceImpl | null; added: vscode.WorkspaceFolder[]; removed: vscode.WorkspaceFolder[] } {
+	static toExtHostWorkspace(data: IWorkspaceData | null, previousConfirmedWorkspace: ExtHostWorkspaceImpl | undefined, previousUnconfirmedWorkspace: ExtHostWorkspaceImpl | undefined, extHostFileSystemInfo: IExtHostFileSystemInfo, requestLocations: () => void = () => { }): { workspace: ExtHostWorkspaceImpl | null; added: vscode.WorkspaceFolder[]; removed: vscode.WorkspaceFolder[] } {
 		if (!data) {
 			return { workspace: null, added: [], removed: [] };
 		}
@@ -140,13 +156,13 @@ class ExtHostWorkspaceImpl extends Workspace {
 
 					newWorkspaceFolders.push(existingFolder);
 				} else {
-					newWorkspaceFolders.push({ uri: folderUri, name: folderData.name, index, locations: defaultLocations(folderUri, folderData.name, folderData.primary ? URI.revive(folderData.primary) : undefined) });
+					newWorkspaceFolders.push(createWorkspaceFolder(folderUri, folderData.name, index, folderData.primary ? URI.revive(folderData.primary) : undefined, requestLocations));
 				}
 			});
 		} else {
 			newWorkspaceFolders.push(...folders.map(({ uri, name, index, primary }) => {
 				const folderUri = URI.revive(uri);
-				return { uri: folderUri, name, index, locations: defaultLocations(folderUri, name, primary ? URI.revive(primary) : undefined) };
+				return createWorkspaceFolder(folderUri, name, index, primary ? URI.revive(primary) : undefined, requestLocations);
 			}));
 		}
 
@@ -241,6 +257,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	private readonly _activeSearchCallbacks: ((match: IRawFileMatch2) => any)[] = [];
 
 	private _trusted: boolean = false;
+	private _locationsRequested = false;
 
 	private readonly _editSessionIdentityProviders = new Map<string, vscode.EditSessionIdentityProvider>();
 
@@ -265,6 +282,17 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		this._telemetryProxy = extHostRpc.getProxy(MainContext.MainThreadTelemetry);
 		const data = initData.workspace;
 		this._confirmedWorkspace = data ? new ExtHostWorkspaceImpl(data.id, data.name, [], !!data.transient, data.configuration ? URI.revive(data.configuration) : null, !!data.isUntitled, uri => ignorePathCasing(uri, extHostFileSystemInfo)) : undefined;
+	}
+
+	/**
+	 * Asks the main thread to resolve and keep current the locations of the workspace folders.
+	 * This only happens once, when an extension first shows interest in them.
+	 */
+	requestWorkspaceFolderLocations(): void {
+		if (!this._locationsRequested) {
+			this._locationsRequested = true;
+			this._proxy.$getWorkspaceFolderLocations();
+		}
 	}
 
 	/**
@@ -368,7 +396,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 		// Simulate the updateWorkspaceFolders method on our data to do more validation
 		const newWorkspaceFolders = currentWorkspaceFolders.slice(0);
-		newWorkspaceFolders.splice(index, deleteCount, ...validatedDistinctWorkspaceFoldersToAdd.map(f => { const name = f.name || basenameOrAuthority(f.uri); return { uri: f.uri, name, index: undefined! /* fixed later */, locations: defaultLocations(f.uri, name) }; }));
+		newWorkspaceFolders.splice(index, deleteCount, ...validatedDistinctWorkspaceFoldersToAdd.map(f => { const name = f.name || basenameOrAuthority(f.uri); return createWorkspaceFolder(f.uri, name, undefined! /* fixed later */, undefined, () => this.requestWorkspaceFolderLocations()); }));
 
 		for (let i = 0; i < newWorkspaceFolders.length; i++) {
 			const folder = newWorkspaceFolders[i];
@@ -491,13 +519,13 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				configuration: this._actualWorkspace.configuration,
 				folders,
 				isUntitled: this._actualWorkspace.isUntitled
-			}, this._actualWorkspace, undefined, this._extHostFileSystemInfo).workspace || undefined;
+			}, this._actualWorkspace, undefined, this._extHostFileSystemInfo, () => this.requestWorkspaceFolderLocations()).workspace || undefined;
 		}
 	}
 
 	$acceptWorkspaceData(data: IWorkspaceData | null): void {
 
-		const { workspace, added, removed } = ExtHostWorkspaceImpl.toExtHostWorkspace(data, this._confirmedWorkspace, this._unconfirmedWorkspace, this._extHostFileSystemInfo);
+		const { workspace, added, removed } = ExtHostWorkspaceImpl.toExtHostWorkspace(data, this._confirmedWorkspace, this._unconfirmedWorkspace, this._extHostFileSystemInfo, () => this.requestWorkspaceFolderLocations());
 
 		// Update our workspace object. We have a confirmed workspace, so we drop our
 		// unconfirmed workspace.
@@ -523,7 +551,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			if (!existing) {
 				continue;
 			}
-			const revived = locations.map(l => ({ uri: URI.revive(l.uri), label: l.label, description: l.description, isPrimary: l.isPrimary, isCurrent: l.isCurrent }));
+			const revived = locations.map(l => ({ uri: URI.revive(l.uri), label: l.label, description: l.description, isPrimary: l.isPrimary }));
 			if (!equalLocations(existing.locations, revived)) {
 				existing.locations = Object.freeze(revived);
 				changed.push(existing);
