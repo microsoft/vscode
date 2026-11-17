@@ -28,7 +28,7 @@ import { SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING } from '../../../../../w
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { formatUnavailableAutomationsMessage, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation } from './automationCataloguePresentation.js';
+import { formatUnavailableAutomationsMessage, getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, hasEmptyAutomationSection } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from './automationRunProgress.js';
 
 class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplementation {
@@ -43,8 +43,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 		const agentPluginService = accessor.get(IAgentPluginService);
 		const restoreFocus = createFocusRestorer(layoutService);
 		const templates = readAutomationTemplates(agentPluginService.plugins.get());
-		const hasSavedAutomations = automationService.automations.get().length > 0;
-		const builtInTemplatesVisible = templates.some(template => !template.source);
+		const builtInTemplatesVisible = hasEmptyAutomationSection(automationService.automations.get()) && templates.some(template => !template.source);
 		const pluginTemplatesVisible = templates.some(template => !!template.source);
 		const content = [
 			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains available automation cards followed by run history. Loading, unavailable, and error messages indicate that the catalogue may be incomplete."),
@@ -56,9 +55,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 			localize('automationsCustomView.help.expired', "Enabling an expired automation opens a confirmation. Choose Remove expiration and enable to clear its end date and enable scheduling together, or cancel to leave it unchanged."),
 			localize('automationsCustomView.help.cardLimits', "Enabled automation cards show the end date as part of the schedule text in the metadata row below the prompt. Disabled cards hide it but retain their saved end date."),
 			...(builtInTemplatesVisible ? [
-				hasSavedAutomations
-					? localize('automationsCustomView.help.builtInTemplatesCollapsed', "The Built-in Templates section is collapsed by default because saved automations exist. Press Enter or Space on its disclosure control to expand it.")
-					: localize('automationsCustomView.help.builtInTemplatesExpanded', "The Built-in Templates section is expanded by default while there are no saved automations. Tab to a template and press Enter or Space to open a New automation dialog with an editable name, prompt, and schedule."),
+				localize('automationsCustomView.help.builtInTemplatesEmptyState', "The Built-in Templates section is available in the creation empty state. When Your automations is empty and Shared automations are shown, it appears between those sections. It starts expanded. Tab to a template and press Enter or Space to open a New automation dialog with an editable name, prompt, and schedule."),
 			] : []),
 			...(pluginTemplatesVisible ? [
 				localize('automationsCustomView.help.pluginTemplates', "The Templates from Plugins section is available whenever enabled plugins provide templates. Press Enter or Space on its disclosure control to expand or collapse it. A blue marker indicates templates added since the section was last expanded. Plugin templates start disabled."),
@@ -174,10 +171,18 @@ function createFocusRestorer(layoutService: IWorkbenchLayoutService): () => void
 
 export function buildAutomationsAccessibleContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], catalogueState: AutomationCatalogueState, templates: readonly IAutomationTemplate[] = readAutomationTemplates([]), unavailableProviders: readonly IAutomationProviderDescriptor[] = [], historyState?: AutomationCatalogueState, chatModels: Iterable<IChatModel> = [], historyName?: (id: string) => string | undefined, retainedHistoryState?: (id: string) => AutomationHistoryState | undefined, canDeleteRetainedHistory?: (id: string) => boolean, startingAutomationIds: ReadonlySet<string> = new Set()): string {
 	const lines = [localize('automationsAccessibleView.title', "Automations")];
-	const builtInTemplates = templates.filter(template => !template.source);
+	const builtInTemplates = hasEmptyAutomationSection(automations) ? templates.filter(template => !template.source) : [];
 	const pluginTemplates = templates.filter(template => !!template.source);
+	const builtInTemplateLines = builtInTemplates.length > 0 ? [
+		localize('automationsAccessibleView.builtInTemplates', "Built-in Templates"),
+		...builtInTemplates.map(template => localize('automationsAccessibleView.template', "{0}, {1}. {2}", template.name, formatSchedule(template.schedule), template.description)),
+	] : [];
+	const templatesBeforeShared = builtInTemplates.length > 0 && automations.some(automation => automation.enabled && automation.ownership === 'repository');
 	if (automations.length > 0) {
 		for (const group of getAutomationOwnershipGroups(automations)) {
+			if (templatesBeforeShared && group.ownership === 'repository') {
+				lines.push('', ...builtInTemplateLines);
+			}
 			lines.push('', group.label);
 			if (group.description) {
 				lines.push(group.description);
@@ -229,14 +234,11 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 	} else {
 		lines.push(localize('automationsAccessibleView.empty', "No automations."));
 	}
-	if (builtInTemplates.length > 0 || pluginTemplates.length > 0) {
+	if (builtInTemplates.length > 0 && !templatesBeforeShared || pluginTemplates.length > 0) {
 		lines.push('');
 		lines.push(localize('automationsAccessibleView.templates', "Available templates"));
-		if (builtInTemplates.length > 0) {
-			lines.push(localize('automationsAccessibleView.builtInTemplates', "Built-in Templates"));
-			for (const template of builtInTemplates) {
-				lines.push(localize('automationsAccessibleView.template', "{0}, {1}. {2}", template.name, formatSchedule(template.schedule), template.description));
-			}
+		if (!templatesBeforeShared) {
+			lines.push(...builtInTemplateLines);
 		}
 		if (pluginTemplates.length > 0) {
 			lines.push(localize('automationsAccessibleView.pluginTemplates', "Templates from Plugins"));

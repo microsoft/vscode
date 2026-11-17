@@ -23,6 +23,11 @@ export function getAutomationOwnershipGroups(automations: readonly IAutomationDe
 	].filter(group => group.automations.length > 0 || group.ownership === 'user' && automations.some(automation => automation.ownership === 'repository'));
 }
 
+export function hasEmptyAutomationSection(automations: readonly IAutomationDescriptor[]): boolean {
+	return automations.length === 0 || getAutomationOwnershipGroups(automations.filter(automation => automation.enabled))
+		.some(group => group.automations.length === 0);
+}
+
 export interface IAutomationRemoteStatusPresentation {
 	readonly tunnelEntries: readonly IRemoteAgentHostEntry[];
 	readonly replacedTunnelProviderIds: ReadonlySet<string>;
