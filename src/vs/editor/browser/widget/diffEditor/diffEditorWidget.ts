@@ -569,6 +569,13 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	override getModel(): IDiffEditorModel | null { return this._diffModel.get()?.model ?? null; }
 
 	override setModel(model: IDiffEditorModel | null | IDiffEditorViewModel): void {
+		if (model) {
+			const diffModel = 'model' in model ? model.model : model;
+			if (diffModel.original.isDisposed() || diffModel.modified.isDisposed()) {
+				this.setDiffModel(null);
+				return;
+			}
+		}
 		const vm = !model ? null
 			: ('model' in model) ? RefCounted.create(model).createNewRef(this)
 				: RefCounted.create(this.createViewModel(model), this);
@@ -586,6 +593,15 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		if (this._diffModel.get() !== viewModel?.object) {
 			subtransaction(tx, tx => {
 				const vm = viewModel?.object;
+				if (vm && (vm.model.original.isDisposed() || vm.model.modified.isDisposed())) {
+					this._options.resetWidthBasedLayout(tx);
+					observableFromEvent.batchEventsGlobally(tx, () => {
+						this._editors.original.setModel(null);
+						this._editors.modified.setModel(null);
+					});
+					this._diffModelSrc.set(undefined, tx);
+					return;
+				}
 				if (
 					currentModel?.model.original !== vm?.model.original
 					|| currentModel?.model.modified !== vm?.model.modified
